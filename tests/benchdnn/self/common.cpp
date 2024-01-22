@@ -189,7 +189,7 @@ static int check_attr() {
                 fm, fm_def, "--attr-fpmath=strict:true");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(fm[0].mode, dnnl_fpmath_mode_strict);
-        SELF_CHECK_EQ(fm[0].force, true);
+        SELF_CHECK_EQ(fm[0].apply_to_int, true);
     }
 
     {
@@ -197,7 +197,7 @@ static int check_attr() {
         auto st = parse_attr_fpmath_mode(fm, fm_def, "--attr-fpmath=bf16");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(fm[0].mode, dnnl_fpmath_mode_bf16);
-        SELF_CHECK_EQ(fm[0].force, false);
+        SELF_CHECK_EQ(fm[0].apply_to_int, false);
     }
 
     {
@@ -208,7 +208,7 @@ static int check_attr() {
         auto st = parse_attr_fpmath_mode(fm, fm_def, "--attr-fpmath=");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(fm[0].mode, dnnl_fpmath_mode_bf16);
-        SELF_CHECK_EQ(fm[0].force, true);
+        SELF_CHECK_EQ(fm[0].apply_to_int, true);
     }
 
 #undef SELF_CHECK_ATTR_ZP

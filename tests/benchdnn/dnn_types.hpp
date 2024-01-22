@@ -337,16 +337,16 @@ struct attr_t {
     struct fpmath_mode_t {
         fpmath_mode_t() = default;
 
-        void set(dnnl_fpmath_mode_t mode, bool force = false) {
+        void set(dnnl_fpmath_mode_t mode, bool apply_to_int = false) {
             this->mode = mode;
-            this->force = force;
+            this->apply_to_int = apply_to_int;
         }
         bool is_def() const {
-            return mode == dnnl_fpmath_mode_strict && force == false;
+            return mode == dnnl_fpmath_mode_strict && apply_to_int == false;
         }
 
         dnnl_fpmath_mode_t mode = dnnl_fpmath_mode_strict;
-        bool force = false;
+        bool apply_to_int = false;
     };
 
     attr_t()

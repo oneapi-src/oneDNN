@@ -304,7 +304,7 @@ attr_t::fpmath_mode_t parse_attr_fpmath_mode_func(const std::string &s) {
 
     if (start_pos != std::string::npos) {
         subs = get_substr(s, start_pos, '\0');
-        v.force = str2bool(subs.c_str());
+        v.apply_to_int = str2bool(subs.c_str());
 
         if (start_pos != std::string::npos) {
             BENCHDNN_PRINT(0, "%s \'%s\'\n",
@@ -488,9 +488,10 @@ bool parse_attr_fpmath_mode(std::vector<attr_t::fpmath_mode_t> &fpmath_mode,
         const std::vector<attr_t::fpmath_mode_t> &def_fpmath_mode,
         const char *str, const std::string &option_name /* = "attr-fpmath"*/) {
     static const std::string help
-            = "MODE[:FORCE]    (Default: `strict[:false]`)\n    Specifies "
+            = "MODE[:APPLY_TO_INT]    (Default: `strict[:false]`)\n    "
+              "Specifies "
               "fpmath_mode attribute. `MODE` values can be `strict` or "
-              "`bf16`. `FORCE` values can be `true` or `false`.\n";
+              "`bf16`. `APPLY_TO_INT` values can be `true` or `false`.\n";
     return parse_vector_option(fpmath_mode, def_fpmath_mode,
             parser_utils::parse_attr_fpmath_mode_func, str, option_name, help);
 }

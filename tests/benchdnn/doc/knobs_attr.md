@@ -3,7 +3,7 @@
 ## Usage
 ```
     --attr-scratchpad=MODE
-    --attr-fpmath=MATHMODE
+    --attr-fpmath=MATHMODE[:APPLY_TO_INT]
     --attr-acc-mode=ACCMODE
     --attr-deterministic=BOOL
     --attr-scales=ARG:POLICY[:SCALE][+...]
@@ -24,9 +24,12 @@ for details.
 ## --attr-fpmath
 `--attr-fpmath` specifies the fpmath mode to be used for benchmarking.
 `MATHMODE` values can be any of `strict` (the default), `bf16`, `f16`, `tf32`,
-or `any`. Refer to
-[fpmath primitve attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
+or `any`.
+`APPLY_TO_INT` values can be either `true` (the default) or `false`.
+Refer to
+[fpmath primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_fpmath_mode.html)
 for details.
+
 
 ## --attr-acc-mode
 `--attr-acc-mode` specifies the accumulation mode to be used for benchmarking.

@@ -660,7 +660,7 @@ std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm) {
 
 std::ostream &operator<<(std::ostream &s, const attr_t::fpmath_mode_t &fm) {
     s << fpmath_mode2str(fm.mode);
-    if (fm.force) s << ":" << bool2str(fm.force);
+    if (fm.apply_to_int) s << ":" << bool2str(fm.apply_to_int);
     return s;
 }
 
@@ -1024,7 +1024,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
             dnnl_attr, attr.scratchpad_mode));
 
     DNN_SAFE_V(dnnl_primitive_attr_set_fpmath_mode_v2(
-            dnnl_attr, attr.fpmath_mode.mode, attr.fpmath_mode.force));
+            dnnl_attr, attr.fpmath_mode.mode, attr.fpmath_mode.apply_to_int));
 
     DNN_SAFE_V(dnnl_primitive_attr_set_accumulation_mode(
             dnnl_attr, attr.acc_mode));
