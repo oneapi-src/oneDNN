@@ -69,7 +69,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     DEFINE_ZERO_POINTS_BUFFER(wei_zero_points, DNNL_ARG_WEIGHTS);
     const bool with_wei_decompression
             = utils::one_of(weights_d.data_type(), data_type::s8, data_type::u8)
-            && pd()->attr()->fpmath_.force_;
+            && pd()->attr()->fpmath_.apply_to_int_;
     const auto &attr_zps = pd()->attr()->zero_points_;
     const bool with_wei_zero_points
             = !attr_zps.has_default_values(DNNL_ARG_WEIGHTS);

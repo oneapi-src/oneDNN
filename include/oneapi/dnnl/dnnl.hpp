@@ -3867,24 +3867,24 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     /// Returns the fpmath mode
     ///
     /// @param mode Specified fpmath mode.
-    /// @param force Boolean to force floating point math for integer primitives.
-    void get_fpmath_mode(fpmath_mode &mode, bool &force) const {
+    /// @param apply_to_int Use floating-point arithmetic for integer primitives.
+    void get_fpmath_mode(fpmath_mode &mode, bool &apply_to_int) const {
         dnnl_fpmath_mode_t c_mode;
-        int c_force;
+        int c_apply_to_int;
         error::wrap_c_api(dnnl_primitive_attr_get_fpmath_mode_v2(
-                                  get(), &c_mode, &c_force),
+                                  get(), &c_mode, &c_apply_to_int),
                 "could not get fpmath mode primitive attribute");
         mode = fpmath_mode(c_mode);
-        force = static_cast<bool>(c_force);
+        apply_to_int = static_cast<bool>(c_apply_to_int);
     }
 
     /// Sets fpmath mode.
     ///
     /// @param mode Specified fpmath mode.
-    /// @param force Boolean to force floating point math for integer primitives.
-    void set_fpmath_mode(fpmath_mode mode, bool force = false) {
-        error::wrap_c_api(dnnl_primitive_attr_set_fpmath_mode_v2(
-                                  get(), dnnl::convert_to_c(mode), force),
+    /// @param apply_to_int Boolean. Use of floating-point arithmetic for integer primitives.
+    void set_fpmath_mode(fpmath_mode mode, bool apply_to_int = false) {
+        error::wrap_c_api(dnnl_primitive_attr_set_fpmath_mode_v2(get(),
+                                  dnnl::convert_to_c(mode), apply_to_int),
                 "could not set fpmath mode primitive attribute");
     }
 

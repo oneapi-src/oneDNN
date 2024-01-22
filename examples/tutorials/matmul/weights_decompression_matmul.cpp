@@ -98,7 +98,7 @@ matmul::primitive_desc matmul_pd_create(
     primitive_attr attr;
     attr.set_scales_mask(DNNL_ARG_WEIGHTS, /* mask */ 1 << 1);
     attr.set_zero_points_mask(DNNL_ARG_WEIGHTS, /* mask */ 0);
-    // Set fpmath mode with `force=true` to apply fpmath mode behavior to
+    // Set fpmath mode with `apply_to_int=true` to apply fpmath mode behavior to
     // integral primitives (in this example, matmul).
     attr.set_fpmath_mode(fpmath_mode::bf16, true);
 

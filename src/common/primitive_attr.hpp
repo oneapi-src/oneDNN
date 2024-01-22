@@ -368,15 +368,16 @@ struct primitive_attr_item_t {
 };
 
 struct fpmath_t : public c_compatible {
-    fpmath_t(dnnl_fpmath_mode_t mode = fpmath_mode::strict, bool force = false)
-        : mode_(mode), force_(force) {}
+    fpmath_t(dnnl_fpmath_mode_t mode = fpmath_mode::strict,
+            bool apply_to_int = false)
+        : mode_(mode), apply_to_int_(apply_to_int) {}
 
     bool operator==(const fpmath_t &rhs) const {
-        return mode_ == rhs.mode_ && force_ == rhs.force_;
+        return mode_ == rhs.mode_ && apply_to_int_ == rhs.apply_to_int_;
     }
 
     dnnl::impl::fpmath_mode_t mode_;
-    bool force_;
+    bool apply_to_int_;
 };
 
 } // namespace impl
@@ -714,7 +715,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     }
 
     dnnl::impl::status_t set_fpmath_mode(
-            dnnl::impl::fpmath_mode_t fpmath_mode, bool force = false);
+            dnnl::impl::fpmath_mode_t fpmath_mode, bool apply_to_int = false);
     dnnl::impl::status_t set_accumulation_mode(
             dnnl::impl::accumulation_mode_t am);
     dnnl::impl::status_t set_scratchpad_mode(
@@ -754,10 +755,10 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
 
         if (dnnl::impl::types::is_integral_dt(dt_from)) {
             // integer inputs can be converted only:
-            // - if force_fpmath_ is enabled, and
+            // - if apply_to_int_fpmath_ is enabled, and
             // - to an fp type compatible with fpmath mode
             // `dt_from` = `f32` to override `is_compat` check.
-            return fpmath_.force_
+            return fpmath_.apply_to_int_
                     && mayidownconvert(
                             fpmath_.mode_, dnnl::impl::data_type::f32, dt_to);
         } else {

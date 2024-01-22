@@ -137,7 +137,7 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
                     dnnl::impl::accumulation_mode::any)));
     CHECK_ARG(this->defined(defined_mask));
     bool fpmath_mode_ok = IMPLICATION(
-            (bool)(~mask & smask_t::fpmath_mode) && fpmath_.force_,
+            (bool)(~mask & smask_t::fpmath_mode) && fpmath_.apply_to_int_,
             fpmath_.mode_ == fpmath_mode::strict);
     CHECK_ARG(fpmath_mode_ok);
     return ok;
@@ -362,11 +362,11 @@ bool post_ops_t::check_sum_consistency(const data_type_t dst_dt,
 }
 
 status_t primitive_attr_t::set_fpmath_mode(
-        fpmath_mode_t fpmath_mode, bool force) {
+        fpmath_mode_t fpmath_mode, bool apply_to_int) {
     auto st = check_fpmath_mode(fpmath_mode);
     if (st == success) {
         fpmath_.mode_ = fpmath_mode;
-        fpmath_.force_ = force;
+        fpmath_.apply_to_int_ = apply_to_int;
     }
     return st;
 }
@@ -445,17 +445,17 @@ status_t dnnl_primitive_attr_set_fpmath_mode(
 }
 
 status_t dnnl_primitive_attr_get_fpmath_mode_v2(
-        const primitive_attr_t *attr, fpmath_mode_t *mode, int *force) {
+        const primitive_attr_t *attr, fpmath_mode_t *mode, int *apply_to_int) {
     if (!attr) return invalid_arguments;
     if (mode) *mode = attr->fpmath_.mode_;
-    if (force) *force = attr->fpmath_.force_;
+    if (apply_to_int) *apply_to_int = attr->fpmath_.apply_to_int_;
     return success;
 }
 
 status_t dnnl_primitive_attr_set_fpmath_mode_v2(
-        primitive_attr_t *attr, fpmath_mode_t mode, int force_fpmath) {
+        primitive_attr_t *attr, fpmath_mode_t mode, int apply_to_int_fpmath) {
     if (any_null(attr)) return invalid_arguments;
-    return attr->set_fpmath_mode(mode, force_fpmath);
+    return attr->set_fpmath_mode(mode, apply_to_int_fpmath);
 }
 
 status_t dnnl_primitive_attr_get_accumulation_mode(

@@ -171,7 +171,7 @@ void serialize_attr(
     sstream.write(&attr.scratchpad_mode_);
     // fpmath_mode
     sstream.write(&attr.fpmath_.mode_);
-    sstream.write(&attr.fpmath_.force_);
+    sstream.write(&attr.fpmath_.apply_to_int_);
     // acc_mode
     sstream.write(&attr.acc_mode_);
 
