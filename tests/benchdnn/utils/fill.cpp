@@ -27,7 +27,7 @@ fill_cfg_t::fill_cfg_t(dnnl_data_type_t dt, float range_min_val,
         float range_max_val, bool only_integer, attr_t::post_ops_t::kind_t alg,
         const std::string &name)
     : dt_(dt)
-    , range_min_val_(dt_ == dnnl_u8 ? 0.f : range_min_val)
+    , range_min_val_(dt_ == dnnl_u8 ? MAX2(0.f, range_min_val) : range_min_val)
     , range_max_val_(range_max_val)
     , only_integer_(is_integral_dt(dt_) ? true : only_integer)
     , name_(name) {
