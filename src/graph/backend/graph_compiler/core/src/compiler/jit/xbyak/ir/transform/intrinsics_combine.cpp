@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -89,15 +89,9 @@ public:
 
     std::unordered_map<stmt_c, std::vector<stmt_c> *> define_scope_map_;
 
-    stmt_c visit(define_c v) override {
-        define_scope_map_[v] = get_current_scope();
-        return ssa_visitor_t::visit(std::move(v));
-    }
-
-    expr_c visit(add_c v) override {
-        // combine (a * b) + c to fmadd(a, b, c)
-        // if (a * b) only used in fmadd and defined in same scope
-        auto combine_to_fmadd = [this](const expr &l, const expr &r) {
+    expr_c combine_to_fmadd(const expr &l, const expr &r, bool is_sub = false) {
+        if (l->dtype_.is_etype(sc_data_etype::F32)
+                || l->dtype_.is_etype(sc_data_etype::F16)) {
             stmt owner {l->ssa_data_->owner_.lock()};
             return owner.cast<define>()
                     .filter([this, l](const define &v) {
@@ -108,20 +102,38 @@ public:
                     })
                     .map([](const define &v) { return v->init_; })
                     .map([](const expr &v) { return v.as<mul>(); })
-                    .map([r](const mul &v) {
+                    .map([r, is_sub](const mul &v) {
+                        if (is_sub) {
+                            return builder::make_fnmadd(v->l_, v->r_, r);
+                        }
                         return builder::make_fmadd(v->l_, v->r_, r);
                     })
                     .get_or_else(expr());
-        };
-        if (v->dtype_.is_etype(sc_data_etype::F32)
-                || v->dtype_.is_etype(sc_data_etype::F16)) {
-            expr node;
-            node = combine_to_fmadd(v->l_, v->r_);
-            if (node.defined()) { return node; }
-            node = combine_to_fmadd(v->r_, v->l_);
-            if (node.defined()) { return node; }
         }
+        return expr_c();
+    }
+
+    stmt_c visit(define_c v) override {
+        define_scope_map_[v] = get_current_scope();
+        return ssa_visitor_t::visit(std::move(v));
+    }
+
+    expr_c visit(add_c v) override {
+        // combine (a * b) + c to fmadd(a, b, c)
+        // if (a * b) only used in fmadd and defined in same scope
+        auto ret = combine_to_fmadd(v->l_, v->r_);
+        if (ret.defined()) { return ret; }
+        ret = combine_to_fmadd(v->r_, v->l_);
+        if (ret.defined()) { return ret; }
         return v;
+    }
+
+    expr_c visit(sub_c v) override {
+        // combine c - (a * b) to fnmadd(a, b, c)
+        // if (a * b) only used in fnmadd and defined in same scope
+        // Sub node only appears like: c - (a * b)
+        auto ret = combine_to_fmadd(v->r_, v->l_, true);
+        return ret.defined() ? ret : v;
     }
 
     expr_c visit(intrin_call_c v) override {

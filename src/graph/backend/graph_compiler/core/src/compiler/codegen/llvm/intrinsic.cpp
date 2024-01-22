@@ -227,11 +227,15 @@ void codegen_llvm_vis_t::view(intrin_call_c v) {
                 current_val_ = inval1;
             }
         } break;
-        case intrin_type::fmadd: {
+        case intrin_type::fmadd:
+        case intrin_type::fnmadd: {
             assert(v->args_.size() == 3);
             auto inval1 = generate_expr(v->args_[0]);
             auto inval2 = generate_expr(v->args_[1]);
             auto inval3 = generate_expr(v->args_[2]);
+            if (v->type_ == intrin_type::fnmadd) {
+                inval1 = builder_.CreateFNeg(inval1);
+            }
             auto ret = builder_.CreateIntrinsic(Intrinsic::fma,
                     {get_type(v->dtype_)}, {inval1, inval2, inval3});
             ret->setFastMathFlags(builder_.getFastMathFlags());

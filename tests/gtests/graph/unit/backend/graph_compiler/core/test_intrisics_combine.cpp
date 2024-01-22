@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 #include <compiler/jit/xbyak/ir/transform/intrinsics_combine.hpp>
 #include <util/any_map.hpp>
 
-#include <iostream>
 #include "gtest/gtest.h"
 
 using namespace dnnl::impl::graph::gc;
@@ -57,6 +56,12 @@ TEST(GCCore_CPU_test_intrinsics_combine, TestFmaddCombine) {
         v6 = v5 + C[2]; // cannot combine
         D[2] = v6;
         D[3] = v5;
+
+        _var_(v7, f32);
+        v7 = A[3] * B[3];
+        _var_(v8, f32);
+        v8 = C[3] - v7; // can combine
+        D[4] = v8;
     }
     ssa_transform_t s;
     auto out = s(ccc);
@@ -102,6 +107,17 @@ TEST(GCCore_CPU_test_intrinsics_combine, TestFmaddCombine) {
         D[i11] = v5;
         _var_init_(i12, s32, 3);
         D[i12] = v4;
+
+        _var_init_(i13, s32, 3);
+        _var_init_(t9, f32, A[i13]);
+        _var_init_(i14, s32, 3);
+        _var_init_(t10, f32, B[i14]);
+        _var_init_(v6, f32, t9 * t10);
+        _var_init_(i15, s32, 3);
+        _var_init_(t11, f32, C[i15]);
+        _var_init_(v7, f32, builder::make_fnmadd(t9, t10, t11));
+        _var_init_(i16, s32, 4);
+        D[i16] = v7;
     }
 
     ir_comparer cmper {true};

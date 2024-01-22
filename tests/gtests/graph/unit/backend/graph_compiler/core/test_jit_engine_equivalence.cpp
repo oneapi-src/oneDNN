@@ -2904,6 +2904,25 @@ TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinLog) {
 #undef REF_LOG
 }
 
+TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinFnmadd) {
+    REQUIRE_AVX2();
+    const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);
+#define REF_FNMADD(IN, LANES, I) (-(IN[0][I] * IN[1][I]) + IN[2][I])
+    // data_type: float_32
+    TEST_OP(TRINARY, APPROX, float, float, datatypes::f32, datatypes::f32,
+            DATA_LEN_16, num_lanes, TEST_SCALAR, TEST_SIMD, REF_FNMADD,
+            MAKE_TRINARY_OP(make_fnmadd), DATASET_F1, DATASET_F2, DATASET_F3);
+    if (is_cpu_support_fp16()) {
+        // data_type: fp16
+        const int num_lanes_fp16 = get_lanes(sc_data_etype::F16, DATA_LEN_16);
+        TEST_OP(TRINARY, APPROX, fp16_t, fp16_t, datatypes::f16, datatypes::f16,
+                DATA_LEN_16, num_lanes_fp16, TEST_SCALAR, TEST_SIMD, REF_FNMADD,
+                MAKE_TRINARY_OP(make_fnmadd), DATASET_F1, DATASET_F2,
+                DATASET_F3);
+    }
+#undef REF_FNMADD
+}
+
 TEST(GCCore_CPU_test_jit_engine_equivalence, TestIntrinFmadd) {
     REQUIRE_AVX2();
     const int num_lanes = get_lanes(sc_data_etype::F32, DATA_LEN_16);

@@ -67,6 +67,7 @@ inline bool non_volatile_expr(const expr_base *s) {
                 case intrin_type::reduce_mul:
                 case intrin_type::reduce_max:
                 case intrin_type::reduce_min:
+                case intrin_type::fnmadd:
                 case intrin_type::fmadd:
                 case intrin_type::unpack_low:
                 case intrin_type::unpack_high:

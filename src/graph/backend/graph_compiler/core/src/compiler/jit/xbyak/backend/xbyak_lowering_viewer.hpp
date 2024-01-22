@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -250,6 +250,8 @@ private:
     void handle_avx_rsqrt(const operand &op_dst, const operand &op_src,
             const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_fmadd(const operand &op_dst, const operand &op_mul,
+            const operand &op_add, const x86_64::cpu_data_type &cpu_dtype);
+    void handle_avx_fnmadd(const operand &op_dst, const operand &op_mul,
             const operand &op_add, const x86_64::cpu_data_type &cpu_dtype);
     void handle_avx_pshuffle(const operand &op_dst, const operand &op_lhs,
             const operand &op_rhs, const x86_64::cpu_data_type &cpu_dtype);

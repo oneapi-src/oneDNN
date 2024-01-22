@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -176,6 +176,7 @@ expr_c bf16_fp16_promote_impl_t::visit(intrin_call_c v) {
         case intrin_type::reduce_max:
         case intrin_type::reduce_min:
         case intrin_type::fmadd:
+        case intrin_type::fnmadd:
         case intrin_type::exp:
         case intrin_type::log:
         case intrin_type::erf:

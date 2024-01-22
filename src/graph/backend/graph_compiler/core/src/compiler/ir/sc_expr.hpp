@@ -1347,6 +1347,7 @@ enum class intrin_type {
     reduce_max,
     reduce_min,
     fmadd,
+    fnmadd,
     unpack_low,
     unpack_high,
     shuffle,

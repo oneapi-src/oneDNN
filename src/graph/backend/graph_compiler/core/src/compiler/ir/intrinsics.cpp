@@ -214,6 +214,13 @@ struct fmadd_handler_t : public trinary_intrinsic_handler_t {
     fmadd_handler_t() : trinary_intrinsic_handler_t("fmadd") {}
 };
 
+struct fnmadd_handler_t : public trinary_intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    fnmadd_handler_t() : trinary_intrinsic_handler_t("fnmadd") {}
+};
+
 struct unpack_low_handler_t : public binary_intrinsic_handler_t {
     unpack_low_handler_t() : binary_intrinsic_handler_t("unpack_low") {}
 };
@@ -563,6 +570,7 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<reduce_max_handler_t>(),
         utils::make_unique<reduce_min_handler_t>(),
         utils::make_unique<fmadd_handler_t>(),
+        utils::make_unique<fnmadd_handler_t>(),
         utils::make_unique<unpack_low_handler_t>(),
         utils::make_unique<unpack_high_handler_t>(),
         utils::make_unique<shuffle_handler_t>(),

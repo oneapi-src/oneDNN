@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,6 +102,11 @@ INLINE vec_f16x8 sc_select(
 INLINE vec_f16x8 sc_fmadd(
         vec_f16x8 const &a, vec_f16x8 const &b, vec_f16x8 const &c) {
     return _mm_fmadd_ph(a.v, b.v, c.v);
+}
+
+INLINE vec_f16x8 sc_fnmadd(
+        vec_f16x8 const &a, vec_f16x8 const &b, vec_f16x8 const &c) {
+    return _mm_fnmadd_ph(a.v, b.v, c.v);
 }
 
 INLINE vec_f16x8 sc_max(vec_f16x8 const &a, vec_f16x8 const &b) {
