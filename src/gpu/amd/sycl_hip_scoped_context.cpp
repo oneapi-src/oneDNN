@@ -39,9 +39,7 @@ hip_sycl_scoped_context_handler_t::hip_sycl_scoped_context_handler_t(
         if (original_ != desired) {
 
             HIP_EXECUTE_FUNC(hipCtxSetCurrent, desired);
-
-            need_to_recover_
-                    = !(original_ == nullptr && engine.has_primary_context());
+            need_to_recover_ = original_ != nullptr;
         }
     } catch (const std::runtime_error &e) {
         error::wrap_c_api(status::runtime_error, e.what());
@@ -52,10 +50,8 @@ hip_sycl_scoped_context_handler_t::
         ~hip_sycl_scoped_context_handler_t() noexcept(false) {
 
     try {
-        if (need_to_recover_) {
-            HIP_EXECUTE_FUNC(hipDevicePrimaryCtxRelease, currentDevice_);
-            HIP_EXECUTE_FUNC(hipCtxSetCurrent, original_);
-        }
+        HIP_EXECUTE_FUNC(hipDevicePrimaryCtxRelease, currentDevice_);
+        if (need_to_recover_) { HIP_EXECUTE_FUNC(hipCtxSetCurrent, original_); }
     } catch (const std::runtime_error &e) {
         error::wrap_c_api(status::runtime_error, e.what());
     }

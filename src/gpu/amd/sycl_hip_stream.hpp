@@ -65,12 +65,18 @@ public:
     hipCtx_t get_underlying_context();
     hipDevice_t get_underlying_device();
 
+    ~sycl_hip_stream_t() {
+        if (currentDevice_ != hipDevice_t {})
+            hipDevicePrimaryCtxRelease(currentDevice_);
+    }
+
 private:
     status_t init();
     sycl_hip_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
         : base_t(engine, flags, queue) {}
     sycl_hip_stream_t(engine_t *engine, unsigned flags)
         : base_t(engine, flags) {}
+    hipDevice_t currentDevice_ {};
 };
 
 } // namespace amd

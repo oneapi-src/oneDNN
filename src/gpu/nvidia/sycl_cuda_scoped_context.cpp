@@ -51,10 +51,8 @@ cuda_sycl_scoped_context_handler_t::
     // we need to release the placed_context_ since we set it from
     // ctx.get() retains the underlying context so we need to remove it
     try {
-        if (need_to_recover_) {
-            CUDA_EXECUTE_FUNC(cuDevicePrimaryCtxRelease, currentDevice_);
-            CUDA_EXECUTE_FUNC(cuCtxSetCurrent, original_);
-        }
+        CUDA_EXECUTE_FUNC(cuDevicePrimaryCtxRelease, currentDevice_);
+        if (need_to_recover_) { CUDA_EXECUTE_FUNC(cuCtxSetCurrent, original_); }
     } catch (const std::runtime_error &e) {
         error::wrap_c_api(status::runtime_error, e.what());
     }
