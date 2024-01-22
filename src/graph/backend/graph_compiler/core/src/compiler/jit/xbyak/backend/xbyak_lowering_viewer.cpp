@@ -1587,8 +1587,9 @@ void xbyak_lowering_viewer::handle_avx_movss(
 void xbyak_lowering_viewer::handle_avx_movsh(
         const operand &op_dst, const operand &op_src) {
     if (op_dst == op_src) { return; }
-    if (cpu_flags_.fAVX512FP16) {
-        XBYAK_GEN(vmovw, AVX_XM_XM, op_dst, op_src);
+    if (cpu_flags_.fAVX512FP16 && (op_src.is_r_m() || op_dst.is_r_m())) {
+        // move to memery or reg
+        XBYAK_GEN(vmovw, AVX_XMR64_XMR64, op_dst, op_src);
     } else {
         handle_avx_movss(op_dst, op_src);
     }
@@ -2957,7 +2958,8 @@ void xbyak_lowering_viewer::handle_avx_cmov(const operand &op_dst,
         const operand &op_src, const xbyak_condition &code,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
-        case cpu_data_type::float_32: {
+        case cpu_data_type::float_32:
+        case cpu_data_type::float_16: {
             Xbyak::Label l_end_cmov;
             switch (code) {
                 case xbyak_condition::eq: {
