@@ -1672,7 +1672,9 @@ float matmul_amx_blocking_params_t::get_thread_balance_scores() {
 // returns score for current blocking parameters' values in range [0, 1]
 // for copied data reusage
 float matmul_amx_blocking_params_t::get_copied_data_reusage_scores() {
-    const dim_t effective_m_chunk_sz = 64 * 4;
+    // Values based on measured performance
+    const bool is_lda_4k = (current_lda_ * a_dt_sz) % 4096 == 0;
+    const dim_t effective_m_chunk_sz = 64 * (is_lda_4k ? 1 : 4);
     const dim_t desired_M_chunk_size = is_runtime_M
             ? effective_m_chunk_sz
             : nstl::min(M, effective_m_chunk_sz);
