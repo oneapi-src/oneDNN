@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -255,9 +255,9 @@ bool check_loop_binding_axis(const for_loop &loop_a, const for_loop &loop_b) {
 }
 
 int check_loop_binding_axis(const std::vector<for_loop> &loop_a,
-        const std::vector<for_loop> &loop_b, size_t check_loop_size) {
+        const std::vector<for_loop> &loop_b, int64_t check_loop_size) {
     size_t gcs = std::min(loop_a.size(), loop_b.size());
-    if (check_loop_size >= 0) { gcs = std::min(gcs, check_loop_size); }
+    if (check_loop_size >= 0) { gcs = std::min(gcs, (size_t)check_loop_size); }
     int aligned_loop_num = 0;
     for (size_t i = 0; i < gcs; i++) {
         if (check_loop_binding_axis(loop_a[i], loop_b[i])) {

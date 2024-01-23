@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -445,7 +445,7 @@ static void finalize_body_funcs(const dyn_parallel_analysis_result_t &result,
             = [&body_funcs, &result](const for_loop_c &v,
                       size_t idx_in_body_funcs, size_t &out_idx_in_body_funcs) {
                   uint64_t diff = 0;
-                  for (size_t i = idx_in_body_funcs; i >= 0; i--) {
+                  for (int64_t i = (int64_t)idx_in_body_funcs; i >= 0; i--) {
                       // skip dummy droped for loop bodies
                       if (!body_funcs[i]) { continue; }
                       auto &scope = result.pfor_chain_.at(i + 1);

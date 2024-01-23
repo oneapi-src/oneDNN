@@ -206,6 +206,7 @@ threadpool_scheduler::threadpool_scheduler(
     : stream_(stream), num_queues_ {num_threads} {
     threadlocals.current_sched = this;
     threadlocals.work_tid = 0;
+    num_broadcast_events_ = 0;
     static_assert(sizeof(queue) == 64, "expecting sizeof(queue) == 64");
     queues_ = (queue *)aligned_alloc(64, sizeof(queue) * num_threads);
     for (uint64_t i = 0; i < num_threads; i++) {

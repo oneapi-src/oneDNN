@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,7 +92,7 @@ bool check_loop_binding_axis(
 bool check_loop_binding_axis(const for_loop &loop_a, const for_loop &loop_b);
 // compare loop with binding axis and return aligned loop num
 int check_loop_binding_axis(const std::vector<for_loop> &loop_a,
-        const std::vector<for_loop> &loop_b, size_t check_loop_size = -1);
+        const std::vector<for_loop> &loop_b, int64_t check_loop_size = -1);
 
 // check whether the given loop has axis of graph tensor
 bool check_loop_has_axis(const for_loop &loop,

@@ -1405,8 +1405,9 @@ std::vector<sc_op_ptr> conv_fwd_core_op_t::get_s8s8_and_weight_compensation(
 
     if (weight_compensation) {
         if (is_dyn_quan) {
-            COMPILE_ASSERT(dyn_data_zero_points->details_.get_plain_dims()
-                            == sc_dims {1},
+            COMPILE_ASSERT(dyn_data_zero_points
+                            && dyn_data_zero_points->details_.get_plain_dims()
+                                    == sc_dims {1},
                     "conv_fwd_core does not support per channel data zero "
                     "points compensation yet");
             nodes[0] = mgr.make("mul",
