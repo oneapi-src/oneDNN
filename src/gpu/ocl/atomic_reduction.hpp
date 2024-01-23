@@ -69,10 +69,11 @@ struct atomic_reduction_key_params_t {
 
     // Implementation-specific parameters
     bool is_first, is_final;
-    bool padding[2] = {0};
+    bool padding[6] = {0};
     int subgroup_size;
     int vect_size;
-    int unroll_factor;
+    int full_unroll_factor;
+    int tail_unroll_factor;
     int global_acc;
     dim_t local_acc;
 

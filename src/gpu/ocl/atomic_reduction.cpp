@@ -159,27 +159,35 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
     }
 
     // Compute the unroll factor to minimize read-accumulate iters
-    const int loop_size = into<int>(utils::div_up(
-            reduction_block.block, conf.global_acc * conf.local_acc));
-    const int max_unroll = 128;
-    if (max_unroll > loop_size) {
-        // XXX: This encodes the reduction loop size directly into the kernel,
-        // which limits reusability for these cases (small reduction sizes) in
-        // exchange for fast execution time.
-        conf.unroll_factor = loop_size;
-    } else {
-        int min_iters = std::numeric_limits<int>::max();
-        for (int unroll = max_unroll; unroll > 0; unroll--) {
-            const int unroll_iters = loop_size / unroll;
-            const int extra_iters = loop_size % unroll;
-            const int total_iters = unroll_iters + extra_iters;
+    const auto &compute_unroll = [](dim_t loop_size) {
+        const int max_unroll = 128;
+        int unroll;
+        if (max_unroll > loop_size) {
+            // XXX: This encodes the reduction loop size directly into the kernel,
+            // which limits reusability for these cases (small reduction sizes) in
+            // exchange for fast execution time.
+            unroll = gpu_utils::into<int>(loop_size);
+        } else {
+            int min_iters = std::numeric_limits<int>::max();
+            for (int u = max_unroll; u > 0; u--) {
+                const int unroll_iters = gpu_utils::into<int>(loop_size / u);
+                const int extra_iters = loop_size % u;
+                const int total_iters = unroll_iters + extra_iters;
 
-            if (total_iters < min_iters) {
-                conf.unroll_factor = unroll;
-                min_iters = total_iters;
+                if (total_iters < min_iters) {
+                    unroll = u;
+                    min_iters = total_iters;
+                }
             }
         }
-    }
+        return unroll;
+    };
+    const int full_loop_size = into<int>(utils::div_up(
+            reduction_block.block, conf.global_acc * conf.local_acc));
+    const int tail_loop_size = into<int>(
+            reduction_block.block / (conf.global_acc * conf.local_acc));
+    conf.full_unroll_factor = compute_unroll(full_loop_size);
+    conf.tail_unroll_factor = compute_unroll(tail_loop_size);
 }
 
 status_t atomic_reduction_conf_t::init_dispatcher(
@@ -430,7 +438,8 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("ATOMIC_REDUCTION_SIZE", conf.global_acc);
     // End stride vars
 
-    kernel_ctx.define_int("UNROLL_FACTOR", conf.unroll_factor);
+    kernel_ctx.define_int("FULL_UNROLL_FACTOR", conf.full_unroll_factor);
+    kernel_ctx.define_int("TAIL_UNROLL_FACTOR", conf.tail_unroll_factor);
 
     // To use atomic_global_add
     kernel_ctx.add_option("-cl-std=CL2.0");

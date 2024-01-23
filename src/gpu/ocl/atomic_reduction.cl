@@ -112,6 +112,7 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
         __global ATOMIC(DST_DATA_T) * dst, int inner_size, off_t div,
         float power, float eps, off_t num_reductions,
         dispatch_gws_rt_params_t gws_params) {
+    ASSUME(inner_size > 0);
     ASSUME(num_reductions > 0);
     const int local_idx = get_sub_group_id();
     const int sglid = get_sub_group_local_id();
@@ -134,14 +135,26 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
     DST_OFF += dst_ig_idx * (VECT_DT_N - 1) * subgroup_size;
     dst += DST_OFF;
 
-    const int iters_per_wi = div_up(num_reductions, REDUCTION_WI_COUNT);
-    const int beg = (local_idx + atomic_idx * LOCAL_SIZE) * iters_per_wi;
-    const int end = min(beg + iters_per_wi, num_reductions);
+    const int beg = local_idx + atomic_idx * LOCAL_SIZE;
+    ASSUME(beg < REDUCTION_WI_COUNT);
+    const int tail_count = num_reductions % REDUCTION_WI_COUNT;
     VECT_DEF_ACC_DATA_T acc = INIT_ACC;
-    unroll_for_by(UNROLL_FACTOR)(int i = beg; i < end; i++) {
-        const int src_off = i * inner_size;
-        const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
-        acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
+    // XXX: To match static kernel performance, both regular and tail cases
+    // need optimized unrolling. We first detect which case we're in, and dispatch
+    // to the appropriately-unrolled loop.
+    const int iters = div_up(num_reductions - beg, REDUCTION_WI_COUNT);
+    if (beg < tail_count) {
+        unroll_for_by(FULL_UNROLL_FACTOR)(off_t i = 0; i < iters; i++) {
+            const off_t src_off = (beg + i * REDUCTION_WI_COUNT) * inner_size;
+            const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
+            acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
+        }
+    } else {
+        unroll_for_by(TAIL_UNROLL_FACTOR)(off_t i = 0; i < iters; i++) {
+            const off_t src_off = (beg + i * REDUCTION_WI_COUNT) * inner_size;
+            const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
+            acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
+        }
     }
 
     // Store results to SLM
