@@ -50,8 +50,7 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
             VDISPATCH_RESAMPLING(
                     post_ops_with_binary_ok(attr(), dst_md()->data_type, 5),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_RESAMPLING(
-                    attr_.set_default_formats(dst_md(0)) == status::success,
+            VDISPATCH_RESAMPLING_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_TAG);
 
             VDISPATCH_RESAMPLING_SC(init_conf(engine), "init_conf()");

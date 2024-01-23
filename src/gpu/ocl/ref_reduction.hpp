@@ -43,8 +43,8 @@ struct ref_reduction_t : public gpu_primitive_t {
             using sm = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm::post_ops | sm::gpu_attr;
 
-            VDISPATCH_REDUCTION(set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_REDUCTION_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_REDUCTION(!memory_desc_ndims_ok(src_md(), dst_md()),
                     VERBOSE_INCONSISTENT_NDIMS, "src_md", "dst_md");
             VDISPATCH_REDUCTION(attr()->has_default_values(attr_skip_mask),
@@ -52,8 +52,7 @@ struct ref_reduction_t : public gpu_primitive_t {
             VDISPATCH_REDUCTION(
                     post_ops_with_binary_ok(attr(), dst_md()->data_type, 5),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_REDUCTION(
-                    attr_.set_default_formats(dst_md(0)) == status::success,
+            VDISPATCH_REDUCTION_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_TAG);
 
             VDISPATCH_REDUCTION_SC(init_conf(engine), "init_conf()");

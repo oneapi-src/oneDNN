@@ -253,8 +253,8 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
                     "diff_dst_md");
             VDISPATCH_SOFTMAX(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
-            VDISPATCH_SOFTMAX(set_default_formats() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SOFTMAX_SC(
+                    set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_SOFTMAX(diff_dst_d.data_type() == dst_d.data_type(),
                     VERBOSE_INCONSISTENT_DT, "diff_dst_d", "dst_d");
 

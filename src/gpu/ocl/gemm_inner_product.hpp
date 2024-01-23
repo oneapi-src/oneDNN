@@ -61,8 +61,8 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                     | primitive_attr_t::skip_mask_t::post_ops;
 
             VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
-            VDISPATCH_INNER_PRODUCT(set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_INNER_PRODUCT(
                     !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
             VDISPATCH_INNER_PRODUCT(
@@ -78,8 +78,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             VDISPATCH_INNER_PRODUCT(
                     post_ops_with_binary_ok(attr(), desc()->dst_desc.data_type),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_INNER_PRODUCT(
-                    attr_.set_default_formats(dst_md(0)) == status::success,
+            VDISPATCH_INNER_PRODUCT_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
             attr_info_ = attr_info_t::create(attr());
@@ -162,8 +161,8 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
 
             VDISPATCH_INNER_PRODUCT(this->desc()->prop_kind == backward_data,
                     VERBOSE_BAD_PROPKIND);
-            VDISPATCH_INNER_PRODUCT(set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_INNER_PRODUCT(
                     !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
             VDISPATCH_INNER_PRODUCT((!(has_type(f16) && has_type(bf16))),
@@ -255,8 +254,8 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 
             VDISPATCH_INNER_PRODUCT(this->desc()->prop_kind == backward_weights,
                     VERBOSE_BAD_PROPKIND);
-            VDISPATCH_INNER_PRODUCT(set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_INNER_PRODUCT(
                     !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
             VDISPATCH_INNER_PRODUCT((!(has_type(f16) && has_type(bf16))),
@@ -352,11 +351,12 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                 auto status
                         = gemm_pd_->query(query::preferred_gpu_threads_per_eu,
                                 0, &threads_per_eu);
-                if (status == status::success)
+                if (status == status::success) {
                     VDISPATCH_INNER_PRODUCT_SC(
                             reduction_attr.set_gpu_attr(
                                     gpu_primitive_attr_t(threads_per_eu)),
                             VERBOSE_UNSUPPORTED_ATTR);
+                }
                 primitive_desc_iterator_t it(engine, (op_desc_t *)&reduction_d,
                         &reduction_attr, nullptr);
                 if (!it.is_initialized()) return status::out_of_memory;

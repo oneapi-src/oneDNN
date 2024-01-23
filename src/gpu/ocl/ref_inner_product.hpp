@@ -60,8 +60,8 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
                             forward_inference),
                     VERBOSE_BAD_PROPKIND);
 
-            VDISPATCH_INNER_PRODUCT(set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
 
             VDISPATCH_INNER_PRODUCT(
                     utils::one_of(true,
@@ -95,8 +95,7 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
             VDISPATCH_INNER_PRODUCT(
                     post_ops_with_binary_ok(attr(), desc()->dst_desc.data_type),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_INNER_PRODUCT(
-                    attr_.set_default_formats(dst_md(0)) == status::success,
+            VDISPATCH_INNER_PRODUCT_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_INNER_PRODUCT(
                     IMPLICATION(!attr()->scales_.has_default_values(),
@@ -159,9 +158,8 @@ struct ref_inner_product_bwd_data_t : public gpu_primitive_t {
             VDISPATCH_INNER_PRODUCT(utils::one_of(this->desc()->prop_kind,
                                             backward, backward_data),
                     VERBOSE_BAD_PROPKIND);
-            VDISPATCH_INNER_PRODUCT(
-                    this->set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    this->set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_INNER_PRODUCT(
                     utils::one_of(true,
                             expect_data_types(
@@ -228,9 +226,8 @@ struct ref_inner_product_bwd_weights_t : public gpu_primitive_t {
             VDISPATCH_INNER_PRODUCT(utils::one_of(this->desc()->prop_kind,
                                             backward, backward_weights),
                     VERBOSE_BAD_PROPKIND);
-            VDISPATCH_INNER_PRODUCT(
-                    this->set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    this->set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_INNER_PRODUCT(
                     utils::one_of(true,
                             expect_data_types(f16, f16, f16, f16, f32),

@@ -58,8 +58,8 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
                             forward_inference),
                     VERBOSE_BAD_PROPKIND);
 
-            VDISPATCH_INNER_PRODUCT(set_default_params(true) == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(true), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_INNER_PRODUCT(
                     IMPLICATION(with_bias(),
                             utils::one_of(desc()->bias_desc.data_type, u8, s8,
@@ -70,8 +70,7 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
             VDISPATCH_INNER_PRODUCT(
                     post_ops_with_binary_ok(attr(), desc()->dst_desc.data_type),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_INNER_PRODUCT(
-                    attr_.set_default_formats(dst_md(0)) == status::success,
+            VDISPATCH_INNER_PRODUCT_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_INNER_PRODUCT(
                     IMPLICATION(desc()->src_desc.data_type == f16,

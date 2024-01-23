@@ -48,8 +48,7 @@ struct gen9_binary_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
             const auto attr_skip_mask = sm::post_ops | sm::scales_runtime;
-            VDISPATCH_BINARY(set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_BINARY_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_BINARY(
                     !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md()),
                     VERBOSE_INCONSISTENT_NDIMS, "src_md", "dst_md");
@@ -92,8 +91,7 @@ struct gen9_binary_t : public gpu_primitive_t {
             VDISPATCH_BINARY(post_ops_with_binary_ok(
                                      attr(), dst_md()->data_type, MAX_NDIMS),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_BINARY(
-                    attr_.set_default_formats(dst_md(0)) == status::success,
+            VDISPATCH_BINARY_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_BINARY(!(attr()->post_ops_.len() > 0
                                      && src_md(0)->data_type == bf16

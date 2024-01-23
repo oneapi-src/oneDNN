@@ -45,8 +45,7 @@ struct ref_binary_t : public gpu_primitive_t {
 
             const auto attr_skip_mask = sm::post_ops | sm::scales_runtime;
 
-            VDISPATCH_BINARY(set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_BINARY_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_BINARY(
                     ((utils::everyone_is(
                               bf16, src_md(0)->data_type, src_md(1)->data_type)
@@ -82,8 +81,7 @@ struct ref_binary_t : public gpu_primitive_t {
                                      attr(), dst_md()->data_type, MAX_NDIMS),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
-            VDISPATCH_BINARY(
-                    attr_.set_default_formats(dst_md(0)) == status::success,
+            VDISPATCH_BINARY_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
             VDISPATCH_BINARY(!(attr()->post_ops_.len() > 0

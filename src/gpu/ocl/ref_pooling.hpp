@@ -160,8 +160,7 @@ struct ref_pooling_bwd_t : public gpu_primitive_t {
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            VDISPATCH_POOLING(set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_POOLING(utils::one_of(desc()->prop_kind, backward_data),
                     VERBOSE_BAD_PROPKIND);
             VDISPATCH_POOLING(utils::one_of(desc()->alg_kind, pooling_max,

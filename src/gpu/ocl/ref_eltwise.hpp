@@ -79,8 +79,7 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
             VDISPATCH_ELTWISE(post_ops_with_binary_ok(
                                       attr(), dst_md()->data_type, MAX_NDIMS),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_ELTWISE(
-                    attr_.set_default_formats(dst_md(0)) == status::success,
+            VDISPATCH_ELTWISE_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_ELTWISE(IMPLICATION(src_md()->data_type == data_type::f64,
                                       compute_engine->mayiuse(
