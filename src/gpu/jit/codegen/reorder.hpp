@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -298,6 +298,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
         // Max supported stride is 4.
         if (src_stride > 4 || dst_stride > 4) step = 1;
+
+        // Non-power-of-2 strides must be handled element-by-element
+        if (!math::is_pow2(src_stride) || !math::is_pow2(dst_stride)) step = 1;
 
         // Qword does not appear to support swizzling.
         if (src_q && dst_q && src_stride != dst_stride) step = 1;
