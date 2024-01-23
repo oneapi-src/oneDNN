@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -126,17 +126,6 @@ void reorder_op_t::query_format(context_ptr ctx,
         } else if (check_padding()) {
             // Use input loop and has padding.
             attrs_.set(op_attr_key::break_post_fuse, true);
-        }
-        // has broadcast uses, do not fuse them as their outer loop can not be
-        // fused.
-        for (auto &use : get_outputs()[0]->uses_) {
-            if (auto may_bcst
-                    = use.second->dyn_cast<op_traits::may_broadcast_t>()) {
-                if (may_bcst->get_non_broadcast_input_index(true).size()
-                        != use.second->get_inputs().size()) {
-                    attrs_.set(op_attr_key::break_post_fuse, true);
-                }
-            }
         }
     }
 }
