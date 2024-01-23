@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -328,10 +328,7 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, MatmulMulAdd) {
                   add8
                    |
                   out
-    Ideally, out will inplace use in3. However, in current implementation,
-    out will be used by mul7's output (marked by "buffer_already_reused"),
-    so it can not inplace reuse in3. In future, we need to give the inplace of
-    output_op on input_op higher priority.
+    Ideally, out will inplace use in3.
     */
 
     graph_driver(graph0, ctx);
@@ -345,5 +342,5 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, MatmulMulAdd) {
 
     no output arg can inplace input arg.
     */
-    EXPECT_EQ(fptr0->inplace_pairs_.size(), 0UL);
+    EXPECT_EQ(fptr0->inplace_pairs_.size(), 1UL);
 }

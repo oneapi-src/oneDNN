@@ -1065,12 +1065,40 @@ static std::vector<size_t> schedule_tensor_memory_planner(
                 return x->first.checked_as<tensor>()->name_
                         < y->first.checked_as<tensor>()->name_;
             });
+    // collect alias info of func args
+    std::vector<alias_info::tensor_alias_identity_t *> arg_identities;
+    for (auto &itr_ptr : sorted_ticks) {
+        auto &itr = *itr_ptr;
+        auto tsr = itr.first.checked_as<tensor>();
+        if (itr.second.is_arg_) {
+            auto alias_data = alias_info::get_alias_info(*tsr);
+            if (alias_data) { arg_identities.emplace_back(alias_data); }
+        }
+    }
     for (auto &itr_ptr : sorted_ticks) {
         auto &itr = *itr_ptr;
         auto tsr = itr.first.checked_as<tensor>();
         if (itr.second.is_arg_) {
             auto inplace_parent = get_inplace_target_if_single_inplace(
                     identity_to_tensor, tsr.get(), tsr.get());
+            if (inplace_parent) {
+                // if this output buffer in func arg has already an alias with
+                // another arg by arg-tensor-inplace, temp buffers cannot
+                // in-place reuse this buffer
+                auto alias_data = alias_info::get_alias_info(*tsr);
+                if (alias_data) {
+                    for (auto &tid : arg_identities) {
+                        if (tid != alias_data && alias_data->is_alias_of(tid)) {
+                            SC_MODULE_INFO
+                                    << "Cannot in-place reuse output buffer"
+                                    << tsr
+                                    << ", because it is reusing other buffers";
+                            inplace_parent = nullptr;
+                            break;
+                        }
+                    }
+                }
+            }
             while (inplace_parent) {
                 if (auto pinfo = utils::find_map_value(
                             ticks, inplace_parent->node_ptr_from_this())

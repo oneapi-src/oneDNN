@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -299,7 +299,7 @@ void schedule_func_args(const func_c &f,
                                         && in_arg.ptr_same(e.second);
                             })) {
                     inplace_map.emplace_back(std::make_pair(out_arg, in_arg));
-                    SC_MODULE_INFO << "Inplace reslut: " << out_arg << " use "
+                    SC_MODULE_INFO << "Inplace result: " << out_arg << " use "
                                    << in_arg;
                 }
                 // It is possible that an out arg can inplace multiple in args.
