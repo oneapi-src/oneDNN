@@ -107,6 +107,21 @@ inline bool check_qtype_equal_to_per_tensor(op_t *op) {
     return qtype == "per_tensor";
 }
 
+inline bool check_begin_norm_axis_attr(const op_t *op) {
+    const logical_tensor_t &src_lt
+            = op->get_input_value(0)->get_logical_tensor();
+    const auto src_lt_wrapper = logical_tensor_wrapper_t(src_lt);
+    const auto ndims = src_lt_wrapper.ndims();
+
+    if (op->has_attr(op_attr::begin_norm_axis)) {
+        const auto begin_norm_axis
+                = op->get_attr<int64_t>(op_attr::begin_norm_axis);
+        if (ndims == DNNL_GRAPH_UNKNOWN_NDIMS) return begin_norm_axis == -1;
+        return begin_norm_axis == -1 || begin_norm_axis == ndims - 1;
+    }
+    return true;
+}
+
 inline const std::vector<op_kind_t> &get_unary_ops() {
     const static std::vector<op_kind_t> unary = {
             graph::op_kind::Abs,
