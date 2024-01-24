@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,11 +31,11 @@ const impl_list_map_t &comp_s8_s8_impl_list_map() {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR(s8, oi, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
-            DNNL_NON_X64_ONLY(REG_SR(s8, io, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
+            DNNL_NON_X64_ONLY(REG_SR(s8, format_tag::io, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(s8, oi, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp))
-            DNNL_NON_X64_ONLY(REG_SR(s8, io, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp))
+            DNNL_NON_X64_ONLY(REG_SR(s8, format_tag::io, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(s8, oi, s8, OI4i64o4i, fmt_order::keep, spec::conv_req_comp))
-            DNNL_NON_X64_ONLY(REG_SR(s8, io, s8, OI4i64o4i, fmt_order::keep, spec::conv_req_comp))
+            DNNL_NON_X64_ONLY(REG_SR(s8, format_tag::io, s8, OI4i64o4i, fmt_order::keep, spec::conv_req_comp))
             REG_SR(s8, ab, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp)
             REG_SR(s8, ab, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp)
             REG_SR(s8, ab, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp)

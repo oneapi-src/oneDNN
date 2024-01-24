@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@
 #include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
+
+#include "cpu/ref_io_helper.hpp"
 
 // Use `...` for `msg` and additional variables used in msg
 #define VCHECK_ATTR(cond, ...) \
@@ -76,31 +78,14 @@
             VCHECK_ATTR(utils::one_of(scales_d.data_type(), data_type::f32, \
                                 data_type::f16, data_type::bf16), \
                     "Unsupported scales data type"); \
-            if (scales_d.dims()[0] == 1) { \
+            if (utils::everyone_is(1, scales_d.ndims(), scales_d.dims()[0])) { \
+                const float s = cpu::io::load_float_value( \
+                        scales_d.data_type(), scales, 0); \
                 if (utils::one_of(arg, DNNL_ARG_DST, \
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST)) { \
-                    utils::array_set(CONCAT2(scales, _buf16), \
-                            1.f / ((float *)scales)[0], 16); \
+                    utils::array_set(CONCAT2(scales, _buf16), 1.f / s, 16); \
                 } else { \
-                    switch (scales_d.data_type()) { \
-                        case data_type::f32: \
-                            utils::array_set(CONCAT2(scales, _buf16), \
-                                    ((float *)scales)[0], 16); \
-                            break; \
-                        case data_type::bf16: { \
-                            const float s = ((const bfloat16_t *)scales)[0]; \
-                            for (auto i = 0; i < 16; ++i) \
-                                CONCAT2(scales, _buf16)[i] = s; \
-                            break; \
-                        } \
-                        case data_type::f16: { \
-                            const float s = ((const float16_t *)scales)[0]; \
-                            for (auto i = 0; i < 16; ++i) \
-                                CONCAT2(scales, _buf16)[i] = s; \
-                            break; \
-                        } \
-                        default: assert(!"unsupported scale type"); \
-                    } \
+                    utils::array_set(CONCAT2(scales, _buf16), s, 16); \
                 } \
                 scales = CONCAT2(scales, _buf16); \
             } \
