@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ public:
 
   std::vector<expr> data_offset(const expr &N, const expr &G, const expr &C,
     const expr &D, const expr &H, const expr &W, const expr &C_block,
-    const expr &c_idx = expr(0)) const;
+    const expr &c_idx = expr(0), const bool &force_3d = false) const;
   std::vector<expr> output_offset(const expr &N, const expr &G, const expr &C,
     const expr &D, const expr &H, const expr &W, const expr &C_block,
     const expr &c_idx = expr(0)) const;

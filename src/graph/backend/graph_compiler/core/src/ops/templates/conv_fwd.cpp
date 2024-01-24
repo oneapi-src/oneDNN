@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-
 #include "conv_fwd.hpp"
 #include <algorithm>
 #include <functional>
@@ -477,8 +476,9 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   // blocking is used, which needs to consider the border carefully, as the
   // cross row boundary (contains padding or not) will generate useless output
   // which have to be skipped before storing.
+
   actual_os_ = oh_ * ow_;
-  num_elems_skip_per_ow_ = ((dw_ * (kw_ - 1)) / sw_) * sh_ + (sh_ - 1) * ow_;
+  num_elems_skip_per_ow_ = (dw_ * (kw_ - 1)) / sw_;
   adj_os_ = std::min(actual_os_ + num_elems_skip_per_ow_ * (oh_ - 1),
     (ih_ + ph_b_ + ph_e_) * (iw_ + pw_b_ + pw_e_));
 
@@ -486,10 +486,11 @@ gen_conv_fwd_t::gen_conv_fwd_t(sc_op *owner, const sc_dims &stride,
   // amx-int8 only so far.
   bool has_pad = (pd_b_ > 0) || (ph_b_ > 0) || (pw_b_ > 0) || (pd_e_ > 0)
     || (ph_e_ > 0) || (pw_e_ > 0);
-  // TODO(zhicong): check whether to use os_blocking when sh > 1
   const auto num_threads = runtime_config_t::get().get_num_threads();
-  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_) && sh_ == 1
-    && ((is_int8 && ow_ <= 28) || (is_bf16 && ow_ <= 14))
+  try_os_blocking_ = (!is_1x1_conv_) && (!has_pad) && (!is_3d_)
+    && iw_ % sw_ == 0
+    && ow_ * sw_
+      < (32 / static_cast<int>(utils::get_sizeof_type(get_input_dtype())))
     && is_parallel_space_enough(mb_ * (oc_ / 64), num_threads)
     && use_rl == ops::rl_kind::NO_LOWERING;
 }
@@ -502,15 +503,18 @@ float gen_conv_fwd_t::get_gflop() const {
 
 std::vector<expr> gen_conv_fwd_t::data_offset(const expr &N, const expr &G,
   const expr &C, const expr &D, const expr &H, const expr &W,
-  const expr &C_block, const expr &c_idx) const {
+  const expr &C_block, const expr &c_idx, const bool &force_3d) const {
+  COMPILE_ASSERT(
+    !(is_3d_ && force_3d), "Force_3d is only capable for 2d inputs");
   return is_group_conv_
-    ? (is_3d_ ? (!blocking_input_
-           ? std::vector<expr> {N, D, H, W, G, C * C_block + c_idx}
-           : std::vector<expr> {N, G, C, D, H, W, c_idx})
-              : (!blocking_input_
-                  ? std::vector<expr> {N, H, W, G, C * C_block + c_idx}
-                  : std::vector<expr> {N, G, C, H, W, c_idx}))
-    : (is_3d_
+    ? ((is_3d_ || force_3d)
+        ? (!blocking_input_
+            ? std::vector<expr> {N, D, H, W, G, C * C_block + c_idx}
+            : std::vector<expr> {N, G, C, D, H, W, c_idx})
+        : (!blocking_input_
+            ? std::vector<expr> {N, H, W, G, C * C_block + c_idx}
+            : std::vector<expr> {N, G, C, H, W, c_idx}))
+    : ((is_3d_ || force_3d)
         ? (!blocking_input_
             ? std::vector<expr> {N, D, H, W, C * C_block + c_idx}
             : std::vector<expr> {N, C, D, H, W, c_idx})
@@ -991,6 +995,75 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
   auto L2_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(2);
   int oc_split = get_oc_split_factor(
     mb_, data_size, weight_size, L2_cache_size, K_num_block);
+  expr real_input;
+  auto need_pack_strided_input = sh_ > 1 && use_os_blocking && pack_rows;
+  if (need_pack_strided_input) {
+    int lanes = get_lanes(ctx, config.C_block, get_input_dtype());
+    auto pack_ih = utils::divide_and_ceil(ih_, sh_);
+    if (blocking_input_) {
+      _tensor_(input_tmp, get_input_dtype(),
+        is_group_conv_ ? std::vector<expr> {mb_expr_, groups_, C_num_block, sh_,
+          pack_ih, iw_, config.C_block}
+                       : std::vector<expr> {mb_expr_, C_num_block, sh_, pack_ih,
+                         iw_, config.C_block});
+      for_loop ls;
+      _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
+        _named_for_(lg, g, 0, groups_) {
+          _named_for_(lk, c_o, 0, C_num_block) {
+            _named_for_(lp, ih, 0, pack_ih) {
+              _named_for_(ls, s, 0, sh_) {
+                _if_(s + ih * sh_ < ih_) {
+                  _for_(iw, 0, iw_) {
+                    _for_(c_i, 0, config.C_block, (int)lanes) {
+                      input_tmp[span_t(
+                        data_offset(n, g, c_o, s, ih, iw, 1, c_i, true), lanes)]
+                        = input[span_t(
+                          data_offset(n, g, c_o, 0, s + ih * sh_, iw, 1, c_i),
+                          lanes)];
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      auto lnk = ln->fuse(lg)->fuse(lk);
+      if (C_num_block * mb_ < runtime_config_t::get().get_num_threads() * 2) {
+        auto lnkp = lnk->fuse(lp)->fuse(ls);
+      }
+      real_input = input_tmp.static_as<tensor>();
+    } else {
+      _tensor_(input_tmp, get_input_dtype(),
+        is_group_conv_
+          ? std::vector<expr> {mb_expr_, sh_, pack_ih, iw_, groups_, ic_}
+          : std::vector<expr> {mb_expr_, sh_, pack_ih, iw_, ic_});
+      for_loop ls;
+      _named_for_(ln, n, 0, mb_expr_, 1, for_type::PARALLEL) {
+        _named_for_(lp, ih, 0, pack_ih) {
+          _named_for_(ls, s, 0, sh_) {
+            _if_(s + ih * sh_ < ih_) {
+              _for_(iw, 0, iw_) {
+                _named_for_(lg, g, 0, groups_) {
+                  _for_(c_i, 0, ic_, (int)lanes) {
+                    input_tmp[span_t(
+                      data_offset(n, g, 0, s, ih, iw, 1, c_i, true), lanes)]
+                      = input[span_t(
+                        data_offset(n, g, 0, 0, s + ih * sh_, iw, 1, c_i),
+                        lanes)];
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      ln = ln->fuse(lp)->fuse(ls);
+      real_input = input_tmp.static_as<tensor>();
+    }
+  } else {
+    real_input = input.static_as<tensor>();
+  }
 
   _named_for_(lok, outer_k, 0, oc_split, 1, for_type::PARALLEL) {
     _named_for_(ln, n, 0, mb_expr_, 1) {
@@ -1022,11 +1095,16 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                 _for_(r, 0, kh_) {
                   _for_(s, 0, kw_) {
                     auto idx = c_o * kh_ * kw_ + r * kw_ + s;
-                    std::vector<expr> input_pos = data_offset(n, g, c_o, 0,
-                      ((o_o * config.tile_os) / adj_ow) * sh_ + dh_ * r,
-                      ((o_o * config.tile_os) % adj_ow) * sw_ + dw_ * s,
-                      config.C_block);
-                    A_list[idx] = tensor_ptr(input, input_pos);
+                    std::vector<expr> input_pos = need_pack_strided_input
+                      ? data_offset(n, g, c_o, dh_ * r % sh_,
+                        ((o_o * config.tile_os) / adj_ow) + dh_ * r / sh_,
+                        ((o_o * config.tile_os) % adj_ow) * sw_ + dw_ * s,
+                        config.C_block, 0, need_pack_strided_input)
+                      : data_offset(n, g, c_o, 0,
+                        ((o_o * config.tile_os) / adj_ow) * sh_ + dh_ * r,
+                        ((o_o * config.tile_os) % adj_ow) * sw_ + dw_ * s,
+                        config.C_block, 0, need_pack_strided_input);
+                    A_list[idx] = tensor_ptr(real_input, input_pos);
                     B_list[idx]
                       = tensor_ptr(weight, weight_offset(g, k_o, c_o, 0, r, s));
                   }
@@ -1105,7 +1183,7 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
                             0, (p_o * config.tile_p + p_i) * sh_ + dh_ * r,
                             q_o * config.tile_q * sw_ + dw_ * s * kw_step,
                             config.C_block);
-                          A_list[idx] = tensor_ptr(input, input_pos);
+                          A_list[idx] = tensor_ptr(real_input, input_pos);
                           B_list[idx] = tensor_ptr(weight,
                             weight_offset(g, k_o, c_o, 0, r, s * kw_step));
                         }

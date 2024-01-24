@@ -492,7 +492,8 @@ int gen_nested_conv_fwd_t::get_im_w_block(const context_ptr &ctx) const {
   if (origin_ow > 14) {
     auto L1_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(1);
     // not use L1_cache too full
-    s_default_block = L1_cache_size / 4 / get_im_oc_block(ctx);
+    s_default_block = L1_cache_size / 4
+      / (get_im_oc_block(ctx) * utils::get_sizeof_type(get_weight_dtype()));
   }
   auto s_block_list = utils::get_blocks(ow_, 1, s_default_block);
   s_block_list.erase(
