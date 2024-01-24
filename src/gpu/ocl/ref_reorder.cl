@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 
 #include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/reorder_common.h"
+
+#define TO_I4 ((DST_DT_U4 || DST_DT_S4) && (!SRC_DT_U4 && !SRC_DT_S4))
+#define FROM_I4 ((SRC_DT_U4 || SRC_DT_S4) && (!DST_DT_U4 && !DST_DT_S4))
 
 KERNEL_ATTR
 __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
@@ -71,7 +74,28 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_DST_SCALE
         dst_scale = dst_scales[SCALE_OFF(DST, d0, d1, d2, d3, d4, d5)];
 #endif
+#if FROM_I4
+        SRC_DATA_T sval = 0;
+        if (src_off % 2) {
+            sval = (src[src_off] & 0xf0) >> 4;
+        } else {
+            sval = src[src_off] & 0x0f;
+        }
+        dst[dst_off] = TO_DST(sval);
+#elif TO_I4
+        if (dst_off % 2) {
+            return;
+        } else {
+            SRC_DATA_T sval = src[src_off];
+            uchar dval = 0; //dst[dst_off/2];
+            dval = dval | TO_DST(sval);
+            sval = src[src_off + 1];
+            dval = dval | ((TO_DST(sval) << 4));
+            dst[dst_off / 2] = dval;
+        }
+#else
         REORDER(dst[dst_off], src[src_off], src_scale, dst_scale, sum_scale,
                 src_zp, dst_zp, sum_zp);
+#endif
     }
 }

@@ -689,4 +689,89 @@ inline float atomic_add_global(
 #endif
 #endif
 
+uchar __attribute__((overloadable)) cvt_f32_to_u4(float a) {
+    uchar i = convert_uchar_sat_rte(a);
+    return (i & 0xf0) ? 0x0f : i & 0x0f;
+}
+
+uchar2 __attribute__((overloadable)) cvt_f32_to_u4(float2 a) {
+    uchar2 f;
+    for (int i = 0; i < 2; i++) {
+        uchar val = convert_uchar_sat_rte(a[i]);
+        f[i] = (val & 0xf0) ? 0x0f : val & 0x0f;
+    }
+    return f;
+}
+
+uchar4 __attribute__((overloadable)) cvt_f32_to_u4(float4 a) {
+    uchar4 f;
+    for (int i = 0; i < 4; i++) {
+        uchar val = convert_uchar_sat_rte(a[i]);
+        f[i] = (val & 0xf0) ? 0x0f : val & 0x0f;
+    }
+    return f;
+}
+uchar8 __attribute__((overloadable)) cvt_f32_to_u4(float8 a) {
+    uchar8 f;
+    for (int i = 0; i < 8; i++) {
+        uchar val = convert_uchar_sat_rte(a[i]);
+        f[i] = (val & 0xf0) ? 0x0f : val & 0x0f;
+    }
+    return f;
+}
+uchar16 __attribute__((overloadable)) cvt_f32_to_u4(float16 a) {
+    uchar16 f;
+    uchar val = 0;
+    for (int i = 0; i < 16; i++) {
+        uchar val = convert_uchar_sat_rte(a[i]);
+        f[i] = (val & 0xf0) ? 0x0f : val & 0x0f;
+    }
+    return f;
+}
+char __attribute__((overloadable)) cvt_f32_to_s4(float a) {
+    char i = convert_char_sat_rte(a);
+    char sign = (i & 0x80);
+    return (i & 0x70) ? (0x0f | sign) : ((i & 0x0e) | sign);
+}
+char2 __attribute__((overloadable)) cvt_f32_to_s4(float2 a) {
+    char2 f;
+    char sign = 0;
+    for (int i = 0; i < 2; i++) {
+        char val = convert_char_sat_rte(a[i]);
+        sign = (val & 0x80);
+        f[i] = (val & 0x70) ? 0x07 | sign : ((val & 0x0e) | sign);
+    }
+    return f;
+}
+char4 __attribute__((overloadable)) cvt_f32_to_s4(float4 a) {
+    char4 f;
+    char sign = 0;
+    for (int i = 0; i < 4; i++) {
+        char val = convert_char_sat_rte(a[i]);
+        sign = (val & 0x80);
+        f[i] = (val & 0x70) ? 0x07 | sign : ((val & 0x0e) | sign);
+    }
+    return f;
+}
+char8 __attribute__((overloadable)) cvt_f32_to_s4(float8 a) {
+    char8 f;
+    char sign = 0;
+    for (int i = 0; i < 8; i++) {
+        char val = convert_char_sat_rte(a[i]);
+        sign = (val & 0x80);
+        f[i] = (val & 0x70) ? 0x07 | sign : ((val & 0x0e) | sign);
+    }
+    return f;
+}
+char16 __attribute__((overloadable)) cvt_f32_to_s4(float16 a) {
+    char16 f;
+    char sign = 0;
+    for (int i = 0; i < 16; i++) {
+        char val = convert_char_sat_rte(a[i]);
+        sign = (val & 0x80);
+        f[i] = (val & 0x70) ? 0x07 | sign : ((val & 0x0e) | sign);
+    }
+    return f;
+}
+
 #endif

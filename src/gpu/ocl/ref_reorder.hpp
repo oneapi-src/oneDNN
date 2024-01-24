@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,10 +52,10 @@ struct ref_reorder_t : public gpu_primitive_t {
 
             using namespace data_type;
             if (!utils::one_of(src_md()->data_type, f32, f16, bf16, f8_e5m2,
-                        f8_e4m3, s32, s8, u8, f64))
+                        f8_e4m3, s32, s8, u8, s4, u4, f64))
                 return status::unimplemented;
             if (!utils::one_of(dst_md()->data_type, f32, f16, bf16, f8_e5m2,
-                        f8_e4m3, s32, s8, u8, f64))
+                        f8_e4m3, s32, s8, u8, s4, u4, f64))
                 return status::unimplemented;
 
             if (!IMPLICATION(
@@ -87,8 +87,14 @@ struct ref_reorder_t : public gpu_primitive_t {
                                     dst_md()->data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values());
-
+                                    && attr()->post_ops_.has_default_values())
+                    && IMPLICATION(
+                            (utils::one_of(data_type::u4, src_md()->data_type,
+                                     dst_md()->data_type)
+                                    || utils::one_of(data_type::s4,
+                                            src_md()->data_type,
+                                            dst_md()->data_type)),
+                            attr()->post_ops_.has_default_values());
             if (!ok) return status::unimplemented;
 
             status_t status = init_conf(engine);

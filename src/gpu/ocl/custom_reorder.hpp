@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,7 +64,11 @@ struct custom_reorder_t : public gpu_primitive_t {
                                     data_type::f8_e4m3, data_type::f8_e5m2),
                             utils::one_of(dst_md()->data_type, data_type::f32,
                                     data_type::f16, data_type::bf16,
-                                    data_type::f64)))
+                                    data_type::f64))
+                    || (utils::one_of(data_type::s4, dst_md()->data_type,
+                                src_md()->data_type)
+                            || utils::one_of(data_type::u4, dst_md()->data_type,
+                                    src_md()->data_type)))
                 return status::unimplemented;
 
             ok = ok && !memory_desc_ndims_ok(src_md(), dst_md())
