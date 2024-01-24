@@ -292,7 +292,7 @@ class LogParser:
                     for s in scales:
                         arg = s[: s.find(":")]
                         s_wo_arg = s[s.find(":") + 1 :]
-                        scale_dict = {"mask": "0"}
+                        scale_dict = {"mask": "0", "data_type": "f32", "groups": ""}
                         res[arg] = convert_structure_to_ir_seq(scale_dict, s_wo_arg)
                     return res
 
@@ -302,7 +302,7 @@ class LogParser:
                     for zp in zp_value:
                         arg = zp[: zp.find(":")]
                         zp_value_wo_arg = zp[zp.find(":") + 1 :]
-                        zp_dict = {"mask": "0"}
+                        zp_dict = {"mask": "0", "data_type": "s32", "groups": ""}
                         res[arg] = convert_structure_to_ir_seq(zp_dict, zp_value_wo_arg)
                     return res
 

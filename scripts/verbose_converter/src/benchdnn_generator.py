@@ -611,10 +611,18 @@ def extract_attr(attrs, type):
 def convert_scale_policy(value, prim_kind):
     if prim_kind == "reorder":
         masks = {0: "common", 1: "per_dim_0", 2: "per_dim_1", 3: "per_dim_01"}
+    elif prim_kind == "matmul":
+        masks = {
+            0: "common",
+            1: "per_oc",
+            2: "per_oc",
+            3: "per_ocic",
+            4: "per_oc",
+            6: "per_ocic",
+            12: "per_ocic",
+        }
     else:
-        # 4 is used by batched matmul
-        # TODO: split further
-        masks = {0: "common", 1: "per_oc", 2: "per_oc", 3: "per_oc", 4: "per_oc"}
+        masks = {0: "common", 1: "per_oc", 2: "per_oc", 3: "per_oc"}
 
     mask = masks.get(int(value))
     if mask:
@@ -623,9 +631,18 @@ def convert_scale_policy(value, prim_kind):
     return "per_tensor"
 
 
-def convert_zp_policy(value):
-    # 4 is used by batched matmul
-    masks = {0: "common", 2: "per_dim_1", 4: "per_dim_2"}
+def convert_zp_policy(value, prim_kind):
+    if prim_kind == "matmul":
+        masks = {
+            0: "common",
+            2: "per_dim_1",
+            3: "per_ocic",
+            4: "per_dim_2",
+            6: "per_ocic",
+            12: "per_ocic",
+        }
+    else:
+        masks = {0: "common", 2: "per_dim_1"}
     mask = masks.get(int(value))
     if mask:
         return mask
@@ -702,6 +719,12 @@ def convert_scales(scales, prim_kind):
         benchdnn_scale = arg + ":" + policy
         if policy == "common":
             benchdnn_scale += ":0.5"
+        dt = s["data_type"]
+        groups = s["groups"]
+        if dt != "f32" or groups != "":
+            benchdnn_scale += ":" + dt
+        if groups != "":
+            benchdnn_scale += ":" + groups
         res.append(benchdnn_scale)
     return "+".join(res)
 
@@ -710,10 +733,16 @@ def convert_zero_points(zero_points, prim_kind):
     res = []
     for arg in zero_points.keys():
         zp = zero_points[arg]
-        policy = convert_zp_policy(zp["mask"])
+        policy = convert_zp_policy(zp["mask"], prim_kind)
         benchdnn_zp = arg + ":" + policy
         if policy == "common":
             benchdnn_zp += ":1"
+        dt = zp["data_type"]
+        groups = zp["groups"]
+        if dt != "s32" or groups != "":
+            benchdnn_zp += ":" + dt
+        if groups != "":
+            benchdnn_zp += ":" + groups
         res.append(benchdnn_zp)
     return "+".join(res)
 
