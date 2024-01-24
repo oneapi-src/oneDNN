@@ -47,12 +47,6 @@
 
 #define dim_t long // 64 bit per the OpenCL specification
 
-#ifdef USE_INT32_OFFSET
-#define off_t int
-#else
-#define off_t dim_t
-#endif
-
 #if DT_F64 == 1
 #define AS_POST_OP_DATA_T(v) v
 #else

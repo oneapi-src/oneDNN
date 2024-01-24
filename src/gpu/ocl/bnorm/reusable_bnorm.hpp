@@ -82,9 +82,8 @@ struct reusable_bnorm_params_t {
     bool with_relu;
     bool with_leaky_relu;
     bool calculate_stats;
-    bool use_int32_offset;
 
-    uint8_t padding[3] = {0};
+    uint8_t padding[4] = {0};
 
     // Close to one set of configurations per block layout (9 common cases)
     compute::dispatch_compile_params_t calc_stat_params;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,9 +86,10 @@ struct gws_indexing_term_t {
         compile_params_t(gws_op_t op, size_t gws_idx)
             : op(op), gws_idx(gws_idx) {};
 
-#if __cplusplus >= 202002L
-        bool operator==(const compile_params_t &) const = default;
-#endif
+        bool operator==(const compile_params_t &other) const {
+            return op == other.op && gws_idx == other.gws_idx;
+        };
+
         std::string str() const {
             std::stringstream ss;
             ss << "<compile_params_t op=" << to_string(op)
@@ -105,18 +106,22 @@ struct gws_indexing_term_t {
         runtime_params_t() = default;
         runtime_params_t(dim_t size, stride_t stride, dim_t block)
             : size(size), stride(stride), block(block) {};
-#if __cplusplus >= 202002L
-        bool operator==(const runtime_params_t &) const = default;
-#endif
+
+        bool operator==(const runtime_params_t &other) const {
+            return size == other.size && stride == other.stride
+                    && block == other.block;
+        };
         dim_t size;
         stride_t stride;
         dim_t block;
     };
 
     gws_indexing_term_t() = default;
-#if __cplusplus >= 202002L
-    bool operator==(const gws_indexing_term_t &) const = default;
-#endif
+
+    bool operator==(const gws_indexing_term_t &other) const {
+        return compile_params_ == other.compile_params_
+                && runtime_params_ == other.runtime_params_;
+    };
     gws_indexing_term_t(gws_op_t op, size_t gws_idx, dim_t size,
             stride_t stride, dim_t block)
         : compile_params_(op, gws_idx), runtime_params_(size, stride, block) {};
@@ -226,7 +231,7 @@ struct dispatch_compile_params_t {
         std::ostringstream ss;
         ss << "dispatch_compile_params_t<num_terms=" << num_terms;
         ss << ": [";
-        for (size_t i = 0; i < num_terms; i++) {
+        for (size_t i = 0; i < static_cast<size_t>(num_terms); i++) {
             ss << terms[i].str() << ", ";
         }
         ss << "], num_buffers=" << num_buffers;
@@ -243,7 +248,9 @@ struct dispatch_compile_params_t {
     }
 
     subgroup_data_t subgroup;
-    size_t num_terms = 0;
+    int num_terms = 0;
+    bool use_int32_offset = false;
+    uint8_t padding[3] = {0};
     gws_indexing_term_t::compile_params_t terms[MAX_INDEXING_TERMS]
             = {{gws_op_t::SOLO, 0}};
 
@@ -513,7 +520,7 @@ public:
     reusable_dispatch_t(const std::vector<named_buffer_t> &buffers,
             const gws_term_list_t &term_list,
             const compute::nd_range_t &nd_range, subgroup_data_t subgroup) {
-        compile_params.num_terms = term_list.terms.size();
+        compile_params.num_terms = gpu_utils::into<int>(term_list.terms.size());
         for (size_t i = 0; i < term_list.terms.size(); i++) {
             compile_params.terms[i] = term_list.terms[i].compile_params();
         }
@@ -537,6 +544,15 @@ public:
             }
         }
         compile_params.subgroup = subgroup;
+
+        dim_t max_buffer_size = 0;
+        for (const named_buffer_t &buffer : buffers) {
+            dim_t buffer_size = utils::array_product(
+                    buffer.padded_dims, gpu_utils::into<size_t>(buffer.ndims));
+            max_buffer_size = std::max(max_buffer_size, buffer_size);
+        }
+
+        compile_params.use_int32_offset = max_buffer_size <= INT32_MAX;
 
         // Set runtime params
         runtime_params = dispatch_runtime_params_t(nd_range, term_list);
