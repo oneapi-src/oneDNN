@@ -532,14 +532,14 @@ std::string md2desc_str(const memory_desc_t *md) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &ss, const runtime_scales_t &oscale) {
-    ss << oscale.mask_;
-    ss << ":" << oscale.data_type_;
-    if (oscale.ndims_) {
+std::ostream &operator<<(std::ostream &ss, const runtime_scales_t &scale) {
+    ss << scale.mask_;
+    ss << ":" << scale.data_type_;
+    if (scale.ndims_) {
         ss << ":";
-        for (int i = 0; i < oscale.ndims_ - 1; ++i)
-            ss << oscale.group_dims_[i] << 'x';
-        ss << oscale.group_dims_[oscale.ndims_ - 1];
+        for (int i = 0; i < scale.ndims_ - 1; ++i)
+            ss << scale.group_dims_[i] << 'x';
+        ss << scale.group_dims_[scale.ndims_ - 1];
     }
     return ss;
 }
