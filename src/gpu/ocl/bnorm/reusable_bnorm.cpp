@@ -15,7 +15,6 @@
 *******************************************************************************/
 
 #include "gpu/ocl/bnorm/reusable_bnorm.hpp"
-#include <limits>
 
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
@@ -70,10 +69,6 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
     }
     rt_conf.reduction_nelems = calc_dims[reduce_dim_idx];
     rt_conf.div = utils::array_product(calc_dims, MAX_DIMS) / calc_dims[1];
-    const int max_int = std::numeric_limits<int>::max();
-    if (rt_conf.reduction_nelems > max_int || rt_conf.ic > max_int
-            || rt_conf.div > max_int)
-        conf.use_int32_offset = false;
 
     // Set up the reusable_calculate_* kernels:
     // - SRC: Just the input src buffer
@@ -99,15 +94,11 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
         }
     }
     if (num_blocks_reduced > 1) return status::unimplemented;
-    if (rt_conf.reduce_dim_stride > std::numeric_limits<int>::max())
-        conf.use_int32_offset = false;
 
     // Whole reduce dimension will be handled by single work item.
     calc_dims[reduce_dim_idx] = 1;
 
     rt_conf.stat_ic = utils::array_product(calc_dims, MAX_DIMS);
-    if (rt_conf.stat_ic > std::numeric_limits<int>::max())
-        conf.use_int32_offset = false;
 
     // Dispatches all dims except for reduction dim
     for (size_t i = 0; i < dim_ids.size(); i++) {
@@ -170,7 +161,6 @@ static status_t init_conf_common(reusable_bnorm_params_t &conf,
     rt_conf.ic = data_mdw.dims()[1];
 
     conf.with_leaky_relu = conf.with_relu && rt_conf.relu_negative_slope != 0.f;
-    conf.use_int32_offset = true; // updated throughout following steps
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
@@ -190,9 +180,6 @@ static status_t init_conf_common(reusable_bnorm_params_t &conf,
     conf.gws_params = dispatch.get_compile_params();
     rt_conf.gws_params = dispatch.get_runtime_params();
 
-    const dim_t nelems = utils::array_product(
-            data_mdw.dims(), static_cast<size_t>(data_mdw.ndims()));
-    if (nelems > std::numeric_limits<int>::max()) conf.use_int32_offset = false;
     return status::success;
 }
 
@@ -209,8 +196,6 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("CALCULATE_STATS", conf.calculate_stats);
     kernel_ctx.define_int("USE_SCALE", conf.use_scale);
     kernel_ctx.define_int("USE_SHIFT", conf.use_shift);
-
-    if (conf.use_int32_offset) { kernel_ctx.add_option("-DUSE_INT32_OFFSET"); }
 
     if (conf.data_type == data_type::s8)
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
@@ -293,11 +278,22 @@ status_t reusable_batch_normalization_fwd_t::execute_forward(
                 = ctx.get_scratchpad_grantor().get_memory_storage(
                         key_bnorm_reduction);
 
+        bool use_int32_offset = conf.gws_params.use_int32_offset;
+        const auto &append_off
+                = [use_int32_offset](
+                          compute::kernel_arg_list_t &arg_list, dim_t off) {
+                      if (use_int32_offset) {
+                          arg_list.append(gpu_utils::into<int32_t>(off));
+                      } else {
+                          arg_list.append(off);
+                      }
+                  };
+
         compute::kernel_arg_list_t calc_mean_arg_list;
         calc_mean_arg_list.set(0, src);
         calc_mean_arg_list.set(1, *temp_reduce);
-        calc_mean_arg_list.append(rt_conf.reduce_dim_stride);
-        calc_mean_arg_list.append(rt_conf.reduction_nelems);
+        append_off(calc_mean_arg_list, rt_conf.reduce_dim_stride);
+        append_off(calc_mean_arg_list, rt_conf.reduction_nelems);
         calc_mean_arg_list.append(rt_conf.calc_stat_params.get());
 
         auto &nd_range_calc = rt_conf.calc_stat_params.nd_range;
@@ -308,9 +304,10 @@ status_t reusable_batch_normalization_fwd_t::execute_forward(
         compute::kernel_arg_list_t reduce_mean_arg_list;
         reduce_mean_arg_list.set(0, *temp_reduce);
         reduce_mean_arg_list.set(1, *mean_ptr);
-        reduce_mean_arg_list.append(rt_conf.ic);
-        reduce_mean_arg_list.append(rt_conf.div / rt_conf.reduction_nelems);
-        reduce_mean_arg_list.append(rt_conf.div);
+        append_off(reduce_mean_arg_list, rt_conf.ic);
+        append_off(
+                reduce_mean_arg_list, rt_conf.div / rt_conf.reduction_nelems);
+        append_off(reduce_mean_arg_list, rt_conf.div);
         reduce_mean_arg_list.append(rt_conf.reduce_stat_params.get());
 
         auto &nd_range_reduce = rt_conf.reduce_stat_params.nd_range;
@@ -322,8 +319,8 @@ status_t reusable_batch_normalization_fwd_t::execute_forward(
         calc_var_arg_list.set(0, src);
         calc_var_arg_list.set(1, *mean_ptr);
         calc_var_arg_list.set(2, *temp_reduce);
-        calc_var_arg_list.append(rt_conf.reduce_dim_stride);
-        calc_var_arg_list.append(rt_conf.reduction_nelems);
+        append_off(calc_var_arg_list, rt_conf.reduce_dim_stride);
+        append_off(calc_var_arg_list, rt_conf.reduction_nelems);
         calc_var_arg_list.append(rt_conf.calc_stat_params.get());
 
         CHECK(parallel_for(ctx, nd_range_calc, calculate_variance_kernel_,
@@ -332,9 +329,9 @@ status_t reusable_batch_normalization_fwd_t::execute_forward(
         compute::kernel_arg_list_t reduce_var_arg_list;
         reduce_var_arg_list.set(0, *temp_reduce);
         reduce_var_arg_list.set(1, *variance_ptr);
-        reduce_var_arg_list.append(rt_conf.ic);
-        reduce_var_arg_list.append(rt_conf.div / rt_conf.reduction_nelems);
-        reduce_var_arg_list.append(rt_conf.div);
+        append_off(reduce_var_arg_list, rt_conf.ic);
+        append_off(reduce_var_arg_list, rt_conf.div / rt_conf.reduction_nelems);
+        append_off(reduce_var_arg_list, rt_conf.div);
         reduce_var_arg_list.append(rt_conf.reduce_stat_params.get());
 
         CHECK(parallel_for(ctx, nd_range_reduce, reduce_variance_kernel_,
@@ -401,15 +398,26 @@ status_t reusable_batch_normalization_bwd_t::execute_backward(
     temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
             key_bnorm_reduction);
 
+    bool use_int32_offset = conf.gws_params.use_int32_offset;
+    const auto &append_off
+            = [use_int32_offset](
+                      compute::kernel_arg_list_t &arg_list, dim_t off) {
+                  if (use_int32_offset) {
+                      arg_list.append(gpu_utils::into<int32_t>(off));
+                  } else {
+                      arg_list.append(off);
+                  }
+              };
+
     compute::kernel_arg_list_t calc_stats_arg_list;
     calc_stats_arg_list.set(0, src);
     calc_stats_arg_list.set(1, mean);
     calc_stats_arg_list.set(2, diff_dst);
     calc_stats_arg_list.set(3, ws);
     calc_stats_arg_list.set(4, *temp_reduce);
-    calc_stats_arg_list.append(rt_conf.reduce_dim_stride);
-    calc_stats_arg_list.append(rt_conf.reduction_nelems);
-    calc_stats_arg_list.append(
+    append_off(calc_stats_arg_list, rt_conf.reduce_dim_stride);
+    append_off(calc_stats_arg_list, rt_conf.reduction_nelems);
+    append_off(calc_stats_arg_list,
             rt_conf.div * rt_conf.ic / rt_conf.reduction_nelems);
     calc_stats_arg_list.append(rt_conf.calc_stat_params.get());
 
@@ -435,8 +443,8 @@ status_t reusable_batch_normalization_bwd_t::execute_backward(
     reduce_stats_arg_list.set(2, *diff_shift_ptr);
     reduce_stats_arg_list.set(3, variance);
     reduce_stats_arg_list.set(4, rt_conf.eps);
-    reduce_stats_arg_list.append(rt_conf.ic);
-    reduce_stats_arg_list.append(rt_conf.div / rt_conf.reduction_nelems);
+    append_off(reduce_stats_arg_list, rt_conf.ic);
+    append_off(reduce_stats_arg_list, rt_conf.div / rt_conf.reduction_nelems);
     reduce_stats_arg_list.append(rt_conf.reduce_stat_params.get());
 
     auto &nd_range_reduce_stat = rt_conf.reduce_stat_params.nd_range;
@@ -456,7 +464,7 @@ status_t reusable_batch_normalization_bwd_t::execute_backward(
     arg_list.set(8, *diff_shift_ptr);
     arg_list.set(9, rt_conf.eps);
     arg_list.set(10, diff_src_add);
-    arg_list.append(rt_conf.div);
+    append_off(arg_list, rt_conf.div);
     arg_list.append(rt_conf.gws_params.get());
 
     auto &nd_range = rt_conf.gws_params.nd_range;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include "gpu/compute/dispatch_reusable.hpp"
 #include "gpu/block_structure.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -434,6 +435,7 @@ status_t reusable_dispatch_config_t::generate(
 void dispatch_compile_params_t::def_kernel_macros(
         kernel_ctx_t &kernel_ctx, const char *suffix) const {
     kernel_ctx.define_int("GWS_WITH_RUNTIME_PARAMS", 1);
+    if (use_int32_offset) kernel_ctx.add_option("-DUSE_INT32_OFFSET");
 
     // Find a unique prefix (in case there are many kernels in a file).
     std::string gws_prefix;
@@ -447,7 +449,7 @@ void dispatch_compile_params_t::def_kernel_macros(
     kernel_ctx.define_int(utils::format("%s_DEF", gws_prefix.c_str()), 1);
 
     // For each term, define each parameter
-    for (size_t i = 0; i < num_terms; i++) {
+    for (size_t i = 0; i < gpu_utils::into<size_t>(num_terms); i++) {
         const gws_indexing_term_t::compile_params_t &term = terms[i];
         const char *gws_dim_op;
         switch (term.op) {
@@ -462,15 +464,15 @@ void dispatch_compile_params_t::def_kernel_macros(
         }
         // GWS<X>_OP<Y>
         kernel_ctx.add_option(utils::format(
-                "-D%s_OP%d=GWS_OP_%s", gws_prefix, i, gws_dim_op));
+                "-D%s_OP%zu=GWS_OP_%s", gws_prefix, i, gws_dim_op));
 
         // GWS<X>_RT_IDX<Y>
-        kernel_ctx.define_int(utils::format("%s_RT_IDX%d", gws_prefix, i),
-                static_cast<dim_t>(i));
+        kernel_ctx.define_int(utils::format("%s_RT_IDX%zu", gws_prefix, i),
+                gpu_utils::into<dim_t>(i));
 
         // GWS<X>_IDX<Y>
-        kernel_ctx.define_int(utils::format("%s_IDX%d", gws_prefix, i),
-                static_cast<dim_t>(term.gws_idx));
+        kernel_ctx.define_int(utils::format("%s_IDX%zu", gws_prefix, i),
+                gpu_utils::into<dim_t>(term.gws_idx));
     }
 
     // For each buffer, define the sum that leads to the offset calculation
