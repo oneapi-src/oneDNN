@@ -196,7 +196,10 @@ namespace custom {
         auto arg = get_prim_arg_name_from_graph_op_input_offset(
                 opkind, static_cast<int>(i));
         auto dim = base_op_ref.in_lts_[i].shape_;
-        auto dt = convert_dt(base_op_ref.in_lts_[i].get_data_type());
+        auto dt = rewrite_lt_ids.find(base_op_ref.in_lts_[i].id_)
+                        == rewrite_lt_ids.end()
+                ? convert_dt(base_op_ref.in_lts_[i].get_data_type())
+                : dnnl_f32;
         auto tag = strides2memory_tag(base_op_ref.in_lts_[i].stride_.size(),
                 base_op_ref.in_lts_[i].stride_, false);
 
@@ -211,7 +214,10 @@ namespace custom {
         auto arg = get_prim_arg_name_from_graph_op_output_offset(
                 opkind, static_cast<int>(i));
         auto dim = base_op_ref.out_lts_[i].shape_;
-        auto dt = convert_dt(base_op_ref.out_lts_[i].get_data_type());
+        auto dt = rewrite_lt_ids.find(base_op_ref.out_lts_[i].id_)
+                        == rewrite_lt_ids.end()
+                ? convert_dt(base_op_ref.out_lts_[i].get_data_type())
+                : dnnl_f32;
         auto tag = strides2memory_tag(base_op_ref.out_lts_[i].stride_.size(),
                 base_op_ref.out_lts_[i].stride_, false);
 
