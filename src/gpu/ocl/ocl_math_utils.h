@@ -648,6 +648,7 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
 #endif
 
 // Atomics
+#if !DETERMINISTIC
 #define DECLARE_ATOMIC_OP(op, type) \
     type __attribute__((overloadable)) CONCAT3(atomic_, op, _global)( \
             volatile global CONCAT2(atomic_, type) * source, type operand) { \
@@ -683,6 +684,7 @@ inline float atomic_add_global(
     } while (!success);
     return old_val;
 }
+#endif
 #endif
 
 #endif
