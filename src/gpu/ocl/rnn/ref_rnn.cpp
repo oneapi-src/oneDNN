@@ -188,10 +188,14 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     auto max_elemwise_threads_per_eu
             = utils::div_up(max_elemwise_threads, device_info.eu_count());
     auto preferred_threads_per_eu = 4;
+    ocl_conf.deterministic = rnn_pd->attr()->deterministic_;
     ocl_conf.elemwise_bwd_batch_block = dev_getenv("bwd_batch_block",
-            into<int>(std::min(into<dim_t>(8),
-                    utils::rnd_up_pow2(max_elemwise_threads_per_eu
-                            / preferred_threads_per_eu))));
+            into<int>(ocl_conf.deterministic
+                            ? rnn.mb
+                            : std::min(into<dim_t>(8),
+                                    utils::rnd_up_pow2(
+                                            max_elemwise_threads_per_eu
+                                            / preferred_threads_per_eu))));
     ocl_conf.need_bias_atomic_reduce
             = !ocl_conf.is_fwd && ocl_conf.elemwise_bwd_batch_block < rnn.mb;
 
@@ -204,6 +208,7 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     primitive_attr_t ocl_attr;
     if (!is_fwd)
         CHECK(ocl_attr.set_gpu_attr(gpu_primitive_attr_t(threads_per_eu)));
+    ocl_attr.deterministic_ = deterministic;
     kernel_ctx = compute::kernel_ctx_t(&ocl_attr);
 
     kernel_ctx.add_option("-cl-std=CL2.0");
@@ -630,6 +635,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         primitive_attr_t attr;
         CHECK(attr.post_ops_.append_sum(beta));
         CHECK(attr.set_fpmath_mode(fpmath_mode));
+        attr.deterministic_ = this->attr()->deterministic_;
         status_t status = dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md,
                 &b_md, &c_md, &glob_zero_md, c_dt, &attr);
         if (ocl_conf.threads_per_eu == 0)

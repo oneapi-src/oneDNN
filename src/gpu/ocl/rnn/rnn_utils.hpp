@@ -267,7 +267,7 @@ struct ocl_conf_t {
     bool copy_src_layer = false;
     bool copy_diff_dst_layer = false;
     bool copy_diff_src_layer;
-    uint8_t pad[1] = {};
+    bool deterministic = false;
 };
 
 struct conf_t {
