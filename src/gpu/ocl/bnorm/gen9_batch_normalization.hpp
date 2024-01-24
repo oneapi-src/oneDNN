@@ -83,8 +83,9 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
                                     compute::device_ext_t::intel_subgroups),
                     VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
 
-            if (is_training() && (fuse_norm_relu() || fuse_norm_add_relu()))
-                CHECK(init_default_ws(8));
+            if (is_training() && (fuse_norm_relu() || fuse_norm_add_relu())) {
+                VDISPATCH_BNORM_SC(init_default_ws(8), "init_default_ws()");
+            }
 
             status_t status = init_conf(engine);
             if (status != status::success) return status;
@@ -228,12 +229,11 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
 
             if (fuse_norm_relu() || fuse_norm_add_relu()) {
-                CHECK(init_default_ws(8));
-                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+                VDISPATCH_BNORM_SC(init_default_ws(8), "init_default_ws()");
+                VDISPATCH_BNORM(compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
-            status_t status = init_conf(engine);
-            if (status != status::success) return status;
+            VDISPATCH_BNORM_SC(init_conf(engine), "init_conf()");
             init_scratchpad();
 
             return status::success;

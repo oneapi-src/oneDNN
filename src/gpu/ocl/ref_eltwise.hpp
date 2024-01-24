@@ -90,7 +90,7 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
                                               compute::device_ext_t::khr_fp16)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
 
-            CHECK(init_conf(engine));
+            VDISPATCH_ELTWISE_SC(init_conf(engine), "init_conf()");
             return status::success;
         }
 
@@ -168,7 +168,7 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
                             == memory_desc_wrapper(diff_src_md()),
                     VERBOSE_INCONSISTENT_MDS, "diff_src_md", "diff_dst_md");
 
-            CHECK(init_conf(engine));
+            VDISPATCH_ELTWISE_SC(init_conf(engine), "init_conf()");
             return status::success;
         }
 

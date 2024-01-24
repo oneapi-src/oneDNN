@@ -200,7 +200,7 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
                         ws_md_.data_type, data_type::bf16, data_type::f16))
                 ws_md_.data_type = data_type::f32;
 
-            if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+            VDISPATCH_LRN(compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
 
             dispatch = compute_engine->create_dispatch(diff_src_md());
             dispatch.define_dim("MB", 0, MB());

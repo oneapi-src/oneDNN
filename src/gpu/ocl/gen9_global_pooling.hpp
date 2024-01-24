@@ -191,7 +191,8 @@ struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
 
             if (desc()->alg_kind == pooling_max) {
                 init_default_ws(data_type::s32);
-                VDISPATCH_POOLING(compare_ws(hint_fwd_pd_), "compare_ws()");
+                VDISPATCH_POOLING(
+                        compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
             VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
