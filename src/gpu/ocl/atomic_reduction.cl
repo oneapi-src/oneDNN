@@ -83,8 +83,9 @@
 #define FINALIZE(x) (x)
 #endif
 
-// Finalize only applies in the final stage
-#if !IS_FINAL
+// Finalize only applies in the final stage, and atomic accumulation
+// is finalized in a separate eltwise kernel
+#if (!IS_FINAL) || (ATOMIC_REDUCTION_SIZE > 1)
 #undef FINALIZE
 #define FINALIZE(x) (x)
 #endif
@@ -103,6 +104,22 @@
 #define GET_ELEM(x, idx) (x)
 #else
 #define GET_ELEM(x, idx) x[idx]
+#endif
+
+#if VECT_DT_N == 1
+#define TO_VECT_DST TO_DST
+#define VECT_DST_DATA_T DST_DATA_T
+#define VECT_DEF_ACC_TO_FLOAT convert_float
+#else
+#define VECT_DST_DATA_T CONCAT2(DST_DATA_T, VECT_DT_N)
+#define VECT_DEF_ACC_TO_FLOAT CONCAT2(convert_float, VECT_DT_N)
+#if VECT_DT_N == 2
+#define TO_VECT_DST TO_DST2
+#elif VECT_DT_N == 4
+#define TO_VECT_DST TO_DST4
+#elif VECT_DT_N == 8
+#define TO_VECT_DST TO_DST8
+#endif
 #endif
 
 #define REDUCTION_WI_COUNT (ATOMIC_REDUCTION_SIZE * LOCAL_SIZE)
@@ -182,14 +199,14 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
         }
 
         // Finalize data, then (atomically) accumulate into to dst
+        VECT_DST_DATA_T vect_dst_data
+                = TO_VECT_DST(FINALIZE(VECT_DEF_ACC_TO_FLOAT(local_acc)));
         unroll_for(int v = 0; v < VECT_DT_N; v++) {
+            DST_DATA_T dst_data = GET_ELEM(vect_dst_data, v);
 #if ATOMIC_REDUCTION_SIZE > 1
-            DST_DATA_T dst_data = TO_DST(GET_ELEM(local_acc, v));
             DST_DATA_T old_val
                     = ATOMIC_ACCUMULATE(&dst[v * subgroup_size], dst_data);
 #else
-            DST_DATA_T dst_data
-                    = TO_DST(FINALIZE(convert_float(GET_ELEM(local_acc, v))));
             dst[v * subgroup_size] = dst_data;
 #endif
         }
