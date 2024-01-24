@@ -283,6 +283,18 @@ bool get_verbose_timestamp() {
 void pd_info_t::init(
         dnnl::impl::engine_t *, const dnnl::impl::primitive_desc_t *) {}
 
+std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
+        const memory_desc_t *wei_md, const memory_desc_t *bia_md,
+        const memory_desc_t *dst_md) {
+    return std::string();
+}
+
+std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
+        const memory_desc_t *src_md, const memory_desc_t *wei_md,
+        const memory_desc_t *dst_md) {
+    return std::string();
+}
+
 #else
 
 std::ostream &operator<<(std::ostream &ss, engine_kind_t eng_kind) {

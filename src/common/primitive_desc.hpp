@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,9 +69,14 @@ struct primitive_desc_t : public c_compatible {
     }
 
     // Returns `info` string with actual md tags and non-dense strides and dims
-    // if runtime dimensions were requested.
+    //     if runtime dimensions were requested.
     // Note: doesn't use `pd_info_t` object since it's prohibited to change the
-    // state of primitive desc at `execute` time.
+    //     state of primitive desc at `execute` time.
+    // Note: lives in `primitive_desc_t` because it relies on
+    //     `const char *info(...)`, which relies on its member `info_`, which is
+    //     not available in verbose translation unit.
+    // Note: requires all internals to be defined for ONEDNN_VERBOSE=OFF, but
+    //     doesn't require any special handling since `get_verbose` is `false`.
     std::string info_with_runtime_dims(engine_t *engine,
             const memory_desc_t *src_md, const memory_desc_t *wei_md,
             const memory_desc_t *bia_md, const memory_desc_t *dst_md) {
