@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ store_fn_t create_store() {
     using dst_t = typename prec_traits<type>::type;
     return [](const float val, byte *base, const dim_t offset) {
         *reinterpret_cast<dst_t *>(base + sizeof(dst_t) * offset)
-                = cpu::saturate_and_round<dst_t>(val);
+                = cpu::q10n::saturate_and_round<dst_t>(val);
     };
 }
 template <>

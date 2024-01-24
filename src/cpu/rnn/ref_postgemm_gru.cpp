@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -242,7 +242,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part1_postgemm) {
         const float wscale = pd_->attr()->rnn_weights_qparams_.mask_ == 0
                 ? weights_scales_[0]
                 : weights_scales_[gate * rnn.dhc + j];
-        return saturate<float>(s) * (1.f / (wscale * data_scale));
+        return q10n::saturate<float>(s) * (1.f / (wscale * data_scale));
     };
 
     const auto dequantize_u8_f32 = [&](src_iter_t s) {
@@ -288,7 +288,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part2_postgemm) {
         const float wscale = pd_->attr()->rnn_weights_qparams_.mask_ == 0
                 ? weights_scales_[0]
                 : weights_scales_[gate * rnn.dhc + j];
-        return saturate<float>(s) * (1.f / (wscale * data_scale));
+        return q10n::saturate<float>(s) * (1.f / (wscale * data_scale));
     };
 
     const auto dequantize_u8_f32 = [&](src_iter_t s) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -191,7 +191,7 @@ status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
                 args.dst_md = pd()->dst_md();
                 ref_post_ops->execute(res, args);
 
-                dst[data_p_off] = cpu::saturate_and_round<data_t>(res);
+                dst[data_p_off] = cpu::q10n::saturate_and_round<data_t>(res);
             });
 
     return status::success;
