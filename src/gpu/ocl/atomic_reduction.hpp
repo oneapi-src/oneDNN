@@ -70,11 +70,11 @@ struct atomic_reduction_key_params_t {
     // Implementation-specific parameters
     bool is_first, is_final;
     bool padding[6] = {0};
-    int subgroup_size;
-    int vect_size;
-    int full_unroll_factor;
-    int tail_unroll_factor;
-    int global_acc;
+    int32_t subgroup_size;
+    int32_t vect_size;
+    int32_t full_unroll_factor;
+    int32_t tail_unroll_factor;
+    int32_t global_acc;
     dim_t local_acc;
 
     compute::dispatch_compile_params_t params;

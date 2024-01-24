@@ -49,7 +49,7 @@ namespace compute {
 static_assert(MAX_REGISTERED_BUFFERS * (MAX_BUFFER_NAME_LENGTH + 1) % 4 == 0,
         "Padding will be introduced due to registered buffers.");
 
-enum class gws_op_t {
+enum class gws_op_t : uint32_t {
     ZERO,
     SOLO,
     FIRST,
@@ -99,7 +99,7 @@ struct gws_indexing_term_t {
 
         gws_op_t op;
         uint8_t padding[4] = {0, 0, 0, 0};
-        size_t gws_idx;
+        uint64_t gws_idx;
     };
 
     struct runtime_params_t {
@@ -209,8 +209,8 @@ public:
 protected:
     bool use_subgroup = false;
     int8_t padding[7] = {0};
-    size_t buffer_idx_ = 0;
-    size_t size_ = 0;
+    uint64_t buffer_idx_ = 0;
+    uint64_t size_ = 0;
 };
 
 // The reusable dispatcher interface involves a number of terms like (idx / stride % max) * block,
@@ -248,7 +248,7 @@ struct dispatch_compile_params_t {
     }
 
     subgroup_data_t subgroup;
-    int num_terms = 0;
+    int32_t num_terms = 0;
     bool use_int32_offset = false;
     uint8_t padding[3] = {0};
     gws_indexing_term_t::compile_params_t terms[MAX_INDEXING_TERMS]
@@ -256,12 +256,12 @@ struct dispatch_compile_params_t {
 
     // Buffer definitions (each buffer has a name, and a collection of terms
     // used to compute the offset)
-    size_t num_buffers = 0;
+    uint64_t num_buffers = 0;
     char buffer_names[MAX_REGISTERED_BUFFERS][MAX_BUFFER_NAME_LENGTH + 1]
             = {{'\0'}};
-    size_t buffer_term_index[MAX_REGISTERED_BUFFERS][MAX_INDEXING_TERMS]
+    uint64_t buffer_term_index[MAX_REGISTERED_BUFFERS][MAX_INDEXING_TERMS]
             = {{0}};
-    size_t buffer_num_terms[MAX_REGISTERED_BUFFERS] = {0};
+    uint64_t buffer_num_terms[MAX_REGISTERED_BUFFERS] = {0};
 };
 assert_trivially_serializable(dispatch_compile_params_t);
 
