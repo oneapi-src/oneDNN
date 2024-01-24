@@ -1125,6 +1125,14 @@ inline void def_data_type(
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=uchar -D%s_DT_BF8", str, str));
             break;
+        case data_type::s4:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=char -D%s_DT_S4", str, str));
+            break;
+        case data_type::u4:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=uchar -D%s_DT_U4", str, str));
+            break;
         case data_type::s32:
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=int -D%s_DT_S32", str, str));
