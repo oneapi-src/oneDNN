@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,7 +55,8 @@ struct atomic_reduction_t : public gpu_primitive_t {
             bool ok = set_default_params() == status::success
                     && attr()->has_default_values(attr_skip_mask)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && attr_.set_default_formats(dst_md(0)) == status::success
+                    && !attr()->deterministic_;
             if (!ok) return status::unimplemented;
 
             CHECK(init_conf(engine));
