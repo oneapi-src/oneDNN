@@ -776,7 +776,9 @@ void pooling_op_t::calculate_dynamic_shape_expression() {
     std::string auto_pad = attrs_.get_or_else<std::string>(
             pooling_attr_key::auto_pad, auto_pad_options::none);
     for (unsigned i = 0; i < n_pad_dims; i++) {
-        if (is_dynamic_dim(data_dims[shape_begin_axis + i])) {
+        if (is_dynamic_dim(data_dims[shape_begin_axis + i])
+                && out_dims[shape_begin_axis + i]
+                        != data_dims[shape_begin_axis + i]) {
             auto var_in = g.dim_to_expr(data_dims[shape_begin_axis + i]);
             auto var_out = g.dim_to_expr(out_dims[shape_begin_axis + i]);
             expr_c cal_expr;

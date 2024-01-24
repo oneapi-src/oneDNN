@@ -1127,7 +1127,9 @@ void conv_fwd_core_op_t::calculate_dynamic_shape_expression() {
     auto expr_dilations = g.dims_to_expr(dilations);
     const int shape_begin_axis = 2;
     for (int i = 0; i < ndims_ - 2; i++) {
-        if (is_dynamic_dim(data_dims[shape_begin_axis + i])) {
+        if (is_dynamic_dim(data_dims[shape_begin_axis + i])
+                && out_dims[shape_begin_axis + i]
+                        != data_dims[shape_begin_axis + i]) {
             auto var_in = g.dim_to_expr(data_dims[shape_begin_axis + i]);
             auto var_out = g.dim_to_expr(out_dims[shape_begin_axis + i]);
             expr_c cal_expr = do_cast_and_fold(

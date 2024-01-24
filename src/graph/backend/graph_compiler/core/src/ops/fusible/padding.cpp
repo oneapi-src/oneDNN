@@ -458,7 +458,8 @@ void padding_op_t::calculate_dynamic_shape_expression() {
     auto expr_pads_begin = g.dims_to_expr(attrs_.get<sc_dims>("pads_begin"));
     auto expr_pads_end = g.dims_to_expr(attrs_.get<sc_dims>("pads_end"));
     for (size_t i = 0; i < padding_axis.size(); i++) {
-        if (is_dynamic_dim(data_dims[padding_axis[i]])) {
+        if (is_dynamic_dim(data_dims[padding_axis[i]])
+                && out_dims[padding_axis[i]] != data_dims[padding_axis[i]]) {
             auto var_in = g.dim_to_expr(data_dims[padding_axis[i]]);
             auto var_out = g.dim_to_expr(out_dims[padding_axis[i]]);
             expr_c cal_expr = do_cast_and_fold(
