@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -201,13 +201,7 @@ TEST(GCCore_CPU_index2var_cpp, TestIndex2Var) {
             }
 
             _var_init_(cached14, datatypes::f32, (B[{i, 0}]));
-            _var_(cached15, datatypes::f32);
-            {
-                builder.push_scope();
-                cached15 = 3;
-                A[{cached14, 0}] = cached15;
-                builder.emit(builder.pop_scope());
-            }
+            A[{cached14, 0}] = 3;
             _var_(cached11, datatypes::f32);
             {
                 builder.push_scope();
@@ -516,6 +510,79 @@ TEST(GCCore_CPU_index2var_cpp, TestIndex2VarMask) {
                 (A[span_t {{len}, 16, mask}]));
         a = cached3;
         _return_(builder::make_reduce_add(a));
+    }
+
+    index2var_t f;
+    auto out = f(aaa);
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
+
+TEST(GCCore_CPU_index2var_cpp, TestIndex2VarMultiIndex) {
+    builder::ir_builder_t builder;
+
+    _function_(datatypes::f32, aaa, _arg_("A", datatypes::f32, {1000}),
+            _arg_("B", datatypes::f32, {1000}), _arg_("len", datatypes::s32)) {
+        _bind_(A, B, len);
+        _for_(i, 0, 100) {
+            _for_(j, 0, 100, 64) {
+                B[span_t({i * UINT64_C(100)}, 16)]
+                        = B[span_t({i * UINT64_C(100)}, 16)]
+                        + A[span_t({i * UINT64_C(10) + j * UINT64_C(16)}, 16)];
+                B[span_t({i * UINT64_C(100) + UINT64_C(16)}, 16)]
+                        = B[span_t({i * UINT64_C(100) + UINT64_C(16)}, 16)]
+                        + A[span_t({i * UINT64_C(10) + j * UINT64_C(16)}, 16)];
+                B[span_t({i * UINT64_C(100) + UINT64_C(32)}, 16)]
+                        = B[span_t({i * UINT64_C(100) + UINT64_C(32)}, 16)]
+                        + A[span_t({i * UINT64_C(10) + j * UINT64_C(16)}, 16)];
+                B[span_t({i * UINT64_C(100) + UINT64_C(48)}, 16)]
+                        = B[span_t({i * UINT64_C(100) + UINT64_C(48)}, 16)]
+                        + A[span_t({i * UINT64_C(10) + j * UINT64_C(16)}, 16)];
+            }
+        }
+    }
+
+    _function_(datatypes::f32, expected, _arg_("A", datatypes::f32, {1000}),
+            _arg_("B", datatypes::f32, {1000}), _arg_("len", datatypes::s32)) {
+        _bind_(A, B, len);
+        _for_(i, 0, 100) {
+            _var_init_(cache1, sc_data_type_t::f32(16),
+                    B[span_t({i * UINT64_C(100)}, 16)]);
+            _var_init_(cache2, sc_data_type_t::f32(16),
+                    B[span_t({i * UINT64_C(100) + UINT64_C(16)}, 16)]);
+            _var_init_(cache3, sc_data_type_t::f32(16),
+                    B[span_t({i * UINT64_C(100) + UINT64_C(32)}, 16)]);
+            _var_init_(cache4, sc_data_type_t::f32(16),
+                    B[span_t({i * UINT64_C(100) + UINT64_C(48)}, 16)]);
+            _for_(j, 0, 100, 64) {
+                _var_init_(cacheA, sc_data_type_t::f32(16),
+                        A[span_t({i * UINT64_C(10) + j * UINT64_C(16)}, 16)]);
+                {
+                    builder.push_scope();
+                    cache1 = cache1 + cacheA;
+                    builder.emit(builder.pop_scope());
+                }
+                {
+                    builder.push_scope();
+                    cache2 = cache2 + cacheA;
+                    builder.emit(builder.pop_scope());
+                }
+                {
+                    builder.push_scope();
+                    cache3 = cache3 + cacheA;
+                    builder.emit(builder.pop_scope());
+                }
+                {
+                    builder.push_scope();
+                    cache4 = cache4 + cacheA;
+                    builder.emit(builder.pop_scope());
+                }
+            }
+            B[span_t({i * UINT64_C(100)}, 16)] = cache1;
+            B[span_t({i * UINT64_C(100) + UINT64_C(16)}, 16)] = cache2;
+            B[span_t({i * UINT64_C(100) + UINT64_C(32)}, 16)] = cache3;
+            B[span_t({i * UINT64_C(100) + UINT64_C(48)}, 16)] = cache4;
+        }
     }
 
     index2var_t f;

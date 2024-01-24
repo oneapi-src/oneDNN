@@ -14,6 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 #include "index2var.hpp"
+#include <algorithm>
+#include <deque>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -250,6 +252,47 @@ public:
     }
 };
 
+enum class compare_result {
+    EQ,
+    NE,
+    UNKNOWN,
+};
+
+static bool check_index_no_overlap(ir_comparer &cmper, const expr_c &v1,
+        const expr_c &v2, uint16_t lanes) {
+    // this helper function will decompose the "v" into "lhs+const" if possible
+    auto get_const_add_rhs = [](const expr_c &v, expr_c &lhs) -> int64_t {
+        expr_c ret_lhs = v;
+        auto ret = v.cast<add>()
+                           .map([&ret_lhs](const add &v) {
+                               ret_lhs = v->l_;
+                               return v->r_.as<constant>();
+                           })
+                           .filter([](const constant &v) {
+                               return utils::is_one_of(
+                                       get_type_category_nothrow(v->dtype_),
+                                       CATE_INT, CATE_UINT);
+                           })
+                           .map(get_const_as_int);
+        if (ret.has_value()) {
+            lhs = std::move(ret_lhs);
+            return ret.get();
+        }
+        lhs = v;
+        return 0;
+    };
+    expr_c v1_lhs, v2_lhs;
+    auto v1_rhs_const = get_const_add_rhs(v1, v1_lhs);
+    auto v2_rhs_const = get_const_add_rhs(v2, v2_lhs);
+    if (v1_rhs_const == 0 && v2_rhs_const == 0) { return false; }
+    if (std::abs(v1_rhs_const - v2_rhs_const) < (int64_t)lanes) {
+        // may overlap
+        return false;
+    }
+    // compare if the base is the same
+    return cmper.compare(v1_lhs, v2_lhs);
+}
+
 class indexing2var_impl_t : public ir_visitor_t {
     struct scope_info_t;
     // the "cache" for an element of a tensor
@@ -278,24 +321,47 @@ class indexing2var_impl_t : public ir_visitor_t {
             , lanes_(lanes)
             , rows_(rows)
             , mask_(std::move(mask)) {}
-        // returns true if `v` is exactly the same of the cached indexing
-        bool is_match(const indexing_c &v) const {
-            if (!v->ptr_.ptr_same(tsr_.static_as<expr>())) return false;
+        // returns EQ if `v` is exactly the same of the cached indexing
+        // returns NE if `v` does not overlap with cached indexing
+        // otherwise, UNKNOWN
+        compare_result is_match(const indexing_c &v) const {
+            if (!v->ptr_.ptr_same(tsr_.static_as<expr>())) {
+                return compare_result::UNKNOWN;
+            }
             assert(idx_.size() == v->idx_.size());
             ir_comparer cmp(false, false, true);
             if (v->dtype_.lanes_ == lanes_ && v->dtype_.rows_ == rows_) {
-                for (unsigned i = 0; i < v->idx_.size(); i++) {
-                    if (!cmp.compare(v->idx_[i], idx_[i])) { return false; }
-                }
-                if (v->mask_.defined()) {
-                    if (!mask_.defined()) { return false; }
-                    if (!cmp.compare(v->mask_, mask_)) { return false; }
+                bool same_index = true;
+                if (v->idx_.size() == 1) {
+                    if (!cmp.compare(v->idx_[0], idx_[0])) {
+                        // the index is not the same now
+                        if (!check_index_no_overlap(
+                                    cmp, v->idx_[0], idx_[0], lanes_)) {
+                            // if the indexing may overlap, skip
+                            return compare_result::UNKNOWN;
+                        }
+                        // the index is proven not overlapping
+                        same_index = false;
+                    }
                 } else {
-                    if (mask_.defined()) { return false; }
+                    for (unsigned i = 0; i < v->idx_.size(); i++) {
+                        if (!cmp.compare(v->idx_[i], idx_[i])) {
+                            return compare_result::UNKNOWN;
+                        }
+                    }
                 }
-                return true;
+
+                if (v->mask_.defined()) {
+                    if (!mask_.defined()) { return compare_result::UNKNOWN; }
+                    if (!cmp.compare(v->mask_, mask_)) {
+                        return compare_result::UNKNOWN;
+                    }
+                } else {
+                    if (mask_.defined()) { return compare_result::UNKNOWN; }
+                }
+                return same_index ? compare_result::EQ : compare_result::NE;
             }
-            return false;
+            return compare_result::UNKNOWN;
         }
         bool is_valid() const { return tsr_.defined(); }
     };
@@ -319,10 +385,14 @@ class indexing2var_impl_t : public ir_visitor_t {
         bool tensor_not_written_here(const expr_c &v) {
             return written_tensors_.find(v) == written_tensors_.end();
         }
+
+        void increment_num_flushes(const expr_c &v, int cnt = 1) {
+            num_flushes_[v] += cnt;
+        }
     };
 
     // the tensor -> tensor_cache, it stores all "cached" indexing
-    std::unordered_map<expr_c, tensor_cache_ptr> cached_index_;
+    std::unordered_multimap<expr_c, tensor_cache_ptr> cached_index_;
     // the var -> tensor_cache map. The var is the variable used in indexing,
     // NOT the caching var. e.g. if there is A[i,j] cached, there will be
     // {i->cache of A} and {j-> cache of A} in dependency_map_. If
@@ -336,16 +406,16 @@ class indexing2var_impl_t : public ir_visitor_t {
     // first dimension is a stack of scopes. At the end of a scope, we need to
     // evict all cache items in scope_info_.back(), then call
     // scope_info_.pop()
-    std::vector<scope_info_t> scope_info_;
+    std::deque<scope_info_t> scope_info_;
     int for_depth_ = 0;
     std::unordered_map<alias_info::tensor_alias_identity_t *, expr_c>
             &alias_map_;
     std::unordered_set<expr_c> loop_vars_;
     const for_loop_node_t *cur_for_loop_ = nullptr;
 
-    // flushes the cache
-    void invalidate(tensor_cache_ptr c, // NOLINT
-            std::vector<stmt> *writeback_point = nullptr) { // NOLINT
+    // do write back and etc, don't remove it from the map
+    void invalidate_internal(tensor_cache_ptr c, // NOLINT
+            std::vector<stmt> *writeback_point, scope_info_t *scope) {
         if (c->is_valid()) {
             // if the cache is dirty, write back after the last write
             if (c->last_write_.defined()) {
@@ -358,27 +428,34 @@ class indexing2var_impl_t : public ir_visitor_t {
                         c->var_));
             }
             // mark the cache invalid
-            cached_index_.erase(c->tsr_);
-            scope_info_.back().num_flushes_[c->tsr_]++;
+            scope->increment_num_flushes(c->tsr_);
             c->tsr_ = tensor_c();
         }
     }
 
+    // flushes the cache for all indexing of the same tensor
+    void invalidate(tensor_cache_ptr c, // NOLINT
+            std::vector<stmt> *writeback_point = nullptr) { // NOLINT
+        invalidate_if_exist(c->tsr_, writeback_point);
+    }
+
     // invalidates a tensor in the cache, returns true if is in cache
-    bool invalidate_if_exist(const expr_c &arg) {
-        auto tsr = arg.static_as<tensor>();
-        auto itr = cached_index_.find(tsr);
-        if (itr != cached_index_.end()) {
-            invalidate(itr->second);
-            return true;
+    bool invalidate_if_exist(
+            const expr_c &arg, std::vector<stmt> *writeback_point = nullptr) {
+        auto itrs = cached_index_.equal_range(arg);
+        auto ret = (itrs.first != itrs.second);
+        for (auto itr = itrs.first; itr != itrs.second; ++itr) {
+            invalidate_internal(
+                    itr->second, writeback_point, &scope_info_.back());
         }
-        return false;
+        cached_index_.erase(itrs.first, itrs.second);
+        return ret;
     }
 
     void invalidate_all() {
         while (!cached_index_.empty()) {
-            auto itr = cached_index_.begin()->second;
-            invalidate(itr);
+            auto itr = cached_index_.begin()->first;
+            invalidate_if_exist(itr);
         }
     }
 
@@ -432,12 +509,13 @@ class indexing2var_impl_t : public ir_visitor_t {
     // if `is_read`, sets the cached var to the indexing value
     // if the indexing node is not cache-able, returns `v` and leaves
     // `out_cache` = nullptr
-    expr_c make_cache(indexing_c v, bool is_read, tensor_cache_ptr &out_cache) {
+    expr_c make_cache(indexing_c v, const std::vector<expr> &old_idx,
+            bool is_read, tensor_cache_ptr &out_cache) {
         SC_MODULE_INFO << "Make cache: " << v;
         // the vars that the indices of `v` depends on
         utils::weakptr_hashset_t<expr_base> vars;
         // if we can trace the changes of the indices
-        bool is_valid = var_dependency_finder_t::find(vars, v->idx_);
+        bool is_valid = var_dependency_finder_t::find(vars, old_idx);
         if (v->mask_.defined()) {
             is_valid = is_valid
                     && var_dependency_finder_t::find(vars, &(v->mask_));
@@ -523,7 +601,7 @@ class indexing2var_impl_t : public ir_visitor_t {
             if (invalidate_alias_group(v->in_, true)) {
                 SC_MODULE_INFO << "Evict due to cast: " << v;
             }
-            scope_info_.back().num_flushes_[v->in_]++;
+            scope_info_.back().increment_num_flushes(v->in_);
         }
         return ir_visitor_t::visit(std::move(v));
     }
@@ -535,7 +613,7 @@ class indexing2var_impl_t : public ir_visitor_t {
                 if (invalidate_alias_group(arg, true)) {
                     SC_MODULE_INFO << "Evict due to function call: " << ret;
                 }
-                scope_info_.back().num_flushes_[arg]++;
+                scope_info_.back().increment_num_flushes(arg);
             }
         }
         return ret;
@@ -551,7 +629,7 @@ class indexing2var_impl_t : public ir_visitor_t {
         if (invalidate_alias_group(tsr, true)) {
             SC_MODULE_INFO << "Evict due to tensorptr: " << v;
         }
-        scope_info_.back().num_flushes_[tsr]++;
+        scope_info_.back().increment_num_flushes(tsr);
         if (ret_base.ptr_same(v->base_)) {
             return std::move(v);
         } else {
@@ -579,8 +657,8 @@ class indexing2var_impl_t : public ir_visitor_t {
     }
 
     expr_c visit_indexing(
-            indexing_c v, bool is_read, tensor_cache_ptr &out_cache) {
-        auto ret = ir_visitor_t::visit(std::move(v)).as<indexing_c>();
+            const indexing_c &v, bool is_read, tensor_cache_ptr &out_cache) {
+        auto ret = ir_visitor_t::visit(v).as<indexing_c>();
         auto tsr = ret->ptr_.as<tensor>();
         if (tsr->attr_
                 && tsr->attr_->get_or_else(attr_keys::must_tensor2var, false)) {
@@ -599,10 +677,11 @@ class indexing2var_impl_t : public ir_visitor_t {
                 SC_MODULE_INFO << "Alias group invalidated for " << tsr;
             }
         }
-        auto itr = cached_index_.find(tsr);
-        if (itr != cached_index_.end()) {
+        auto its = cached_index_.equal_range(tsr);
+        for (auto itr = its.first; itr != its.second; ++itr) {
             // if the tensor is cached
-            if (itr->second->is_match(ret)) {
+            auto cmp_result = itr->second->is_match(ret);
+            if (cmp_result == compare_result::EQ) {
                 // the cached index is a match, return the var
                 out_cache = itr->second;
                 // If the indexing is cached, we can use it if:
@@ -631,13 +710,18 @@ class indexing2var_impl_t : public ir_visitor_t {
                 // the use of A[1], but the last use of A[0] is still in the
                 // else block, so the write to A[0] in then-block will be
                 // lost
+                invalidate(itr->second);
+                break;
+            } else if (cmp_result == compare_result::NE) {
+                // do nothing. We will make cache later
             } else {
                 SC_MODULE_INFO << "Evict old for unmatched index: " << ret;
+                // the tensor is cached, but with different index, evict it
+                invalidate(itr->second);
+                break;
             }
-            // the tensor is cached, but with different index, evict it
-            invalidate(itr->second);
         }
-        return make_cache(std::move(ret), is_read, out_cache);
+        return make_cache(std::move(ret), v->idx_, is_read, out_cache);
     }
 
     expr_c visit(indexing_c v) override {
@@ -645,7 +729,7 @@ class indexing2var_impl_t : public ir_visitor_t {
             return v;
         }
         tensor_cache_ptr out_cache;
-        return visit_indexing(std::move(v), true, out_cache);
+        return visit_indexing(v, true, out_cache);
     }
 
     stmt_c visit(stmts_c v) override {
@@ -675,12 +759,27 @@ class indexing2var_impl_t : public ir_visitor_t {
         }
         changed |= v->seq_.size() != seq.size();
 
+        // sort the cache to make stable result for testing
+        std::vector<tensor_cache_ptr> outstanding_cache {
+                scope_info_.back().outstanding_cache_.begin(),
+                scope_info_.back().outstanding_cache_.end()};
+        std::sort(outstanding_cache.begin(), outstanding_cache.end(),
+                [](const tensor_cache_ptr &p1, const tensor_cache_ptr &p2) {
+                    return p1->var_->name_ < p2->var_->name_;
+                });
+        std::vector<expr_c> bases;
+        bases.reserve(outstanding_cache.size());
         // evict all cache items that will die at the end of this stmts
-        for (auto &v : scope_info_.back().outstanding_cache_) {
+        for (auto &v : outstanding_cache) {
             // where to writeback the cache: the parent scope? or after the last
             // write?
             if (v->is_valid()) {
-                SC_MODULE_INFO << "Evict at the end of scope: " << v->tsr_;
+                SC_MODULE_INFO
+                        << "Evict at the end of scope: " << v->tsr_
+                        << " idx=" << utils::print_vector(v->idx_)
+                        << ", may_lift_to="
+                        << (v->may_lift_to_ ? v->may_lift_to_->loop_->var_
+                                            : expr(0));
                 auto check_is_tensor_defined_in_current_scope = [&v, &seq]() {
                     for (auto &s : seq) {
                         if (s.cast<define>()
@@ -694,10 +793,31 @@ class indexing2var_impl_t : public ir_visitor_t {
                     }
                     return false;
                 };
+                if (v->may_lift_to_) {
+                    SC_MODULE_INFO
+                            << "Evict " << v->tsr_ << " num_flushes="
+                            << scope_info_.back().num_flushes_[v->tsr_]
+                            << ", current_scope="
+                            << check_is_tensor_defined_in_current_scope();
+                }
                 std::vector<stmt> *writeback_point = nullptr;
+                scope_info_t *lift_scope = &scope_info_.back();
                 // check if tensor cache can be lifted: a) check may_lift_to_ b)
-                // check if the cache has been flushed before c) if the tensor
-                // is defined in current scope, we cannot lift it
+                // check if the cache has been flushed in the current scope c)
+                // if the tensor is defined in current scope, we cannot lift it
+                /*
+                Why we can't lift if the cache has been flushed? For example,
+                _for_(i, 0, 100, 1) {
+                    _for_(j, 0, 100, 1) {
+                        _for_(k, 0, 100, 1) {
+                            A[{n, 0}] = 0;
+                            A[{i, 0}] = 0;
+                        }
+                    }
+                }
+                "A[{i, 0}] = 0" cannot be lift because "A[{A, 0}] = 0" is
+                flushed in the k-loop, and "A[{i, 0}] = 0" may affect it
+                */
                 if (v->may_lift_to_
                         && scope_info_.back().num_flushes_[v->tsr_] == 0
                         && !check_is_tensor_defined_in_current_scope()) {
@@ -742,15 +862,23 @@ class indexing2var_impl_t : public ir_visitor_t {
                         ++itr;
                     }
                     writeback_point = &v->may_lift_to_->insert_after_;
+                    lift_scope = v->may_lift_to_;
                 }
-                invalidate(v, writeback_point);
+                bases.emplace_back(v->tsr_);
+                // each cache may have different writeback_point even if the
+                // base tensor is the same, so we first call invalidate_internal
+                // and then call invalidate to remove it from the map
+                invalidate_internal(v, writeback_point, lift_scope);
             }
+        }
+        for (auto &v : bases) {
+            invalidate_if_exist(v);
         }
         if (scope_info_.size() > 1) {
             auto itrprev = scope_info_.rbegin();
             auto &prev = *++itrprev;
             for (auto &kv : scope_info_.back().num_flushes_) {
-                prev.num_flushes_[kv.first] += kv.second;
+                prev.increment_num_flushes(kv.first, kv.second);
             }
         }
         scope_info_.pop_back();
