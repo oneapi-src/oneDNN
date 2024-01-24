@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,8 +65,8 @@ void compensation_compute(bool transa, dim_t m, dim_t k, float alpha,
                 val += a[(i + j * blocking_factor * lda) + jb * lda];
             }
             if (alpha != 1.0f) {
-                val = out_round<int32_t>(
-                        saturate<int32_t>((double)val * alpha * -128.0));
+                val = q10n::out_round<int32_t>(
+                        q10n::saturate<int32_t>((double)val * alpha * -128.0));
             } else {
                 val *= -128;
             }
@@ -80,8 +80,8 @@ void compensation_compute(bool transa, dim_t m, dim_t k, float alpha,
                     val += a[i + j * lda];
                 }
                 if (alpha != 1.0f) {
-                    val = out_round<int32_t>(
-                            saturate<int32_t>((double)val * alpha * -128.0));
+                    val = q10n::out_round<int32_t>(q10n::saturate<int32_t>(
+                            (double)val * alpha * -128.0));
                 } else {
                     val *= -128;
                 }
@@ -95,8 +95,8 @@ void compensation_compute(bool transa, dim_t m, dim_t k, float alpha,
                 val += a[j + i * lda];
             }
             if (alpha != 1.0f) {
-                val = out_round<int32_t>(
-                        saturate<int32_t>((double)val * alpha * -128.0));
+                val = q10n::out_round<int32_t>(
+                        q10n::saturate<int32_t>((double)val * alpha * -128.0));
             } else {
                 val *= -128;
             }

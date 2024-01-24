@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -253,7 +253,8 @@ simple_resampling_kernel_t<src_type, dst_type>::create_nearest() const {
                     po_args.l_offset++;
                 }
 
-                dst[innermost_el] = cpu::saturate_and_round<dst_data_t>(res);
+                dst[innermost_el]
+                        = cpu::q10n::saturate_and_round<dst_data_t>(res);
             }
         };
     } else {
@@ -289,7 +290,7 @@ simple_resampling_kernel_t<src_type, dst_type>::create_nearest() const {
                             diff_dst[od + oh + ow + innermost_el]);
                 }
                 diff_src[innermost_el]
-                        = cpu::saturate_and_round<dst_data_t>(sum);
+                        = cpu::q10n::saturate_and_round<dst_data_t>(sum);
             }
         };
     }
@@ -322,7 +323,8 @@ simple_resampling_kernel_t<src_type, dst_type>::create_linear() const {
                     po_args.l_offset++;
                 }
 
-                dst[innermost_el] = cpu::saturate_and_round<dst_data_t>(res);
+                dst[innermost_el]
+                        = cpu::q10n::saturate_and_round<dst_data_t>(res);
             }
         };
     } else {
@@ -346,7 +348,7 @@ simple_resampling_kernel_t<src_type, dst_type>::create_linear() const {
                                     + k];
                 }
                 diff_src[innermost_el]
-                        = cpu::saturate_and_round<dst_data_t>(sum);
+                        = cpu::q10n::saturate_and_round<dst_data_t>(sum);
             }
         };
     }
@@ -381,7 +383,8 @@ simple_resampling_kernel_t<src_type, dst_type>::create_bilinear() const {
                     po_args.l_offset++;
                 }
 
-                dst[innermost_el] = cpu::saturate_and_round<dst_data_t>(res);
+                dst[innermost_el]
+                        = cpu::q10n::saturate_and_round<dst_data_t>(res);
             }
         };
     } else {
@@ -409,7 +412,7 @@ simple_resampling_kernel_t<src_type, dst_type>::create_bilinear() const {
                                     + k];
                 }
                 diff_src[innermost_el]
-                        = cpu::saturate_and_round<dst_data_t>(sum);
+                        = cpu::q10n::saturate_and_round<dst_data_t>(sum);
             }
         };
     }
@@ -447,7 +450,8 @@ simple_resampling_kernel_t<src_type, dst_type>::create_trilinear() const {
                     po_args.l_offset++;
                 }
 
-                dst[innermost_el] = cpu::saturate_and_round<dst_data_t>(res);
+                dst[innermost_el]
+                        = cpu::q10n::saturate_and_round<dst_data_t>(res);
             }
         };
     } else {
@@ -480,7 +484,7 @@ simple_resampling_kernel_t<src_type, dst_type>::create_trilinear() const {
                                     + k];
                 }
                 diff_src[innermost_el]
-                        = cpu::saturate_and_round<dst_data_t>(sum);
+                        = cpu::q10n::saturate_and_round<dst_data_t>(sum);
             }
         };
     }

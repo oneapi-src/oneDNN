@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
 
     auto ker = [=](data_t &d, data_t s) {
         float res = compute_eltwise_scalar_fwd(alg_kind, s, alpha, beta);
-        d = cpu::saturate_and_round<data_t>(res);
+        d = cpu::q10n::saturate_and_round<data_t>(res);
     };
 
     parallel_nd(MB, C_PADDED, SP, [&](dim_t n, dim_t c, dim_t sp) {
@@ -114,7 +114,7 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_generic(
                 args.dst_md = pd()->dst_md();
                 ref_post_ops->execute(res, args);
 
-                dst[data_p_off] = cpu::saturate_and_round<data_t>(res);
+                dst[data_p_off] = cpu::q10n::saturate_and_round<data_t>(res);
             });
     return status::success;
 }
@@ -141,14 +141,14 @@ status_t ref_eltwise_fwd_t<data_type>::execute_forward_dense(
     if (alg_kind == alg_kind::eltwise_relu && alpha == 0) {
         parallel_nd(nelems, [&](dim_t e) {
             float res = math::relu_fwd(src[e], alpha);
-            dst[e] = cpu::saturate_and_round<data_t>(res);
+            dst[e] = cpu::q10n::saturate_and_round<data_t>(res);
         });
         return status::success;
     }
 
     parallel_nd(nelems, [&](dim_t e) {
         float res = compute_eltwise_scalar_fwd(alg_kind, src[e], alpha, beta);
-        dst[e] = cpu::saturate_and_round<data_t>(res);
+        dst[e] = cpu::q10n::saturate_and_round<data_t>(res);
     });
     return status::success;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,10 +84,10 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
             *static_cast<float *>(dst_iter_c_ptr) = c_state;
         else if (rnn.dst_iter_c_dt == data_type::bf16)
             *static_cast<bfloat16_t *>(dst_iter_c_ptr)
-                    = cpu::saturate_and_round<bfloat16_t>(c_state);
+                    = cpu::q10n::saturate_and_round<bfloat16_t>(c_state);
         else if (rnn.dst_iter_c_dt == data_type::f16)
             *static_cast<float16_t *>(dst_iter_c_ptr)
-                    = cpu::saturate_and_round<float16_t>(c_state);
+                    = cpu::q10n::saturate_and_round<float16_t>(c_state);
     };
 
     const auto postgemm_call = [&](int i) {
@@ -188,7 +188,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
 
     const auto quantize_f32_u8 = [&](float f) {
         float qf = f * data_scale + data_shift;
-        return qz_a1b0<float, dst_layer_t>()(qf);
+        return q10n::qz_a1b0<float, dst_layer_t>()(qf);
     };
 
     const auto dequantize_s32_f32 = [&](gemm_acc_t s, int gate, int j) {
@@ -196,7 +196,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
                 ? weights_scales_[0]
                 : weights_scales_[gate * rnn.dhc + j];
 
-        return saturate<float>(s) * (1.f / (wscale * data_scale));
+        return q10n::saturate<float>(s) * (1.f / (wscale * data_scale));
     };
 
     const auto linear_f
@@ -229,7 +229,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::lstm_postgemm) {
 
     const auto quantize_f32_s8 = [&](float f) {
         float qf = f * data_scale + data_shift;
-        return qz_a1b0<float, dst_layer_t>()(qf);
+        return q10n::qz_a1b0<float, dst_layer_t>()(qf);
     };
 
     const auto dequantize_s32_f32 = [&](gemm_acc_t s, int gate, int j) {
@@ -237,7 +237,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_s8_t::lstm_postgemm) {
                 ? weights_scales_[0]
                 : weights_scales_[gate * rnn.dhc + j];
 
-        return saturate<float>(s) * (1.f / (wscale * data_scale));
+        return q10n::saturate<float>(s) * (1.f / (wscale * data_scale));
     };
 
     const auto linear_f
