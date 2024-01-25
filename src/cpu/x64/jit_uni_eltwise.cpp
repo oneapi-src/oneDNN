@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -267,20 +267,33 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 
     const memory_desc_wrapper src_d(src_md());
 
-    bool ok = mayiuse(isa) && is_fwd()
-            && utils::everyone_is(
-                    d_type, src_md()->data_type, dst_md()->data_type)
-            && IMPLICATION(src_md()->data_type == data_type::bf16,
-                    mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
-            && IMPLICATION(src_md()->data_type == data_type::f16,
-                    mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2))
-            && !has_zero_dim_memory() && src_d.is_dense(true)
-            && eltwise_injector::is_supported(isa, desc_.alg_kind)
-            // refer to a comment in jit_uni_kernel why this is needed
-            && IMPLICATION(!src_d.is_dense(), is_zero_preserved())
-            && attr()->has_default_values() && set_default_formats_common()
-            && src_d == memory_desc_wrapper(dst_md());
-    return ok ? status::success : status::unimplemented;
+    // disabling verbose dispatch messages for unsupported isa for better readability
+    if (!mayiuse(isa)) return status::unimplemented;
+
+    VDISPATCH_ELTWISE(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_ELTWISE(utils::everyone_is(
+                              d_type, src_md()->data_type, dst_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_ELTWISE(IMPLICATION(src_md()->data_type == data_type::bf16,
+                              mayiuse(avx512_core) || mayiuse(avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_ELTWISE(
+            IMPLICATION(src_md()->data_type == data_type::f16,
+                    mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_ELTWISE(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_ELTWISE(src_d.is_dense(true), VERBOSE_UNSUPPORTED_SPARSE_CFG);
+    VDISPATCH_ELTWISE(eltwise_injector::is_supported(isa, desc_.alg_kind),
+            VERBOSE_BAD_ALGORITHM);
+    // refer to a comment in jit_uni_kernel why this is needed
+    VDISPATCH_ELTWISE(IMPLICATION(!src_d.is_dense(), is_zero_preserved()),
+            VERBOSE_UNSUPPORTED_SPARSE_CFG);
+    VDISPATCH_ELTWISE(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_ELTWISE(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_ELTWISE(src_d == memory_desc_wrapper(dst_md()),
+            VERBOSE_INCONSISTENT_MDS, "src", "dst");
+
+    return status::success;
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
@@ -334,23 +347,38 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 
     const memory_desc_wrapper data_d(data_md());
 
-    bool ok = mayiuse(isa) && !is_fwd()
-            && utils::everyone_is(d_type, data_md()->data_type,
-                    diff_src_md()->data_type, diff_dst_md()->data_type)
-            && IMPLICATION(data_md()->data_type == data_type::bf16,
-                    mayiuse(avx512_core))
-            && IMPLICATION(data_md()->data_type == data_type::f16,
-                    mayiuse(avx512_core_fp16))
-            && !has_zero_dim_memory() && set_default_formats_common()
-            && data_d.is_dense(true) && eltwise_injector::is_isa_supported(isa)
-            && eltwise_injector::is_alg_supported(desc_.alg_kind)
-            // refer to a comment in jit_uni_kernel why this is needed
-            && IMPLICATION(!data_d.is_dense(), is_zero_preserved())
-            && data_d == memory_desc_wrapper(diff_dst_md())
-            && memory_desc_wrapper(diff_src_md())
-                    == memory_desc_wrapper(diff_dst_md())
-            && attr()->has_default_values();
-    return ok ? status::success : status::unimplemented;
+    // disabling verbose dispatch messages for unsupported isa for better readability
+    if (!mayiuse(isa)) return status::unimplemented;
+
+    VDISPATCH_ELTWISE(!is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_ELTWISE(
+            utils::everyone_is(d_type, data_md()->data_type,
+                    diff_src_md()->data_type, diff_dst_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_ELTWISE(IMPLICATION(data_md()->data_type == data_type::bf16,
+                              mayiuse(avx512_core)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_ELTWISE(IMPLICATION(data_md()->data_type == data_type::f16,
+                              mayiuse(avx512_core_fp16)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_ELTWISE(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_ELTWISE(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_ELTWISE(data_d.is_dense(true), VERBOSE_UNSUPPORTED_SPARSE_CFG);
+    VDISPATCH_ELTWISE(
+            eltwise_injector::is_isa_supported(isa), VERBOSE_UNSUPPORTED_ISA);
+    VDISPATCH_ELTWISE(eltwise_injector::is_alg_supported(desc_.alg_kind),
+            VERBOSE_BAD_ALGORITHM);
+    // refer to a comment in jit_uni_kernel why this is needed
+    VDISPATCH_ELTWISE(IMPLICATION(!data_d.is_dense(), is_zero_preserved()),
+            VERBOSE_UNSUPPORTED_SPARSE_CFG);
+    VDISPATCH_ELTWISE(data_d == memory_desc_wrapper(diff_dst_md()),
+            VERBOSE_INCONSISTENT_MDS, "data", "diff_dst");
+    VDISPATCH_ELTWISE(memory_desc_wrapper(diff_src_md())
+                    == memory_desc_wrapper(diff_dst_md()),
+            VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
+    VDISPATCH_ELTWISE(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+
+    return status::success;
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
