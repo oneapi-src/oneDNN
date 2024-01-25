@@ -74,7 +74,7 @@ The detailed explanation is provided in the corresponding sections.
   intermediate temporary memory by the library or a user;
 - [Floating-point math mode](@ref dev_guide_attributes_fpmath_mode) to
   allow implicit down-conversions of f32 values during computation;
-- [Accumulation mode](@ref dev_guide_attributes_acc_mode) to
+- [Accumulation mode](@ref dev_guide_attributes_accumulation_mode) to
   allow the usage of lower precision datatypes for accumulation;
 - [Deterministic mode](@ref dev_guide_attributes_deterministic) to enforce
   run-to-run deterministic primitive execution.
