@@ -111,6 +111,9 @@ dnnl_primitive_attr_t create_dnnl_rnn_attr(const prb_t &prb) {
     DNN_SAFE_V(dnnl_primitive_attr_set_fpmath_mode_v2(dnnl_attr,
             prb.attr.fpmath_mode.mode, prb.attr.fpmath_mode.apply_to_int));
 
+    DNN_SAFE_V(dnnl_primitive_attr_set_deterministic(
+            dnnl_attr, prb.attr.deterministic.enabled));
+
     return dnnl_attr;
 }
 
