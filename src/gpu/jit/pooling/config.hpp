@@ -329,7 +329,7 @@ public:
             }
             lg[0] = calc_non_sp(1, prb.mb, 1, lg[0]);
 
-            const dim_t total_simds = mb * (oc / simd) * od * oh * ow;
+            const dim_t total_simds = dim_t(mb) * (oc / simd) * od * oh * ow;
             const dim_t safe_thr_count = eu_count * 4;
 
             if (total_simds < safe_thr_count * lg[1] * lg[0]) {
