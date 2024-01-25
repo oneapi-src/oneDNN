@@ -81,7 +81,7 @@ private:
     bool finalized_ {false};
 
     /*! \brief num of ops that have not been partitioned */
-    size_t num_unpartitioned_ops_;
+    size_t num_unpartitioned_ops_ {0};
 
 public:
     dnnl_graph_graph(graph::engine_kind_t kind = graph::engine_kind::cpu)
