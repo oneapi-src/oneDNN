@@ -134,7 +134,8 @@ struct reusable_batch_normalization_fwd_t : public gpu_primitive_t {
                                     !is_training() && stats_is_src()),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_BNORM(
-                    check_scale_shift_data_type(), VERBOSE_UNSUPPORTED_DT_CFG);
+                    check_scale_shift_data_type(),
+                    VERBOSE_UNSUPPORTED_FEATURE,  "unsupported scale, shift or datatype configuration");
             VDISPATCH_BNORM(attr()->has_default_values(attr_skip_mask),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_BNORM(
@@ -234,7 +235,8 @@ struct reusable_batch_normalization_bwd_t : public gpu_primitive_t {
                     diff_src_md()->data_type == diff_dst_md()->data_type,
                     VERBOSE_INCONSISTENT_DT, "diff_src", "diff_dst");
             VDISPATCH_BNORM(
-                    check_scale_shift_data_type(), VERBOSE_UNSUPPORTED_DT_CFG);
+                    check_scale_shift_data_type(),
+                    VERBOSE_UNSUPPORTED_FEATURE,  "unsupported scale, shift or datatype configuration");
             VDISPATCH_BNORM(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_BNORM(
