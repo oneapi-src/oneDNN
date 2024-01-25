@@ -107,7 +107,7 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
                                               compute::device_ext_t::khr_fp64)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_ELTWISE(compute_engine->mayiuse_sub_group(16),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
 
             VDISPATCH_ELTWISE_SC(init_conf(engine), "init_conf()");
             return status::success;

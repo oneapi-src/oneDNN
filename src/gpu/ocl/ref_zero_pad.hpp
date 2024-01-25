@@ -42,7 +42,7 @@ struct ref_zero_pad_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
             VDISPATCH_ZERO_PAD(compute_engine->mayiuse_sub_group(16),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup(16)");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroup(16)");
             return status::success;
         }
     };

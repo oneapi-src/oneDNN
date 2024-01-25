@@ -80,7 +80,7 @@ struct ref_reorder_t : public gpu_primitive_t {
 
             VDISPATCH_REORDER(compute_engine->mayiuse(
                                       compute::device_ext_t::intel_subgroups),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
             VDISPATCH_REORDER(
                     IMPLICATION(
                             utils::one_of(data_type::f16, src_md()->data_type,

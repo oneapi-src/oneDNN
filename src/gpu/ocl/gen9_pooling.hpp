@@ -80,7 +80,7 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_POOLING(compute_engine->mayiuse(
                                       compute::device_ext_t::intel_subgroups),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
             VDISPATCH_POOLING(
                     IMPLICATION(src_data_t == f16,
                             compute_engine->mayiuse(
@@ -176,7 +176,7 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_POOLING(compute_engine->mayiuse(
                                       compute::device_ext_t::intel_subgroups),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
 
             if (desc()->alg_kind == pooling_max) {
                 init_default_ws(data_type::s32);

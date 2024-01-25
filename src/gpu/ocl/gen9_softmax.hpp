@@ -90,7 +90,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             VDISPATCH_SOFTMAX_SC(
                     set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_SOFTMAX(compute_engine->mayiuse_sub_group(subgroup_size),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup_size");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroup_size");
 
             VDISPATCH_SOFTMAX(
                     !(is_blocked && src_md()->dims[1] % subgroup_size != 0),
@@ -285,7 +285,7 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
                     utils::one_of(diff_dst_d.data_type(), f64, f32, bf16, f16),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_SOFTMAX(compute_engine->mayiuse_sub_group(subgroup_size),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup_size");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroup_size");
             VDISPATCH_SOFTMAX(IMPLICATION(utils::one_of(data_type::f64,
                                                   diff_dst_md()->data_type,
                                                   diff_src_md()->data_type),

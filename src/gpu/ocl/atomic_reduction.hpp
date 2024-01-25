@@ -113,8 +113,8 @@ struct atomic_reduction_t : public gpu_primitive_t {
                     VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
             VDISPATCH_REDUCTION_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_TAG);
-            VDISPATCH_REDUCTION(!attr()->deterministic_,
-                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_REDUCTION(
+                    !attr()->deterministic_, VERBOSE_UNSUPPORTED_ATTR);
 
             VDISPATCH_REDUCTION_SC(init_conf(engine), "init_conf");
             init_scratchpad();

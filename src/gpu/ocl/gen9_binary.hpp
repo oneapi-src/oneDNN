@@ -77,7 +77,7 @@ struct gen9_binary_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_BINARY(compute_engine->mayiuse(
                                      compute::device_ext_t::intel_subgroups),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
             VDISPATCH_BINARY(
                     IMPLICATION(
                             utils::one_of(f16, src_md(1)->data_type,

@@ -70,7 +70,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_CONV(compute_engine->mayiuse(
                                    compute::device_ext_t::intel_subgroups),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
             VDISPATCH_CONV(
                     IMPLICATION(src_data_t == f16,
                             true
@@ -79,7 +79,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
                                                     intel_subgroups_short)),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
             VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
             VDISPATCH_CONV(
                     attr()->has_default_values(attr_skip_mask, dst_data_t),
@@ -91,7 +91,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
 
             int sub_group_size = conf.wino_ic_block / 2; // LWX
             VDISPATCH_CONV(compute_engine->mayiuse_sub_group(sub_group_size),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup");
+                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
 
             init_scratchpad();
 
