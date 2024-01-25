@@ -168,14 +168,14 @@ TEST_F(attr_test_t, TestZeroPoints) {
     for (auto arg : supported_args) {
         // single non-default zero_point for supported arg
         attr.set_zero_points_mask(arg, 0);
+        // multiple zero_points for supported arg
+        attr.set_zero_points_mask(arg, 1 << 0);
     }
 
     for (auto arg : unsupported_args) {
         // single **default** zero_point for **unsupported** arg
         EXPECT_ANY_THROW(attr.set_zero_points_mask(arg, 0));
     }
-
-    // multiple zero_points not implemented yet ...
 }
 
 TEST_F(attr_test_t, TestZeroPointsWithGroups) {
