@@ -99,14 +99,6 @@ struct serialized_data_t {
             append<typename T::value_type>(d);
     };
 
-    void append(const post_ops_t &post_ops) {
-        append(post_ops.len());
-        serialization_stream_t sstream {};
-        serialization::serialize_post_ops(sstream, post_ops);
-        auto post_op_data = sstream.get_data();
-        data.insert(data.end(), post_op_data.begin(), post_op_data.end());
-    }
-
     template <typename Arg1, typename Arg2, typename... Args>
     void append(const Arg1 &a1, const Arg2 &a2, const Args &...args) {
         append(a1);
