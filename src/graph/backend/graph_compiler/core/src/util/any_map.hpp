@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -420,10 +420,12 @@ struct assign_impl {
 template <>
 struct assign_impl<any_t> {
     inline static void call(any_t &ths, const any_t &v) {
+        if (&ths == &v) { return; }
         ths.copy_from(v.get_raw(), v.vtable_);
     }
 
     inline static void call(any_t &ths, any_t &&v) {
+        if (&ths == &v) { return; }
         ths.move_from_any(std::move(v));
     }
 };

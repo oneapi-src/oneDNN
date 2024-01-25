@@ -39,6 +39,11 @@ namespace impl {
 namespace graph {
 namespace gc {
 
+std::ostream &operator<<(std::ostream &os, const tensor_inplace_info_t &value) {
+    os << '{' << value.used_arg_idx_ << '}';
+    return os;
+}
+
 SC_DECL_PASS_INFO(tensor_inplace,
         SC_PASS_DEPENDS_ON(
                 constant_folder, index_flattener, validator, auto_caster),
@@ -62,12 +67,13 @@ public:
 using inplace_hint_t
         = std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>;
 
-static void filter_and_sync_inplace_hint(const func_t &f) {
-    if (!f->attr_) { return; }
-    auto hint_in_def = f->attr_->get_or_null<inplace_hint_t>(
+static void filter_and_sync_inplace_hint(
+        const func_base *callee, const func_t &f) {
+    if (!callee->attr_) { return; }
+    auto hint_in_def = callee->attr_->get_or_null<inplace_hint_t>(
             function_attrs::inplace_hint);
     if (!hint_in_def) { return; }
-    auto &params = f->decl_->params_;
+    auto &params = callee->params_;
     // the alias id is the in-place result selected by
     // buffer_scheduler_t, try to use it to filter the
     // inplace_hint
@@ -93,7 +99,12 @@ static void filter_and_sync_inplace_hint(const func_t &f) {
             itrkv = hint_in_def->erase(itrkv);
         }
     }
+    f->attr()[function_attrs::inplace_hint] = *hint_in_def;
     f->decl_->attr()[function_attrs::inplace_hint] = *hint_in_def;
+    if (!hint_in_def->empty()) {
+        SC_MODULE_INFO << "arg inplace: " << f->name_ << " : "
+                       << utils::general_print(*hint_in_def);
+    }
 }
 
 static void get_inplace_args_from_called_funcs(const func_c &f, // caller
@@ -377,13 +388,14 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
         auto new_func = scheduler(entry_f);
         // if no changes, continue
         if (new_func == entry_f) { continue; }
+        finder.funcs_.clear();
+        finder.dispatch(entry_f);
         // sync back alias group info to callee functions
         for (auto &funct : finder.funcs_) {
-            if (!funct->body_.defined()) {
-                // if the callee func is decl
-                auto func_def = f->get_func(funct->name_);
-                if (func_def) {
-                    filter_and_sync_inplace_hint(func_def);
+            auto func_def = f->get_func(funct->name_);
+            if (func_def) {
+                filter_and_sync_inplace_hint(funct.get(), func_def);
+                if (func_def != funct) {
                     for (size_t arg_id = 0; arg_id < funct->params_.size();
                             arg_id++) {
                         auto &arg_in_decl = funct->params_[arg_id];

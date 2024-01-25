@@ -1243,6 +1243,9 @@ static std::vector<size_t> schedule_tensor_memory_planner(
                                 = alias_info::get_or_create_alias_info(
                                         *cur_arg);
                         if (!arg.defined()) { arg = cur_arg; }
+                        SC_MODULE_INFO << "inplace-func "
+                                       << callsite->func_->name_
+                                       << " Add arg1:" << cur_arg;
                         cur_aliasinfo->add_to_clique(aliasinfo);
                     }
                 }
@@ -1257,6 +1260,9 @@ static std::vector<size_t> schedule_tensor_memory_planner(
                             auto cur_aliasinfo
                                     = alias_info::get_or_create_alias_info(
                                             *cur_arg);
+                            SC_MODULE_INFO << "inplace-func "
+                                           << callsite->func_->name_
+                                           << " Add arg2:" << cur_arg;
                             cur_aliasinfo->add_to_clique(aliasinfo);
                         }
                     }

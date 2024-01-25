@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -136,52 +136,58 @@ private:
 std::ostream &operator<<(std::ostream &os, as_hex_t a);
 
 template <typename T>
-std::string print_vector(const T &vec) {
-    std::stringstream os;
-    int cnt = 0;
+void general_print(std::ostream &os, const std::vector<T> &container);
+template <typename T1, typename T2>
+void general_print(std::ostream &os, const std::pair<T1, T2> &value);
+
+template <typename T>
+void general_print(std::ostream &os, const T &value) {
+    os << value;
+}
+template <typename T1, typename T2>
+void general_print(std::ostream &os, const std::pair<T1, T2> &value) {
+    os << '{';
+    general_print(os, value.first);
+    os << ": ";
+    general_print(os, value.second);
+    os << '}';
+}
+
+template <typename T>
+void general_print(std::ostream &os, const std::vector<T> &container) {
     os << '[';
-    for (auto &v : vec) {
-        if (cnt != 0) { os << ", "; }
-        os << v;
-        cnt++;
+    bool first = true;
+    for (const auto &element : container) {
+        if (!first) {
+            os << ", ";
+        } else {
+            first = false;
+        }
+        general_print(os, element);
     }
     os << ']';
-    return os.str();
+}
+
+template <typename T>
+std::string general_print(const T &value) {
+    std::stringstream ss;
+    general_print(ss, value);
+    return ss.str();
+}
+
+template <typename T>
+std::string print_vector(const T &vec) {
+    return general_print(vec);
 }
 
 template <typename T>
 std::string print_pair_vector(const std::vector<std::pair<T, T>> &pvec) {
-    std::stringstream os;
-    int cnt = 0;
-    os << '[';
-    for (auto &v : pvec) {
-        if (cnt != 0) { os << ", "; }
-        os << "{" << v.first << ", " << v.second << "}";
-        cnt++;
-    }
-    os << ']';
-    return os.str();
+    return general_print(pvec);
 }
 
 template <typename T>
 std::string print_nested_vector(const std::vector<std::vector<T>> &nested_vec) {
-    std::stringstream os;
-    int outer_cnt = 0;
-    os << '{';
-    for (auto &inner_vec : nested_vec) {
-        if (outer_cnt != 0) { os << ", "; }
-        int inner_cnt = 0;
-        os << '{';
-        for (auto &v : inner_vec) {
-            if (inner_cnt != 0) { os << ", "; }
-            os << v;
-            inner_cnt++;
-        }
-        os << '}';
-        outer_cnt++;
-    }
-    os << '}';
-    return os.str();
+    return general_print(nested_vec);
 }
 
 } // namespace utils
