@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,18 +43,29 @@ struct ref_binary_t : public primitive_t {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
-            const bool ok
-                    = platform::has_data_type_support(src_md(0)->data_type)
-                    && platform::has_data_type_support(src_md(1)->data_type)
-                    && platform::has_data_type_support(dst_md()->data_type)
-                    && set_default_params() == status::success
-                    && attr()->has_default_values(
-                            sm::post_ops | sm::scales_runtime)
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask())
-                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_BINARY(
+                    platform::has_data_type_support(src_md(0)->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BINARY(
+                    platform::has_data_type_support(src_md(1)->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BINARY(
+                    platform::has_data_type_support(dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BINARY(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_BINARY(attr()->has_default_values(
+                                     sm::post_ops | sm::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_BINARY(IMPLICATION(!attr()->scales_.has_default_values(),
+                                     check_scales_mask()),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_BINARY(
+                    ref_post_ops_t::primitive_kind_ok(attr()->post_ops_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_BINARY(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             return status::success;
         }
