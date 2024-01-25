@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -775,12 +775,10 @@ status_t infer_pool_output_shape(op_t *n,
 
     dims dilations(kernel.size(), 1);
     if (n->has_attr(op_attr::dilations)) {
-        auto dilations_tmp = n->get_attr<dims>(op_attr::dilations);
-        dilations_tmp.resize(kernel.size());
-        if (dilations_tmp.size() != dilations.size()) {
-            return status::invalid_arguments;
-        } else {
-            dilations = dilations_tmp;
+        dilations = n->get_attr<dims>(op_attr::dilations);
+        if (dilations.size() != kernel.size()) {
+            // TODO: why is resize needed here?
+            dilations.resize(kernel.size());
         }
     }
 
@@ -889,11 +887,9 @@ status_t infer_pool_bwd_output_shape(op_t *n,
 
     dims dilations(kernel.size(), 1);
     if (n->has_attr(op_attr::dilations)) {
-        auto dilations_tmp = n->get_attr<dims>(op_attr::dilations);
-        if (dilations_tmp.size() != dilations.size()) {
+        dilations = n->get_attr<dims>(op_attr::dilations);
+        if (dilations.size() != kernel.size()) {
             return status::invalid_arguments;
-        } else {
-            dilations = dilations_tmp;
         }
     }
 
@@ -980,7 +976,7 @@ status_t infer_matmul_output_shape(op_t *n,
         // example: input0 shape {3}, input1 shape {2,3,4}, output shape {2,4}
         updated_input1.erase(
                 updated_input1.begin() + static_cast<dim_t>(input1_rank) - 2);
-        inferred_out_shape = updated_input1;
+        inferred_out_shape = std::move(updated_input1);
     } else if (input1_rank == 1) {
         // matmul: incompatible arg shapes
         VCHECK_INVALID_SHAPE(
@@ -991,7 +987,7 @@ status_t infer_matmul_output_shape(op_t *n,
         // example: input0 shape {2,3,4}, input1 shape {4}, output shape {2,3}
         updated_input0.erase(
                 updated_input0.begin() + static_cast<dim_t>(input0_rank) - 1);
-        inferred_out_shape = updated_input0;
+        inferred_out_shape = std::move(updated_input0);
     } else if (input0_rank == 2 && input1_rank == 2) {
         // matmul: incompatible arg shapes
         VCHECK_INVALID_SHAPE((updated_input0[1] == updated_input1[0]),
@@ -1210,7 +1206,7 @@ status_t infer_select_output_shape(op_t *n,
                 op_t::kind2str(n->get_kind()).c_str(),
                 dims2str(input0_dims).c_str(), dims2str(input1_dims).c_str(),
                 dims2str(input2_dims).c_str());
-        inferred_out_shape = input0_dims;
+        inferred_out_shape = std::move(input0_dims);
     } else { // can broadcast
         status_t ret1 = broadcast(input1_dims, input2_dims, inferred_out_shape);
         VCHECK_INVALID_SHAPE((ret1 == status::success),
@@ -1255,7 +1251,7 @@ status_t infer_elemwise_arithmetic_output_shape(op_t *n,
                 "%s, incompatible input shapes (auto_broadcast=none) ",
                 op_t::kind2str(n->get_kind()).c_str());
 
-        inferred_out_shape = input0_dims;
+        inferred_out_shape = std::move(input0_dims);
     } else {
         status_t ret = broadcast(input0_dims, input1_dims, inferred_out_shape);
         VCHECK_INVALID_SHAPE((ret == status::success),
