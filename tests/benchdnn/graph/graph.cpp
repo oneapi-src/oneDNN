@@ -457,6 +457,11 @@ int doit(const prb_t *prb, res_t *res) {
                     dir = BWD_DW;
                     break;
                 }
+                // set the flag back for this specific op.
+                if (aop.kind_ == "BatchNormForwardTraining") {
+                    dir = FLAG_FWD;
+                    break;
+                }
             }
         }
         skip_unimplemented_data_type(in_out_dt, dir, res);
