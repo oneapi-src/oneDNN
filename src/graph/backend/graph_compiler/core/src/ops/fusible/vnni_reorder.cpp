@@ -175,7 +175,7 @@ bool can_be_vnni_reorder(const context_ptr &ctx, std::vector<int> &inp_n_axis,
             || (in_N_pos < in_K_pos && out_n_pos < out_k_pos)) {
         is_vnni_reorder = true;
     }
-    // find axie of N K and N K k n k
+    // find axis of N K and N K k n k
     out_n_axis.emplace_back(out_N_pos);
     out_n_axis.emplace_back(out_n_pos);
     out_k_axis.emplace_back(out_K_pos);
@@ -379,17 +379,6 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         is_padding = true;
     }
     bool padding_k = false, padding_n = false;
-    auto collect_axis_shape_size
-            = [&](sc_dims &blocking_dims, const std::vector<int> &axis) {
-                  int ret = 1;
-                  std::unordered_set<int> set;
-                  set.insert(axis.begin(), axis.end());
-                  for (size_t i = 0; i < blocking_dims.size(); i++) {
-                      if (set.find(i) != set.end()) { ret *= blocking_dims[i]; }
-                  }
-                  assert(ret > 0);
-                  return ret;
-              };
     auto padding_on_which_axis = [&]() {
         auto inp_k_nums
                 = collect_axis_shape_size(input_blocking_dims, inp_k_axis);
@@ -582,7 +571,7 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         // calculate the input index according to the output index
         expr condition, vnni_condition;
         expr last_axis_offset, other_axis_condition;
-        expr axis_if_condition, fully_padding_condition;
+        expr axis_if_condition, fully_padding_otheraxis, fully_padding_lastdim;
         bool need_mask = false;
         std::vector<expr> tmp_indexes
                 = get_reorder_block2plain_indexes(graph, out_indexes,
@@ -590,6 +579,18 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                         other_axis_condition, output_origin_axis_vectorized);
         std::vector<expr> in_indexes
                 = get_reorder_plain2block_indexes(tmp_indexes, input_format);
+        auto need_fully_padding_func = [&](const std::vector<int> &inp_axis,
+                                               const std::vector<int> &out_axis,
+                                               const int vec_step) {
+            bool ret = (!is_dynamic
+                               && ((collect_axis_shape_size(
+                                            output_blocking_dims, out_axis)
+                                           - vec_step)
+                                       >= collect_axis_shape_size(
+                                               input_blocking_dims, inp_axis)))
+                    || is_dynamic;
+            return ret;
+        };
         expr cur_step_var;
         stmt cur_step_var_assign;
         // load data to register
@@ -613,6 +614,9 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                     = is_vnni_reorder ? padding_k : padding_n;
             bool padding_on_last_axis = is_vnni_reorder ? padding_n : padding_k;
             if (is_padding) {
+                bool otheraxis_need_fully_padding = need_fully_padding_func(
+                        is_vnni_reorder ? inp_k_axis : inp_n_axis,
+                        is_vnni_reorder ? out_k_axis : out_n_axis, step);
                 last_axis_offset
                         = cast_to_s32(
                                   input_blocking_shape_expr[tmp_in_last_dim])
@@ -629,8 +633,8 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                     } else {
                         if (i == step - 1) {
                             axis_if_condition = other_axis_condition;
-                        } else if (i == 0) {
-                            fully_padding_condition = other_axis_condition;
+                        } else if (i == 0 && otheraxis_need_fully_padding) {
+                            fully_padding_otheraxis = other_axis_condition;
                         }
                     }
                 }
@@ -639,6 +643,10 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                 // so we only need to count the first time and others
                 // can be reused.
                 if (i == 0) {
+                    bool lastaxis_need_fully_padding = need_fully_padding_func(
+                            is_vnni_reorder ? inp_n_axis : inp_k_axis,
+                            is_vnni_reorder ? out_n_axis : out_k_axis,
+                            (is_bf16 ? bf16_step : u8_step));
                     // mask = min(max(0, last_dim_len -
                     // last_dim_idx),real_step) To choose [0 ~
                     // step] mask
@@ -657,6 +665,13 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                                 && !padding_on_last_axis) {
                             cur_step = is_bf16 ? bf16_step : u8_step;
                         } else {
+                            if (lastaxis_need_fully_padding) {
+                                fully_padding_lastdim
+                                        = cast_to_s32(tmp_in_indexes
+                                                          [tmp_in_last_dim])
+                                        < cast_to_s32(input_blocking_shape_expr
+                                                        [tmp_in_last_dim]);
+                            }
                             need_mask = true;
                         }
                     }
@@ -731,7 +746,9 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
                     rows[i]);
             cur_list.emplace_back(assign);
             cur_list_floor.emplace_back(assign);
-            if (fully_padding_condition.defined() && can_use_condition) {
+            if ((fully_padding_otheraxis.defined()
+                        || fully_padding_lastdim.defined())
+                    && can_use_condition) {
                 auto bf16_zero = make_expr<constant_node>(0.f, rows[i]->dtype_);
                 auto i8_zero = make_expr<constant_node>(
                         (uint64_t)0, rows[i]->dtype_);
@@ -746,13 +763,41 @@ void compute_vnni_reorder(sc_graph_t &graph, const context_ptr &ctx,
         stmt cur = builder::make_stmts_unattached(cur_list);
         stmt body;
 
-        if (axis_if_condition.defined() && can_use_condition) {
-            stmt cur_floor = builder::make_stmts_unattached(cur_list_floor);
-            stmt cur_tail = builder::make_if_else_unattached(
-                    fully_padding_condition, cur,
-                    builder::make_stmts_unattached(cur_list_padding));
-            cur = builder::make_if_else_unattached(
-                    axis_if_condition, cur_floor, cur_tail);
+        if (can_use_condition) {
+            if (axis_if_condition.defined()
+                    && fully_padding_lastdim.defined()) {
+                stmt cur_tail;
+                stmt cur_floor = builder::make_stmts_unattached(cur_list_floor);
+                if (fully_padding_otheraxis.defined()) {
+                    cur_tail = builder::make_if_else_unattached(
+                            fully_padding_otheraxis && fully_padding_lastdim,
+                            cur,
+                            builder::make_stmts_unattached(cur_list_padding));
+                } else {
+                    cur_tail = builder::make_if_else_unattached(
+                            fully_padding_lastdim, cur,
+                            builder::make_stmts_unattached(cur_list_padding));
+                }
+                cur = builder::make_if_else_unattached(
+                        axis_if_condition && fully_padding_lastdim, cur_floor,
+                        cur_tail);
+            } else if (fully_padding_lastdim.defined()) {
+                cur = builder::make_if_else_unattached(fully_padding_lastdim,
+                        cur, builder::make_stmts_unattached(cur_list_padding));
+            } else if (axis_if_condition.defined()) {
+                stmt cur_floor = builder::make_stmts_unattached(cur_list_floor);
+                stmt cur_tail;
+                if (fully_padding_otheraxis.defined()) {
+                    cur_tail = builder::make_if_else_unattached(
+                            fully_padding_otheraxis, cur,
+                            builder::make_stmts_unattached(cur_list_padding));
+                    cur = builder::make_if_else_unattached(
+                            axis_if_condition, cur_floor, cur_tail);
+                } else {
+                    cur = builder::make_if_else_unattached(
+                            axis_if_condition, cur_floor, cur);
+                }
+            }
         }
         var_define_list.emplace_back(cur);
         cur = builder::make_stmts_unattached(var_define_list);

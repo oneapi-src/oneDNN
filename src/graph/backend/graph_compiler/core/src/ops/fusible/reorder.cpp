@@ -17,10 +17,8 @@
 #include <assert.h>
 
 #include <algorithm>
-#include <limits>
 #include <string>
 #include <utility>
-#include "compiler/ir/builtin.hpp"
 #include "memory_movement.hpp"
 #include "reorder.hpp"
 #include <compiler/ir/builder.hpp>
@@ -33,6 +31,7 @@
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <util/exceptions.hpp>
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
@@ -743,6 +742,22 @@ void find_vectorized_axis(const tensor_slice &tsl,
     }
     last_origin_axis = format.format_code_.get(origin_axis_vectorized);
 }
+/**
+ * @brief Calculate the total number of elements in a certain axis in the shape.
+ * @param blocking_dims blocking dims
+ * @param axis certain axis
+ * */
+int collect_axis_shape_size(
+        sc_dims &blocking_dims, const std::vector<int> &axis) {
+    int ret = 1;
+    std::unordered_set<int> set;
+    set.insert(axis.begin(), axis.end());
+    for (size_t i = 0; i < blocking_dims.size(); i++) {
+        if (set.find(i) != set.end()) { ret *= blocking_dims[i]; }
+    }
+    assert(ret > 0);
+    return ret;
+};
 
 #define SLICE_RAGNE_CHECK_INIT_DATA() \
     bool use_out_loop = use_output_loop(); \

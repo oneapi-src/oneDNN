@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,8 @@ void find_vectorized_axis(const tensor_slice &tsl,
         sc_data_format_t const &format, int &last_origin_axis,
         int &origin_axis_vectorized);
 
+int collect_axis_shape_size(
+        sc_dims &blocking_dims, const std::vector<int> &axis);
 size_t throw_if_negative(int dim);
 static const int TARGET_AXIS_NOT_DEFINE = -1;
 std::vector<expr> get_reorder_block2plain_indexes(sc_graph_t &graph,
