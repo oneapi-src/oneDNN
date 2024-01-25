@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -147,7 +147,7 @@ std::string to_string(const nhwc_bnorm_params_t &conf) {
 
 // How short vector can increase r/w expected time
 float get_vectorization_factor(const int vect_size, const data_type_t dt) {
-    if (dt == data_type::f16 || data_type::bf16) {
+    if (dt == data_type::f16 || dt == data_type::bf16) {
         switch (vect_size) {
             case 1: return 4.f;
             case 2: return 1.5f;
