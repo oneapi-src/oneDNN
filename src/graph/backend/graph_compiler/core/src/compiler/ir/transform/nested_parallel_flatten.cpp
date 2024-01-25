@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -301,8 +301,15 @@ void work() {
             } else if (old_body[i]
                                .cast<define>()
                                .filter([](const define &v) {
-                                   return !v->init_.defined()
-                                           || !v->init_.isa<indexing>();
+                                   if (!v->init_.defined()) { return true; }
+                                   bool is_allowed = v->init_.isa<indexing>()
+                                           || (v->init_.isa<select>()
+                                                   && utils::is_one_of(
+                                                           v->init_->dtype_,
+                                                           datatypes::u32,
+                                                           datatypes::u16,
+                                                           datatypes::u8));
+                                   return !is_allowed;
                                })
                                .has_value()) {
                 // if the statement is a define node and the init value is not
