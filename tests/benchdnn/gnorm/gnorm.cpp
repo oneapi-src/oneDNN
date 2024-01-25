@@ -538,15 +538,17 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
     std::vector<data_kind_t> check_kinds;
     if (prb->dir & FLAG_FWD) {
-        check_kinds = {DST};
         if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
             check_kinds.push_back(MEAN);
             check_kinds.push_back(VAR);
         }
+        check_kinds.push_back(DST);
     } else {
-        check_kinds = {SRC};
-        if (prb->use_sc() && (prb->dir & FLAG_WEI)) check_kinds.push_back(SC);
-        if (prb->use_sh() && (prb->dir & FLAG_WEI)) check_kinds.push_back(SH);
+        if (prb->dir & FLAG_WEI) {
+            if (prb->use_sc()) check_kinds.push_back(SC);
+            if (prb->use_sh()) check_kinds.push_back(SH);
+        }
+        check_kinds.push_back(SRC);
     }
     assert(!check_kinds.empty());
     return check_kinds;

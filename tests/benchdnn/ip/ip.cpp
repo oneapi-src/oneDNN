@@ -350,7 +350,8 @@ std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
     } else if (prb->dir == BWD_D) {
         check_kinds = {SRC};
     } else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI) {
-        check_kinds = {WEI, BIA};
+        check_kinds = {WEI};
+        if (prb->dir & FLAG_BIA) check_kinds.push_back(BIA);
     } else {
         assert(!"unexpected!");
         SAFE_V(FAIL);
