@@ -23,8 +23,8 @@ changing the cache capacity.
 
 ## Profiling
 Information about primitive cache hits and misses can be used for debug
-purposes. That information is part of the verbose output for verbose
-level 2 (@ref dev_guide_verbose).
+purposes. That information is part of the verbose output when any of
+`profile_create`, `profile`, or `all` values are used (@ref dev_guide_verbose).
 
 ## Build-time Controls
 
@@ -42,7 +42,7 @@ environment variable can be used to change cache capacity or disable the cache.
 | Environment variable            | Value      | Description                                         |
 |:--------------------------------|:-----------|:----------------------------------------------------|
 | ONEDNN_PRIMITIVE_CACHE_CAPACITY | \<number\> | Set cache capacity to \<number\> (default **1024**) |
-|                                 | 0          | Disable primitive cache                             |
+| \                               | 0          | Disable primitive cache                             |
 
 This feature can also be managed at run-time with the following functions:
 * @ref dnnl_set_primitive_cache_capacity

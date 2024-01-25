@@ -23,10 +23,11 @@ variable can be used to manage integration with performance profilers.
 
 | Environment Variable | Value | Description                                                            | x64             | AArch64         |
 |:---------------------|:------|:-----------------------------------------------------------------------|:----------------|:----------------|
-| ONEDNN_JIT_PROFILE   | 1     | Enables VTune Profiler integration                                     | **x** (default) | N/A             |
-| ^                    | 2     | Enables basic Linux perf integration                                   | x               | **x** (default) |
-| ^                    | 6     | Enables Linux perf integration with JIT dump output                    | x               | x               |
-| ^                    | 14    | Enables Linux perf integration with JIT dump output and TSC timestamps | x               | N/A             |
+| ONEDNN_JIT_PROFILE   | 0     | Disables any integrations                                              | x               | x               |
+| \                    | 1     | Enables VTune Profiler integration                                     | **x** (default) | N/A             |
+| \                    | 2     | Enables basic Linux perf integration                                   | x               | **x** (default) |
+| \                    | 6     | Enables Linux perf integration with JIT dump output                    | x               | x               |
+| \                    | 14    | Enables Linux perf integration with JIT dump output and TSC timestamps | x               | N/A             |
 
 Other valid values for `ONEDNN_JIT_PROFILE` include integer values representing
 a combination of flags accepted by the @ref dnnl_set_jit_profiling_flags
@@ -72,11 +73,11 @@ At build-time, support for this feature is controlled by the CMake option
 When the feature is enabled at build-time, the `ONEDNN_ITT_TASK_LEVEL` environment
 variable can be used to enable different level of ITT tagging.
 
-| Environment Variable  | Value           | Description                                         |
-|:----------------------|:----------------|:----------------------------------------------------|
-| ONEDNN_ITT_TASK_LEVEL | 0               | no ITT event will be triggered                      |
-| ^                     | 1               | ITT events are only triggered in master thread      |
-| ^                     | **2** (default) | **ITT events are triggered in all OMP/TBB threads** |
+| Environment Variable  | Value           | Description                                     |
+|:----------------------|:----------------|:------------------------------------------------|
+| ONEDNN_ITT_TASK_LEVEL | 0               | no ITT event will be triggered                  |
+| \                     | 1               | ITT events are only triggered in master thread  |
+| \                     | **2** (default) | ITT events are triggered in all OMP/TBB threads |
 
 ## Example: Profiling with VTune Profiler
 

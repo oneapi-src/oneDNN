@@ -180,20 +180,6 @@ compatible with the target instruction set. Therefore, `ARCH_OPT_FLAGS`
 should be set to an empty string (`""`) if the resulting library needs to be
 portable.
 
-### Runtime CPU dispatcher control
-oneDNN JIT relies on ISA features obtained from the processor it is being run
-on.  There are situations when it is necessary to control this behavior at
-run-time to, for example, test SSE4.1 code on an AVX2-capable processor. The
-`ONEDNN_ENABLE_MAX_CPU_ISA` build option controls the availability of this
-feature. See @ref dev_guide_cpu_dispatcher_control for more information.
-
-### Runtime CPU ISA hints
-For performance reasons, sometimes oneDNN JIT needs to be provided with extra
-hints so as to prefer or avoid particular CPU ISA feature. For example, one
-might want to disable Zmm registers usage in order to take advantage of higher
-clock speed. The `ONEDNN_ENABLE_CPU_ISA_HINTS` build option makes this feature
-available at runtime. See @ref dev_guide_cpu_isa_hints for more information.
-
 ### Runtimes
 CPU engine can use OpenMP, Threading Building Blocks (TBB) or sequential
 threading runtimes. OpenMP threading is the default build mode. This behavior

@@ -14,8 +14,8 @@ identical.
 However, some implementations rely on non-deterministic constructs such as
 atomic operations. In order to guarantee deterministic execution, a
 deterministic attribute can be set (default false) with the
-@ref dnnl_set_deterministic (C API) or the @ref dnnl::set_deterministic
-(C++ API) functions.
+@ref dnnl_primitive_attr_set_deterministic (C API) or the
+@ref dnnl::primitive_attr::set_deterministic (C++ API) functions.
 
 The deterministic primitive attribute accepts:
 - `false` (default): Permits the library to use non-deterministic constructs

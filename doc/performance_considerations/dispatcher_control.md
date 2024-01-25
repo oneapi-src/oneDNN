@@ -4,7 +4,8 @@ CPU Dispatcher Control {#dev_guide_cpu_dispatcher_control}
 oneDNN uses JIT code generation to implement most of its functionality and will
 choose the best code based on detected processor features. Sometimes it is
 necessary to control which features oneDNN detects. This is sometimes useful for
-debugging purposes or for performance exploration.
+debugging purposes or for performance exploration. For example, test SSE4.1 code
+on an AVX2-capable processor.
 
 ## Build-time Controls
 
@@ -21,7 +22,10 @@ When the feature is enabled at build-time, the `ONEDNN_MAX_CPU_ISA` environment
 variable can be used to limit processor features oneDNN is able to detect to
 certain Instruction Set Architecture (ISA) and older instruction sets. It can
 also be used to enable ISAs with initial support in the library that are
-otherwise disabled by default.
+otherwise disabled by default. When the feature is disabled at build-time, the
+environment variable doesn't take any effect but: 1) the detection will still
+happen following the default behavior; 2) functions to control the behavior
+still take effect.
 
 | Environment variable | Value                | Description                                                                                                                                                       |
 |:---------------------|:---------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------|
