@@ -544,7 +544,7 @@ int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
             int arg = args.arg(i);
             const auto &m = args.dnn_mem(i);
             mem_map[j].emplace(arg, dnn_mem_t(m.md_, engine));
-            mem_map[j].at(arg).reorder(m);
+            SAFE(mem_map[j].at(arg).reorder(m), WARN);
         }
         v_args[j] = args_t(mem_map[j]);
         execute_unmap_args(v_args[j], dnnl_args[j]);
