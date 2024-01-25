@@ -87,7 +87,7 @@ int number_of_runs = 1;
 //   in an MLP topology.
 // - The weights scaling values are not known at the primitive creation time.
 matmul::primitive_desc matmul_pd_create(
-        int64_t M, int64_t N, int64_t K, const engine &eng) {
+        int64_t M, int64_t N, int64_t K, int64_t G, const engine &eng) {
 
     memory::desc a_md({M, K}, memory::data_type::f32, {K, 1}); // M x K layout
     memory::desc b_md({K, N}, memory::data_type::s8, memory::format_tag::any);
@@ -96,8 +96,12 @@ matmul::primitive_desc matmul_pd_create(
     // Create attributes and indicate that the alpha and zero points are
     // runtime parameters
     primitive_attr attr;
-    attr.set_scales_mask(DNNL_ARG_WEIGHTS, /* mask */ 1 << 1);
-    attr.set_zero_points_mask(DNNL_ARG_WEIGHTS, /* mask */ 0);
+    // Set scales with multiple scales along K and N dimensions and with groups along K.
+    attr.set_scales(DNNL_ARG_WEIGHTS,
+            /* mask */ (1 << 0) + (1 << 1), {G, 1}, memory::data_type::f32);
+    // Set a single zero point with s8 data type.
+    attr.set_zero_points(
+            DNNL_ARG_WEIGHTS, /* mask */ 0, {}, memory::data_type::s8);
     // Set fpmath mode with `apply_to_int=true` to apply fpmath mode behavior to
     // integral primitives (in this example, matmul).
     attr.set_fpmath_mode(fpmath_mode::bf16, true);
@@ -110,26 +114,29 @@ void prepare_input(memory &A_f32_mem, memory &sc_B_mem, memory &zp_B_mem) {
     int64_t M = A_f32_mem.get_desc().get_dims()[0];
     int64_t N = sc_B_mem.get_desc().get_dims()[0];
     int64_t K = A_f32_mem.get_desc().get_dims()[1];
+    int64_t NUM_G = sc_B_mem.get_desc().get_dims()[1];
 
     std::vector<float> A_f32(M * K);
     init_vector(A_f32);
 
-    std::vector<float> sc_B(N);
+    std::vector<float> sc_B(NUM_G * N);
     init_vector(sc_B);
 
-    int32_t zp_B = 2;
+    int8_t zp_B = 2;
 
     write_to_dnnl_memory(A_f32.data(), A_f32_mem);
     write_to_dnnl_memory(&zp_B, zp_B_mem);
     write_to_dnnl_memory(sc_B.data(), sc_B_mem);
 }
 
-void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
+void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K, int64_t G,
         const memory &B_s8_mem, const engine &eng) {
-    // inputs of the current layer / operation
+    // input of the current layer / operation
     memory A_f32_mem({{M, K}, memory::data_type::f32, {K, 1}}, eng);
-    memory sc_B_mem({{N}, memory::data_type::f32, {1}}, eng);
-    memory zp_B_mem({{1}, memory::data_type::s32, {1}}, eng);
+    // De-quantization parameters (eg. Scale and Shift)
+    const int n_groups = K / G;
+    memory sc_B_mem({{N, n_groups}, memory::data_type::f32, {1, N}}, eng);
+    memory zp_B_mem({{1}, memory::data_type::s8, {1}}, eng);
 
     // the function below fills dnnl::memory with some values
     // these memories, typically, come from the previous layers / operations
@@ -156,7 +163,10 @@ void weights_decompression_matmul(engine::kind engine_kind) {
     const int64_t K = 96;
     const int64_t N = 1000;
     const int64_t M = 100;
-    auto matmul_pd = matmul_pd_create(M, N, K, eng);
+    // Quantization Group size for scales
+    const int64_t G = K / 2;
+
+    auto matmul_pd = matmul_pd_create(M, N, K, G, eng);
 
     // Original weights stored as float in a known format
     std::vector<float> B_f32(K * N);
@@ -175,7 +185,7 @@ void weights_decompression_matmul(engine::kind engine_kind) {
 
     matmul matmul_p(matmul_pd);
 
-    infer(matmul_p, M, N, K, B_s8_mem, eng);
+    infer(matmul_p, M, N, K, G, B_s8_mem, eng);
 }
 
 int main(int argc, char **argv) {
