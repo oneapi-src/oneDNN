@@ -21,6 +21,7 @@
 #include "common/primitive.hpp"
 #include "gpu/compute/dispatch_reusable.hpp"
 #include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_primitive_attr.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
 #include "gpu/ocl/reduction_utils.h"
 #include "gpu/primitive_conf.hpp"
@@ -34,8 +35,10 @@ namespace ocl {
 struct atomic_reduction_key_params_t {
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_bundle_t &bundle) const {
+        compute::kernel_ctx_t kernel_ctx;
+        CHECK(get_kernel_ctx(kernel_ctx));
         auto status = engine.create_kernel_bundle(
-                bundle, get_kernel_names(), get_kernel_ctx());
+                bundle, get_kernel_names(), kernel_ctx);
         return status;
     }
 
@@ -62,14 +65,16 @@ struct atomic_reduction_key_params_t {
         return t;
     }
 
-    compute::kernel_ctx_t get_kernel_ctx() const;
+    status_t get_kernel_ctx(compute::kernel_ctx_t &) const;
+
     // Basic reduction parameters
     alg_kind_t alg;
     data_type_t src_type, dst_type;
 
     // Implementation-specific parameters
     bool is_first, is_final;
-    bool padding[6] = {0};
+    bool padding[2] = {0};
+    int32_t threads_per_eu;
     int32_t subgroup_size;
     int32_t vect_size;
     int32_t full_unroll_factor;
@@ -85,7 +90,7 @@ struct atomic_reduction_conf_t : public reduction_subproblem_t {
     atomic_reduction_conf_t(const reduction_subproblem_t &subprb,
             data_type_t src_type, data_type_t dst_type, bool is_first,
             bool is_final, const compute::device_info_t &device_info,
-            bool large_grf_mode);
+            gpu_primitive_attr_t *gpu_attr);
     status_t init_dispatcher(const compute::compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr);
 

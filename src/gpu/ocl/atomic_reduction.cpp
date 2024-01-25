@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/c_types_map.hpp"
 #include "common/compiler_workarounds.hpp"
 
 #include <limits>
@@ -24,6 +25,7 @@
 #include "gpu/compute/device_info.hpp"
 #include "gpu/compute/dispatch_reusable.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
+#include "gpu/gpu_primitive_attr.hpp"
 #include "gpu/ocl/atomic_reduction.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/reduction_utils.h"
@@ -92,7 +94,8 @@ compute::dim_id_t outer = 6;
 atomic_reduction_conf_t::atomic_reduction_conf_t(
         const reduction_subproblem_t &subprb, data_type_t src_type,
         data_type_t dst_type, bool is_first, bool is_final,
-        const compute::device_info_t &device_info, bool large_grf_mode)
+        const compute::device_info_t &device_info,
+        gpu_primitive_attr_t *gpu_attr)
     : reduction_subproblem_t(subprb) {
     conf.src_type = src_type;
     conf.dst_type = dst_type;
@@ -100,13 +103,18 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
     conf.is_final = is_final;
     conf.subgroup_size = device_info.max_subgroup_size();
     auto arch = device_info.gpu_arch();
-    const int threads_per_eu = compute::device_info_t::threads_per_eu(arch);
+    const int base_threads_per_eu
+            = compute::device_info_t::threads_per_eu(arch);
+    conf.threads_per_eu
+            = gpu_attr ? gpu_attr->threads_per_eu() : base_threads_per_eu;
+
+    const bool large_grf_mode = conf.threads_per_eu == 4;
     const size_t max_wg_size = device_info.max_wg_size(large_grf_mode);
     const int eu_count = device_info.eu_count();
     const size_t max_sg_per_wg = utils::div_up(max_wg_size, conf.subgroup_size);
 
     // number of subgroups (threads) to saturate the GPU
-    const int target_subgroups = eu_count * threads_per_eu;
+    const int target_subgroups = eu_count * conf.threads_per_eu;
 
     const dim_t max_local_size
             = std::min(into<dim_t>(max_sg_per_wg), reduction_block.block);
@@ -344,7 +352,6 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
             = utils::downcast<compute::compute_engine_t *>(engine);
     auto *gpu_attr
             = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
-    bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
 
     data_type_t accum_data_type = types::default_accum_data_type(
             src_mdw.data_type(), data_type::undef);
@@ -355,7 +362,7 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
         data_type_t dst_dt = is_final ? dst_mdw.data_type() : accum_data_type;
 
         phases.emplace_back(subprbs[i], src_dt, dst_dt, is_first, is_final,
-                *compute_engine->device_info(), large_grf_mode);
+                *compute_engine->device_info(), gpu_attr);
         atomic_reduction_conf_t &phase = phases.back();
         phase.conf.alg = desc()->alg_kind;
         if (phase.inner_block.block % phase.conf.subgroup_size != 0) {
@@ -474,10 +481,14 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     def_data_type(kernel_ctx, conf.dst_type, "DST");
 }
 
-compute::kernel_ctx_t atomic_reduction_key_params_t::get_kernel_ctx() const {
-    compute::kernel_ctx_t kernel_ctx;
+status_t atomic_reduction_key_params_t::get_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    primitive_attr_t ocl_attr;
+    CHECK(ocl_attr.set_gpu_attr(gpu_primitive_attr_t(threads_per_eu)));
+    kernel_ctx = compute::kernel_ctx_t(&ocl_attr);
+
     init_kernel_ctx_common(kernel_ctx, *this);
-    return kernel_ctx;
+    return status::success;
 }
 
 status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
