@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -238,16 +238,17 @@ compute::kernel_ctx_t reusable_bnorm_params_t::get_kernel_ctx() const {
 void reusable_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     if (conf.calculate_stats) {
         size_t reduce_size = static_cast<size_t>(rt_conf.stat_ic);
-        size_t stats_size = static_cast<size_t>(2 * rt_conf.ic);
-
+        size_t stats_size = static_cast<size_t>(rt_conf.ic);
+        size_t elsize = types::data_type_size(data_type::f32);
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_bnorm_reduction,
-                reduce_size, types::data_type_size(data_type::f32),
-                OCL_BUFFER_ALIGNMENT);
-        if (!conf.is_training)
-            scratchpad.book(memory_tracking::names::key_bnorm_tmp_stats,
-                    stats_size, types::data_type_size(data_type::f32),
-                    OCL_BUFFER_ALIGNMENT);
+                reduce_size, elsize, OCL_BUFFER_ALIGNMENT);
+        if (!conf.is_training) {
+            scratchpad.book(memory_tracking::names::key_bnorm_tmp_mean,
+                    stats_size, elsize, OCL_BUFFER_ALIGNMENT);
+            scratchpad.book(memory_tracking::names::key_bnorm_tmp_var,
+                    stats_size, elsize, OCL_BUFFER_ALIGNMENT);
+        }
     }
 }
 
@@ -265,9 +266,6 @@ status_t reusable_batch_normalization_fwd_t::execute_forward(
     auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
 
     // Set up mean and variance pointers
-    std::unique_ptr<memory_storage_t> temp_stats
-            = ctx.get_scratchpad_grantor().get_memory_storage(
-                    key_bnorm_tmp_stats);
     std::unique_ptr<memory_storage_t> mean_temp = nullptr;
     std::unique_ptr<memory_storage_t> variance_temp = nullptr;
     memory_storage_t *mean_ptr;
@@ -278,10 +276,10 @@ status_t reusable_batch_normalization_fwd_t::execute_forward(
             mean_ptr = ctx.output(DNNL_ARG_MEAN)->memory_storage();
             variance_ptr = ctx.output(DNNL_ARG_VARIANCE)->memory_storage();
         } else {
-            size_t size = types::data_type_size(data_type::f32)
-                    * static_cast<size_t>(rt_conf.ic);
-            mean_temp = temp_stats->get_sub_storage(0, size);
-            variance_temp = temp_stats->get_sub_storage(size, size);
+            mean_temp = ctx.get_scratchpad_grantor().get_memory_storage(
+                    key_bnorm_tmp_mean);
+            variance_temp = ctx.get_scratchpad_grantor().get_memory_storage(
+                    key_bnorm_tmp_var);
             mean_ptr = mean_temp.get();
             variance_ptr = variance_temp.get();
         }
@@ -372,11 +370,13 @@ status_t reusable_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
 }
 
 void reusable_batch_normalization_bwd_t::pd_t::init_scratchpad() {
-    size_t size = 2 * static_cast<size_t>(rt_conf.stat_ic);
-
+    size_t elsize = types::data_type_size(data_type::f32);
+    size_t size = static_cast<size_t>(rt_conf.stat_ic);
     auto scratchpad = scratchpad_registry().registrar();
-    scratchpad.book(memory_tracking::names::key_bnorm_reduction, size,
-            types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
+    scratchpad.book(memory_tracking::names::key_bnorm_reduction, size, elsize,
+            OCL_BUFFER_ALIGNMENT);
+    scratchpad.book(memory_tracking::names::key_bnorm_reduction_shift, size,
+            elsize, OCL_BUFFER_ALIGNMENT);
 }
 
 status_t reusable_batch_normalization_bwd_t::execute_backward(
@@ -424,9 +424,8 @@ status_t reusable_batch_normalization_bwd_t::execute_backward(
     if (conf.use_shift) {
         diff_shift_ptr = &diff_shift_;
     } else {
-        size_t size = static_cast<size_t>(rt_conf.stat_ic)
-                * types::data_type_size(data_type::f32);
-        shift_temp_mem = temp_reduce->get_sub_storage(size, size);
+        shift_temp_mem = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_bnorm_reduction_shift);
         diff_shift_ptr = shift_temp_mem.get();
     }
 

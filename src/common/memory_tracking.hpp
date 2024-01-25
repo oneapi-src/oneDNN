@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -159,6 +159,7 @@ enum {
     key_bnorm_tmp_diff_ss,
     key_bnorm_tmp_stats,
     key_bnorm_reduction,
+    key_bnorm_reduction_shift,
     key_brgemm_primitive_batch,
     key_brgemm_primitive_buffer,
     key_brgemm_primitive_buffer_a,
