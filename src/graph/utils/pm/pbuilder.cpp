@@ -354,11 +354,11 @@ repetition_t *pb_graph_t::append_optional(
 alternation_t::alternation_t(std::vector<std::shared_ptr<pb_graph_t>> p_nodes)
     : alternatives_ {std::move(p_nodes)}, min_op_num_ {0} {
     node_kind_ = pb_node_kind::PB_NODE_KIND_ALTERNATION;
-    if (alternatives_.size() > 0) {
+    if (!alternatives_.empty()) {
         min_op_num_ = alternatives_[0]->get_min_op_num();
     }
     for (const auto &node : alternatives_) {
-        // Find the mininum op number required to match the alternatives
+        // Find the minimum op number required to match the alternatives
         if (min_op_num_ > node->get_min_op_num()) {
             min_op_num_ = node->get_min_op_num();
         }

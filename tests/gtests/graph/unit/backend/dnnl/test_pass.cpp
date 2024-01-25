@@ -14588,8 +14588,8 @@ TEST(test_pass_pass, BatchNormReluU8Unfuse) {
 TEST(test_pass_pass, FuseMatmulSwish) {
     const std::vector<std::string> seqs_1 {"first", "second"};
     const std::vector<std::string> seqs_2 {"left", "right"};
-    for (auto seq_1 : seqs_1)
-        for (auto seq_2 : seqs_2) {
+    for (const auto &seq_1 : seqs_1)
+        for (const auto &seq_2 : seqs_2) {
             graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul");
             graph::op_t sigmoid_op(1, graph::op_kind::Sigmoid, "sigmoid");
             graph::op_t multi_op(2, graph::op_kind::Multiply, "multiply");
