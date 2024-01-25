@@ -64,7 +64,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
             if ((!need_output_reorder && !need_input_reorder)
                     || is_broadcast(src_md(0), src_md(1))) {
                 VDISPATCH_BINARY(false, VERBOSE_INCONSISTENT_NDIMS,
-                        "src_md(0) src_md(1)", "dst_md");
+                        "src(0) src(1)", "dst");
             }
 
             alg_kind_t binary_alg = desc()->alg_kind;

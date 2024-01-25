@@ -54,7 +54,7 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
             VDISPATCH_LRN(utils::one_of(src_md()->data_type, f32, f16, bf16),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_LRN(src_md()->data_type == dst_md()->data_type,
-                    VERBOSE_INCONSISTENT_DT, "src_md", "dst_md");
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
             VDISPATCH_LRN(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_LRN(IMPLICATION(src_md()->data_type == f16,
@@ -65,7 +65,7 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_LRN(memory_desc_wrapper(src_md())
                             == memory_desc_wrapper(dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md", "dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
             if (desc_.prop_kind == prop_kind::forward_training) {
                 ws_md_ = *src_md();
@@ -193,7 +193,7 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_LRN(memory_desc_wrapper(diff_src_md())
                             == memory_desc_wrapper(diff_dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md", "dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
             ws_md_ = *src_md();
             if (utils::one_of(

@@ -90,14 +90,14 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
             using namespace alg_kind;
             VDISPATCH_ELTWISE(is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_ELTWISE(src_md()->data_type == dst_md()->data_type,
-                    VERBOSE_INCONSISTENT_DT, "src_md", "dst_md");
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
             VDISPATCH_ELTWISE(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_ELTWISE(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_ELTWISE(memory_desc_wrapper(src_md())
                             == memory_desc_wrapper(dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md", "dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
             VDISPATCH_ELTWISE(IMPLICATION(src_md()->data_type == data_type::f16,
                                       compute_engine->mayiuse(
                                               compute::device_ext_t::khr_fp16)),
@@ -174,7 +174,7 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_ELTWISE(memory_desc_wrapper(diff_dst_md())
                             == memory_desc_wrapper(diff_src_md()),
-                    VERBOSE_INCONSISTENT_MDS, "diff_src_md", "diff_dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
 
             VDISPATCH_ELTWISE_SC(init_conf(engine), "init_conf()");
             return status::success;

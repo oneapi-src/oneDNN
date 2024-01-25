@@ -275,8 +275,7 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
             VDISPATCH_SOFTMAX(axis_size() % buffer_size == 0, VERBOSE_BAD_AXIS);
             VDISPATCH_SOFTMAX(!memory_desc_ndims_ok(
                                       dst_md(), diff_src_md(), diff_dst_md()),
-                    VERBOSE_INCONSISTENT_NDIMS, "dst_md, dst_src_md",
-                    "diff_dst_md");
+                    VERBOSE_INCONSISTENT_NDIMS, "dst, dst_src", "diff_dst");
             VDISPATCH_SOFTMAX(
                     axis() == diff_src_d.ndims() - 1, VERBOSE_BAD_AXIS);
             VDISPATCH_SOFTMAX(
@@ -304,7 +303,7 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
             VDISPATCH_SOFTMAX_SC(
                     set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_SOFTMAX(diff_dst_d.data_type() == dst_d.data_type(),
-                    VERBOSE_INCONSISTENT_DT, "diff_dst_d", "dst_d");
+                    VERBOSE_INCONSISTENT_DT, "diff_dst", "dst");
 
             is_nhwc = (diff_src_d.matches_one_of_tag(nwc, nhwc, ndhwc)
                     != format_tag::undef);

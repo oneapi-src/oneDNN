@@ -50,7 +50,7 @@ struct ref_shuffle_t : public gpu_primitive_t {
             const memory_desc_wrapper dst_d(md_dst);
 
             VDISPATCH_SHUFFLE(src_d.data_type() == dst_d.data_type(),
-                    VERBOSE_INCONSISTENT_DT, "src_d", "dst_d");
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
             VDISPATCH_SHUFFLE(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_SHUFFLE(!memory_desc_ndims_ok(src_d.md_, dst_d.md_),
@@ -58,7 +58,7 @@ struct ref_shuffle_t : public gpu_primitive_t {
             VDISPATCH_SHUFFLE(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_SHUFFLE(
-                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src_d", "dst_d");
+                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
             VDISPATCH_SHUFFLE(IMPLICATION(src_md()->data_type == data_type::f16,
                                       compute_engine->mayiuse(
                                               compute::device_ext_t::khr_fp16)),

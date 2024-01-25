@@ -34,8 +34,8 @@
             status::unimplemented, msg, ##__VA_ARGS__)
 
 #define VDISPATCH_DECONVOLUTION_SC(f, msg, ...) \
-    VCHECK(primitive, create, dispatch, deconvolution, (f), \
-           "%s," msg, this->info(engine), ##__VA_ARGS__)
+    VCHECK(primitive, create, dispatch, deconvolution, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

@@ -61,7 +61,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
                                             compute::device_ext_t::khr_fp16)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_BNORM(src_md()->data_type == dst_md()->data_type,
-                    VERBOSE_INCONSISTENT_DT, "src_md", "dst_md");
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
             VDISPATCH_BNORM(IMPLICATION(src_md()->data_type == s8,
                                     !is_training() && stats_is_src()),
                     VERBOSE_UNSUPPORTED_DT);
@@ -78,7 +78,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_BNORM(memory_desc_wrapper(src_md())
                             == memory_desc_wrapper(dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md", "dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
             VDISPATCH_BNORM(compute_engine->mayiuse(
                                     compute::device_ext_t::intel_subgroups),
                     VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
@@ -211,10 +211,10 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
                                             compute::device_ext_t::khr_fp16)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_BNORM(src_md()->data_type == diff_src_md()->data_type,
-                    VERBOSE_INCONSISTENT_DT, "src_md", "diff_src_md");
+                    VERBOSE_INCONSISTENT_DT, "src", "diff_src");
             VDISPATCH_BNORM(
                     diff_src_md()->data_type == diff_dst_md()->data_type,
-                    VERBOSE_INCONSISTENT_DT, "diff_src_md", "diff_dst_md");
+                    VERBOSE_INCONSISTENT_DT, "diff_src", "diff_dst");
             VDISPATCH_BNORM(
                     check_scale_shift_data_type(), VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_BNORM(
@@ -223,7 +223,7 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_BNORM(memory_desc_wrapper(diff_src_md())
                             == memory_desc_wrapper(diff_dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "diff_src_md", "diff_dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
             VDISPATCH_BNORM(compute_engine->mayiuse(
                                     compute::device_ext_t::intel_subgroups),
                     VERBOSE_UNSUPPORTED_FEATURE, "subgroups");

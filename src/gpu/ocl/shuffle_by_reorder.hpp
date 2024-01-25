@@ -59,7 +59,7 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
             VDISPATCH_SHUFFLE(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_SHUFFLE(
-                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src_d", "dst_d");
+                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
             VDISPATCH_SHUFFLE(src_d.is_dense(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
 
             // Abort if there's blocking on the dimension that's going to be

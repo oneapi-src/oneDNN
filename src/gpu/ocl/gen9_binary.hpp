@@ -51,7 +51,7 @@ struct gen9_binary_t : public gpu_primitive_t {
             VDISPATCH_BINARY_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_BINARY(
                     !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md()),
-                    VERBOSE_INCONSISTENT_NDIMS, "src_md", "dst_md");
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
             VDISPATCH_BINARY(
                     ((utils::everyone_is(
                               bf16, src_md(0)->data_type, src_md(1)->data_type)

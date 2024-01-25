@@ -249,8 +249,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_FEATURE, "subgroup_size");
             VDISPATCH_SOFTMAX(!memory_desc_ndims_ok(
                                       dst_md(), diff_src_md(), diff_dst_md()),
-                    VERBOSE_INCONSISTENT_NDIMS, "dst_md, dst_src_md",
-                    "diff_dst_md");
+                    VERBOSE_INCONSISTENT_NDIMS, "dst, diff_src", "diff_dst");
             VDISPATCH_SOFTMAX(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_SOFTMAX_SC(

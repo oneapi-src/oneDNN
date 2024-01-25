@@ -74,7 +74,7 @@ struct custom_reorder_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT);
 
             VDISPATCH_REORDER(!memory_desc_ndims_ok(src_md(), dst_md()),
-                    VERBOSE_INCONSISTENT_NDIMS, "src_md", "dst_md");
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
             VDISPATCH_REORDER(compute_engine->mayiuse(
                                       compute::device_ext_t::intel_subgroups),
                     VERBOSE_UNSUPPORTED_FEATURE, "subgroups");

@@ -245,7 +245,7 @@ struct nhwc_batch_normalization_bwd_t : public gpu_primitive_t {
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_BNORM(memory_desc_wrapper(diff_src_md())
                             == memory_desc_wrapper(diff_dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "diff_src_md", "diff_dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
             VDISPATCH_BNORM(compute_engine->mayiuse(
                                     compute::device_ext_t::intel_subgroups),
                     VERBOSE_UNSUPPORTED_FEATURE, "subgroups");

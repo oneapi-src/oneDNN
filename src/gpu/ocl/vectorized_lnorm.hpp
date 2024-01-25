@@ -63,7 +63,7 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_LNORM(
                     !memory_desc_ndims_ok(src_md(), dst_md(), stat_md()),
-                    VERBOSE_INCONSISTENT_NDIMS, "src_md", "dst_md stat_md");
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst stat");
             VDISPATCH_LNORM(
                     stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),

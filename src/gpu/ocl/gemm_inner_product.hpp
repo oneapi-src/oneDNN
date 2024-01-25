@@ -67,12 +67,10 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                     !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
             VDISPATCH_INNER_PRODUCT(
                     dense_consistency_check(src_md(), weights_md(), dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md()",
-                    "weights_md(), dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "weights, dst");
             VDISPATCH_INNER_PRODUCT(dense_gemm_consistency_check(
                                             src_md(), weights_md(), dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md()",
-                    "weights_md(), dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "weights, dst");
             VDISPATCH_INNER_PRODUCT(attr()->has_default_values(attr_skip_mask),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_INNER_PRODUCT(
@@ -177,12 +175,10 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_INNER_PRODUCT(dense_consistency_check(diff_src_md(),
                                             weights_md(), diff_dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md()",
-                    "diff_weights_md(), diff_dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "diff_weights, diff_dst");
             VDISPATCH_INNER_PRODUCT(dense_gemm_consistency_check(diff_src_md(),
                                             weights_md(), diff_dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md()",
-                    "diff_weights_md(), diff_dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "diff_weights, diff_dst");
 
             memory_desc_t a_md, b_md, c_md;
             VDISPATCH_INNER_PRODUCT_SC(
@@ -273,12 +269,10 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_INNER_PRODUCT(dense_consistency_check(src_md(),
                                             diff_weights_md(), diff_dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md()",
-                    "diff_weights_md(), diff_dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "diff_weights, diff_dst");
             VDISPATCH_INNER_PRODUCT(dense_gemm_consistency_check(src_md(),
                                             diff_weights_md(), diff_dst_md()),
-                    VERBOSE_INCONSISTENT_MDS, "src_md()",
-                    "diff_weights_md(), diff_dst_md");
+                    VERBOSE_INCONSISTENT_MDS, "src", "diff_weights, diff_dst");
 
             memory_desc_t a_md, b_md, c_md;
             if (wei_tr()) {
