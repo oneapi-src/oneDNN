@@ -58,7 +58,7 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::khr_fp64)
                                     && attr()->post_ops_.has_default_values()),
-                    VERBOSE_UNSUPPORTED_DT);
+                    VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_LNORM(
                     !memory_desc_ndims_ok(src_md(), dst_md(), stat_md()),
                     VERBOSE_INCONSISTENT_NDIMS, "src", "dst stat");

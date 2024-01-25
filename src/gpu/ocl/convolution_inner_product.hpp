@@ -64,7 +64,7 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
                     IMPLICATION(with_bias(),
                             utils::one_of(desc()->bias_desc.data_type, u8, s8,
                                     bf16, f16, f32)),
-                    VERBOSE_UNSUPPORTED_DT);
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
             VDISPATCH_INNER_PRODUCT(attr()->has_default_values(attr_skip_mask),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_INNER_PRODUCT(
