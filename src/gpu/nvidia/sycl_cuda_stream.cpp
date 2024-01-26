@@ -84,12 +84,12 @@ status_t sycl_cuda_stream_t::init() {
         if (!args_ok) return status::invalid_arguments;
 
         auto queue_context = get_underlying_context();
-        currentDevice_ = get_underlying_device();
+        auto queue_device = get_underlying_device();
 
         auto engine_context = sycl_engine.get_underlying_context();
         auto engine_device = sycl_engine.get_underlying_device();
 
-        status = ((engine_device != currentDevice_)
+        status = ((engine_device != queue_device)
                          || (engine_context != queue_context))
                 ? status::invalid_arguments
                 : status::success;
@@ -97,6 +97,7 @@ status_t sycl_cuda_stream_t::init() {
         // We don't want to keep a reference to engine_context, which is
         // retained in get_underlying_context
         CUDA_EXECUTE_FUNC(cuDevicePrimaryCtxRelease_v2, engine_device);
+        CUDA_EXECUTE_FUNC(cuDevicePrimaryCtxRelease_v2, queue_device);
     }
 
     return status;
