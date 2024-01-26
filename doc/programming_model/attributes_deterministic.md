@@ -2,7 +2,7 @@ Primitive Attributes: deterministic {#dev_guide_attributes_deterministic}
 ===================================================================
 
 To support debugging, validation and certification of some applications, oneDNN
-provides a deterministic mode. This mode guarantees, that multiple executions of
+provides a deterministic mode. This mode guarantees that multiple executions of
 the same primitive on a given platform return the exact same result bitwise.
 
 For most primitives, oneDNN provides a run-to-run deterministic execution for a
