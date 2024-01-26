@@ -585,25 +585,6 @@ inline void dim_iterator(const dims_t dims, dims_t indices, int ndims) {
     }
 }
 
-inline std::vector<std::string> str_split(const std::string &str, char delim) {
-    const char *s = str.c_str();
-    int cur_pos = 0, token_start = 0;
-    std::vector<std::string> res;
-
-    while (s[cur_pos] != '\0') {
-        if (s[cur_pos] == delim) {
-            res.emplace_back(s + token_start, cur_pos - token_start);
-            token_start = cur_pos + 1;
-        }
-        ++cur_pos;
-    }
-    // We reached the last token and no delimiter is ending the string
-    if (cur_pos - token_start > 0)
-        res.emplace_back(s + token_start, cur_pos - token_start);
-
-    return res;
-}
-
 template <typename T, size_t S>
 inline size_t array_size(T (&t)[S]) {
     return S;
