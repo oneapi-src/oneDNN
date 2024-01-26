@@ -80,12 +80,6 @@ public:
     cublasHandle_t *get_cublas_handle();
     device_id_t device_id() const override;
 
-protected:
-    ~sycl_cuda_engine_t() override {
-        if (currentDevice_ != CUdevice {-1})
-            cuDevicePrimaryCtxRelease(currentDevice_);
-    };
-
 private:
     status_t set_cudnn_handle();
     status_t set_cublas_handle();
@@ -104,7 +98,6 @@ private:
     utils::thread_local_storage_t<
             std::unique_ptr<cublasHandle_t, void (*)(cublasHandle_t *)>>
             cublas_handle_;
-    CUdevice currentDevice_ {-1};
 };
 
 } // namespace nvidia
