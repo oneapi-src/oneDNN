@@ -25,6 +25,7 @@
 #include "compiler/ir/graph/driver.hpp"
 #include "compiler/ir/graph/dynamic_utils.hpp"
 #include "compiler/ir/graph/pass/pass.hpp"
+#include "compiler/ir/transform/tensor_inplace_info.hpp"
 #include "compiler/jit/compiler_driver.hpp"
 #include "compiler_partition_impl.hpp"
 
@@ -340,6 +341,16 @@ graph::status_t compiler_partition_impl_t::compile(
         std::shared_ptr<gc::jit_function_t> fptr
                 = gc::compiler_driver(ctx, backend_graph_obj, args);
 
+        // pairs of {input_tensor_id, output_tensor_id}
+        std::vector<graph::inplace_pair_t> inplace_pairs;
+        for (auto &in_out : fptr->inplace_pairs_) {
+            // in graph compiler, the function's output args are at the front,
+            // so the input idx needs to shift by outputs.size().
+            size_t in_tsr_id = inputs[in_out.first - outputs.size()].id;
+            size_t out_tsr_id = outputs[in_out.second].id;
+            inplace_pairs.push_back({in_tsr_id, out_tsr_id});
+        }
+
         // validate and set outputs strides
         for (size_t i = 0; i < output_format_any.size(); ++i) {
             if (!output_format_any[i]) { continue; }
@@ -380,7 +391,7 @@ graph::status_t compiler_partition_impl_t::compile(
         }
 
         auto pimpl = std::make_shared<compiler_compiled_partition_impl_t>(
-                *aengine, inputs, outputs, fptr, graph_engine,
+                *aengine, inputs, outputs, inplace_pairs, fptr, graph_engine,
                 std::move(dyn_inputs), std::move(dyn_outputs));
         compiled_partition->init(pimpl);
         return res;
@@ -410,12 +421,13 @@ compiler_compiled_partition_impl_t::compiler_compiled_partition_impl_t(
         const graph::engine_t &engine,
         const std::vector<graph::logical_tensor_t> &inputs,
         const std::vector<graph::logical_tensor_t> &outputs,
+        const std::vector<graph::inplace_pair_t> &inplace_pairs,
         const std::shared_ptr<gc::jit_function_t> &jit_func,
         const std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
                 &graph_engine,
         std::vector<gc::runtime::dynamic_tensor_t> &&dyn_inputs,
         std::vector<gc::runtime::dynamic_tensor_t> &&dyn_outputs)
-    : graph::compiled_partition_impl_t(engine, inputs, outputs, {})
+    : graph::compiled_partition_impl_t(engine, inputs, outputs, inplace_pairs)
     , graph_engine_(graph_engine)
     , jit_func_(jit_func)
     , dyn_inputs_(std::move(dyn_inputs))
