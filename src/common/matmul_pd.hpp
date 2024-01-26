@@ -130,6 +130,19 @@ struct matmul_pd_t : public primitive_desc_t {
         return dims[n_dims - 1] == N();
     }
 
+    // Quantization mask frequently used for weights scales and zero points
+    int wei_qmask_N() const {
+        const int wei_ndims = weights_md(0)->ndims;
+        assert(wei_ndims >= 2);
+        return 1 << (wei_ndims - 1);
+    }
+
+    int wei_qmask_K() const {
+        const int wei_ndims = weights_md(0)->ndims;
+        assert(wei_ndims >= 2);
+        return 1 << (wei_ndims - 2);
+    }
+
     virtual bool attr_scales_ok(const std::vector<int> &supported_args
             = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
         bool ok = attr()->scales_.has_default_values(supported_args);
