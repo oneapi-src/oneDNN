@@ -658,7 +658,11 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                     break;
                 }
             }
-            if (!key_found_in_exec_args) keys_to_erase.push_back(key);
+            // Don't remove stashed memory for bitwise validation.
+            const bool bitwise_stash
+                    = has_bench_mode_bit(mode_bit_t::bitwise) && key < 0;
+            bool add_key_to_erase = !key_found_in_exec_args && !bitwise_stash;
+            if (add_key_to_erase) keys_to_erase.push_back(key);
         }
         for (const auto &k : keys_to_erase)
             mem_map.erase(mem_map.find(k));
@@ -711,6 +715,52 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                     // overhead.
                     mem_map.emplace(exec_arg, dnn_mem_t(md, test_engine));
                 }
+            }
+        }
+    }
+
+    // Bitwise mode demands exactly the same inputs between two runs. There are
+    // certain scenarios that affect original memory objects content. When such
+    // scenarios occur, memory objects have their original content overwritten.
+    // The logic below stashes additional memory objects for a copy of data
+    // which will get reordered before the second run.
+    //
+    // An implementation detail:
+    // All such memory objects' counterparts are created with the same arg value
+    // but with a negative sign. This is the only guaranteed value that is not
+    // used by the library.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        // A sum post-op has the destination memory data overwritten by the
+        // accumulation memory.
+        if (query_post_ops_has_kind(const_po, dnnl_sum)) {
+            const int query_arg = DNNL_ARG_DST;
+            const int insert_arg = -query_arg;
+            const auto &md = query_md(const_pd, query_arg);
+            if (has_runtime_dims(md)) {
+                mem_map.emplace(insert_arg,
+                        dnn_mem_t(prb->get_md(query_arg), test_engine));
+            } else {
+                mem_map.emplace(insert_arg, dnn_mem_t(md, test_engine));
+            }
+        }
+
+        // An inplace mode uses the source memory object as the destination one.
+        // It results in the source is overwritten after the operation is done.
+        if (prb->inplace) {
+            const bool has_multiple_args = std::any_of(
+                    supported_exec_args.begin(), supported_exec_args.end(),
+                    [](int arg) { return arg == DNNL_ARG_MULTIPLE_SRC; });
+            const auto prop_kind = query_prop_kind(const_pd);
+            const auto query_arg = is_fwd_prop_kind(prop_kind)
+                    ? (has_multiple_args ? DNNL_ARG_MULTIPLE_SRC : DNNL_ARG_SRC)
+                    : DNNL_ARG_DIFF_DST;
+            const int insert_arg = -query_arg;
+            const auto &md = query_md(const_pd, query_arg);
+            if (has_runtime_dims(md)) {
+                mem_map.emplace(insert_arg,
+                        dnn_mem_t(prb->get_md(query_arg), test_engine));
+            } else {
+                mem_map.emplace(insert_arg, dnn_mem_t(md, test_engine));
             }
         }
     }
@@ -867,5 +917,8 @@ int update_ref_mem_map_from_prim(dnnl_primitive_t prim_ref,
 int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
         dnn_mem_t &ref_mem, const attr_t &attr, res_t *res,
         const std::unordered_map<int, fill_cfg_t> &fill_cfg_map = {});
+
+int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
+        const args_t &args, bool inplace, res_t *res);
 
 #endif

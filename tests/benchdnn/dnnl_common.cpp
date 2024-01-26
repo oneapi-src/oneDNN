@@ -1216,6 +1216,7 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     }
 
     // Get output sizes.
+    // TODO: double the output sizes for bitwise mode?
     check_mem_size_args.want_input = false;
     get_memory_bytes(check_mem_size_args);
 
@@ -1536,6 +1537,88 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
         int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
         TIME_FILL(SAFE(
                 fill_zero_points(attr, local_exec_arg, mem, ref_mem), WARN));
+    }
+
+    return OK;
+}
+
+// This function is responsible for performing the bitwise validation:
+// * Saves the output of the first run for further comparison.
+// * Refreshes the input data when the original data was corrupted, e.g.,
+//   inplace mode or sum post-op.
+// * Performs a second run of the original primitive and its inputs.
+// * Compares both outputs on bitwise exactness.
+//
+// The function takes the following arguments:
+// * A `prim` object, the same one used for the first run.
+// * A vector of `kinds` to validate each output from the primitive. The exactly
+//   same one is used for correctness validation.
+// * `args` arguments with all memory objects used for the first run and also
+//   with stashed memories when they got overwritten during execution.
+// * `inplace` flags to help identify if data refresh is needed.
+// * `res` object to save the state of the validation result.
+//
+int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
+        const args_t &args, bool inplace, res_t *res) {
+    // Fast exit for any modes but bitwise.
+    if (!has_bench_mode_bit(mode_bit_t::bitwise)) return OK;
+
+    // Forward-for-backward service primitives define `kinds` as empty to skip
+    // validation. This is to avoid extra checks on higher level.
+    if (kinds.empty()) return OK;
+
+    // Collect copies of outputs.
+    dnn_mem_map_t run1_mem_map;
+    for (const auto &kind : kinds) {
+        const int arg = data_kind2exec_arg(kind);
+        assert(arg > 0);
+
+        auto &mem = args.find(arg);
+        SAFE_V(bool(mem) ? OK : FAIL);
+        run1_mem_map.emplace(
+                arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, get_test_engine()));
+        SAFE(run1_mem_map.at(arg).reorder(mem), WARN);
+    }
+
+    // Put original data into DST tensor if sum post-op is present.
+    if (query_post_ops_has_kind(prim, dnnl_sum)) {
+        const int query_arg = DNNL_ARG_DST;
+        auto &dst_mem = const_cast<dnn_mem_t &>(args.find(query_arg));
+        const auto &orig_dst_mem = args.find(-query_arg);
+        SAFE_V(bool(orig_dst_mem) && bool(dst_mem) ? OK : FAIL);
+        SAFE(dst_mem.reorder(orig_dst_mem), WARN);
+    }
+
+    // Put original data into SRC if inplace mode was specified.
+    if (inplace) {
+        const bool has_multiple_args = bool(args.find(DNNL_ARG_MULTIPLE_SRC));
+        const auto prop_kind = query_prop_kind(query_pd(prim));
+        const auto query_arg = is_fwd_prop_kind(prop_kind)
+                ? (has_multiple_args ? DNNL_ARG_MULTIPLE_SRC : DNNL_ARG_SRC)
+                : DNNL_ARG_DIFF_DST;
+        auto &in_mem = const_cast<dnn_mem_t &>(args.find(query_arg));
+        SAFE_V(bool(in_mem) ? OK : FAIL);
+        const auto &orig_in_mem = args.find(-query_arg);
+        SAFE_V(bool(orig_in_mem) ? OK : FAIL);
+        SAFE(in_mem.reorder(orig_in_mem), WARN);
+    }
+
+    // Perform a second run.
+    SAFE(execute_and_wait(prim, args, res), WARN);
+
+    // `args_t` has an interface to retrieve a memory object by the `arg`.
+    args_t run1_args(run1_mem_map);
+    compare::compare_t cmp;
+    for (const auto &kind : kinds) {
+        cmp.set_data_kind(kind);
+
+        const int arg = data_kind2exec_arg(kind);
+        assert(arg > 0);
+
+        auto &mem = args.find(arg);
+        auto &run1_mem = run1_args.find(arg);
+
+        TIME_COMPARE(cmp.compare(run1_mem, mem, attr_t(), res));
     }
 
     return OK;

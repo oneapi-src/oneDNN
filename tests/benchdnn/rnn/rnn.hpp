@@ -248,7 +248,15 @@ struct settings_t : public base_settings_t {
     std::vector<int64_t> n_layer {0}, n_iter {0};
     std::vector<policy_t> scale_policy {policy_t::COMMON};
     std::vector<policy_t> scale_proj_policy {policy_t::COMMON};
-    std::vector<flags_t> flags {NONE};
+    // The default value is changed for a bitwise mode. The reason is RNN
+    // accumulates diff_weights by default, which is undesired behavior for the
+    // mode.
+    // To properly work, `--mode=B` must be specified before the driver name,
+    // otherwise, the driver settings will use `false` as the mode bit was not
+    // set before entering the driver parsing section.
+    std::vector<flags_t> flags {has_bench_mode_bit(mode_bit_t::bitwise)
+                    ? DIFF_WEIGHTS_OVERWRITE
+                    : NONE};
     float alpha = 0.9f, beta = 0.0f;
 
     const char *perf_template_csv() const {

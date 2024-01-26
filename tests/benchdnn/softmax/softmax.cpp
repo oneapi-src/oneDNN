@@ -85,6 +85,11 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+
     int64_t outer_size = 0, inner_size = 0, axis_size = 0;
     get_sizes(prb, outer_size, inner_size, axis_size);
 
@@ -167,6 +172,13 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 int fill_data_bwd(data_kind_t data_kind, const prb_t *prb, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, int seed) {
     const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+
     const int range = seed % 2 == 0 ? 8 : 128;
 
     // to avoid any cancellation error it's better to have d_dst and dst of
@@ -288,6 +300,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -301,6 +318,13 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         switch (exec_arg) {
             case DNNL_ARG_SRC:
                 SAFE(fill_data_fwd(prb, mem, ref_mem), WARN);
+                // Need a copy of source data for inplace mode for bitwise
+                // testing.
+                if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+                    auto &src_copy = mem_map.at(-exec_arg);
+                    SAFE(bool(src_copy) ? OK : FAIL, WARN);
+                    SAFE(src_copy.reorder(mem), WARN);
+                }
                 break;
             case DNNL_ARG_DST:
                 if (dir & FLAG_BWD) {
@@ -312,6 +336,13 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 const bool neg_sign = prb->alg == SOFTMAX ? true : false;
                 SAFE(fill_data_bwd(DIFF_DST, prb, mem, ref_mem, !neg_sign),
                         WARN);
+                // Need a copy of source data for inplace mode for bitwise
+                // testing.
+                if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+                    auto &diff_dst_copy = mem_map.at(-exec_arg);
+                    SAFE(bool(diff_dst_copy) ? OK : FAIL, WARN);
+                    SAFE(diff_dst_copy.reorder(mem), WARN);
+                }
             } break;
             default: {
                 const auto &binary_fill_cfg
@@ -373,6 +404,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(
             prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->inplace, res),
+            WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

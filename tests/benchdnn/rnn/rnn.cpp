@@ -857,6 +857,14 @@ void skip_invalid_prb(const prb_t *prb_, res_t *res) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }
+
+    // Bitwise backward requires the flag, otherwise, diff_weights accumulate
+    // the output, which doesn't allow to validate numerical stability.
+    if (has_bench_mode_bit(mode_bit_t::bitwise) && (prb.prop == dnnl_backward)
+            && prb.flags != DIFF_WEIGHTS_OVERWRITE) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
@@ -990,6 +998,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -1195,6 +1208,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(&prb, get_kinds_to_check(&prb, FLAG_FWD), args, ref_args,
             setup_cmp, res);
+    SAFE(check_bitwise(prim, get_kinds_to_check(&prb, FLAG_FWD), args,
+                 prb.inplace, res),
+            WARN);
 
     if (prb.prop == dnnl_backward) {
         // Pass same memory map as we need data from forward on backward.
@@ -1211,6 +1227,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
         check_correctness(&prb, get_kinds_to_check(&prb, FLAG_BWD), args,
                 ref_args, setup_cmp, res);
+        SAFE(check_bitwise(prim, get_kinds_to_check(&prb, FLAG_BWD), args,
+                     prb.inplace, res),
+                WARN);
     }
 
     return measure_perf(prb.ctx_exe, res, prim, args);

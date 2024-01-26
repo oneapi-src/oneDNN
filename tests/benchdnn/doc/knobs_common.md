@@ -83,6 +83,7 @@ runtimes. `KIND` values can be `usm` (default), `buffer`, `usm_device`
   - `F` or `f` for fast performance testing, an alias for
                `--mode=P --mode-modifier=PM --max-ms-per-prb=10`
   - `CP` or `cp` for both correctness and performance testing
+  - `B` or `b` for bitwise (numerical determinism) testing
   - `R` or `r` for run mode
   - `I` or `i` for initialization mode
   - `L` or `l` for listing mode

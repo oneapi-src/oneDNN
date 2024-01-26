@@ -1034,6 +1034,7 @@ static bool parse_mode(
               "    * `C` for correctness testing.\n"
               "    * `P` for performance testing.\n"
               "    * `F` for fast performance testing (GPU only).\n"
+              "    * `B` for bitwise (numerical determinism) testing.\n"
               "    * `CP` for both correctness and performance testing.\n"
               "    More details at "
             + doc_url + "benchdnn_general_info.md\n";
@@ -1043,7 +1044,7 @@ static bool parse_mode(
         if (_str.size() > 2) {
             BENCHDNN_PRINT(
                     0, "%s\n%s", "Error: mode value is invalid.", help.c_str());
-            exit(2);
+            SAFE_V(FAIL);
         } else if (_str.size() == 2) {
             for (size_t i = 0; i < _str.size(); i++) {
                 switch (_str[i]) {
@@ -1054,7 +1055,7 @@ static bool parse_mode(
                     default:
                         BENCHDNN_PRINT(0, "%s\n%s",
                                 "Error: mode value is invalid.", help.c_str());
-                        exit(2);
+                        SAFE_V(FAIL);
                 }
             }
             mode = bench_mode_t::corr_perf;
@@ -1077,10 +1078,12 @@ static bool parse_mode(
                     bench_mode_modifier = mode_modifier_t::par_create
                             | mode_modifier_t::no_host_memory;
                     break;
+                case 'b':
+                case 'B': mode = bench_mode_t::bitwise; break;
                 default:
                     BENCHDNN_PRINT(0, "%s\n%s", "Error: mode value is invalid.",
                             help.c_str());
-                    exit(2);
+                    SAFE_V(FAIL);
             }
         }
 

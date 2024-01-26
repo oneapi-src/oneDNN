@@ -327,9 +327,16 @@ struct attr_t {
     };
 
     struct deterministic_t {
-        deterministic_t() : enabled(false) {}
+        // The default value is changed for a bitwise mode. To properly work,
+        // `--mode=B` must be specified before the driver name, otherwise,
+        // the driver settings will use `false` as the mode bit was not set
+        // before entering the driver parsing section.
+        deterministic_t() : enabled(has_bench_mode_bit(mode_bit_t::bitwise)) {}
 
-        bool is_def() const { return enabled == false; }
+        bool is_def() const {
+            static deterministic_t def;
+            return enabled == def.enabled;
+        }
 
         bool enabled;
     };

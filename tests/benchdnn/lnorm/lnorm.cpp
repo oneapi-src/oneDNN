@@ -39,6 +39,14 @@ namespace lnorm {
 
 int fill_mean(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
         dnn_mem_t &mem_dt) {
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        // Mean must be computed unless it is passed by user directly.
+        if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_BWD)) return OK;
+
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         const float val_coeff = is_integral_dt(prb->dt[0]) ? 1.f : 0.25f;
         float val = 0.f;
@@ -61,6 +69,11 @@ int fill_mean(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
 
 int fill_src(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
         dnn_mem_t &mem_dt, const dnn_mem_t &ref_mean, res_t *res) {
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, res);
+    }
+
     const float val_coeff = is_integral_dt(prb->dt[0]) ? 1.f : 0.25f;
 
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
@@ -121,6 +134,17 @@ int fill_src(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
 int fill_variance_fwd(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
         dnn_mem_t &mem_dt, const dnn_mem_t &ref_src,
         const dnn_mem_t &ref_mean) {
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        // Variance must be computed unless it is passed by user directly.
+        if (!(prb->flags & GLOB_STATS)) return OK;
+
+        // Variance must be always positive by definition.
+        fill_cfg_t fill_cfg(dnnl_f32, 0.f, 16.f, /* int = */ false,
+                attr_t::post_ops_t::kind_t::ADD, "variance");
+        return fill_random_real(mem_dt, mem_fp, nullptr, fill_cfg);
+    }
+
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         float val = 0.f;
         // For zero channels the logic relies on memory filled with zeros.
@@ -147,6 +171,11 @@ int fill_scale(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
     const bool use_sc = prb->use_sc();
     if (!use_sc) return OK;
 
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+
     benchdnn_parallel_nd(prb->c, [&](int64_t c) {
         float val = (1.f / 8) * (1 << (c % 7));
         if (prb->flags & GLOB_STATS) val *= 8.f;
@@ -161,6 +190,11 @@ int fill_scale(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
 int fill_shift(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
     const bool use_sh = prb->use_sh();
     if (!use_sh) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
 
     benchdnn_parallel_nd(prb->c, [&](int64_t c) {
         float val = ((c % 3) - 1) * (1.f / 512 * (1 << (c % 7)));
@@ -185,6 +219,13 @@ int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
     auto &ref_src = ref_mem_map.at(DNNL_ARG_SRC);
     SAFE(fill_src(prb, cfg, ref_src, src, ref_mean, res), WARN);
 
+    // Need a copy of source data for inplace mode for bitwise testing.
+    if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+        auto &src_copy = mem_map.at(-DNNL_ARG_SRC);
+        SAFE(bool(src_copy) ? OK : FAIL, WARN);
+        SAFE(src_copy.reorder(src), WARN);
+    }
+
     auto &var = mem_map.at(DNNL_ARG_VARIANCE);
     auto &ref_var = ref_mem_map.at(DNNL_ARG_VARIANCE);
     SAFE(fill_variance_fwd(prb, cfg, ref_var, var, ref_src, ref_mean), WARN);
@@ -204,6 +245,14 @@ int fill_variance_bwd(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        // Variance must be always positive by definition.
+        fill_cfg_t fill_cfg(dnnl_f32, 0.f, 16.f, /* int = */ false,
+                attr_t::post_ops_t::kind_t::ADD, "variance");
+        return fill_random_real(mem_dt, mem_fp, nullptr, fill_cfg);
+    }
+
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         // final variance = {0.25f, 1.f, 4.f}
         const float val = 0.25f * (1 << ((n % 3) * 2));
@@ -219,6 +268,11 @@ int fill_src_bwd(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt,
         const dnn_mem_t &ref_mean, res_t *res) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, res);
+    }
 
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         // Idea behind the filling is to reduce a possibility of cancellation
@@ -245,6 +299,11 @@ int fill_diff_dst_bwd(
         const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt, res_t *res) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, res);
+    }
 
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         // Note: we use a different seed for each chunk to avoid
@@ -294,6 +353,13 @@ int prepare_bwd(const prb_t *prb, dnn_mem_map_t &mem_map,
     auto &d_dst = mem_map.at(DNNL_ARG_DIFF_DST);
     auto &ref_d_dst = ref_mem_map.at(DNNL_ARG_DIFF_DST);
     SAFE(fill_diff_dst_bwd(prb, ref_d_dst, d_dst, res), WARN);
+
+    // Need a copy of source data for inplace mode for bitwise testing.
+    if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+        auto &d_dst_copy = mem_map.at(-DNNL_ARG_DIFF_DST);
+        SAFE(bool(d_dst_copy) ? OK : FAIL, WARN);
+        SAFE(d_dst_copy.reorder(d_dst), WARN);
+    }
 
     auto &scale = mem_map.at(DNNL_ARG_SCALE);
     auto &ref_scale = ref_mem_map.at(DNNL_ARG_SCALE);
@@ -465,6 +531,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second;
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -553,6 +624,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(
             prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->inplace, res),
+            WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

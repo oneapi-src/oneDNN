@@ -198,6 +198,19 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        // Some algorithms mandate positive filling.
+        const std::vector<alg_t> alg_list {
+                alg_t::LOG, alg_t::POW, alg_t::SQRT, alg_t::SQRT_DST};
+        const bool use_zero_min_val = std::any_of(alg_list.begin(),
+                alg_list.end(), [&](alg_t alg) { return alg == prb->alg; });
+        const float range_min_val = use_zero_min_val ? 0.f : -16.f;
+        fill_cfg_t fill_cfg(mem_dt.dt(), range_min_val, 16.f, /* int = */ false,
+                prb->alg, "eltwise");
+        return fill_random_real(mem_dt, mem_fp, nullptr, fill_cfg);
+    }
+
     /* Do fixed partitioning to have same filling for any number of threads */
     const int64_t chunk_size = 64;
     const int64_t n_chunks = div_up(nelems, chunk_size);
@@ -374,6 +387,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -387,9 +405,23 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         switch (exec_arg) {
             case DNNL_ARG_SRC:
                 SAFE(fill_data(prb, SRC, mem, ref_mem), WARN);
+                // Need a copy of source data for inplace mode for bitwise
+                // testing.
+                if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+                    auto &src_copy = mem_map.at(-exec_arg);
+                    SAFE(bool(src_copy) ? OK : FAIL, WARN);
+                    SAFE(src_copy.reorder(mem), WARN);
+                }
                 break;
             case DNNL_ARG_DIFF_DST:
                 SAFE(fill_data(prb, DST, mem, ref_mem), WARN);
+                // Need a copy of source data for inplace mode for bitwise
+                // testing.
+                if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+                    auto &diff_dst_copy = mem_map.at(-exec_arg);
+                    SAFE(bool(diff_dst_copy) ? OK : FAIL, WARN);
+                    SAFE(diff_dst_copy.reorder(mem), WARN);
+                }
                 break;
             default:
                 SAFE(init_ref_memory_args_default_case(
@@ -464,6 +496,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(prb, get_kinds_to_check(prb, FLAG_FWD), args, ref_args,
             setup_cmp, res);
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb, FLAG_FWD), args,
+                 prb->inplace, res),
+            WARN);
 
     if (prb->dir & FLAG_BWD) {
         // Pass same memory map as we need data from forward on backward.
@@ -480,6 +515,9 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
         check_correctness(prb, get_kinds_to_check(prb, FLAG_BWD), args,
                 ref_args, setup_cmp, res);
+        SAFE(check_bitwise(prim, get_kinds_to_check(prb, FLAG_BWD), args,
+                     prb->inplace, res),
+                WARN);
     }
 
     return measure_perf(prb->ctx_exe, res, prim, args);

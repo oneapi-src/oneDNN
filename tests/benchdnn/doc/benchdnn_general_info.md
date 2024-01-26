@@ -58,14 +58,19 @@ following steps to execute any flow:
    * Execute reference path.
    * Setup compare object.
    * Compare outputs of backend and reference and save the status.
-7. Performance validation:
+7. Bitwise validation:
+   * Save results from the first run.
+   * Refresh data in tensors if needed.
+   * Execute backend path for a second time.
+   * Compare outputs to be bitwise exact.
+8. Performance validation:
    * Execute backend path in a loop until one of selected criterion to stop is
      triggered. Refer to [performance options](knobs_common.md) for details.
-8. Report a test case status and repro line.
+9. Report a test case status and repro line.
    * If performance validation was requested, print a performance report output
      based on selected options and collected statistics.
-9. Repeat steps 2-7 until all setups are validated.
-10. Report the summary and return the status.
+10. Repeat steps 2-7 until all setups are validated.
+11. Report the summary and return the status.
 
 Each mode is standalone since most of them include one another, unless specified
 otherwise. The following modes (`--mode`) are supported:
@@ -77,11 +82,21 @@ otherwise. The following modes (`--mode`) are supported:
 * Execution (`R`). This flow executes steps 1-5. It saves time from running
   correctness when it is not needed.
 * Correctness (`C`). This is the default driver flow. It executes all steps,
-  skipping step 7.
-* Performance (`P`): This flow executes all steps, skipping step 6.
+  skipping bitwise and performance validation steps.
+* Bitwise (`B`). This flow executes all steps, skipping correctness and
+  performance steps. The mode purpose is to check that two different library
+  runs of the same problem return the exactly the same output. For some
+  applications it may be a hard requirement. To increase the chances of
+  detecting a potential issue, completely random float values are used for the
+  accumulation order to impact the output results. It is important to note that
+  if the case is passing, it doesn't necessarily mean the problem is free of
+  issues; it may happen that it was not triggered.
+* Performance (`P`): This flow executes all steps, skipping steps 6 and 7.
 * Fast Performance (`F`): This flow executes Performance mode with `P` and `M`
   modifiers (see below) enabled and updated maximum measuring time per case.
-* Correctness & performance (`CP`). This flow executes all steps above.
+* Correctness & performance (`CP`). This flow executes all steps, skipping the
+  bitwise step. It's not recommended for the usage due to filling data conflicts
+  between correctness and performance modes.
 
 ## Mode modifiers
 

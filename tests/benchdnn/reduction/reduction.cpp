@@ -19,6 +19,7 @@
 #include <random>
 #include <sstream>
 
+#include "utils/fill.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
@@ -108,6 +109,12 @@ bool is_norm_alg(const alg_t alg) {
 int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         float non_neutral_prob, bool expanded_range,
         bool only_positive_values) {
+    // Refer to modes documentation for filling principles.
+    // Multiply alg overflows extremely fast. Exclude it from validation.
+    if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->alg != alg_t::mul) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+
     const auto sdt = mem_dt.dt();
     const auto ddt = prb->ddt;
     const auto nelems = mem_fp.nelems();
@@ -164,7 +171,6 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 
 int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
-    const auto sdt = prb->sdt;
     if (!nelems) return OK;
 
     int nelems_to_reduce = 1;
@@ -175,7 +181,7 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     }
 
     // Determine number of non-neutral elements to have in the reduction chain
-    int safe_to_reduce_elems = get_problem_bounds(prb->alg, sdt).first;
+    int safe_to_reduce_elems = get_problem_bounds(prb->alg, prb->sdt).first;
     if (safe_to_reduce_elems == -1) safe_to_reduce_elems = nelems_to_reduce;
 
     const float non_neutral_prob
@@ -258,6 +264,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -272,8 +283,14 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             case DNNL_ARG_SRC: SAFE(fill_src(prb, mem, ref_mem), WARN); break;
             case DNNL_ARG_DST:
                 if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM)
-                        >= 0)
+                        >= 0) {
                     SAFE(fill_dst(prb, mem, ref_mem), WARN);
+                    // Bitwise mode for sum requires a copy due to data for
+                    // post-op will be overwritten and it must be refreshed.
+                    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+                        SAFE(mem_map.at(-exec_arg).reorder(ref_mem), WARN);
+                    }
+                }
                 break;
             default: {
                 const auto &binary_fill_cfg
@@ -320,6 +337,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
+    SAFE(check_bitwise(prim, {DST}, args, prb->inplace, res), WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }
