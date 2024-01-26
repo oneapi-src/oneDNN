@@ -233,7 +233,10 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
 
         // we always enable error by default
         int val = verbose_t::error;
-        for (auto &tok : utils::str_split(user_opt, ',')) {
+        for (size_t pos_st = 0, pos_en = user_opt.find_first_of(',', pos_st);
+                true; pos_st = pos_en + 1,
+                    pos_en = user_opt.find_first_of(',', pos_st)) {
+            std::string tok = user_opt.substr(pos_st, pos_en - pos_st);
             // update verbose flags
             update_kind(tok, val);
             // update filter flags
@@ -243,6 +246,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
                     flags = update_filter(filter_str, filter_status);
                 }
             }
+            if (pos_en == std::string::npos) break;
         }
 
         // We parse for explicit flags
