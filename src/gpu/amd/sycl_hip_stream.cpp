@@ -97,6 +97,7 @@ status_t sycl_hip_stream_t::init() {
 
         // We don't want to keep a reference to engine_context, which is
         // retained in get_underlying_context
+        HIP_EXECUTE_FUNC(hipDevicePrimaryCtxRelease, engine_device);
         HIP_EXECUTE_FUNC(hipDevicePrimaryCtxRelease, queue_device);
     }
 
