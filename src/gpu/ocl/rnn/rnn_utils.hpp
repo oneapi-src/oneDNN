@@ -41,13 +41,13 @@
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
             const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
-            const memory_storage_t *scratch_gates, \
-            const memory_storage_t *scratch_diff_gates, \
-            const memory_storage_t *scratch_diff_states, \
-            const memory_storage_t *scratch_diff_states_s1, \
-            const memory_storage_t *scratch_diff_states_iter, \
-            const memory_storage_t *scratch_diff_states_iter_s1, \
-            const memory_storage_t *scratch_diff_states_layer, \
+            const rnn_utils::sub_buffer_t &scratch_gates, \
+            const rnn_utils::sub_buffer_t &scratch_diff_gates, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states_s1, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states_iter, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states_iter_s1, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states_layer, \
             dim_t diff_states_layer_ld, const memory_storage_t *scales, \
             const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
@@ -57,12 +57,12 @@
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
             const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
-            const memory_storage_t *scratch_gates, \
-            const memory_storage_t *scratch_diff_gates, \
+            const rnn_utils::sub_buffer_t &scratch_gates, \
+            const rnn_utils::sub_buffer_t &scratch_diff_gates, \
             const memory_storage_t &scratch_cell, \
-            const memory_storage_t *scratch_diff_states, \
-            const memory_storage_t *scratch_diff_states_iter, \
-            const memory_storage_t *scratch_diff_states_layer, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states_iter, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states_layer, \
             dim_t diff_states_layer_ld, const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
 
@@ -71,13 +71,14 @@
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
             const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
-            const memory_storage_t *scratch_gates, \
-            const memory_storage_t *scratch_diff_gates, \
-            const memory_storage_t *scratch_cell, \
-            const memory_storage_t *scratch_diff_states, \
-            const memory_storage_t *scratch_diff_states_iter, \
-            const memory_storage_t *scratch_diff_states_layer, \
-            dim_t diff_states_layer_ld, const memory_storage_t *scratch_dhG1, \
+            const rnn_utils::sub_buffer_t &scratch_gates, \
+            const rnn_utils::sub_buffer_t &scratch_diff_gates, \
+            const memory_storage_t &scratch_cell, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states_iter, \
+            const rnn_utils::sub_buffer_t &scratch_diff_states_layer, \
+            dim_t diff_states_layer_ld, \
+            const rnn_utils::sub_buffer_t &scratch_dhG1, \
             const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias, int part) const
 
@@ -109,9 +110,9 @@
 
 #define gemm_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, \
-            const memory_storage_t &a, dim_t off_a, const memory_storage_t &b, \
-            dim_t off_b, const memory_storage_t &c, dim_t off_c, \
-            gemm_kind_t gemm_kind) const
+            const rnn_utils::sub_buffer_t &a, \
+            const rnn_utils::sub_buffer_t &b, \
+            const rnn_utils::sub_buffer_t &c, gemm_kind_t gemm_kind) const
 
 #define weights_assign_sig(f) \
     void f(const rnn_utils::conf_t &rnn, const memory_desc_t *md, \
@@ -397,7 +398,52 @@ inline void append_strides(compute::kernel_arg_list_t &arg_list,
     }
 }
 
-struct user_data_t {
+struct sub_buffer_t {
+    static constexpr dim_t unset = 0;
+
+    sub_buffer_t() : buffer_(nullptr) {}
+    sub_buffer_t(const memory_storage_t &buffer, dim_t offset = 0,
+            dim_t size = unset, bool enable_get_sub_storage = true)
+        : buffer_(buffer.is_null() ? nullptr
+                                   : ((size == unset || !enable_get_sub_storage)
+                                                   ? buffer.clone()
+                                                   : buffer.get_sub_storage(
+                                                           offset, size))) {
+        if (buffer_ && (size == unset || !enable_get_sub_storage))
+            buffer_->set_offset(static_cast<size_t>(offset));
+    }
+
+    sub_buffer_t(const sub_buffer_t &buffer, dim_t offset = 0)
+        : buffer_((buffer.buffer_ == nullptr || buffer.buffer_->is_null())
+                        ? nullptr
+                        : buffer.buffer_->clone()) {
+        if (buffer_) buffer_->set_offset(buffer.offset() + offset);
+    }
+
+    operator bool() const { return buffer_ != nullptr && !buffer_->is_null(); }
+
+    const memory_storage_t *get() const { return buffer_.get(); }
+    const memory_storage_t &get_storage() const {
+        return buffer_ ? *buffer_ : memory_storage_t::empty_storage();
+    }
+    size_t offset(data_type_t dt = data_type::undef) const {
+        if (buffer_ == nullptr) return 0;
+        if (dt == data_type::undef) return buffer_->offset();
+        gpu_assert(buffer_->offset() % types::data_type_size(dt) == 0);
+        return buffer_->offset() / types::data_type_size(dt);
+    }
+
+private:
+    std::unique_ptr<memory_storage_t> buffer_;
+};
+
+struct data_helper_t {
+    static dim_t type_size(data_type_t d) {
+        return static_cast<dim_t>(types::data_type_size(d));
+    }
+};
+
+struct user_data_t : public data_helper_t {
     using mst = memory_storage_t;
     user_data_t(const mst &src_layer, const mst &bias,
             const mst &diff_src_layer, const mst &diff_dst_layer,
@@ -418,9 +464,7 @@ struct user_data_t {
                    "perform merge_gemm_layer";
 
         gpu_assert(IMPLICATION(!conf.copy_src_layer && conf.n_iter > 1,
-                (offsets_.src_layer[0]
-                        * types::data_type_size(conf_.input_data_type))
-                                % 8
+                (offsets_.src_layer[0] * type_size(conf_.input_data_type)) % 8
                         == 0))
                 << "[ERROR]: GEMM interface assumes inputs buffers are well "
                    "aligned";
@@ -433,7 +477,7 @@ struct user_data_t {
         if (!conf.is_fwd) {
             gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer && conf.n_iter > 1,
                     (offsets_.diff_dst_layer[0]
-                            * types::data_type_size(conf_.diff_data_type))
+                            * type_size(conf_.diff_data_type))
                                     % 8
                             == 0))
                     << "[ERROR]: GEMM interface assumes inputs buffers are "
@@ -458,63 +502,63 @@ struct user_data_t {
     }
 
     const mst &src_layer() const { return src_layer_; }
-    std::unique_ptr<mst> src_layer(
+    sub_buffer_t src_layer(
             dim_t dir, dim_t iter_, bool all_iter = false) const {
         auto iter = normalized_iter(dir, iter_);
 
         // src_layer dimension order: iter, mini-batch, channel
-        const auto iter_stride = offsets_.src_layer[0]
-                * types::data_type_size(conf_.input_data_type);
+        const auto iter_stride
+                = offsets_.src_layer[0] * type_size(conf_.input_data_type);
         auto offset = iter * iter_stride;
         auto cell_size = iter_stride;
         auto n_cells = all_iter ? conf_.n_iter - iter : 1;
-        return src_layer_.get_sub_storage(offset, cell_size * n_cells);
+        return {src_layer(), offset, cell_size * n_cells};
     }
 
     const mst &bias() const { return bias_; }
-    std::unique_ptr<mst> bias(dim_t lay, dim_t dir) const {
-        if (bias().data_handle() == nullptr) return nullptr;
+    sub_buffer_t bias(dim_t lay, dim_t dir) const {
+        if (bias().data_handle() == nullptr) return {};
 
         // bia dimension order: lay, dir, gates, dhc
-        auto type_size = types::data_type_size(conf_.aux_data_type);
-        auto layer_stride = offsets_.bias[0] * type_size;
-        auto dir_stride = offsets_.bias[1] * type_size;
+        auto t_size = type_size(conf_.aux_data_type);
+        auto layer_stride = offsets_.bias[0] * t_size;
+        auto dir_stride = offsets_.bias[1] * t_size;
         auto cell_size = dir_stride;
         auto offset = layer_stride * lay + dir_stride * dir;
-        return bias().get_sub_storage(offset, cell_size);
+        return {bias(), offset, cell_size};
     }
 
     const mst &diff_src_layer() const { return diff_src_layer_; }
-    std::unique_ptr<mst> diff_src_layer(
+    sub_buffer_t diff_src_layer(
             dim_t dir, dim_t iter_, bool all_iter = false) const {
         auto iter = normalized_iter(dir, iter_);
 
         // diff_src_layer dimension order: iter, mini-batch, channel
-        const auto iter_stride = offsets_.diff_src_layer[0]
-                * types::data_type_size(conf_.diff_data_type);
+        const auto iter_stride
+                = offsets_.diff_src_layer[0] * type_size(conf_.diff_data_type);
         auto offset = iter * iter_stride;
         auto cell_size = iter_stride;
         auto n_cells = all_iter ? conf_.n_iter - iter : 1;
-        return diff_src_layer_.get_sub_storage(offset, cell_size * n_cells);
+        return {diff_src_layer(), offset, cell_size * n_cells};
     }
 
     const mst &diff_dst_layer() const { return diff_dst_layer_; }
-    std::unique_ptr<mst> diff_dst_layer(
+    sub_buffer_t diff_dst_layer(
             dim_t dir, dim_t iter_, bool all_iter = false) const {
         auto iter = normalized_iter(dir, iter_);
 
         // diff_dst_layer dimension order: iter, mini-batch, channel
-        const auto iter_stride = offsets_.diff_dst_layer[0]
-                * types::data_type_size(conf_.diff_data_type);
+        const auto iter_stride
+                = offsets_.diff_dst_layer[0] * type_size(conf_.diff_data_type);
         const auto dir_offset
                 = (conf_.exec_dir == execution_direction_t::bi_concat && dir)
-                ? offsets_.diff_dst_layer[1]
-                        * types::data_type_size(conf_.diff_data_type) / 2
+                ? offsets_.diff_dst_layer[1] * type_size(conf_.diff_data_type)
+                        / 2
                 : 0;
         auto offset = iter * iter_stride + dir_offset;
         auto cell_size = iter_stride;
         auto n_cells = all_iter ? conf_.n_iter - iter : 1;
-        return diff_dst_layer_.get_sub_storage(offset, cell_size * n_cells);
+        return {diff_dst_layer(), offset, cell_size * n_cells};
     }
 
     const mst &src_layer_;
@@ -525,7 +569,7 @@ struct user_data_t {
     const rnn_offsets_t &offsets_;
 };
 
-struct workspace_t {
+struct workspace_t : public data_helper_t {
     using mst = memory_storage_t;
     workspace_t(const mst &ws, const conf_t &conf)
         : ws_(ws)
@@ -592,48 +636,48 @@ struct workspace_t {
     const mst &gates() const { return get_storage(gates_); }
     const mst &states() const { return get_storage(states_); }
 
-    std::unique_ptr<mst> states(dim_t layer, dim_t dir, dim_t time) const {
-        if (!states_) return nullptr;
+    sub_buffer_t states(dim_t layer, dim_t dir, dim_t time) const {
+        if (!states_) return {};
         auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
                 * conf_.ws_states_elsz;
-        return states_->get_sub_storage(off_, conf_.ws_states_cell_size);
+        return {states(), off_, conf_.ws_states_cell_size};
     }
 
-    std::unique_ptr<mst> states_range(dim_t layer_start, dim_t layer_end,
+    sub_buffer_t states_range(dim_t layer_start, dim_t layer_end,
             dim_t dir_start, dim_t dir_end, dim_t time_start,
             dim_t time_end) const {
-        if (!states_) return nullptr;
+        if (!states_) return {};
         auto off_start
                 = calc_off_ws_state(layer_start, dir_start, time_start, 0, 0)
                 * conf_.ws_states_elsz;
         auto off_end = calc_off_ws_state(layer_end, dir_end, time_end, 0, 0)
                 * conf_.ws_states_elsz;
-        return states_->get_sub_storage(off_start, off_end - off_start);
+        return {states(), off_start, off_end - off_start};
     }
 
-    std::unique_ptr<mst> c_states(dim_t layer, dim_t dir, dim_t time) const {
-        if (!c_states_) return nullptr;
+    sub_buffer_t c_states(dim_t layer, dim_t dir, dim_t time) const {
+        if (!c_states_) return {};
         // conf_.aux_data_type is float for all datatypes except f16
         // so can be used for lstm_elemwise_u8s8 case as well
-        auto off_ = calc_off_ws_c_state(layer, dir, time, 0, 0)
-                * types::data_type_size(conf_.aux_data_type);
-        return c_states_->get_sub_storage(off_, conf_.ws_c_states_cell_size);
+        auto off = calc_off_ws_c_state(layer, dir, time, 0, 0)
+                * type_size(conf_.aux_data_type);
+        return {c_states(), off, conf_.ws_c_states_cell_size};
     }
 
-    std::unique_ptr<mst> gates(dim_t layer, dim_t dir, dim_t time) const {
-        if (!gates_) return nullptr;
+    sub_buffer_t gates(dim_t layer, dim_t dir, dim_t time) const {
+        if (!gates_) return {};
 
-        auto off_ = calc_off_ws_gates(layer, dir, time, 0, 0, 0)
-                * types::data_type_size(conf_.aux_data_type);
-        return gates_->get_sub_storage(off_, conf_.ws_gates_cell_size);
+        auto off = calc_off_ws_gates(layer, dir, time, 0, 0, 0)
+                * type_size(conf_.aux_data_type);
+        return {gates(), off, conf_.ws_gates_cell_size};
     }
 
-    std::unique_ptr<mst> grid_comp(dim_t layer, dim_t dir, dim_t time) const {
-        if (!grid_comp_) return nullptr;
+    sub_buffer_t grid_comp(dim_t layer, dim_t dir, dim_t time) const {
+        if (!grid_comp_) return {};
 
-        auto off_ = calc_off_ws_grid_offset(layer, dir, time, 0, 0)
-                * types::data_type_size(conf_.aux_data_type);
-        return grid_comp_->get_sub_storage(off_, conf_.ws_per_cell);
+        auto off = calc_off_ws_grid_offset(layer, dir, time, 0, 0)
+                * type_size(conf_.aux_data_type);
+        return {grid_comp(), off, conf_.ws_per_cell};
     }
 
     const mst &c_states() const { return get_storage(c_states_); }
@@ -650,7 +694,7 @@ private:
     std::unique_ptr<mst> grid_comp_;
 };
 
-struct scratch_t {
+struct scratch_t : public data_helper_t {
     using mst = memory_storage_t;
 
     enum {
@@ -758,14 +802,14 @@ struct scratch_t {
                 ? (gates_ ? gates_.get() : diff_gates_.get())
                 : nullptr;
     }
-    std::unique_ptr<mst> gates(dim_t iter) const {
+    sub_buffer_t gates(dim_t iter) const {
         auto g = gates();
-        if (g == nullptr) return nullptr;
+        if (g == nullptr) return {};
 
         auto off = calc_off_gates(iter);
         auto cell_size
                 = conf_.mb * conf_.scratch_gates_ld * conf_.scratch_gates_elsz;
-        return g->get_sub_storage(off, cell_size);
+        return {*g, off, cell_size};
     }
 
     dim_t calc_off_diff_gates(dim_t iter) const {
@@ -776,14 +820,14 @@ struct scratch_t {
     };
     const mst *diff_gates() const { return diff_gates_.get(); }
 
-    std::unique_ptr<mst> diff_gates(dim_t iter) const {
+    sub_buffer_t diff_gates(dim_t iter) const {
         auto g = diff_gates();
-        if (g == nullptr) return nullptr;
+        if (g == nullptr) return {};
 
         auto off = calc_off_diff_gates(iter);
         auto cell_size = conf_.mb * conf_.scratch_diff_gates_ld
                 * conf_.scratch_diff_gates_elsz;
-        return g->get_sub_storage(off, cell_size);
+        return {*g, off, cell_size};
     }
 
     const mst *cell() const { return cell_.get(); }
@@ -820,15 +864,15 @@ struct scratch_t {
 
     const mst *diff_states() const { return diff_states_.get(); }
 
-    std::unique_ptr<mst> diff_states(
+    sub_buffer_t diff_states(
             dim_t layer, dim_t dir, dim_t state, dim_t iter) const {
         int aux_elsz = conf_.aux_data_type == data_type::f16 ? sizeof(cl_half)
                                                              : sizeof(float);
-        if (!diff_states_) return nullptr;
+        if (!diff_states_) return {};
         auto off
                 = calc_off_diff_state(layer, dir, state, iter, 0, 0) * aux_elsz;
         auto cell_size = conf_.mb * conf_.scratch_diff_states_ld * aux_elsz;
-        return diff_states_->get_sub_storage(off, cell_size);
+        return {*diff_states(), off, cell_size};
     }
 
     const mst *diff_ht() const { return diff_ht_.get(); }
