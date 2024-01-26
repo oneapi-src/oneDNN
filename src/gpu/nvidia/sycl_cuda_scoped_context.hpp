@@ -34,6 +34,7 @@ namespace nvidia {
 // required to put the stream context on top of the cuda stack
 class cuda_sycl_scoped_context_handler_t {
     CUcontext original_;
+    CUdevice currentDevice_;
     bool need_to_recover_;
 
 public:

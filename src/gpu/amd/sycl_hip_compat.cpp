@@ -1,6 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,39 +14,26 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_AMD_SYCL_HIP_SCOPED_CONTEXT_HPP
-#define GPU_AMD_SYCL_HIP_SCOPED_CONTEXT_HPP
-
-#include <memory>
-#include <thread>
-
-#include "gpu/amd/sycl_hip_engine.hpp"
-#include "gpu/amd/sycl_hip_utils.hpp"
+#include "sycl_hip_compat.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace amd {
+namespace compat {
 
-class hip_sycl_scoped_context_handler_t {
-    hipCtx_t original_;
-    hipDevice_t currentDevice_;
-    bool need_to_recover_;
-
-public:
-    hip_sycl_scoped_context_handler_t(const sycl_hip_engine_t &);
-    // Destruct the scope p_context placed_context_.
-    ~hip_sycl_scoped_context_handler_t() noexcept(false);
-
-    template <typename T, typename U>
-    inline T memory(const compat::interop_handle &ih, U acc) {
-        return compat::get_native_mem<T>(ih, acc);
+template <>
+HIPcontext get_native(const ::sycl::device &device) {
+    HIPdevice nativeDevice
+            = ::sycl::get_native<::sycl::backend::ext_oneapi_hip>(device);
+    HIPcontext nativeContext;
+    if (hipDevicePrimaryCtxRetain(&nativeContext, nativeDevice) != hipSuccess) {
+        throw std::runtime_error("Could not create a native context");
     }
-};
-
+    return nativeContext;
+}
+} // namespace compat
 } // namespace amd
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
-#endif
