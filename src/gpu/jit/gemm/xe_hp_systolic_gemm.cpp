@@ -890,7 +890,7 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &c_zp = GEMM_CTX_ARG_STORAGE(c_zero_point);
     auto &bias = GEMM_CTX_ARG_STORAGE(bias);
     auto *co = &c_zp;
-    memory_storage_t *ao = nullptr, *bo = nullptr;
+    const memory_storage_t *ao = nullptr, *bo = nullptr;
 
     std::unique_ptr<memory_storage_t> a_packed_temp, b_packed_temp;
 

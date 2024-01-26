@@ -238,7 +238,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &bias = GEMM_CTX_ARG_STORAGE(bias);
     auto &sum_ab = GEMM_CTX_ARG_STORAGE(sum_ab);
     auto *co = &c_zp;
-    memory_storage_t *ao = nullptr, *bo = nullptr;
+    const memory_storage_t *ao = nullptr, *bo = nullptr;
 
     std::unique_ptr<memory_storage_t> c_temp;
     if (nocopy_info()->needsTempC()) {
