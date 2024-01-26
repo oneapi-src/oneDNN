@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,23 +36,12 @@ void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
 
     gpu_arch = jit::convert_ngen_arch_to_dnnl(hw);
     stepping_id = product.stepping;
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+
+    mayiuse_systolic = false;
     status_t ret
             = get_ocl_device_enabled_systolic_intel(device, mayiuse_systolic);
     assert(ret == CL_SUCCESS);
     MAYBE_UNUSED(ret);
-#else
-    using arch_t = gpu::compute::gpu_arch_t;
-    switch (gpu_arch) {
-        case arch_t::xe_hp:
-        case arch_t::xe2:
-        case arch_t::xe_hpc: mayiuse_systolic = true; break;
-        case arch_t::xe_hpg:
-            mayiuse_systolic = (product.family != ProductFamily::MTL);
-            break;
-        default: mayiuse_systolic = false;
-    }
-#endif
 
     auto status
             = jit::gpu_supports_binary_format(&mayiuse_ngen_kernels, engine);
