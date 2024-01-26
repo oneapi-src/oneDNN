@@ -105,12 +105,9 @@ struct ref_matmul_t : public primitive_t {
                 const auto &mask = sc.mask_;
                 if (!sc.has_default_values()) {
                     if (arg == DNNL_ARG_WEIGHTS) {
-                        const int wei_ndims = weights_md(0)->ndims;
                         ok = ok
-                                && utils::one_of(mask, 0,
-                                        (1 << (wei_ndims - 1)),
-                                        (1 << (wei_ndims - 1))
-                                                + (1 << (wei_ndims - 2)));
+                                && utils::one_of(mask, 0, wei_qmask_N(),
+                                        wei_qmask_N() + wei_qmask_K());
                         ok = ok && utils::one_of(sc.ndims_, 0, 2)
                                 && IMPLICATION(sc.ndims_ == 2,
                                         sc.group_dims_[1] == 1
@@ -127,7 +124,6 @@ struct ref_matmul_t : public primitive_t {
             /* weights decompression requires zero points support */
             int mask_wei = 0;
             attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
-            const int wei_ndims = weights_md(0)->ndims;
             const auto wei_group_ndims
                     = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
             const auto wei_group_dims
@@ -135,8 +131,8 @@ struct ref_matmul_t : public primitive_t {
 
             return attr()->zero_points_.has_default_values(DNNL_ARG_SRC)
                     && attr()->zero_points_.has_default_values(DNNL_ARG_DST)
-                    && utils::one_of(mask_wei, 0, 1 << (wei_ndims - 1),
-                            (1 << (wei_ndims - 1)) + (1 << (wei_ndims - 2)))
+                    && utils::one_of(mask_wei, 0, wei_qmask_N(),
+                            wei_qmask_N() + wei_qmask_K())
                     && utils::one_of(wei_group_ndims, 0, 2)
                     && IMPLICATION(wei_group_ndims == 2,
                             wei_group_dims[1] == 1

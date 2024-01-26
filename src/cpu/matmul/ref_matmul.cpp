@@ -75,8 +75,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             = !attr_zps.has_default_values(DNNL_ARG_WEIGHTS);
     int wei_zp_mask = 0;
     attr_zps.get(DNNL_ARG_WEIGHTS, &wei_zp_mask);
-    const bool wei_zp_per_n = wei_zp_mask & (1 << (weights_d.ndims() - 1));
-    const bool wei_zp_per_k = wei_zp_mask & (1 << (weights_d.ndims() - 2));
+    const bool wei_zp_per_n = wei_zp_mask & pd()->wei_qmask_N();
+    const bool wei_zp_per_k = wei_zp_mask & pd()->wei_qmask_K();
     const dim_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
     const dim_t wei_zp_stride_k = wei_zp_per_k ? wei_zp_per_n ? N : 1 : 0;
     const auto &wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
@@ -101,10 +101,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const bool with_dst_scales
             = !attr_scales.get(DNNL_ARG_DST).has_default_values();
     const auto wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-    const bool wei_scale_per_n
-            = wei_scale_mask & (1 << (weights_d.ndims() - 1));
-    const bool wei_scale_per_k
-            = wei_scale_mask & (1 << (weights_d.ndims() - 2));
+    const bool wei_scale_per_n = wei_scale_mask & pd()->wei_qmask_N();
+    const bool wei_scale_per_k = wei_scale_mask & pd()->wei_qmask_K();
     const dim_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
     const dim_t wei_scale_stride_k
             = wei_scale_per_k ? wei_scale_per_n ? N : 1 : 0;
