@@ -380,6 +380,9 @@ struct brgemm_t {
 private:
     primitive_attr_t *attr_ {nullptr};
     memory_desc_t *dst_md_ {nullptr};
+    void set_attr_null() { attr_ = nullptr; };
+    void set_dst_md_null() { dst_md_ = nullptr; };
+
     void cleanup_attr();
     void cleanup_dst_md();
 

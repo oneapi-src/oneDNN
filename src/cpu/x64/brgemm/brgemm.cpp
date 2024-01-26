@@ -42,8 +42,10 @@ brgemm_t::brgemm_t(const brgemm_t &other) {
     *this = other;
     // Since copy above will make `attr_` and `dst_md_` point to `other`,
     // nulling them in `this` to avoid cleaning `other` object members.
-    attr_ = nullptr;
-    dst_md_ = nullptr;
+
+    set_attr_null();
+    set_dst_md_null();
+
     set_attr(other.attr());
     set_dst_md(other.dst_md());
 }
