@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@
 #include "graph/backend/dnnl/kernels/reduction.hpp"
 #include "graph/backend/dnnl/kernels/reorder.hpp"
 #include "graph/backend/dnnl/kernels/resampling.hpp"
+#include "graph/backend/dnnl/kernels/sdp.hpp"
+#include "graph/backend/dnnl/kernels/sdp_base.hpp"
 #include "graph/backend/dnnl/kernels/shuffle.hpp"
 #include "graph/backend/dnnl/kernels/softmax.hpp"
 #include "graph/backend/dnnl/kernels/sum.hpp"

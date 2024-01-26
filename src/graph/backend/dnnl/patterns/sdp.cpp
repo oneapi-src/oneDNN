@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include "graph/backend/dnnl/kernels/large_partition.hpp"
 #include "graph/backend/dnnl/kernels/matmul.hpp"
+#include "graph/backend/dnnl/kernels/sdp_base.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"
@@ -62,7 +63,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion)
                             {in_edge(0, transpose_output, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+            return std::make_shared<sdp_base_t<>>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_sdp_fusion)
@@ -110,7 +111,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_sdp_fusion)
                             in_edges_t {in_edge(0, reshape_reorder_output, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+            return std::make_shared<sdp_base_t<true, memory::data_type::f32>>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
@@ -174,7 +175,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
                             {in_edge(0, cast_output_fp32, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+            return std::make_shared<
+                    sdp_base_t<true, memory::data_type::bf16>>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
