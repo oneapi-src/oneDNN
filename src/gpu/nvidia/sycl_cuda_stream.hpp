@@ -66,18 +66,12 @@ public:
     CUcontext get_underlying_context();
     CUdevice get_underlying_device();
 
-    ~sycl_cuda_stream_t() override {
-        if (currentDevice_ != CUdevice {-1})
-            cuDevicePrimaryCtxRelease(currentDevice_);
-    }
-
 private:
     status_t init();
     sycl_cuda_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
         : base_t(engine, flags, queue) {}
     sycl_cuda_stream_t(engine_t *engine, unsigned flags)
         : base_t(engine, flags) {}
-    CUdevice currentDevice_ {-1};
 };
 
 } // namespace nvidia
