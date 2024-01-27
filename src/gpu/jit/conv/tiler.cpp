@@ -377,7 +377,7 @@ private:
                     });
 
             // Deterministic mode doesn't allow reduction splitting between threadgroups.
-            if (!prb.attr->deterministic_) {
+            if (!prb.deterministic) {
                 // For XeHPG and earlier hardware use only linear loops with SLM
                 // pipelining to avoid overflowing icache. Prefetch pipeline can
                 // handle nested loops without fully unrolling them.
@@ -520,9 +520,9 @@ public:
         check_mask_ = 0;
         optional_check_mask_ = 0;
         set_check(optional_check_mask_, check_kind_t::limit_k_iter);
-        if (cfg_.prb().attr->deterministic_)
+        if (cfg_.prb().deterministic) {
             set_check(check_kind_t::check_deterministic);
-        else {
+        } else {
             set_check(optional_check_mask_,
                     check_kind_t::check_k_slicing_utilization);
             set_check(check_kind_t::check_k_slicing_utilization);
@@ -1052,10 +1052,8 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_w_dw(
     bool k_is_ow = (k_iter_dim == prb_dims::ow);
     ret.add(k_is_mb, conv_schemes::bwd_w_dw_I_gn);
     ret.add(k_is_ow, conv_schemes::bwd_w_dw_I_gw);
-    ret.add(k_is_mb && cfg.prb().attr->deterministic_,
-            conv_schemes::bwd_w_dw_I_gn_d);
-    ret.add(k_is_ow && cfg.prb().attr->deterministic_,
-            conv_schemes::bwd_w_dw_I_gw_d);
+    ret.add(k_is_mb && cfg.prb().deterministic, conv_schemes::bwd_w_dw_I_gn_d);
+    ret.add(k_is_ow && cfg.prb().deterministic, conv_schemes::bwd_w_dw_I_gw_d);
     return ret;
 }
 
@@ -1115,9 +1113,9 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_w(
     ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_kon);
     ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_ikon);
     ret.add(k_is_ow && small_ic, conv_schemes::bwd_w_T_io_I_ikow);
-    ret.add(k_is_mb && cfg.prb().attr->deterministic_,
+    ret.add(k_is_mb && cfg.prb().deterministic,
             conv_schemes::bwd_w_T_io_I_ion_d);
-    ret.add(k_is_ow && cfg.prb().attr->deterministic_,
+    ret.add(k_is_ow && cfg.prb().deterministic,
             conv_schemes::bwd_w_T_io_I_iow_d);
     return ret;
 }
