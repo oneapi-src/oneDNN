@@ -127,6 +127,9 @@ struct jit_uni_sparse_matmul_kernel_t : public sparse_matmul_kernel_t {
     }
 
     Address wei_ptr(size_t offt = 0) {
+        if (N() == 1)
+            return ptr[reg_wei + reg_src_col_idx * data_type_size() + offt];
+
         imul(reg_tmp, reg_src_col_idx, N());
         add(reg_tmp, reg_block_offset);
         return ptr[reg_wei + reg_tmp * data_type_size() + offt];
