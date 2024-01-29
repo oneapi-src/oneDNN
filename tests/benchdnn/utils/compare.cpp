@@ -63,23 +63,36 @@ void dump_norm_values(
             diff_norm.diff_[norm_t::L8], diff_norm.rel_diff(norm_t::L8));
 }
 
-bool has_binary_comparison_po(const attr_t &attr) {
+bool has_binary_po_algs(const attr_t &attr,
+        const std::vector<attr_t::post_ops_t::kind_t> &algs) {
     const auto &po = attr.post_ops;
     if (po.is_def()) return false;
-
-    using alg_t = attr_t::post_ops_t::kind_t;
-    static const std::vector<alg_t> cmp_alg = {alg_t::MAX, alg_t::MIN,
-            alg_t::GE, alg_t::GT, alg_t::LE, alg_t::LT, alg_t::EQ, alg_t::NE};
 
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
         if (!e.is_binary_kind()) continue;
 
-        if (std::any_of(cmp_alg.cbegin(), cmp_alg.cend(),
-                    [&](const alg_t alg) { return e.kind == alg; }))
+        if (std::any_of(algs.cbegin(), algs.cend(),
+                    [&](const attr_t::post_ops_t::kind_t alg) {
+                        return e.kind == alg;
+                    }))
             return true;
     }
     return false;
+}
+
+bool has_binary_comparison_po(const attr_t &attr) {
+    using alg_t = attr_t::post_ops_t::kind_t;
+    static const std::vector<alg_t> cmp_alg = {alg_t::MAX, alg_t::MIN,
+            alg_t::GE, alg_t::GT, alg_t::LE, alg_t::LT, alg_t::EQ, alg_t::NE};
+    return has_binary_po_algs(attr, cmp_alg);
+}
+
+bool has_binary_compute_po(const attr_t &attr) {
+    using alg_t = attr_t::post_ops_t::kind_t;
+    static const std::vector<alg_t> cmp_alg
+            = {alg_t::ADD, alg_t::SUB, alg_t::MUL, alg_t::DIV};
+    return has_binary_po_algs(attr, cmp_alg);
 }
 
 bool negative_converts_to_zero(const attr_t &attr, dnnl_data_type_t target_dt) {
@@ -341,6 +354,25 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // inputs. Depending on its position and implementation, either
             // first or second operand may be returned.
             ok = has_binary_comparison_po(attr) && output_has_nans;
+            if (ok) break;
+
+            // Binary Add/Sub/Mul/Div usually produce additional noise in the
+            // output. For Add/Sub it's mostly catastrophic cancellation, for
+            // Mul it's usually rounding, for Div it's usually different
+            // precision level of instructions for different backends. Those are
+            // hard to fix with filling adjustments. Since binary po filling
+            // operates with integers or large numbers, it's safe to let some
+            // minor diff error to exist under assumption that original problem
+            // lacks those errors.
+            //
+            // Note: use specific dt and correspondent values not to mess with
+            // broad set of supported data types.
+            float binary_comp_po_trh = 0.f;
+            if (args.dt == dnnl_f16)
+                binary_comp_po_trh = 5.f * epsilon_dt(args.dt); // == 5e-3;
+            if (args.dt == dnnl_f32)
+                binary_comp_po_trh = 20.f * epsilon_dt(args.dt); // == 2e-6f;
+            ok = has_binary_compute_po(attr) && args.diff <= binary_comp_po_trh;
             if (ok) break;
 
             // Some drivers (like pooling or resampling) on integer data types
