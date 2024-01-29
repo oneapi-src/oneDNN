@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,7 +111,9 @@ std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::get_sub_storage(
     assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 
-    assert(size != 0);
+    gpu_assert(size != 0);
+    gpu_assert(offset % OCL_BUFFER_ALIGNMENT == 0);
+
     cl_buffer_region buffer_region = {base_offset_ + offset, size};
     ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(parent_mem_object(),
             mem_flags, CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
