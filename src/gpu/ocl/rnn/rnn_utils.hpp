@@ -399,13 +399,14 @@ struct sub_buffer_t {
 
     sub_buffer_t() : buffer_(nullptr) {}
     sub_buffer_t(const memory_storage_t &buffer, dim_t offset = 0,
-            dim_t size = unset, bool enable_get_sub_storage = true)
-        : buffer_(buffer.is_null() ? nullptr
-                                   : ((size == unset || !enable_get_sub_storage)
-                                                   ? buffer.clone()
-                                                   : buffer.get_sub_storage(
-                                                           offset, size))) {
-        if (buffer_ && (size == unset || !enable_get_sub_storage))
+            dim_t size = unset)
+        : buffer_(buffer.is_null()
+                        ? nullptr
+                        : ((size == unset || offset % OCL_BUFFER_ALIGNMENT != 0)
+                                        ? buffer.clone()
+                                        : buffer.get_sub_storage(
+                                                offset, size))) {
+        if (buffer_ && (size == unset || offset % OCL_BUFFER_ALIGNMENT != 0))
             buffer_->set_offset(static_cast<size_t>(offset));
     }
 
