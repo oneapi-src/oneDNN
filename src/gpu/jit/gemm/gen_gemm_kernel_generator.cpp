@@ -19193,6 +19193,10 @@ void gemm_kernel_generator_t<hw>::gemmAutoTypeConversions(
         GEMMProblem &problem, const GEMMStrategy &strategy) {
     auto &Ta = problem.Ta, &Tb = problem.Tb, &Tc = problem.Tc;
 
+    if (Ta == Type::bf8) Ta = Type::f16;
+    if (Tb == Type::bf8) Tb = Type::f16;
+    if (Tc == Type::bf8) Tc = Type::f16;
+
     // Weights decompression
     if (utils::one_of(Ta, Type::u8, Type::s8)
             && utils::one_of(Tb, Type::f32, Type::f16, Type::bf16)
@@ -25515,7 +25519,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                                 ? base(1)
                                                                 : base(0, wd,
                                                                         1));
-                                            } else if (!salign) {
+                                            } else if (!salign && !bf8_align) {
                                                 emov(telems | mmodMov,
                                                         dregConverted,
                                                         sregConverted, strategy,

@@ -97,14 +97,17 @@ struct gen_gemm_t : public gpu_gemm_t {
                 eff_ldb_ = utils::rnd_up(eff_ldb_, 16);
             }
 
-            bool wei_decomp = (utils::one_of(d->c_type(), f32, f16, bf16)
-                    && utils::one_of(d->a_type(), u8, s8)
-                    && utils::one_of(d->b_type(), f16, f32, bf16));
+            bool wei_decomp
+                    = (utils::one_of(d->c_type(), f32, f16, bf16)
+                              && utils::one_of(d->a_type(), u8, s8)
+                              && utils::one_of(d->b_type(), f16, f32, bf16))
+                    && attr()->mayiconvert(d->a_type(), f32);
+            if (wei_decomp) attr_skip_mask |= smask_t::fpmath_mode;
+
             // Check parameters.
-            if (utils::one_of(d->c_type(), s32, f16, bf16, f32, u8, s8)
+            if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8)) {
                 ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp);
-                if (wei_decomp) attr_skip_mask |= smask_t::fpmath_mode;
                 a_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC);
                 b_zp_ = !attr()->zero_points_.has_default_values(
                         DNNL_ARG_WEIGHTS);
@@ -209,12 +212,11 @@ struct gen_gemm_t : public gpu_gemm_t {
             if (attr()->deterministic_)
                 set_mode(mode, kernel_desc_t::mode_deterministic);
 
-            if (attr()->mayiconvert(d->a_type(), f32)) {
+            if (wei_decomp) {
+                acc_type = data_type::f32;
                 mode = static_cast<decltype(mode)>(
                         mode | kernel_desc_t::mode_w_decomp);
-                acc_type = f32;
             }
-            if (wei_decomp) acc_type = data_type::f32;
 
             status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
