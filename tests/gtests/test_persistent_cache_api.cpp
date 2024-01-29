@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
+#include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl.hpp"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
@@ -91,5 +92,48 @@ HANDLE_EXCEPTIONS_FOR_TEST(
     ASSERT_EQ(get_engine_cache_blob_id(get_device(eng)), cache_blob_id);
 }
 #endif
+
+HANDLE_EXCEPTIONS_FOR_TEST(
+        persistent_cache_api_test_t, TestPersistentCacheAPIMemoryDesc) {
+    engine e = get_test_engine();
+    auto pd = convolution_forward::primitive_desc {e,
+            prop_kind::forward_training, algorithm::convolution_direct,
+            {{2, 16, 16, 16}, memory::data_type::f32, memory::format_tag::any},
+            {{16, 16, 3, 3}, memory::data_type::f32, memory::format_tag::any},
+            {{2, 16, 14, 14}, memory::data_type::f32, memory::format_tag::any},
+            {1, 1}, {0, 0}, {0, 0}};
+
+    auto wei_desc = pd.weights_desc();
+
+    // C API check
+    {
+        auto c_wei_desc = wei_desc.get();
+
+        // serialization
+        size_t size;
+        dnnl_memory_desc_get_blob(nullptr, &size, c_wei_desc);
+        std::vector<uint8_t> serialized_wei_desc(size);
+        dnnl_memory_desc_get_blob(
+                serialized_wei_desc.data(), &size, c_wei_desc);
+
+        // deserialization
+        dnnl_memory_desc_t deserialized_wei_desc;
+        dnnl_memory_desc_create_with_blob(
+                &deserialized_wei_desc, serialized_wei_desc.data());
+
+        ASSERT_EQ(pd.weights_desc(), deserialized_wei_desc);
+    }
+
+    // C++ API check
+    {
+        // serialization
+        std::vector<uint8_t> serialized_wei_desc = wei_desc.get_blob();
+
+        //  deserialization
+        auto deserialized_desc = memory::desc(serialized_wei_desc);
+
+        ASSERT_EQ(pd.weights_desc(), deserialized_desc);
+    }
+}
 
 } // namespace dnnl

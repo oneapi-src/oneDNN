@@ -2833,6 +2833,17 @@ struct memory : public handle<dnnl_memory_t> {
         /// @param md The C API memory descriptor.
         desc(dnnl_memory_desc_t md) : handle<dnnl_memory_desc_t>(md) {}
 
+        /// Construct a memory descriptor from a binary blob.
+        ///
+        /// @param blob A binary blob previously queried from a memory descriptor.
+        desc(const std::vector<uint8_t> &blob) {
+            dnnl_memory_desc_t md = nullptr;
+            error::wrap_c_api(
+                    dnnl_memory_desc_create_with_blob(&md, blob.data()),
+                    "could not create a memory descriptor from blob");
+            reset(md);
+        }
+
         /// Constructs a memory descriptor for a region inside an area
         /// described by this memory descriptor.
         //
@@ -3120,6 +3131,21 @@ struct memory : public handle<dnnl_memory_t> {
         ///     including the padding area.
         size_t get_size() const { return dnnl_memory_desc_get_size(get()); }
 #endif
+
+        /// Returns a binary blob associated with the given memory descriptor
+        /// @returns The memory descriptor blob associated with the memory descriptor
+        std::vector<uint8_t> get_blob() {
+            size_t size;
+            dnnl_status_t status
+                    = dnnl_memory_desc_get_blob(nullptr, &size, get());
+            error::wrap_c_api(
+                    status, "could not get memory descriptor blob size");
+
+            std::vector<uint8_t> out_blob(size);
+            status = dnnl_memory_desc_get_blob(out_blob.data(), &size, get());
+            error::wrap_c_api(status, "could not get memory descriptor blob");
+            return out_blob;
+        }
 
         /// Checks whether the memory descriptor is zero (empty).
         /// @returns @c true if the memory descriptor describes an empty

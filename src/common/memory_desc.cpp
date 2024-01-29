@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -731,6 +731,27 @@ status_t dnnl_memory_desc_destroy(memory_desc_t *memory_desc) {
 status_t dnnl_memory_desc_clone(memory_desc_t **memory_desc,
         const memory_desc_t *existing_memory_desc) {
     (*memory_desc) = new memory_desc_t(*existing_memory_desc);
+    return success;
+}
+
+status_t dnnl_memory_desc_get_blob(
+        uint8_t *blob, size_t *size, const memory_desc_t *md) {
+    if (md == nullptr || (blob == nullptr && size == nullptr))
+        return invalid_arguments;
+    if (blob != nullptr)
+        memcpy(blob, md, *size);
+    else if (size != nullptr)
+        *size = sizeof(memory_desc_t);
+
+    return success;
+}
+
+status_t dnnl_memory_desc_create_with_blob(
+        memory_desc_t **md, const uint8_t *blob) {
+    if (one_of(nullptr, md, blob)) return invalid_arguments;
+
+    *md = new memory_desc_t();
+    memcpy(*md, blob, sizeof(memory_desc_t));
     return success;
 }
 
