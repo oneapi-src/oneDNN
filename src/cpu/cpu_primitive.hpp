@@ -78,7 +78,7 @@
             VCHECK_ATTR(utils::one_of(scales_d.data_type(), data_type::f32, \
                                 data_type::f16, data_type::bf16), \
                     "Unsupported scales data type"); \
-            if (utils::everyone_is(1, scales_d.ndims(), scales_d.dims()[0])) { \
+            if (scales_d.nelems() == 1) { \
                 const float s = cpu::io::load_float_value( \
                         scales_d.data_type(), scales, 0); \
                 if (utils::one_of(arg, DNNL_ARG_DST, \
