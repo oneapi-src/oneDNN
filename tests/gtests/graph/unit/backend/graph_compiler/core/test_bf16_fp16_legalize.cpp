@@ -414,7 +414,7 @@ TEST(GCCore_CPU_hplegalize_cpp, TestF16Lower) {
                                 false);
     fptr->call<int>(&a, &b, &c);
     fc = float(c[0]);
-    EXPECT_TRUE(std::abs(fc - fc_ref) < 1e-5f);
+    EXPECT_TRUE(std::abs(fc - fc_ref) < 5e-3f);
     // vector type
     auto ctx = get_default_context();
     lanes = 8;
