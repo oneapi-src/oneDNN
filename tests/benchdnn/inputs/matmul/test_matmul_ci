@@ -163,6 +163,11 @@
 --bia_mask=4,6  15x24x16:15x16x32
 --bia_mask=8,12 7x16x24x8:7x16x8x24
 
+--reset
+--stag=abc --wtag=abc --dtag=abc
+--bia_dt=f32 --bia_mask=0,1,2,3,4
+2x32x64:1x64x32
+
 # Basic post-ops with runtime dims 2D.
 --reset
 --dt=f32,s8:s8:s32,bf16
