@@ -256,8 +256,12 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     // These global metrics are updated at the synchronization point.
     bool global_ok = true;
     int64_t zeros = 0;
-    float max_rdiff = 0.f;
-    float max_diff = 0.f;
+    // "all_" stuff is across the whole tensor. "err_" stuff is just for points
+    // that didn't pass any criteria.
+    float all_max_rdiff = 0.f;
+    float all_max_diff = 0.f;
+    float err_max_rdiff = 0.f;
+    float err_max_diff = 0.f;
     int64_t n_errors = 0;
     volatile bool from_parallel = true;
     const bool need_dump = verbose >= 99;
@@ -269,8 +273,10 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         // Stats for all validated points per one thread.
         static thread_local bool ithr_ok = true;
         static thread_local int64_t ithr_zeros = 0;
-        static thread_local float ithr_max_rdiff = 0.f;
-        static thread_local float ithr_max_diff = 0.f;
+        static thread_local float ithr_all_max_rdiff = 0.f;
+        static thread_local float ithr_all_max_diff = 0.f;
+        static thread_local float ithr_err_max_rdiff = 0.f;
+        static thread_local float ithr_err_max_diff = 0.f;
 
         driver_check_func_args_t args(exp_f32, got_f32, i, dt, trh_);
 
@@ -386,8 +392,11 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         // Update compare stats.
         if (from_parallel) {
             if (fabsf(args.got) == 0) ithr_zeros++;
-            ithr_max_rdiff = MAX2(ithr_max_rdiff, args.rel_diff);
-            ithr_max_diff = MAX2(ithr_max_diff, args.diff);
+            ithr_all_max_rdiff = MAX2(ithr_all_max_rdiff, args.rel_diff);
+            ithr_all_max_diff = MAX2(ithr_all_max_diff, args.diff);
+            if (!ok)
+                ithr_err_max_rdiff = MAX2(ithr_err_max_rdiff, args.rel_diff);
+            if (!ok) ithr_err_max_diff = MAX2(ithr_err_max_diff, args.diff);
         }
 
         if (!ok && ithr_ok) ithr_ok = false;
@@ -409,12 +418,16 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
             if (from_parallel) {
                 zeros += ithr_zeros;
-                max_rdiff = MAX2(max_rdiff, ithr_max_rdiff);
-                max_diff = MAX2(max_diff, ithr_max_diff);
+                all_max_rdiff = MAX2(all_max_rdiff, ithr_all_max_rdiff);
+                all_max_diff = MAX2(all_max_diff, ithr_all_max_diff);
+                err_max_rdiff = MAX2(err_max_rdiff, ithr_err_max_rdiff);
+                err_max_diff = MAX2(err_max_diff, ithr_err_max_diff);
             }
             ithr_zeros = 0;
-            ithr_max_rdiff = 0.f;
-            ithr_max_diff = 0.f;
+            ithr_all_max_rdiff = 0.f;
+            ithr_all_max_diff = 0.f;
+            ithr_err_max_rdiff = 0.f;
+            ithr_err_max_diff = 0.f;
         }
     };
 
@@ -445,8 +458,10 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
     // Status may be propagated from previous tensor. Use stats from cur tensor.
     BENCHDNN_PRINT((n_errors ? 0 : 6),
-            "[COMPARE_STATS]%s: trh=%g max_diff:%8g max_rdiff:%8g\n",
-            get_kind_str().c_str(), trh_, max_diff, max_rdiff);
+            "[COMPARE_STATS]%s: trh=%g err_max_diff:%8g err_max_rdiff:%8g "
+            "all_max_diff:%8g all_max_rdiff:%8g\n",
+            get_kind_str().c_str(), trh_, err_max_diff, err_max_rdiff,
+            all_max_diff, all_max_rdiff);
 
     BENCHDNN_PRINT((is_mistrusted ? 2 : 6),
             "[COMPARE_TRUST]%s: z:%2.0f%% (>%2.0f%%) (z: %ld, total: %ld)\n",
