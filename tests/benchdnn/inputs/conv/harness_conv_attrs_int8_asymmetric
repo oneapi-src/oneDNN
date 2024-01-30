@@ -23,7 +23,7 @@
 --attr-zero-points=src:per_dim_1+dst:per_dim_1
 --dt=u8:s8:s8 --batch=shapes_googlenet_v3
 --dt=u8:s8:s32 --batch=shapes_alexnet
---attr-zero-points=src:per_dim_1:-2+dst:per_dim_1
+--attr-zero-points=src:per_dim_1+dst:per_dim_1
 --dt=s8:s8:s8 --batch=shapes_googlenet_v3
 --attr-zero-points=src:common:135+dst:common:1
 --dt=u8:s8:bf16 --batch=shapes_alexnet --batch=shapes_3d
