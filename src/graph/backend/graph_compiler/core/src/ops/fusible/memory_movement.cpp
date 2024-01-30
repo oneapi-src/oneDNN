@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -319,13 +319,20 @@ concat_op_t::concat_op_t(const std::vector<graph_tensor_ptr> &ins,
 }
 
 void concat_op_t::set_format_and_axis() {
-    if (info_.inputs_[0]->details_.get_format().get_format_category()
+    // find the largest input index
+    auto max_buffer = std::max_element(info_.inputs_.begin(),
+            info_.inputs_.end(),
+            [](const graph_tensor_ptr a, const graph_tensor_ptr b) {
+                return get_dims_product(a->details_.get_plain_dims())
+                        < get_dims_product(b->details_.get_plain_dims());
+            });
+    if ((*max_buffer)->details_.get_format().get_format_category()
             == sc_format_category::non_blocking) {
-        ori_format_ = info_.inputs_[0]->details_.get_format();
+        ori_format_ = (*max_buffer)->details_.get_format();
     } else {
         // if the input has any/block/vnni format, use plain format when concat
         ori_format_ = sc_data_format_t::get_plain_by_dims(
-                (int)info_.inputs_[0]->details_.get_plain_dims().size());
+                (int)(*max_buffer)->details_.get_plain_dims().size());
     }
     // here axis_ is in plain format (because it is copied from llga bridge)
     // we need to transform it to blocking format
@@ -358,6 +365,12 @@ void concat_op_t::query_format(context_ptr ctx,
             info_.outputs_.size(), {ori_format_});
     format_to_dense_format_stride_pair(
             in_formats, out_formats, supported_ins, supported_outs);
+    for (size_t i = 0; i < info_.inputs_.size(); ++i) {
+        if (info_.inputs_[i]->details_.get_format() == ori_format_) {
+            supported_ins[i][0].second
+                    = info_.inputs_[i]->details_.get_strides();
+        }
+    }
 }
 
 infer_status_code concat_op_t::infer_slice_ranges(
