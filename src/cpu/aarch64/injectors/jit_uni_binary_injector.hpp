@@ -44,6 +44,9 @@ using dnnl::impl::cpu::binary_injector_utils::prepare_binary_args;
 
 bool binary_args_matches_tag(format_tag_t tag, const post_ops_t &post_ops);
 
+bool any_binary_postop_rhs_non_scalar_broadcast(
+        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d);
+        
 bool binary_args_broadcast_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set);
