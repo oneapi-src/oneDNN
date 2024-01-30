@@ -37,6 +37,7 @@
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/cold_cache.hpp"
+#include "utils/dims.hpp"
 #include "utils/parser.hpp"
 #include "utils/stream_kind.hpp"
 
@@ -384,7 +385,10 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
                     WARN);
         }
 
-        if (subs_pos == std::string::npos) return OK;
+        if (subs_pos == std::string::npos) {
+            set(arg, policy, static_cast<int>(zp));
+            continue;
+        }
 
         dnnl_data_type_t dt = dnnl_s32;
         // process data type
@@ -665,7 +669,7 @@ std::ostream &operator<<(
     s << scale.policy;
     if (scale.policy == policy_t::COMMON) s << ":" << scale.scale;
     if (scale.dt != dnnl_f32) s << ':' << scale.dt;
-    if (!scale.groups.empty()) s << ":" << scale.groups;
+    if (!scale.groups.empty()) s << ":" << dims2str(scale.groups);
     return s;
 }
 
@@ -680,7 +684,8 @@ std::ostream &operator<<(
         if (point.second.policy == policy_t::COMMON)
             s << ":" << point.second.value;
         if (point.second.dt != dnnl_s32) s << ':' << point.second.dt;
-        if (!point.second.groups.empty()) s << ":" << point.second.groups;
+        if (!point.second.groups.empty())
+            s << ":" << dims2str(point.second.groups);
         delim = "+";
     }
 
