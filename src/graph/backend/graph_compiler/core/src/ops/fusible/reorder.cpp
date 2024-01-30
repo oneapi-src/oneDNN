@@ -1908,7 +1908,8 @@ bool reorder_op_t::use_output_loop() const {
 }
 
 bool reorder_op_t::support_output_loop() const {
-    return get_output_format().is_blocking();
+    return is_not_blocking(get_input_format())
+            || get_output_format().is_blocking();
 }
 
 #define INIT_REORDER_OP_INFO() \
