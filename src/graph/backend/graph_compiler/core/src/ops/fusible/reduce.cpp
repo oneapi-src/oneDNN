@@ -25,6 +25,7 @@
 #include "reduce.hpp"
 #include "util/bf16.hpp"
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <runtime/config.hpp>
 #include <unordered_map>
@@ -407,6 +408,12 @@ void pre_reduce_binding_axis(fusible_op_t *cur, binding_axis_map &bdax_map,
     auto &output = cur->get_outputs()[0];
     // query real input which needs to infer
     auto input = cur->get_inputs()[0];
+    // once `reduce` op is split, its plain dims will be lost and reset to
+    // blocking dims, so we need to penetrate input. However, if its producer
+    // owner is not expected, auto skip it.
+    if (!input->producer_owner_->isa<op_traits::mixed_partition_acceptable>()
+            || is_single_op_graph(cur->get_owner_graph()))
+        return;
     // penetrate input gt if necessary
     if (cur->isa<reduce_impl_op_t>()) {
         if (cur->isa<reduce_collect_op_t>()) {
