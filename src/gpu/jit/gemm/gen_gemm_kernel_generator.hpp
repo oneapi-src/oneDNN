@@ -916,6 +916,8 @@ struct GEMMProblem : public CommonProblem {
         if (!(alpha1() || alphaM1())) return true;
         if (!(beta0() || beta1())) return true;
         if (beta1() && !Tc_ext.isSubsetOf(Tc)) return true;
+        if ((Tc == Type::s32 || Tc == Type::u32) && Tc_ext == Type::bf16)
+            return true;
         if (hasNonSum1PostOp()) return true;
         return false;
     }
