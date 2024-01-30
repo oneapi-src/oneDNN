@@ -163,7 +163,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init_brgemm_desc() {
     const float alpha = 1.0;
     const float beta = 1.0;
 
-    for (auto params : brgemm_init_params_) {
+    for (auto &params : brgemm_init_params_) {
         const auto vM = params.M_;
         const auto vN = params.N_;
         const auto vK = params.K_;
@@ -290,7 +290,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
         }
     }
 
-    for (auto params : pd()->brgemm_init_params_) {
+    for (auto &params : pd()->brgemm_init_params_) {
         const auto brg_idx = get_brg_idx(jcp, params);
         const auto &brgs = *(pd()->brgs_);
         auto brg = brgs[brg_idx];
