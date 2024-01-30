@@ -377,8 +377,8 @@ void jit_brgemm_trans_m_k_f32_t::generate() {
     const int os_block = conf_->os_block;
     const int last_os_block_tail = conf_->K_tail % os_block;
     const int ic_tail = conf_->M_tail % transpose_size;
-    src_stride = conf_->ic * conf_->ks() * typesize;
-    tr_src_stride = conf_->LDA * typesize;
+    src_stride = static_cast<dim_t>(conf_->ic) * conf_->ks() * typesize;
+    tr_src_stride = static_cast<dim_t>(conf_->LDA) * typesize;
     const dim_t m_src_shift = static_cast<dim_t>(transpose_size) * typesize;
     const dim_t m_tr_src_shift = tr_src_stride * transpose_size;
 
@@ -704,7 +704,7 @@ void jit_brgemm_trans_m_k_bf16_t::generate() {
     const int os_block = conf_->os_block;
     const int last_os_block_tail = eff_K_tail % transpose_size;
     const int ic_tail = conf_->M_tail % transpose_size;
-    src_stride = conf_->ic * conf_->ks() * typesize;
+    src_stride = static_cast<dim_t>(conf_->ic) * conf_->ks() * typesize;
     tr_src_stride = conf_->LDA * typesize;
 
     const dim_t batch_src_shift = static_cast<dim_t>(src_stride) * os_block;
@@ -1026,8 +1026,8 @@ void jit_brgemm_trans_m_k_f16_t::generate() {
     const int os_block = conf_->os_block;
     const int last_os_block_tail = conf_->K_tail % transpose_size;
     const int ic_tail = conf_->M_tail % transpose_size;
-    src_stride = conf_->ic * conf_->ks() * typesize_in;
-    tr_src_stride = conf_->LDA * typesize_out;
+    src_stride = static_cast<dim_t>(conf_->ic) * conf_->ks() * typesize_in;
+    tr_src_stride = static_cast<dim_t>(conf_->LDA) * typesize_out;
     const dim_t m_src_shift = transpose_size * typesize_in;
     const dim_t m_tr_src_shift = tr_src_stride * transpose_size;
 
