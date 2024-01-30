@@ -877,6 +877,9 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                     dims = md2dims(md);
                     ndims = static_cast<int>(dims.size());
                 }
+            } else {
+                dims = {1};
+                ndims = 1;
             }
             auto zp_md = dnn_mem_t::init_md(ndims, dims.data(), e.dt, tag::abx);
             mem_map.emplace(exec_zp_arg, dnn_mem_t(zp_md, test_engine));
