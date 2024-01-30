@@ -1059,13 +1059,14 @@ struct inplace_recursion_context_t {
         // if the tensor is used more than once, we simply skip it for the sake
         // of correctness. We can obviously do better than this.
         auto producer = tsr->producer_owner_;
+        bool good_op = tsr->uses_.size() <= 1UL;
         if (producer->isa<input_op>()) {
             // we define that input tensor can in-place reuse itself.
-            ret.at(tsr_2_in_index_.find(tsr)->second) = FREE_INPLACE;
+            ret.at(tsr_2_in_index_.find(tsr)->second)
+                    = good_op ? FREE_INPLACE : NO_INPLACE;
             depth_--;
             return &ret;
         }
-        bool good_op = tsr->uses_.size() <= 1UL;
         bool is_binary = producer->isa<binary_elementwise_op_t>();
         // if it is an broadcast op, we cannot in-place reuse the broadcast
         // input
