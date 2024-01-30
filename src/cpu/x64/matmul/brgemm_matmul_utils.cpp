@@ -715,7 +715,7 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
 
     // for cases with low parallel work, reduce 'min_m_blk' to
     // increase potential parallelization balance.
-    const dim_t max_parallel = matmul.batch * n_chunks;
+    const dim_t max_parallel = static_cast<dim_t>(matmul.batch) * n_chunks;
     const dim_t max_bmn_parallel = max_parallel * min_m_chunks;
     const bool low_parallel_work = nthr > max_parallel;
     if (low_parallel_work) {
