@@ -20,7 +20,6 @@
 #include <iomanip>
 #include <sstream>
 
-#include "common/serialization.hpp"
 #include "gpu/utils.hpp"
 
 namespace dnnl {
@@ -178,6 +177,8 @@ private:
 };
 
 struct deserializer_t {
+    deserializer_t(const serialized_data_t &s) : idx(0), s(s) {}
+
     template <typename T>
     struct has_deserialize {
         using yes_t = uint8_t;
@@ -194,7 +195,7 @@ struct deserializer_t {
         static const bool value = (sizeof(test<T>(0)) == sizeof(yes_t));
     };
 
-    // Helper function for structures the static member function
+    // Helper function for structures with the static member function
     // void deserialize(deserializer_t&)
     template <typename T,
             gpu_utils::enable_if_t<has_deserialize<T>::value, bool> = true>
@@ -207,9 +208,6 @@ struct deserializer_t {
         return T::deserialize(*this);
     }
 
-    // Helper function for structures the member function
-    deserializer_t(const serialized_data_t &s) : idx(0), s(s) {}
-
     template <typename T,
             gpu_utils::enable_if_t<
                     serialized_data_t::is_trivially_serialized<T>::value
@@ -219,7 +217,6 @@ struct deserializer_t {
         t = s.get<T>(idx);
         idx += sizeof(T);
     };
-
     template <typename T,
             gpu_utils::enable_if_t<
                     serialized_data_t::is_trivially_serialized<T>::value
@@ -248,6 +245,19 @@ struct deserializer_t {
 
     size_t idx;
     const serialized_data_t &s;
+};
+
+template <typename T>
+struct trivially_serializable_t {
+    bool operator==(const trivially_serializable_t &) const { return true; }
+    serialized_t serialize() const {
+        assert_trivially_serializable(T);
+        return serialized_t(*static_cast<const T *>(this));
+    }
+
+    static T deserialize(const serialized_t &s) {
+        return deserializer_t(s).pop<T>();
+    }
 };
 
 } // namespace gpu
