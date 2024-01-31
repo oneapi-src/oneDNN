@@ -143,7 +143,6 @@ inline bool simple_attr_check(const primitive_attr_t *attr,
     smask_t skip_mask = smask_t::scales_runtime;
     if (sum_support) skip_mask = skip_mask | smask_t::post_ops;
     if (!attr->has_default_values(skip_mask)) return false;
-    if (sum_support) simple_po_check(attr);
     if (many_scales_support) return true;
     int src_mask, dst_mask;
     if (get_scales_mask(attr, &src_mask, &dst_mask) != status::success)
