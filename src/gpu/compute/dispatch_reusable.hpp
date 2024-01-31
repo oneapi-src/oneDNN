@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 #include "common/c_types_map.hpp"
+#include "common/memory_desc_wrapper.hpp"
 #include "gpu/block_structure.hpp"
 #include "gpu/compute/block_manipulation.hpp"
 #include "gpu/compute/compute_engine.hpp"
@@ -391,6 +392,11 @@ struct named_buffer_t : public memory_desc_t {
     // Copy the named_buffer_t, while changing the name
     named_buffer_t(const char *name, const named_buffer_t &buf)
         : memory_desc_t(buf), name(name), dim_ids(buf.get_dim_ids()) {};
+
+    dim_t nelems(bool with_padding = false) const {
+        return memory_desc_wrapper(static_cast<memory_desc_t>(*this))
+                .nelems(with_padding);
+    }
 
     const std::string &get_name() const { return name; }
     const std::vector<dim_id_t> &get_dim_ids() const { return dim_ids; }
