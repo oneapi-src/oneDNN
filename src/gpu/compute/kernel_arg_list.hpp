@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <string>
 #include <type_traits>
 
 #include "common/bfloat16.hpp"
@@ -59,6 +60,32 @@ enum class scalar_type_t {
     _int64x3_t,
     _dispatch_gws_rt_params_t,
 };
+
+inline std::string to_string(scalar_type_t type) {
+#define CASE(x) \
+    case scalar_type_t::x: return #x
+
+    switch (type) {
+        CASE(undef);
+        CASE(_char);
+        CASE(_bfloat8);
+        CASE(_bfloat16);
+        CASE(_float);
+        CASE(_half);
+        CASE(_int);
+        CASE(_long);
+        CASE(_short);
+        CASE(_uchar);
+        CASE(_uint);
+        CASE(_ulong);
+        CASE(_ushort);
+        CASE(_zero_pad_mask_t);
+        CASE(_int64x3_t);
+        CASE(_dispatch_gws_rt_params_t);
+    }
+    return "unexpected";
+#undef CASE
+}
 
 template <typename T>
 struct scalar_type_traits {};
@@ -309,9 +336,10 @@ inline status_t check_scalar_arguments(const kernel_arg_list_t &arg_list,
 
             if (req_arg_type != arg.scalar_type()) {
                 VERROR(primitive, gpu,
-                        "type of a scalar kernel argument #%d is "
-                        "different from the type of the given scalar",
-                        i);
+                        "type of a scalar kernel argument #%d (%s) is "
+                        "different from the type of the given scalar (%s)",
+                        i, to_string(req_arg_type).c_str(),
+                        to_string(arg.scalar_type()).c_str());
                 return status::invalid_arguments;
             }
         }
