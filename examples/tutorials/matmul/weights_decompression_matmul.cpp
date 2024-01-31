@@ -23,8 +23,8 @@
 ///
 /// Concepts:
 /// - Asymmetric quantization
-///   - Scales: dnnl::primitive_attr::set_scales_mask()
-///   - Zero points: dnnl::primitive_attr::set_zero_points_mask()
+///   - Scales: dnnl::primitive_attr::set_scales()
+///   - Zero points: dnnl::primitive_attr::set_zero_points()
 /// - [Operation fusion](@ref dev_guide_attributes_post_ops)
 /// - Create primitive once, use multiple times
 /// - Weights pre-packing: use #dnnl::memory::format_tag::any
