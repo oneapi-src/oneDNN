@@ -134,7 +134,7 @@ void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K, int64_t G,
     // input of the current layer / operation
     memory A_f32_mem({{M, K}, memory::data_type::f32, {K, 1}}, eng);
     // De-quantization parameters (eg. Scale and Shift)
-    const int n_groups = K / G;
+    const int64_t n_groups = K / G;
     memory sc_B_mem({{N, n_groups}, memory::data_type::f32, {1, N}}, eng);
     memory zp_B_mem({{1}, memory::data_type::s8, {1}}, eng);
 
