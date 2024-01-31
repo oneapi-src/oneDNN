@@ -143,7 +143,6 @@ static status_t init_conf_common(reusable_bnorm_params_t &conf,
         reusable_bnorm_runtime_params_t &rt_conf,
         const batch_normalization_pd_t *pd, const memory_desc_wrapper &data_mdw,
         engine_t *engine, const gpu_primitive_attr_t *&gpu_attr) {
-
     const batch_normalization_desc_t &bd = *pd->desc();
 
     conf = utils::zero<decltype(conf)>();
@@ -395,8 +394,11 @@ status_t reusable_batch_normalization_bwd_t::execute_backward(
     auto &diff_shift_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SHIFT);
 
     std::unique_ptr<memory_storage_t> temp_reduce;
+    std::unique_ptr<memory_storage_t> temp_reduce_shift;
     temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
             key_bnorm_reduction);
+    temp_reduce_shift = ctx.get_scratchpad_grantor().get_memory_storage(
+            key_bnorm_reduction_shift);
 
     bool use_int32_offset = conf.gws_params.use_int32_offset;
     const auto &append_off
@@ -415,34 +417,25 @@ status_t reusable_batch_normalization_bwd_t::execute_backward(
     calc_stats_arg_list.set(2, diff_dst);
     calc_stats_arg_list.set(3, ws);
     calc_stats_arg_list.set(4, *temp_reduce);
+    calc_stats_arg_list.set(5, *temp_reduce_shift);
     append_off(calc_stats_arg_list, rt_conf.reduce_dim_stride);
     append_off(calc_stats_arg_list, rt_conf.reduction_nelems);
-    append_off(calc_stats_arg_list,
-            rt_conf.div * rt_conf.ic / rt_conf.reduction_nelems);
     calc_stats_arg_list.append(rt_conf.calc_stat_params.get());
 
     auto &nd_range_calc = rt_conf.calc_stat_params.nd_range;
 
     CHECK(parallel_for(
             ctx, nd_range_calc, calculate_stats_kernel_, calc_stats_arg_list));
-
     auto &diff_scale = !conf.use_scale ? *temp_reduce : diff_scale_;
-    std::unique_ptr<memory_storage_t> shift_temp_mem = nullptr;
-    memory_storage_t *diff_shift_ptr;
-    if (conf.use_shift) {
-        diff_shift_ptr = &diff_shift_;
-    } else {
-        shift_temp_mem = ctx.get_scratchpad_grantor().get_memory_storage(
-                key_bnorm_reduction_shift);
-        diff_shift_ptr = shift_temp_mem.get();
-    }
+    auto &diff_shift = !conf.use_shift ? *temp_reduce_shift : diff_shift_;
 
     compute::kernel_arg_list_t reduce_stats_arg_list;
     reduce_stats_arg_list.set(0, *temp_reduce);
-    reduce_stats_arg_list.set(1, diff_scale);
-    reduce_stats_arg_list.set(2, *diff_shift_ptr);
-    reduce_stats_arg_list.set(3, variance);
-    reduce_stats_arg_list.set(4, rt_conf.eps);
+    reduce_stats_arg_list.set(1, *temp_reduce_shift);
+    reduce_stats_arg_list.set(2, diff_scale);
+    reduce_stats_arg_list.set(3, diff_shift);
+    reduce_stats_arg_list.set(4, variance);
+    reduce_stats_arg_list.set(5, rt_conf.eps);
     append_off(reduce_stats_arg_list, rt_conf.ic);
     append_off(reduce_stats_arg_list, rt_conf.div / rt_conf.reduction_nelems);
     reduce_stats_arg_list.append(rt_conf.reduce_stat_params.get());
@@ -461,7 +454,7 @@ status_t reusable_batch_normalization_bwd_t::execute_backward(
     arg_list.set(5, ws);
     arg_list.set(6, diff_src);
     arg_list.set(7, diff_scale);
-    arg_list.set(8, *diff_shift_ptr);
+    arg_list.set(8, diff_shift);
     arg_list.set(9, rt_conf.eps);
     arg_list.set(10, diff_src_add);
     append_off(arg_list, rt_conf.div);

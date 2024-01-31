@@ -122,13 +122,16 @@ __kernel void reusable_bnorm_fwd(__global DATA_T *src, __global float *mean,
 NAMED_KERNEL_ATTR(CALC)
 __kernel void reusable_calculate_stats(__global DATA_T *src,
         __global float *mean, __global DATA_T *diff_dst, __global char *ws,
-        __global float *reduce_temp, off_t reduce_dim_stride, off_t reduce_dim,
-        off_t nelems, dispatch_gws_rt_params_t gws_params) {
+        __global float *reduce_temp, __global float *reduce_temp_shift,
+        off_t reduce_dim_stride, off_t reduce_dim,
+        dispatch_gws_rt_params_t gws_params) {
     float diff_gamma = 0;
     float diff_beta = 0;
 
     const off_t c = GWS_GET_OFF_NAMED(IC_DIM, CALC, gws_params);
     reduce_temp = GWS_GET_BUFFER_POS_NAMED(DST, CALC, gws_params, reduce_temp);
+    reduce_temp_shift = GWS_GET_BUFFER_POS_NAMED(
+            DST, CALC, gws_params, reduce_temp_shift);
     diff_dst = GWS_GET_BUFFER_POS_NAMED(SRC, CALC, gws_params, diff_dst);
     ws = GWS_GET_BUFFER_POS_NAMED(SRC, CALC, gws_params, ws);
     src = GWS_GET_BUFFER_POS_NAMED(SRC, CALC, gws_params, src);
@@ -142,16 +145,18 @@ __kernel void reusable_calculate_stats(__global DATA_T *src,
     }
 
     *reduce_temp = diff_gamma;
-    reduce_temp[nelems] = diff_beta;
+    *reduce_temp_shift = diff_beta;
 }
 
 NAMED_KERNEL_ATTR(REDUCE)
 __kernel void reusable_reduce_stats(__global float *reduce_temp,
-        __global float *diff_scale, __global float *diff_shift,
-        __global float *variance, float eps, off_t ic, off_t reduce_dim,
-        dispatch_gws_rt_params_t gws_params) {
+        __global float *reduce_temp_shift, __global float *diff_scale,
+        __global float *diff_shift, __global float *variance, float eps,
+        off_t ic, off_t reduce_dim, dispatch_gws_rt_params_t gws_params) {
     reduce_temp
             = GWS_GET_BUFFER_POS_NAMED(BUFFER, REDUCE, gws_params, reduce_temp);
+    reduce_temp_shift = GWS_GET_BUFFER_POS_NAMED(
+            BUFFER, REDUCE, gws_params, reduce_temp_shift);
     variance = GWS_GET_BUFFER_POS_NAMED(BUFFER, REDUCE, gws_params, variance);
     diff_scale
             = GWS_GET_BUFFER_POS_NAMED(BUFFER, REDUCE, gws_params, diff_scale);
@@ -162,7 +167,7 @@ __kernel void reusable_reduce_stats(__global float *reduce_temp,
 
     unroll_16_for(off_t i = 0; i < reduce_dim; i++) {
         diff_gamma += reduce_temp[i * (off_t)ic];
-        diff_beta += reduce_temp[ic * reduce_dim + i * (off_t)ic];
+        diff_beta += reduce_temp_shift[i * (off_t)ic];
     }
     float sqrt_variance = 1.0f / sqrt(*variance + eps);
 
