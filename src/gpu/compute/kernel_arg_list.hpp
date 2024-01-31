@@ -27,6 +27,7 @@
 #include "common/memory_storage.hpp"
 #include "common/nstl.hpp"
 #include "common/verbose.hpp"
+#include "gpu/block_structure.hpp"
 #include "gpu/ocl/types_interop.h"
 
 namespace dnnl {
@@ -147,6 +148,10 @@ struct scalar_type_traits<int64x3_t> {
 template <>
 struct scalar_type_traits<dispatch_gws_rt_params_t> {
     static const auto type = scalar_type_t::_dispatch_gws_rt_params_t;
+};
+template <>
+struct scalar_type_traits<stride_t> {
+    static const auto type = scalar_type_t::_long;
 };
 
 class kernel_arg_t {
