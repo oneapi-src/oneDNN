@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2817,7 +2817,6 @@ typedef enum {
 
     /// Intel AVX2 and Intel Deep Learning Boost (Intel DL Boost)
     /// with 8-bit integer, float16 and bfloat16 support
-    /// (preview support)
     dnnl_cpu_isa_avx2_vnni_2 = 0x1f,
 
     /// Intel AVX-512 subset for Intel Xeon Scalable processor family
@@ -2845,7 +2844,6 @@ typedef enum {
 
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer, bfloat16 and float16 support
-    /// (preview support)
     dnnl_cpu_isa_avx512_core_amx_fp16 = 0x1fef,
 } dnnl_cpu_isa_t;
 
