@@ -191,7 +191,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
     int ndims = src_mdw.ndims();
 
-    conf.data_type = src_mdw.data_type();
+    conf.src_dt = src_mdw.data_type();
     conf.ndims = ndims;
     conf.norm_axis = pd->norm_axis();
     conf.across_axis = pd->across_axis();
@@ -268,8 +268,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             const int src_buff_KB
                     = nthr_on_ss * conf.norm_axis * sizeof(float) / 1024;
             int buff_size_limit = 128;
-            if (conf.data_type == data_type::f16
-                    || conf.data_type == data_type::bf16) {
+            if (conf.src_dt == data_type::f16
+                    || conf.src_dt == data_type::bf16) {
                 buff_size_limit *= 2;
             }
             if (src_buff_KB > buff_size_limit) return status::unimplemented;
@@ -466,7 +466,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
 static status_t init_kernel_ctx_common(
         kernel_ctx_t &kernel_ctx, const lnorm_conf_t &conf) {
-    kernel_ctx.set_data_type(conf.data_type);
+    kernel_ctx.set_data_type(conf.src_dt);
     def_data_type(kernel_ctx, conf.weights_data_type, "WEI");
 
     // Since FWD kernel aggressively uses GRF (allocates a private buffer for

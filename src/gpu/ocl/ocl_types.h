@@ -729,6 +729,7 @@
 #define SRC_DATA8_T CONCAT2(SRC_DATA_T, 8)
 #define SRC_DATA16_T CONCAT2(SRC_DATA_T, 16)
 
+#define AS_SRC_DATA_T CONCAT2(as_, SRC_DATA_T)
 #define AS_SRC_DATA2_T CONCAT2(as_, SRC_DATA2_T)
 #define AS_SRC_DATA4_T CONCAT2(as_, SRC_DATA4_T)
 #define AS_SRC_DATA8_T CONCAT2(as_, SRC_DATA8_T)
@@ -1157,7 +1158,13 @@
 #define REF_TO_DST(x) (x)
 #define REF_TO_DST8(x) (x)
 #endif
-#if DST_DT_BF16
+
+#if DST_DT_F64
+#define TO_DST(x) convert_double(x)
+#define TO_DST2(x) convert_double2(x)
+#define TO_DST4(x) convert_double4(x)
+#define TO_DST8(x) convert_double8(x)
+#elif DST_DT_BF16
 #define TO_DST(x) cvt_f32_to_bf16(convert_float(x))
 #define TO_DST2(x) cvt_f32_to_bf16(convert_float2(x))
 #define TO_DST4(x) cvt_f32_to_bf16(convert_float4(x))

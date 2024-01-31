@@ -19,12 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_layer_normalization_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -46,20 +43,20 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            auto src_data_t = src_md()->data_type;
-            auto dst_data_t = dst_md()->data_type;
+            auto src_dt = src_md()->data_type;
+            auto dst_dt = dst_md()->data_type;
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
+
+            bool uses_f16 = utils::one_of(f16, src_dt, dst_dt);
+            bool uses_f64 = utils::one_of(f64, src_dt, dst_dt);
             bool ok = is_fwd()
-                    && (utils::everyone_is(u8, src_data_t, dst_data_t)
-                            || utils::everyone_is(s8, src_data_t, dst_data_t)
-                            || utils::everyone_is(f16, src_data_t, dst_data_t)
-                            || utils::everyone_is(bf16, src_data_t, dst_data_t)
-                            || utils::everyone_is(f32, src_data_t, dst_data_t)
-                            || (utils::everyone_is(f64, src_data_t, dst_data_t)
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values()))
+                    && IMPLICATION(uses_f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
+                    && IMPLICATION(uses_f64,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp64))
                     && !memory_desc_ndims_ok(src_md(), dst_md(), stat_md())
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type({f32, bf16, f16})
@@ -124,18 +121,18 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
             auto diff_dst_dt = diff_dst_md()->data_type;
             auto diff_src_dt = diff_src_md()->data_type;
 
+            bool uses_f16
+                    = utils::one_of(f16, src_dt, diff_dst_dt, diff_src_dt);
+            bool uses_f64
+                    = utils::one_of(f64, src_dt, diff_dst_dt, diff_src_dt);
+
             bool ok = !is_fwd()
-                    && (utils::everyone_is(
-                                f32, src_dt, diff_dst_dt, diff_src_dt)
-                            || utils::everyone_is(
-                                    bf16, src_dt, diff_dst_dt, diff_src_dt)
-                            || utils::everyone_is(
-                                    f16, src_dt, diff_dst_dt, diff_src_dt)
-                            || (utils::everyone_is(
-                                        f64, src_dt, diff_dst_dt, diff_src_dt)
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values()))
+                    && IMPLICATION(uses_f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16))
+                    && IMPLICATION(uses_f64,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp64))
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type({f32, bf16, f16})
                     && attr()->has_default_values()
