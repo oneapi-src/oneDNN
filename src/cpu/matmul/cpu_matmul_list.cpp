@@ -82,11 +82,11 @@ constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
         CPU_INSTANCE_AVX512(brgemm_matmul_t<avx512_core>)
         CPU_INSTANCE_AVX2(brgemm_matmul_t<avx2_vnni_2>)
         CPU_INSTANCE_AVX2(brgemm_matmul_t<avx2_vnni>)
-        CPU_INSTANCE_AVX2(brgemm_matmul_t<avx2>)
         CPU_INSTANCE(gemm_f32_matmul_t)
         CPU_INSTANCE(gemm_bf16_matmul_t<f32>)
         CPU_INSTANCE(gemm_bf16_matmul_t<bf16>)
         CPU_INSTANCE(gemm_x8s8s32x_matmul_t)
+        CPU_INSTANCE_AVX2(brgemm_matmul_t<avx2>)
         CPU_INSTANCE(ref_matmul_t)
         CPU_INSTANCE(ref_matmul_int8_t)
         // These implementations are enabled only when DNNL_EXPERIMENTAL_SPARSE
