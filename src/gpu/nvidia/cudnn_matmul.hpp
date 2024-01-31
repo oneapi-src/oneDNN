@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,7 +59,7 @@ struct cudnn_matmul_t : public primitive_t {
             bool ok = is_dense_format_kind() && blocking_ok()
                     && attr()->has_default_values(
                             smask_t::scales_runtime | smask_t::post_ops)
-                    && attr_scales_ok() && attr_post_ops_ok(attr())
+                    && scales_ok() && attr_post_ops_ok(attr())
                     && IMPLICATION(
                             bf16_case, has_bf16_support(sycl_engine->device()))
                     && set_default_formats()
@@ -108,7 +108,7 @@ struct cudnn_matmul_t : public primitive_t {
                     scratchpad_size(dst_md()), 1);
         }
 
-        bool attr_scales_ok() const {
+        bool scales_ok() const {
             const auto &scales = attr()->scales_;
             const auto &supported_args
                     = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
