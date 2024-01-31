@@ -18,7 +18,7 @@
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_gpu_hw_info.hpp"
 
-#include "CL/cl_ext.h"
+#include <CL/cl_ext.h>
 
 namespace dnnl {
 namespace impl {
