@@ -317,6 +317,7 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Matmul) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
+    ASSERT_NE(qmatmul_op, subgraph->get_ops().end());
     ASSERT_TRUE((*qmatmul_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
     int64_t key
             = (*qmatmul_op)
