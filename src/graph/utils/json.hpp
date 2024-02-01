@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2022 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -248,7 +248,7 @@ struct common_json<std::shared_ptr<valuetype>> {
         auto ptr = std::make_shared<valuetype>();
         auto *v = ptr.get();
         v->load(reader);
-        *value = ptr;
+        *value = std::move(ptr);
     }
 };
 
@@ -292,7 +292,7 @@ struct map_json_t {
         while (reader->next_object_item(&key)) {
             elemtype value;
             reader->read(&value);
-            (*map)[key] = value;
+            (*map)[key] = std::move(value);
         }
     }
 };
