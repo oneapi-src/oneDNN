@@ -322,7 +322,7 @@ void concat_op_t::set_format_and_axis() {
     // find the largest input index
     auto max_buffer = std::max_element(info_.inputs_.begin(),
             info_.inputs_.end(),
-            [](const graph_tensor_ptr a, const graph_tensor_ptr b) {
+            [](const graph_tensor_ptr &a, const graph_tensor_ptr &b) {
                 return get_dims_product(a->details_.get_plain_dims())
                         < get_dims_product(b->details_.get_plain_dims());
             });
