@@ -277,7 +277,8 @@ void schedule_func_args(const func_c &f,
             SC_MODULE_INFO << "Candidate input arg: " << in_arg;
             if (in_tsr_tick.create_ <= out_tsr_tick.first_access_
                     && in_tsr_tick.delete_ >= out_tsr_tick.delete_
-                    && in_tsr->elem_dtype_ == out_tsr->elem_dtype_) {
+                    && utils::get_sizeof_type(in_tsr->elem_dtype_)
+                            == utils::get_sizeof_type(out_tsr->elem_dtype_)) {
                 // check that the candidate has no writes during the time range
                 // when out_tsr is in use: [out_tsr_tick.first_access_,
                 // out_tsr_tick.last_read_]
@@ -302,7 +303,7 @@ void schedule_func_args(const func_c &f,
                 assert(in_tsr->dims_.size() == 1);
                 int64_t in_tsr_size = get_const_as_int(
                         in_tsr->dims_[0].static_as<constant_c>());
-                if (out_tsr_size > in_tsr_size) {
+                if (out_tsr_size != in_tsr_size) {
                     ++titr;
                     continue;
                 }
