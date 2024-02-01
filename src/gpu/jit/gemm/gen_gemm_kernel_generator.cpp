@@ -2576,7 +2576,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 case MatrixLayout::T:
                     if (atype.crosspack > 1) stub();
                     if (atype.tileC == C && C <= maxElements) {
-                        rblock = std::min<int>(maxElements / cblock, R);
+                        rblock = std::min<int>(maxElements / C, R);
                         cblock = C;
                     } else {
                         rblock = 1;
@@ -5843,7 +5843,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T, const GRFRange &addr,
 
             // Restore original cached index vector in case we extended it.
             releaseRanges(state.indexVec, state);
-            state.indexVec = oldIndexVec;
+            state.indexVec = std::move(oldIndexVec);
             state.ivEntries = oldIVEntries;
             reclaimRanges(state.indexVec, state);
             break;
@@ -14938,7 +14938,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     if (state.effCoopA == CoopSplit::FullK)
         Ap_params.offR = Ai_params.offR = state.wgI0;
     if (state.effCoopB == CoopSplit::FullK)
-        Bp_params.offC = Bi_params.offR = state.wgJ0;
+        Bp_params.offC = Bi_params.offC = state.wgJ0;
 
     // Prepare remainders for cooperative operations.
     for (LoopType loop : {LoopM, LoopN, LoopK})
