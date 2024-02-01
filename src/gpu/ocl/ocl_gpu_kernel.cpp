@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
 
     kernel_wrapper_t *kernel = nullptr;
     CHECK(cache_->get(&kernel));
-    CHECK(gpu::compute::check_scalar_arguments(arg_list, arg_types_));
+    CHECK(check_scalar_arguments(arg_list));
     for (int i = 0; i < arg_list.nargs(); ++i) {
         auto &arg = arg_list.get(i);
         if (arg.is_global()) {

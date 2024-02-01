@@ -323,35 +323,6 @@ void set_scalar_arg_cvt(kernel_arg_list_t &arg_list, int index, T scalar,
     }
 }
 
-inline status_t check_scalar_arguments(const kernel_arg_list_t &arg_list,
-        const std::vector<scalar_type_t> &arg_types) {
-    // Some kernels may not support argument validation.
-    if (arg_types.empty()) return status::success;
-
-    for (int i = 0; i < arg_list.nargs(); i++) {
-        auto &arg = arg_list.get(i);
-        auto req_arg_type = arg_types[i];
-
-        if (!arg.is_global() && !arg.is_local() && !arg.is_svm_pointer()) {
-            if (req_arg_type == gpu::compute::scalar_type_t::undef) {
-                // Types of kernel arguments may not be available when zebin
-                // is used.
-                continue;
-            }
-
-            if (req_arg_type != arg.scalar_type()) {
-                VERROR(primitive, gpu,
-                        "type of a scalar kernel argument #%d (%s) is "
-                        "different from the type of the given scalar (%s)",
-                        i, to_string(req_arg_type).c_str(),
-                        to_string(arg.scalar_type()).c_str());
-                return status::invalid_arguments;
-            }
-        }
-    }
-    return status::success;
-}
-
 } // namespace compute
 } // namespace gpu
 } // namespace impl
