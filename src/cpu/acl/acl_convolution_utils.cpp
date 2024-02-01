@@ -336,7 +336,7 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
                                 acp.dilation_info,
                                 acp.act_info,
                                 acp.fast_math,
-                                1, {}, acp.weights_info)));
+                                1, acp.weights_info)));
     // clang-format on
 
     return status::success;

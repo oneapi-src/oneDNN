@@ -51,7 +51,6 @@ struct acl_indirect_gemm_resource_t : public resource_t {
                                     acp.act_info,
                                     acp.fast_math,
                                     1,
-                                    {},
                                     acp.weights_info));
         // clang-format on
 
