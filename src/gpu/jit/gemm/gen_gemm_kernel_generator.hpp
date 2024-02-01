@@ -852,9 +852,9 @@ enum class BinaryOp { Add, Sub, Mul, Div, Min, Max, Prelu };
 
 // GEMM kernel problem description.
 struct GEMMProblem : public CommonProblem {
-    Type Ta, Tb, Tc, Tco, Ta_off = Type::s32, Tb_off = Type::s32,
-                          Ts; // Types for A/B/C/C offsets/scalars in registers.
+    Type Ta, Tb, Tc, Ts; // Types for A/B/C/scalars in registers.
     Type Ta_ext, Tb_ext, Tc_ext; // Types for A/B/C data in memory.
+    Type Tao, Tbo, Tco; // Types for A/B/C offsets.
 
     Scalar alpha, beta; // Scaling factors for A*B and C, respectively.
     MatrixAddressing A, B, C, CO; // Addressing information for matrices.
@@ -928,8 +928,9 @@ struct GEMMProblem : public CommonProblem {
 
     /* Kernel cache helpers. */
     void serialize(serialized_data_t &s) const {
-        s.append(Ta, Tb, Tc, Tco, Ts);
+        s.append(Ta, Tb, Tc, Ts);
         s.append(Ta_ext, Tb_ext, Tc_ext);
+        s.append(Tao, Tbo, Tco);
         s.append(alpha);
         s.append(beta);
         s.append(A, B, C, CO);
@@ -1946,6 +1947,11 @@ protected:
             CommonState &state,
             ngen::Bundle hint = ngen::Bundle(ngen::Bundle::any, 0));
     void zeroMatrix(const GRFMultirange &r, const CommonStrategy &strategy);
+    ngen::GRF loadScalars(Type T, const std::vector<ngen::Subregister> &src,
+            const CommonStrategy &strategy, CommonState &state);
+    ngen::GRFRange loadVector(Type Tsrc, Type Tdst, ngen::Subregister ptr,
+            int n, ngen::Subregister rem, const CommonStrategy &strategy,
+            CommonState &state);
     void releaseFusedRemainders(GEMMState &state);
     void saveMNLocalIDs(const GEMMStrategy &strategy, GEMMState &state);
     void saveKLocalIDSize(const GEMMStrategy &strategy, GEMMState &state);
@@ -2336,8 +2342,7 @@ protected:
             const GEMMProblem &problem, const GEMMStrategy &strategy);
 
     void convert(const GRFMultirange &range, Type Told, Type Tnew,
-            const GEMMProblem &problem, const GEMMStrategy &strategy,
-            GEMMState &state);
+            const CommonStrategy &strategy, CommonState &state);
     bool gemmConvertC(Type Tnew, const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmAlphaScale(GEMMProblem &problem, const GEMMStrategy &strategy,
@@ -2356,6 +2361,9 @@ protected:
             GEMMState &state, Type Tco = Type::invalid,
             std::vector<RegisterBlock> CO_layout = std::vector<RegisterBlock>(),
             int y0 = -1, int y1 = -1);
+    void gemmRank1UpdateC(const GRFMultirange &r, const GRFMultirange &c,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
     void gemmCalcABOffsetAddrs(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     bool gemmLoadABOffset(const GEMMProblem &problem,

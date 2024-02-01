@@ -206,6 +206,20 @@ struct EmulationImplementation {
         return (rd.getHS() == 1 && rd.getVS() == rd.getWidth());
     }
 
+    static void regionVSAdvance(ngen::HW hw, ngen::RegData &rd, int i) {
+        int ne = ngen::GRF::bytes(hw) / rd.getBytes();
+        int advance = rd.getWidth() > 0 ? (i / rd.getWidth()) * rd.getVS()
+                                        : i * rd.getHS();
+        int noffset = rd.getOffset() + advance;
+        if (noffset >= ne) {
+            noffset--;
+            rd.setBase(rd.getBase() + 1);
+        }
+        rd.setOffset(noffset);
+    }
+
+    static void regionVSAdvance(ngen::HW hw, ngen::Immediate &imm, int i) {}
+
     // Move, emulating 64-bit moves with 32-bit (generally a good idea).
     template <typename DT = void, typename Generator>
     static void emov(Generator &g, const ngen::InstructionModifier &mod,
@@ -585,16 +599,29 @@ struct EmulationImplementation {
             g.mov(mod, dstHi, dstLo);
             g.mov(mod, dstLo, acc);
         } else if (dstD && s0D && s1D && strategy.emulateDWxDW) {
-            auto acc = g.acc0.retype(mulHiType)[dst.getOffset()](dst.getHS());
-            auto dummy = g.null.retype(mulHiType)[dst.getOffset()](dst.getHS());
+            int ne1 = ngen::GRF::bytes(g.hardware) >> 2;
 
-            g.mul(mod, acc, src0, lowWord(src1));
+            for (int r = 0; r < mod.getExecSize(); r += ne1) {
+                auto mmod = mod;
+                mmod.setExecSize(std::min(mod.getExecSize() - r, ne1));
 
-            if (g.hardware < HW::Gen10) {
-                g.mach(mod, dummy, src0, src1);
-                g.mov(mod, dst, acc);
-            } else {
-                g.macl(mod, dst, src0, src1);
+                auto acc = g.acc0.retype(mulHiType)[dst.getOffset()](
+                        dst.getHS());
+                auto dummy = g.null.retype(mulHiType)[dst.getOffset()](
+                        dst.getHS());
+
+                g.mul(mmod, acc, src0, lowWord(src1));
+
+                if (g.hardware < HW::Gen10) {
+                    g.mach(mmod, dummy, src0, src1);
+                    g.mov(mmod, dst, acc);
+                } else {
+                    g.macl(mmod, dst, src0, src1);
+                }
+
+                regionVSAdvance(g.hardware, dst, ne1);
+                regionVSAdvance(g.hardware, src0, ne1);
+                regionVSAdvance(g.hardware, src1, ne1);
             }
         } else
             g.mul(mod, dst, src0, src1);
