@@ -537,9 +537,10 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
             pd()->with_batch(), pd()->packed_c(), trans_co,
             pd()->with_a_zero_points(), pd()->with_b_zero_points(),
             pd()->with_c_zero_points(), pd()->with_bias(), pd()->alpha(),
-            pd()->beta(), *post_ops, a_type, b_type, c_type, co_type, acc_type,
-            dnnl_s32, d->m(), d->n(), d->k(), d->batch(), pd()->unroll_m(),
-            pd()->unroll_n(), pd()->alt(), pd()->prelu_wei_md);
+            pd()->beta(), *post_ops, a_type, b_type, c_type, co_type, dnnl_s32,
+            dnnl_s32, acc_type, d->m(), d->n(), d->k(), d->batch(),
+            pd()->unroll_m(), pd()->unroll_n(), pd()->alt(),
+            pd()->prelu_wei_md);
 
     if (status != status::success) return status;
 
@@ -574,8 +575,8 @@ status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
                         pd()->with_a_zero_points(), pd()->with_b_zero_points(),
                         this_c_offset, pd()->with_bias(), pd()->alpha(),
                         this_beta, *this_post_ops, a_type, b_type, c_type,
-                        co_type, acc_type, dnnl_s32, d->m(), d->n(), d->k(),
-                        d->batch(), pd()->unroll_m(), pd()->unroll_n(),
+                        dnnl_s32, dnnl_s32, co_type, acc_type, d->m(), d->n(),
+                        d->k(), d->batch(), pd()->unroll_m(), pd()->unroll_n(),
                         pd()->alt(), pd()->prelu_wei_md);
 
                 if (status != status::success) return status;

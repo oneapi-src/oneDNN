@@ -229,10 +229,10 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(const post_ops_t &post_ops,
 status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         int stepping, int eu_count, bool has_systolic, compute_mode mode,
         int batch_dims, bool trans_a, bool trans_b, bool trans_co, bool swap_ab,
-        bool a_offset, bool b_offset, bool c_offset, bool bias,
-        sum_ab_t reduce_ab, float alpha, float beta, const post_ops_t &post_ops,
-        data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t co_type, data_type_t acc_type, data_type_t a_offset_type,
+        int ao_dims, int bo_dims, bool c_offset, bool bias, sum_ab_t reduce_ab,
+        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t ao_type,
+        data_type_t bo_type, data_type_t co_type, data_type_t acc_type,
         int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
         dim_t lda, dim_t ldb, dim_t ldc, dim_t batch,
         const memory_desc_t &prelu_wei_md) {
@@ -267,10 +267,11 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     problem_.Ta = problem_.Ta_ext = convert_dnnl_to_kernel_type(a_type);
     problem_.Tb = problem_.Tb_ext = convert_dnnl_to_kernel_type(b_type);
     problem_.Tc = convert_dnnl_to_kernel_type(acc_type);
-    problem_.Tco = convert_dnnl_to_kernel_type(co_type);
     problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
     problem_.Ts = problem_.Tc;
-    problem_.Ta_off = convert_dnnl_to_kernel_type(a_offset_type);
+    problem_.Tao = convert_dnnl_to_kernel_type(ao_type);
+    problem_.Tbo = convert_dnnl_to_kernel_type(bo_type);
+    problem_.Tco = convert_dnnl_to_kernel_type(co_type);
     problem_.A.layout = trans_a ? MatrixLayout::T : MatrixLayout::N;
     problem_.B.layout = trans_b ? MatrixLayout::T : MatrixLayout::N;
     problem_.C.layout = MatrixLayout::N;
@@ -283,9 +284,9 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         problem_.batch = BatchMode::Strided;
         problem_.batchDims = batch_dims;
     }
-    if (a_offset || b_offset) problem_.abOffset = ABOffset::Calc;
-    if (a_offset) problem_.aoPtrDims = 0;
-    if (b_offset) problem_.boPtrDims = 0;
+    if (ao_dims >= 0 || bo_dims >= 0) problem_.abOffset = ABOffset::Calc;
+    problem_.aoPtrDims = ao_dims;
+    problem_.boPtrDims = bo_dims;
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
@@ -382,9 +383,9 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
         bool packed_c, bool trans_co, bool a_offset, bool b_offset,
         bool c_offset, bool bias, float alpha, float beta,
         const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
-        data_type_t c_type, data_type_t co_type, data_type_t acc_type,
-        data_type_t a_offset_type, dim_t m, dim_t n, dim_t k, dim_t batch,
-        int unroll_m, int unroll_n, bool alt,
+        data_type_t c_type, data_type_t ao_type, data_type_t bo_type,
+        data_type_t co_type, data_type_t acc_type, dim_t m, dim_t n, dim_t k,
+        dim_t batch, int unroll_m, int unroll_n, bool alt,
         const memory_desc_t &prelu_wei_md) {
     using namespace ngen;
     using namespace kcatalog;
@@ -410,10 +411,11 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     problem_.Ta = problem_.Ta_ext = convert_dnnl_to_kernel_type(a_type);
     problem_.Tb = problem_.Tb_ext = convert_dnnl_to_kernel_type(b_type);
     problem_.Tc = convert_dnnl_to_kernel_type(acc_type);
-    problem_.Tco = convert_dnnl_to_kernel_type(co_type);
     problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
-    problem_.Ta_off = convert_dnnl_to_kernel_type(a_offset_type);
     problem_.Ts = Type::f32;
+    problem_.Tao = convert_dnnl_to_kernel_type(ao_type);
+    problem_.Tbo = convert_dnnl_to_kernel_type(bo_type);
+    problem_.Tco = convert_dnnl_to_kernel_type(co_type);
     problem_.A.layout = MatrixLayout::PackedColumns;
     problem_.B.layout = MatrixLayout::PackedRows;
     problem_.C.layout = MatrixLayout::N;
