@@ -53,13 +53,13 @@ struct ref_concat_t : public gpu_primitive_t {
             status_t status = gpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);
-                status = memory_desc_init_by_strides(tent_dst_md_,
-                        dst_md_.ndims, dst_md_.dims, dst_md_.data_type,
-                        nullptr);
-                if (status != status::success) return status::unimplemented;
+                VDISPATCH_CONCAT_SC(
+                        memory_desc_init_by_strides(tent_dst_md_, dst_md_.ndims,
+                                dst_md_.dims, dst_md_.data_type, nullptr),
+                        VERBOSE_UNSUPPORTED_MEM_STRIDE);
 
-                status = gpu_concat_pd_t::init(&tent_dst_md_);
-                if (status != status::success) return status::unimplemented;
+                VDISPATCH_CONCAT_SC(gpu_concat_pd_t::init(&tent_dst_md_),
+                        "gpu_concat_pd_t::init()");
             }
 
             const auto &sc = attr()->scales_;
@@ -68,20 +68,27 @@ struct ref_concat_t : public gpu_primitive_t {
                 primitive_attr_t r_attr;
                 int mask = 0;
                 bool is_set = false;
-                CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask, &is_set));
+                VDISPATCH_CONCAT_SC(
+                        sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask, &is_set),
+                        VERBOSE_UNSUPPORTED_SCALES_CFG);
                 if (is_set) {
-                    if (mask != 0) return status::unimplemented;
-                    CHECK(r_attr.scales_.set(DNNL_ARG_SRC, mask));
+                    VDISPATCH_CONCAT(mask == 0, "non-zero mask");
+                    VDISPATCH_CONCAT_SC(r_attr.scales_.set(DNNL_ARG_SRC, mask),
+                            VERBOSE_UNSUPPORTED_SCALES_CFG);
                 }
-                CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
-                        src_md(i), src_image_md(i), &r_attr));
+                VDISPATCH_CONCAT_SC(
+                        reorder_primitive_desc_create(reorder_pds_[i], engine,
+                                src_md(i), src_image_md(i), &r_attr),
+                        "reorder_primitive_desc_create()");
             }
 
             if (use_tent_dst()) {
                 assert(tent_dst_md_.format_kind != format_kind::undef);
                 assert(dst_md_.format_kind != format_kind::undef);
-                CHECK(reorder_primitive_desc_create(
-                        reorder_pds_[n_], engine, &tent_dst_md_, &dst_md_));
+                VDISPATCH_CONCAT_SC(
+                        reorder_primitive_desc_create(reorder_pds_[n_], engine,
+                                &tent_dst_md_, &dst_md_),
+                        "reorder_primitive_desc_create");
             }
             init_scratchpad();
             return status;
