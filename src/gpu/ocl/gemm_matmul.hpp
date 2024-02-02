@@ -63,7 +63,8 @@ struct gemm_matmul_t : public gpu_primitive_t {
                     int mask = 0;
                     CHECK(attr()->zero_points_.get(arg, &mask));
                     if (reshape) mask = mask >> diff_dims;
-                    CHECK(gemm_attr.zero_points_.set(gemm_arg, mask));
+                    CHECK(gemm_attr.zero_points_.set(arg, mask, 0, nullptr,
+                            attr()->zero_points_.get_data_type(arg)));
                 }
                 return status::success;
             };

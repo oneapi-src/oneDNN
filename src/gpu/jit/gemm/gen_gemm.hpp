@@ -112,15 +112,15 @@ struct gen_gemm_t : public gpu_gemm_t {
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8)) {
                 ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp);
-                bool a_zp = !attr()->zero_points_.has_default_values(
-                        DNNL_ARG_SRC);
-                bool b_zp = !attr()->zero_points_.has_default_values(
-                        DNNL_ARG_WEIGHTS);
+                bool a_zp
+                        = !attr()->zero_points_.has_default_values(DNNL_ARG_A);
+                bool b_zp
+                        = !attr()->zero_points_.has_default_values(DNNL_ARG_B);
 
                 int cmask_a = 0, cmask_b = 0, cmask_c = 0;
-                CHECK(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b));
-                CHECK(attr()->zero_points_.get(DNNL_ARG_SRC, &cmask_a));
-                CHECK(attr()->zero_points_.get(DNNL_ARG_DST, &cmask_c));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_A, &cmask_a));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_B, &cmask_b));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_C, &cmask_c));
                 ok &= utils::one_of(cmask_a, 0, 1 << 1)
                         && utils::one_of(cmask_b, 0, 1 << 0)
                         && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);

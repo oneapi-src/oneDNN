@@ -93,7 +93,8 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     if (!zp.has_default_values(DNNL_ARG_SRC))
         attributes_without_po.zero_points_.set(DNNL_ARG_SRC, src_mask);
     if (!zp.has_default_values(DNNL_ARG_WEIGHTS))
-        attributes_without_po.zero_points_.set(DNNL_ARG_WEIGHTS, wei_mask);
+        attributes_without_po.zero_points_.set(DNNL_ARG_WEIGHTS, wei_mask, 0,
+                nullptr, attr()->zero_points_.get_data_type(DNNL_ARG_WEIGHTS));
 
     primitive_desc_iterator_t it_gemm_without_po(engine,
             reinterpret_cast<const op_desc_t *>(&gemm_desc),
