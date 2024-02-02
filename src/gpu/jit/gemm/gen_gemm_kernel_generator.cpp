@@ -888,7 +888,7 @@ void gemm_kernel_generator_t<hw>::emov(const ngen::InstructionModifier &mod,
         src0.setType(DataType::ud);
         add(mod, src0, src0, -0x8000);
         and_(mod | nz | flag, null.ud(), src0, 0x1FFFF);
-        shr(mod, dst, src0, 16);
+        mov(mod, dst, EmulationImplementation::highWord(src0));
         // add(mod, src0, src0, 0x8000);       // Preserve src0 -- if nondestructive mov -- not needed
         add(mod | flag, dst, dst, 1);
     } else
