@@ -1220,9 +1220,10 @@ struct fma_context_t {
                     std::vector<block_t> blocks;
                     int new_inner_stride = 1;
                     int nblocks = (int)layout.blocks().size();
+                    auto inner_most_block = layout.blocks()[0];
                     for (int i = nblocks - 1; i >= 0; --i) {
                         auto &b = layout.blocks()[i];
-                        if (i == nblocks - 1) {
+                        if (b.dim_idx != inner_most_block.dim_idx) {
                             new_inner_stride = b.block;
                             blocks.insert(blocks.begin(),
                                     block_t(b.dim_idx, b.block, stride_t(1)));
@@ -1233,7 +1234,8 @@ struct fma_context_t {
                     }
                     return maybe_retype_layout_for_mad(is_a,
                             layout_t(layout.type(), layout.ndims(),
-                                    layout.offset(), blocks));
+                                    layout.offset(), blocks)
+                                    .make_dense());
                 }
             }
             // XXX: type and layout.type() may be different here when using mad
