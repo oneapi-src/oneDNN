@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+title: oneAPI Deep Neural Network Library (oneDNN)
+message: >-
+  If you use this software, please cite it using the metadata from this file.
+  Find metadata for a specific release in the CITATION.cff file that's available
+  with the source code or from the 'Cite this repository' sidebar when browsing 
+  released source code on Github.
+type: software
+authors:
+  - name: oneDNN Contributors
+repository-code: 'https://github.com/oneapi-src/oneDNN'
+url: 'https://oneapi-src.github.io/oneDNN'
+abstract: >-
+  oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
+  performance library of basic building blocks for deep learning applications.
+  The library is optimized for Intel Architecture Processors, Intel Graphics,
+  and Arm 64-bit Architecture (AArch64)-based processors.
+  oneDNN has experimental support for the following architectures: NVIDIA GPU,
+  AMD GPU, OpenPOWER Power ISA (PPC64), IBMz (s390x), and RISC-V.
+license: Apache-2.0
+version: v3.3
+date-released: 2023-10-06
