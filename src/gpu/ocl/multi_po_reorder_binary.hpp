@@ -80,7 +80,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
                 VDISPATCH_BINARY_SC(
                         reorder_primitive_desc_create(reorder_pd_list.back(),
                                 engine, src_md(0), dst_md()),
-                        "reorder_primitive_desc_create()");
+                        VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
 
                 reorder_pd_list.emplace_back(nullptr);
 
@@ -90,7 +90,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
                 VDISPATCH_BINARY_SC(
                         reorder_primitive_desc_create(reorder_pd_list.back(),
                                 engine, src_md(1), dst_md(), &attr),
-                        "reorder_primitive_desc_create()");
+                        VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
             } else { //need_output_reorder else-block
                 switch (binary_alg) {
                     case alg_kind::binary_add:
@@ -111,7 +111,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
                 VDISPATCH_BINARY_SC(
                         reorder_primitive_desc_create(reorder_pd_list.back(),
                                 engine, src_md(!src_index), dst_md(), &attr),
-                        "reorder_primitive_desc_create()");
+                        VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
             }
 
             return status::success;

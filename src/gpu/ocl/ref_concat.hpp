@@ -59,7 +59,7 @@ struct ref_concat_t : public gpu_primitive_t {
                         VERBOSE_UNSUPPORTED_MEM_STRIDE);
 
                 VDISPATCH_CONCAT_SC(gpu_concat_pd_t::init(&tent_dst_md_),
-                        "gpu_concat_pd_t::init()");
+                        VERBOSE_PRIMITIVE_CREATION_FAIL, "concat");
             }
 
             const auto &sc = attr()->scales_;

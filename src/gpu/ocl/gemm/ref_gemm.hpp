@@ -55,7 +55,8 @@ struct ref_gemm_t : public gpu_gemm_t {
             VDISPATCH_GEMM(
                     IMPLICATION(acc_dt == s32, attr()->zero_points_.common()),
                     VERBOSE_UNSUPPORTED_DT_CFG);
-            VDISPATCH_GEMM(!has_blocks(), "!has_blocks");
+            VDISPATCH_GEMM(!has_blocks(), VERBOSE_UNSUPPORTED_FEATURE,
+                    "blocked format");
             VDISPATCH_GEMM(desc()->c_desc.ndims <= 3, VERBOSE_BAD_NDIMS,
                     "desc()->c_desc.ndims", desc()->c_desc.ndims);
             VDISPATCH_GEMM(

@@ -88,7 +88,8 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             VDISPATCH_INNER_PRODUCT_SC(init_conf(engine), "init_conf()");
-            VDISPATCH_INNER_PRODUCT_SC(init_scratchpad(), "init_scratchpad()");
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_scratchpad(), VERBOSE_SCRATCHPAD_INIT);
             return status::success;
         }
 

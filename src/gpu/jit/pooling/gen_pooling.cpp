@@ -74,7 +74,7 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_POOLING(
             compute_engine->mayiuse(compute::device_ext_t::intel_subgroups),
-            VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
+            VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
     VDISPATCH_POOLING(
             IMPLICATION(src_data_t == f16,
                     compute_engine->mayiuse(compute::device_ext_t::khr_fp16)
@@ -103,7 +103,7 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
 
     VDISPATCH_POOLING(pooling_config_t::check_compatibility(*pool_conf,
                               *exec_cfg, *src, attr()->post_ops_, dst->type()),
-            "pooling_config_t incompatible");
+            "incompatible pooling configuration");
     return status::success;
 }
 

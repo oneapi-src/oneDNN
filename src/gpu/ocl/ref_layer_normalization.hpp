@@ -49,12 +49,12 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
             using skip_mask_t = primitive_attr_t::skip_mask_t;
 
             VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
-            VDISPATCH_LNORM(utils::everyone_is(u8, src_data_t, dst_data_t)
-                            || utils::everyone_is(s8, src_data_t, dst_data_t)
-                            || utils::everyone_is(f16, src_data_t, dst_data_t)
-                            || utils::everyone_is(bf16, src_data_t, dst_data_t)
-                            || utils::everyone_is(f32, src_data_t, dst_data_t)
-                            || (utils::everyone_is(f64, src_data_t, dst_data_t)
+            VDISPATCH_LNORM(utils::everyone_is(u8, src_dt, dst_dt)
+                            || utils::everyone_is(s8, src_dt, dst_dt)
+                            || utils::everyone_is(f16, src_dt, dst_dt)
+                            || utils::everyone_is(bf16, src_dt, dst_dt)
+                            || utils::everyone_is(f32, src_dt, dst_dt)
+                            || (utils::everyone_is(f64, src_dt, dst_dt)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::khr_fp64)
                                     && attr()->post_ops_.has_default_values()),
@@ -131,25 +131,6 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
             auto diff_dst_dt = diff_dst_md()->data_type;
             auto diff_src_dt = diff_src_md()->data_type;
 
-<<<<<<< HEAD
-            bool uses_f16
-                    = utils::one_of(f16, src_dt, diff_dst_dt, diff_src_dt);
-            bool uses_f64
-                    = utils::one_of(f64, src_dt, diff_dst_dt, diff_src_dt);
-
-            bool ok = !is_fwd()
-                    && IMPLICATION(uses_f16,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && IMPLICATION(uses_f64,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp64))
-                    && stat_md()->data_type == f32
-                    && check_scale_shift_data_type({f32, bf16, f16})
-                    && attr()->has_default_values()
-                    && set_default_formats_common();
-            if (!ok) return status::unimplemented;
-=======
             VDISPATCH_LNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_LNORM(
                     utils::everyone_is(f32, src_dt, diff_dst_dt, diff_src_dt)
@@ -171,7 +152,6 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_LNORM(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
->>>>>>> eb7a36ac78 (gpu: add dispatch macros for ref layers)
 
             VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
             if (conf.vectorize_bwd_scaleshift) { init_scratchpad(); }

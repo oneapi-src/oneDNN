@@ -72,7 +72,7 @@ status_t cross_engine_reorder_t::pd_t::init(
 
     VDISPATCH_REORDER_SC(reorder_primitive_desc_create(reorder_pd_,
                                  reorder_engine, src_md(), dst_md(), &r_attr),
-            "reorder_primitive_create()");
+            VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
     init_scratchpad();
 
     reorder_pd_t::init_desc(

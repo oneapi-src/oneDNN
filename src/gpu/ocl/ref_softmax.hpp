@@ -74,7 +74,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                                               compute::device_ext_t::khr_fp64)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_SOFTMAX(compute_engine->mayiuse_sub_group(subgroup_size),
-                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroup_size");
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroup_size");
             VDISPATCH_SOFTMAX(!memory_desc_ndims_ok(src_md(), dst_md()),
                     VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
             VDISPATCH_SOFTMAX(
@@ -246,7 +246,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
                                               compute::device_ext_t::khr_fp16)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_SOFTMAX(compute_engine->mayiuse_sub_group(16),
-                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroup_size");
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroup_size");
             VDISPATCH_SOFTMAX(!memory_desc_ndims_ok(
                                       dst_md(), diff_src_md(), diff_dst_md()),
                     VERBOSE_INCONSISTENT_NDIMS, "dst, diff_src", "diff_dst");

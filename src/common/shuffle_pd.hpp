@@ -1,9 +1,5 @@
 /*******************************************************************************
-<<<<<<< HEAD
 * Copyright 2018-2024 Intel Corporation
-=======
-*) Copyright 2018-2024 Intel Corporation
->>>>>>> 581ec39941 (gpu: add dispatch macros for ref layers)
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.

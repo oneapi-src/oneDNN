@@ -513,7 +513,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_RNN(
             compute_engine->mayiuse(compute::device_ext_t::intel_subgroups),
-            VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
+            VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
     VDISPATCH_RNN(
             IMPLICATION(src_type == data_type::f16,
                     true

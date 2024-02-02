@@ -95,6 +95,8 @@
 #define VERBOSE_WS_MISMATCH \
     "workspace mismatch between forward and backward primitive " \
     "descriptors"
+#define VERBOSE_WS_INIT "workspace initialization failed"
+#define VERBOSE_SCRATCHPAD_INIT "scratchpad initialization unsuccessful"
 
 #define VERBOSE_BLOCKING_FAIL "blocking heuristic failed"
 #define VERBOSE_SMALL_SHAPES "small shapes fall back"
@@ -110,9 +112,5 @@
 #define VERBOSE_SCRATCHPAD_LIMIT "scratchpad memory limit exceeded"
 #define VERBOSE_PRIMITIVE_CREATION_FAIL "failed to create nested primitive %s"
 #define VERBOSE_INCOMPATIBLE_GEMM_FMT "incompatible gemm format"
-#define VERBOSE_UNSUPPORTED_FEATURE "unsupported feature for implementation: %s"
-#define VERBOSE_UNSUPPORTED_HW_FEATURE "unsupported feature for hardware: %s"
-#define VERBOSE_PADDING_ERROR "padding error for implementation: %s"
-#define VERBOSE_WS_MISMATCH "pd workspace mismatch"
 
 #endif

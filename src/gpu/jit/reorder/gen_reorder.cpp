@@ -114,8 +114,8 @@ status_t gen_reorder_t::pd_t::init(
     memory_desc_wrapper dst_mdw {dst_md()};
     VDISPATCH_REORDER(!src_mdw.has_runtime_dims_or_strides(),
             VERBOSE_RUNTIMEDIM_UNSUPPORTED);
-    VDISPATCH_REORDER(!(src_mdw.ndims() != dst_mdw.ndims()),
-            VERBOSE_INCONSISTENT_MDS, "src_mdw", "dst_mdw");
+    VDISPATCH_REORDER(src_mdw.ndims() == dst_mdw.ndims(),
+            VERBOSE_INCONSISTENT_MDS, "src", "dst");
     int ndims = src_mdw.ndims();
 
     layout_t src_layout {src_mdw, /*do_normalize=*/false};
@@ -139,10 +139,12 @@ status_t gen_reorder_t::pd_t::init(
         return true;
     };
 
-    VDISPATCH_REORDER(check_layout(src_layout), "check_layout()");
-    VDISPATCH_REORDER(check_layout(dst_layout), "check_layout()");
+    VDISPATCH_REORDER(
+            check_layout(src_layout), "unsupported src tensor layout");
+    VDISPATCH_REORDER(
+            check_layout(dst_layout), "unsupported dst tensor layout");
     VDISPATCH_REORDER(compute_engine->mayiuse_ngen_kernels(),
-            VERBOSE_UNSUPPORTED_FEATURE, "ngen_kernels");
+            VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "ngen_kernels");
     auto *gpu_attr
             = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
     hw_t hw(engine);
@@ -151,7 +153,8 @@ status_t gen_reorder_t::pd_t::init(
     exec_cfg.set_simd(16);
     cfg = std::make_shared<reorder_config_t>(exec_cfg, src_layout, dst_layout);
     cfg->set_zp_cfg(zp_cfg);
-    VDISPATCH_REORDER_SC(init_kernel_info(), "init_kernel_info()");
+    VDISPATCH_REORDER_SC(
+            init_kernel_info(), "kernel initialization unsuccessful");
 
     return status::success;
 }

@@ -150,10 +150,10 @@ struct reusable_batch_normalization_fwd_t : public gpu_primitive_t {
                     VERBOSE_INCONSISTENT_MDS, "src", "dst");
             VDISPATCH_BNORM(compute_engine->mayiuse(
                                     compute::device_ext_t::intel_subgroups),
-                    VERBOSE_UNSUPPORTED_HW_FEATURE, "subgroups");
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
 
             if (is_training() && (fuse_norm_relu() || fuse_norm_add_relu())) {
-                VDISPATCH_BNORM_SC(init_default_ws(8), "init_default_ws()");
+                VDISPATCH_BNORM_SC(init_default_ws(8), VERBOSE_WS_INIT);
             }
 
             VDISPATCH_BNORM_SC(init_conf(engine), "init_conf()");
@@ -246,7 +246,7 @@ struct reusable_batch_normalization_bwd_t : public gpu_primitive_t {
                     VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
 
             if (fuse_norm_relu() || fuse_norm_add_relu()) {
-                VDISPATCH_BNORM_SC(init_default_ws(8), "init_default_ws()");
+                VDISPATCH_BNORM_SC(init_default_ws(8), VERBOSE_WS_INIT);
                 VDISPATCH_BNORM(compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 

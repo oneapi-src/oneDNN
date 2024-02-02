@@ -101,7 +101,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                     create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
                             weights_md(1), desc()->accum_data_type, &gemm_attr,
                             true),
-                    "create_gemm_pd()");
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "gemm");
 
             init_scratchpad();
 
@@ -192,7 +192,7 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
                     create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
                             &glob_zero_md, desc()->accum_data_type, attr(),
                             true),
-                    "create_gemm_pd()");
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "gemm");
             init_scratchpad();
 
             return status::success;
