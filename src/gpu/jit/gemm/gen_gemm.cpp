@@ -310,7 +310,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     if (pd()->with_c_zero_points()) {
         off_co0 = co->offset() / types::data_type_size(c_type)
                 + pd()->dyn_offset_co;
-        CHECK(pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask));
+        CHECK(pd()->attr()->zero_points_.get(DNNL_ARG_C, &cmask));
     } else if (pd()->with_bias()) {
         off_co0 = bias.offset() / types::data_type_size(c_type);
         co = &bias;
