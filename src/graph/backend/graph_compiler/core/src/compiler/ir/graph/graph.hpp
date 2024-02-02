@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -283,7 +283,11 @@ public:
     // static, the other is also inferred as static, e.g. binary elemwise op
     // input shapes [-1, 64] and [16, 64], -1 will be inferred as 16.
     virtual shape_rl_vec get_dynamic_shape_relations() const { return {}; }
-
+    // Get calculation expressions between different dynamic vars in
+    // output/input. The expressions will be used by internal dynamic vars
+    // inside kernel which does not infer shape. The expression will store in
+    // var expr with attribute `pass.cal_expression`.
+    virtual void calculate_dynamic_shape_expression() {}
     // the op share given graph tensor with opT(except itself)
     template <typename opT>
     bool share_gt_with_op(const graph_tensor_ptr &gt) {

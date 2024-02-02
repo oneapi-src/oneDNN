@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,7 +73,11 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     use_reorder = dst_md(0)->data_type != gemm_desc.c_desc.data_type;
     gemm_desc.bias_desc = glob_zero_md;
     // Setup empty attributes but keep zero points for gemm.
-    primitive_attr_t attributes_without_po;
+    primitive_attr_t attributes_without_po = *attr();
+    attributes_without_po.set_post_ops(post_ops_t());
+    attributes_without_po.scales_ = arg_scales_t();
+    attributes_without_po.output_scales_ = runtime_scales_t();
+    attributes_without_po.zero_points_ = zero_points_t();
     int src_mask, wei_mask;
     auto zp = attributes_with_po->zero_points_;
     zp.get(DNNL_ARG_SRC, &src_mask);

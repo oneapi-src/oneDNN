@@ -113,6 +113,11 @@ struct gemm_matmul_t : public gpu_primitive_t {
                         a_dim *= a_md->dims[a_md->ndims - i];
                         bia_dim *= bias_md->dims[bias_md->ndims - i];
                     }
+                    if (with_bia) {
+                        //bias cannot be applied if applied on only on a subset of batch dims
+                        if (bia_dim > 1 && bia_dim != a_dim)
+                            return status::unimplemented;
+                    }
                     dims_t a_dims, b_dims, c_dims, bia_dims;
                     if (reshape_2d) {
                         a_dims[0] = a_dim;
@@ -135,9 +140,6 @@ struct gemm_matmul_t : public gpu_primitive_t {
                         c_dims[0] = a_dim;
                         c_dims[1] = a_dims[1];
                         c_dims[2] = b_dims[2];
-                        //bias cannot be applied if applied on only on a subset of batch dims
-                        if (bia_dim != c_dims[0] && bia_dim > 1)
-                            return status::unimplemented;
                         bia_dims[0] = bia_dim;
                         bia_dims[1] = with_bia ? bias_md->dims[ndims - 2] : 1;
                         bia_dims[2] = with_bia ? bias_md->dims[ndims - 1] : 1;
@@ -238,7 +240,9 @@ struct gemm_matmul_t : public gpu_primitive_t {
                                                     : status::success;
             };
 
-            CHECK(gemm_attr.set_fpmath_mode(attr()->fpmath_mode_));
+            CHECK(gemm_attr.set_fpmath_mode(
+                    attr()->fpmath_.mode_, attr()->fpmath_.apply_to_int_));
+            gemm_attr.deterministic_ = attr()->deterministic_;
 
             dims_t orig_a_dims, orig_b_dims, orig_c_dims, orig_bias_dims;
             bool reshape = maybe_reshape(orig_a_dims, orig_b_dims, orig_c_dims,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,10 +25,10 @@
 #define CONCAT2(a, b) CONCAt2(a, b)
 #define CONCAT3(a, b, c) CONCAT2(CONCAT2(a, b), c)
 
-int div_up(int a, int b) {
+int div_up(int a, unsigned int b) {
     return (a + b - 1) / b;
 }
-int rnd_up(int a, int b) {
+int rnd_up(int a, unsigned int b) {
     return div_up(a, b) * b;
 }
 
@@ -416,6 +416,43 @@ float16 __attribute__((overloadable)) cvt_bf16_to_f32(ushort16 b) {
     return f;
 }
 
+#ifdef cl_khr_fp64
+// Emulation functions for bf16 -> f64 conversion.
+double __attribute__((overloadable)) cvt_bf16_to_f64(ushort b) {
+    ushort2 r = {0, b};
+    float f = as_float(r);
+    return convert_double(f);
+}
+double2 __attribute__((overloadable)) cvt_bf16_to_f64(ushort2 b) {
+    double2 f;
+    for (int i = 0; i < 2; i++) {
+        f[i] = cvt_bf16_to_f64(b[i]);
+    }
+    return f;
+}
+double4 __attribute__((overloadable)) cvt_bf16_to_f64(ushort4 b) {
+    double4 f;
+    for (int i = 0; i < 4; i++) {
+        f[i] = cvt_bf16_to_f64(b[i]);
+    }
+    return f;
+}
+double8 __attribute__((overloadable)) cvt_bf16_to_f64(ushort8 b) {
+    double8 f;
+    for (int i = 0; i < 8; i++) {
+        f[i] = cvt_bf16_to_f64(b[i]);
+    }
+    return f;
+}
+double16 __attribute__((overloadable)) cvt_bf16_to_f64(ushort16 b) {
+    double16 f;
+    for (int i = 0; i < 16; i++) {
+        f[i] = cvt_bf16_to_f64(b[i]);
+    }
+    return f;
+}
+#endif
+
 #endif
 #endif
 
@@ -611,6 +648,7 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
 #endif
 
 // Atomics
+#if !DETERMINISTIC
 #define DECLARE_ATOMIC_OP(op, type) \
     type __attribute__((overloadable)) CONCAT3(atomic_, op, _global)( \
             volatile global CONCAT2(atomic_, type) * source, type operand) { \
@@ -646,6 +684,7 @@ inline float atomic_add_global(
     } while (!success);
     return old_val;
 }
+#endif
 #endif
 
 #endif

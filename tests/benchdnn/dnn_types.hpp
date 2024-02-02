@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,6 +80,7 @@ struct attr_t {
         COMMON = 0, // single value for each point in a tensor
         // apply a single value per...
         PER_OC, // channel (dims[1]) point
+        PER_OCIC, // channel (dims[0] and dims[1]) point
         PER_DIM_0, // ... dims[0] point.
         PER_DIM_1, // ... dims[1] point.
         PER_DIM_01, // ... unique combination of dims[0] and dims[1] points.
@@ -98,13 +99,20 @@ struct attr_t {
 
     struct zero_points_t {
         struct entry_t {
-            entry_t(policy_t apolicy = COMMON, int avalue = 0)
-                : policy(apolicy), value(avalue) {}
+            entry_t(policy_t apolicy = COMMON, int avalue = 0,
+                    dnnl_data_type_t adt = dnnl_s32,
+                    const std::vector<dnnl_dim_t> &agroups = {})
+                : policy(apolicy), value(avalue), dt(adt), groups(agroups) {}
 
-            bool is_def() const { return policy == COMMON && value == 0; }
+            bool is_def() const {
+                return policy == COMMON && value == 0 && dt == dnnl_s32
+                        && groups.size() == 0;
+            }
 
             policy_t policy = COMMON;
             int value = 0;
+            dnnl_data_type_t dt = dnnl_s32;
+            std::vector<dnnl_dim_t> groups;
         };
 
         int from_str(const std::string &s);
@@ -130,9 +138,22 @@ struct attr_t {
         void set(int arg, const entry_t &entry) {
             if (!entry.is_def()) points[arg] = entry;
         }
+        void set(int arg, policy_t policy, int value,
+                dnnl_data_type_t data_type, std::vector<dnnl_dim_t> &groups) {
+            set(arg, entry_t(policy, value, data_type, groups));
+        }
         entry_t get(int arg) const {
             const auto it = points.find(arg);
             return it == points.end() ? entry_t() : it->second;
+        }
+
+        int get_mask(int arg,
+                dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
+                const_dnnl_memory_desc_t wei_md = nullptr,
+                bool has_groups = false) const {
+            const auto &e = get(arg);
+            return attr_t::policy2mask(
+                    arg, e.policy, prim_kind, wei_md, has_groups);
         }
 
         zero_points_t() : points() {} // needed for debug icc190 build;
@@ -141,15 +162,22 @@ struct attr_t {
 
     struct arg_scales_t {
         struct entry_t {
-            entry_t(policy_t apolicy = COMMON, float ascale = 1.f)
-                : policy(apolicy), scale(ascale) {}
+            entry_t(policy_t apolicy = COMMON, float ascale = 1.f,
+                    dnnl_data_type_t adt = dnnl_f32,
+                    const std::vector<dnnl_dim_t> &agroups = {})
+                : policy(apolicy), scale(ascale), dt(adt), groups(agroups) {}
 
             int from_str(const std::string &s);
 
-            bool is_def() const { return policy == COMMON && scale == 1.f; }
+            bool is_def() const {
+                return policy == COMMON && scale == 1.f && dt == dnnl_f32
+                        && groups.size() == 0;
+            }
 
             policy_t policy = COMMON;
             float scale = 1.f;
+            dnnl_data_type_t dt = dnnl_f32;
+            std::vector<dnnl_dim_t> groups;
         };
 
         void set(int arg, entry_t scale) { scales[arg] = scale; }
@@ -317,9 +345,38 @@ struct attr_t {
         std::vector<entry_t> entry;
     };
 
+    struct deterministic_t {
+        // The default value is changed for a bitwise mode. To properly work,
+        // `--mode=B` must be specified before the driver name, otherwise,
+        // the driver settings will use `false` as the mode bit was not set
+        // before entering the driver parsing section.
+        deterministic_t() : enabled(has_bench_mode_bit(mode_bit_t::bitwise)) {}
+
+        bool is_def() const {
+            static deterministic_t def;
+            return enabled == def.enabled;
+        }
+
+        bool enabled;
+    };
+
+    struct fpmath_mode_t {
+        fpmath_mode_t() = default;
+
+        void set(dnnl_fpmath_mode_t mode, bool apply_to_int = false) {
+            this->mode = mode;
+            this->apply_to_int = apply_to_int;
+        }
+        bool is_def() const {
+            return mode == dnnl_fpmath_mode_strict && apply_to_int == false;
+        }
+
+        dnnl_fpmath_mode_t mode = dnnl_fpmath_mode_strict;
+        bool apply_to_int = false;
+    };
+
     attr_t()
         : scratchpad_mode(get_default_scratchpad_mode())
-        , fpmath_mode(dnnl_fpmath_mode_strict)
         , acc_mode(dnnl_accumulation_mode_strict) {}
 
     template <typename First, typename... Rest>
@@ -332,8 +389,9 @@ struct attr_t {
     void insert(const zero_points_t &zp) { this->zero_points = zp; }
     void insert(const post_ops_t &po) { this->post_ops = po; }
     void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
-    void insert(dnnl_fpmath_mode_t fpm) { this->fpmath_mode = fpm; }
+    void insert(const fpmath_mode_t &fpm) { this->fpmath_mode = fpm; }
     void insert(dnnl_accumulation_mode_t am) { this->acc_mode = am; }
+    void insert(const deterministic_t &d) { this->deterministic = d; }
 
     // When parallel creation modifier is enabled, the library scratchpad mode
     // can't be used unless "-DDNNL_ENABLE_CONCURRENT_EXEC=ON" is enabled at the
@@ -350,8 +408,9 @@ struct attr_t {
     zero_points_t zero_points;
     post_ops_t post_ops;
     dnnl_scratchpad_mode_t scratchpad_mode;
-    dnnl_fpmath_mode_t fpmath_mode;
+    fpmath_mode_t fpmath_mode;
     dnnl_accumulation_mode_t acc_mode;
+    deterministic_t deterministic;
 
     bool is_def(bool skip_fpmath = false) const;
 };
@@ -464,7 +523,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm);
-std::ostream &operator<<(std::ostream &s, dnnl_fpmath_mode_t fm);
+std::ostream &operator<<(std::ostream &s, const attr_t::fpmath_mode_t &fm);
 std::ostream &operator<<(std::ostream &s, dnnl_accumulation_mode_t am);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
@@ -480,6 +539,10 @@ struct attr_args_t {
 
     void prepare_scales(const attr_t &attr, int arg, int mask = -1) {
         entries.insert(std::make_pair(arg, mask));
+    };
+
+    void prepare_zero_points(const attr_t &attr, int arg, int mask = -1) {
+        entries.insert(std::make_pair(DNNL_ARG_ATTR_ZERO_POINTS | arg, mask));
     };
 
     int prepare_post_ops_mds(

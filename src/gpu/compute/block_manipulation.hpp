@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,8 +99,11 @@ private:
 // represents a combined block used for indexing
 class block_bin_t {
 public:
-    block_bin_t(const mapped_block_t &blocks, size_t num_layouts)
-        : dim_idx(blocks.get_dim_idx()), num_layouts(num_layouts) {
+    block_bin_t(const mapped_block_t &blocks, size_t num_layouts,
+            bool is_in_lws = false)
+        : dim_idx(blocks.get_dim_idx())
+        , num_layouts(num_layouts)
+        , is_in_lws_(is_in_lws) {
         mapped_blocks.emplace_back(blocks);
         is_broadcasted_.resize(num_layouts);
         for (size_t i = 0; i < num_layouts; i++) {
@@ -141,11 +144,14 @@ public:
         return mapped_blocks;
     }
 
+    bool is_in_lws() const { return is_in_lws_; }
+
 private:
     size_t dim_idx;
     size_t num_layouts;
     std::vector<mapped_block_t> mapped_blocks;
     std::vector<bool> is_broadcasted_;
+    bool is_in_lws_;
 };
 
 } // namespace compute

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,12 @@
 
 #ifndef USE_CUSTOM_GWS_GET_ID
 #define GWS_GET_THREAD_ID(index) get_global_id(index)
+#endif
+
+#ifdef USE_INT32_OFFSET
+#define off_t int
+#else
+#define off_t long
 #endif
 
 #ifdef GWS_WITH_RUNTIME_PARAMS

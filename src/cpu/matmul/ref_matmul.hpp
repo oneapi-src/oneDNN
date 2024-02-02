@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,9 +51,13 @@ struct ref_matmul_t : public primitive_t {
 
             bool ok = is_dense_format_kind()
                     && utils::one_of(src_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
-                    && utils::one_of(wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
+                    && utils::one_of(
+                            wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3, u8, s8)
                     && utils::one_of(dst_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
-                    && src_type == wei_type
+                    && (src_type == wei_type || utils::one_of(wei_type, u8, s8))
+                    /* int8 weights decompression support */
+                    && IMPLICATION(utils::one_of(wei_type, u8, s8),
+                            attr_.mayiconvert(wei_type, src_type))
                     && IMPLICATION(src_type == f32, dst_type == f32)
                     && IMPLICATION(src_type == bf16,
                             utils::one_of(dst_type, f32, bf16))
@@ -73,15 +77,66 @@ struct ref_matmul_t : public primitive_t {
                             // data type for fp8?
                             )
                     && platform::has_data_type_support(src_type)
-                    && attr()->has_default_values(smask_t::scales_runtime
-                                    | smask_t::post_ops | smask_t::sum_dt,
+                    && attr()->has_default_values(
+                            smask_t::scales_runtime_data_type
+                                    | smask_t::scales_runtime_groups
+                                    | smask_t::zero_points_runtime_data_type
+                                    | smask_t::zero_points_runtime_groups
+                                    | smask_t::post_ops | smask_t::sum_dt
+                                    | smask_t::fpmath_mode,
                             dst_type)
                     && attr_.post_ops_.check_sum_consistency(dst_type,
                             /* is_int8 */ false)
                     && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_scales_ok() && set_default_formats()
+                    && zero_points_ok()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
             return ok ? status::success : status::unimplemented;
+        }
+
+        virtual bool attr_scales_ok(
+                const std::vector<int> &supported_args = {DNNL_ARG_SRC,
+                        DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const override {
+            if (attr()->scales_.has_default_values()) return true;
+
+            bool ok = attr()->scales_.has_default_values(supported_args);
+            for (int arg : supported_args) {
+                const auto &sc = attr()->scales_.get(arg);
+                const auto &mask = sc.mask_;
+                if (!sc.has_default_values()) {
+                    if (arg == DNNL_ARG_WEIGHTS) {
+                        ok = ok
+                                && utils::one_of(mask, 0, wei_qmask_N(),
+                                        wei_qmask_N() + wei_qmask_K());
+                        ok = ok && utils::one_of(sc.ndims_, 0, 2)
+                                && IMPLICATION(sc.ndims_ == 2,
+                                        sc.group_dims_[1] == 1
+                                                && K() % sc.group_dims_[0]
+                                                        == 0);
+                    } else
+                        ok = ok && (mask == 0);
+                }
+            }
+            return ok;
+        }
+
+        bool zero_points_ok() const {
+            /* weights decompression requires zero points support */
+            int mask_wei = 0;
+            attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
+            const auto wei_group_ndims
+                    = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
+            const auto wei_group_dims
+                    = attr()->zero_points_.get_groups(DNNL_ARG_WEIGHTS);
+
+            return attr()->zero_points_.has_default_values(DNNL_ARG_SRC)
+                    && attr()->zero_points_.has_default_values(DNNL_ARG_DST)
+                    && utils::one_of(mask_wei, 0, wei_qmask_N(),
+                            wei_qmask_N() + wei_qmask_K())
+                    && utils::one_of(wei_group_ndims, 0, 2)
+                    && IMPLICATION(wei_group_ndims == 2,
+                            wei_group_dims[1] == 1
+                                    && K() % wei_group_dims[0] == 0);
         }
     };
 

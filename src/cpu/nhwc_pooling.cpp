@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ void nhwc_pooling_fwd_t<d_type>::array_div_by_const(const int n,
         const ker_data_t *src, const size_t num, ker_data_t *dst) const {
     for (int i = 0; i < n; ++i) {
         const float ftmp = ((float)src[i]) / num;
-        dst[i] = out_round<ker_data_t>(ftmp);
+        dst[i] = q10n::out_round<ker_data_t>(ftmp);
     }
 }
 

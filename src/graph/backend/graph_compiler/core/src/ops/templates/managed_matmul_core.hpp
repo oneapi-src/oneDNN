@@ -42,6 +42,8 @@ public:
   // for shapes with M <= 2 and num_threads <= 32, we use avx instead of amx.
   int64_t dispatch_avx_ = false;
 
+  int split_iim_ = -1;
+
   // inner most block
   int iim_block_;
   int iin_block_;
@@ -136,6 +138,9 @@ public:
   void schedule_loops(context_ptr ctx,
     const managed_matmul_core_config_t &config, stmt body,
     std::vector<for_loop> &fors) const override;
+
+  int suggest_aligned_iim_block(
+    const size_t plain_M, const size_t default_block, bool is_f32);
 };
 } // namespace ops
 } // namespace gc

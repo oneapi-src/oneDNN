@@ -659,50 +659,6 @@ TEST(GCGraphTest, BF16MLPTrainingGraphCompileExecution_CPU) {
     compile_execution_pipeline(agraph, 2);
 }
 
-TEST(GCGraphTest, FP32BartMLPResidualCompileExecution_CPU) {
-    REQUIRE_AVX512();
-    REQUIRE_AMX();
-    REQUIRE_CPU_ENGINE();
-    impl::graph_t agraph(engine->kind());
-    compiler_utils::add_bart_mlp_residual_subgraph(
-            &agraph, false, false, 1, 17);
-    agraph.finalize();
-
-    compile_execution_pipeline(agraph, 1);
-}
-
-TEST(GCGraphTest, BF16BartMLPResidualCompileExecution_CPU) {
-    REQUIRE_AMXBF16();
-    REQUIRE_CPU_ENGINE();
-    impl::graph_t agraph(engine->kind());
-    compiler_utils::add_bart_mlp_residual_subgraph(&agraph, true, false, 1, 17);
-    agraph.finalize();
-
-    compile_execution_pipeline(agraph, 1);
-}
-
-#if 0
-TEST(GCGraphTest, INT8BartMLPResidualCompileExecution_CPU) {
-    REQUIRE_VNNI_AMXINT8();
-    REQUIRE_CPU_ENGINE();
-    impl::graph_t agraph(engine->kind());
-    compiler_utils::add_bart_mlp_residual_subgraph(&agraph, false, true, 1, 17);
-    agraph.finalize();
-
-    compile_execution_pipeline(agraph, 1);
-}
-
-TEST(GCGraphTest, INT8BF16BartMLPResidualCompileExecution_CPU) {
-    REQUIRE_VNNI_AMXINT8();
-    REQUIRE_CPU_ENGINE();
-    impl::graph_t agraph(engine->kind());
-    compiler_utils::add_bart_mlp_residual_subgraph(&agraph, true, true, 1, 17);
-    agraph.finalize();
-
-    compile_execution_pipeline(agraph, 1);
-}
-#endif
-
 TEST(GCGraphTest, FP32MHATrainingGraphCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_CPU_ENGINE();

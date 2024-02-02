@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -171,13 +171,13 @@ void simple_net(engine::kind engine_kind) {
                 std::multiplies<memory::dim>());
     };
 
-    // Create auxillary f32 memory descriptor
+    // Create auxiliary f32 memory descriptor
     // based on user- supplied dimensions and layout.
     auto formatted_md
             = [=](const memory::dims &dimensions, memory::format_tag layout) {
                   return memory::desc {{dimensions}, dt::f32, layout};
               };
-    // Create auxillary generic f32 memory descriptor
+    // Create auxiliary generic f32 memory descriptor
     // based on supplied dimensions, with format_tag::any.
     auto generic_md = [=](const memory::dims &dimensions) {
         return formatted_md(dimensions, tag::any);

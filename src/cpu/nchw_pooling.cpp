@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -157,8 +157,8 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
                         args.l_offset = dst_offset;
                         args.dst_md = pd()->dst_md();
                         ref_post_ops_->execute(dst[dst_offset], args);
-                        dst[dst_offset]
-                                = saturate_and_round<data_t>(dst[dst_offset]);
+                        dst[dst_offset] = q10n::saturate_and_round<data_t>(
+                                dst[dst_offset]);
                     });
         } else {
             parallel_nd(MB, C, OD, OH, OW,
@@ -172,8 +172,8 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
                         set_ws(mb, c, od, oh, ow, 0);
                         ker_max(d, mb, c, od, oh, ow);
 
-                        dst[dst_offset]
-                                = saturate_and_round<data_t>(dst[dst_offset]);
+                        dst[dst_offset] = q10n::saturate_and_round<data_t>(
+                                dst[dst_offset]);
                     });
         }
     } else {
@@ -193,7 +193,7 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
                         args.l_offset = dst_offset;
                         args.dst_md = pd()->dst_md();
                         ref_post_ops_->execute(res, args);
-                        d[0] = saturate_and_round<data_t>(res);
+                        d[0] = q10n::saturate_and_round<data_t>(res);
                     });
         } else {
             parallel_nd(MB, C, OD, OH, OW,
@@ -206,7 +206,7 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
                         d[0] = 0;
                         auto res = ker_avg(d, mb, c, od, oh, ow);
 
-                        d[0] = saturate_and_round<data_t>(res);
+                        d[0] = q10n::saturate_and_round<data_t>(res);
                     });
         }
     }
@@ -324,7 +324,7 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
                 d[0] += src_loc[iw];
         }
 
-        d[0] = out_round<float>((float)d[0] / num_summands);
+        d[0] = q10n::out_round<float>((float)d[0] / num_summands);
     };
 
     parallel_nd(blocked_size, [&](size_t i) {

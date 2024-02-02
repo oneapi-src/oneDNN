@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -202,32 +202,10 @@ struct gpu_primitive_t : public primitive_t {
         return status::success;
     }
 
-protected:
-    int32_t version() const { return version_; }
-
-    void set_version(int32_t version) { version_ = version; }
-
-    void register_primitive(const primitive_t *primitive) {
-        registered_compute_blocks_.emplace_back(primitive);
-    }
-
-    status_t register_kernels(const std::vector<compute::kernel_t> &kernels) {
-        for (const auto &k : kernels) {
-            CHECK(k.dump());
-            registered_compute_blocks_.emplace_back(k);
-        }
-        return status::success;
-    }
-
-    virtual status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const {
-        return status::success;
-    }
-
     // TODO: use inheritance for exec_ctx_t to get rid of such places...
-    status_t parallel_for(const gemm_exec_ctx_t &ctx,
+    static status_t parallel_for(const gemm_exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
-            const compute::kernel_arg_list_t &arg_list) const {
+            const compute::kernel_arg_list_t &arg_list) {
         auto compute_stream
                 = utils::downcast<compute::compute_stream_t *>(ctx.stream());
         return parallel_for(*compute_stream, range, kernel, arg_list,
@@ -235,9 +213,9 @@ protected:
                 compute_stream->ctx().get_deps());
     }
 
-    status_t parallel_for(const exec_ctx_t &ctx,
+    static status_t parallel_for(const exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
-            const compute::kernel_arg_list_t &arg_list) const {
+            const compute::kernel_arg_list_t &arg_list) {
         auto compute_stream
                 = utils::downcast<compute::compute_stream_t *>(ctx.stream());
         return parallel_for(*compute_stream, range, kernel, arg_list,
@@ -249,10 +227,10 @@ protected:
     // be at most uint32_t. This function works around that by passing an offset
     // argument. The OpenCL native offset cannot be used due to lack of SYCL
     // interop support.
-    status_t large_parallel_for(const exec_ctx_t &ctx,
+    static status_t large_parallel_for(const exec_ctx_t &ctx,
             const compute::nd_range_t &nd_range,
             const compute::kernel_t &kernel,
-            compute::kernel_arg_list_t &arg_list, int offset_idx) const {
+            compute::kernel_arg_list_t &arg_list, int offset_idx) {
 
         auto global_range = nd_range.global_range();
         auto local_range = nd_range.local_range();
@@ -281,15 +259,37 @@ protected:
         return status::success;
     }
 
+protected:
+    int32_t version() const { return version_; }
+
+    void set_version(int32_t version) { version_ = version; }
+
+    void register_primitive(const primitive_t *primitive) {
+        registered_compute_blocks_.emplace_back(primitive);
+    }
+
+    status_t register_kernels(const std::vector<compute::kernel_t> &kernels) {
+        for (const auto &k : kernels) {
+            CHECK(k.dump());
+            registered_compute_blocks_.emplace_back(k);
+        }
+        return status::success;
+    }
+
+    virtual status_t init_res_storage(
+            engine_t *engine, gpu_resource_t *r) const {
+        return status::success;
+    }
+
 private:
     const std::vector<compute_block_t> &compute_blocks() const {
         return registered_compute_blocks_;
     }
 
-    status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
-            const compute::kernel_t &kernel,
+    static status_t parallel_for(stream_t &stream,
+            const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list,
-            const compute::event_t &deps, compute::event_t &out_dep) const {
+            const compute::event_t &deps, compute::event_t &out_dep) {
         return kernel.parallel_for(stream, range, arg_list, deps, out_dep);
     }
 

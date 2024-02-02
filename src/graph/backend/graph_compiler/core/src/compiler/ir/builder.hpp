@@ -461,6 +461,15 @@ expr make_broadcast(const expr_c &v, int lanes);
 expr make_fmadd(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c);
 
 /**
+ * Makes an fnmadd node
+ * @param v_a the first input value
+ * @param v_b the second input value
+ * @param v_c the third input value
+ * @return the created node
+ * */
+expr make_fnmadd(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c);
+
+/**
  * Makes an unpack_low node
  * Unpack and interleave elements from the low half of each 128-bit lane
  * in v_a and v_b

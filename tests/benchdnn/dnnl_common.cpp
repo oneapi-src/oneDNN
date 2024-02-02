@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@
 #include "dnnl_memory.hpp"
 
 #include "utils/cold_cache.hpp"
+#include "utils/fill.hpp"
 #include "utils/stream_kind.hpp"
 
 extern "C" dnnl_status_t dnnl_impl_notify_profiling_complete(
@@ -1215,6 +1216,7 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     }
 
     // Get output sizes.
+    // TODO: double the output sizes for bitwise mode?
     check_mem_size_args.want_input = false;
     get_memory_bytes(check_mem_size_args);
 
@@ -1400,7 +1402,7 @@ dnnl_data_type_t deduce_cfg_data_type(
 
     if ((dk == SRC || dk == WEI) && dt_ == dnnl_f32) {
         // Update data type based on fpmath-mode attribute
-        switch (attr.fpmath_mode) {
+        switch (attr.fpmath_mode.mode) {
             case dnnl_fpmath_mode_strict: break;
             case dnnl_fpmath_mode_bf16: dt_ = dnnl_bf16; break;
             case dnnl_fpmath_mode_tf32: dt_ = dnnl_bf16; break;
@@ -1479,6 +1481,145 @@ int update_ref_mem_map_from_prim(dnnl_primitive_t prim_ref,
 
     if (!is_scratchpad) SAFE(prim_ref_mem.reorder(ref_mem, swapped_dt), WARN);
     ref_mem_map[exec_arg] = std::move(prim_ref_mem);
+
+    return OK;
+}
+
+// This function provides a general filling for atributes across all drivers.
+//
+// It provides a default filling config for both binary and prelu post-op.
+// The user has an option to override it by passing `fill_cfg_map` with
+// correspondent argument and attached `fill_cfg_t` object to it.
+// Default filling configs are simple to avoid floating-point rounding effects,
+// but not cancellation effects. For latter ones, it's the user's responsibility
+// to avoid them by supplying a proper fill_cfg for a given driver/problem.
+int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
+        dnn_mem_t &ref_mem, const attr_t &attr, res_t *res,
+        const std::unordered_map<int, fill_cfg_t> &fill_cfg_map) {
+    assert(exec_arg > 0); // Negative values will produce false-positive `true`.
+
+    const int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+            - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+    const bool is_post_ops_arg = (exec_arg & post_ops_range);
+    const bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
+    const bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
+
+    if (is_post_ops_arg) {
+        if (exec_arg & DNNL_ARG_SRC_1) {
+            const int bin_po_idx
+                    = exec_arg / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
+            assert(bin_po_idx < attr.post_ops.len());
+            const auto alg = attr.post_ops.entry[bin_po_idx].kind;
+            // Binary post-op filling.
+            fill_cfg_t def_binary_cfg(mem.dt(), -16.f, 16.f, /* int = */ true,
+                    alg, "def_binary_post_op");
+            const auto it = fill_cfg_map.find(DNNL_ARG_SRC_1);
+            const bool has_external_cfg = it != fill_cfg_map.end();
+            const fill_cfg_t &binary_fill_cfg
+                    = has_external_cfg ? (*it).second : def_binary_cfg;
+            TIME_FILL(SAFE(fill_random_real(mem, ref_mem, res, binary_fill_cfg),
+                    WARN));
+        } else if (exec_arg & DNNL_ARG_WEIGHTS) {
+            // Prelu post-op filling.
+            fill_cfg_t def_prelu_fill_cfg(mem.dt(), -2.f, 2.f, /* int = */ true,
+                    attr_t::post_ops_t::kind_t::PRELU, "def_prelu_post_op");
+            const auto it = fill_cfg_map.find(DNNL_ARG_WEIGHTS);
+            const bool has_external_cfg = it != fill_cfg_map.end();
+            const fill_cfg_t &prelu_fill_cfg
+                    = has_external_cfg ? (*it).second : def_prelu_fill_cfg;
+            TIME_FILL(SAFE(
+                    fill_random_real(mem, ref_mem, res, prelu_fill_cfg), WARN));
+        }
+    } else if (is_scales_arg) {
+        int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
+        TIME_FILL(SAFE(fill_scales(attr, local_exec_arg, mem, ref_mem), WARN));
+    } else if (is_zero_point_arg) {
+        int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
+        TIME_FILL(SAFE(
+                fill_zero_points(attr, local_exec_arg, mem, ref_mem), WARN));
+    }
+
+    return OK;
+}
+
+// This function is responsible for performing the bitwise validation:
+// * Saves the output of the first run for further comparison.
+// * Refreshes the input data when the original data was corrupted, e.g.,
+//   inplace mode or sum post-op.
+// * Performs a second run of the original primitive and its inputs.
+// * Compares both outputs on bitwise exactness.
+//
+// The function takes the following arguments:
+// * A `prim` object, the same one used for the first run.
+// * A vector of `kinds` to validate each output from the primitive. The exactly
+//   same one is used for correctness validation.
+// * `args` arguments with all memory objects used for the first run and also
+//   with stashed memories when they got overwritten during execution.
+// * `inplace` flags to help identify if data refresh is needed.
+// * `res` object to save the state of the validation result.
+//
+int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
+        const args_t &args, bool inplace, res_t *res) {
+    // Fast exit for any modes but bitwise.
+    if (!has_bench_mode_bit(mode_bit_t::bitwise)) return OK;
+
+    // Forward-for-backward service primitives define `kinds` as empty to skip
+    // validation. This is to avoid extra checks on higher level.
+    if (kinds.empty()) return OK;
+
+    // Collect copies of outputs.
+    dnn_mem_map_t run1_mem_map;
+    for (const auto &kind : kinds) {
+        const int arg = data_kind2exec_arg(kind);
+        assert(arg > 0);
+
+        auto &mem = args.find(arg);
+        SAFE_V(bool(mem) ? OK : FAIL);
+        run1_mem_map.emplace(
+                arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, get_test_engine()));
+        SAFE(run1_mem_map.at(arg).reorder(mem), WARN);
+    }
+
+    // Put original data into DST tensor if sum post-op is present.
+    if (query_post_ops_has_kind(prim, dnnl_sum)) {
+        const int query_arg = DNNL_ARG_DST;
+        auto &dst_mem = const_cast<dnn_mem_t &>(args.find(query_arg));
+        const auto &orig_dst_mem = args.find(-query_arg);
+        SAFE_V(bool(orig_dst_mem) && bool(dst_mem) ? OK : FAIL);
+        SAFE(dst_mem.reorder(orig_dst_mem), WARN);
+    }
+
+    // Put original data into SRC if inplace mode was specified.
+    if (inplace) {
+        const bool has_multiple_args = bool(args.find(DNNL_ARG_MULTIPLE_SRC));
+        const auto prop_kind = query_prop_kind(query_pd(prim));
+        const auto query_arg = is_fwd_prop_kind(prop_kind)
+                ? (has_multiple_args ? DNNL_ARG_MULTIPLE_SRC : DNNL_ARG_SRC)
+                : DNNL_ARG_DIFF_DST;
+        auto &in_mem = const_cast<dnn_mem_t &>(args.find(query_arg));
+        SAFE_V(bool(in_mem) ? OK : FAIL);
+        const auto &orig_in_mem = args.find(-query_arg);
+        SAFE_V(bool(orig_in_mem) ? OK : FAIL);
+        SAFE(in_mem.reorder(orig_in_mem), WARN);
+    }
+
+    // Perform a second run.
+    SAFE(execute_and_wait(prim, args, res), WARN);
+
+    // `args_t` has an interface to retrieve a memory object by the `arg`.
+    args_t run1_args(run1_mem_map);
+    compare::compare_t cmp;
+    for (const auto &kind : kinds) {
+        cmp.set_data_kind(kind);
+
+        const int arg = data_kind2exec_arg(kind);
+        assert(arg > 0);
+
+        auto &mem = args.find(arg);
+        auto &run1_mem = run1_args.find(arg);
+
+        TIME_COMPARE(cmp.compare(run1_mem, mem, attr_t(), res));
+    }
 
     return OK;
 }

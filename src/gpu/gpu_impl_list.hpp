@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ DECLARE_IMPL_LIST(convolution);
 DECLARE_IMPL_LIST(deconvolution);
 DECLARE_IMPL_LIST(eltwise);
 DECLARE_IMPL_LIST(gemm);
+DECLARE_IMPL_LIST(group_normalization);
 DECLARE_IMPL_LIST(inner_product);
 DECLARE_IMPL_LIST(layer_normalization);
 DECLARE_IMPL_LIST(lrn);

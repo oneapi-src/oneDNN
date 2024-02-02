@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -194,20 +194,20 @@ status_t conv_problem_t::init_abc_data_types(const hw_t &hw) {
         bool use_matching_fpmath
                 = gpu_utils::dev_getenv("use_matching_fpmath", false);
         if (use_matching_fpmath
-                && attr->mayidownconvert(data_type::f32, data_type::bf16)
+                && attr->mayiconvert(data_type::f32, data_type::bf16)
                 && get_supported_fma_kind(
                            hw, data_type::bf16, data_type::bf16, data_type::f32)
                         != fma_kind_t::undef) {
             a_data_type = data_type::bf16;
             b_data_type = data_type::bf16;
         } else if (use_matching_fpmath
-                && attr->mayidownconvert(data_type::f32, data_type::f16)
+                && attr->mayiconvert(data_type::f32, data_type::f16)
                 && get_supported_fma_kind(
                            hw, data_type::f16, data_type::f16, data_type::f32)
                         != fma_kind_t::undef) {
             a_data_type = data_type::f16;
             b_data_type = data_type::f16;
-        } else if (attr->mayidownconvert(data_type::f32, data_type::tf32)
+        } else if (attr->mayiconvert(data_type::f32, data_type::tf32)
                 && get_supported_fma_kind(
                            hw, data_type::tf32, data_type::tf32, data_type::f32)
                         != fma_kind_t::undef) {

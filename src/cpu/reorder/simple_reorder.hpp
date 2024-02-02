@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,10 +46,10 @@ template <impl::data_type_t type>
 using data_t = typename prec_traits<type>::type;
 
 template <impl::data_type_t type_i, impl::data_type_t type_o>
-using _qz_a1b0 = qz_a1b0<data_t<type_i>, data_t<type_o>>;
+using _qz_a1b0 = q10n::qz_a1b0<data_t<type_i>, data_t<type_o>>;
 
 template <impl::data_type_t type_i, impl::data_type_t type_o>
-using _qz = qz<data_t<type_i>, data_t<type_o>>;
+using _qz = q10n::qz<data_t<type_i>, data_t<type_o>>;
 
 namespace fmt_order {
 const bool keep = true;
@@ -143,7 +143,6 @@ inline bool simple_attr_check(const primitive_attr_t *attr,
     smask_t skip_mask = smask_t::scales_runtime;
     if (sum_support) skip_mask = skip_mask | smask_t::post_ops;
     if (!attr->has_default_values(skip_mask)) return false;
-    if (sum_support) simple_po_check(attr);
     if (many_scales_support) return true;
     int src_mask, dst_mask;
     if (get_scales_mask(attr, &src_mask, &dst_mask) != status::success)
@@ -267,7 +266,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const float s = src_scales[src_scales_mask == 0 ? 0 : os_off];
                 const float d = dst_scales[dst_scales_mask == 0 ? 0 : os_off];
 
-                o = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                o = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                         i, s * adj_scale * d);
                 if (req_comp) cp[g * OC + oc] -= (int32_t)o;
                 if (has_asymmetric_comp) zp[g * OC + oc] -= (int32_t)o;
@@ -454,8 +453,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const size_t os_off = oc * oc_stride + ic * ic_stride;
                 const float src_scale = s[src_scales_mask == 0 ? 0 : os_off];
                 const float dst_scale = d[dst_scales_mask == 0 ? 0 : os_off];
-                out[index(oc, ic)] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                        inp[plain_off], src_scale * adj_scale * dst_scale);
+                out[index(oc, ic)]
+                        = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
+                                inp[plain_off],
+                                src_scale * adj_scale * dst_scale);
                 if (req_comp) c[oc] -= (128 * (int32_t)(out[index(oc, ic)]));
                 if (has_asymmetric_comp)
                     zp[oc] -= (int32_t)(out[index(oc, ic)]);
@@ -608,7 +609,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             for (dim_t oc = 0; oc < oc_block; ++oc) {
                 const auto plain_off
                         = oc * plain_d.blocking_desc().strides[w_groups + 0];
-                out[oc] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                out[oc] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                         inp[plain_off], s[oc] * adj_scale * d[oc]);
                 if (has_asymmetric_comp) zp[oc] -= (int32_t)(out[oc]);
             }
@@ -792,7 +793,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         + ic * plain_d.blocking_desc().strides[w_groups + 1];
                 auto index = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
                         oc, ic);
-                out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                out[index] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                         inp[plain_off], s[oc] * adj_scale * d[oc]);
 
                 if (has_asymmetric_comp) zp[oc] -= (int32_t)(out[index]);
@@ -952,7 +953,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     auto index
                             = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
                                     d0, d1);
-                    out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                    out[index] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                             inp[plain_off], s[0] * adj_scale * d[0]);
 
                     auto o = static_cast<int32_t>(out[index]);
@@ -963,7 +964,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     auto index
                             = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
                                     d0, d1);
-                    out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                    out[index] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                             0, s[0] * adj_scale * d[0]);
                 }
             }
@@ -972,7 +973,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             for (int d1 = 0; d1 < D1_blksize; ++d1) {
                 auto index = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
                         d0, d1);
-                out[index] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                out[index] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                         0, s[0] * adj_scale * d[0]);
             }
         };
@@ -1126,7 +1127,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         = src_scales[src_scales_mask == 0 ? 0 : g * OC];
                 const float dst_scale
                         = dst_scales[dst_scales_mask == 0 ? 0 : g * OC];
-                out[g] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                out[g] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                         inp[i_off], src_scale * adj_scale * dst_scale);
             }
         };
@@ -1909,25 +1910,25 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             if (alpha == 1.0 && beta == 0.0) {
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
-                    output[e] = qz_a1b0<data_t<type_i>, data_t<type_o>>()(
+                    output[e] = q10n::qz_a1b0<data_t<type_i>, data_t<type_o>>()(
                             input[e]);
                 }
             } else if (alpha == 1.0) {
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
-                    output[e] = qz_a1<data_t<type_i>, data_t<type_o>>()(
+                    output[e] = q10n::qz_a1<data_t<type_i>, data_t<type_o>>()(
                             input[e], output[e], beta);
                 }
             } else if (beta == 0.0) {
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
-                    output[e] = qz_b0<data_t<type_i>, data_t<type_o>>()(
+                    output[e] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                             input[e], alpha);
                 }
             } else {
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
-                    output[e] = qz<data_t<type_i>, data_t<type_o>>()(
+                    output[e] = q10n::qz<data_t<type_i>, data_t<type_o>>()(
                             input[e], output[e], alpha, beta);
                 }
             }
@@ -1936,25 +1937,27 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 if (alpha == 1.0 && beta == 0.0) {
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
-                        output[e] = qz_a1b0<data_t<type_i>, data_t<type_o>>()(
-                                input[e]);
+                        output[e] = q10n::qz_a1b0<data_t<type_i>,
+                                data_t<type_o>>()(input[e]);
                     }
                 } else if (alpha == 1.0) {
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
-                        output[e] = qz_a1<data_t<type_i>, data_t<type_o>>()(
-                                input[e], output[e], beta);
+                        output[e]
+                                = q10n::qz_a1<data_t<type_i>, data_t<type_o>>()(
+                                        input[e], output[e], beta);
                     }
                 } else if (beta == 0.0) {
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
-                        output[e] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                                input[e], alpha);
+                        output[e]
+                                = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
+                                        input[e], alpha);
                     }
                 } else {
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
-                        output[e] = qz<data_t<type_i>, data_t<type_o>>()(
+                        output[e] = q10n::qz<data_t<type_i>, data_t<type_o>>()(
                                 input[e], output[e], alpha, beta);
                     }
                 }

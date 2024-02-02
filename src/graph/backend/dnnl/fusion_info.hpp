@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -121,18 +121,18 @@ public:
     void set_zero_points(const op_ptr &op, bool is_input, size_t index) {
         auto fused_zps = std::make_shared<meta_op_t>(op);
         if (is_input) {
-            input_zps_[index] = fused_zps;
+            input_zps_[index] = std::move(fused_zps);
         } else {
-            output_zps_ = fused_zps;
+            output_zps_ = std::move(fused_zps);
         }
     }
 
     void set_runtime_scales(const op_ptr &op, bool is_input, size_t index) {
         auto fused_scales = std::make_shared<meta_op_t>(op);
         if (is_input) {
-            input_scales_[index] = fused_scales;
+            input_scales_[index] = std::move(fused_scales);
         } else {
-            dst_scales_ = fused_scales;
+            dst_scales_ = std::move(fused_scales);
         }
     }
 

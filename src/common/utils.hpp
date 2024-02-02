@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -585,29 +585,22 @@ inline void dim_iterator(const dims_t dims, dims_t indices, int ndims) {
     }
 }
 
-inline std::vector<std::string> str_split(const std::string &str, char delim) {
-    const char *s = str.c_str();
-    int cur_pos = 0, token_start = 0;
-    std::vector<std::string> res;
+template <typename T, size_t S>
+inline size_t array_size(T (&t)[S]) {
+    return S;
+}
 
-    while (s[cur_pos] != '\0') {
-        if (s[cur_pos] == delim) {
-            res.emplace_back(s + token_start, cur_pos - token_start);
-            token_start = cur_pos + 1;
-        }
-        ++cur_pos;
-    }
-    // We reached the last token and no delimiter is ending the string
-    if (cur_pos - token_start > 0)
-        res.emplace_back(s + token_start, cur_pos - token_start);
-
-    return res;
+inline bool validate_dims(int ndims, const dims_t dims) {
+    for (int d = 0; d < ndims; ++d)
+        if (dims[d] <= 0) return false;
+    return true;
 }
 
 } // namespace utils
 
 int32_t fetch_and_add(int32_t *dst, int32_t val);
 inline void yield_thread() {}
+bool is_destroying_cache_safe();
 
 // Reads an environment variable 'name' and stores its string value in the
 // 'buffer' of 'buffer_size' bytes (including the terminating zero) on

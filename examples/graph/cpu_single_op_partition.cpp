@@ -119,8 +119,8 @@ void cpu_single_op_partition_tutorial() {
     dnnl::stream strm {eng};
     //[Create stream]
 
-    // Memory buffers binded to the partition input/output tensors
-    // that helpe manage the lifetime of these tensors
+    // Memory buffers bound to the partition input/output tensors
+    // that helps manage the lifetime of these tensors
     std::vector<std::shared_ptr<void>> data_buffer;
 
     // Mapping from logical tensor id to the concrete shapes.
@@ -137,7 +137,7 @@ void cpu_single_op_partition_tutorial() {
     // 4. Allocate memory and bind the data buffer for the partition
     // 5. Execute the partition
     //
-    // Although they are not part of the APIs, these steps are esstential for
+    // Although they are not part of the APIs, these steps are essential for
     // the integration of Graph API., hence users need to implement similar
     // logic.
 
@@ -149,7 +149,7 @@ void cpu_single_op_partition_tutorial() {
     partition part(matmul, dnnl::engine::kind::cpu);
     //[Create partition]
     if (!part.is_supported()) {
-        std::cout << "cpu_sinlge_op_partition: Got unsupported partition, "
+        std::cout << "cpu_single_op_partition: Got unsupported partition, "
                      "users need to handle the operators by themselves."
                   << std::endl;
         return;

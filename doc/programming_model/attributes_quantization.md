@@ -29,7 +29,7 @@ computation. Those should be computed and provided by the user.
 These quantization parameters can either be computed ahead of time
 using calibration tools (*static* quantization) or at runtime based on
 the actual minimum and maximum values of a tensor (*dynamic*
-quantization). Either method can be used in conjuction with oneDNN, as
+quantization). Either method can be used in conjunction with oneDNN, as
 the quantization parameters are passed to the oneDNN primitives at
 execution time.
 

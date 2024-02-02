@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,9 +127,10 @@ void compute_vectorized_op(const context_ptr &ctx, sc_graph_t &graph,
         bool unroll_inner_loop = false);
 expr make_select_by_mask(const expr &, const expr &, const expr &, uint32_t);
 expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
-        int32_t step, const expr &sup_condition = expr());
-expr generate_mask_by_step_directly(
-        const expr &cur_step, int32_t step, const expr &sup_condition = expr());
+        int32_t step, const expr &sup_condition = expr(),
+        bool direct_sup_cond = false);
+expr generate_mask_by_step_directly(const expr &cur_step, int32_t step,
+        const expr &sup_condition = expr(), bool direct_sup_cond = false);
 expr calculate_mask_cur_step(
         const expr &len, const expr &iter_var, const int32_t lanes);
 expr indexing_from_diff_cond(const bool is_last_dim_1, const bool has_tail,

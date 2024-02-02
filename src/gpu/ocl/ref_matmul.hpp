@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -103,26 +103,6 @@ struct ref_matmul_t : public gpu_primitive_t {
         data_type_t wei_dt_ = data_type::undef;
 
         attr_info_t attr_info_ = {};
-
-    private:
-        bool attr_scales_ok() const {
-            std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            if (!attr()->scales_.has_default_values(supported_args))
-                return false;
-            for (int arg : supported_args) {
-                auto &scales = attr()->scales_.get(arg);
-                if (scales.has_default_values()) continue;
-                int mask = scales.mask_;
-                if (arg == DNNL_ARG_WEIGHTS) {
-                    if (!utils::one_of(mask, 0, 1 << (batched() + 1)))
-                        return false;
-                } else {
-                    if (mask != 0) return false;
-                }
-            }
-            return true;
-        }
     };
 
     status_t init(engine_t *engine) override {

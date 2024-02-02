@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,6 +74,9 @@ double evaluateW(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         EvaluateAuxOutput &aux) {
     static constexpr double maxPriority = 10000.;
     double priority = e.model.params[kcatalog::ParamWPriority];
+
+    if (dp.deterministic && e.driverInfo.kParallel())
+        return std::numeric_limits<double>::infinity();
 
     aux.wgK = 1;
     if (e.driverInfo.kParallelLocal()) {
@@ -183,6 +186,8 @@ double evaluateS(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         int wgCountK1 = std::max(1, int(dp.hwThreadCapacity / dp.threadCount));
         int wgCountK2
                 = std::max(1, int(2 * dp.hwThreadCapacity / dp.threadCount));
+
+        if (dp.deterministic) wgCountK1 = wgCountK2 = 1;
 
         int k0_1
                 = alignUp(divUp(dp.sizes.k, wgCountK1 * e.driverInfo.wg[LoopK]),
@@ -366,6 +371,10 @@ double evaluateE(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         int wgCountK2 = std::max(
                 1, int(2 * dp.hwThreadCapacity / dp.threadCount) - padWGs);
 
+        if (dp.deterministic)
+            wgCountK1 = wgCountK2
+                    = 1; /* k-parallelization is not deterministic */
+
         int k0_1
                 = alignUp(divUp(dp.sizes.k, wgCountK1 * e.driverInfo.wg[LoopK]),
                         e.driverInfo.unroll[LoopK]);
@@ -431,7 +440,12 @@ double evaluateE(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         if (dp.batch) return score;
 
         int64_t tcount = dp.threadCount;
-        if ((tcount != dp.threadCount) || (tcount % dp.hwThreadCapacity != 0)) {
+        bool tryKV = (tcount != dp.threadCount)
+                || (tcount % dp.hwThreadCapacity != 0);
+
+        if (dp.deterministic) tryKV &= (dp.threadCount > dp.hwThreadCapacity);
+
+        if (tryKV) {
             EvaluateAuxOutput auxKV;
             auxKV.kParallelVariable = true;
             double scoreKV = evaluateECore(e, dp, auxKV);
@@ -441,7 +455,7 @@ double evaluateE(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
 
                 auto approxK0
                         = dp.threadCount * dp.sizes.k / dp.hwThreadCapacity;
-                if (approxK0 <= 32) {
+                if (approxK0 <= 32 && !dp.deterministic) {
                     aux.kParallel
                             = true; /* Switch to fixed global k-slicing if k0 is too small */
                     aux.kParallelVariable = false;

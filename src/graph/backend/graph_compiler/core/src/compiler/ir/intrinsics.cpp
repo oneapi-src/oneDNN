@@ -214,6 +214,13 @@ struct fmadd_handler_t : public trinary_intrinsic_handler_t {
     fmadd_handler_t() : trinary_intrinsic_handler_t("fmadd") {}
 };
 
+struct fnmadd_handler_t : public trinary_intrinsic_handler_t {
+    void on_initialize(intrin_call_node &node) override {
+        node.dtype_ = node.args_[0]->dtype_;
+    }
+    fnmadd_handler_t() : trinary_intrinsic_handler_t("fnmadd") {}
+};
+
 struct unpack_low_handler_t : public binary_intrinsic_handler_t {
     unpack_low_handler_t() : binary_intrinsic_handler_t("unpack_low") {}
 };
@@ -292,7 +299,9 @@ struct round_and_cast_handler_t : public intrinsic_handler_t {
         node.dtype_ = node.intrin_attrs_->get<sc_data_type_t>(
                 intrin_attr::out_dtype);
         COMPILE_ASSERT(node.dtype_.lanes_ == node.args_[0]->dtype_.lanes_
-                        && node.dtype_.type_code_ == sc_data_etype::S32
+                        && (node.dtype_.type_code_ == sc_data_etype::S32
+                                || (node.dtype_.type_code_ == sc_data_etype::U32
+                                        && node.dtype_.lanes_ > 1))
                         && node.args_[0]->dtype_.type_code_
                                 == sc_data_etype::F32,
                 "round_and_cast cannot handle " << node.args_[0]->dtype_ << "->"
@@ -561,6 +570,7 @@ static std::unique_ptr<intrinsic_handler_t> handlers[] = {
         utils::make_unique<reduce_max_handler_t>(),
         utils::make_unique<reduce_min_handler_t>(),
         utils::make_unique<fmadd_handler_t>(),
+        utils::make_unique<fnmadd_handler_t>(),
         utils::make_unique<unpack_low_handler_t>(),
         utils::make_unique<unpack_high_handler_t>(),
         utils::make_unique<shuffle_handler_t>(),

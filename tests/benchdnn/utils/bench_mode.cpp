@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ std::ostream &operator<<(std::ostream &s, bench_mode_t mode) {
             && !has_bench_mode_bit(mode_bit_t::fast))
         s << "P";
     if (has_bench_mode_bit(mode_bit_t::fast)) s << "F";
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) s << "B";
     return s;
 }
 

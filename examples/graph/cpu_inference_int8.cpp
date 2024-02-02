@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -212,8 +212,8 @@ void simple_pattern_int8() {
     // output tensor is fed into partition 1)
     std::unordered_map<size_t, tensor> global_outputs_ts_map;
 
-    // Memory buffers binded to the partition input/output tensors
-    // that helpe manage the lifetime of these tensors
+    // Memory buffers bound to the partition input/output tensors
+    // that helps manage the lifetime of these tensors
     std::vector<std::shared_ptr<void>> data_buffer;
 
     // Mapping from id to queried logical tensor from compiled partition
@@ -244,7 +244,7 @@ void simple_pattern_int8() {
     // 4. Allocate memory and bind the data buffer for the partition
     // 5. Execute the partition
     //
-    // Although they are not part of the APIs, these steps are esstential for
+    // Although they are not part of the APIs, these steps are essential for
     // the integration of Graph API., hence users need to implement similar
     // logic.
     for (const auto &partition : partitions) {

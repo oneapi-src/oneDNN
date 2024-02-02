@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -201,7 +201,8 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
     // scratchpad_mode
     seed = hash_combine(seed, static_cast<size_t>(attr.scratchpad_mode_));
     // fpmath_mode
-    seed = hash_combine(seed, static_cast<size_t>(attr.fpmath_mode_));
+    seed = hash_combine(seed, static_cast<size_t>(attr.fpmath_.mode_));
+    seed = hash_combine(seed, static_cast<size_t>(attr.fpmath_.apply_to_int_));
     // acc_mode
     seed = hash_combine(seed, static_cast<size_t>(attr.acc_mode_));
 

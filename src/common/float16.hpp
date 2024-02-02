@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <type_traits>
 
 #include "bit_cast.hpp"
+#include "oneapi/dnnl/dnnl.h"
 
 namespace dnnl {
 namespace impl {
@@ -134,6 +135,15 @@ void cvt_float16_to_float(float *out, const float16_t *inp, size_t nelems);
 // out[:] = (float16_t)(inp0[:] + inp1[:])
 void add_floats_and_cvt_to_float16(
         float16_t *out, const float *inp0, const float *inp1, size_t nelems);
+
+#if DNNL_X64
+namespace cpu {
+namespace x64 {
+bool DNNL_API try_cvt_f16_to_f32(float *, const float16_t *);
+bool DNNL_API try_cvt_f32_to_f16(float16_t *, const float *);
+} // namespace x64
+} // namespace cpu
+#endif
 
 } // namespace impl
 } // namespace dnnl

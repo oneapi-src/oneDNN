@@ -54,10 +54,7 @@ public:
             }
         }
         if (!is_loop || is_global_loop) {
-            bool is_tg_grid_size1 = false;
-            e.tg_idx = is_tg_grid_size1
-                    ? expr_t(0)
-                    : var_t::make(type_t::s32(), dim.str() + "_tg_idx");
+            e.tg_idx = var_t::make(type_t::s32(), dim.str() + "_tg_idx");
             e.thr_idx = (tg_tile == 1) ? e.tg_idx
                                        : (tg_tile * e.tg_idx + thr_idx);
         } else {

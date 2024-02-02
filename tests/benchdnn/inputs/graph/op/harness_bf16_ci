@@ -16,3 +16,8 @@
 --reset --case=op/bf16/sigmoid.json
 --reset --case=op/bf16/sub.json
 --reset --op-attrs=0:beta:1 --case=op/bf16/hardsigmoid.json
+# only the graph compiler supports these 4 ops
+--reset --case=op/bf16/pow.json
+--reset --case=op/bf16/select.json
+--reset --case=op/bf16/static_reshape.json
+--reset --case=op/bf16/static_transpose.json

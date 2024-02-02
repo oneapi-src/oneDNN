@@ -37,6 +37,7 @@
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/cold_cache.hpp"
+#include "utils/dims.hpp"
 #include "utils/parser.hpp"
 #include "utils/stream_kind.hpp"
 
@@ -152,6 +153,7 @@ policy_t attr_t::str2policy(const std::string &str) {
     if (s.compare(STRINGIFY(_plc)) == 0) return _plc
     CASE(COMMON);
     CASE(PER_OC);
+    CASE(PER_OCIC);
     CASE(PER_DIM_0);
     CASE(PER_DIM_1);
     CASE(PER_DIM_01);
@@ -166,6 +168,7 @@ policy_t attr_t::str2policy(const std::string &str) {
 const char *attr_t::policy2str(policy_t policy) {
     if (policy == COMMON) return "common";
     if (policy == PER_OC) return "per_oc";
+    if (policy == PER_OCIC) return "per_ocic";
     if (policy == PER_DIM_0) return "per_dim_0";
     if (policy == PER_DIM_1) return "per_dim_1";
     if (policy == PER_DIM_01) return "per_dim_01";
@@ -181,6 +184,7 @@ int attr_t::get_default_mask(policy_t policy) {
         case PER_DIM_0: return (1 << 0);
         case PER_OC:
         case PER_DIM_1: return (1 << 1);
+        case PER_OCIC:
         case PER_DIM_01: return (1 << 0) + (1 << 1);
         case PER_DIM_2: return (1 << 2);
         case PER_DIM_3: return (1 << 3);
@@ -210,6 +214,9 @@ int attr_t::policy2mask(int arg, policy_t policy,
     } else if (prim_kind == dnnl_matmul) {
         switch (policy) {
             case PER_OC: return (1 << (query_md_ndims(wei_md) - 1));
+            case PER_OCIC:
+                return (1 << (query_md_ndims(wei_md) - 1))
+                        + (1 << (query_md_ndims(wei_md) - 2));
             default: SAFE(FAIL, CRIT); return -1;
         }
     } else {
@@ -259,26 +266,75 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
         SAFE_V(FAIL);
     }
     if (start_pos == std::string::npos) return OK;
-    // No un-`common` policy beyond this point.
-    if (this->policy != COMMON) {
-        BENCHDNN_PRINT(0, "%s\n",
-                "Error: policies but \'common\' do not support extra values.");
-        SAFE_V(FAIL);
-    }
+
     if (start_pos >= s.size()) {
         BENCHDNN_PRINT(0, "%s \'%s\'\n",
                 "Error: dangling symbol at the end of input", s.c_str());
         SAFE_V(FAIL);
     }
 
-    SAFE(parse_value_and_runtime(
-                 this->scale, parser::get_substr(s, start_pos, ':')),
-            WARN);
-    if (this->scale < 0) {
-        BENCHDNN_PRINT(0, "%s \'%g\'\n",
-                "Error: the scale can't be negative:", this->scale);
+    // process scale value for COMMON policy
+    if (this->policy == COMMON) {
+        SAFE(parse_value_and_runtime(
+                     this->scale, parser::get_substr(s, start_pos, ':')),
+                WARN);
+        if (this->scale < 0) {
+            BENCHDNN_PRINT(0, "%s \'%g\'\n",
+                    "Error: the scale can't be negative:", this->scale);
+            SAFE_V(FAIL);
+        }
+    }
+
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
         SAFE_V(FAIL);
     }
+
+    // process data type
+    const auto dt_str = parser::get_substr(s, start_pos, ':');
+    this->dt = str2dt(dt_str.c_str());
+
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
+
+    // process groups
+    const auto g_str = parser::get_substr(s, start_pos, ':');
+    parser::parse_vector_str(this->groups, dims_t(),
+            parser::parser_utils::stoll_safe, g_str, 'x');
+
+    if (!groups.empty()) {
+        switch (this->policy) {
+            case PER_OCIC:
+                if (this->groups.size() != 2) {
+                    BENCHDNN_PRINT(0, "%s\n",
+                            "Error: number of groups should be equal to number "
+                            "of dimension bits set in the mask.");
+                    SAFE_V(FAIL);
+                }
+                break;
+            default:
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Error: groups are supported only for policy PER_OCIC");
+                SAFE_V(FAIL);
+        }
+    }
+
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
+
     return OK;
 }
 
@@ -323,10 +379,52 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
         }
 
         float zp = 0;
-        SAFE(parse_value_and_runtime(
-                     zp, parser::get_substr(subs, subs_pos, '\0')),
-                WARN);
-        set(arg, policy, static_cast<int>(zp));
+        if (policy == COMMON) {
+            SAFE(parse_value_and_runtime(
+                         zp, parser::get_substr(subs, subs_pos, ':')),
+                    WARN);
+        }
+
+        if (subs_pos == std::string::npos) {
+            set(arg, policy, static_cast<int>(zp));
+            continue;
+        }
+
+        dnnl_data_type_t dt = dnnl_s32;
+        // process data type
+        if (subs_pos != std::string::npos) {
+            const auto dt_str = parser::get_substr(subs, subs_pos, ':');
+            dt = str2dt(dt_str.c_str());
+        }
+
+        dims_t groups = {};
+        // process groups
+        if (subs_pos != std::string::npos) {
+            const auto g_str = parser::get_substr(subs, subs_pos, ':');
+            parser::parse_vector_str(groups, dims_t(),
+                    parser::parser_utils::stoll_safe, g_str, 'x');
+
+            if (!groups.empty()) {
+                switch (policy) {
+                    case PER_OCIC:
+                        if (groups.size() != 2) {
+                            BENCHDNN_PRINT(0, "%s\n",
+                                    "Error: number of groups should be equal "
+                                    "to number of dimension bits set in the "
+                                    "mask.");
+                            SAFE_V(FAIL);
+                        }
+                        break;
+                    default:
+                        BENCHDNN_PRINT(0, "%s\n",
+                                "Error: groups are supported only for policy "
+                                "PER_OCIC");
+                        SAFE_V(FAIL);
+                }
+            }
+        }
+
+        set(arg, policy, static_cast<int>(zp), dt, groups);
     }
     return OK;
 }
@@ -503,8 +601,8 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks() const {
 bool attr_t::is_def(bool skip_fpmath) const {
     return scales.is_def() && zero_points.is_def() && post_ops.is_def()
             && scratchpad_mode == get_default_scratchpad_mode()
-            && IMPLICATION(!skip_fpmath, fpmath_mode == dnnl_fpmath_mode_strict)
-            && acc_mode == dnnl_accumulation_mode_strict;
+            && IMPLICATION(!skip_fpmath, fpmath_mode.is_def())
+            && deterministic.is_def();
 }
 
 int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
@@ -566,19 +664,28 @@ std::ostream &operator<<(std::ostream &s, const policy_t &policy) {
 
 std::ostream &operator<<(
         std::ostream &s, const attr_t::arg_scales_t::entry_t &scale) {
+    using ::operator<<;
+
     s << scale.policy;
     if (scale.policy == policy_t::COMMON) s << ":" << scale.scale;
+    if (scale.dt != dnnl_f32) s << ':' << scale.dt;
+    if (!scale.groups.empty()) s << ":" << dims2str(scale.groups);
     return s;
 }
 
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points) {
+    using ::operator<<;
+
     const char *delim = "";
     for (const auto &point : zero_points.points) {
         s << delim;
         s << arg2str(point.first) << ":" << point.second.policy;
         if (point.second.policy == policy_t::COMMON)
             s << ":" << point.second.value;
+        if (point.second.dt != dnnl_s32) s << ':' << point.second.dt;
+        if (!point.second.groups.empty())
+            s << ":" << dims2str(point.second.groups);
         delim = "+";
     }
 
@@ -658,13 +765,19 @@ std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, dnnl_fpmath_mode_t fm) {
-    s << fpmath_mode2str(fm);
+std::ostream &operator<<(std::ostream &s, const attr_t::fpmath_mode_t &fm) {
+    s << fpmath_mode2str(fm.mode);
+    if (fm.apply_to_int) s << ":" << bool2str(fm.apply_to_int);
     return s;
 }
 
 std::ostream &operator<<(std::ostream &s, dnnl_accumulation_mode_t am) {
     s << accumulation_mode2str(am);
+    return s;
+}
+
+std::ostream &operator<<(std::ostream &s, const attr_t::deterministic_t &d) {
+    s << bool2str(d.enabled);
     return s;
 }
 
@@ -677,10 +790,12 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
             s << "--attr-post-ops=" << attr.post_ops << " ";
         if (attr.scratchpad_mode != attr_t::get_default_scratchpad_mode())
             s << "--attr-scratchpad=" << attr.scratchpad_mode << " ";
-        if (attr.fpmath_mode != dnnl_fpmath_mode_strict)
+        if (!attr.fpmath_mode.is_def())
             s << "--attr-fpmath=" << attr.fpmath_mode << " ";
         if (attr.acc_mode != dnnl_accumulation_mode_strict)
             s << "--attr-acc-mode=" << attr.acc_mode << " ";
+        if (!attr.deterministic.is_def())
+            s << "--attr-deterministic=" << attr.deterministic << " ";
     }
     return s;
 }
@@ -945,8 +1060,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
                     ? attr_args.get_mask(arg_name)
                     : attr_t::policy2mask(arg_name, e.policy);
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_scales_mask(
-                    dnnl_attr, arg_name, mask));
+            DNN_SAFE_V(dnnl_primitive_attr_set_scales(dnnl_attr, arg_name, mask,
+                    static_cast<int>(e.groups.size()), e.groups.data(), e.dt));
         }
     }
 
@@ -957,10 +1072,21 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (zp.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
-            int mask = attr_t::get_default_mask(e.policy);
+            // Weights mask differs from primitive to primitive, that's why it
+            // is stashed in `attr_args` at primitive creation time.
+            const bool is_wei_arg = arg_name == DNNL_ARG_WEIGHTS
+                    || arg_name
+                            == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+            int mask = (is_wei_arg && e.policy != policy_t::COMMON)
+                    ? attr_args.get_mask(DNNL_ARG_ATTR_ZERO_POINTS | arg_name)
+                    : attr_t::policy2mask(arg_name, e.policy);
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points_mask(
-                    dnnl_attr, arg_name, mask));
+            int ndims = static_cast<int>(e.groups.size());
+            const auto &groups = e.groups.data();
+            const auto dt = e.dt;
+
+            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(
+                    dnnl_attr, arg_name, mask, ndims, groups, dt));
         }
     }
 
@@ -1008,11 +1134,14 @@ dnnl_primitive_attr_t create_dnnl_attr(
     DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
             dnnl_attr, attr.scratchpad_mode));
 
-    DNN_SAFE_V(
-            dnnl_primitive_attr_set_fpmath_mode(dnnl_attr, attr.fpmath_mode));
+    DNN_SAFE_V(dnnl_primitive_attr_set_fpmath_mode_v2(
+            dnnl_attr, attr.fpmath_mode.mode, attr.fpmath_mode.apply_to_int));
 
     DNN_SAFE_V(dnnl_primitive_attr_set_accumulation_mode(
             dnnl_attr, attr.acc_mode));
+
+    DNN_SAFE_V(dnnl_primitive_attr_set_deterministic(
+            dnnl_attr, attr.deterministic.enabled));
 
     return dnnl_attr;
 }

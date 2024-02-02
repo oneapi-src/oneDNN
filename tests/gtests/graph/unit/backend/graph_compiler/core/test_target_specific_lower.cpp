@@ -157,11 +157,10 @@ TEST(GCCore_CPU_target_specific_lower_cpp, TestLowerSaturatedCast) {
                 sc_data_type_t::s8(16));
         h = builder::make_saturated_cast(
                 make_max(c, make_const(0, 16)), sc_data_type_t::u8(16));
-        h = builder::make_cast(sc_data_type_t::u8(16),
-                make_round_and_cast(
-                        builder::make_min(make_const(255.f, 16),
-                                builder::make_max(make_const(0.f, 16), d)),
-                        sc_data_type_t::s32(16)));
+        h = builder::make_saturated_cast(
+                make_round_and_cast(builder::make_max(make_const(0.f, 16), d),
+                        sc_data_type_t::u32(16)),
+                sc_data_type_t::u8(16));
     }
     ir_comparer cmper {true};
     EXPECT_TRUE(cmper.compare(ret, expected, false));

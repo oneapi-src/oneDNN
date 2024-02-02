@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,15 +62,38 @@ typedef struct param4 {
 #define OFF3(i0, D0, i1, D1, i2, D2) (((i0) * (D1) + (i1)) * (D2) + (i2))
 #define OFF2(i0, D0, i1, D1) ((i0) * (D1) + (i1))
 
-int comp_off(int n_dir, int n_bias, int dhc, int i0, int i1, int i2, int i3) {
+#if CELL_KIND == VANILLA_RNN
+const int n_gates = 1;
+const int n_bias = 1;
+#elif CELL_KIND == VANILLA_LSTM
+const int n_gates = 4;
+const int n_bias = 4;
+#elif CELL_KIND == LBR_GRU
+const int n_gates = 3;
+const int n_bias = 4;
+#elif CELL_KIND == VANILLA_GRU
+const int n_gates = 3;
+const int n_bias = 3;
+#else
+#error "Unimplemented cell kind"
+#endif
+
+int comp_off(int n_dir, int dhc, int i0, int i1, int i2, int i3) {
     return (((i0 * n_dir + i1) * n_bias + i2) * dhc + i3);
 }
 
-// used for the both H- and C-states
 int off_ws_state(int n_layer, int n_dir, int n_iter, int batch,
         int states_ws_ld, int i0_, int i1, int i2_, int i3, int i4) {
     int i0 = COPY_SRC_LAYER ? i0_ + 1 : i0_;
     int i0_size = COPY_SRC_LAYER ? n_layer + 1 : n_layer;
+    int i2 = i2_ + 1;
+    return OFF5(i0, i0_size, i1, n_dir, i2, n_iter + 1, i3, batch, i4,
+            states_ws_ld);
+}
+int off_ws_c_state(int n_layer, int n_dir, int n_iter, int batch,
+        int states_ws_ld, int i0_, int i1, int i2_, int i3, int i4) {
+    int i0 = i0_;
+    int i0_size = n_layer;
     int i2 = i2_ + 1;
     return OFF5(i0, i0_size, i1, n_dir, i2, n_iter + 1, i3, batch, i4,
             states_ws_ld);
@@ -82,8 +105,8 @@ int off_ws_gates(int n_dir, int n_iter, int batch, int gates_ws_ld, int dhc,
             + i1 * n_iter * batch * gates_ws_ld + i2 * batch * gates_ws_ld
             + i3 * gates_ws_ld + i4 * dhc + i5;
 }
-int off_ws_bias(int n_layer, int n_dir, int n_bias, int dhc, int i0, int i1,
-        int i2, int i3) {
+int off_ws_bias(
+        int n_layer, int n_dir, int dhc, int i0, int i1, int i2, int i3) {
     return OFF4(i0, n_layer, i1, n_dir, i2, n_bias, i3, dhc);
 }
 // grid offset for lbr GRU, LD = DHC
@@ -92,7 +115,7 @@ int off_ws_grid_offset(int n_layer, int n_dir, int n_iter, int batch, int dhc,
     return OFF5(i0, n_layer, i1, n_dir, i2, n_iter, i3, batch, i4, dhc);
 }
 
-int off_ker_bias(int n_gates, int dhc, int i0, int i1) {
+int off_ker_bias(int dhc, int i0, int i1) {
     return OFF2(i0, n_gates, i1, dhc);
 }
 int off_scratch_diff_states(int n_layer, int n_dir, int n_states, int n_iter,

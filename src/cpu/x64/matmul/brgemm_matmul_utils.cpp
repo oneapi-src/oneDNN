@@ -175,7 +175,7 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , int8_dt(utils::one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
               && one_of(bgmmc.dst_dt, u8, s8, s32, f32, bf16))
     , bf32_dt(f32_dt
-              && one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any)
+              && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
               && isa == avx512_core_amx)
     , A_any_layout(A_any_layout)
     , B_any_layout(B_any_layout)
@@ -715,7 +715,7 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
 
     // for cases with low parallel work, reduce 'min_m_blk' to
     // increase potential parallelization balance.
-    const dim_t max_parallel = matmul.batch * n_chunks;
+    const dim_t max_parallel = static_cast<dim_t>(matmul.batch) * n_chunks;
     const dim_t max_bmn_parallel = max_parallel * min_m_chunks;
     const bool low_parallel_work = nthr > max_parallel;
     if (low_parallel_work) {
@@ -1672,7 +1672,9 @@ float matmul_amx_blocking_params_t::get_thread_balance_scores() {
 // returns score for current blocking parameters' values in range [0, 1]
 // for copied data reusage
 float matmul_amx_blocking_params_t::get_copied_data_reusage_scores() {
-    const dim_t effective_m_chunk_sz = 64 * 4;
+    // Values based on measured performance
+    const bool is_lda_4k = (current_lda_ * a_dt_sz) % 4096 == 0;
+    const dim_t effective_m_chunk_sz = 64 * (is_lda_4k ? 1 : 4);
     const dim_t desired_M_chunk_size = is_runtime_M
             ? effective_m_chunk_sz
             : nstl::min(M, effective_m_chunk_sz);

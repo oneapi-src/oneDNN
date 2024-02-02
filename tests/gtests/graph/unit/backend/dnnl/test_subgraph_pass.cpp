@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,11 +190,6 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Conv) {
     // 2. fuse src, wei scales
     dnnl_impl::convert_to_runtime_src_scales(subgraph);
     dnnl_impl::fuse_src_scales(subgraph);
-    auto qconv_op = std::find_if(subgraph->get_ops().begin(),
-            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
-                return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
-            });
-
     dnnl_impl::infer_shape(subgraph);
     dnnl_impl::binary_canonicalization(subgraph);
     dnnl_impl::infer_shape(subgraph);
@@ -202,10 +197,11 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Conv) {
     // 3. fuse post ops to int8 conv
     ASSERT_EQ(dnnl_impl::fuse_post_ops(subgraph), status::success);
 
-    qconv_op = std::find_if(subgraph->get_ops().begin(),
+    auto qconv_op = std::find_if(subgraph->get_ops().begin(),
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
+    ASSERT_NE(qconv_op, subgraph->get_ops().end());
     ASSERT_TRUE((*qconv_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
     int64_t key = (*qconv_op)->get_attr<int64_t>(
             dnnl_impl::op_attr::fusion_info_key);
@@ -296,6 +292,7 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Matmul) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_matmul;
             });
+    ASSERT_NE(matmul_op, subgraph->get_ops().end());
     auto &producer0 = (*matmul_op)->get_input_value(0)->get_producer();
     ASSERT_EQ(producer0.get_kind(), dnnl_impl::op_kind::dnnl_mul_scales);
     ASSERT_EQ(producer0.get_attr<std::vector<float>>(op_attr::scales)[0],

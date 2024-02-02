@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ struct isa_info_t {
             case avx512_core_amx_fp16:
                 return "Intel AVX-512 with float16, Intel DL Boost and "
                        "bfloat16 support and Intel AMX with bfloat16, float16 "
-                       "and 8-bit integer support (preview support)";
+                       "and 8-bit integer support";
             case avx512_core_amx:
                 return "Intel AVX-512 with float16, Intel DL Boost and "
                        "bfloat16 support and Intel AMX with bfloat16 and 8-bit "
@@ -132,7 +132,7 @@ struct isa_info_t {
                        "extensions";
             case avx2_vnni_2:
                 return "Intel AVX2 with Intel DL Boost, float16 and bfloat16 "
-                       "support (preview support)";
+                       "support";
             case avx2_vnni: return "Intel AVX2 with Intel DL Boost";
             case avx2: return "Intel AVX2";
             case avx: return "Intel AVX";

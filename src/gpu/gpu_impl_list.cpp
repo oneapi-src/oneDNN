@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ const impl_list_item_t *gpu_impl_list_t::get_implementation_list(
             CASE(deconvolution);
             CASE(eltwise);
             CASE(gemm);
+            CASE(group_normalization);
             CASE(inner_product);
             CASE(layer_normalization);
             CASE(lrn);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -503,7 +503,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
 
     if (strategy.block2DCRemainder && !gotSR) strategy.altCRemainder = true;
 
-    int poCount = problem.postOps.len();
+    size_t poCount = problem.postOps.len();
     strategy.binary.resize(poCount);
     for (auto &astrategy : strategy.binary) {
         astrategy.base = (hw >= HW::XeHPC) ? AddressBase::createA64(true)

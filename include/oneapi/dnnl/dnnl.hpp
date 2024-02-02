@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1188,6 +1188,8 @@ struct memory : public handle<dnnl_memory_t> {
         AB16b32a2b = dnnl_AB16b32a2b,
         AB16b48a2b = dnnl_AB16b48a2b,
         AB16b64a2b = dnnl_AB16b64a2b,
+        Ab4a = dnnl_Ab4a,
+        Ab8a = dnnl_Ab8a,
         Abc16a = dnnl_Abc16a,
         ABc16a16b = dnnl_ABc16a16b,
         ABc4a4b = dnnl_ABc4a4b,
@@ -2365,6 +2367,8 @@ struct memory : public handle<dnnl_memory_t> {
         aCB16c4b = dnnl_aCB16c4b,
         BA16b2a = dnnl_BA16b2a,
         BA16b4a = dnnl_BA16b4a,
+        BA4b4a = dnnl_BA4b4a,
+        BA8b4a = dnnl_BA8b4a,
         aBC16b16c = dnnl_aBC16b16c,
         aBC16b32c = dnnl_aBC16b32c,
         AB16a16b = dnnl_AB16a16b,
@@ -3864,12 +3868,27 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         return fpmath_mode(result);
     }
 
+    /// Returns the fpmath mode
+    ///
+    /// @param mode Specified fpmath mode.
+    /// @param apply_to_int Use floating-point arithmetic for integer primitives.
+    void get_fpmath_mode(fpmath_mode &mode, bool &apply_to_int) const {
+        dnnl_fpmath_mode_t c_mode;
+        int c_apply_to_int;
+        error::wrap_c_api(dnnl_primitive_attr_get_fpmath_mode_v2(
+                                  get(), &c_mode, &c_apply_to_int),
+                "could not get fpmath mode primitive attribute");
+        mode = fpmath_mode(c_mode);
+        apply_to_int = static_cast<bool>(c_apply_to_int);
+    }
+
     /// Sets fpmath mode.
     ///
     /// @param mode Specified fpmath mode.
-    void set_fpmath_mode(fpmath_mode mode) {
-        error::wrap_c_api(dnnl_primitive_attr_set_fpmath_mode(
-                                  get(), dnnl::convert_to_c(mode)),
+    /// @param apply_to_int Boolean. Use of floating-point arithmetic for integer primitives.
+    void set_fpmath_mode(fpmath_mode mode, bool apply_to_int = false) {
+        error::wrap_c_api(dnnl_primitive_attr_set_fpmath_mode_v2(get(),
+                                  dnnl::convert_to_c(mode), apply_to_int),
                 "could not set fpmath mode primitive attribute");
     }
 
@@ -3889,6 +3908,23 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(dnnl_primitive_attr_set_accumulation_mode(
                                   get(), dnnl::convert_to_c(mode)),
                 "could not set accumulation mode primitive attribute");
+    }
+
+    /// Returns the deterministic attribute value
+    bool get_deterministic() const {
+        int result;
+        error::wrap_c_api(dnnl_primitive_attr_get_deterministic(get(), &result),
+                "could not get deterministic primitive attribute");
+        return static_cast<bool>(result);
+    }
+
+    /// Sets deterministic attribute value
+    ///
+    /// @param value Specified deterministic mode.
+    void set_deterministic(bool value) {
+        error::wrap_c_api(dnnl_primitive_attr_set_deterministic(
+                                  get(), static_cast<int>(value)),
+                "could not set deterministic primitive attribute");
     }
 
     /// Returns the scratchpad mode.
@@ -3927,6 +3963,31 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set scales primitive attribute");
     }
 
+    /// Sets scaling factors for primitive operations for a given memory
+    /// argument. The scaling factors must be passed at execution time
+    /// as an argument with index #DNNL_ARG_ATTR_SCALES | arg.
+    ///
+    /// @sa dnnl_primitive_attr_set_scales
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param mask Scales correspondence mask that defines the
+    ///     correspondence between the tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated
+    ///     scale is used for each index along that dimension. Set the
+    ///     mask to 0 to use a common scale for the whole output tensor.
+    /// @param groups Scaling factors correspondence groups that define the
+    ///     correspondence between the tensor dimensions and the scales array.
+    ///     The set i-th dimension indicates a number of groups of scaling
+    ///     factors used for that logical dimension in a memory indicated by @p arg.
+    void set_scales(int arg, int mask, const memory::dims &groups,
+            memory::data_type data_type = memory::data_type::f32) {
+        error::wrap_c_api(dnnl_primitive_attr_set_scales(get(), arg, mask,
+                                  (int)groups.size(), groups.data(),
+                                  memory::convert_to_c(data_type)),
+                "could not set scales primitive attribute");
+    }
+
     /// Sets zero points for primitive operations for a given memory argument.
     /// The zero points must be passed at execution time as an argument with
     /// index #DNNL_ARG_ATTR_ZERO_POINTS | arg.
@@ -3943,6 +4004,31 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_zero_points_mask(int arg, int mask) {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_zero_points_mask(get(), arg, mask),
+                "could not set zero points primitive attribute");
+    }
+
+    /// Sets zero points for primitive operations for a given memory argument.
+    /// The zero points must be passed at execution time as an argument with
+    /// index #DNNL_ARG_ATTR_ZERO_POINTS | arg.
+    ///
+    /// @sa dnnl_primitive_attr_set_zero_points
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param mask Zero point correspondence mask that defines the
+    ///     correspondence between the tensor dimensions and the @p
+    ///     zero_points vector. The set i-th bit indicates that a dedicated
+    ///     zero point is used for each index along that dimension. Set the
+    ///     mask to 0 to use a common zero point for the whole output tensor.
+    /// @param groups Zero point factors correspondence groups that define the
+    ///     correspondence between the tensor dimensions and the zero_points array.
+    ///     The set i-th dimension indicates a number of groups of zero point
+    ///     factors used for that logical dimension in a memory indicated by @p arg.
+    void set_zero_points(int arg, int mask, const memory::dims &groups,
+            memory::data_type data_type = memory::data_type::s32) {
+        error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg, mask,
+                                  (int)groups.size(), groups.data(),
+                                  memory::convert_to_c(data_type)),
                 "could not set zero points primitive attribute");
     }
 

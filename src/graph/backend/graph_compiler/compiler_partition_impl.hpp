@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -117,11 +117,13 @@ protected:
     mutable std::mutex mtx_;
     std::string pname_;
 };
+
 class compiler_compiled_partition_impl_t : public compiled_partition_impl_t {
 public:
     compiler_compiled_partition_impl_t(const graph::engine_t &engine,
             const std::vector<graph::logical_tensor_t> &inputs,
             const std::vector<graph::logical_tensor_t> &outputs,
+            const std::vector<graph::inplace_pair_t> &inplace_pairs,
             const std::shared_ptr<gc::jit_function_t> &jit_func,
             const std::shared_ptr<graph::compiler_impl::compiler_graph_engine_t>
                     &graph_engine,

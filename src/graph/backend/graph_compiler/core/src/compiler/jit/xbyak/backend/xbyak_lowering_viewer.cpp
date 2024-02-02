@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -777,6 +777,12 @@ void xbyak_lowering_viewer::handle_avx_intrisic(const expr_c &dst,
             auto op_add = GET_OPERAND(args[1]);
             handle_avx_fmadd(op_dst, op_mul, op_add, cpu_dtype);
         } break;
+        case xbyak_intrin_type::fnmadd: {
+            auto op_dst = GET_OPERAND(dst);
+            auto op_mul = GET_OPERAND(args[0]);
+            auto op_add = GET_OPERAND(args[1]);
+            handle_avx_fnmadd(op_dst, op_mul, op_add, cpu_dtype);
+        } break;
         case xbyak_intrin_type::broadcast: {
             const auto src_dtype = get_cpu_data_type(modifier.type_hint_);
             auto op_dst = GET_OPERAND(dst);
@@ -1286,7 +1292,8 @@ void xbyak_lowering_viewer::handle_saturated_cast(
         assert(cpu_flags_.fAVX512F);
         XBYAK_GEN(vpmovsdb, AVX_XM_X, op_dst, op_src);
     } else if (dst_dtype == sc_data_type_t::u8(16)
-            && src_dtype == sc_data_type_t::s32(16)) {
+            && (src_dtype == sc_data_type_t::s32(16)
+                    || src_dtype == sc_data_type_t::u32(16))) {
         assert(cpu_flags_.fAVX512F);
         XBYAK_GEN(vpmovusdb, AVX_XM_X, op_dst, op_src);
     } else {
@@ -1311,6 +1318,8 @@ void xbyak_lowering_viewer::handle_round_and_cast(
 
     if (elem_cast_simd(sc_data_etype::S32, sc_data_etype::F32)) {
         XBYAK_GEN(vcvtps2dq, AVX_X_XM, op_dst, op_src);
+    } else if (elem_cast_simd(sc_data_etype::U32, sc_data_etype::F32)) {
+        XBYAK_GEN(vcvtps2udq, AVX_X_XM, op_dst, op_src);
     } else if (dst_dtype == sc_data_type_t::s32(1)
             && src_dtype == sc_data_type_t::f32(1)) {
         XBYAK_GEN(vcvtss2si, AVX_R32_XM, op_dst, op_src);
@@ -1584,8 +1593,9 @@ void xbyak_lowering_viewer::handle_avx_movss(
 void xbyak_lowering_viewer::handle_avx_movsh(
         const operand &op_dst, const operand &op_src) {
     if (op_dst == op_src) { return; }
-    if (cpu_flags_.fAVX512FP16) {
-        XBYAK_GEN(vmovw, AVX_XM_XM, op_dst, op_src);
+    if (cpu_flags_.fAVX512FP16 && (op_src.is_r_m() || op_dst.is_r_m())) {
+        // move to memery or reg
+        XBYAK_GEN(vmovw, AVX_XMR64_XMR64, op_dst, op_src);
     } else {
         handle_avx_movss(op_dst, op_src);
     }
@@ -2358,6 +2368,51 @@ void xbyak_lowering_viewer::handle_avx_fmadd(const operand &op_dst,
     }
 }
 
+void xbyak_lowering_viewer::handle_avx_fnmadd(const operand &op_dst,
+        const operand &op_mul, const operand &op_add,
+        const x86_64::cpu_data_type &cpu_dtype) {
+    switch (cpu_dtype) {
+        case cpu_data_type::float_32_x16: {
+            assert(cpu_flags_.fAVX512F);
+        } // fall-through
+        case cpu_data_type::float_32_x8:
+        case cpu_data_type::float_32_x4: {
+            if (op_mul.is_addr()) {
+                XBYAK_GEN(vfnmadd132ps, AVX_X_X_XM, op_dst, op_add, op_mul);
+            } else {
+                XBYAK_GEN(vfnmadd213ps, AVX_X_X_XM, op_dst, op_mul, op_add);
+            }
+        } break;
+        case cpu_data_type::float_32: {
+            if (op_mul.is_addr()) {
+                XBYAK_GEN(vfnmadd132ss, AVX_X_X_XM, op_dst, op_add, op_mul);
+            } else {
+                XBYAK_GEN(vfnmadd213ss, AVX_X_X_XM, op_dst, op_mul, op_add);
+            }
+        } break;
+        case cpu_data_type::float_16_x32:
+        case cpu_data_type::float_16_x16:
+        case cpu_data_type::float_16_x8:
+        case cpu_data_type::float_16_x4: {
+            assert(cpu_flags_.fAVX512FP16);
+            if (op_mul.is_addr()) {
+                XBYAK_GEN(vfnmadd132ph, AVX_X_X_XM, op_dst, op_add, op_mul);
+            } else {
+                XBYAK_GEN(vfnmadd213ph, AVX_X_X_XM, op_dst, op_mul, op_add);
+            }
+        } break;
+        case cpu_data_type::float_16: {
+            if (op_mul.is_addr()) {
+                XBYAK_GEN(vfnmadd132sh, AVX_X_X_XM, op_dst, op_add, op_mul);
+            } else {
+                XBYAK_GEN(vfnmadd213sh, AVX_X_X_XM, op_dst, op_mul, op_add);
+            }
+        } break;
+        default:
+            COMPILE_ASSERT(false, FUNC_INFO << "Invalid type: " << cpu_dtype);
+    }
+}
+
 void xbyak_lowering_viewer::handle_avx_pshuffle(const operand &op_dst,
         const operand &op_lhs, const operand &op_rhs,
         const x86_64::cpu_data_type &cpu_dtype) {
@@ -2954,7 +3009,8 @@ void xbyak_lowering_viewer::handle_avx_cmov(const operand &op_dst,
         const operand &op_src, const xbyak_condition &code,
         const x86_64::cpu_data_type &cpu_dtype) {
     switch (cpu_dtype) {
-        case cpu_data_type::float_32: {
+        case cpu_data_type::float_32:
+        case cpu_data_type::float_16: {
             Xbyak::Label l_end_cmov;
             switch (code) {
                 case xbyak_condition::eq: {

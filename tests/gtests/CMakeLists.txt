@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2023 Intel Corporation
+# Copyright 2016-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -129,7 +129,7 @@ endif()
 
 if(NOT DNNL_USE_CLANG_SANITIZER)
     # Due to the following tests have long run-time, move them to Nightly set
-    if(DNNL_TEST_SET GREATER DNNL_TEST_SET_CI)
+    if(DNNL_TEST_SET_COVERAGE GREATER DNNL_TEST_SET_CI)
         file(GLOB LARGE_PRIM_TEST_CASES_SRC
             test_ip_formats.cpp
             test_reorder_formats.cpp

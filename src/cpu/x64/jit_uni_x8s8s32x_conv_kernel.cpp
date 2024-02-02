@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1516,7 +1516,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
         return float(work_amount) / rnd_up(work_amount, nthr);
     };
 
-    auto get_ow_block = [jcp, get_thr_eff](int ur_w, int nthr) {
+    auto get_ow_block = [&jcp, get_thr_eff](int ur_w, int nthr) {
         int res_ow_block = jcp.ow;
         float best_thr_eff = get_thr_eff(1, nthr);
         float thr_eff;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -127,6 +127,9 @@ struct jit_uni_sparse_matmul_kernel_t : public sparse_matmul_kernel_t {
     }
 
     Address wei_ptr(size_t offt = 0) {
+        if (N() == 1)
+            return ptr[reg_wei + reg_src_col_idx * data_type_size() + offt];
+
         imul(reg_tmp, reg_src_col_idx, N());
         add(reg_tmp, reg_block_offset);
         return ptr[reg_wei + reg_tmp * data_type_size() + offt];
@@ -361,6 +364,37 @@ status_t jit_uni_sparse_matmul_t::execute(const exec_ctx_t &ctx) const {
     // TODO: Implement a load balancing mechanism that would distribute
     // rows between threads based on the number of non-zero elements in those
     // rows.
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    // Empirical.
+    const size_t threshold_in_kb = 1400;
+    const size_t data_to_process_in_kb
+            = (src_d.nnz() + M) * N * src_d.data_type_size() / 1024;
+
+    // If not, use 0, which means all threads.
+    const int nthr = data_to_process_in_kb < threshold_in_kb;
+
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        dim_t start = 0, end = 0;
+        balance211(M, nthr, ithr, start, end);
+        if (start >= end) return;
+
+        for (dim_t m = start; m < end; m++) {
+            const int row_begin = src_pointers[m];
+            const int row_end = src_pointers[m + 1];
+            const int nnz = row_end - row_begin;
+
+            sparse_matmul_kernel_t::call_params_t p;
+            p.nnz = nnz;
+            p.src_values = src_values + row_begin;
+            p.src_indices = src_indices + row_begin;
+            p.wei = weights;
+            p.dst = dst + (m * N);
+            p.block_size = kernel_->block_size();
+            (*kernel_)(&p);
+        }
+    });
+#else
+
     parallel_nd(M, [&](dim_t m) {
         const int row_begin = src_pointers[m];
         const int row_end = src_pointers[m + 1];
@@ -375,6 +409,7 @@ status_t jit_uni_sparse_matmul_t::execute(const exec_ctx_t &ctx) const {
         p.block_size = kernel_->block_size();
         (*kernel_)(&p);
     });
+#endif
     return status::success;
 }
 

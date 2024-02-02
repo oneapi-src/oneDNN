@@ -203,10 +203,10 @@ void sycl_getting_started_tutorial(dnnl::engine::kind ekind) {
     /// ops into a finalized graph or partitioning a unfinalized graph
     /// will both lead to a failure.
     ///
-    /// @snippet sycl_getting_started.cpp Finialize graph
-    //[Finialize graph]
+    /// @snippet sycl_getting_started.cpp Finalize graph
+    //[Finalize graph]
     g.finalize();
-    //[Finialize graph]
+    //[Finalize graph]
 
     /// After finished above operations, we can get partitions by calling
     /// #dnnl::graph::graph::get_partitions(). Here we can also specify the
@@ -277,8 +277,8 @@ void sycl_getting_started_tutorial(dnnl::engine::kind ekind) {
     // output tensor is fed into partition 1)
     std::unordered_map<size_t, tensor> global_outputs_ts_map;
 
-    // Memory buffers binded to the partition input/output tensors
-    // that helpe manage the lifetime of these tensors
+    // Memory buffers bound to the partition input/output tensors
+    // that helps manage the lifetime of these tensors
     std::vector<std::shared_ptr<void>> data_buffer;
 
     // Mapping from id to queried logical tensor from compiled partition
@@ -310,7 +310,7 @@ void sycl_getting_started_tutorial(dnnl::engine::kind ekind) {
     // 4. Allocate memory and bind the data buffer for the partition
     // 5. Execute the partition
     //
-    // Although they are not part of the APIs, these steps are esstential for
+    // Although they are not part of the APIs, these steps are essential for
     // the integration of Graph API., hence users need to implement similar
     // logic.
     for (const auto &partition : partitions) {

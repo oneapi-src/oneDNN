@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,6 +62,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, layernorm_post_ops_fusion_cpu)
                     layernorm_base->append_decision_function(
                             check_input_dtype_from_offset<impl::data_type::f32,
                                     1>);
+                    layernorm_base->append_decision_function(
+                            check_begin_norm_axis_attr);
                     // Alt0: Typecast + Quantize
                     auto ptcq_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *ptc

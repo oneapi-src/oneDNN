@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -134,40 +134,9 @@ struct lru_cache_t final : public cache_t<K, O, C, key_merge> {
     ~lru_cache_t() override {
         if (cache_mapper().empty()) return;
 
-#if defined(_WIN32) \
-        && (defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL)
-        // The ntdll.dll library is located in system32, therefore setting
-        // additional environment is not required.
-        HMODULE handle = LoadLibraryExA(
-                "ntdll.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-        if (!handle) {
-            release_cache();
-            return;
-        }
-
-        // RtlDllShutdownInProgress returns TRUE if the whole process terminates
-        // and FALSE if DLL is being unloaded dynamically or if it’s called from
-        // an executable.
-        auto f = reinterpret_cast<BOOLEAN (*)(void)>(
-                GetProcAddress(handle, "RtlDllShutdownInProgress"));
-        if (!f) {
-            auto ret = FreeLibrary(handle);
-            assert(ret);
-            MAYBE_UNUSED(ret);
-            release_cache();
-            return;
-        }
-
-        bool is_process_termination_in_progress = f();
-
-        auto ret = FreeLibrary(handle);
-        assert(ret);
-        MAYBE_UNUSED(ret);
-
-        if (is_process_termination_in_progress) {
-            // The whole process is being terminated hence destroying content of
-            // the cache cannot be done safely. However we can check all entries
-            // and remove those that are not affected e.g. native CPU.
+        if (!is_destroying_cache_safe()) {
+            // It is safe to remove those entries that are not affected by the
+            // unloading order issue e.g. native CPU.
             for (auto it = cache_mapper().begin();
                     it != cache_mapper().end();) {
                 if (!it->first.has_runtime_dependencies()) {
@@ -177,20 +146,8 @@ struct lru_cache_t final : public cache_t<K, O, C, key_merge> {
                 }
             }
             release_cache();
-        } else {
-            // Three scenarios possible:
-            //    1. oneDNN is being dynamically unloaded
-            //    2. Another dynamic library that contains statically linked
-            //       oneDNN is dynamically unloaded
-            //    3. oneDNN is statically linked in an executable which is done
-            //       and now the process terminates In all these scenarios
-            //       content of the cache can be safely destroyed.
+            return;
         }
-#else
-            // Always destroy the content of the cache for non-Windows OSes, and
-            // non-sycl and non-ocl runtimes because there is no a problem with
-            // library unloading order in such cases.
-#endif
     }
 
     cache_object_t get(const key_t &key) override {

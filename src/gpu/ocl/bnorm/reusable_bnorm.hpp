@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,10 +58,7 @@ struct reusable_bnorm_params_t {
 #endif
     serialized_t serialize() const {
         assert_trivially_serializable(reusable_bnorm_params_t);
-
-        serialized_t s {};
-        s.append(*this);
-        return s;
+        return serialized_t(*this);
     }
 
     static reusable_bnorm_params_t deserialize(const serialized_t &s) {
@@ -85,9 +82,8 @@ struct reusable_bnorm_params_t {
     bool with_relu;
     bool with_leaky_relu;
     bool calculate_stats;
-    bool use_int32_offset;
 
-    uint8_t padding[3] = {0};
+    uint8_t padding[4] = {0};
 
     // Close to one set of configurations per block layout (9 common cases)
     compute::dispatch_compile_params_t calc_stat_params;

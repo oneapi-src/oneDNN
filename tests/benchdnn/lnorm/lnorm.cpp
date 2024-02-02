@@ -37,197 +37,272 @@ using namespace bnorm;
 
 namespace lnorm {
 
-static int prepare_fwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &sc,
-        const dnn_mem_t &sh, res_t *res) {
-    // Fast exit for zero channels as logic relies on it to be non-zero.
-    if (prb->c == 0) {
-        benchdnn_parallel_nd(prb->n, [&](int64_t n) {
-            mean.set_elem(n, 0);
-            var.set_elem(n, 0);
-        });
-        return OK;
+int fill_mean(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
+        dnn_mem_t &mem_dt) {
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        // Mean must be computed unless it is passed by user directly.
+        if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_BWD)) return OK;
+
+        return fill_random_real(mem_dt, mem_fp, nullptr);
     }
 
-    /** Idea: choose src[] values so that both mean and variance are computed
-     * exactly (independently of the order of the computations).
-     *
-     * The `exactness` is achieved via [a1]: src[i] + src[i+1] = 2 * mean.
-     *
-     * The variation in src is allowed in the last flex_bits bits.
-     * If the sequence (L) is too big (flex_bits <= min_flex_bits), the mean
-     * value is set to 0 and src is partially filled with zeros (according to
-     * density so that at least want_flex_bits is reserved for src variation.
-     * Once src is set, variance is computed.
-     *
-     * ALG_0: mean is set to 0
-     * ALG_1: mean is set to 2^prb, where prb \in {-2, -1, ..., 4}
-     * ALG_AUTO: choose between ALG_0 and ALG_1 automatically
-     * ALG_2: if fall back to ALG_0 gives only one non-zero element, use the
-     *        filling which doesn't use strict approach.
-     */
-    const int64_t exact_bits = digits_dt(prb->dt[0]);
-    const int64_t L = prb->c;
-    const int64_t logL = (int64_t)ceilf(log2f(L));
+    benchdnn_parallel_nd(prb->n, [&](int64_t n) {
+        const float val_coeff = is_integral_dt(prb->dt[0]) ? 1.f : 0.25f;
+        float val = 0.f;
+        // For zero channels the logic relies on memory filled with zeros.
+        if (prb->c > 0
+                && (cfg.check_alg_ != ALG_0 || (prb->flags & GLOB_STATS))) {
+            int64_t mean_val_shift = n % 7;
+            // Bump mean for u8 to keep src values in non-negative range
+            if (prb->dt[0] == dnnl_u8 && mean_val_shift < 2) mean_val_shift = 2;
+            val = val_coeff * (1LL << mean_val_shift);
+        }
+        mem_fp.set_elem(n, val);
+    });
 
-    assert(logL <= 0 || (1LL << (logL - 1)) < L);
-    assert(L <= (1LL << logL));
+    if (mem_dt && IMPLICATION(prb->dir & FLAG_FWD, prb->use_stats()))
+        SAFE(mem_dt.reorder(mem_fp), WARN);
 
-    const int64_t min_flex_bits = 3;
-    const int64_t want_flex_bits = MIN2(6, exact_bits / 2);
+    return OK;
+}
 
-    check_alg_t alg = prb->check_alg;
-    if (alg == ALG_AUTO) /* choose appropriate checking algorithm */
-        alg = (exact_bits - logL) / 2 - 1 >= min_flex_bits ? ALG_1 : ALG_0;
-
-    const int64_t flex_bits = alg == ALG_0
-            ? want_flex_bits
-            : MIN2(exact_bits, (exact_bits - logL) / 2 - 1);
-    if (flex_bits < min_flex_bits) {
-        res->state = UNTESTED;
-        return FAIL;
+int fill_src(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
+        dnn_mem_t &mem_dt, const dnn_mem_t &ref_mean, res_t *res) {
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, res);
     }
 
-    if (exact_bits / 2 == flex_bits) alg = ALG_2;
+    const float val_coeff = is_integral_dt(prb->dt[0]) ? 1.f : 0.25f;
 
-    if ((alg == ALG_0 || alg == ALG_1) && !is_integral_dt(prb->dt[0])) {
-        const int64_t flex_mask = (static_cast<int64_t>(1) << flex_bits) - 1;
+    benchdnn_parallel_nd(prb->n, [&](int64_t n) {
+        const float m = ref_mean.get_elem(n);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand b_seed(n + 1);
+        b_seed.discard(2);
+        std::bernoulli_distribution b_dist(0.5f);
 
-        /* density: (exact_bits - log_2(L * density)) / 2 >= flex_bits */
-        const float density = alg == ALG_0
-                ? 1.f * (1 << (exact_bits - 2 * flex_bits)) / L
-                : 1.f;
-        assert((exact_bits - ceilf(log2f(L * density))) / 2 >= flex_bits);
+        bool bigger_val = false; // Out of spatial loop.
+        for (int64_t c = 0; c < prb->c; ++c) {
+            const int64_t off = n * prb->c + c;
+            float val = 0.f;
+            if (cfg.check_alg_ == ALG_2) {
+                const bool is_even = c % 2 == 0;
+                const float sign = is_even ? 1.f : -1.f;
+                // Update the value for even cases.
+                bigger_val = is_even ? b_dist(b_seed) : bigger_val;
+                const float val_shift = sign * val_coeff;
+                // Shift left and right from mean val, shift bigger with
+                // probability.
+                val = m + val_shift + 3.f * bigger_val * val_shift;
+            } else {
+                // l[0] must be even
+                const int64_t l = c + n * 239 * 2;
 
-        BENCHDNN_PRINT(99, "check_alg: %s, density = %g, flex_bits = %ld\n",
-                check_alg2str(alg), density, (long)flex_bits);
-
-        benchdnn_parallel_nd(prb->n, [&](int64_t n) {
-            const float m = alg == ALG_0 ? 0.f : 0.25f * (1 << (n % 7));
-            float v = 0; /* current variance */
-
-            float *s = (float *)src + n * prb->c;
-            for (int64_t c = 0; c < prb->c; ++c) {
-                const int64_t l = c + n * 239 * 2; // l[0] must be even
-
-                if (alg == ALG_0 && !flip_coin(l / 2 * 257ULL, density)) {
-                    s[c] = 0;
+                // Shortcut for zero values.
+                if (cfg.check_alg_ == ALG_0
+                        && !flip_coin(l / 2 * 257ULL, cfg.density_)) {
+                    mem_fp.set_elem(off, 0);
                     continue;
                 }
 
-                const int64_t gen = (l / 2 * 1637) & flex_mask;
-                const int sgn = l % 2 == 0 ? 1 : -1; /* [a1] */
-                const float f = 1.f * sgn * gen / (1 << flex_bits);
+                const int64_t gen = (l / 2 * 1637) & cfg.flex_mask_;
+                // s_{i} + s_{i+1} = 2 * m
+                const float sign = l % 2 == 0 ? 1.f : -1.f;
+                const float f = sign * gen / (1 << cfg.flex_bits_);
 
-                src.set_elem(n * prb->c + c, alg == ALG_0 ? f : m * (1.f + f));
-                if (L % 2 && (c == L - 1)) { s[c] = m; }
-                v += (s[c] - m) * (s[c] - m);
-            }
-            mean.set_elem(n, m);
-            var.set_elem(n, v / prb->c);
-        });
-    } else {
-        assert(alg == ALG_2);
-
-        benchdnn_parallel_nd(prb->n, [&](int64_t n) {
-            // Note: we use a different seed for each chunk to avoid
-            // repeating patterns. We could use discard(idx_start) too but
-            // it has a complexity in O(idx_start). We also add 1 to avoid
-            // seeding with 0.
-            std::minstd_rand int_seed(n + 1);
-            int_seed.discard(1);
-            std::minstd_rand b_seed(n + 1);
-            b_seed.discard(2);
-
-            const float val_coeff = is_integral_dt(prb->dt[0]) ? 4.f : 1.f;
-            const int distr_shift = prb->dt[0] == dnnl_u8 ? 2 : 0;
-            std::uniform_int_distribution<> int_dist(0 + distr_shift, 6);
-            std::bernoulli_distribution b_dist(0.5f);
-            const float m = val_coeff * 0.25f * (1 << int_dist(int_seed));
-            float v = 0; /* current variance */
-
-            const int64_t c_shift = n * prb->c;
-            float *s = (float *)src + c_shift;
-
-            bool bigger_val = false;
-            float val = 0.f;
-
-            for (int64_t c = 0; c < prb->c; ++c) {
-                const int64_t idx = c_shift + c;
-
-                if (c % 2 == 0) {
-                    bigger_val = b_dist(b_seed);
-                    val = bigger_val ? (m + val_coeff * 1.f)
-                                     : (m + val_coeff * 0.25f);
-                } else {
-                    val = bigger_val ? (m - val_coeff * 1.f)
-                                     : (m - val_coeff * 0.25f);
-                }
-                src.set_elem(idx, val);
-
-                v += (s[c] - m) * (s[c] - m);
+                val = cfg.check_alg_ == ALG_0 ? f : m * (1.f + f);
+                if (prb->flags & GLOB_STATS) { val = (l % 65) - 32; }
             }
             // Update last element with s[c] = m.
-            if (prb->c % 2 == 1) {
-                v -= (s[prb->c - 1] - m) * (s[prb->c - 1] - m);
-                s[prb->c - 1] = m;
-            }
-            mean.set_elem(n, m);
-            var.set_elem(n, v / prb->c);
-        });
+            if ((c == cfg.L_ - 1) && cfg.L_ % 2) { val = m; }
+
+            mem_fp.set_elem(
+                    off, round_to_nearest_representable(prb->dt[0], val));
+        }
+    });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int fill_variance_fwd(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
+        dnn_mem_t &mem_dt, const dnn_mem_t &ref_src,
+        const dnn_mem_t &ref_mean) {
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        // Variance must be computed unless it is passed by user directly.
+        if (!(prb->flags & GLOB_STATS)) return OK;
+
+        // Variance must be always positive by definition.
+        fill_cfg_t fill_cfg(dnnl_f32, 0.f, 16.f, /* int = */ false,
+                attr_t::post_ops_t::kind_t::ADD, "variance");
+        return fill_random_real(mem_dt, mem_fp, nullptr, fill_cfg);
     }
 
+    benchdnn_parallel_nd(prb->n, [&](int64_t n) {
+        float val = 0.f;
+        // For zero channels the logic relies on memory filled with zeros.
+        if (prb->flags & GLOB_STATS) {
+            val = ((n % 7) << 1);
+        } else if (prb->c > 0) {
+            const float m = ref_mean.get_elem(n);
+            for (int64_t c = 0; c < prb->c; ++c) {
+                const int64_t off = n * prb->c + c;
+                const float s = ref_src.get_elem(off);
+                val += (s - m) * (s - m);
+            }
+            val /= cfg.L_;
+        }
+        mem_fp.set_elem(n, val);
+    });
+
+    if (mem_dt && prb->use_stats()) SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int fill_scale(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
     const bool use_sc = prb->use_sc();
-    const bool use_sh = prb->use_sh();
+    if (!use_sc) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
 
     benchdnn_parallel_nd(prb->c, [&](int64_t c) {
-        float sc_value = 1.f / 8 * (1 << (c % 7));
-        float sh_value = (c % 3 + 1) * sc_value / 64;
-        if (use_sc) sc.set_elem(c, sc_value);
-        if (use_sh) sh.set_elem(c, sh_value);
+        float val = (1.f / 8) * (1 << (c % 7));
+        if (prb->flags & GLOB_STATS) val *= 8.f;
+        mem_fp.set_elem(c, val);
     });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int fill_shift(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
+    const bool use_sh = prb->use_sh();
+    if (!use_sh) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+
+    benchdnn_parallel_nd(prb->c, [&](int64_t c) {
+        float val = ((c % 3) - 1) * (1.f / 512 * (1 << (c % 7)));
+        if (prb->flags & GLOB_STATS) val *= 512.f;
+        mem_fp.set_elem(c, val);
+    });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
 
 int prepare_fwd(const prb_t *prb, dnn_mem_map_t &mem_map,
         dnn_mem_map_t &ref_mem_map, res_t *res) {
-    const auto &ref_src = ref_mem_map[DNNL_ARG_SRC];
-    const auto &ref_mean = ref_mem_map[DNNL_ARG_MEAN];
-    const auto &ref_var = ref_mem_map[DNNL_ARG_VARIANCE];
-    const auto &ref_sc = ref_mem_map[DNNL_ARG_SCALE];
-    const auto &ref_sh = ref_mem_map[DNNL_ARG_SHIFT];
+    cfg_t cfg(prb);
 
-    SAFE(prepare_fwd(prb, ref_src, ref_mean, ref_var, ref_sc, ref_sh, res),
-            WARN);
+    auto &mean = mem_map.at(DNNL_ARG_MEAN);
+    auto &ref_mean = ref_mem_map.at(DNNL_ARG_MEAN);
+    SAFE(fill_mean(prb, cfg, ref_mean, mean), WARN);
 
-    auto &src = mem_map[DNNL_ARG_SRC];
-    SAFE(src.reorder(ref_src), WARN);
+    auto &src = mem_map.at(DNNL_ARG_SRC);
+    auto &ref_src = ref_mem_map.at(DNNL_ARG_SRC);
+    SAFE(fill_src(prb, cfg, ref_src, src, ref_mean, res), WARN);
 
-    auto &mean = mem_map[DNNL_ARG_MEAN];
-    if (mean && prb->use_stats()) SAFE(mean.reorder(ref_mean), WARN);
+    // Need a copy of source data for inplace mode for bitwise testing.
+    if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+        auto &src_copy = mem_map.at(-DNNL_ARG_SRC);
+        SAFE(bool(src_copy) ? OK : FAIL, WARN);
+        SAFE(src_copy.reorder(src), WARN);
+    }
 
-    auto &var = mem_map[DNNL_ARG_VARIANCE];
-    if (var && prb->use_stats()) SAFE(var.reorder(ref_var), WARN);
+    auto &var = mem_map.at(DNNL_ARG_VARIANCE);
+    auto &ref_var = ref_mem_map.at(DNNL_ARG_VARIANCE);
+    SAFE(fill_variance_fwd(prb, cfg, ref_var, var, ref_src, ref_mean), WARN);
 
-    auto &sc = mem_map[DNNL_ARG_SCALE];
-    if (sc) SAFE(sc.reorder(ref_sc), WARN);
+    auto &scale = mem_map.at(DNNL_ARG_SCALE);
+    auto &ref_scale = ref_mem_map.at(DNNL_ARG_SCALE);
+    SAFE(fill_scale(prb, ref_scale, scale), WARN);
 
-    auto &sh = mem_map[DNNL_ARG_SHIFT];
-    if (sh) SAFE(sh.reorder(ref_sh), WARN);
+    auto &shift = mem_map.at(DNNL_ARG_SHIFT);
+    auto &ref_shift = ref_mem_map.at(DNNL_ARG_SHIFT);
+    SAFE(fill_shift(prb, ref_shift, shift), WARN);
 
     return OK;
 }
 
-static int prepare_bwd(const prb_t *prb, const dnn_mem_t &src,
-        const dnn_mem_t &d_dst, const dnn_mem_t &mean, const dnn_mem_t &var,
-        const dnn_mem_t &sc, res_t *res) {
-    const bool use_sc = prb->use_sc();
+int fill_variance_bwd(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
-    // fill gamma
-    for (int64_t c = 0; c < prb->c; ++c) {
-        const float sc_value = 0.125f * (1 << (c % 7));
-        if (use_sc) sc.set_elem(c, sc_value);
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        // Variance must be always positive by definition.
+        fill_cfg_t fill_cfg(dnnl_f32, 0.f, 16.f, /* int = */ false,
+                attr_t::post_ops_t::kind_t::ADD, "variance");
+        return fill_random_real(mem_dt, mem_fp, nullptr, fill_cfg);
+    }
+
+    benchdnn_parallel_nd(prb->n, [&](int64_t n) {
+        // final variance = {0.25f, 1.f, 4.f}
+        const float val = 0.25f * (1 << ((n % 3) * 2));
+        mem_fp.set_elem(n, val - prb->eps);
+    });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int fill_src_bwd(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt,
+        const dnn_mem_t &ref_mean, res_t *res) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, res);
+    }
+
+    benchdnn_parallel_nd(prb->n, [&](int64_t n) {
+        // Idea behind the filling is to reduce a possibility of cancellation
+        // when subtracting a part accumulated over N. For that, we simplify
+        // src data to (m+1) and (m-1) points, d_dst data is more or less
+        // random but we keep all values as pow2 values to have almost exact
+        // summation result.
+        const float m = ref_mean.get_elem(n);
+
+        for (int64_t c = 0; c < prb->c; ++c) {
+            const int64_t off = n * prb->c + c;
+            const float val = c % 2 == 0 ? (m - 1.f) : (m + 1.f);
+            mem_fp.set_elem(
+                    off, round_to_nearest_representable(prb->dt[0], val));
+        }
+    });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int fill_diff_dst_bwd(
+        const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt, res_t *res) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, res);
     }
 
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
@@ -240,70 +315,55 @@ static int prepare_bwd(const prb_t *prb, const dnn_mem_t &src,
         std::minstd_rand b_seed(n + 1);
         b_seed.discard(2);
 
-        // Idea behind the filling is to reduce a possibility of cancellation
-        // when subtracting a part accumulated over N. For that, we simplify
-        // src data to (m+1) and (m-1) points, d_dst data is more or less
-        // random but we keep all values as pow2 values to have almost exact
-        // summation result.
-        std::uniform_int_distribution<> stat_dist(0, 2);
+        // See `fill_src_bwd` comment.
         std::uniform_int_distribution<> data_dist(0, 6);
         std::bernoulli_distribution half_dist(0.5f);
 
-        // mean = {-0.5f, 0.f, 0.5f}
-        const float m = 0.5f * (stat_dist(int_seed) - 1);
-        mean.set_elem(n, m);
-
-        // final variance = {0.25f, 1.f, 4.f}
-        const float v = 0.25f * (1 << (stat_dist(int_seed) * 2));
-        var.set_elem(n, v - prb->eps);
-
-        const int64_t c_shift = n * prb->c;
-
         for (int64_t c = 0; c < prb->c; ++c) {
-            int sign = half_dist(b_seed) ? 1.f : -1.f;
+            const int64_t off = n * prb->c + c;
+            const float sign = half_dist(b_seed) ? 1.f : -1.f;
             // d_dst = powf(2, {-4, ... , 2})
-            float dd = sign * 0.0625f * (1LL << data_dist(int_seed));
-            d_dst.set_elem(c_shift + c,
-                    round_to_nearest_representable(prb->dt[1], dd));
-
-            float s = c % 2 == 0 ? (m - 1.f) : (m + 1.f);
-            src.set_elem(
-                    c_shift + c, round_to_nearest_representable(prb->dt[0], s));
+            const float val = sign * 0.0625f * (1LL << data_dist(int_seed));
+            mem_fp.set_elem(
+                    off, round_to_nearest_representable(prb->dt[0], val));
         }
     });
+
+    if (mem_dt) SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
 }
 
 int prepare_bwd(const prb_t *prb, dnn_mem_map_t &mem_map,
         dnn_mem_map_t &ref_mem_map, res_t *res) {
-    const auto &ref_src = ref_mem_map[DNNL_ARG_SRC];
-    const auto &ref_d_dst = ref_mem_map[DNNL_ARG_DIFF_DST];
-    const auto &ref_mean = ref_mem_map[DNNL_ARG_MEAN];
-    const auto &ref_var = ref_mem_map[DNNL_ARG_VARIANCE];
-    const auto &ref_sc = ref_mem_map[DNNL_ARG_SCALE];
-    const auto &ref_sh = ref_mem_map[DNNL_ARG_SHIFT];
+    cfg_t cfg(prb);
 
-    SAFE(prepare_bwd(prb, ref_src, ref_d_dst, ref_mean, ref_var, ref_sc, res),
-            WARN);
+    auto &mean = mem_map.at(DNNL_ARG_MEAN);
+    auto &ref_mean = ref_mem_map.at(DNNL_ARG_MEAN);
+    SAFE(fill_mean(prb, cfg, ref_mean, mean), WARN);
 
-    auto &src = mem_map[DNNL_ARG_SRC];
-    SAFE(src.reorder(ref_src), WARN);
+    auto &var = mem_map.at(DNNL_ARG_VARIANCE);
+    auto &ref_var = ref_mem_map.at(DNNL_ARG_VARIANCE);
+    SAFE(fill_variance_bwd(prb, ref_var, var), WARN);
 
-    auto &d_dst = mem_map[DNNL_ARG_DIFF_DST];
-    SAFE(d_dst.reorder(ref_d_dst), WARN);
+    auto &src = mem_map.at(DNNL_ARG_SRC);
+    auto &ref_src = ref_mem_map.at(DNNL_ARG_SRC);
+    SAFE(fill_src_bwd(prb, ref_src, src, ref_mean, res), WARN);
 
-    auto &mean = mem_map[DNNL_ARG_MEAN];
-    if (mean) SAFE(mean.reorder(ref_mean), WARN);
+    auto &d_dst = mem_map.at(DNNL_ARG_DIFF_DST);
+    auto &ref_d_dst = ref_mem_map.at(DNNL_ARG_DIFF_DST);
+    SAFE(fill_diff_dst_bwd(prb, ref_d_dst, d_dst, res), WARN);
 
-    auto &var = mem_map[DNNL_ARG_VARIANCE];
-    if (var) SAFE(var.reorder(ref_var), WARN);
+    // Need a copy of source data for inplace mode for bitwise testing.
+    if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+        auto &d_dst_copy = mem_map.at(-DNNL_ARG_DIFF_DST);
+        SAFE(bool(d_dst_copy) ? OK : FAIL, WARN);
+        SAFE(d_dst_copy.reorder(d_dst), WARN);
+    }
 
-    auto &sc = mem_map[DNNL_ARG_SCALE];
-    if (sc) SAFE(sc.reorder(ref_sc), WARN);
-
-    auto &sh = mem_map[DNNL_ARG_SHIFT];
-    if (sh) SAFE(sh.reorder(ref_sh), WARN);
+    auto &scale = mem_map.at(DNNL_ARG_SCALE);
+    auto &ref_scale = ref_mem_map.at(DNNL_ARG_SCALE);
+    SAFE(fill_scale(prb, ref_scale, scale), WARN);
 
     return OK;
 }
@@ -471,6 +531,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second;
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -491,14 +556,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                             dnnl_f32, tag::abx, ref_engine);
                 }
                 break;
-            default: {
-                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-                if (is_scales_arg) {
-                    int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    SAFE(fill_scales(prb->attr, exec_src_arg, mem, ref_mem),
-                            WARN);
-                }
-            } break;
+            default:
+                SAFE(init_ref_memory_args_default_case(
+                             exec_arg, mem, ref_mem, prb->attr, res),
+                        WARN);
+                break;
         }
     }
 
@@ -517,15 +579,17 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
     std::vector<data_kind_t> check_kinds;
     if (prb->dir & FLAG_FWD) {
-        check_kinds = {DST};
         if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
             check_kinds.push_back(MEAN);
             check_kinds.push_back(VAR);
         }
+        check_kinds.push_back(DST);
     } else {
-        check_kinds = {SRC};
-        if (prb->use_sc() && (prb->dir & FLAG_WEI)) check_kinds.push_back(SC);
-        if (prb->use_sh() && (prb->dir & FLAG_WEI)) check_kinds.push_back(SH);
+        if (prb->dir & FLAG_WEI) {
+            if (prb->use_sc()) check_kinds.push_back(SC);
+            if (prb->use_sh()) check_kinds.push_back(SH);
+        }
+        check_kinds.push_back(SRC);
     }
     assert(!check_kinds.empty());
     return check_kinds;
@@ -560,6 +624,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(
             prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->inplace, res),
+            WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

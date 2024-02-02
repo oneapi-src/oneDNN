@@ -29,7 +29,7 @@ namespace impl {
 namespace graph {
 namespace compiler_impl {
 
-const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
+const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t> &
 compiler_graph_impl_t::compiler_backend_supported_ops() {
     static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
             compiler_backend_op = {{op_kind::Add, "add"}, {op_kind::Abs, "abs"},

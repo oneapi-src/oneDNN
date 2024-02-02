@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,14 +28,15 @@ using namespace bn_lookup_table;
 using namespace bn_utils;
 using namespace dnnl::impl::utils;
 
-static bool use_fused_atomics_reduction(
-        bn_lookup_table::params_t &conf, engine_t *engine) {
+static bool use_fused_atomics_reduction(bn_lookup_table::params_t &conf,
+        const batch_normalization_pd_t *pd, engine_t *engine) {
     // Currently the fused atomics reduction is targeting to PVC only.
     // Heuristics experimentally selected, based on PVC perf data
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     const size_t sp = conf.mb * conf.id * conf.ih * conf.iw;
-    return gpu_arch >= compute::gpu_arch_t::xe_hpc
+    return !pd->attr()->deterministic_
+            && gpu_arch >= compute::gpu_arch_t::xe_hpc
             && conf.ic % conf.sub_group_size == 0 && sp / conf.ic > 40;
 }
 
@@ -191,7 +192,7 @@ static status_t init_conf_common(bn_lookup_table::params_t &conf,
 
     if (!conf.use_fused_atomics_reduction_param().is_overridden())
         conf.set_use_fused_atomics_reduction(
-                use_fused_atomics_reduction(conf, engine));
+                use_fused_atomics_reduction(conf, pd, engine));
 
     if (!conf.ic_block_param().is_overridden()) conf.set_ic_block(16);
 

@@ -149,7 +149,8 @@ status_t conv_problem_t::init(
     wei_data_type = conv_pd->invariant_wei_md()->data_type;
     bia_data_type = conv_pd->invariant_bia_md()->data_type;
     dst_data_type = conv_pd->invariant_dst_md()->data_type;
-    fpmath_mode = attr->fpmath_mode_;
+    fpmath_mode = attr->fpmath_.mode_;
+    deterministic = attr->deterministic_;
 
     ndims = conv_pd->ndims();
 
@@ -888,13 +889,14 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     // No post-ops are supported for f64
     if (prb.is_f64_conv() && !attr->has_default_values()) return false;
 
+    using sm = primitive_attr_t::skip_mask_t;
+    auto attr_skip_mask = sm::fpmath_mode;
     if (prb.is_fwd || prb.is_bwd_d) {
-        using sm = primitive_attr_t::skip_mask_t;
-        auto attr_skip_mask = sm::post_ops | sm::sum_dt
-                | sm::zero_points_runtime | sm::scales_runtime;
+        attr_skip_mask |= sm::post_ops | sm::sum_dt | sm::zero_points_runtime
+                | sm::scales_runtime;
         if (!attr->has_default_values(attr_skip_mask)) return false;
     } else {
-        if (!attr->has_default_values()) return false;
+        if (!attr->has_default_values(attr_skip_mask)) return false;
     }
 
     using namespace data_type;
@@ -1105,6 +1107,10 @@ bool pipeline_unroll_hint(const conv_problem_t &prb, fma_kind_t fma_kind,
                 && bwd_d_optimize_kind
                         != bwd_d_optimize_kind_t::skip_strided_dhw)
             do_unroll = false;
+    } else if (prb.is_bwd_w) {
+        // Deterministic mode requires to have full reduction in one thread which may result in multiple nested loops
+        // with large bounds so disable unrolling to avoid code size blow-up.
+        if (prb.deterministic) do_unroll = false;
     }
     // Unrolling with mad or dp4a results in too large kernels.
     if (utils::one_of(fma_kind, fma_kind_t::mad, fma_kind_t::dp4a)
@@ -1272,19 +1278,29 @@ void init_thread_group_grid(conv_config_t &cfg) {
     cfg.init_thread_group_grid(get_thread_group_grid_conv_dims(cfg.prb()));
 }
 
+int fixup_slm_bufs(const conv_problem_t &prb, int slm_bufs,
+        bool zp_do_src_compensation, bool enable_a, bool enable_b,
+        bool do_unroll) {
+    if (do_unroll) return slm_bufs;
+    // Multiple SLM buffering without unrolling has some limitations as compute
+    // indices are not tracked: A/B buffers are directly loaded from SLM and
+    // multiplied so some scenarios are not supported:
+    // - Mixing SLM and direct memory load for A/B as memory load requires
+    //   masking which relies on problem indices
+    // - Source zero-points as compensation masks require problem indices
+    if (enable_a != enable_b || zp_do_src_compensation)
+        return std::min(slm_bufs, 1);
+    return slm_bufs;
+}
+
 int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
         bool zp_do_src_compensation, bool enable_a, bool enable_b,
         bool do_unroll) {
-    if (enable_a || enable_b) {
-        bool is_small_tg = (m_tg * n_tg <= 8);
-        int pref_bufs
-                = ((is_small_tg || prb.is_f32_conv()) && prb.mb > 1 ? 2 : 3);
-        if (do_unroll) return pref_bufs;
-        const bool use_pref_bufs
-                = (enable_a == enable_b) && !zp_do_src_compensation;
-        return use_pref_bufs ? pref_bufs : 1;
-    }
-    return 0;
+    if (!enable_a && !enable_b) return 0;
+    bool is_small_tg = (m_tg * n_tg <= 8);
+    int pref_bufs = ((is_small_tg || prb.is_f32_conv()) && prb.mb > 1 ? 2 : 3);
+    return fixup_slm_bufs(prb, pref_bufs, zp_do_src_compensation, enable_a,
+            enable_b, do_unroll);
 }
 
 void init_slm(conv_config_t &cfg) {
@@ -1303,7 +1319,11 @@ void init_slm(conv_config_t &cfg) {
             bufs = slm_bufs_hint(prb, tg.dim(1), tg.dim(0),
                     cfg.zp_cfg().do_src_compensation, enable_a, enable_b,
                     cfg.pipeline().do_unroll());
+        } else if (cfg.zp_cfg().do_src_compensation) {
+            bufs = std::min(bufs, 1);
         }
+        bufs = fixup_slm_bufs(prb, bufs, cfg.zp_cfg().do_src_compensation,
+                enable_a, enable_b, cfg.pipeline().do_unroll());
         ir_assert(bufs > 0);
         gmem_bufs = (cfg.is_dp_fma() && cfg.pipeline().do_unroll()) ? 2 : 1;
     }

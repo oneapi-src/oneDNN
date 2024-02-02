@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,7 +76,8 @@ static inline void quantize_igo(int8_t *scratch_quantized,
             for (int go = 0; go < G * O; go++) {
                 const float s = scales[(mask == 0) ? 0 : go];
                 scratch_quantized[ldi * G * O + go]
-                        = qz_b0<in_data_t, int8_t>()(src[ldi * G * O + go], s);
+                        = q10n::qz_b0<in_data_t, int8_t>()(
+                                src[ldi * G * O + go], s);
             }
         }
     });
@@ -99,7 +100,7 @@ static inline void quantize_goi(int8_t *scratch_quantized,
         PRAGMA_OMP_SIMD()
         for (dim_t i = 0; i < I; i++) {
             scratch_quantized[ld * I * G * O + i * G * O + go]
-                    = qz_b0<in_data_t, int8_t>()(
+                    = q10n::qz_b0<in_data_t, int8_t>()(
                             src[ld * G * O * I + go * I + i], s);
         }
     });
@@ -135,7 +136,7 @@ static inline void compensate_igo(float *compensation,
             if (I == 1) {
                 PRAGMA_OMP_SIMD()
                 for (int go = GO_s; go < GO_e; go++)
-                    compensation[ld * G * O + go] = saturate<float>(
+                    compensation[ld * G * O + go] = q10n::saturate<float>(
                             scratch_quantized[ld * I * G * O + go]);
             } else {
                 // We split the loop on I in three to avoid conditionals or zeroing compensation
@@ -154,7 +155,7 @@ static inline void compensate_igo(float *compensation,
                 // i = I-1
                 PRAGMA_OMP_SIMD()
                 for (int go = GO_s; go < GO_e; go++)
-                    compensation[ld * G * O + go] = saturate<float>(
+                    compensation[ld * G * O + go] = q10n::saturate<float>(
                             compensation_s32[go]
                             + scratch_quantized[go + G * O * (i + I * (ld))]);
             }
@@ -180,7 +181,7 @@ static inline void compensate_goi(float *compensation,
         // going to be added to a bias (e.g. like in lstm
         // projection where it is directly added to the s32
         // accumulators)
-        compensation[ld * G * O + go] = saturate<float>(compensation_s32);
+        compensation[ld * G * O + go] = q10n::saturate<float>(compensation_s32);
     });
 }
 
@@ -270,7 +271,7 @@ private:
                 PRAGMA_OMP_SIMD()
                 for (int j = 0; j < inner_dim; ++j) {
                     const float in = (float)i_[j] * scale + shift;
-                    o_[j] = qz_a1b0<float, out_data_t>()(in);
+                    o_[j] = q10n::qz_a1b0<float, out_data_t>()(in);
                 }
             }
         });
@@ -287,7 +288,7 @@ private:
         const size_t nelems = input_d.nelems();
         parallel_nd(nelems, [&](size_t i) {
             const float in = (float)input[input_d.off_l(i)] * scale + shift;
-            output[output_d.off_l(i)] = qz_a1b0<float, out_data_t>()(in);
+            output[output_d.off_l(i)] = q10n::qz_a1b0<float, out_data_t>()(in);
         });
         return status::success;
     }

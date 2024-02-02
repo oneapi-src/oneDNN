@@ -70,7 +70,7 @@ public:
 
     // returns all supported op kinds
     static const std::unordered_map<op_kind_t, std::string, utils::enum_hash_t>
-    compiler_backend_supported_ops();
+            &compiler_backend_supported_ops();
 };
 
 } // namespace compiler_impl

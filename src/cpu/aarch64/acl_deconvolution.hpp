@@ -94,6 +94,8 @@ struct acl_deconvolution_fwd_t : public primitive_t {
             using namespace data_type;
             using namespace format_tag;
 
+            using smask_t = primitive_attr_t::skip_mask_t;
+
             const memory_desc_wrapper src_d(&src_md_);
             const memory_desc_wrapper wei_d(&weights_md_);
             const memory_desc_wrapper dst_d(&dst_md_);
@@ -110,7 +112,7 @@ struct acl_deconvolution_fwd_t : public primitive_t {
                     && (expect_data_types(f16, f16, f16, f16)
                             || expect_data_types(f32, f32, f32, f32))
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops,
+                            smask_t::post_ops | smask_t::fpmath_mode,
                             dst_data_t);
             if (!ok) return status::unimplemented;
 
@@ -215,7 +217,7 @@ struct acl_deconvolution_fwd_t : public primitive_t {
                     1, acl_bia_data_t, acl_layout);
 
             acl_pd_conf.fast_math = utils::one_of(
-                    attr()->fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
+                    attr()->fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
 
             ACL_CHECK_VALID(arm_compute::NEDeconvolutionLayer::validate(
                     &acl_pd_conf.src_info, &acl_pd_conf.wei_info,

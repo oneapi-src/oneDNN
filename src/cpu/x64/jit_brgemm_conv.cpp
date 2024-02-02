@@ -310,7 +310,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
         brgattr.max_top_vpad = jcp_.max_vpad;
         brgattr.max_bottom_vpad = jcp_.max_vpad;
     }
-    brgattr.fpmath_mode = attr()->fpmath_mode_;
+    brgattr.fpmath_mode = attr()->fpmath_.mode_;
     brgattr.K_koef = (float)bs / KW;
 
     CHECK(brgemm_desc_set_attr(&brg, brgattr));
@@ -418,7 +418,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
 
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
-            | skip_mask_t::zero_points_runtime;
+            | skip_mask_t::zero_points_runtime | skip_mask_t::fpmath_mode;
     if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
     VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);

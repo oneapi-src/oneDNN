@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -206,6 +206,7 @@ threadpool_scheduler::threadpool_scheduler(
     : stream_(stream), num_queues_ {num_threads} {
     threadlocals.current_sched = this;
     threadlocals.work_tid = 0;
+    num_broadcast_events_ = 0;
     static_assert(sizeof(queue) == 64, "expecting sizeof(queue) == 64");
     queues_ = (queue *)aligned_alloc(64, sizeof(queue) * num_threads);
     for (uint64_t i = 0; i < num_threads; i++) {
@@ -552,7 +553,9 @@ threadpool_scheduler *threadpool_adapter_t::all_thread_prepare(
         main_sched = std::unique_ptr<threadpool_scheduler>(
                 new threadpool_scheduler(stream, 16, threads));
     }
+    get_tls(stream); // set the TLS to the current engine
     main_sched->num_broadcast_events_ = 0;
+    main_sched->stream_ = stream;
     for (uint64_t i = 0; i < main_sched->num_queues_; i++) {
         main_sched->queues_[i].thr_state_ = queue::thread_state::UNATTENDED;
         main_sched->queues_[i].broadcast_ob_ver_.store(
@@ -565,6 +568,7 @@ threadpool_scheduler *threadpool_adapter_t::all_thread_prepare(
 void threadpool_adapter_t::main_thread(threadpool_scheduler *sched,
         main_func_t f, runtime::stream_t *stream, void *mod_data,
         generic_val *args) {
+    get_tls(stream); // set the TLS to the current engine
     threadlocals.current_sched = sched;
     threadlocals.work_tid = 0;
     sched->queues_[0].thr_state_ = queue::thread_state::SCHEDULING;
@@ -576,6 +580,7 @@ void threadpool_adapter_t::main_thread(threadpool_scheduler *sched,
 }
 
 void threadpool_adapter_t::worker_thread(threadpool_scheduler *sched, int tid) {
+    get_tls(sched->stream_); // set the TLS to the current engine
     threadlocals.current_sched = sched;
     sched->select_and_run_jobs(tid);
     get_mem_pool(threadlocals)->clear();

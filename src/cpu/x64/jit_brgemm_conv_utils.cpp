@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -511,11 +511,15 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     // Simple simulation of brgemm_desc init
     if (sp_block <= 0) return status::invalid_arguments;
     const auto kh_koef = is_relo_whi() ? kh : 1;
-    LDA = is_rtus ? (inp_ic_block)
-                  : kh_koef * stride_w
-                    * (exec_type == exec_trans ? inp_ic_block
-                                               : ngroups * ic_without_padding);
-    bool reduce_kw = (ow == 1);
+    if (is_rtus)
+        LDA = is_reduced_rtus ? ic_without_padding : inp_ic_block;
+    else {
+        const size_t ic_stride = exec_type == exec_trans
+                ? inp_ic_block
+                : ngroups * ic_without_padding;
+        LDA = kh_koef * stride_w * ic_stride;
+    }
+    bool reduce_kw = ow == 1 && !is_reduced_rtus;
     if (reduce_kw) { LDA *= ext_kw; }
 
     LDB = wei_plain ? oc_without_padding : oc_block;
@@ -657,7 +661,7 @@ status_t brg_blocking_t::get_brgemm_ur(
                 max_vpad = exec_type == exec_vpad ? nstl::max(l_pad, r_pad) : 0;
                 brgattr.max_top_vpad = max_vpad;
                 brgattr.max_bottom_vpad = max_vpad;
-                brgattr.fpmath_mode = attr->fpmath_mode_;
+                brgattr.fpmath_mode = attr->fpmath_.mode_;
                 CHECK(brgemm_desc_set_attr(&brg, brgattr));
 
                 brg.with_sum = with_sum;
@@ -1205,8 +1209,11 @@ float brg_blocking_t::est_eff_1x1() {
                     / (ocb_ave + spb_ave)
             : (static_cast<float>(ocblock) * ur) / ((ur + ocblock) * max_regs);
     const auto ur_eff = static_cast<float>(sp_block) / rnd_up(sp_block, ur);
-    const auto brgemm_eff = squeeze_val(ur
-                    * (2.f - nstl::min(1.9f, static_cast<float>(ur) / sp_block))
+
+    // heuristic sp_block: for reduced rtus, prioritize a smaller sp_block
+    const auto heur_sp_block = is_reduced_rtus ? 1.f / sp_block : sp_block;
+    const auto brgemm_eff = squeeze_val(
+            ur * (2.f - nstl::min(1.9f, static_cast<float>(ur) / heur_sp_block))
                     / 64,
             0.5f);
 
@@ -1451,6 +1458,15 @@ void brg_blocking_t::calc_blocks_1x1() {
             = utils::everyone_is(1, stride_d, stride_h) && iw % stride_w == 0;
     const bool is_ic_zero_padded = ic != ic_without_padding;
     is_rtus = is_ic_zero_padded || (!is_os_blocking_ok && is_amx(isa));
+    const bool is_int8_convolution = everyone_is(true, one_of(src_dt, u8, s8),
+            wei_dt == s8, one_of(dst_dt, f32, s32, s8, u8, bf16));
+    // reduced_rtus zero-pads the input-channel when IC is not in a
+    // vnni-friendly block size. It decreases the footprint of RTUS by using a
+    // reduced copy-buffer size i.e. it is only used for the last os_spatial
+    // block and the last ic_channel computation of size '16 * vnni_block'.
+    is_reduced_rtus = is_rtus && is_int8_convolution && ic > ic_without_padding
+            && everyone_is(1, stride_d, stride_h, stride_w);
+
     if (is_os_blocking_ok || is_rtus) {
         sp = os;
         is_os_blocking = true;
@@ -1543,7 +1559,7 @@ void brg_blocking_t::calc_blocks_1x1() {
         update_blocks();
 
         use_buffer = (dst_dt != acc_dt || with_sum)
-                && (ic_block * nb_ic_blocking < ic);
+                && (ic_block * nb_ic_blocking < ic || is_reduced_rtus);
 
         eff = est_eff_1x1();
         if (eff > best_brgb.eff || best_brgb.eff == 0) best_brgb = *this;
@@ -1653,7 +1669,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.simd_w = isa_max_vlen(isa) / jcp.src_dsz;
     jcp.acc_simd_w = isa_max_vlen(isa) / jcp.acc_dsz;
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
-            && one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any)
+            && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
             && isa == avx512_core_amx;
     jcp.wei_plain = everyone_is(true, jcp.wei_dt == data_type::f32,
             is_superset(isa, avx512_core), weights_d.is_plain());
@@ -2427,12 +2443,36 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     // no inp buffer or brgemm_vpad for 1x1
     constexpr int align_size = platform::get_cache_line_size();
     jcp.exec_type = jcp.is_rtus ? exec_trans : exec_base;
+
+    /* calculate the ic block size for reduced_rtus as:
+     *
+     * [------src_input_data--------|*****rtus_buffer*****00000000000000]
+     * ^ -- directly into brgemm -- ^ -- reduced_rtus -- ^ zero-padding ^ic_sz
+     **/
+    constexpr int int8_outer_vnni_block = 16; // currently, only for AMX
+    const int ic_padded_block = int8_outer_vnni_block * jcp.vnni_block;
+    const int ic_vnni_block = jcp.ic_without_padding / ic_padded_block;
+    const int effective_rtus_ic_block
+            = jcp.ic_without_padding - (ic_vnni_block * ic_padded_block);
+    const int rtus_padded_ic_size
+            = rnd_up(effective_rtus_ic_block, ic_padded_block);
+    // used as K dimension for BRGeMM:
+    jcp.rtus_ic_size = jcp.is_reduced_rtus ? effective_rtus_ic_block : 1;
+
+    // ic_size + padding, used for BRGeMM LDA:
+    jcp.rtus_padded_ic_size = jcp.is_reduced_rtus ? rtus_padded_ic_size : 1;
+
+    const size_t rtus_buffer_size = jcp.is_reduced_rtus
+            ? jcp.rtus_padded_ic_size * jcp.os_block
+            : jcp.LDA * jcp.os;
     jcp.inp_buffer_size
-            = jcp.is_rtus ? rnd_up(jcp.LDA * jcp.os, align_size) : 0;
-    jcp.inp_buffer_mask_size = jcp.is_rtus
-            ? rnd_up(div_up(jcp.nb_ic, jcp.nb_ic_blocking) * jcp.nb_os,
-                    align_size)
-            : 0;
+            = jcp.is_rtus ? rnd_up(rtus_buffer_size, align_size) : 0;
+
+    const size_t rtus_mask_size = !jcp.is_reduced_rtus
+            ? div_up(jcp.nb_ic, jcp.nb_ic_blocking) * jcp.nb_os
+            : 1; // only uses 1 block, so only 1 mask needed
+    jcp.inp_buffer_mask_size
+            = jcp.is_rtus ? rnd_up(rtus_mask_size, align_size) : 0;
     jcp.buffer_size = jcp.LDC * jcp.M;
 
     if (jcp.s8s8_compensation_required) {
@@ -2540,8 +2580,8 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
     const auto oc_chunks = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
     const auto ic_chunks = div_up(jcp.nb_ic, jcp.nb_ic_blocking);
 
-    auto calc_mem_cost = [=](int nthr_mb, int nthr_g, int nthr_oc_b,
-                                 int nthr_ic_b) {
+    auto calc_mem_cost = [&jcp, os_chunks, oc_chunks, ic_chunks](int nthr_mb,
+                                 int nthr_g, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level
             * optimizer tries to minimize memory consumption. few notes:
             *  (n1) if weights tensor size is less than source and destination
@@ -2613,8 +2653,8 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
         return src_v + dst_v + wei_v;
     };
 
-    auto balance = [=](int &nthr_, int &nthr_mb_, int &nthr_g_, int &nthr_oc_b_,
-                           int &nthr_ic_b_) {
+    auto balance = [&jcp, calc_mem_cost, oc_chunks](int &nthr_, int &nthr_mb_,
+                           int &nthr_g_, int &nthr_oc_b_, int &nthr_ic_b_) {
         nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
 
         if (jcp.nthr < jcp.ngroups) {

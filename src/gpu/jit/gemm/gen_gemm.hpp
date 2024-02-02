@@ -60,7 +60,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             // - runtime dims are not supported
             bool ok = true;
 
-            auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops;
+            auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops
+                    | smask_t::fpmath_mode;
 
             dev_info_ = compute_engine->device_info();
             arch_ = dev_info_->gpu_arch();
@@ -96,11 +97,17 @@ struct gen_gemm_t : public gpu_gemm_t {
                 eff_ldb_ = utils::rnd_up(eff_ldb_, 16);
             }
 
+            bool wei_decomp
+                    = (utils::one_of(d->c_type(), f32, f16, bf16)
+                              && utils::one_of(d->a_type(), u8, s8)
+                              && utils::one_of(d->b_type(), f16, f32, bf16))
+                    && attr()->mayiconvert(d->a_type(), f32);
+            if (wei_decomp) attr_skip_mask |= smask_t::fpmath_mode;
+
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8)) {
-                ok = ok && utils::one_of(d->b_type(), u8, s8);
-
+                ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp);
                 a_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC);
                 b_zp_ = !attr()->zero_points_.has_default_values(
                         DNNL_ARG_WEIGHTS);
@@ -198,23 +205,32 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
 
-            if (attr()->mayidownconvert(f32, tf32))
-                mode = static_cast<decltype(mode)>(
-                        mode | kernel_desc_t::mode_tf32);
+            if (attr()->mayiconvert(f32, tf32))
+                set_mode(mode, kernel_desc_t::mode_tf32);
+            if (attr()->mayiconvert(f32, bf16))
+                set_mode(mode, kernel_desc_t::mode_bf16x1);
+            if (attr()->deterministic_)
+                set_mode(mode, kernel_desc_t::mode_deterministic);
 
-            if (attr()->mayidownconvert(f32, bf16))
+            if (wei_decomp) {
+                acc_type = data_type::f32;
                 mode = static_cast<decltype(mode)>(
-                        mode | kernel_desc_t::mode_bf16x1);
+                        mode | kernel_desc_t::mode_w_decomp);
+            }
+
+            gpu_post_ops_t gpu_post_ops;
+            CHECK(gpu_post_ops_t::make(gpu_post_ops, post_ops_, dst_md(),
+                    get_post_op_specializations()));
 
             status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
                     eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
                     with_a_zero_points(), with_b_zero_points(),
                     with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
-                    beta(), post_ops_, eff_a_type(), eff_b_type(),
-                    desc()->c_type(), co_type, acc_type, eff_align_a(),
-                    eff_align_b(), align_c(), eff_m(), eff_n(), d->k(),
-                    eff_lda(), eff_ldb(), d->ldc(), d->batch(), prelu_wei_md);
+                    beta(), eff_a_type(), eff_b_type(), desc()->c_type(),
+                    co_type, acc_type, eff_align_a(), eff_align_b(), align_c(),
+                    eff_m(), eff_n(), d->k(), eff_lda(), eff_ldb(), d->ldc(),
+                    d->batch(), std::move(gpu_post_ops));
 
             if (status != status::success) return status;
 
@@ -227,6 +243,10 @@ struct gen_gemm_t : public gpu_gemm_t {
                 ok &= !with_eltwise && !with_binary
                         && utils::one_of(d->c_type(), f32, s32);
             }
+
+            // Ensure kernel can be run deterministically if required.
+            if (attr()->deterministic_)
+                ok &= !kernel_desc_.driver_info()->nondeterministic();
 
             if (!ok) return status::unimplemented;
 

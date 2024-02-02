@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 #include "dependency_analyzer.hpp"
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <utility>
@@ -111,7 +112,7 @@ public:
     bool indexing_same(const indexing_c &v1, const indexing_c &v2) {
         if (!v1->ptr_.ptr_same(v2->ptr_)) { return false; }
         assert(v1->idx_.size() == v2->idx_.size());
-
+        if (v1->dtype_ != v2->dtype_) { return false; }
         ir_comparer cmper {false, false, true};
         for (unsigned i = 0; i < v1->idx_.size(); i++) {
             if (!cmper.compare(v1->idx_[i], v2->idx_[i])) { return false; }
@@ -120,7 +121,7 @@ public:
                 == get_dep_info(v2.get()).depends_on_;
     }
 
-    // returns true when two indices can be proven not the same
+    // returns true when two indices can be proven does not overlap
     // currently only check the constant indices
     bool indexing_definitely_not_same(
             const indexing_c &v1, const indexing_c &v2) {
@@ -134,7 +135,16 @@ public:
                 return false;
             }
         }
-        return true;
+        // the index not the same, now check if the access will overlap
+        auto idx1 = v1->idx_.back().static_as<constant_c>()->value_.front().s64;
+        auto idx2 = v2->idx_.back().static_as<constant_c>()->value_.front().s64;
+        // check if [idx1, idx1+lanes1) and [idx2, idx2+lanes2) overlaps
+        int64_t end1 = idx1 + v1->dtype_.lanes_;
+        int64_t end2 = idx2 + v2->dtype_.lanes_;
+
+        auto overlap = std::max(
+                INT64_C(0), std::min(end1, end2) - std::max(idx1, idx2));
+        return overlap == 0;
     }
 
     void add_tensor_depends_on_top_level_access(

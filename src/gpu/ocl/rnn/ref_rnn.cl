@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -248,9 +248,11 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
     __global AUX_DATA_T *src_c = (__global AUX_DATA_T *)(src_c_base);
     __global AUX_DATA_T *dst_c = dst_c_base;
     if (s < dhc) {
+        int ws_c_state_offset = off_ws_c_state(n_layer, n_dir, n_iter, batch,
+                states_ws_ld, lay, dir, -1, b, s);
         const param4 c_strides
                 = {lay_c_stride, dir_c_stride, b_c_stride, s_c_stride};
-        dst_c[ws_state_offset] = src_c_base
+        dst_c[ws_c_state_offset] = src_c_base
                 ? src_c[src_i_c_off(c_strides, lay, dir, b, s)]
                 : TO_WS_STATE(0.0f);
     }
@@ -423,7 +425,7 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
             = {lay_c_stride, dir_c_stride, b_c_stride, s_c_stride};
     if (dst_c_base && s < dhc) {
         dst_c[dst_i_c_off(c_strides, lay, dir, b, s)]
-                = src_c[off_ws_state(n_layer, n_dir, n_iter, batch,
+                = src_c[off_ws_c_state(n_layer, n_dir, n_iter, batch,
                         states_ws_ld, lay, dir, n_iter - 1, b, s)];
     }
 #endif
@@ -472,8 +474,7 @@ __kernel void ref_rnn_ws_print(__global ACC_DATA_T *gates_base,
         __global WS_STATE_DATA_T *states_base,
         __global AUX_DATA_T *c_states_base, __global AUX_DATA_T *bias_base,
         __global ACC_DATA_T *grid_comp_base, int batch, int n_layer, int n_dir,
-        int n_iter, int n_bias, int dhc, int n_gates, int states_ws_ld,
-        int gates_ws_ld, int wic) {
+        int n_iter, int dhc, int states_ws_ld, int gates_ws_ld, int wic) {
     {
         __global ACC_DATA_T *wt = gates_base;
         printf("[lay,dir,iter,batch]\n");
@@ -562,8 +563,8 @@ __kernel void ref_rnn_ws_print(__global ACC_DATA_T *gates_base,
             for (int dhc_ = 0; dhc_ < dhc; dhc_++) {
                 printf(" %f",
                         *(wt
-                                + off_ws_bias(n_layer, n_dir, n_bias, dhc, j,
-                                        dir, nb, dhc_)));
+                                + off_ws_bias(n_layer, n_dir, dhc, j, dir, nb,
+                                        dhc_)));
             }
             printf("\n");
         }
@@ -575,9 +576,9 @@ __kernel void ref_rnn_ws_print(__global ACC_DATA_T *gates_base,
 __kernel void ref_rnn_bias_prepare(__global float *ws_bias,
         __global float *scales, __global char *wei_layer,
         __global char *wei_iter, __global float *bias, int dhc, int n_layer,
-        int n_dir, int n_bias, float data_shift, float data_scale,
-        int wei_l_comp_off, int wei_i_comp_off, int lay_stride, int dir_stride,
-        int nbias_stride, int dhc_stride) {
+        int n_dir, float data_shift, float data_scale, int wei_l_comp_off,
+        int wei_i_comp_off, int lay_stride, int dir_stride, int nbias_stride,
+        int dhc_stride) {
 #if COPY_BIAS
 
     const int dhc_ = get_global_id(0);
@@ -600,16 +601,15 @@ __kernel void ref_rnn_bias_prepare(__global float *ws_bias,
     __global float *wei_layer_comp
             = (__global float *)(((unsigned long)temp + (sizeof(float) - 1))
                     & -sizeof(float));
-    const int off = comp_off(n_dir, n_bias, dhc, layer_, dir_, nbias_, dhc_);
+    const int off = comp_off(n_dir, dhc, layer_, dir_, nbias_, dhc_);
     const float comp = wei_layer_comp[off] + wei_iter_comp[off];
-    ws_bias[off_ws_bias(
-            n_layer, n_dir, n_bias, dhc, layer_, dir_, nbias_, dhc_)]
+    ws_bias[off_ws_bias(n_layer, n_dir, dhc, layer_, dir_, nbias_, dhc_)]
             = bias[bias_off(strides, layer_, dir_, nbias_, dhc_)]
             - comp * data_shift / (wei_scale * data_scale);
 
 #endif
 }
-
+#if CELL_KIND == VANILLA_LSTM
 typedef struct vanilla_lstm_gates_t {
     float G[4];
 } vanilla_lstm_gates_t;
@@ -619,13 +619,12 @@ vanilla_lstm_gates_t compute_gates_vanilla_lstm(
         const __global AUX_DATA_T *restrict bias,
         const __global float *restrict tm_scales, int scratch_gates_ld, int dhc,
         int mb, int c) {
-    const int n_gates = 4;
     float G[n_gates];
-    float B[n_gates];
+    float B[n_bias];
     for (int i = 0; i < n_gates; i++) {
         G[i] = convert_float(scratch_gates[cell_scratch_mem(
                 scratch_gates_ld, dhc, mb, i, c)]);
-        B[i] = convert_float(bias[off_ker_bias(n_gates, dhc, i, c)]);
+        B[i] = convert_float(bias[off_ker_bias(dhc, i, c)]);
     }
 
     vanilla_lstm_gates_t ret;
@@ -636,16 +635,17 @@ vanilla_lstm_gates_t compute_gates_vanilla_lstm(
     return ret;
 }
 
+#elif CELL_KIND == VANILLA_RNN
+
 float compute_gates_vanilla_rnn(
         const __global AUX_DATA_T *restrict scratch_gates,
         const __global AUX_DATA_T *restrict bias,
         const __global float *restrict tm_scales, float alpha,
         int scratch_gates_ld, int dhc, int mb, int c) {
-    const int n_gates = 1;
     float G = activation_fwd(
             convert_float(scratch_gates[cell_scratch_mem(
                                   scratch_gates_ld, dhc, mb, 0, c)]
-                    + convert_float(bias[off_ker_bias(n_gates, dhc, 0, c)])),
+                    + convert_float(bias[off_ker_bias(dhc, 0, c)])),
 #if IS_TESTMODE
             tm_scales[0], 0);
 #else
@@ -654,6 +654,7 @@ float compute_gates_vanilla_rnn(
     return G;
 }
 
+#elif CELL_KIND == LBR_GRU
 typedef struct lbr_gru_gates_t {
     float Wh_b;
     float G[3];
@@ -665,8 +666,6 @@ lbr_gru_gates_t compute_gates_lbr_gru(
         const __global AUX_DATA_T *restrict bias,
         const __global float *restrict tm_scales, int scratch_gates_ld, int dhc,
         int mb, int c) {
-    const int n_gates = 3;
-    const int n_bias = 4;
     float G[n_gates];
     float B[n_bias];
     float C[n_gates];
@@ -677,7 +676,7 @@ lbr_gru_gates_t compute_gates_lbr_gru(
                 scratch_gates_ld, dhc, mb, i, c)]);
     }
     for (int i = 0; i < n_bias; i++) {
-        B[i] = convert_float(bias[off_ker_bias(n_bias, dhc, i, c)]);
+        B[i] = convert_float(bias[off_ker_bias(dhc, i, c)]);
     }
 
     lbr_gru_gates_t ret;
@@ -687,6 +686,7 @@ lbr_gru_gates_t compute_gates_lbr_gru(
     ret.G[2] = tanh_fwd_tm(G[2] + ret.G[1] * ret.Wh_b + B[2], tm_scales[2]);
     return ret;
 }
+#endif
 
 #if IS_INT8 && CELL_KIND == VANILLA_LSTM
 
@@ -708,14 +708,12 @@ float deq_w(ACC_DATA_T s, int gate, int j, __global float *scales,
 // for int8 LSTM
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_elemwise_fwd(int dir, int lay, int iter,
-        __global ACC_DATA_T *scratch_gates, __global float *scales,
-        __global float *bias_base, float alpha, float data_shift,
-        float data_scale, __global float *tm_scales,
+        __global ACC_DATA_T *scratch_gates, __global float *scales, float alpha,
+        float data_shift, float data_scale, __global float *tm_scales,
         __global WS_STATE_DATA_T *h_states_t_l, __global float *c_states_t_l,
         __global float *c_states_tm1_l, __global AUX_DATA_T *ws_gates,
         __global float *ws_bias, int states_ws_ld, int scratch_gates_ld,
-        int batch, int dhc, int n_layer, int n_dir, int n_bias,
-        int n_iter_scratch_gates, float tm_cscale) {
+        int batch, int dhc, int n_layer, int n_dir, float tm_cscale) {
     const int i = get_global_id(1); // batch
     const int j = get_global_id(0); // dhc
 
@@ -724,26 +722,22 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter,
     float G0 = logistic_fwd_tm(deq_w(scratch_gates[cell_scratch_mem(
                                              scratch_gates_ld, dhc, i, 0, j)],
                                        0, j, scales, data_scale, dhc)
-                    + ws_bias[off_ws_bias(
-                            n_layer, n_dir, n_bias, dhc, lay, dir, 0, j)],
+                    + ws_bias[off_ws_bias(n_layer, n_dir, dhc, lay, dir, 0, j)],
             tm_scales[0]);
     float G1 = logistic_fwd_tm(deq_w(scratch_gates[cell_scratch_mem(
                                              scratch_gates_ld, dhc, i, 1, j)],
                                        1, j, scales, data_scale, dhc)
-                    + ws_bias[off_ws_bias(
-                            n_layer, n_dir, n_bias, dhc, lay, dir, 1, j)],
+                    + ws_bias[off_ws_bias(n_layer, n_dir, dhc, lay, dir, 1, j)],
             tm_scales[1]);
     float G2 = tanh_fwd_tm(deq_w(scratch_gates[cell_scratch_mem(
                                          scratch_gates_ld, dhc, i, 2, j)],
                                    2, j, scales, data_scale, dhc)
-                    + ws_bias[off_ws_bias(
-                            n_layer, n_dir, n_bias, dhc, lay, dir, 2, j)],
+                    + ws_bias[off_ws_bias(n_layer, n_dir, dhc, lay, dir, 2, j)],
             tm_scales[2]);
     float G3 = logistic_fwd_tm(deq_w(scratch_gates[cell_scratch_mem(
                                              scratch_gates_ld, dhc, i, 3, j)],
                                        3, j, scales, data_scale, dhc)
-                    + ws_bias[off_ws_bias(
-                            n_layer, n_dir, n_bias, dhc, lay, dir, 3, j)],
+                    + ws_bias[off_ws_bias(n_layer, n_dir, dhc, lay, dir, 3, j)],
             tm_scales[3]);
 
     float tmp
@@ -757,15 +751,13 @@ ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 #else
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
-ref_rnn_elemwise_fwd(
-        int dir, int lay, int iter, __global AUX_DATA_T *scratch_gates,
-        __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
+ref_rnn_elemwise_fwd(__global AUX_DATA_T *scratch_gates,
+        __global AUX_DATA_T *bias, float alpha, __global float *tm_scales,
         __global WS_STATE_DATA_T *h_states_t_l,
         __global AUX_DATA_T *c_states_t_l, __global AUX_DATA_T *c_states_tm1_l,
         __global AUX_DATA_T *ws_gates, __global AUX_DATA_T *ws_grid,
         int states_ws_ld, int gates_ws_ld, int scratch_gates_ld, int batch,
-        int dhc, int n_layer, int n_gates, int n_iter_scratch_gates,
-        int bias_lay_stride, int bias_dir_stride, int bias_s2, int bias_s3,
+        int dhc,
 #if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale
 #elif CELL_KIND == LBR_GRU
@@ -778,10 +770,6 @@ ref_rnn_elemwise_fwd(
     const int j = get_global_id(0); // dhc
 
     if (j >= dhc || i >= batch) return;
-    const param4 strides = {bias_lay_stride, bias_dir_stride, bias_s2, bias_s3};
-
-    const __global AUX_DATA_T *bias
-            = bias_base + bias_off(strides, lay, dir, 0, 0);
 
 #if CELL_KIND == VANILLA_LSTM
     vanilla_lstm_gates_t gates = compute_gates_vanilla_lstm(
@@ -844,11 +832,11 @@ ref_rnn_elemwise_fwd(
     if (n_part == 1) {
         float G0 = logistic_fwd_tm(
                 scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 0, j)]
-                        + bias[off_ker_bias(n_gates, dhc, 0, j)],
+                        + bias[off_ker_bias(dhc, 0, j)],
                 tm_scales[0]);
         float G1 = logistic_fwd_tm(
                 scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
-                        + bias[off_ker_bias(n_gates, dhc, 1, j)],
+                        + bias[off_ker_bias(dhc, 1, j)],
                 tm_scales[1]);
 
         /* TODO from CPU: Can be optimized for fwd_training by using
@@ -868,7 +856,7 @@ ref_rnn_elemwise_fwd(
                 scratch_gates_ld, dhc, i, 0, j)]);
         float G2 = tanh_fwd_tm(
                 scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 2, j)]
-                        + bias[off_ker_bias(n_gates, dhc, 2, j)],
+                        + bias[off_ker_bias(dhc, 2, j)],
                 tm_scales[2]);
         float tmp = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
         h_states_t_l[cell_ws_state(states_ws_ld, i, j)]
@@ -897,15 +885,14 @@ ref_rnn_elemwise_fwd(
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         __global SRC_DATA_T *scratch_diff_gates,
-        __global AUX_DATA_T *scratch_gates, __global AUX_DATA_T *bias_base,
+        __global AUX_DATA_T *scratch_gates, __global AUX_DATA_T *bias,
         float alpha, __global float *tm_scales,
         __global WS_STATE_DATA_T *states_tm1_l,
         __global AUX_DATA_T *c_states_t_l, __global AUX_DATA_T *c_states_tm1_l,
         __global AUX_DATA_T *ws_gates, __global AUX_DATA_T *ws_grid,
         int states_ws_ld, int gates_ws_ld, int scratch_diff_gates_ld,
-        int scratch_gates_ld, int batch, int dhc, int n_layer, int n_gates,
-        int n_iter_scratch_gates, int n_dir, int n_states, int n_iter,
-        int scratch_diff_states_ld, int diff_states_layer_ld,
+        int scratch_gates_ld, int batch, int dhc, int scratch_diff_states_ld,
+        int diff_states_layer_ld,
 #if CELL_KIND == VANILLA_LSTM || CELL_KIND == VANILLA_RNN
         float tm_cscale,
 #elif CELL_KIND == LBR_GRU
@@ -933,16 +920,8 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 
     if (j >= dhc) return;
 
-    DIFF_DATA_T diff_bias_acc[N_BIAS] = {0};
+    DIFF_DATA_T diff_bias_acc[n_bias] = {0};
 
-#if RECOMPUTE_GATES
-    // An assumption that diff_bias and bias layouts are equal
-    const param4 b_strides
-            = {lay_stride, dir_stride, diff_bias_s2, diff_bias_s3};
-
-    const __global AUX_DATA_T *bias
-            = bias_base + bias_off(b_strides, lay, dir, 0, 0);
-#endif
     for (int batch_id = 0; batch_id < ELEMWISE_BWD_BATCH_BLOCK; batch_id++) {
         int i = i_ + batch_id;
         if (i >= batch) break;
@@ -1004,10 +983,6 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
                 = TO_INPUT(dG3);
         diff_bias_acc[3] += dG3;
 
-#if N_BIAS != 4
-#error "Unexpected N_BIAS for VANILLA_LSTM"
-#endif
-
 #elif CELL_KIND == LBR_GRU
         __global SRC_DATA_T *scratch_gate_r
                 = (__global SRC_DATA_T *)(scr_gate_r);
@@ -1062,9 +1037,6 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         scratch_gate_r[cell_scratch_mem(scratch_diff_gates_ld, dhc, i, 2, j)]
                 = TO_INPUT(tmp);
         diff_bias_acc[3] += tmp;
-#if N_BIAS != 4
-#error "Unexpected N_BIAS for LBR_GRU"
-#endif
 
 #elif CELL_KIND == VANILLA_RNN
         float dH = diff_states_tp1_l[cell_scratch_diff_states(
@@ -1090,9 +1062,6 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
                 scratch_diff_gates_ld, dhc, i, 0, j)]
                 = TO_INPUT(tmp);
         diff_bias_acc[0] += tmp;
-#endif
-#if N_BIAS != 1
-#error "Unexpected N_BIAS for VANILLA_RNN"
 #endif
 #elif CELL_KIND == VANILLA_GRU
         __global WS_STATE_DATA_T *src_iter = states_tm1_l; // h_states_tm1_l
@@ -1147,15 +1116,11 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
             scratch_cell[off_scratch_cell(batch, states_ws_ld, i, j)]
                     = TO_INPUT(dG1 * h);
         }
-#if N_BIAS != 3
-#error "Unexpected N_BIAS for VANILLA_GRU"
-#endif
-
 #else
 #error "Wrong Cell Kind"
 #endif
     }
-    unroll_for(int k = 0; k < N_BIAS; k++) {
+    unroll_for(int k = 0; k < n_bias; k++) {
 #if NEED_BIAS_ATOMIC_REDUCE
         atomic_add_global(&diff_bias[k * dhc + j], diff_bias_acc[k]);
 #else

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,51 +180,144 @@ status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
     return status::success;
 }
 
-status_t create_ocl_engine(
+struct uuid2ocl_dev_t {
+    uuid2ocl_dev_t() = default;
+
+    status_t add(gpu::compute::device_uuid_t uuid,
+            const gpu::ocl::ocl_wrapper_t<cl_device_id> &d) {
+        auto it = mapper_.insert(std::make_pair(uuid, d));
+        if (!it.second) return status::runtime_error;
+        return status::success;
+    }
+
+    cl_device_id get(gpu::compute::device_uuid_t uuid) const {
+        auto it = mapper_.find(uuid);
+        if (it == mapper_.end()) return nullptr;
+        return it->second;
+    }
+
+    bool empty() const { return mapper_.empty(); }
+
+    ~uuid2ocl_dev_t() {
+        if (!is_destroying_cache_safe()) {
+            release();
+            return;
+        }
+    }
+
+private:
+    using mapper_t = std::unordered_map<gpu::compute::device_uuid_t,
+            gpu::ocl::ocl_wrapper_t<cl_device_id>,
+            gpu::compute::device_uuid_hasher_t>;
+
+    void release() {
+        auto t = utils::make_unique<mapper_t>();
+        std::swap(*t, mapper_);
+        t.release();
+    }
+    mapper_t mapper_;
+};
+
+status_t sycl_dev2ocl_dev(cl_device_id *ocl_dev, const ::sycl::device &dev) {
+#if !defined(cl_khr_device_uuid)
+#error "cl_khr_device_uuid is required"
+#endif
+    using namespace gpu::compute;
+    assert(get_sycl_backend(dev) == backend_t::level0);
+    if (get_sycl_backend(dev) != backend_t::level0)
+        return status::runtime_error;
+
+    static const uuid2ocl_dev_t uuid2ocl_dev = []() {
+        auto uuid2ocl_dev_tmp = uuid2ocl_dev_t();
+
+        std::vector<cl_device_id> ocl_devices;
+        std::vector<gpu::ocl::ocl_wrapper_t<cl_device_id>> ocl_sub_devices;
+        auto st = gpu::ocl::get_ocl_devices(
+                &ocl_devices, &ocl_sub_devices, CL_DEVICE_TYPE_GPU);
+        assert(st == status::success);
+        MAYBE_UNUSED(st);
+
+        const auto register_ocl_dev
+                = [&uuid2ocl_dev_tmp](
+                          const gpu::ocl::ocl_wrapper_t<cl_device_id> &d) {
+                      device_uuid_t ocl_dev_uuid;
+                      auto st = gpu::ocl::get_device_uuid(ocl_dev_uuid, d);
+                      assert(st == status::success);
+                      st = uuid2ocl_dev_tmp.add(ocl_dev_uuid, d);
+                      assert(st == status::success);
+                      MAYBE_UNUSED(st);
+                  };
+
+        for (cl_device_id d : ocl_devices) {
+            register_ocl_dev(gpu::ocl::make_ocl_wrapper(d));
+        }
+        for (const auto &sd_wrapper : ocl_sub_devices) {
+            register_ocl_dev(sd_wrapper);
+        }
+
+        return uuid2ocl_dev_tmp;
+    }();
+
+    if (uuid2ocl_dev.empty()) return status::runtime_error;
+
+    const device_uuid_t l0_dev_uuid = get_device_uuid(dev);
+    auto d = uuid2ocl_dev.get(l0_dev_uuid);
+
+    if (!d) return status::runtime_error;
+
+    *ocl_dev = d;
+
+    return status::success;
+}
+
+static status_t create_ocl_engine(
         std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
                 *ocl_engine,
-        backend_t backend, cl_device_id ocl_dev = nullptr,
-        cl_context ocl_ctx = nullptr) {
+        const ::sycl::device &sycl_dev,
+        const ::sycl::context *sycl_ctx = nullptr) {
     gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
+    const auto backend = get_sycl_backend(sycl_dev);
+
+    // The SYCL context is always provided for OpenCL backend.
+    if (backend == backend_t::opencl && !sycl_ctx) return status::runtime_error;
+    gpu::ocl::ocl_wrapper_t<cl_device_id> ocl_dev;
+    gpu::ocl::ocl_wrapper_t<cl_context> ocl_ctx;
 
     switch (backend) {
-        case backend_t::opencl: {
-            engine_t *ocl_engine_ptr;
-            size_t index;
-            CHECK(gpu::ocl::get_ocl_device_index(&index, ocl_dev));
-            CHECK(f.engine_create(&ocl_engine_ptr, ocl_dev, ocl_ctx, index));
-            ocl_engine->reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
-                    ocl_engine_ptr));
-            return status::success;
-        }
+        case backend_t::opencl:
+            ocl_dev = gpu::ocl::make_ocl_wrapper(
+                    compat::get_native<cl_device_id>(sycl_dev));
+            ocl_ctx = gpu::ocl::make_ocl_wrapper(
+                    compat::get_native<cl_context>(*sycl_ctx));
+            break;
         case backend_t::level0: {
-            engine_t *ocl_engine_ptr;
-            // FIXME: This does not work for multi-GPU systems. OpenCL engine
-            // should be created based on the Level0 device to ensure that a
-            // program is compiled for the same physical device. However,
-            // OpenCL does not provide any API to match its devices with
-            // Level0.
-            CHECK(f.engine_create(&ocl_engine_ptr, 0));
-            ocl_engine->reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
-                    ocl_engine_ptr));
-            return status::success;
+            cl_device_id d {nullptr};
+            CHECK(sycl_dev2ocl_dev(&d, sycl_dev));
+            ocl_dev = gpu::ocl::make_ocl_wrapper(d, true);
+
+            cl_int err;
+            ocl_ctx = gpu::ocl::make_ocl_wrapper(
+                    clCreateContext(nullptr, 1, &d, nullptr, nullptr, &err));
+            OCL_CHECK(err);
+            break;
         }
         default: assert(!"not expected"); return status::invalid_arguments;
     }
+    engine_t *ocl_engine_ptr;
+    size_t index;
+    CHECK(gpu::ocl::get_ocl_device_index(&index, ocl_dev));
+    CHECK(f.engine_create(&ocl_engine_ptr, ocl_dev, ocl_ctx, index));
+    ocl_engine->reset(
+            utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(ocl_engine_ptr));
+    return status::success;
 }
 
 status_t create_ocl_engine(
         std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
                 *ocl_engine,
         const sycl_engine_base_t *engine) {
-    auto backend = engine->backend();
-    cl_device_id ocl_dev = nullptr;
-    cl_context ocl_ctx = nullptr;
-    if (backend == backend_t::opencl) {
-        ocl_dev = engine->ocl_device();
-        ocl_ctx = engine->ocl_context();
-    }
-    return create_ocl_engine(ocl_engine, engine->backend(), ocl_dev, ocl_ctx);
+    const auto sycl_ctx = engine->context();
+    return create_ocl_engine(ocl_engine, engine->device(), &sycl_ctx);
 }
 
 status_t get_kernel_binary(
@@ -247,7 +340,7 @@ status_t get_kernel_binary(
             {
                 std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
                         ocl_engine;
-                CHECK(create_ocl_engine(&ocl_engine, backend_t::level0));
+                CHECK(create_ocl_engine(&ocl_engine, devs[0]));
                 gpu::ocl::ocl_wrapper_t<cl_program> ocl_program;
                 CHECK(gpu::ocl::create_ocl_program(ocl_program,
                         ocl_engine->device(), ocl_engine->context(),

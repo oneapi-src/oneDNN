@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,10 +52,11 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const bool has_wei_zp
             = !prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).is_def();
     const bool has_dst_zp = !prb->attr.zero_points.get(DNNL_ARG_DST).is_def();
-    assert(IMPLICATION(has_wei_zp, wei_zps.nelems() == 1));
-    const int wei_zp = has_wei_zp ? wei_zps.get_elem(0) : 0;
+
     const int src_zp_mask = attr_t::get_default_mask(
             prb->attr.zero_points.get(DNNL_ARG_SRC).policy);
+    const int wei_zp_mask = prb->attr.zero_points.get_mask(
+            DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.md_);
     const int dst_zp_mask = attr_t::get_default_mask(
             prb->attr.zero_points.get(DNNL_ARG_DST).policy);
 
@@ -64,6 +65,25 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const int64_t K = prb->k;
     const int64_t MB = prb->mb;
     const int batch_ndims = dst_m.ndims() - 2;
+
+    const bool wei_decompression = prb->weights_decompression();
+    const bool wei_scale_per_n = wei_scale_mask & (1 << (wei_m.ndims() - 1));
+    const bool wei_scale_per_k = wei_scale_mask & (1 << (wei_m.ndims() - 2));
+    const int64_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
+    const int64_t wei_scale_stride_k
+            = wei_scale_per_k ? wei_scale_per_n ? N : 1 : 0;
+    const auto wei_scale_groups = prb->attr.scales.get(DNNL_ARG_WEIGHTS).groups;
+    const int64_t wei_scale_group_k
+            = !wei_scale_groups.empty() ? wei_scale_groups[0] : 1;
+
+    const bool wei_zp_per_n = wei_zp_mask & (1 << (wei_m.ndims() - 1));
+    const bool wei_zp_per_k = wei_zp_mask & (1 << (wei_m.ndims() - 2));
+    const int64_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
+    const int64_t wei_zp_stride_k = wei_zp_per_k ? wei_zp_per_n ? N : 1 : 0;
+    const auto wei_zp_groups
+            = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).groups;
+    const int64_t wei_zp_group_k
+            = !wei_zp_groups.empty() ? wei_zp_groups[0] : 1;
 
     // Fast return if any dim is zero. Common logic doesn't apply because of
     // broadcast semantics.
@@ -85,11 +105,24 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
                 = dst_m.get_scale_idx(mb, src_broadcast_mask, batch_ndims);
         const int64_t wei_mb
                 = dst_m.get_scale_idx(mb, wei_broadcast_mask, batch_ndims);
+
         for (int64_t k = 0; k < K; ++k) {
             int src_zp = has_src_zp ? src_zps.get_elem(src_zp_mask > 0 ? k : 0)
                                     : 0;
+            int wei_zp = has_wei_zp
+                    ? wei_zps.get_elem(wei_zp_stride_k * (k / wei_zp_group_k)
+                            + wei_zp_stride_n * n)
+                    : 0;
             auto s = src[src_off_f(prb, src_mb, m, k)] - src_zp;
             auto w = wei[wei_off_f(prb, wei_mb, k, n)] - wei_zp;
+            // Compression scaling happens before the matmul, unlike regular
+            // quantization, to preserve the accuracy.
+            if (has_wei_scale && wei_decompression) {
+                float wei_scale = wei_scales.get_elem(
+                        wei_scale_stride_k * (k / wei_scale_group_k)
+                        + wei_scale_stride_n * n);
+                w *= wei_scale;
+            }
             dst += s * w;
         }
         ((float *)dst_tmp)[dst_off_f(prb, mb, m, n)] = dst;
@@ -102,7 +135,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         float &dst = ((float *)dst_m)[dst_off];
 
         float wei_scale = 1.f;
-        if (has_wei_scale)
+        if (has_wei_scale && !wei_decompression)
             wei_scale = wei_scales.get_elem(wei_scale_mask > 0 ? n : 0);
         float tmp = ((float *)dst_tmp)[dst_off] * src_scale * wei_scale;
 

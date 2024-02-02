@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,6 +39,11 @@ int fill_mem(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
 
     const auto conf = prb->get_conf(kind);
 
@@ -397,6 +402,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -422,23 +432,19 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 // MIOpen doesn't work properly when tensors are filled with 0xFF.
                 if (sum_idx >= 0 || is_amd_gpu()) {
                     SAFE(fill_mem(prb, DST, mem, ref_mem), WARN);
-                }
-            } break;
-            default: { // Process all attributes here
-                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-                bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
 
-                if (is_scales_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
-                } else if (is_zero_point_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
-                    SAFE(fill_zero_points(
-                                 prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
+                    // Bitwise mode for sum requires a copy due to data for
+                    // post-op will be overwritten and it must be refreshed.
+                    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+                        SAFE(mem_map.at(-exec_arg).reorder(ref_mem), WARN);
+                    }
                 }
             } break;
+            default:
+                SAFE(init_ref_memory_args_default_case(
+                             exec_arg, mem, ref_mem, prb->attr, res),
+                        WARN);
+                break;
         }
         // Don't keep reference memory if it is not used further.
         if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();
@@ -493,6 +499,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
             compare_compensation(prb, mem_map, ref_mem_map, res);
         }
     }
+    SAFE(check_bitwise(prim, {DST}, args, prb->inplace, res), WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

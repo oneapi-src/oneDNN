@@ -21,12 +21,12 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "utils/fill.hpp"
 #include "utils/parallel.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "binary/binary.hpp"
 #include "resampling/resampling.hpp"
 
 namespace resampling {
@@ -34,6 +34,13 @@ namespace resampling {
 int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+
     const auto dt = mem_dt.dt();
     const int range = 16;
     const int f_min = 0;
@@ -136,6 +143,25 @@ std::vector<int> supported_exec_args(dir_t dir) {
     return (dir & FLAG_FWD) ? exec_fwd_args : exec_bwd_args;
 };
 
+fill_cfg_t binary_po_fill_cfg(
+        int exec_arg, const dnn_mem_t &mem, const attr_t &attr) {
+    fill_cfg_t cfg;
+    const int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+            - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+    const bool is_post_ops_arg = (exec_arg & post_ops_range);
+    if (is_post_ops_arg) {
+        // Config secures only positive values since resampling inputs are only
+        // positive, and using negative values leads to the cancellation effect.
+        const int bin_po_idx
+                = exec_arg / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
+        assert(bin_po_idx < attr.post_ops.len());
+        const auto alg = attr.post_ops.entry[bin_po_idx].kind;
+        cfg = fill_cfg_t(mem.dt(), 0.f, 16.f, /* int = */ true, alg,
+                "resampling_binary_post_op");
+    }
+    return cfg;
+}
+
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
         dnnl_primitive_t prim_ref) {
@@ -145,6 +171,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -159,24 +190,27 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             case DNNL_ARG_SRC: SAFE(fill_src(prb, mem, ref_mem), WARN); break;
             case DNNL_ARG_DST:
                 if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM)
-                        >= 0)
+                        >= 0) {
                     SAFE(fill_dst(prb, mem, ref_mem), WARN);
+
+                    // Bitwise mode for sum requires a copy due to data for
+                    // post-op will be overwritten and it must be refreshed.
+                    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+                        SAFE(mem_map.at(-exec_arg).reorder(ref_mem), WARN);
+                    }
+                }
                 break;
             case DNNL_ARG_DIFF_DST:
                 SAFE(fill_dst(prb, mem, ref_mem), WARN);
                 break;
-            default: { // Process all attributes here
-                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
-                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
-                bool is_post_ops_arg = (exec_arg & post_ops_range);
-                if (is_post_ops_arg) {
-                    // Use only positive values for linear to avoid cancellation
-                    // and bigger rdiff error values.
-                    const bool only_positive_values = prb->alg == linear;
-                    SAFE(binary::fill_mem(
-                                 exec_arg, mem, ref_mem, only_positive_values),
-                            WARN);
-                }
+            default: {
+                const auto &binary_fill_cfg
+                        = binary_po_fill_cfg(exec_arg, mem, prb->attr);
+                std::unordered_map<int, fill_cfg_t> fill_cfg_map {
+                        {DNNL_ARG_SRC_1, binary_fill_cfg}};
+                SAFE(init_ref_memory_args_default_case(exec_arg, mem, ref_mem,
+                             prb->attr, res, fill_cfg_map),
+                        WARN);
             } break;
         }
         // Don't keep reference memory if it is not used further.
@@ -229,6 +263,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(
             prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->inplace, res),
+            WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

@@ -93,12 +93,12 @@ struct acl_inner_product_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            using smask_t = primitive_attr_t::skip_mask_t;
             const bool is_fp16_ok = expect_data_types(f16, f16, f16, f16, undef)
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, f16);
+                    && attr()->has_default_values(smask_t::post_ops, f16);
             const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, f32);
+                            smask_t::post_ops | smask_t::fpmath_mode, f32);
             const bool ok = is_fwd() && !has_zero_dim_memory()
                     && utils::one_of(true, is_fp16_ok, is_fp32_ok)
                     && weights_md_.format_kind == format_kind::any
@@ -170,7 +170,7 @@ struct acl_inner_product_fwd_t : public primitive_t {
             aip.fc_info.transpose_weights = false;
 
             aip.fc_info.enable_fast_math = utils::one_of(
-                    attr()->fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
+                    attr()->fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
 
             CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_,
                     aip.fc_info.activation_info));

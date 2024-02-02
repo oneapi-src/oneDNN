@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,8 +70,9 @@ struct jit_brgemm_copy_to_coarse_t : public jit_generator {
         , tr_row_size_(conf_->LDA)
         , row_granularity_(granularity_in_bytes / typesize_)
         , row_step_(zmm_size_in_bytes / typesize_)
-        , data_stride_((is_fwd_dir_ ? conf_->ks() : 1) * row_size_ * typesize_)
-        , tr_data_stride_(tr_row_size_ * typesize_) {
+        , data_stride_(static_cast<dim_t>(is_fwd_dir_ ? conf_->ks() : 1)
+                  * row_size_ * typesize_)
+        , tr_data_stride_(static_cast<dim_t>(tr_row_size_) * typesize_) {
 
         // Kernel is supposed to be called under the following constraints
         assert(is_superset(conf_->isa, avx512_core_amx));

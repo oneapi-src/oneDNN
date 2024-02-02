@@ -29,9 +29,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "binary/binary.hpp"
 #include "matmul/matmul.hpp"
-#include "prelu/prelu.hpp"
 
 namespace matmul {
 
@@ -130,12 +128,27 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     // Overload PER_OC wei_mask definition for batched case
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    if (wei_scale.policy == policy_t::PER_OC) {
+    if (wei_scale.policy == policy_t::PER_OC
+            || wei_scale.policy == policy_t::PER_OCIC) {
+        const auto &dst_rt_dims
+                = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
+        int wei_mask = 1 << (dst_rt_dims.size() - 1);
+        if (wei_scale.policy == policy_t::PER_OCIC)
+            wei_mask += 1 << (dst_rt_dims.size() - 2);
+        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
+    }
+    // Overload PER_OC wei_mask definition for batched case
+    auto wei_zp = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS);
+    if (wei_zp.policy == policy_t::PER_OC
+            || wei_zp.policy == policy_t::PER_OCIC) {
         const auto &dst_rt_dims
                 = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
         int wei_mask = (1 << (dst_rt_dims.size() - 1));
-        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
+        if (wei_zp.policy == policy_t::PER_OCIC)
+            wei_mask += 1 << (dst_rt_dims.size() - 2);
+        attr_args.prepare_zero_points(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
     }
+
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -338,6 +351,11 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
 
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, res);
+    }
+
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
     auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
@@ -467,6 +485,12 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
 
+        // GPU does not support weights decompression
+        if (prb->weights_decompression()) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+
         // GPU for x8s8bf16 doesn't support:
         // * Destination zero-point.
         // * Any run-time dimensions.
@@ -518,9 +542,27 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 #endif
 
     // Zero-points for non-integral data type does not make sense
-    if (!prb->attr.zero_points.is_def() && prb->wei_dt() != dnnl_s8) {
+    if (!prb->attr.zero_points.is_def() && prb->wei_dt() != dnnl_s8
+            && prb->wei_dt() != dnnl_u8) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
+    }
+
+    // Weights decompression requires IC to be divisible by groups
+    // for both scales and zero points
+    if (!prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def()) {
+        const auto &groups = prb->attr.scales.get(DNNL_ARG_WEIGHTS).groups;
+        if (!groups.empty() && (prb->k % groups[0] || groups.size() > 2)) {
+            res->state = SKIPPED, res->reason = INVALID_CASE;
+            return;
+        }
+    }
+    if (!prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).is_def()) {
+        const auto &groups = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).groups;
+        if (!groups.empty() && (prb->k % groups[0] || groups.size() > 2)) {
+            res->state = SKIPPED, res->reason = INVALID_CASE;
+            return;
+        }
     }
 
     auto src_rt_mask = prb->src_runtime_dim_mask();
@@ -597,6 +639,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
@@ -648,34 +695,18 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 const int sum_idx = po.find(attr_t::post_ops_t::SUM);
                 if (sum_idx >= 0) {
                     SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
+                    // Bitwise mode for sum requires a copy due to data for
+                    // post-op will be overwritten and it must be refreshed.
+                    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+                        SAFE(mem_map.at(-exec_arg).reorder(ref_mem), WARN);
+                    }
                 }
             } break;
-            default: { // Process all attributes here
-                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
-                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
-                bool is_post_ops_arg = (exec_arg & post_ops_range);
-                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-                bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
-
-                if (is_post_ops_arg) {
-                    if (exec_arg & DNNL_ARG_SRC_1)
-                        SAFE(binary::fill_mem(exec_arg, mem, ref_mem,
-                                     /* only_positive = */ false,
-                                     /* only_integer = */ true),
-                                WARN);
-                    else if (exec_arg & DNNL_ARG_WEIGHTS)
-                        SAFE(prelu::fill_data(WEI, mem, ref_mem), WARN);
-                } else if (is_scales_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    SAFE(fill_scales(prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
-                } else if (is_zero_point_arg) {
-                    int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
-                    SAFE(fill_zero_points(
-                                 prb->attr, local_exec_arg, mem, ref_mem),
-                            WARN);
-                }
-            } break;
+            default:
+                SAFE(init_ref_memory_args_default_case(
+                             exec_arg, mem, ref_mem, prb->attr, res),
+                        WARN);
+                break;
         }
 
         update_ref_mem_map_from_prim(prim_ref, mem, ref_mem_map, exec_arg,
@@ -721,6 +752,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     check_correctness(prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);
+    SAFE(check_bitwise(prim, {DST}, args, prb->inplace, res), WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

@@ -1290,9 +1290,10 @@ public:
         const int type_size = send_params.mem_type.size();
         if (type_size < slot_size && slot_size < 4) slot_size = type_size;
 
-        // GPUs <= XeLP dislike scattered store offsets not aligned by slot; it
-        // is crucial to make slot_size small enough to become a layout divisor
-        if (is_hw_xelp_or_below && is_store) {
+        // GPUs <= XeLP requires qword alignment for qword scattered messages,
+        // downgrade to byte scattered (x1, x2 or x4) when alignment is
+        // sub-qword.
+        if (is_hw_xelp_or_below && slot_size == 8) {
             const int align = get_block_alignment_bytes(inner_idx());
             slot_size = std::min(
                     slot_size, ir_utils::max_divisor(align, {1, 2, 4, 8}));

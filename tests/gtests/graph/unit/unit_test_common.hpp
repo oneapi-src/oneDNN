@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -230,7 +230,7 @@ public:
 private:
     dnnl::impl::graph::tensor_t ts_;
     std::shared_ptr<char> data_ {nullptr};
-    size_t num_bytes_;
+    size_t num_bytes_ {0};
 };
 
 #endif

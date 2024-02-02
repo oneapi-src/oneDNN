@@ -2085,7 +2085,7 @@ void jit_brgemm_amx_uker_base_t::bdb_loop(brgemm_iteration_t &bi) {
     const auto &tloop = imap_[bi.apply_postops];
     Label iteration_pointers;
     if (ununroll_bd_loop) {
-        mov(reg_iter_labels_list, iteration_pointers);
+        lea(reg_iter_labels_list, ptr[rip + iteration_pointers]);
         // shift to load address for jmp for next iteration
         add(reg_iter_labels_list, 8);
         mov(ptr[rsp + reg_iter_labels_list_offs_], reg_iter_labels_list);
@@ -2424,8 +2424,7 @@ void jit_brgemm_amx_uker_base_t::generate() {
     Label permute_index_table;
     if (brg.is_bf32) {
         brgemm_init_tiles(brg, (char *)(&palette_));
-        mov(reg_tmp_gpr, permute_index_table);
-        vmovups(zmm_bf32_pemute, ptr[reg_tmp_gpr]);
+        vmovups(zmm_bf32_pemute, ptr[rip + permute_index_table]);
     }
 
     mov(reg_stride_lda, lda());

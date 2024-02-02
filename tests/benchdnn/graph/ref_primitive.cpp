@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,17 +130,21 @@ int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
 void ref_primitive_t::init_memory_args(const engine_t &ref_eng) {
 #define CASE_INIT_MEMORY_ARGS(driver) \
     case dnnl_driver_t::driver: { \
-        const ::driver::prb_t *prb = prb_wrapper_->get<::driver::prb_t>(); \
-        ::init_memory_args(mems_, prb, prim_, \
-                ::driver::supported_exec_args(prb->dir), ref_eng); \
+        if (prb_wrapper_) { \
+            const ::driver::prb_t *prb = prb_wrapper_->get<::driver::prb_t>(); \
+            ::init_memory_args(mems_, prb, prim_, \
+                    ::driver::supported_exec_args(prb->dir), ref_eng); \
+        } \
         break; \
     }
 
 #define CASE_INIT_CUSTOM_MEMORY_ARGS \
     case dnnl_driver_t::custom: { \
-        const ::custom::prb_t *prb = prb_wrapper_->get<::custom::prb_t>(); \
-        ::custom::init_memory_args( \
-                mems_, prb, ::custom::supported_exec_args(prb), ref_eng); \
+        if (prb_wrapper_) { \
+            const ::custom::prb_t *prb = prb_wrapper_->get<::custom::prb_t>(); \
+            ::custom::init_memory_args( \
+                    mems_, prb, ::custom::supported_exec_args(prb), ref_eng); \
+        } \
         break; \
     }
 

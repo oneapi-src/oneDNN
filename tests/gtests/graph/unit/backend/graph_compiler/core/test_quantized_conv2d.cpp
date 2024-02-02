@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -557,6 +557,30 @@ TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_2_NXC) {
     REQUIRE_AMX();
     check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg2, 1, 16, 64, 7, 7,
             3, 3, {1, 1}, {1, 1}, {0, 0}, false, true, false, true);
+}
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_3_NCX) {
+    REQUIRE_AMX();
+    SET_THREADS_OR_SKIP(1);
+    check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg2, 1, 64, 64, 16,
+            16, 3, 3, {2, 2}, {1, 1}, {0, 0}, false, true, true, false);
+}
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_3_NXC) {
+    REQUIRE_AMX();
+    SET_THREADS_OR_SKIP(1);
+    check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg2, 1, 16, 64, 14,
+            14, 3, 3, {2, 2}, {1, 1}, {0, 0}, false, true, false, true);
+}
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_4_NCX) {
+    REQUIRE_AMX();
+    SET_THREADS_OR_SKIP(1);
+    check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg2, 1, 64, 64, 16,
+            16, 3, 3, {2, 2}, {1, 1}, {0, 0}, false, true, true, false);
+}
+TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, single_os_block_4_NXC) {
+    REQUIRE_AMX();
+    SET_THREADS_OR_SKIP(1);
+    check_qconv<uint8_t, int8_t, int32_t>(single_os_block_cfg2, 1, 16, 64, 14,
+            14, 3, 3, {2, 2}, {2, 2}, {0, 0}, false, true, false, true);
 }
 TEST(GCCore_CPU_qconv2d_u8s8s32_3x3, multi_os_block_NCX) {
     REQUIRE_AMX();

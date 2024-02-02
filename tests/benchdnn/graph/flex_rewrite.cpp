@@ -950,7 +950,7 @@ void flex_rewrite::op_attrs_rewrite(deserialized_graph &dgraph) {
     }
 }
 
-inline bool is_int8_quantization(deserialized_op aop) {
+inline bool is_int8_quantization(const deserialized_op &aop) {
     if (aop.kind_ == "Dequantize") {
         const auto dt = aop.in_lts_.front().get_data_type();
         return (dt == logical_tensor::data_type::u8

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,6 +78,8 @@ enum DriverInfoFlags : uint32_t {
     FlagAlphaPtr = 0x400, // Pass alpha by pointer.
     FlagBetaPtr = 0x800, // Pass beta by pointer.
     FlagFixedWGK = 0x1000, // With local k-parallelization, wgK is fixed
+    FlagNondeterministic
+    = 0x4000, // Kernel always produces nondeterministic results
     FlagMaskFillGoal
     = 0xF0000, // Fraction of available thread slots to fill, in sixteenths
     FlagShiftFillGoal = 16, //   (starting bit)
@@ -152,6 +154,7 @@ struct CommonDriverInfo {
     bool alphaPtr() const { return flags & FlagAlphaPtr; }
     bool betaPtr() const { return flags & FlagBetaPtr; }
     bool fixedWGK() const { return flags & FlagFixedWGK; }
+    bool nondeterministic() const { return flags & FlagNondeterministic; }
 
     int wgTile(LoopType l) const { return unroll[l] * wg[l]; }
     int kPadding() const {

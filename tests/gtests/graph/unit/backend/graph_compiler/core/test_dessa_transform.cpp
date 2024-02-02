@@ -20,6 +20,7 @@
 #include <compiler/ir/transform/dessa_transform.hpp>
 #include <compiler/ir/transform/module_globals_resolve.hpp>
 #include <compiler/ir/transform/ssa_transform.hpp>
+#include <compiler/ir/transform/value_numbering.hpp>
 #include <util/any_map.hpp>
 
 #include <iostream>
@@ -253,31 +254,88 @@ TEST(GCCore_CPU_dessa_transform, TestDeSSATransformCoalesce) {
 
     _function_(s32, expected, _arg_("A", s32, {10000}), _arg_("a", s32)) {
         _bind_(A, a);
+        _var_init_(a_c, s32, a);
         _var_init_(d, s32, 1);
+        _var_init_(d_c, s32, d);
         _var_init_(t0, s32, 0);
         _var_init_(t1, s32, 10);
         _var_init_(t2, s32, 1);
         _for_(i, t0, t1, t2) {
             i->dtype_ = s32;
-            _var_init_(f, s32, d);
+            _var_init_(f, s32, d_c);
+            _var_init_(f_c, s32, f);
             _var_init_(t5, s32, A[i]);
-            a = a + t5;
+            a_c = a_c + t5;
             _var_init_(t7, s32, 0);
             _var_init_(t8, s32, 10);
             _var_init_(t9, s32, 1);
             _for_(j, t7, t8, t9) {
-                _var_init_(a4, s32, a);
-                _var_init_(f1, s32, f + a4);
+                _var_init_(a4, s32, a_c);
+                _var_init_(f1, s32, f_c + a4);
                 _var_init_(i_6, s32, i);
                 _var_init_(t14, s32, A[i_6]);
-                f = f1 + t14;
+                f_c = f1 + t14;
+            }
+            d_c = f_c;
+        }
+        _var_init_(a1, s32, a_c);
+        _var_init_(d1, s32, d_c);
+        _var_init_(t19, s32, a1 + d1);
+        _return_(t19);
+    }
+
+    ir_comparer cmper {true};
+    EXPECT_TRUE(cmper.compare(out, expected, false));
+}
+
+TEST(GCCore_CPU_dessa_transform, TestDeSSATransformCoalesceCSE) {
+    builder::ir_builder_t builder;
+    _function_(s32, ccc, _arg_("a", s32), _arg_("b", s32), _arg_("c", s32)) {
+        _bind_(a, b, c);
+
+        _var_init_(d, s32, (b + c));
+        _for_(i, 0, 10, 1) {
+            i->dtype_ = s32;
+            _var_init_(f, s32, d);
+            a = a + (b + c);
+            _for_(j, 0, 10, 1) {
+                f = f + a;
+                f = f + (b + c);
             }
             d = f;
         }
-        _var_init_(a1, s32, a);
-        _var_init_(d1, s32, d);
+        _return_(a + d + (b + c));
+    }
+
+    ssa_transform_t s;
+    auto out = s(ccc);
+    out = value_numbering_t()(out);
+    dessa_transform_t de;
+    out = de(out);
+
+    _function_(
+            s32, expected, _arg_("a", s32), _arg_("b", s32), _arg_("c", s32)) {
+        _bind_(a, b, c);
+
+        _var_init_(a_c, s32, a);
+        _var_init_(d, s32, (b + c));
+        _var_init_(d_c, s32, d);
+        _for_(i, 0, 10, 1) {
+            i->dtype_ = s32;
+            _var_init_(f, s32, d_c);
+            _var_init_(f_c, s32, f);
+            a_c = a_c + d;
+            _for_(j, 0, 10, 1) {
+                _var_init_(f1, s32, f_c + a_c);
+                f_c = f1 + d;
+            }
+            d_c = f_c;
+        }
+        _var_init_(a1, s32, a_c);
+        _var_init_(d1, s32, d_c);
         _var_init_(t19, s32, a1 + d1);
-        _return_(t19);
+        _var_init_(t20, s32, t19 + d);
+        _return_(t20);
     }
 
     ir_comparer cmper {true};

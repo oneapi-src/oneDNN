@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "binary/binary.hpp"
 #include "conv/conv_dw_fusion.hpp"
 
 namespace conv_dw_fusion {
@@ -196,8 +195,14 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
                         && (exec_arg & DNNL_ARG_ATTR_POST_OP_DW);
 
                 if (is_pre_dw_post_ops_arg && !is_post_dw_post_ops_arg) {
+                    // Binary post-op filling config.
+                    fill_cfg_t binary_fill_cfg(mem.dt(), -16.f, 16.f,
+                            /* int = */ true, attr_t::post_ops_t::kind_t::ADD,
+                            "binary post-op");
                     if (exec_arg & DNNL_ARG_SRC_1) {
-                        SAFE(binary::fill_mem(exec_arg, mem, ref_mem), WARN);
+                        SAFE(fill_random_real(
+                                     mem, ref_mem, res, binary_fill_cfg),
+                                WARN);
                         SAFE(mem_map0.at(exec_arg).reorder(ref_mem), WARN);
                     }
                 } else if (is_pre_dw_scales_arg && !is_post_dw_scales_arg) {
@@ -222,9 +227,13 @@ int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,
             int orig_idx = DNNL_ARG_ATTR_MULTIPLE_POST_OP(
                                    second_conv_idx + dw_idx + 1)
                     | DNNL_ARG_SRC_1;
-            SAFE(binary::fill_mem(
-                         orig_idx, mem_map.at(orig_idx), mem_map1.at(arg)),
-                    WARN);
+            auto &mem = mem_map.at(orig_idx);
+            auto &ref_mem = mem_map1.at(arg);
+
+            // Binary post-op filling config.
+            fill_cfg_t binary_fill_cfg(mem.dt(), -16.f, 16.f, /* int = */ true,
+                    attr_t::post_ops_t::kind_t::ADD, "binary post-op");
+            SAFE(fill_random_real(mem, ref_mem, res, binary_fill_cfg), WARN);
         }
     }
 

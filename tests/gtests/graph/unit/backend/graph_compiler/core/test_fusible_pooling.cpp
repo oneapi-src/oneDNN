@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,11 +32,15 @@
 #include "reference/pool_ref.hpp"
 #include "util/any_map.hpp"
 #include <compiler/ir/graph/mixed_partition.hpp>
+#include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/transform/loop_merge.hpp>
 #include <compiler/ir/transform/simplify.hpp>
 #include <compiler/jit/jit.hpp>
+#include <ops/templates/nested_conv_fwd.hpp>
+#include <runtime/dynamic_dispatch/dynamic_tensor.hpp>
 
 using namespace dnnl::impl::graph::gc;
+using nested_conv_fwd_config_t = ops::nested_conv_fwd_config_t;
 
 template <typename Store_type, typename Compute_type = Store_type>
 static void check_fusible_pooling_fwd(pooling_type_t pool_type, int N, int C,
@@ -548,22 +552,24 @@ static sc_graph_t make_conv_pooling_postops_graph(const int64_t N,
     return g;
 }
 
-void compute_conv_pooling_outshape(const int64_t MB, const int64_t c_block,
-        const int64_t OC, const int64_t IC, const int64_t IH, const int64_t IW,
-        const int64_t KH, const int64_t KW, const int64_t SH, const int64_t SW,
-        const int64_t PH, const int64_t PW, pooling_type_t pooling_type,
-        const int64_t p_KH, const int64_t p_KW, const int64_t p_SH,
-        const int64_t p_SW, int64_t &p_PH, int64_t &p_PW,
-        const bool exclude_pad, const std::string &auto_pad, int64_t &conv_p,
-        int64_t &conv_q, int64_t &pool_p, int64_t &pool_q) {
+void compute_conv_pooling_outshape(const int64_t MB, const int64_t OC,
+        const int64_t IC, const int64_t IH, const int64_t IW, const int64_t KH,
+        const int64_t KW, const int64_t SH, const int64_t SW, const int64_t PH,
+        const int64_t PW, pooling_type_t pooling_type, const int64_t p_KH,
+        const int64_t p_KW, const int64_t p_SH, const int64_t p_SW,
+        int64_t &p_PH, int64_t &p_PW, const bool exclude_pad,
+        const std::string &auto_pad, int64_t &conv_p, int64_t &conv_q,
+        int64_t &pool_p, int64_t &pool_q) {
     conv_p = (IH + PH * 2 - KH) / SH + 1;
     conv_q = (IW + PW * 2 - KW) / SW + 1;
     if (auto_pad == auto_pad_options::same_upper
             || auto_pad == auto_pad_options::same_lower) {
         pool_q = (conv_q + p_SH - 1) / p_SH;
         pool_p = (conv_p + p_SW - 1) / p_SW;
-        int64_t total_pad_h = (pool_p - 1) * p_SH + p_KH - conv_p;
-        int64_t total_pad_w = (pool_q - 1) * p_SW + p_KW - conv_q;
+        int64_t total_pad_h
+                = std::max((pool_p - 1) * p_SH + p_KH - conv_p, int64_t(0));
+        int64_t total_pad_w
+                = std::max((pool_q - 1) * p_SW + p_KW - conv_q, int64_t(0));
         if (auto_pad == auto_pad_options::same_upper) {
             p_PH = total_pad_h / 2;
             p_PW = total_pad_w / 2;
@@ -583,6 +589,184 @@ void compute_conv_pooling_outshape(const int64_t MB, const int64_t c_block,
 }
 
 template <typename src_type, typename wei_type, typename dst_type>
+static sc_graph_t make_dyn_conv_pooling_postops_graph(const int64_t N,
+        const int64_t K, const int64_t C, const int64_t H, const int64_t W,
+        const int64_t R, const int64_t S, const int64_t SH, const int64_t SW,
+        const int64_t PH, const int64_t PW, pooling_type_t pool_type,
+        const int64_t p_P, const int64_t p_Q, const int64_t p_SH,
+        const int64_t p_SW, const int64_t p_PH, const int64_t p_PW,
+        std::vector<sc_op_ptr> &fuse_arg_ops, nested_conv_fwd_config_t &cfg,
+        bool exclude_pad = false, bool bn_relu = false,
+        const std::string &auto_pad = auto_pad_options::none) {
+    sc_graph_t g;
+    sc_data_type_t src_dtype = datatypes::f32;
+    if (std::is_same<src_type, bf16_t>::value) src_dtype = datatypes::bf16;
+    sc_data_type_t weight_dtype = datatypes::f32;
+    if (std::is_same<wei_type, bf16_t>::value) weight_dtype = datatypes::bf16;
+    sc_op_ptr data_input = g.make_input(
+            {graph_tensor::make({N, C, H, W}, sc_data_format_t(), src_dtype)});
+    sc_op_ptr weight_input = g.make_input({graph_tensor::make(
+            {K, C, R, S}, sc_data_format_t(), weight_dtype)});
+    sc_dims paddings = {PH, PW};
+    sc_op_ptr conv_op = g.make("conv_fwd_core",
+            {data_input->get_outputs()[0], weight_input->get_outputs()[0]}, {},
+            {{"strides", sc_dims {SH, SW}}, {"pads_begin", paddings},
+                    {"pads_end", paddings}});
+    conv_op->attrs_.set<std::string>("temp.test_format", "NHWC");
+    auto tunop = conv_op->dyn_cast<tunable_op_t>();
+    reflection::shared_general_object_t cfgptr;
+    cfgptr = tunop->create_generator()->get_default_config(
+            get_default_context());
+    cfg = *(nested_conv_fwd_config_t *)cfgptr.get();
+    tunop->set_config(cfgptr);
+    tunop->get_inputs()[0]->details_.set_format(sc_data_format_t::NHWC());
+    tunop->get_inputs()[1]->details_.set_format(
+            sc_data_format_t::KCRSck(cfg.im_ic_block, cfg.im_oc_block));
+    tunop->get_outputs()[0]->details_.set_format(sc_data_format_t::NHWC());
+
+    fuse_arg_ops = {data_input, weight_input};
+    auto pooling_op_type_str
+            = pool_type == pooling_type_t::max ? "pooling_max" : "pooling_avg";
+    sc_op_ptr pooling_op = g.make(pooling_op_type_str,
+            {conv_op->get_outputs()[0]}, {},
+            {{pooling_attr_key::strides, sc_dims {p_SH, p_SW}},
+                    {pooling_attr_key::paddings, sc_dims {p_PH, p_PW}},
+                    {pooling_attr_key::kernel, sc_dims {p_P, p_Q}},
+                    {pooling_attr_key::exclude_pad, exclude_pad},
+                    {pooling_attr_key::auto_pad, auto_pad},
+                    {pooling_attr_key::data_format, data_format_options::NCX}});
+    sc_op_ptr final_out = pooling_op;
+    auto bc_axis = std::vector<int> {1};
+    if (bn_relu) {
+        sc_op_ptr bn_mul = g.make_input({graph_tensor::make({K})});
+        sc_op_ptr bn_add = g.make_input({graph_tensor::make({K})});
+        final_out = g.make("mul",
+                {final_out->get_outputs()[0], bn_mul->get_outputs()[0]}, {},
+                {{"bc_axis", bc_axis}});
+
+        final_out = g.make("add",
+                {final_out->get_outputs()[0], bn_add->get_outputs()[0]}, {},
+                {{"bc_axis", bc_axis}});
+        final_out = g.make("relu", {final_out->get_outputs()[0]}, {}, {});
+        fuse_arg_ops.emplace_back(bn_mul);
+        fuse_arg_ops.emplace_back(bn_add);
+    }
+    sc_op_ptr out = g.make_output(final_out->get_outputs());
+    fuse_arg_ops.insert(fuse_arg_ops.begin(), out);
+
+    g.attrs_.set(sc_graph_t::attr_key_t::is_input_plain, false);
+    g.attrs_.set(sc_graph_t::attr_key_t::is_output_plain, false);
+
+    return g;
+}
+
+template <typename src_type, typename wei_type, typename dst_type>
+static void check_dyn_conv_pooling_postops_graph(
+        const std::string &expected_fusion, const int64_t MB, const int64_t OC,
+        const int64_t IC, const int64_t IH, const int64_t IW, const int64_t KH,
+        const int64_t KW, const int64_t SH, const int64_t SW, const int64_t PH,
+        const int64_t PW, pooling_type_t pooling_type, const int64_t p_KH,
+        const int64_t p_KW, const int64_t p_SH, const int64_t p_SW,
+        int64_t p_PH, int64_t p_PW, const int64_t REAL_MB,
+        const int64_t REAL_IH, const int64_t REAL_IW,
+        const std::string auto_pad = auto_pad_options::none,
+        const bool exclude_pad = false, const bool bn_relu = true) {
+    REQUIRE_AVX2();
+    int64_t conv_p, conv_q, pool_p, pool_q;
+
+    compute_conv_pooling_outshape(REAL_MB, OC, IC, REAL_IH, REAL_IW, KH, KW, SH,
+            SW, PH, PW, pooling_type, p_KH, p_KW, p_SH, p_SW, p_PH, p_PW,
+            exclude_pad, auto_pad, conv_p, conv_q, pool_p, pool_q);
+    // make graph
+    std::vector<sc_op_ptr> fuse_arg_ops;
+    nested_conv_fwd_config_t cfg;
+    sc_graph_t g
+            = make_dyn_conv_pooling_postops_graph<src_type, wei_type, dst_type>(
+                    MB, OC, IC, IH, IW, KH, KW, SH, SW, PH, PW, pooling_type,
+                    p_KH, p_KW, p_SH, p_SW, p_PH, p_PW, fuse_arg_ops, cfg,
+                    exclude_pad, bn_relu, auto_pad);
+
+    auto ctx = std::make_shared<context_t>(*get_default_context());
+    // print_graph(g, std::cout, 1);
+    graph_driver(g, ctx);
+    // print_graph(g, std::cout, 1);
+    // check graph
+    auto has_expected_fusion = false;
+    for (auto &op : g.ops_) {
+        if (op->op_name_.find(expected_fusion) != std::string::npos) {
+            has_expected_fusion = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(has_expected_fusion);
+
+    // compute sc
+    uint8_t in_mask = 0;
+    if (is_dynamic_dim(MB)) { in_mask |= 1 << 0; }
+    if (is_dynamic_dim(IH)) { in_mask |= 1 << 1; }
+    if (is_dynamic_dim(IW)) { in_mask |= 1 << 2; }
+    auto sc_output
+            = alloc_array<float>(REAL_MB * OC * pool_p * pool_q, INIT_NOOP);
+    auto input = alloc_array<float>(REAL_MB * IC * REAL_IH * REAL_IW);
+    auto weight = alloc_array<float>(OC * IC * KH * KW);
+    auto bias = alloc_array<float>(OC);
+    auto bn_mul = alloc_array<float>(OC);
+    auto bn_add = alloc_array<float>(OC);
+
+    sc_dims out_dims = sc_dims {REAL_MB, OC, pool_p, pool_q};
+    sc_dims data_dims = sc_dims {REAL_MB, IC, REAL_IH, REAL_IW};
+    sc_dims in_weight_dims = sc_dims {OC, IC, KH, KW};
+    sc_dims in_postop_dims = sc_dims {OC};
+    // Define dynamic tensor
+    runtime::dynamic_tensor_t dyn_output(&sc_output[0], &out_dims[0],
+            out_dims.size(), uint32_t(sc_data_etype::F32), 0);
+    runtime::dynamic_tensor_t dyn_input(&input[0], &data_dims[0],
+            data_dims.size(), uint32_t(sc_data_etype::F32), in_mask);
+    runtime::dynamic_tensor_t dyn_weight(&weight[0], &in_weight_dims[0],
+            in_weight_dims.size(), uint32_t(sc_data_etype::F32), 0);
+    runtime::dynamic_tensor_t dyn_bn_mul(&bn_mul[0], &in_postop_dims[0],
+            in_postop_dims.size(), uint32_t(sc_data_etype::F32), 0);
+    runtime::dynamic_tensor_t dyn_bn_add(&bn_add[0], &in_postop_dims[0],
+            in_postop_dims.size(), uint32_t(sc_data_etype::F32), 0);
+
+    std::vector<void *> sc_args = {&dyn_output, &dyn_input, &dyn_weight};
+    if (bn_relu) {
+        sc_args.emplace_back(&dyn_bn_mul);
+        sc_args.emplace_back(&dyn_bn_add);
+    }
+    std::vector<generic_val> generic_args;
+    for (unsigned i = 0; i < sc_args.size(); i++)
+        generic_args.emplace_back(sc_args.at(i));
+
+    auto f = lower_graph(ctx, g, fuse_arg_ops);
+    auto fptr = jit_engine_t::make(ctx)->get_entry_func(f);
+    fptr->call_generic_default(generic_args.data());
+
+    // compute ref
+    auto ref_data = NHWC2NCHW(input, REAL_MB, REAL_IH, REAL_IW, IC);
+    auto ref_weight = KCRSck2KCRS(weight, OC / cfg.im_oc_block,
+            IC / cfg.im_ic_block, KH, KW, cfg.im_ic_block, cfg.im_oc_block);
+    auto ref_bn_mul = std::move(bn_mul);
+    auto ref_bn_add = std::move(bn_add);
+    auto ref_output = alloc_array<dst_type>(REAL_MB * OC * pool_p * pool_q);
+    auto ref_conv_output
+            = alloc_array<dst_type>(REAL_MB * OC * conv_p * conv_q);
+
+    std::string pooling_op_type_str
+            = pooling_type == pooling_type_t::max ? "max" : "avg";
+    compute_conv_pooling_postops_ref<src_type, wei_type, dst_type>(REAL_MB, OC,
+            IC, REAL_IH, REAL_IW, conv_p, conv_q, KH, KW, SH, SW, PH, PW,
+            &ref_data[0], &ref_weight[0], &ref_conv_output[0],
+            pooling_op_type_str, pool_p, pool_q, p_KH, p_KW, p_SH, p_SW, p_PH,
+            p_PW, &ref_output[0], exclude_pad, bn_relu, &ref_bn_mul[0],
+            &ref_bn_add[0]);
+
+    auto sc_output_plain = NHWC2NCHW(sc_output, REAL_MB, pool_p, pool_q, OC);
+    test_utils::compare_data(sc_output_plain.data(), ref_output.data(),
+            sc_output_plain.size(), 1e-3f, 1e-3f);
+}
+
+template <typename src_type, typename wei_type, typename dst_type>
 static void check_conv_pooling_postops_graph(const std::string &expected_fusion,
         const int64_t MB, const int64_t c_block, const int64_t OC,
         const int64_t IC, const int64_t IH, const int64_t IW, const int64_t KH,
@@ -595,9 +779,9 @@ static void check_conv_pooling_postops_graph(const std::string &expected_fusion,
         const bool check_conv_out = false) {
     REQUIRE_AVX2();
     int64_t conv_p, conv_q, pool_p, pool_q;
-    compute_conv_pooling_outshape(MB, c_block, OC, IC, IH, IW, KH, KW, SH, SW,
-            PH, PW, pooling_type, p_KH, p_KW, p_SH, p_SW, p_PH, p_PW,
-            exclude_pad, auto_pad, conv_p, conv_q, pool_p, pool_q);
+    compute_conv_pooling_outshape(MB, OC, IC, IH, IW, KH, KW, SH, SW, PH, PW,
+            pooling_type, p_KH, p_KW, p_SH, p_SW, p_PH, p_PW, exclude_pad,
+            auto_pad, conv_p, conv_q, pool_p, pool_q);
 
     // compute ref
     auto ref_data = alloc_array<src_type>(MB * IC * IH * IW);
@@ -880,9 +1064,9 @@ static void check_conv_postops_pooling_graph_int8(
         const bool check_conv_out = false) {
     REQUIRE_VNNI();
     int64_t conv_p, conv_q, pool_p, pool_q;
-    compute_conv_pooling_outshape(MB, c_block, OC, IC, IH, IW, KH, KW, SH, SW,
-            PH, PW, pooling_type, p_KH, p_KW, p_SH, p_SW, p_PH, p_PW,
-            exclude_pad, auto_pad, conv_p, conv_q, pool_p, pool_q);
+    compute_conv_pooling_outshape(MB, OC, IC, IH, IW, KH, KW, SH, SW, PH, PW,
+            pooling_type, p_KH, p_KW, p_SH, p_SW, p_PH, p_PW, exclude_pad,
+            auto_pad, conv_p, conv_q, pool_p, pool_q);
 
     // compute ref
     float data_min = -1;

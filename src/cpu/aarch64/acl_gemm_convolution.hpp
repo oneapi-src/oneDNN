@@ -79,7 +79,8 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
                     && expect_data_types(
                             src_type, wei_type, bia_type, dst_type, undef)
                     && !has_zero_dim_memory()
-                    && attr()->has_default_values(smask_t::post_ops, dst_type)
+                    && attr()->has_default_values(
+                            smask_t::post_ops | smask_t::fpmath_mode, dst_type)
                     && output_scales_mask_ok() && zero_points_ok();
             if (!ok) return status::unimplemented;
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 #include <compiler/ir/graph/trait/configurable.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
 #include <compiler/ir/transform/constant_fold.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/tensor_shrink.hpp>
 #include <ops/convolution.hpp>
 #include <runtime/barrier.hpp>
@@ -491,7 +492,8 @@ int gen_nested_conv_fwd_t::get_im_w_block(const context_ptr &ctx) const {
   if (origin_ow > 14) {
     auto L1_cache_size = ctx->machine_.cpu_flags_.getDCacheSize(1);
     // not use L1_cache too full
-    s_default_block = L1_cache_size / 4 / get_im_oc_block(ctx);
+    s_default_block = L1_cache_size / 4
+      / (get_im_oc_block(ctx) * utils::get_sizeof_type(get_weight_dtype()));
   }
   auto s_block_list = utils::get_blocks(ow_, 1, s_default_block);
   s_block_list.erase(
@@ -1446,12 +1448,11 @@ void gen_nested_conv_fwd_t::dynamic_compute_1x1_pack_input_nested(
   auto mb_expr_ = input_expr_dims[0];
   auto ih_expr_ = input_expr_dims[1];
   auto iw_expr_ = input_expr_dims[2];
-  auto oh_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[1] + ph_b_ + ph_e_ - kh_) / sh_ + 1
-    : (input_expr_dims[2] + ph_b_ + ph_e_ - kh_) / sh_ + 1;
-  auto ow_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[2] + pw_b_ + pw_e_ - kw_) / sw_ + 1
-    : (input_expr_dims[3] + pw_b_ + pw_e_ - kw_) / sw_ + 1;
+  auto output_expr_dims = output.checked_as<tensor>()->dims_;
+  auto oh_expr_
+    = input_expr_dims.size() == 4 ? output_expr_dims[1] : output_expr_dims[2];
+  auto ow_expr_
+    = input_expr_dims.size() == 4 ? output_expr_dims[2] : output_expr_dims[3];
 
   int lanes = get_lanes(ctx, config.im_ic_block, get_input_dtype());
   if (config.pack_input == 1 && (sd_ > 1 || sh_ > 1 || sw_ > 1)) {
@@ -2357,12 +2358,10 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
   auto mb_expr_ = input_expr_dims[0];
 
   auto output_expr_dims = output.checked_as<tensor>()->dims_;
-  auto oh_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[1] + (ph_b_ + ph_e_) - kh_) / sh_ + 1
-    : (input_expr_dims[2] + (ph_b_ + ph_e_) - kh_) / sh_ + 1;
-  auto ow_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[2] + (pw_b_ + pw_e_) - kw_) / sw_ + 1
-    : (input_expr_dims[3] + (pw_b_ + pw_e_) - kw_) / sw_ + 1;
+  auto oh_expr_
+    = input_expr_dims.size() == 4 ? output_expr_dims[1] : output_expr_dims[2];
+  auto ow_expr_
+    = input_expr_dims.size() == 4 ? output_expr_dims[2] : output_expr_dims[3];
 
   int oc_block = oc_ / oc_threads;
 
@@ -2713,50 +2712,49 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
               }
             }
 
-            if (oc_threads == 1 && h_threads == 1 && w_threads == 1
-              && !is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)) {
+            if (oc_threads == 1 && h_threads == 1 && w_threads == 1) {
               create_fusion_anchor(fusion, owner_->get_outputs()[0],
-                blocking_output_ ? slice_range {{pbs, 1UL},
-                  {outer_k * oc_ / im_oc_block / oc_split,
-                    oc_ / im_oc_block / oc_split},
-                  {0, oh_}, {0, ow_}, {0, im_oc_block}}
-                                 : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                                   {outer_k * oc_ / oc_split, oc_ / oc_split}});
+                blocking_output_
+                  ? slice_range {{pbs, 1UL},
+                    {outer_k * oc_ / im_oc_block / oc_split,
+                      oc_ / im_oc_block / oc_split},
+                    {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}}
+                  : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
+                    {outer_k * oc_ / oc_split, oc_ / oc_split}});
             }
           }
-          if (h_threads == 1 && w_threads == 1 && !is_dynamic_dim(oh_)
-            && !is_dynamic_dim(ow_)) {
+          if (h_threads == 1 && w_threads == 1) {
             create_fusion_anchor(fusion, owner_->get_outputs()[0],
-              blocking_output_ ? slice_range {{pbs, 1UL},
-                {outer_k * oc_ / im_oc_block / oc_split,
-                  oc_ / im_oc_block / oc_split},
-                {0, oh_}, {0, ow_}, {0, im_oc_block}}
-                               : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                                 {outer_k * oc_ / oc_split, oc_ / oc_split}});
+              blocking_output_
+                ? slice_range {{pbs, 1UL},
+                  {outer_k * oc_ / im_oc_block / oc_split,
+                    oc_ / im_oc_block / oc_split},
+                  {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}}
+                : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
+                  {outer_k * oc_ / oc_split, oc_ / oc_split}});
           }
         }
 
-        if (h_threads == 1 && !is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)) {
+        if (h_threads == 1) {
           create_fusion_anchor(fusion, owner_->get_outputs()[0],
-            blocking_output_ ? slice_range {{pbs, 1UL},
-              {outer_k * oc_ / im_oc_block / oc_split,
-                oc_ / im_oc_block / oc_split},
-              {0, oh_}, {0, ow_}, {0, im_oc_block}}
-                             : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                               {outer_k * oc_ / oc_split, oc_ / oc_split}});
+            blocking_output_
+              ? slice_range {{pbs, 1UL},
+                {outer_k * oc_ / im_oc_block / oc_split,
+                  oc_ / im_oc_block / oc_split},
+                {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}}
+              : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
+                {outer_k * oc_ / oc_split, oc_ / oc_split}});
         }
       }
-      if (!is_dynamic_dim(oh_) && !is_dynamic_dim(ow_)) {
-        _if_(mb_expr_ > 1) {
-          create_fusion_anchor(fusion, owner_->get_outputs()[0],
-            blocking_output_ ? slice_range {{pbs, 1UL},
-              {outer_k * oc_ / im_oc_block / oc_split,
-                oc_ / im_oc_block / oc_split},
-              {0, oh_}, {0, ow_}, {0, im_oc_block}}
-                             : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                               {outer_k * oc_ / oc_split, oc_ / oc_split}});
-        }
-      }
+
+      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+        blocking_output_
+          ? slice_range {{pbs, 1UL},
+            {outer_k * oc_ / im_oc_block / oc_split,
+              oc_ / im_oc_block / oc_split},
+            {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}}
+          : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
+            {outer_k * oc_ / oc_split, oc_ / oc_split}});
     }
   }
   loops = {lpbs, lph, lpw, lpoc, lpic, lok};
@@ -4213,13 +4211,11 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
     = input_expr_dims.size() == 4 ? input_expr_dims[1] : input_expr_dims[2];
   auto iw_expr_
     = input_expr_dims.size() == 4 ? input_expr_dims[2] : input_expr_dims[3];
-
-  auto oh_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[1] + (ph_b_ + ph_e_) - kh_) / sh_ + 1
-    : (input_expr_dims[2] + (ph_b_ + ph_e_) - kh_) / sh_ + 1;
-  auto ow_expr_ = input_expr_dims.size() == 4
-    ? (input_expr_dims[2] + (pw_b_ + pw_e_) - kw_) / sw_ + 1
-    : (input_expr_dims[3] + (pw_b_ + pw_e_) - kw_) / sw_ + 1;
+  auto output_expr_dims = output.checked_as<tensor>()->dims_;
+  auto oh_expr_
+    = input_expr_dims.size() == 4 ? output_expr_dims[1] : output_expr_dims[2];
+  auto ow_expr_
+    = input_expr_dims.size() == 4 ? output_expr_dims[2] : output_expr_dims[3];
 
   // by observation
   expr im_h_block = do_cast_and_fold(
@@ -4355,32 +4351,30 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
               }
 
               if (oc_threads == 1 && ic_threads == 1 && h_threads == 1
-                && w_threads == 1 && !is_dynamic_dim(ow_)
-                && !is_dynamic_dim(oh_)) {
+                && w_threads == 1) {
                 create_fusion_anchor(fusion, owner_->get_outputs()[0],
                   blocking_output_
                     ? slice_range {{pbs, 1UL},
                       {outer_k * oc_ / im_oc_block / oc_split,
                         oc_ / im_oc_block / oc_split},
-                      {0, oh_}, {0, ow_}, {0, im_oc_block}}
-                    : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
+                      {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}}
+                    : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
                       {outer_k * oc_ / oc_split, oc_ / oc_split}});
               }
             }
 
-            if (oc_threads == 1 && h_threads == 1 && w_threads == 1
-              && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)) {
+            if (oc_threads == 1 && h_threads == 1 && w_threads == 1) {
               create_fusion_anchor(fusion, owner_->get_outputs()[0],
-                blocking_output_ ? slice_range {{pbs, 1UL},
-                  {outer_k * oc_ / im_oc_block / oc_split,
-                    oc_ / im_oc_block / oc_split},
-                  {0, oh_}, {0, ow_}, {0, im_oc_block}}
-                                 : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                                   {outer_k * oc_ / oc_split, oc_ / oc_split}});
+                blocking_output_
+                  ? slice_range {{pbs, 1UL},
+                    {outer_k * oc_ / im_oc_block / oc_split,
+                      oc_ / im_oc_block / oc_split},
+                    {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}}
+                  : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
+                    {outer_k * oc_ / oc_split, oc_ / oc_split}});
             }
           }
-          if (h_threads == 1 && w_threads == 1 && !is_dynamic_dim(ow_)
-            && !is_dynamic_dim(oh_)) {
+          if (h_threads == 1 && w_threads == 1) {
             create_fusion_anchor(fusion, owner_->get_outputs()[0],
               blocking_output_
                 ? slice_range {{pbs, 1UL},
@@ -4392,25 +4386,25 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
           }
         }
 
-        if (h_threads == 1 && !is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)) {
+        if (h_threads == 1) {
           create_fusion_anchor(fusion, owner_->get_outputs()[0],
-            blocking_output_ ? slice_range {{pbs, 1UL},
-              {outer_k * oc_ / im_oc_block / oc_split,
-                oc_ / im_oc_block / oc_split},
-              {0, oh_}, {0, ow_}, {0, im_oc_block}}
-                             : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                               {outer_k * oc_ / oc_split, oc_ / oc_split}});
+            blocking_output_
+              ? slice_range {{pbs, 1UL},
+                {outer_k * oc_ / im_oc_block / oc_split,
+                  oc_ / im_oc_block / oc_split},
+                {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}}
+              : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
+                {outer_k * oc_ / oc_split, oc_ / oc_split}});
         }
       }
-      if (!is_dynamic_dim(ow_) && !is_dynamic_dim(oh_)) {
-        create_fusion_anchor(fusion, owner_->get_outputs()[0],
-          blocking_output_ ? slice_range {{pbs, 1UL},
+      create_fusion_anchor(fusion, owner_->get_outputs()[0],
+        blocking_output_
+          ? slice_range {{pbs, 1UL},
             {outer_k * oc_ / im_oc_block / oc_split,
               oc_ / im_oc_block / oc_split},
-            {0, oh_}, {0, ow_}, {0, im_oc_block}}
-                           : slice_range {{pbs, 1UL}, {0, oh_}, {0, ow_},
-                             {outer_k * oc_ / oc_split, oc_ / oc_split}});
-      }
+            {0, oh_expr_}, {0, ow_expr_}, {0, im_oc_block}}
+          : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_},
+            {outer_k * oc_ / oc_split, oc_ / oc_split}});
     }
   }
   loops = {lpbs, lph, lpw, lpoc, lpic, lok};

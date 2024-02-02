@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ rnn_cell_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
     if (!rnn.unfused_post_gemm) {
         fused_postgemm = [&](dim_t m, dim_t n, dim_t nb_i,
                                  const src_iter_t *Ai_m, scratch_t *C_n,
-                                 int block_step) {
+                                 scratch_t *C_cell_n, int block_step) {
             const auto Dpg_n = (dst_postgemm != nullptr)
                     ? dst_postgemm + m * LDDl + n
                     : nullptr;
@@ -112,7 +112,7 @@ rnn_cell_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
                     diff_src_layer_, diff_augru_attention_, diff_src_iter_,
                     diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
                     diff_dst_iter_c_, weights_peephole_n, bias_n, ws_grid_,
-                    scratch_cell_, Di_n, weights_scales_n, block_step);
+                    C_cell_n, Di_n, weights_scales_n, block_step);
         };
     }
 
@@ -192,8 +192,8 @@ rnn_cell_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
         // scratch_gates_ = src_layer_ * w_layer_ + src_iter_ * w_iter_
         const brgemm_dst_layer_iter_t dst_calc(this->rnn_brgemm_, rnn,
                 cell_position, src_iter_, src_layer_, w_iter_[0], w_layer_[0],
-                scratch_gates_, amx_scratchpad, addr_batch_global,
-                fused_postgemm);
+                scratch_gates_, scratch_cell_, amx_scratchpad,
+                addr_batch_global, fused_postgemm);
         dst_calc.execute();
     }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -4625,8 +4625,6 @@ TEST(test_pass_pass, DnnlSingleOpReplacement) {
             SigmoidBackward,
             SqrtBackward,
             TanhBackward,
-            LayerNorm,
-            LayerNormBackward,
             SoftMaxBackward,
             DynamicQuantize,
             DynamicDequantize,
@@ -4640,6 +4638,7 @@ TEST(test_pass_pass, DnnlSingleOpReplacement) {
             op->set_attr<bool>(op_attr::exclude_pad, false);
             op->set_attr<std::string>(op_attr::rounding_type, "floor");
         }
+        agraph.finalize();
         ASSERT_EQ(op->get_kind(), akind);
         pm.run_passes(agraph, "no_config");
 
@@ -14589,8 +14588,8 @@ TEST(test_pass_pass, BatchNormReluU8Unfuse) {
 TEST(test_pass_pass, FuseMatmulSwish) {
     const std::vector<std::string> seqs_1 {"first", "second"};
     const std::vector<std::string> seqs_2 {"left", "right"};
-    for (auto seq_1 : seqs_1)
-        for (auto seq_2 : seqs_2) {
+    for (const auto &seq_1 : seqs_1)
+        for (const auto &seq_2 : seqs_2) {
             graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul");
             graph::op_t sigmoid_op(1, graph::op_kind::Sigmoid, "sigmoid");
             graph::op_t multi_op(2, graph::op_kind::Multiply, "multiply");
@@ -14640,4 +14639,40 @@ TEST(test_pass_pass, FuseMatmulSwish) {
             ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
             ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
         }
+}
+
+TEST(test_pass_pass_system, LayernormWithSpecialAxis) {
+    /*
+             | (bf16)
+           layernorm
+             | (bf16)
+    */
+    graph_t agraph;
+
+    bool keep_stats = false;
+    int64_t begin_norm_axis = -2;
+
+    op_t layernorm {0, LayerNorm, "layernorm"};
+    layernorm.set_attr(op_attr::keep_stats, keep_stats);
+    layernorm.set_attr(op_attr::begin_norm_axis, begin_norm_axis);
+
+    logical_tensor_t src = logical_tensor_init(0, {2, 2, 2}, data_type::bf16);
+    logical_tensor_t scale = logical_tensor_init(1, {2}, data_type::f32);
+    logical_tensor_t shift = logical_tensor_init(2, {2}, data_type::f32);
+    logical_tensor_t layernorm_dst
+            = logical_tensor_init(3, {2, 2, 2}, data_type::bf16);
+
+    layernorm.add_input(src);
+    layernorm.add_input(scale);
+    layernorm.add_input(shift);
+    layernorm.add_output(layernorm_dst);
+
+    ASSERT_EQ(agraph.add_op(&layernorm), status::success);
+
+    agraph.finalize();
+    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 0U);
 }

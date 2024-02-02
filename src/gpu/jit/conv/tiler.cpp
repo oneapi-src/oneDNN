@@ -375,12 +375,16 @@ private:
                     [&](const loop_dim_t &a, const loop_dim_t &b) {
                         return a.size > b.size;
                     });
-            // For XeHPG and earlier hardware use only linear loops with SLM
-            // pipelining to avoid overflowing icache. Prefetch pipeline can
-            // handle nested loops without fully unrolling them.
-            int max_loop_ndims = (cfg.hw() <= ngen::HW::XeHPG ? 1 : 2);
-            for (int i = max_loop_ndims; i < (int)loop_dims.size(); i++)
-                loop_dims[i].dim = prb_dim_t();
+
+            // Deterministic mode doesn't allow reduction splitting between threadgroups.
+            if (!prb.deterministic) {
+                // For XeHPG and earlier hardware use only linear loops with SLM
+                // pipelining to avoid overflowing icache. Prefetch pipeline can
+                // handle nested loops without fully unrolling them.
+                int max_loop_ndims = (cfg.hw() <= ngen::HW::XeHPG ? 1 : 2);
+                for (int i = max_loop_ndims; i < (int)loop_dims.size(); i++)
+                    loop_dims[i].dim = prb_dim_t();
+            }
 
             for (auto d : loop_) {
                 auto &info = tile_info(d);
@@ -516,8 +520,13 @@ public:
         check_mask_ = 0;
         optional_check_mask_ = 0;
         set_check(optional_check_mask_, check_kind_t::limit_k_iter);
-        set_check(optional_check_mask_,
-                check_kind_t::check_k_slicing_utilization);
+        if (cfg_.prb().deterministic) {
+            set_check(check_kind_t::check_deterministic);
+        } else {
+            set_check(optional_check_mask_,
+                    check_kind_t::check_k_slicing_utilization);
+            set_check(check_kind_t::check_k_slicing_utilization);
+        }
         set_check(check_kind_t::check_vec);
         set_check(check_kind_t::check_tg_size);
         set_check(check_kind_t::check_dpas);
@@ -525,7 +534,6 @@ public:
         set_check(check_kind_t::check_slm_usage);
         set_check(check_kind_t::check_bwd_d_optimize);
         set_check(check_kind_t::check_layouts);
-        set_check(check_kind_t::check_k_slicing_utilization);
         set_check(check_kind_t::limit_m_iter);
         set_check(check_kind_t::limit_n_iter);
         set_check(check_kind_t::limit_k_iter);
@@ -552,6 +560,7 @@ public:
         if (!check_bwd_d_optimize_ok(ctx)) return false;
         if (!check_layouts_ok(ctx)) return false;
         if (!check_k_slicing_utilization_ok(ctx)) return false;
+        if (!check_deterministic_ok(ctx)) return false;
         if (!limit_m_iter_ok(ctx)) return false;
         if (!limit_n_iter_ok(ctx)) return false;
         if (!limit_k_iter_ok(ctx)) return false;
@@ -617,6 +626,7 @@ private:
         check_bwd_d_optimize,
         check_layouts,
         check_k_slicing_utilization,
+        check_deterministic,
         limit_m_iter,
         limit_n_iter,
         limit_k_iter,
@@ -835,6 +845,12 @@ private:
         return true;
     }
 
+    bool check_deterministic_ok(const context_t &ctx) const {
+        if (!is_enabled(check_kind_t::check_deterministic)) return true;
+        int k = padded_gemm_shape_.get(prb_dims::k, 1);
+        return ctx.k_loop * ctx.k_iter >= k;
+    }
+
     int hint_min_m_iter() const {
         if (is_mad_x8_non_dw(cfg_)) return min_mad_x8_non_dw_m_iter_;
         return min_m_iter_;
@@ -940,11 +956,15 @@ conv_blocking_scheme_t bwd_d_T_o_I_wio("ls:[oc,kd,kh,kw],T:[oc],i:[iw,ic,oc]");
 conv_blocking_scheme_t bwd_d_dw_T_w_I_wgk("ls:[kd,kh,kw],T:[iw],i:[iw,g,kw]");
 conv_blocking_scheme_t bwd_d_dw_T_w_I_ngk("ls:[kd,kh,kw],T:[iw],i:[mb,g,kw]");
 conv_blocking_scheme_t bwd_w_T_io_I_ion("l:[oh,ow],li:[mb],T:[oc,ic],i:[ic,oc,mb]");
+conv_blocking_scheme_t bwd_w_T_io_I_ion_d("ls:[mb,od,oh,ow],T:[oc,ic],i:[ic,oc,mb]");
 conv_blocking_scheme_t bwd_w_T_io_I_kon("l:[oh,ow],li:[mb],T:[oc,ic],i:[kw,oc,mb]");
 conv_blocking_scheme_t bwd_w_T_io_I_ikon("l:[oh,ow],li:[mb],T:[oc,ic],i:[ic,kw,oc,mb]");
 conv_blocking_scheme_t bwd_w_dw_I_gw("l:[mb,oh,ow],i:[g,ow]");
+conv_blocking_scheme_t bwd_w_dw_I_gw_d("ls:[mb,od,oh,ow],i:[g,ow]");
 conv_blocking_scheme_t bwd_w_dw_I_gn("l:[mb,oh,ow],i:[g,mb]");
+conv_blocking_scheme_t bwd_w_dw_I_gn_d("ls:[mb,od,oh,ow],i:[g,mb]");
 conv_blocking_scheme_t bwd_w_T_io_I_iow("l:[mb,oh,ow],T:[oc,ic],i:[ic,oc,ow]");
+conv_blocking_scheme_t bwd_w_T_io_I_iow_d("ls:[mb,od,oh,ow],T:[oc,ic],i:[ic,oc,ow]");
 conv_blocking_scheme_t bwd_w_T_io_I_ikow("l:[mb,oh,ow],T:[oc,ic],i:[ic,kw,oc,ow]");
 } // namespace conv_schemes
 // clang-format on
@@ -1032,6 +1052,8 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_w_dw(
     bool k_is_ow = (k_iter_dim == prb_dims::ow);
     ret.add(k_is_mb, conv_schemes::bwd_w_dw_I_gn);
     ret.add(k_is_ow, conv_schemes::bwd_w_dw_I_gw);
+    ret.add(k_is_mb && cfg.prb().deterministic, conv_schemes::bwd_w_dw_I_gn_d);
+    ret.add(k_is_ow && cfg.prb().deterministic, conv_schemes::bwd_w_dw_I_gw_d);
     return ret;
 }
 
@@ -1091,6 +1113,10 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_w(
     ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_kon);
     ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_ikon);
     ret.add(k_is_ow && small_ic, conv_schemes::bwd_w_T_io_I_ikow);
+    ret.add(k_is_mb && cfg.prb().deterministic,
+            conv_schemes::bwd_w_T_io_I_ion_d);
+    ret.add(k_is_ow && cfg.prb().deterministic,
+            conv_schemes::bwd_w_T_io_I_iow_d);
     return ret;
 }
 
@@ -1465,15 +1491,10 @@ private:
                 break;
                 break;
             case tiler_mode_t::lookup: {
-                const bool transposed = cfg.prb().ab_swap_transpose;
                 const auto params = const_conv_lookup_table().find(cfg.key());
                 if (!params.is_empty() && chk.is_ok(params.blocking())) {
-                    if (transposed) {
-                        params_gen_ = params_generator_t(tune_level, simd_size,
-                                chk, level_tile_sets, params);
-                    } else {
-                        params_gen_ = params_generator_t(params);
-                    }
+                    params_gen_ = params_generator_t(tune_level, simd_size, chk,
+                            level_tile_sets, params);
                 } else {
                     mode_ = tiler_mode_t::model;
                     params_gen_ = params_generator_t(

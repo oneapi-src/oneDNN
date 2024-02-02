@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,11 @@ namespace impl {
 const primitive_attr_t &default_attr() {
     static const primitive_attr_t default_attr_instance;
     return default_attr_instance;
+}
+
+const runtime_scales_t &default_runtime_scale() {
+    static const runtime_scales_t default_runtime_scale_instance;
+    return default_runtime_scale_instance;
 }
 
 void scales_t::set_single_scale(float scale) {
@@ -76,7 +81,8 @@ int zero_points_t::get(int arg) const {
     return get_mask(arg);
 }
 
-status_t zero_points_t::set(int arg, int mask) {
+status_t zero_points_t::set(int arg, int mask, int ndims, const dims_t groups,
+        data_type_t data_type) {
     const bool supported_arg
             = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
     if (!supported_arg) return status::unimplemented;
@@ -89,6 +95,9 @@ status_t zero_points_t::set(int arg, int mask) {
         case DNNL_ARG_WEIGHTS:
             is_set_wei = true;
             mask_wei = mask;
+            data_type_wei = data_type;
+            group_ndims_wei = ndims;
+            utils::array_copy(group_dims_wei, groups, group_ndims_wei);
             break;
         case DNNL_ARG_DST:
             is_set_dst = true;
@@ -120,7 +129,16 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
             (bool)(~mask & (mask_name)), (mask_field).has_default_values()))
     CHECK_MASK(smask_t::oscale_runtime, output_scales_);
     CHECK_MASK(smask_t::scales, scales_);
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_runtime_groups),
+            scales_.has_default_groups()));
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_runtime_data_type),
+            scales_.has_default_data_type()));
     CHECK_MASK(smask_t::zero_points, zero_points_);
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::zero_points_runtime_groups),
+            zero_points_.has_default_groups()));
+    CHECK_ARG(
+            IMPLICATION((bool)(~mask & smask_t::zero_points_runtime_data_type),
+                    zero_points_.has_default_data_type()));
     CHECK_MASK(smask_t::post_ops, post_ops_);
     CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
     CHECK_MASK(smask_t::rnn_weights_qparams, rnn_weights_qparams_);
@@ -136,6 +154,10 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
                     dnnl::impl::accumulation_mode::relaxed,
                     dnnl::impl::accumulation_mode::any)));
     CHECK_ARG(this->defined(defined_mask));
+    bool fpmath_mode_ok = IMPLICATION(
+            (bool)(~mask & smask_t::fpmath_mode) && fpmath_.apply_to_int_,
+            fpmath_.mode_ == fpmath_mode::strict);
+    CHECK_ARG(fpmath_mode_ok);
     return ok;
 #undef CHECK_MASK
 #undef CHECK_ARG
@@ -357,9 +379,13 @@ bool post_ops_t::check_sum_consistency(const data_type_t dst_dt,
             && check_sum_consistent_quantization(dst_dt, is_int8);
 }
 
-status_t primitive_attr_t::set_fpmath_mode(fpmath_mode_t fpmath_mode) {
+status_t primitive_attr_t::set_fpmath_mode(
+        fpmath_mode_t fpmath_mode, bool apply_to_int) {
     auto st = check_fpmath_mode(fpmath_mode);
-    if (st == success) fpmath_mode_ = fpmath_mode;
+    if (st == success) {
+        fpmath_.mode_ = fpmath_mode;
+        fpmath_.apply_to_int_ = apply_to_int;
+    }
     return st;
 }
 
@@ -426,14 +452,28 @@ status_t dnnl_primitive_attr_destroy(primitive_attr_t *attr) {
 status_t dnnl_primitive_attr_get_fpmath_mode(
         const primitive_attr_t *attr, fpmath_mode_t *mode) {
     if (any_null(attr, mode)) return invalid_arguments;
-    *mode = attr->fpmath_mode_;
+    *mode = attr->fpmath_.mode_;
     return success;
 }
 
 status_t dnnl_primitive_attr_set_fpmath_mode(
         primitive_attr_t *attr, fpmath_mode_t mode) {
     if (any_null(attr)) return invalid_arguments;
-    return attr->set_fpmath_mode(mode);
+    return attr->set_fpmath_mode(mode, false);
+}
+
+status_t dnnl_primitive_attr_get_fpmath_mode_v2(
+        const primitive_attr_t *attr, fpmath_mode_t *mode, int *apply_to_int) {
+    if (!attr) return invalid_arguments;
+    if (mode) *mode = attr->fpmath_.mode_;
+    if (apply_to_int) *apply_to_int = attr->fpmath_.apply_to_int_;
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_fpmath_mode_v2(
+        primitive_attr_t *attr, fpmath_mode_t mode, int apply_to_int_fpmath) {
+    if (any_null(attr)) return invalid_arguments;
+    return attr->set_fpmath_mode(mode, apply_to_int_fpmath);
 }
 
 status_t dnnl_primitive_attr_get_accumulation_mode(
@@ -447,6 +487,19 @@ status_t dnnl_primitive_attr_set_accumulation_mode(
         primitive_attr_t *attr, accumulation_mode_t am) {
     if (any_null(attr)) return invalid_arguments;
     return attr->set_accumulation_mode(am);
+}
+
+status_t dnnl_primitive_attr_get_deterministic(
+        const primitive_attr_t *attr, int *d) {
+    if (any_null(attr, d)) return invalid_arguments;
+    *d = attr->deterministic_;
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_deterministic(primitive_attr_t *attr, int d) {
+    if (any_null(attr)) return invalid_arguments;
+    attr->deterministic_ = d;
+    return success;
 }
 
 status_t dnnl_primitive_attr_get_scratchpad_mode(
@@ -467,10 +520,21 @@ status_t dnnl_primitive_attr_set_scratchpad_mode(
 
 status_t dnnl_primitive_attr_set_scales_mask(
         primitive_attr_t *attr, int arg, int mask) {
-    bool ok = attr && mask >= 0 && arg >= 0
-            && attr->output_scales_.has_default_values();
+    bool ok = attr && mask >= 0 && arg >= 0;
     if (!ok) return invalid_arguments;
     return attr->scales_.set(arg, mask);
+}
+
+status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
+        int mask, int ndims, const dims_t group_dims, data_type_t data_type) {
+    using namespace data_type;
+    bool ok = attr && mask >= 0 && arg >= 0 && ndims >= 0
+            && utils::one_of(data_type, f32, bf16, f16)
+            && IMPLICATION(
+                    arg != DNNL_ARG_WEIGHTS, data_type == f32 && ndims == 0)
+            && IMPLICATION(ndims, validate_dims(ndims, group_dims));
+    if (!ok) return invalid_arguments;
+    return attr->scales_.set(arg, mask, ndims, group_dims, data_type);
 }
 
 status_t dnnl_primitive_attr_set_zero_points_mask(
@@ -479,6 +543,20 @@ status_t dnnl_primitive_attr_set_zero_points_mask(
     if (!ok) return invalid_arguments;
 
     return attr->zero_points_.set(arg, mask);
+}
+
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
+        dnnl_primitive_attr_t attr, int arg, int mask, int ndims,
+        const dnnl_dims_t group_dims, dnnl_data_type_t data_type) {
+    using namespace data_type;
+    bool ok = attr && arg >= 0 && mask >= 0 && ndims >= 0
+            && utils::one_of(data_type, s32, s8, u8)
+            && IMPLICATION(
+                    arg != DNNL_ARG_WEIGHTS, data_type == s32 && ndims == 0)
+            && IMPLICATION(ndims, validate_dims(ndims, group_dims));
+    if (!ok) return invalid_arguments;
+
+    return attr->zero_points_.set(arg, mask, ndims, group_dims, data_type);
 }
 
 status_t dnnl_primitive_attr_get_post_ops(

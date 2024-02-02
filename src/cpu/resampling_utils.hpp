@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,7 +56,8 @@ struct linear_coeffs_t {
         float s = linear_map(y, y_max, x_max);
         idx[0] = left(s);
         idx[1] = right(s, x_max);
-        wei[1] = nstl::abs(s - static_cast<float>(saturate<float>(idx[0])));
+        wei[1] = nstl::abs(
+                s - static_cast<float>(q10n::saturate<float>(idx[0])));
         wei[0] = 1.f - wei[1];
     }
     // left and right index of source image used for interpolation

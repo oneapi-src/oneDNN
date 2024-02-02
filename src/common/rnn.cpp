@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -519,8 +519,7 @@ status_t rnn_attr_check(const rnn_desc_t &desc, const engine_t *engine,
     if (attr == nullptr) return status::success;
     if (attr->has_default_values()) return status::success;
 
-    primitive_attr_t::skip_mask_t attr_mask
-            = primitive_attr_t::skip_mask_t::rnn_tparams;
+    smask_t attr_mask = smask_t::rnn_tparams | smask_t::fpmath_mode;
     // Check attributes
     if (utils::one_of(desc.prop_kind, prop_kind::forward_inference,
                 prop_kind::forward_training)) {

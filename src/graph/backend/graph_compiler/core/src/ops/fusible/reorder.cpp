@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,8 @@
 #include <assert.h>
 
 #include <algorithm>
-#include <limits>
 #include <string>
 #include <utility>
-#include "compiler/ir/builtin.hpp"
 #include "memory_movement.hpp"
 #include "reorder.hpp"
 #include <compiler/ir/builder.hpp>
@@ -33,6 +31,7 @@
 #include <compiler/ir/transform/constant_fold.hpp>
 #include <runtime/dynamic_dispatch/ops/impl_type.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <util/exceptions.hpp>
 #include <util/math_utils.hpp>
 #include <util/utils.hpp>
@@ -126,17 +125,6 @@ void reorder_op_t::query_format(context_ptr ctx,
         } else if (check_padding()) {
             // Use input loop and has padding.
             attrs_.set(op_attr_key::break_post_fuse, true);
-        }
-        // has broadcast uses, do not fuse them as their outer loop can not be
-        // fused.
-        for (auto &use : get_outputs()[0]->uses_) {
-            if (auto may_bcst
-                    = use.second->dyn_cast<op_traits::may_broadcast_t>()) {
-                if (may_bcst->get_non_broadcast_input_index(true).size()
-                        != use.second->get_inputs().size()) {
-                    attrs_.set(op_attr_key::break_post_fuse, true);
-                }
-            }
         }
     }
 }
@@ -754,6 +742,22 @@ void find_vectorized_axis(const tensor_slice &tsl,
     }
     last_origin_axis = format.format_code_.get(origin_axis_vectorized);
 }
+/**
+ * @brief Calculate the total number of elements in a certain axis in the shape.
+ * @param blocking_dims blocking dims
+ * @param axis certain axis
+ * */
+int collect_axis_shape_size(
+        sc_dims &blocking_dims, const std::vector<int> &axis) {
+    int ret = 1;
+    std::unordered_set<int> set;
+    set.insert(axis.begin(), axis.end());
+    for (size_t i = 0; i < blocking_dims.size(); i++) {
+        if (set.find(i) != set.end()) { ret *= blocking_dims[i]; }
+    }
+    assert(ret > 0);
+    return ret;
+};
 
 #define SLICE_RAGNE_CHECK_INIT_DATA() \
     bool use_out_loop = use_output_loop(); \

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -262,7 +262,7 @@ inline ngen::Product decodeHWIPVersion(uint32_t rawVersion)
                 outProduct.family = ngen::ProductFamily::GenericXeHP;
             else if (version.release > 50 && version.release <= 59)
                 outProduct.family = ngen::ProductFamily::DG2;
-            else if (version.release == 60)
+            else if (version.release >= 60 && version.release <= 61)
                 outProduct.family = ngen::ProductFamily::PVC;
             else if (version.release >= 70 && version.release <= 71)
                 outProduct.family = ngen::ProductFamily::MTL;

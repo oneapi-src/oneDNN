@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <map>
 #include <set>
 
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
@@ -61,5 +62,33 @@ TEST(isa_test_t, TestISA) {
         ASSERT_TRUE((cur_internal_isa & internal_isa) != internal_isa);
     }
 }
+
+class isa_enumeration_test_t : public ::testing::TestWithParam<cpu_isa> {
+protected:
+    virtual void Test() {
+        const auto isa = ::testing::TestWithParam<cpu_isa>::GetParam();
+        const auto isa1i = cvt_to_internal_cpu_isa(isa);
+        const auto isa_all = impl::cpu::x64::cpu_isa_t::isa_all;
+        SKIP_IF(isa1i == isa_all, "skip comparison with isa_all");
+        const auto &subsets = compatible_cpu_isa(isa);
+        for (const auto isa2 : cpu_isa_list()) {
+            const auto isa2i = cvt_to_internal_cpu_isa(isa2);
+            if (isa2i == isa_all) continue;
+            const bool condition = subsets.find(isa2) != subsets.end();
+            const bool superset_check
+                    = impl::cpu::x64::is_superset(isa1i, isa2i);
+            const bool subset_check = impl::cpu::x64::is_subset(isa2i, isa1i);
+            ASSERT_TRUE(superset_check == condition);
+            ASSERT_TRUE(subset_check == condition);
+        }
+    }
+};
+
+TEST_P(isa_enumeration_test_t, IsaEnumerationTests) {
+    Test();
+};
+
+INSTANTIATE_TEST_SUITE_P(TestIsaEnums, isa_enumeration_test_t,
+        ::testing::ValuesIn(cpu_isa_list()));
 
 } // namespace dnnl

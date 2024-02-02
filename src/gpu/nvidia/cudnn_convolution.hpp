@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +49,8 @@ struct cudnn_convolution_fwd_t : public primitive_t {
             using namespace data_type;
 
             using sm_t = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
+            const auto attr_skip_mask
+                    = sm_t::scales_runtime | sm_t::post_ops | sm_t::fpmath_mode;
             auto *sycl_engine
                     = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
 

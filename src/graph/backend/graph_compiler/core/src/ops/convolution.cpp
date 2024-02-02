@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@
 #include <compiler/ir/graph/quantization/quantize_info.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
+#include <compiler/ir/transform/dyn_tsr_transform.hpp>
 #include <compiler/ir/transform/loop_transform.hpp>
 #include <ops/templates/utils.hpp>
 #include <runtime/config.hpp>
@@ -1095,6 +1096,52 @@ shape_rl_vec conv_fwd_core_op_t::get_dynamic_shape_relations() const {
             get_outputs()[0]->details_.get_plain_dims(), attrs_);
 }
 
+void conv_fwd_core_op_t::calculate_dynamic_shape_expression() {
+    auto &g = get_owner_graph();
+    auto expr_pads_begin = g.dims_to_expr(attrs_.has_key("pads_begin")
+                    ? attrs_.get<sc_dims>("pads_begin")
+                    : attrs_.get_or_else<sc_dims>(
+                            "paddings", sc_dims(ndims_ - 2, 0)));
+
+    auto expr_pads_end = g.dims_to_expr(attrs_.has_key("pads_end")
+                    ? attrs_.get<sc_dims>("pads_end")
+                    : attrs_.get_or_else<sc_dims>(
+                            "paddings", sc_dims(ndims_ - 2, 0)));
+
+    sc_dims stride = attrs_.get<sc_dims>("strides");
+    sc_dims stride_dims(ndims_ - 2, stride[0]);
+    if (stride.size() > 1) { stride_dims = stride; }
+    auto expr_strides = g.dims_to_expr(stride_dims);
+    auto &data_dims = get_inputs()[0]->details_.get_plain_dims();
+    auto &out_dims = get_outputs()[0]->details_.get_plain_dims();
+    auto &weight_dims = get_inputs()[1]->details_.get_plain_dims();
+    std::vector<expr> expr_kernels = {g.dim_to_expr(weight_dims[ndims_ - 2]),
+            g.dim_to_expr(weight_dims[ndims_ - 1])};
+    if (ndims_ == 5) {
+        expr_kernels.insert(
+                expr_kernels.begin(), g.dim_to_expr(weight_dims[ndims_ - 3]));
+    }
+    auto dilation = get_dilations(attrs_);
+    sc_dims dilations(ndims_ - 2, dilation[0]);
+    if (dilation.size() > 1) { dilations = dilation; }
+    auto expr_dilations = g.dims_to_expr(dilations);
+    const int shape_begin_axis = 2;
+    for (int i = 0; i < ndims_ - 2; i++) {
+        if (is_dynamic_dim(data_dims[shape_begin_axis + i])
+                && out_dims[shape_begin_axis + i]
+                        != data_dims[shape_begin_axis + i]) {
+            auto var_in = g.dim_to_expr(data_dims[shape_begin_axis + i]);
+            auto var_out = g.dim_to_expr(out_dims[shape_begin_axis + i]);
+            expr_c cal_expr = do_cast_and_fold(
+                    (var_in + expr_pads_begin[i] + expr_pads_end[i]
+                            - expr_dilations[i] * (expr_kernels[i] - 1) - 1)
+                            / expr_strides[i]
+                    + 1);
+            var_out->attr_->set(attr_keys::cal_expression, cal_expr);
+        }
+    }
+}
+
 reflection::shared_general_object_t
 conv_fwd_core_op_t::get_dynamic_runtime_info() {
     sc_dims pads_begin = attrs_.has_key("pads_begin")
@@ -1165,8 +1212,10 @@ shape_rl_vec conv_fwd_core_op_t::get_shape_relations_impl(
 
 static graph_tensor_ptr get_conv_rl_real_weight(const graph_tensor_ptr &wei) {
     auto current = wei;
-    while (current->producer_owner_->isa<padding_op_t>()
-            || current->producer_owner_->isa<tensor_view_op_t>()) {
+    while ((current->producer_owner_->isa<padding_op_t>()
+                   || current->producer_owner_->isa<tensor_view_op_t>())
+            && !current->producer_owner_->attrs_.get_or_else(
+                    "produce_real_weight", false)) {
         current = current->producer_owner_->get_inputs()[0];
     }
     return current;
@@ -1200,13 +1249,19 @@ sc_op_ptr conv_fwd_core_op_t::do_compensations(
         cur_node = mgr.make("sub",
                 {cur_node->get_outputs()[0],
                         s8s8_weight_com[0]->get_outputs()[0]},
-                {}, {{"bc_axis", std::vector<int> {1 + is_group_conv}}});
+                {},
+                {{"bc_axis",
+                        is_group_conv ? std::vector<int> {1, 2}
+                                      : std::vector<int> {1}}});
     }
     if (s8s8_weight_com[1]) {
         cur_node = mgr.make("sub",
                 {cur_node->get_outputs()[0],
                         s8s8_weight_com[1]->get_outputs()[0]},
-                {}, {{"bc_axis", std::vector<int> {1 + is_group_conv}}});
+                {},
+                {{"bc_axis",
+                        is_group_conv ? std::vector<int> {1, 2}
+                                      : std::vector<int> {1}}});
     }
     if (const_com) {
         cur_node = mgr.make("add",
@@ -1352,8 +1407,9 @@ std::vector<sc_op_ptr> conv_fwd_core_op_t::get_s8s8_and_weight_compensation(
 
     if (weight_compensation) {
         if (is_dyn_quan) {
-            COMPILE_ASSERT(dyn_data_zero_points->details_.get_plain_dims()
-                            == sc_dims {1},
+            COMPILE_ASSERT(dyn_data_zero_points
+                            && dyn_data_zero_points->details_.get_plain_dims()
+                                    == sc_dims {1},
                     "conv_fwd_core does not support per channel data zero "
                     "points compensation yet");
             nodes[0] = mgr.make("mul",

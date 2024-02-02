@@ -192,7 +192,7 @@ The layer normalization primitive is optimized for the following memory formats:
 
 2. **GPU**
    - Only tensors of 6 or fewer dimensions are supported.
-   - Different data types for source and destination is not supported.
+   - Different data types for source and destination are not supported.
    - Only f32 data type is supported for scale and shift
 
 ## Performance Tips

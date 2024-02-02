@@ -1,6 +1,6 @@
 
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -536,6 +536,42 @@ TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding4) {
             sc_data_format_t::NKkn2k(64, 64), sc_data_type_t::bf16(), true,
             false, [](test_buffer<bf16_t> &input) {
                 return KN2NKkn(input, 16, 8, 64, 64, 479, 1024, 2);
+            });
+}
+
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding5) {
+    REQUIRE_AVX2()
+    check<bf16_t>({1, 32}, sc_data_format_t::KN(),
+            sc_data_format_t::NKkn2k(64, 64), sc_data_type_t::bf16(), true,
+            false, [](test_buffer<bf16_t> &input) {
+                return KN2NKkn(input, 1, 1, 64, 64, 1, 32, 2);
+            });
+}
+
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding6) {
+    REQUIRE_AVX2()
+    check<bf16_t>({64, 15}, sc_data_format_t::KN(),
+            sc_data_format_t::NKkn2k(64, 64), sc_data_type_t::bf16(), true,
+            false, [](test_buffer<bf16_t> &input) {
+                return KN2NKkn(input, 1, 1, 64, 64, 64, 15, 2);
+            });
+}
+
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding7) {
+    REQUIRE_AVX2()
+    check<bf16_t>({15, 15}, sc_data_format_t::KN(),
+            sc_data_format_t::NKkn2k(64, 64), sc_data_type_t::bf16(), true,
+            false, [](test_buffer<bf16_t> &input) {
+                return KN2NKkn(input, 1, 1, 64, 64, 15, 15, 2);
+            });
+}
+
+TEST(GCCore_CPU_vnni_reorder_test, TestVNNIReorderPadding8) {
+    REQUIRE_AVX2()
+    check<uint8_t>({15, 15}, sc_data_format_t::KN(),
+            sc_data_format_t::NKkn4k(64, 64), sc_data_type_t::u8(), true, false,
+            [](test_buffer<uint8_t> &input) {
+                return KN2NKkn(input, 1, 1, 64, 64, 15, 15, 4);
             });
 }
 

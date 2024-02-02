@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -165,6 +165,7 @@ static handler_table register_handlers() {
     REGISTER_INTRIN("AVX_RSQRT", avx, rsqrt, directed_end_mem, _2A_);
 
     REGISTER_INTRIN("AVX_FMADD", avx, fmadd, compound_dst_reg, _3A_);
+    REGISTER_INTRIN("AVX_FNMADD", avx, fnmadd, compound_dst_reg, _3A_);
 
     REGISTER_INTRIN("AVX_BLEND", avx, blend, directed_end_mem, _3A_);
 

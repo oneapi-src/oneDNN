@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -623,7 +623,7 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     const auto maybe_q = [&](input_data_t f) {
         if (quantize) {
             float qf = f * data_scale + data_shift;
-            return qz_a1b0<float, src_data_t>()(qf);
+            return q10n::qz_a1b0<float, src_data_t>()(qf);
         } else
             return (src_data_t)f;
     };
@@ -789,14 +789,14 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dlc; s++) {
                 float val = (float)ss[s] + dd[s];
-                val = qz_a1b0<float, src_data_t>()(val);
+                val = q10n::qz_a1b0<float, src_data_t>()(val);
                 dd[s] = (dst_layer_dt)((val - 2 * shift) / scale);
             }
         } else if (rnn_u8u8_case
                 || rnn_s8s8_case) { // instead of checking for rnn.is_int8()
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dlc; s++)
-                dd[s] = saturate<dst_layer_dt, int16_t>(
+                dd[s] = q10n::saturate<dst_layer_dt, int16_t>(
                         (int16_t)dd[s] + (int16_t)ss[s]);
         } else {
             PRAGMA_OMP_SIMD()

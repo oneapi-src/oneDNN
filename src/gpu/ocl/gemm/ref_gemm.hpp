@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ struct ref_gemm_t : public gpu_gemm_t {
             const auto c_dt = desc()->c_type();
             const auto acc_dt = desc()->acc_type;
             const auto bia_dt = desc()->bias_type();
+            const bool wei_decompress = utils::one_of(a_dt, u8, s8);
 
             const auto ndims = desc()->c_desc.ndims;
             const auto a_strides = desc()->a_desc.format_desc.blocking.strides;
@@ -58,27 +59,33 @@ struct ref_gemm_t : public gpu_gemm_t {
                     && (c_strides[ndims - 1] == 1)
                     && IMPLICATION(desc()->is_batched(),
                             desc()->a_desc.dims[0] == desc()->b_desc.dims[0])
-                    && IMPLICATION(acc_dt != s32,
+                    && IMPLICATION(acc_dt != s32 && !wei_decompress,
                             attr()->zero_points_.has_default_values())
-                    && attr()->has_default_values(
-                            smask_t::zero_points_runtime | smask_t::post_ops)
+                    && attr()->has_default_values(smask_t::zero_points_runtime
+                            | smask_t::post_ops | smask_t::fpmath_mode)
                     && attr_oscale_ok() && attr_zp_ok() && attr_post_ops_ok()
-                    && desc()->sum_ab == sum_ab::sum_none
-                    && ((utils::one_of(a_dt, u8, s8)
-                                && utils::one_of(b_dt, u8, s8)
-                                && utils::one_of(c_dt, f32, s8, u8, s32)
-                                && IMPLICATION(with_bias(),
-                                        utils::one_of(
-                                                bia_dt, f32, u8, s8, s32)))
-                            || (utils::everyone_is(f32, a_dt, b_dt, c_dt)
-                                    && IMPLICATION(with_bias(), bia_dt == f32))
-                            || (utils::everyone_is(f16, a_dt, b_dt)
-                                    && utils::one_of(c_dt, u8, s8, f16)
-                                    && IMPLICATION(with_bias(), bia_dt == f16))
-                            || (utils::everyone_is(bf16, a_dt, b_dt)
-                                    && utils::one_of(c_dt, bf16, f32)
-                                    && IMPLICATION(with_bias(),
-                                            utils::one_of(bia_dt, bf16, f32))));
+                    && desc()->sum_ab == sum_ab::sum_none;
+
+            ok &= ((utils::one_of(a_dt, u8, s8) && utils::one_of(b_dt, u8, s8)
+                           && utils::one_of(c_dt, f32, s8, u8, s32)
+                           && IMPLICATION(with_bias(),
+                                   utils::one_of(bia_dt, f32, u8, s8, s32)))
+                    || (utils::everyone_is(f32, a_dt, b_dt, c_dt)
+                            && IMPLICATION(with_bias(), bia_dt == f32))
+                    || (utils::one_of(a_dt, u8, s8)
+                            && (utils::everyone_is(f32, b_dt, c_dt)
+                                    || utils::everyone_is(f16, b_dt, c_dt))
+                            && IMPLICATION(with_bias(),
+                                    utils::one_of(bia_dt, f32, u8, s8, s32)))
+                    || (utils::everyone_is(f16, a_dt, b_dt)
+                            && utils::one_of(c_dt, u8, s8, f16)
+                            && IMPLICATION(with_bias(), bia_dt == f16))
+                    || (utils::everyone_is(f32, b_dt, c_dt) && wei_decompress
+                            && IMPLICATION(with_bias(), bia_dt == f32))
+                    || (utils::everyone_is(bf16, a_dt, b_dt)
+                            && utils::one_of(c_dt, bf16, f32)
+                            && IMPLICATION(with_bias(),
+                                    utils::one_of(bia_dt, bf16, f32))));
 
             if (!ok) return status::unimplemented;
 

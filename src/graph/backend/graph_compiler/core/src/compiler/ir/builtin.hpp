@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -407,6 +407,9 @@ expr call_unary_fusible_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_foramt0, const expr &in_format0,
         const expr &out_size, const expr &kernel);
 expr call_padding_op_query_format(const expr &tb, const expr &out0,
+        const expr &in0, const expr &out_foramt0, const expr &in_format0,
+        const expr &out_size, const expr &kernel);
+expr call_pooling_op_query_format(const expr &tb, const expr &out0,
         const expr &in0, const expr &out_foramt0, const expr &in_format0,
         const expr &out_size, const expr &kernel);
 expr call_binary_fusible_op_query_format(const expr &tb, const expr &out0,

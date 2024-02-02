@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,6 +36,8 @@ enum class mode_bit_t : unsigned {
     perf = 0x10,
     // `fast` bit is for a modified performance validation flow.
     fast = 0x20,
+    // `bitwise` bit is for a numerical determinism validation flow.
+    bitwise = 0x40,
 };
 
 // Mode modifiers is an extension of `bench_mode_t` abstraction which specifies
@@ -67,6 +69,7 @@ enum class bench_mode_t : unsigned {
     perf = exec | static_cast<unsigned>(mode_bit_t::perf),
     perf_fast = perf | static_cast<unsigned>(mode_bit_t::fast),
     corr_perf = corr | perf,
+    bitwise = exec | static_cast<unsigned>(mode_bit_t::bitwise),
 };
 
 mode_bit_t operator&(bench_mode_t lhs, mode_bit_t rhs);

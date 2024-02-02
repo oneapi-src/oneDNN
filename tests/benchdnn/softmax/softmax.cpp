@@ -30,7 +30,6 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#include "binary/binary.hpp"
 #include "softmax/softmax.hpp"
 
 namespace softmax {
@@ -85,6 +84,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
 
     int64_t outer_size = 0, inner_size = 0, axis_size = 0;
     get_sizes(prb, outer_size, inner_size, axis_size);
@@ -168,6 +172,13 @@ int fill_data_fwd(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 int fill_data_bwd(data_kind_t data_kind, const prb_t *prb, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, int seed) {
     const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+
     const int range = seed % 2 == 0 ? 8 : 128;
 
     // to avoid any cancellation error it's better to have d_dst and dst of
@@ -259,6 +270,26 @@ std::vector<int> supported_exec_args(dir_t dir) {
     return (dir & FLAG_FWD) ? exec_fwd_args : exec_bwd_args;
 };
 
+fill_cfg_t binary_po_fill_cfg(
+        int exec_arg, const dnn_mem_t &mem, const attr_t &attr) {
+    fill_cfg_t cfg;
+    const int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+            - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+    const bool is_post_ops_arg = (exec_arg & post_ops_range);
+    if (is_post_ops_arg) {
+        // Config secures only positive values since softmax output is
+        // positive, and using negative values leads to the cancellation
+        // effect.
+        const int bin_po_idx
+                = exec_arg / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
+        assert(bin_po_idx < attr.post_ops.len());
+        const auto alg = attr.post_ops.entry[bin_po_idx].kind;
+        cfg = fill_cfg_t(mem.dt(), 0.f, 16.f, /* int = */ true, alg,
+                "softmax_binary_post_op");
+    }
+    return cfg;
+}
+
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
         dnnl_primitive_t prim_ref) {
@@ -269,6 +300,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -282,6 +318,13 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         switch (exec_arg) {
             case DNNL_ARG_SRC:
                 SAFE(fill_data_fwd(prb, mem, ref_mem), WARN);
+                // Need a copy of source data for inplace mode for bitwise
+                // testing.
+                if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+                    auto &src_copy = mem_map.at(-exec_arg);
+                    SAFE(bool(src_copy) ? OK : FAIL, WARN);
+                    SAFE(src_copy.reorder(mem), WARN);
+                }
                 break;
             case DNNL_ARG_DST:
                 if (dir & FLAG_BWD) {
@@ -293,22 +336,22 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 const bool neg_sign = prb->alg == SOFTMAX ? true : false;
                 SAFE(fill_data_bwd(DIFF_DST, prb, mem, ref_mem, !neg_sign),
                         WARN);
+                // Need a copy of source data for inplace mode for bitwise
+                // testing.
+                if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->inplace) {
+                    auto &diff_dst_copy = mem_map.at(-exec_arg);
+                    SAFE(bool(diff_dst_copy) ? OK : FAIL, WARN);
+                    SAFE(diff_dst_copy.reorder(mem), WARN);
+                }
             } break;
-            default: { // Process all attributes here
-                bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-                if (is_scales_arg) {
-                    int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-                    SAFE(fill_scales(prb->attr, exec_src_arg, mem, ref_mem),
-                            WARN);
-                }
-                int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
-                        - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
-                bool is_post_ops_arg = (exec_arg & post_ops_range);
-                if (is_post_ops_arg) {
-                    SAFE(binary::fill_mem(exec_arg, mem, ref_mem,
-                                 /* only_positive = */ true),
-                            WARN);
-                }
+            default: {
+                const auto &binary_fill_cfg
+                        = binary_po_fill_cfg(exec_arg, mem, prb->attr);
+                std::unordered_map<int, fill_cfg_t> fill_cfg_map {
+                        {DNNL_ARG_SRC_1, binary_fill_cfg}};
+                SAFE(init_ref_memory_args_default_case(exec_arg, mem, ref_mem,
+                             prb->attr, res, fill_cfg_map),
+                        WARN);
             } break;
         }
         // Don't keep reference memory if it is not used further.
@@ -361,6 +404,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(
             prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->inplace, res),
+            WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

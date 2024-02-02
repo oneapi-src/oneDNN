@@ -658,7 +658,7 @@ status_t brg_blocking_t::get_brgemm_ur(
                             : 0;
                     brgattr.max_top_vpad = max_vpad;
                     brgattr.max_bottom_vpad = max_vpad;
-                    brgattr.fpmath_mode = attr->fpmath_mode_;
+                    brgattr.fpmath_mode = attr->fpmath_.mode_;
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
 
                     brg.with_sum = with_sum;
@@ -1489,7 +1489,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.simd_w = isa_max_vlen(isa) / jcp.src_dsz;
     jcp.acc_simd_w = isa_max_vlen(isa) / jcp.acc_dsz;
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
-            && one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any)
+            && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
             && isa == avx512_core_amx;
 
     VDISPATCH_CONV_IC(!jcp.is_bf32, VERBOSE_UNSUPPORTED_DT);

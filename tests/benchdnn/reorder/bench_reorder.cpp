@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ void check_correctness(
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for_(const auto &i_acc_mode : s.acc_mode)
+    for_(const auto &i_deterministic : s.deterministic)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
@@ -70,7 +71,7 @@ void check_correctness(
             test_arg_scales.set(
                     DNNL_ARG_DST, {dst_scale.policy, i_dst_test_scale});
             auto attr = settings_t::get_attr(test_arg_scales, i_zero_points,
-                    i_post_ops, i_scratchpad_mode, i_acc_mode);
+                    i_post_ops, i_scratchpad_mode, i_acc_mode, i_deterministic);
 
             const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, i_strides,
                     attr, i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
@@ -206,6 +207,8 @@ int bench(int argc, char **argv) {
                 || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
+                || parse_attr_deterministic(
+                        s.deterministic, def.deterministic, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])

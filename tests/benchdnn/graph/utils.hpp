@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,18 +39,31 @@
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 #endif
 
+#include "common.hpp"
 #include "dnnl_common.hpp"
 
 namespace graph {
 
 struct deserialized_lt;
 
-#define DNN_GRAPH_SAFE(f, s) \
+struct bdnn_state_t {
+    res_state_t state;
+    skip_reason_t reason;
+};
+
+extern bdnn_state_t convert_state(const dnnl_status_t &s);
+
+#define DNN_GRAPH_SAFE(f, s, ss) \
     do { \
         try { \
             f; \
         } catch (const dnnl::error &e) { \
             if (s == CRIT || s == WARN) { \
+                bdnn_state_t bs = convert_state(e.status); \
+                ss->state = bs.state; \
+                if (ss->state == res_state_t::SKIPPED) { \
+                    ss->reason = bs.reason; \
+                } \
                 BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s\n", \
                         __PRETTY_FUNCTION__, __LINE__, #f, e.what()); \
                 fflush(0); \

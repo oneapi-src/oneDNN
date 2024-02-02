@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -227,11 +227,15 @@ void codegen_llvm_vis_t::view(intrin_call_c v) {
                 current_val_ = inval1;
             }
         } break;
-        case intrin_type::fmadd: {
+        case intrin_type::fmadd:
+        case intrin_type::fnmadd: {
             assert(v->args_.size() == 3);
             auto inval1 = generate_expr(v->args_[0]);
             auto inval2 = generate_expr(v->args_[1]);
             auto inval3 = generate_expr(v->args_[2]);
+            if (v->type_ == intrin_type::fnmadd) {
+                inval1 = builder_.CreateFNeg(inval1);
+            }
             auto ret = builder_.CreateIntrinsic(Intrinsic::fma,
                     {get_type(v->dtype_)}, {inval1, inval2, inval3});
             ret->setFastMathFlags(builder_.getFastMathFlags());
@@ -327,38 +331,64 @@ void codegen_llvm_vis_t::view(intrin_call_c v) {
         case intrin_type::round_and_cast: {
             assert(v->args_.size() == 1);
             auto inval1 = generate_expr(v->args_[0]);
-            COMPILE_ASSERT(v->dtype_.type_code_ == sc_data_etype::S32
+            COMPILE_ASSERT(
+                    (v->dtype_.type_code_ == sc_data_etype::S32
+                            || (v->dtype_.type_code_ == sc_data_etype::U32
+                                    && v->dtype_.lanes_ > 1))
                             && v->args_[0]->dtype_.type_code_
                                     == sc_data_etype::F32,
                     "LLVM backend has not yet support round_and_cast "
                     "like "
                     "this: " << v);
+            bool is_u32 = v->dtype_.type_code_ == sc_data_etype::U32;
+            if (is_u32) {
+                COMPILE_ASSERT(ctx_->machine_.cpu_flags_.fAVX512F,
+                        "round_and_cast of u32 needs AVX512");
+            }
             switch (v->dtype_.lanes_) {
-                case 1:
+                case 1: {
                     current_val_ = builder_.CreateFPToSI(
                             builder_.CreateUnaryIntrinsic(
                                     Intrinsic::roundeven, inval1),
                             builder_.getInt32Ty());
-                    break;
-                case 4:
-                    current_val_ = builder_.CreateIntrinsic(
-                            Intrinsic::x86_sse2_cvtps2dq, {}, inval1);
-                    break;
-                case 8:
-                    current_val_ = builder_.CreateIntrinsic(
-                            Intrinsic::x86_avx_cvt_ps2dq_256, {}, inval1);
-                    break;
-                case 16:
+                } break;
+                case 4: {
+                    if (is_u32) {
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx512_mask_cvtps2udq_128, {},
+                                {inval1, UndefValue::get(get_type(v->dtype_)),
+                                        /*mask*/ builder_.getInt8(0xff),
+                                        builder_.getInt32(0x04)});
+                    } else {
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_sse2_cvtps2dq, {}, inval1);
+                    }
+                } break;
+                case 8: {
+                    if (is_u32) {
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx512_mask_cvtps2udq_256, {},
+                                {inval1, UndefValue::get(get_type(v->dtype_)),
+                                        /*mask*/ builder_.getInt8(0xff),
+                                        builder_.getInt32(0x04)});
+                    } else {
+                        current_val_ = builder_.CreateIntrinsic(
+                                Intrinsic::x86_avx_cvt_ps2dq_256, {}, inval1);
+                    }
+                } break;
+                case 16: {
                     COMPILE_ASSERT(ctx_->machine_.cpu_flags_.fAVX512F,
                             "round_and_cast of 16 floats needs AVX512");
-                    current_val_ = builder_.CreateIntrinsic(
-                            Intrinsic::x86_avx512_mask_cvtps2dq_512, {},
+                    current_val_ = builder_.CreateIntrinsic(is_u32
+                                    ? Intrinsic::x86_avx512_mask_cvtps2udq_512
+                                    : Intrinsic::x86_avx512_mask_cvtps2dq_512,
+                            {},
                             {inval1, UndefValue::get(get_type(v->dtype_)),
                                     /*mask*/ builder_.getInt16(0xffff),
                                     /*rounding mode =
                                        _MM_FROUND_CUR_DIRECTION 0x04*/
                                     builder_.getInt32(0x04)});
-                    break;
+                } break;
                 default:
                     COMPILE_ASSERT(false,
                             "LLVM backend has not yet support "

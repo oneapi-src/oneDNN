@@ -103,7 +103,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                     primitive_attr_t::skip_mask_t::scales_runtime
                             | primitive_attr_t::skip_mask_t::zero_points_runtime
                             | primitive_attr_t::skip_mask_t::post_ops
-                            | primitive_attr_t::skip_mask_t::sum_dt,
+                            | primitive_attr_t::skip_mask_t::sum_dt
+                            | primitive_attr_t::skip_mask_t::fpmath_mode,
                     dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_MATMUL(attr()->post_ops_.check_sum_consistency(dst_dt, is_int8),
@@ -1022,7 +1023,6 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
 
         nthr_k_ = bgmmc.nthr_k > 0 && bgmmc.nthr_k <= nthr_ ? bgmmc.nthr_k : 1;
         nthr_bmn_ = nthr_ / nthr_k_;
-        num_threads_used_ = nthr_k_ * nthr_bmn_;
 
         // If parallel_work_amount_ == 1 and parallel reduction is not used, we
         // limit num threads to 1 as parallel(1, ...) does not create parallel
@@ -1032,6 +1032,14 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         // layer.
         if (parallel_work_amount_ == 1 && !parallel_reduction_is_used())
             nthr_ = nthr_bmn_ = nthr_k_ = 1;
+
+        // For Eigen threadpool there is significant advantage to not spawn
+        // useless threads.
+        if (!dnnl_thr_syncable()) {
+            nthr_bmn_ = nstl::min(nthr_bmn_, parallel_work_amount_);
+        }
+
+        num_threads_used_ = nthr_k_ * nthr_bmn_;
 
         const bool need_to_calculate_compensation_for_a
                 = bgmmc.has_zero_point_b;
@@ -1169,9 +1177,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         if (!bgmmc_.use_buffer_c) return nullptr;
 
         if (bgmmc_.nthr_k > 1) {
-            const int nthr_k = bgmmc_.nthr_k <= nthr_ ? bgmmc_.nthr_k : 1;
-            const int nthr_bmn = nthr_ / nthr_k;
-            const int ithr_k = ithr / nthr_bmn;
+            const int ithr_k = get_thread_idx_for_k(ithr);
             return get_buf_C_par_reduction_ptr(ithr_k, m_blk_idx, n_blk_idx);
         }
         char *buf_C_ptr_local
@@ -1434,7 +1440,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         const int ithr_bmn = ithr % nthr_bmn_;
         return ithr_bmn < parallel_work_amount_ ? ithr_bmn : -1;
     }
-    int get_num_threads_for_parallelization() const { return nthr_; }
+    int get_num_threads_for_parallelization() const {
+        return num_threads_used_;
+    }
     dim_t get_M() const { return M_; }
     int get_M_chunks() const { return M_chunks_; }
     int get_M_chunk_size() const { return bgmmc_.M_chunk_size; }
@@ -1685,7 +1693,13 @@ private:
     int get_M_tail_block_idx(int m_block_idx) const {
         const int tail_idx = m_block_idx - M_tail_block_start_;
         if (!bgmmc_.is_runtime_M) return tail_idx;
-        return tail_idx < (int)m_tail_processing_.size() ? tail_idx : -1;
+        const bool is_index_within_range
+                = tail_idx < (int)m_tail_processing_.size();
+        if (!is_index_within_range) {
+            assert(!"Error in M_tail_block index, not within range.");
+            return 0;
+        }
+        return tail_idx;
     }
     bool is_M_tail_processing(int m_block_idx) const {
         return get_M_tail_block_idx(m_block_idx) >= 0;
@@ -1705,7 +1719,13 @@ private:
     int get_N_tail_block_idx(int n_block_idx) const {
         const int tail_idx = n_block_idx - N_tail_block_start_;
         if (!bgmmc_.is_runtime_N) return tail_idx;
-        return tail_idx < (int)n_tail_processing_.size() ? tail_idx : -1;
+        const bool is_index_within_range
+                = tail_idx < (int)n_tail_processing_.size();
+        if (!is_index_within_range) {
+            assert(!"Error in N_tail_block index, not within range.");
+            return 0;
+        }
+        return tail_idx;
     }
     bool is_N_tail_processing(int n_block_idx) const {
         return get_N_tail_block_idx(n_block_idx) >= 0;

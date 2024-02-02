@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -282,7 +282,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                 CHECK(reduction_desc_init(&reduction_d,
                         dnnl::impl::alg_kind::reduction_sum, &reduction_dst_md,
                         &reduction_bias_md, 0.0f, 0.0f));
-                primitive_attr_t reduction_attr;
+                primitive_attr_t reduction_attr = *attr();
                 int threads_per_eu;
                 auto status
                         = gemm_pd_->query(query::preferred_gpu_threads_per_eu,

@@ -194,8 +194,6 @@ primitive:
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
-2. GPU is not supported.
-
 ## Performance Tips
 
 1. Mixing different formats for inputs and outputs is functionally supported but

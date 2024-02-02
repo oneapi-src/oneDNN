@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,7 +99,6 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.dst_dt = rnn.dst_data_type;
 
     ocl_conf.is_fwd = rnn.is_fwd;
-    ocl_conf.n_bias = rnn.n_bias;
 
     ocl_conf.with_bias = rnn_pd->with_bias();
     ocl_conf.with_src_iter = rnn_pd->with_src_iter();
@@ -189,10 +188,14 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     auto max_elemwise_threads_per_eu
             = utils::div_up(max_elemwise_threads, device_info.eu_count());
     auto preferred_threads_per_eu = 4;
+    ocl_conf.deterministic = rnn_pd->attr()->deterministic_;
     ocl_conf.elemwise_bwd_batch_block = dev_getenv("bwd_batch_block",
-            into<int>(std::min(into<dim_t>(8),
-                    utils::rnd_up_pow2(max_elemwise_threads_per_eu
-                            / preferred_threads_per_eu))));
+            into<int>(ocl_conf.deterministic
+                            ? rnn.mb
+                            : std::min(into<dim_t>(8),
+                                    utils::rnd_up_pow2(
+                                            max_elemwise_threads_per_eu
+                                            / preferred_threads_per_eu))));
     ocl_conf.need_bias_atomic_reduce
             = !ocl_conf.is_fwd && ocl_conf.elemwise_bwd_batch_block < rnn.mb;
 
@@ -205,6 +208,7 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     primitive_attr_t ocl_attr;
     if (!is_fwd)
         CHECK(ocl_attr.set_gpu_attr(gpu_primitive_attr_t(threads_per_eu)));
+    ocl_attr.deterministic_ = deterministic;
     kernel_ctx = compute::kernel_ctx_t(&ocl_attr);
 
     kernel_ctx.add_option("-cl-std=CL2.0");
@@ -259,7 +263,6 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     if (with_dst_iter_c)
         def_block_offsets(inner_layouts.dst_iter_c, kernel_ctx, "DST_I_C");
     def_block_offsets(inner_layouts.bias, kernel_ctx, "BIAS");
-    kernel_ctx.define_int("N_BIAS", n_bias);
 
     if (!is_fwd) {
         def_block_offsets(
@@ -542,7 +545,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             = primitive_attr_t::skip_mask_t::rnn_tparams;
     if (weights_layer_dt == data_type::s8)
         attr_mask = attr_mask | primitive_attr_t::skip_mask_t::rnn_data_qparams
-                | primitive_attr_t::skip_mask_t::rnn_weights_qparams;
+                | primitive_attr_t::skip_mask_t::rnn_weights_qparams
+                | primitive_attr_t::skip_mask_t::fpmath_mode;
     ok = ok && this->attr()->has_default_values(attr_mask);
 
     // TODO: implement something like check layout consistency
@@ -611,7 +615,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     dim_t sic = rnn_conf.sic;
     dim_t dhc = rnn_conf.dhc;
 
-    auto fpmath_mode = this->attr()->fpmath_mode_;
+    auto fpmath_mode = this->attr()->fpmath_.mode_;
 
     // The inputs of create_gemm_pd describe a gemm in column major.
     // Below, we have to transpose the a and b descriptor to describe
@@ -631,6 +635,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         primitive_attr_t attr;
         CHECK(attr.post_ops_.append_sum(beta));
         CHECK(attr.set_fpmath_mode(fpmath_mode));
+        attr.deterministic_ = this->attr()->deterministic_;
         status_t status = dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md,
                 &b_md, &c_md, &glob_zero_md, c_dt, &attr);
         if (ocl_conf.threads_per_eu == 0)
@@ -1088,7 +1093,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             for (dim_t i = 0; i < n_iter; i++) {
                 dim_t iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
                 CHECK((this->*cell_func)(engine, ctx, dir, lay, iter,
-                        offset_wei_layer, wei_iter_offsets, bias, user_data,
+                        offset_wei_layer, wei_iter_offsets, user_data,
                         workspace, scratch, wei_layer, wei_iter,
                         diff_weights_layer, diff_weights_iter, diff_bias,
                         scales, tm_scales));
@@ -1146,7 +1151,6 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     arg_list.append(into<int32_t>(dhc));
     arg_list.append(into<int32_t>(n_layer));
     arg_list.append(into<int32_t>(n_dir));
-    arg_list.append(into<int32_t>(n_bias));
     arg_list.append(data_shift);
     arg_list.append(data_scale);
 
@@ -1555,7 +1559,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS_ITER);
     auto &diff_bias_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
-    const rnn_utils::user_data_t user_data(src_layer_native_,
+    const rnn_utils::user_data_t user_data(src_layer_native_, bias_native_,
             diff_src_layer_native_, diff_dst_layer_native_, rnn, pd()->off);
 
     DPRINT("\n%s\n", "+++++++++++++++");
@@ -1625,7 +1629,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     if (rnn.copy_bias) {
         CHECK(bias_prepare(ctx, compute_stream, n_layer, n_dir, n_bias, n_gates,
                 dhc, workspace.bias(), *scales_buf, wei_layer_native_,
-                wei_iter_native_, bias_native_));
+                wei_iter_native_, user_data.bias()));
     }
     DPRINT("\n%s(%d) WS before copy init\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(ctx, compute_stream, workspace);
@@ -1658,10 +1662,10 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     }
 
     // run the execution on the grid
-    CHECK((this->*grid_computation)(engine, ctx, bias_native_, user_data,
-            workspace, scratch, wei_layer_native_, wei_iter_native_,
-            diff_weights_layer_native_, diff_weights_iter_native_,
-            diff_bias_native_, scales_buf, tm_scales_buf));
+    CHECK((this->*grid_computation)(engine, ctx, user_data, workspace, scratch,
+            wei_layer_native_, wei_iter_native_, diff_weights_layer_native_,
+            diff_weights_iter_native_, diff_bias_native_, scales_buf,
+            tm_scales_buf));
 
     DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(ctx, compute_stream, workspace);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -331,7 +331,7 @@ private:
         std::string str = impl::getenv_string_user(
                 "GRAPH_CONSTANT_TENSOR_CACHE_CAPACITY");
         auto configs = graph::utils::split(str, ';');
-        for (auto config : configs) {
+        for (const auto &config : configs) {
             auto fields = graph::utils::split(config, ':');
 
             // The first field: engine kind
@@ -349,7 +349,7 @@ private:
             // The second field: capacity
             if (fields.size() > 1 && !fields[1].empty()) {
                 try {
-                    size_t capacity = std::stoll(fields[1].c_str());
+                    size_t capacity = std::stoll(fields[1]);
                     // the capacity got from env var is in MBytes unit, we need to
                     // convert it to Bytes
                     static constexpr size_t converter = 1024 * 1024;
@@ -388,6 +388,7 @@ private:
             std::vector<cache_ptr> cache_list(device_count);
             for (size_t id = 0; id < device_count; id++) {
                 cache_ptr &cache = cache_list[id];
+                // NOLINTNEXTLINE(modernize-make-shared)
                 cache.reset(new constant_tensor_cache_t(capacity_in_bytes),
                         [](constant_tensor_cache_t *ptr) {
                             return ptr->release();

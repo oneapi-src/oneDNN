@@ -65,6 +65,13 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    // Refer to modes documentation for filling principles.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+
     // Do fixed partitioning to have same filling for any number of threads.
     const int64_t chunk_size = 64;
     const int64_t n_chunks = div_up(nelems, chunk_size);
@@ -144,6 +151,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
         // Scratchpad memory relates to a primitive. If reference needs it,
@@ -154,15 +166,15 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         }
         auto &ref_mem = ref_mem_map[exec_arg];
 
-        bool is_src_arg = (exec_arg & DNNL_ARG_MULTIPLE_SRC);
-        bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
-        if (is_src_arg && !is_scales_arg) {
+        // Scales attach to same (multiple_src + i) arguments. They should be
+        // filtered out and re-directed to a common call.
+        if ((exec_arg & DNNL_ARG_MULTIPLE_SRC)
+                && !(exec_arg & DNNL_ARG_ATTR_SCALES)) {
             SAFE(fill_src(exec_arg, prb->ddt, mem, ref_mem), WARN);
-        } else if (is_scales_arg) {
-            int exec_src_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;
-            // Leave hard coded until supported mask is 0 only.
-            ref_mem.set_elem(0, prb->attr.scales.get(exec_src_arg).scale);
-            SAFE(mem.reorder(ref_mem), WARN);
+        } else {
+            SAFE(init_ref_memory_args_default_case(
+                         exec_arg, mem, ref_mem, prb->attr, res),
+                    WARN);
         }
         // Don't keep reference memory if it is not used further.
         if (!has_bench_mode_bit(mode_bit_t::corr)) ref_mem_map.clear();
@@ -210,6 +222,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
+    SAFE(check_bitwise(prim, {DST}, args, prb->inplace, res), WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

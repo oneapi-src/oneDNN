@@ -103,7 +103,8 @@ std::pair<pm::pb_node_t *, pm::pb_node_t *> single_layer_mlp(
 }
 
 pm::pb_node_t *weight_grad_alternation_unit(
-        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *activation) {
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *activation,
+        bool is_bf16 = false) {
     /* Create 2 subgraph for alternation */
     auto weight_grad_option1 = std::make_shared<pb_graph_t>();
     auto transpose_subgraph1 = std::make_shared<pb_graph_t>();
@@ -115,6 +116,9 @@ pm::pb_node_t *weight_grad_alternation_unit(
             = weight_grad_option1->append_optional(transpose_subgraph1);
     auto matmul_grad_w1 = weight_grad_option1->append_op(
             graph::op_kind::MatMul, {in_edge(0, optional_transpose_x, 0)});
+    matmul_grad_w1->append_decision_function(is_bf16
+                    ? check_input_dtype<graph::data_type::bf16>
+                    : check_input_dtype<graph::data_type::f32>);
     weight_grad_option1->create_input_port(0, matmul_grad_w1, 1);
     weight_grad_option1->create_output_port(0, matmul_grad_w1, 0);
 
@@ -123,6 +127,9 @@ pm::pb_node_t *weight_grad_alternation_unit(
             = weight_grad_option2->append_op(graph::op_kind::StaticTranspose);
     auto matmul_grad_w2 = weight_grad_option2->append_op(
             graph::op_kind::MatMul, {in_edge(0, transpose_x2, 0)});
+    matmul_grad_w2->append_decision_function(is_bf16
+                    ? check_input_dtype<graph::data_type::bf16>
+                    : check_input_dtype<graph::data_type::f32>);
     weight_grad_option2->create_input_port(0, transpose_x2, 0);
     weight_grad_option2->create_output_port(0, matmul_grad_w2, 0);
 
@@ -616,6 +623,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             graph::op_kind::MatMul,
                             {in_edge(0, activation_bwd, 0),
                                     in_edge(1, optional_transpose_w, 0)});
+                    matmul_layer->append_decision_function(
+                            check_input_dtype<graph::data_type::f32>);
 
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
@@ -650,63 +659,12 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             graph::op_kind::MatMul,
                             {in_edge(0, optional_transpose_x_last, 0),
                                     in_edge(1, activation_bwd_last, 0)});
+                    matmul_last->append_decision_function(
+                            check_input_dtype<graph::data_type::f32>);
                     last_layer->create_input_port(0, activation_bwd_last, 1);
                     last_layer->create_output_port(0, matmul_last, 0);
                     pgraph->append_optional(
                             last_layer, {in_edge(0, repetition, 0)});
-                });
-
-/*
-mlp residual graph, having an extra edge from LayerNorm to Add.
-[IN0](fp32)   [IN1](fp32)
-       \      /
-        MatMul
-          |
-         Add
-          |
-       LayerNorm_______________      [IN2](fp32)
-          |                     \     /
-          |                      MatMul
-          |                        |
-          |                      GELU   [IN3](fp32)
-          |                        \     /
-          |                        MatMul
-          | _________________________|
-         Add
-          |
-      LayerNorm
-          |
-        [OUT0](fp32)
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        compiler, fp32_bart_mlp_residual_pattern)
-        .set_priority(5.5f)
-        .set_engine_kind(graph::engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::mlp)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_layer1
-                            = pgraph->append_op(graph::op_kind::MatMul);
-                    matmul_layer1->append_decision_function(
-                            check_input_dtype<graph::data_type::f32>);
-                    auto add_layer1 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, matmul_layer1, 0)});
-                    auto layernorm_layer1
-                            = pgraph->append_op(graph::op_kind::LayerNorm,
-                                    {in_edge(0, add_layer1, 0)});
-                    auto matmul_layer2
-                            = pgraph->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, layernorm_layer1, 0)});
-                    auto gelu_layer2 = pgraph->append_op(graph::op_kind::GELU,
-                            {in_edge(0, matmul_layer2, 0)});
-                    auto matmul_layer3
-                            = pgraph->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, gelu_layer2, 0)});
-                    auto add_layer3 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, layernorm_layer1, 0),
-                                    in_edge(1, matmul_layer3, 0)});
-                    pgraph->append_op(graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer3, 0)});
                 });
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_gpt_mlp)
@@ -769,268 +727,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mlp_pattern)
                             MLP_NUM_LAYER_LOWER_BOUND,
                             MLP_NUM_LAYER_UPPER_BOUND);
                 });
-
-// bart_mlp pattern is causing regression in bert_large model
-// will be added back after resolving the performance issue
-#if 0
-/*
- mlp residual graph, having an extra edge from LayerNorm to Add.
-  [IN0](int8)     [IN1](int8)
-    |               |
-Dequantize      Dequantize
-       \      /
-        MatMul
-          |
-         Add
-          |
-       LayerNorm_______________
-          |                    |
-          |                 Quantize    [IN2](int8)
-          |                    |          |
-          |              Dequantize   Dequantize
-          |                     \     /
-          |                      MatMul
-          |                        |
-          |                      GELU
-          |                        |
-          |                     Quantize        [IN3](int8)
-          |                        |              |
-          |                   Dequantize      Dequantize
-          |                            \      /
-          |                             MatMul
-          |                                |
-         Add_______________________________|
-          |
-      LayerNorm
-          |
-      Quantize (optional)
-          |
-        [OUT0](int8/f32)
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        compiler, int8_bart_mlp_residual_pattern)
-        .set_priority(6.5f)
-        .set_engine_kind(graph::engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::quantized_mlp)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_input_layer1 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto dequantize_weight_layer1 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto matmul_layer1 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, dequantize_input_layer1, 0),
-                                    in_edge(1, dequantize_weight_layer1, 0)});
-                    auto add_layer1 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, matmul_layer1, 0)});
-                    auto layernorm_layer1
-                            = pgraph->append_op(graph::op_kind::LayerNorm,
-                                    {in_edge(0, add_layer1, 0)});
-                    // quantize is the second use of layernorm output
-                    auto quantize_output_layer1 = pgraph->append_alternation(
-                            {graph::op_kind::Quantize,
-                                    graph::op_kind::DynamicQuantize},
-                            {in_edge(0, layernorm_layer1, 0)});
-                    auto dequantize_input_layer2 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize},
-                            {in_edge(0, quantize_output_layer1, 0)});
-                    auto dequantize_weight_layer2 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto matmul_layer2 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, dequantize_input_layer2, 0),
-                                    in_edge(1, dequantize_weight_layer2, 0)});
-                    auto gelu_layer2 = pgraph->append_op(graph::op_kind::GELU,
-                            {in_edge(0, matmul_layer2, 0)});
-
-                    auto quantize_output_layer2 = pgraph->append_alternation(
-                            {graph::op_kind::Quantize,
-                                    graph::op_kind::DynamicQuantize},
-                            {in_edge(0, gelu_layer2, 0)});
-
-                    auto dequantize_input_layer3 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize},
-                            {in_edge(0, quantize_output_layer2, 0)});
-                    auto dequantize_weight_layer3 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto matmul_layer3 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, dequantize_input_layer3, 0),
-                                    in_edge(1, dequantize_weight_layer3, 0)});
-                    auto add_layer3 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, layernorm_layer1, 0),
-                                    in_edge(1, matmul_layer3, 0)});
-                    auto layernorm_layer3
-                            = pgraph->append_op(graph::op_kind::LayerNorm,
-                                    {in_edge(0, add_layer3, 0)});
-                    layernorm_layer3->allow_external_outputs();
-                    auto last_layer = std::make_shared<pb_graph_t>();
-                    auto quantize_output_layer3
-                            = last_layer->append_alternation(
-                                    {graph::op_kind::Quantize,
-                                            graph::op_kind::DynamicQuantize});
-                    last_layer->create_input_port(0, quantize_output_layer3, 0);
-                    last_layer->create_output_port(
-                            0, quantize_output_layer3, 0);
-                    pgraph->append_optional(
-                            last_layer, {in_edge(0, layernorm_layer3, 0)});
-                });
-
-/*
-mlp residual graph, having an extra edge from LayerNorm to Add.
-[IN0](int8)     [IN1](int8)
-    |             |
-Dequantize    Dequantize
-    |             |
- TypeCast      TypeCast
-       \      /
-        MatMul
-          |
-         Add
-          |
-       LayerNorm_______________
-          |                    |
-          |                 TypeCast
-          |                    |
-          |                 Quantize    [IN2](int8)
-          |                    |          |
-          |               Dequantize   Dequantize
-          |                    |          |
-          |                TypeCast     TypeCast
-          |                       \     /
-          |                        MatMul
-          |                          |
-          |                        GELU
-          |                          |
-          |                      TypeCast
-          |                          |
-          |                      Quantize        [IN3](int8)
-          |                          |              |
-          |                     Dequantize      Dequantize
-          |                          |              |
-          |                       TypeCast       TypeCast
-          |                              \      /
-          |                               MatMul
-          |                                |
-         Add_______________________________|
-          |
-      LayerNorm
-          |
-      TypeCast (optional)
-          |
-      Quantize (optional)
-          |
-        [OUT0](int8/f32)
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        compiler, int8_bf16_bart_mlp_residual_pattern)
-        .set_priority(6.5f)
-        .set_engine_kind(graph::engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::quantized_mlp)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_input_layer1 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto typecast_input_layer1
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_input_layer1, 0)});
-                    auto dequantize_weight_layer1 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto typecast_weight_layer1
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_weight_layer1, 0)});
-                    auto matmul_layer1 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, typecast_input_layer1, 0),
-                                    in_edge(1, typecast_weight_layer1, 0)});
-                    auto add_layer1 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, matmul_layer1, 0)});
-                    auto layernorm_layer1
-                            = pgraph->append_op(graph::op_kind::LayerNorm,
-                                    {in_edge(0, add_layer1, 0)});
-                    auto typecast_output_layer1
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, layernorm_layer1, 0)});
-                    auto quantize_output_layer1 = pgraph->append_alternation(
-                            {graph::op_kind::Quantize,
-                                    graph::op_kind::DynamicQuantize},
-                            {in_edge(0, typecast_output_layer1, 0)});
-
-                    auto dequantize_input_layer2 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize},
-                            {in_edge(0, quantize_output_layer1, 0)});
-                    auto typecast_input_layer2
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_input_layer2, 0)});
-                    auto dequantize_weight_layer2 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto typecast_weight_layer2
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_weight_layer2, 0)});
-                    auto matmul_layer2 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, typecast_input_layer2, 0),
-                                    in_edge(1, typecast_weight_layer2, 0)});
-                    auto gelu_layer2 = pgraph->append_op(graph::op_kind::GELU,
-                            {in_edge(0, matmul_layer2, 0)});
-                    auto typecast_output_layer2
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, gelu_layer2, 0)});
-                    auto quantize_output_layer2 = pgraph->append_alternation(
-                            {graph::op_kind::Quantize,
-                                    graph::op_kind::DynamicQuantize},
-                            {in_edge(0, typecast_output_layer2, 0)});
-
-                    auto dequantize_input_layer3 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize},
-                            {in_edge(0, quantize_output_layer2, 0)});
-                    auto typecast_input_layer3
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_input_layer3, 0)});
-                    auto dequantize_weight_layer3 = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto typecast_weight_layer3
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_weight_layer3, 0)});
-                    auto matmul_layer3 = pgraph->append_op(
-                            graph::op_kind::MatMul,
-                            {in_edge(0, typecast_input_layer3, 0),
-                                    in_edge(1, typecast_weight_layer3, 0)});
-                    auto add_layer3 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, layernorm_layer1, 0),
-                                    in_edge(1, matmul_layer3, 0)});
-                    auto layernorm_layer3
-                            = pgraph->append_op(graph::op_kind::LayerNorm,
-                                    {in_edge(0, add_layer3, 0)});
-                    layernorm_layer3->allow_external_outputs();
-                    auto last_layer = std::make_shared<pb_graph_t>();
-                    auto typecast_output_layer3
-                            = last_layer->append_op(graph::op_kind::TypeCast);
-                    auto quantize_output_layer3
-                            = last_layer->append_alternation(
-                                    {graph::op_kind::Quantize,
-                                            graph::op_kind::DynamicQuantize},
-                                    {in_edge(0, typecast_output_layer3, 0)});
-                    last_layer->create_input_port(0, typecast_output_layer3, 0);
-                    last_layer->create_output_port(
-                            0, quantize_output_layer3, 0);
-                    pgraph->append_optional(
-                            last_layer, {in_edge(0, layernorm_layer3, 0)});
-                });
-#endif
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_gpt_mlp)
         .set_priority(6.5f)
@@ -1198,7 +894,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     activation_bwd->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
 
-                    weight_grad_alternation_unit(bwd_mlp_layer, activation_bwd);
+                    weight_grad_alternation_unit(
+                            bwd_mlp_layer, activation_bwd, true);
 
                     auto transpose_subgraph2 = std::make_shared<pb_graph_t>();
                     auto transpose_w = transpose_subgraph2->append_op(
@@ -1237,7 +934,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     activation_bwd_last->allow_external_outputs();
 
                     auto weight_grad = weight_grad_alternation_unit(
-                            last_layer, activation_bwd_last);
+                            last_layer, activation_bwd_last, true);
                     auto reduce_bias_last
                             = last_layer->append_op(graph::op_kind::ReduceSum,
                                     {in_edge(0, activation_bwd_last, 0)});
@@ -1315,7 +1012,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             graph::op_kind::MatMul,
                             {in_edge(0, activation_bwd, 0),
                                     in_edge(1, optional_transpose_w, 0)});
-
+                    matmul_layer->append_decision_function(
+                            check_input_dtype<graph::data_type::bf16>);
                     bwd_mlp_layer->create_input_port(0, activation_bwd, 1);
                     bwd_mlp_layer->create_output_port(0, matmul_layer, 0);
 
@@ -1353,58 +1051,6 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     last_layer->create_output_port(0, matmul_last, 0);
                     pgraph->append_optional(
                             last_layer, {in_edge(0, repetition, 0)});
-                });
-/*
-mlp residual graph, having an extra edge from LayerNorm to Add.
-[IN0](bf16)   [IN1](bf16)
-       \      /
-        MatMul
-          |
-         Add
-          |
-       LayerNorm_______________      [IN2](bf16)
-          |                     \     /
-          |                      MatMul
-          |                        |
-          |                      GELU   [IN3](bf16)
-          |                        \     /
-          |                        MatMul
-          | _________________________|
-         Add
-          |
-      LayerNorm
-          |
-        [OUT0](bf16)
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        compiler, bf16_bart_mlp_residual_pattern)
-        .set_priority(5.5f)
-        .set_engine_kind(graph::engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::mlp)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_layer1
-                            = pgraph->append_op(graph::op_kind::MatMul);
-                    matmul_layer1->append_decision_function(
-                            check_input_dtype<graph::data_type::bf16>);
-                    auto add_layer1 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, matmul_layer1, 0)});
-                    auto layernorm_layer1
-                            = pgraph->append_op(graph::op_kind::LayerNorm,
-                                    {in_edge(0, add_layer1, 0)});
-                    auto matmul_layer2
-                            = pgraph->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, layernorm_layer1, 0)});
-                    auto gelu_layer2 = pgraph->append_op(graph::op_kind::GELU,
-                            {in_edge(0, matmul_layer2, 0)});
-                    auto matmul_layer3
-                            = pgraph->append_op(graph::op_kind::MatMul,
-                                    {in_edge(0, gelu_layer2, 0)});
-                    auto add_layer3 = pgraph->append_op(graph::op_kind::Add,
-                            {in_edge(0, layernorm_layer1, 0),
-                                    in_edge(1, matmul_layer3, 0)});
-                    pgraph->append_op(graph::op_kind::LayerNorm,
-                            {in_edge(0, add_layer3, 0)});
                 });
 
 COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_gpt_mlp)

@@ -389,8 +389,6 @@ TEST(GCCore_CPU_hplegalize_cpp, TestBF16Lower) {
 }
 
 TEST(GCCore_CPU_hplegalize_cpp, TestF16Lower) {
-    // ToDo: solve bad combination on xbyak
-    SKIP_ON_XBYAK();
     REQUIRE_AVX512FP16();
     builder::ir_builder_t builder;
     int lanes = 1;

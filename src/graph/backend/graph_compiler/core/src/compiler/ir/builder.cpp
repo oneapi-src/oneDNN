@@ -460,6 +460,13 @@ expr make_fmadd(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c) {
             any_map_t());
 }
 
+expr make_fnmadd(const expr_c &v_a, const expr_c &v_b, const expr_c &v_c) {
+    return make_expr<intrin_call_node>(intrin_type::fnmadd,
+            std::vector<expr> {
+                    v_a.remove_const(), v_b.remove_const(), v_c.remove_const()},
+            any_map_t());
+}
+
 expr make_unpack_low(const expr_c &v_a, const expr_c &v_b, int elem_bits) {
     return make_expr<intrin_call_node>(intrin_type::unpack_low,
             std::vector<expr> {v_a.remove_const(), v_b.remove_const()},

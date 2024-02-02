@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -348,8 +348,8 @@ private:
 
 // Constructs an OpenCL wrapper object (providing RAII support)
 template <typename T>
-ocl_wrapper_t<T> make_ocl_wrapper(T t) {
-    return ocl_wrapper_t<T>(t);
+ocl_wrapper_t<T> make_ocl_wrapper(T t, bool retain = false) {
+    return ocl_wrapper_t<T>(t, retain);
 }
 
 template <typename F>
@@ -456,6 +456,13 @@ status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
 
 status_t create_ocl_program(gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program,
         cl_device_id dev, cl_context ctx, const gpu::compute::binary_t &binary);
+
+status_t get_device_uuid(
+        gpu::compute::device_uuid_t &uuid, cl_device_id ocl_dev);
+
+status_t get_ocl_devices(std::vector<cl_device_id> *devices,
+        std::vector<ocl_wrapper_t<cl_device_id>> *sub_devices,
+        cl_device_type device_type);
 
 } // namespace ocl
 } // namespace gpu

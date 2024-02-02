@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2023 Intel Corporation
+# Copyright 2017-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,8 +65,11 @@ function(register_benchdnn_test engine driver test_file)
     endif()
 
     set(test_mode "C")
-    if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI_NO_CORR)
+    if(DNNL_TEST_SET_HAS_NO_CORR EQUAL 1)
         set(test_mode "R")
+    elseif(DNNL_TEST_SET_HAS_ADD_BITWISE EQUAL 1)
+        # Form a list to iterate over when registring tests
+        set(test_mode "${test_mode};B")
     endif()
 
     set(mode_modifier "")
@@ -74,37 +77,39 @@ function(register_benchdnn_test engine driver test_file)
         set(mode_modifier "--mode-modifier=P")
     endif()
 
-    string(REPLACE "test_" "test_benchdnn_" target_name ${test_file})
-    set(cmd "--mode=${test_mode} ${mode_modifier} -v1 --engine=${engine} --${driver} --batch=${test_file}")
-    set(benchdnn_target ${target_name}_${engine})
+    foreach(tm ${test_mode})
+        string(REPLACE "test_" "test_benchdnn_mode${tm}_" target_name ${test_file})
+        set(cmd "--mode=${tm} ${mode_modifier} -v1 --engine=${engine} --${driver} --batch=${test_file}")
+        set(benchdnn_target ${target_name}_${engine})
 
-    if(DNNL_BUILD_FOR_CI)
-        string(REPLACE " " ";" cmd "benchdnn ${cmd}")
-        add_dnnl_test(${benchdnn_target} ${cmd})
-    else()
-        string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
+        if(DNNL_BUILD_FOR_CI)
+            string(REPLACE " " ";" cmd "benchdnn ${cmd}")
+            add_dnnl_test(${benchdnn_target} ${cmd})
+        else()
+            string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
 
-        if(WIN32)
-            set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
-            set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
+            if(WIN32)
+                set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
+                set(ARGV2 "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${ARGV2}")
+            endif()
+
+            add_custom_target(${benchdnn_target}
+                COMMAND ${cmd}
+                DEPENDS benchdnn
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            )
+
+            set_target_properties(${benchdnn_target} PROPERTIES
+                EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+            maybe_configure_windows_test(${benchdnn_target} TARGET)
+
+            # Create non-suffixed target for compatibility
+            if (engine STREQUAL "cpu")
+                add_custom_target(${target_name} DEPENDS ${benchdnn_target})
+                maybe_configure_windows_test(${target_name} TARGET)
+            endif()
         endif()
-
-        add_custom_target(${benchdnn_target}
-            COMMAND ${cmd}
-            DEPENDS benchdnn
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        )
-
-        set_target_properties(${benchdnn_target} PROPERTIES
-            EXCLUDE_FROM_DEFAULT_BUILD TRUE)
-        maybe_configure_windows_test(${benchdnn_target} TARGET)
-
-        # Create non-suffixed target for compatibility
-        if (engine STREQUAL "cpu")
-            add_custom_target(${target_name} DEPENDS ${benchdnn_target})
-            maybe_configure_windows_test(${target_name} TARGET)
-        endif()
-    endif()
+    endforeach()
 endfunction()
 
 
@@ -149,16 +154,18 @@ foreach(driver ${all_drivers})
     file(GLOB test_files_ci RELATIVE ${driver_dir} inputs/${driver}/test_*_ci)
     file(GLOB test_files_smoke RELATIVE ${driver_dir} inputs/${driver}/test_*_smoke)
     file(GLOB test_files_cpu RELATIVE ${driver_dir} inputs/${driver}/test_*)
+    file(GLOB test_files_with_all RELATIVE ${driver_dir}
+        inputs/conv/test_conv_all inputs/graph/test_graph_all
+        inputs/rnn/test_lstm_all)
 
-    if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_SMOKE)
+    if(DNNL_TEST_SET_COVERAGE EQUAL DNNL_TEST_SET_SMOKE)
         if(has_gpu)
             register_all_tests(gpu "${driver}" "${test_files_smoke}")
         endif()
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_smoke}")
         endif()
-    elseif((DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI_NO_CORR)
-        OR (DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI))
+    elseif(DNNL_TEST_SET_COVERAGE EQUAL DNNL_TEST_SET_CI)
         if(NOT DNNL_EXPERIMENTAL_SPARSE)
             list(REMOVE_ITEM test_files_ci "test_matmul_sparse_ci")
         endif()
@@ -180,16 +187,20 @@ foreach(driver ${all_drivers})
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_ci}")
         endif()
-    elseif(DNNL_TEST_SET EQUAL DNNL_TEST_SET_NIGHTLY)
+    elseif(DNNL_TEST_SET_COVERAGE EQUAL DNNL_TEST_SET_NIGHTLY)
         if(NOT DNNL_EXPERIMENTAL_SPARSE)
             list(REMOVE_ITEM test_files_cpu "test_matmul_sparse")
         endif()
 
         ## Filter out gpu, large cpu and invalid inputs from cpu
         foreach(test_file ${test_files_large_cpu} ${test_files_gpu_ci}
-            ${test_files_gpu} ${test_files_ci} ${test_files_smoke}
-            "test_conv_all;" "test_graph_all;")
+            ${test_files_gpu} ${test_files_ci} ${test_files_smoke})
             string(REPLACE "${test_file}" "" test_files_cpu "${test_files_cpu}")
+        endforeach()
+        ## Then filter files with "all" suffix by exact name since there may
+        ## exist files like test_driver_all_something.
+        foreach(test_file ${test_files_with_all})
+            string(REPLACE "${test_file};" "" test_files_cpu "${test_files_cpu}")
         endforeach()
 
         if(has_cpu AND NOT DNNL_USE_CLANG_SANITIZER)
@@ -201,7 +212,5 @@ foreach(driver ${all_drivers})
         if(has_cpu)
             register_all_tests(cpu "${driver}" "${test_files_cpu}")
         endif()
-    else()
-        message(FATAL_ERROR "DNNL_TEST_SET doesn't support ${DNNL_TEST_SET} value.")
     endif()
 endforeach()

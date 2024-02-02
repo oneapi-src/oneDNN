@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -132,7 +132,7 @@ dnnl_status_t brgemm_attr_init(
     brgattr->max_bs = prb->batch_size;
 
     // `fpmath_mode` is handled directly through the driver interface.
-    brgattr->fpmath_mode = prb->attr.fpmath_mode;
+    brgattr->fpmath_mode = prb->attr.fpmath_mode.mode;
 
     return dnnl_success;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ public:
                 i12, i13, i14, i15);
     }
     INLINE operator vec_u16x16() const;
+    INLINE operator vec_u8x16() const;
 
 #ifdef __AVX512FP16__
     INLINE operator vec_f16x16() const;

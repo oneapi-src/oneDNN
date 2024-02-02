@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,8 +59,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
 
     if (aprop == prop_kind::forward) {
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
-                workspace, scratch_gates, nullptr, nullptr, nullptr, nullptr,
-                nullptr, nullptr, 0, scales, bias, tm_scales, diff_bias));
+                user_data, workspace, scratch_gates, nullptr, nullptr, nullptr,
+                nullptr, nullptr, nullptr, 0, scales, tm_scales, diff_bias));
 
     } else { // backward
         dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off;
@@ -91,11 +91,11 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
         auto diff_gates = scratch.diff_gates(iter);
 
         CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
-                diff_gates.get(), diff_states.get(), diff_states_s1.get(),
-                diff_states_iter.get(), diff_states_iter_s1.get(),
-                diff_states_layer.get(), diff_states_layer_ld, scales, bias,
-                tm_scales, diff_bias));
+                ocl_conf.elemwise_bwd_batch_block, user_data, workspace,
+                scratch_gates, diff_gates.get(), diff_states.get(),
+                diff_states_s1.get(), diff_states_iter.get(),
+                diff_states_iter_s1.get(), diff_states_layer.get(),
+                diff_states_layer_ld, scales, tm_scales, diff_bias));
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
                 *diff_gates, 0, *diff_states, 0, gemm_iter_bwd));

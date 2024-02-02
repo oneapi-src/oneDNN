@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,17 +36,19 @@ jit_avx512_core_brgemm_conv_trans_kernel_t::
     : jit_generator(name)
     , jcp(ajcp)
     , inp_dsz(jcp.src_dsz)
-    , ic_block_sz(inp_dsz * jcp.inp_ic_block)
+    , ic_block_sz(
+              jcp.is_reduced_rtus ? jcp.rtus_padded_ic_size : jcp.inp_ic_block)
+    , ic_block_offset(inp_dsz * ic_block_sz)
     , iw_size(inp_dsz * jcp.ngroups * jcp.ic_without_padding)
     , dst_w_block(dst_w(jcp, jcp.ow_block))
     , dst_stride(jcp.copy_block_only ? dst_w_block : jcp.iwp)
     , VL(cpu_isa_traits<avx512_core>::vlen)
-    , n_vec(jcp.inp_ic_block / jcp.simd_w)
-    , n_tail_vec((jcp.ic_without_padding % jcp.inp_ic_block) / jcp.simd_w) {
+    , n_vec(ic_block_sz / jcp.simd_w)
+    , n_tail_vec((jcp.ic_without_padding % ic_block_sz) / jcp.simd_w) {
 
     const auto kh_stride
             = (jcp.relo_type == conv_brgemm_relo_type_t::whi) ? jcp.kh : 1;
-    dst_w_offset = kh_stride * ic_block_sz;
+    dst_w_offset = kh_stride * ic_block_offset;
     dst_h_offset = dst_stride * dst_w_offset;
 }
 
@@ -254,7 +256,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::generate() {
         L(finish_label);
 
         // End IC Loop
-        auto inp_cb_offset = ic_block_sz;
+        auto inp_cb_offset = ic_block_offset;
         auto dst_cb_offset = jcp.ihp * dst_h_offset;
 
         add(inp_ptr, inp_cb_offset);
@@ -410,8 +412,7 @@ jit_avx512_core_brgemm_conv_rtus_kernel_t::
         jit_avx512_core_brgemm_conv_rtus_kernel_t(
                 const jit_brgemm_conv_conf_t &ajcp)
     : jit_avx512_core_brgemm_conv_trans_kernel_t(ajcp, jit_name()) {
-    ic_block_sz = inp_dsz * jcp.LDA; // output may or may not be zero padded
-    dst_h_offset = jcp.iwp * ic_block_sz;
+    dst_h_offset = jcp.iwp * ic_block_offset;
 }
 
 void jit_avx512_core_brgemm_conv_rtus_kernel_t::generate() {
@@ -456,7 +457,7 @@ void jit_avx512_core_brgemm_conv_rtus_kernel_t::generate() {
             copy_ic_block(0, is_ic_tail);
 
             auto inp_w_step = jcp.stride_w * iw_size;
-            auto out_w_step = ic_block_sz;
+            auto out_w_step = ic_block_offset;
             add(aux_inp_ptr, inp_w_step);
             add(aux_dst_ptr, out_w_step);
 
@@ -473,12 +474,12 @@ void jit_avx512_core_brgemm_conv_rtus_kernel_t::generate() {
         {
             for (int ow = 0; ow < jcp.ow; ow++) {
                 auto inp_w_off = ow * jcp.stride_w * iw_size;
-                auto out_w_off = ow * ic_block_sz;
+                auto out_w_off = ow * ic_block_offset;
                 copy_ic_block(0, is_ic_tail, inp_w_off, out_w_off);
             }
 
             auto inp_h_step = jcp.stride_h * jcp.iw * iw_size;
-            auto out_h_step = jcp.ow * ic_block_sz;
+            auto out_h_step = jcp.ow * ic_block_offset;
             add(aux_inp_ptr, inp_h_step);
             add(aux_dst_ptr, out_h_step);
 

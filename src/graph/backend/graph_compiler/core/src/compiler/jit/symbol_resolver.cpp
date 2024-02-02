@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,6 +109,7 @@ const std::unordered_map<std::string, void *> &get_runtime_function_map() {
                     (void *)query_format_binary_fusible_op},
             {"query_format_reorder_op", (void *)query_format_reorder_op},
             {"query_format_padding_op", (void *)query_format_padding_op},
+            {"query_format_pooling_op", (void *)query_format_pooling_op},
             {"query_format_reduce_op", (void *)query_format_reduce_op},
             {"query_format_tensor_view_op",
                     (void *)query_format_tensor_view_op},

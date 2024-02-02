@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2643,7 +2643,7 @@ public:
         Xbyak::Label label_tbl, label_tbl_end;
         std::vector<Xbyak::Label> l_case(simd_w);
 
-        mov(reg_tmp, label_tbl);
+        lea(reg_tmp, ptr[rip + label_tbl]);
         const Xbyak::Address label_address
                 = ptr[reg_tmp + reg_tail * sizeof(void *)];
         jmp(label_address, T_NEAR);

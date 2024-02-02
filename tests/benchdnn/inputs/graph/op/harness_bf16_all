@@ -570,3 +570,8 @@
 --reset --in-shapes=0:2x16x5x11*acdb+1:2x16x3x11*acdb --op-attrs=0:scales:0.6x1*mode:nearest --case=op/bf16/interpolate_bwd_2d.json
 --reset --in-shapes=0:2x17x6x12*acdb+1:2x17x7x14*acdb --op-attrs=0:scales:1.166667x1.166667*mode:nearest --case=op/bf16/interpolate_bwd_2d.json
 --reset --in-shapes=0:2x17x7x14*acdb+1:2x17x6x12*acdb --op-attrs=0:scales:0.857143x0.857143*mode:nearest --case=op/bf16/interpolate_bwd_2d.json
+# only the graph compiler supports these 4 ops
+--reset --case=op/bf16/pow.json
+--reset --case=op/bf16/select.json
+--reset --case=op/bf16/static_reshape.json
+--reset --case=op/bf16/static_transpose.json

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -235,8 +235,8 @@ int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max) {
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         std::minstd_rand int_seed(mem_dt.dt() * nelems + idx_start + 1);
         std::uniform_int_distribution<> gen(f_min, f_max);
-        float value = gen(int_seed);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            float value = gen(int_seed);
             mem_fp.set_elem(idx, round_to_nearest_representable(dt, value));
         }
     });

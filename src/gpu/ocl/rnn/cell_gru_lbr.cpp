@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,8 +65,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 *cell_iter, 0, *scratch.cell(), 0, gemm_iter_fwd));
 
         CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
-                workspace, scratch_gates, nullptr, *scratch.cell(), nullptr,
-                nullptr, nullptr, 0, bias, tm_scales, diff_bias));
+                user_data, workspace, scratch_gates, nullptr, *scratch.cell(),
+                nullptr, nullptr, nullptr, 0, tm_scales, diff_bias));
 
     } else {
         dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off;
@@ -92,10 +92,11 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         auto diff_gates = scratch.diff_gates(iter);
 
         CHECK((this->*elemwise_gru_lbr)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
-                ocl_conf.elemwise_bwd_batch_block, workspace, scratch_gates,
-                diff_gates.get(), *scratch.cell(), diff_states.get(),
-                diff_states_iter.get(), diff_states_layer.get(),
-                diff_states_layer_ld, bias, tm_scales, diff_bias));
+                ocl_conf.elemwise_bwd_batch_block, user_data, workspace,
+                scratch_gates, diff_gates.get(), *scratch.cell(),
+                diff_states.get(), diff_states_iter.get(),
+                diff_states_layer.get(), diff_states_layer_ld, tm_scales,
+                diff_bias));
 
         if (!rnn.merge_gemm_layer) {
             CHECK(gemm_primitive(engine, ctx, *diff_gates, 0, *cell_layer, 0,

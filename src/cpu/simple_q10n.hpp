@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace q10n {
 
 template <typename data_t, typename acc_t>
 inline typename utils::enable_if<!nstl::is_integral<data_t>::value,
@@ -169,6 +170,7 @@ struct qz<float, float16_t> {
     }
 };
 
+} // namespace q10n
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@
 #define elemwise_sig(f) \
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
+            const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
@@ -48,12 +49,13 @@
             const memory_storage_t *scratch_diff_states_iter_s1, \
             const memory_storage_t *scratch_diff_states_layer, \
             dim_t diff_states_layer_ld, const memory_storage_t *scales, \
-            const memory_storage_t &bias, const memory_storage_t *tm_scales, \
+            const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru_lbr(f) \
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
+            const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
@@ -61,13 +63,13 @@
             const memory_storage_t *scratch_diff_states, \
             const memory_storage_t *scratch_diff_states_iter, \
             const memory_storage_t *scratch_diff_states_layer, \
-            dim_t diff_states_layer_ld, const memory_storage_t &bias, \
-            const memory_storage_t *tm_scales, \
+            dim_t diff_states_layer_ld, const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias) const
 
 #define elemwise_sig_gru(f) \
     status_t f(const exec_ctx_t &ctx, dim_t dir, dim_t lay, dim_t iter, \
             dim_t dhc, dim_t batch, dim_t bwd_batch_block, \
+            const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const memory_storage_t *scratch_gates, \
             const memory_storage_t *scratch_diff_gates, \
@@ -76,14 +78,13 @@
             const memory_storage_t *scratch_diff_states_iter, \
             const memory_storage_t *scratch_diff_states_layer, \
             dim_t diff_states_layer_ld, const memory_storage_t *scratch_dhG1, \
-            const memory_storage_t &bias, const memory_storage_t *tm_scales, \
+            const memory_storage_t *tm_scales, \
             const memory_storage_t &diff_bias, int part) const
 
 #define cell_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, dim_t dir, dim_t lay, \
             dim_t iter, dim_t wei_layer_offset, \
             const std::vector<dim_t> &wei_iter_offsets, \
-            const memory_storage_t &bias, \
             const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
@@ -96,7 +97,6 @@
 
 #define grid_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, \
-            const memory_storage_t &bias, \
             const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
@@ -191,11 +191,7 @@ struct ocl_conf_t {
 #endif
     serialized_t serialize() const {
         assert_trivially_serializable(ocl_conf_t);
-        serialized_t s {};
-        // Explicitly maintain zero padding to keep the implementation simple and
-        // robust
-        s.append(*this);
-        return s;
+        return serialized_t(*this);
     }
 
     static ocl_conf_t deserialize(const serialized_t &s) {
@@ -249,8 +245,6 @@ struct ocl_conf_t {
 
     inner_layouts_t inner_layouts = {};
 
-    int n_bias = 0;
-
     int wei_qparam_mask = 0;
 
     int elemwise_bwd_batch_block = 0;
@@ -269,7 +263,7 @@ struct ocl_conf_t {
     bool copy_src_layer = false;
     bool copy_diff_dst_layer = false;
     bool copy_diff_src_layer;
-    uint8_t pad[5] = {};
+    bool deterministic = false;
 };
 
 struct conf_t {
@@ -401,10 +395,11 @@ inline void append_strides(compute::kernel_arg_list_t &arg_list,
 
 struct user_data_t {
     using mst = memory_storage_t;
-    user_data_t(const mst &src_layer, const mst &diff_src_layer,
-            const mst &diff_dst_layer, const conf_t &conf,
-            const rnn_offsets_t &offsets)
+    user_data_t(const mst &src_layer, const mst &bias,
+            const mst &diff_src_layer, const mst &diff_dst_layer,
+            const conf_t &conf, const rnn_offsets_t &offsets)
         : src_layer_(src_layer)
+        , bias_(bias)
         , diff_src_layer_(diff_src_layer)
         , diff_dst_layer_(diff_dst_layer)
         , conf_(conf)
@@ -412,14 +407,13 @@ struct user_data_t {
         // The packed restriction could be removed by using batched GEMM with
         // appropriate strides.
         gpu_assert(IMPLICATION(conf_.merge_gemm_layer && !conf_.copy_src_layer
-                        && offsets_.src_layer[0] != 0
-                        && offsets_.src_layer[1] != 0,
+                        && conf.n_iter > 1 && conf.mb > 1,
                 offsets_.src_layer[0] == offsets_.src_layer[1] * conf_.mb
                         && conf_.exec_dir == l2r))
                 << "[ERROR]: GEMM dimensions must be packed in order to "
                    "perform merge_gemm_layer";
 
-        gpu_assert(IMPLICATION(!conf.copy_src_layer,
+        gpu_assert(IMPLICATION(!conf.copy_src_layer && conf.n_iter > 1,
                 (offsets_.src_layer[0]
                         * types::data_type_size(conf_.input_data_type))
                                 % 8
@@ -433,7 +427,7 @@ struct user_data_t {
                    "currently supported in ref_rnn.cl";
 
         if (!conf.is_fwd) {
-            gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer,
+            gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer && conf.n_iter > 1,
                     (offsets_.diff_dst_layer[0]
                             * types::data_type_size(conf_.diff_data_type))
                                     % 8
@@ -473,6 +467,19 @@ struct user_data_t {
         return src_layer_.get_sub_storage(offset, cell_size * n_cells);
     }
 
+    const mst &bias() const { return bias_; }
+    std::unique_ptr<mst> bias(dim_t lay, dim_t dir) const {
+        if (bias().data_handle() == nullptr) return nullptr;
+
+        // bia dimension order: lay, dir, gates, dhc
+        auto type_size = types::data_type_size(conf_.aux_data_type);
+        auto layer_stride = offsets_.bias[0] * type_size;
+        auto dir_stride = offsets_.bias[1] * type_size;
+        auto cell_size = dir_stride;
+        auto offset = layer_stride * lay + dir_stride * dir;
+        return bias().get_sub_storage(offset, cell_size);
+    }
+
     const mst &diff_src_layer() const { return diff_src_layer_; }
     std::unique_ptr<mst> diff_src_layer(
             dim_t dir, dim_t iter_, bool all_iter = false) const {
@@ -507,6 +514,7 @@ struct user_data_t {
     }
 
     const mst &src_layer_;
+    const mst &bias_;
     const mst &diff_src_layer_;
     const mst &diff_dst_layer_;
     const conf_t &conf_;
@@ -539,6 +547,20 @@ struct workspace_t {
         // Logical index into workspace grid
         auto i0 = conf_.copy_src_layer ? i0_ + 1 : i0_;
         auto i0_size = conf_.copy_src_layer ? conf_.n_layer + 1 : conf_.n_layer;
+        auto i2 = i2_ + 1;
+
+        gpu_assert(i0 >= 0) << "Logical index must be larger than 0";
+
+        MAYBE_UNUSED(i0_size);
+        return OFF5(i0, i0_size, i1, conf_.n_dir, i2, conf_.n_iter + 1, i3,
+                conf_.mb, i4, conf_.states_ws_ld);
+    }
+
+    dim_t calc_off_ws_c_state(
+            dim_t i0_, dim_t i1, dim_t i2_, dim_t i3, dim_t i4) const {
+        // Logical index into workspace grid
+        auto i0 = i0_;
+        auto i0_size = conf_.n_layer;
         auto i2 = i2_ + 1;
 
         gpu_assert(i0 >= 0) << "Logical index must be larger than 0";
@@ -589,7 +611,7 @@ struct workspace_t {
         if (!c_states_) return nullptr;
         // conf_.aux_data_type is float for all datatypes except f16
         // so can be used for lstm_elemwise_u8s8 case as well
-        auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
+        auto off_ = calc_off_ws_c_state(layer, dir, time, 0, 0)
                 * types::data_type_size(conf_.aux_data_type);
         return c_states_->get_sub_storage(off_, conf_.ws_c_states_cell_size);
     }

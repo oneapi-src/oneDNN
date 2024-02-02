@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,6 +61,7 @@ status_t DNNL_API dnnl_graph_partition_create_with_op(
     // construct a single op graph
     graph_t g {ekind};
     ret = g.add_op(op);
+    g.finalize();
 
     if (ret != status::success) return ret;
 

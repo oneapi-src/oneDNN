@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -453,11 +453,9 @@ status_t infer_dnnl_pool_bwd_output_shape(op_t *n,
 
     dims dilations(kernel.size(), 1);
     if (n->has_attr(op_attr::dilations)) {
-        auto dilations_tmp = n->get_attr<dims>(op_attr::dilations);
-        if (dilations_tmp.size() != dilations.size()) {
+        dilations = n->get_attr<dims>(op_attr::dilations);
+        if (dilations.size() != kernel.size()) {
             return status::invalid_arguments;
-        } else {
-            dilations = dilations_tmp;
         }
     }
 

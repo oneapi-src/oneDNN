@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 #include "common/primitive_attr.hpp"
 #include "common/verbose.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -38,6 +39,7 @@ class kernel_ctx_t {
 public:
     kernel_ctx_t(const primitive_attr_t *attr = nullptr) {
         set_default_options(attr);
+        set_default_macros(attr);
     }
 
     std::string options() const {
@@ -132,6 +134,14 @@ private:
                 add_option("-cl-intel-256-GRF-per-thread");
             }
         }
+
+        // Set override flag for checking compiler assumptions
+        if (gpu_utils::dev_getenv("enable_check_assumptions", 0)) {
+            add_option("-DENABLE_CHECK_ASSUMPTIONS");
+        }
+    }
+    void set_default_macros(const primitive_attr_t *attr) {
+        if (attr) { define_int("DETERMINISTIC", attr->deterministic_); }
     }
 
     std::map<std::string, int64_t> int_var_map_;

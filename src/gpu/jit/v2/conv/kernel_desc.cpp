@@ -303,9 +303,8 @@ serialized_t kernel_desc_t::serialize() const {
     std::ostringstream oss;
     serialize(oss);
     auto str = oss.str();
-    serialized_t s;
-    s.set_data(std::vector<uint8_t>(str.begin(), str.end()));
-    return s;
+    return serialized_t::from_data(
+            std::vector<uint8_t>(str.begin(), str.end()));
 }
 
 kernel_desc_t kernel_desc_t::deserialize(const serialized_t &s) {

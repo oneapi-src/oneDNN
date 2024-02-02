@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -936,7 +936,7 @@ void jit_brgemm_ip_bwd_w_conf_t::thread_balance(int &nb_os_blocking_,
 
     const int max_threads = j.nthr;
     const int nthr = max_threads;
-    auto calc_mem_cost = [=](int nb_os_blocking, int nb_oc_blocking,
+    auto calc_mem_cost = [&](int nb_os_blocking, int nb_oc_blocking,
                                  int nb_ic_blocking, int nthr_mb, int nthr_oc,
                                  int nthr_ic) {
         float src_size = static_cast<float>(j.ic) * j.mb;
@@ -959,7 +959,7 @@ void jit_brgemm_ip_bwd_w_conf_t::thread_balance(int &nb_os_blocking_,
             oi_channels_ratio = src_size / dst_size;
         }
 
-        auto get_src_coef = [=]() {
+        auto get_src_coef = [&]() {
             if (is_f32) {
                 float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
                 src_coef *= types::data_type_size(j.src_dt);
@@ -975,7 +975,7 @@ void jit_brgemm_ip_bwd_w_conf_t::thread_balance(int &nb_os_blocking_,
             return src_coef;
         };
 
-        auto get_dst_coef = [=]() {
+        auto get_dst_coef = [&]() {
             if (is_f32) {
                 float dst_coef = types::data_type_size(j.dst_dt)
                         * nstl::max(oi_channels_ratio, 1.0f);
@@ -986,7 +986,7 @@ void jit_brgemm_ip_bwd_w_conf_t::thread_balance(int &nb_os_blocking_,
                     * nstl::max(oi_channels_ratio, 1.0f);
         };
 
-        auto get_wei_coef = [=]() {
+        auto get_wei_coef = [&]() {
             if (is_f32) {
                 return nstl::max(
                         4.0f - j.mb / 2048 * wei_compensation_scale, 1.0f);
@@ -1327,7 +1327,7 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
                             && jbgp.wei_dt == f32);
     const bool is_f32 = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
     jbgp.is_bf32 = is_f32
-            && one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any)
+            && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
             && jbgp.is_amx;
 
     if (!IMPLICATION(is_int8,

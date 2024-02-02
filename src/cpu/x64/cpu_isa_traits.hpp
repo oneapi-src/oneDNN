@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,11 +124,7 @@ enum cpu_isa_t : unsigned {
     avx512_core_amx = avx512_core_fp16 | amx_int8 | amx_bf16,
     avx512_core_amx_fp16 = avx512_core_amx | amx_fp16,
     // NOTES: 1. isa_all by default has no isa specific hints
-    //        2. avx2_vnni_2 is under preview support and turned off by default
-    //        3. avx512_core_amx_fp16 is under preview support and turned off
-    //          by default
-    isa_all
-    = ~0u & ~avx_vnni_2_bit & ~amx_fp16_bit & ~cpu_isa_hints_utils::hints_mask,
+    isa_all = ~0u & ~cpu_isa_hints_utils::hints_mask,
 };
 
 enum class cpu_isa_cmp_t {

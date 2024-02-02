@@ -269,6 +269,13 @@ public:
                         transform_disabled("fmadd"),
                         transform_4a_to_3a(xbyak_intrin_type::fmadd));
             } break;
+            case intrin_type::fnmadd: {
+                transform(dst,
+                        {intrin->args_[0], intrin->args_[1], intrin->args_[2]},
+                        dst->dtype_, //
+                        transform_disabled("fnmadd"),
+                        transform_4a_to_3a(xbyak_intrin_type::fnmadd));
+            } break;
             case intrin_type::broadcast: {
                 transform(dst, {intrin->args_[0]},
                         dst->dtype_, //

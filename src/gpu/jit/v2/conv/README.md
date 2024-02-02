@@ -6,7 +6,7 @@ This is a new convolution implementation for GPU which aims to solve two issues:
 - Long kernel creation time of the existing JIT convolution in `gpu/jit/conv`
 	- This implementation relies on reusable kernels which, once created, can be reused for shapes with different sizes
 - Challenging kernel configuration management. JIT kernels are highly configurable which makes their setup very challenging.
-	- This is to be solved with more control over configurability (to have a limited set of kernels to select between them) and proper performance modeling
+	- This is resolved with more control over configurability (offer a limited set of kernels to select between them) and proper performance modeling
 
 ### How to build and test
 
@@ -34,7 +34,7 @@ Look for `jit:ir_v2` implementation name.
 ### How to update plan registry (auto-search)
 
 Auto-search uses a list of hardcoded recipes to generate kernel descriptors. In
-case of changes in kernel generation or in case of adding new features use the
+event of changes in the kernel generation or of adding new features, use the
 snippet below to overwrite the kernel registry in oneDNN.
 
 ```bash

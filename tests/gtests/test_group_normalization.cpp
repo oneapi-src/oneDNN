@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,9 +52,6 @@ protected:
         SKIP_IF(unsupported_data_type(p.src_dt, p.dst_dt),
                 "Engine does not support this data type.");
 
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
-                "GPU engine is not supported");
-
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -71,14 +68,14 @@ protected:
 
         const bool is_src_int8 = p.src_dt == memory::data_type::s8
                 || p.src_dt == memory::data_type::u8;
-        auto aa = allows_attr_t {false};
-        if (get_test_engine_kind() == engine::kind::cpu && is_src_int8) {
-            aa.scales = true;
-        }
-        if (get_test_engine_kind() == engine::kind::cpu) {
-            aa.po_eltwise = true;
-            aa.po_binary = true;
-        }
+        auto aa = allows_attr_t {
+                false, /* po_sum */
+                true, /* po_eltwise */
+                true, /* po_binary*/
+                false, /* po_prelu*/
+                false, /* zp */
+                is_src_int8, /* scales */
+        };
 
         auto src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
         auto dst_md = memory::desc(p.dims, p.dst_dt, p.dst_tag);

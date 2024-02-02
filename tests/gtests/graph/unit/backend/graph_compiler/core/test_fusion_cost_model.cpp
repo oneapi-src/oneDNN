@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,9 +106,7 @@ TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp2) {
 }
 
 TEST(GCCore_CPU_fusion_cost_model_cpp, TestBroadcastOp3) {
-    thread_num_reset reseter;
-    // set threads envoriment
-    runtime_config_t::get().set_num_threads(28);
+    SET_THREADS_OR_SKIP(28);
 
     sc_graph_t graph;
     int BS = 1, C = 64, H = 1, W = 1, K = 64;

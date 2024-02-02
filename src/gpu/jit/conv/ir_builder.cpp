@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -533,8 +533,8 @@ private:
 
     void build_x_reduce_store() {
         auto &gemm_schedule = plan_.gemm_schedule;
-        bool use_atomic
-                = gemm_schedule.with_kernel_grid_k_slicing() || cfg_.slm().b();
+        bool use_atomic = (gemm_schedule.with_kernel_grid_k_slicing()
+                || !plan_.slm.x_reduce_tile.is_empty());
         auto x_reduce_buf = buf_mgr_.find("x_reduce", /*allow_empty=*/true).buf;
         if (x_reduce_buf.is_empty()) return;
         auto x_reduce_view

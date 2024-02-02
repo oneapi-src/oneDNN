@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -206,11 +206,13 @@ class alternation_t : public pb_node_t {
 public:
     alternation_t() = delete;
     std::vector<pb_graph_t *> get_alternatives();
+    size_t get_min_op_num() const { return min_op_num_; }
 
 protected:
     friend class pb_graph_t;
     alternation_t(std::vector<std::shared_ptr<pb_graph_t>> p_nodes);
     std::vector<std::shared_ptr<pb_graph_t>> alternatives_;
+    size_t min_op_num_;
 };
 
 class repetition_t : public pb_node_t {
@@ -220,6 +222,7 @@ public:
     port_map get_port_map(); // only support single port binding
     size_t get_min_rep() const { return min_rep_; }
     size_t get_max_rep() const { return max_rep_; }
+    size_t get_min_op_num() const { return min_op_num_; }
 
 protected:
     friend class pb_graph_t;
@@ -236,6 +239,7 @@ protected:
     port_map port_map_;
     size_t min_rep_;
     size_t max_rep_;
+    size_t min_op_num_;
 };
 
 // "pb_graph_t" represents a group of pb_op_ts and also serves as a pb_node_t
@@ -312,6 +316,8 @@ public:
 
     std::vector<pb_node_t *> get_nodes();
 
+    size_t get_min_op_num() const { return min_op_num_; }
+
 protected:
     pb_op_t *append_op(const decision_function &type_checker,
             const in_edges_t &p_in_edges, std::string name = "");
@@ -330,6 +336,9 @@ protected:
     std::unordered_set<oport_t> output_ports_;
     std::vector<std::shared_ptr<consumers_t>> inner_consumers_ {nullptr};
     std::vector<std::shared_ptr<producer_t>> inner_producers_ {nullptr};
+
+    // Mininum op number required to match the pattern graph
+    size_t min_op_num_;
 };
 
 } // namespace pm

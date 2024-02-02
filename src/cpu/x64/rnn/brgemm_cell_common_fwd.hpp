@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,12 +33,13 @@ class brgemm_dst_layer_iter_t {
 public:
     using ref_rnn_brgemm_t = rnn_brgemm_utils::rnn_brgemm_t<prop_kind::forward>;
     using postgemm_fused_t = std::function<void(
-            dim_t, dim_t, dim_t, const src_t *, scratch_t *, int)>;
+            dim_t, dim_t, dim_t, const src_t *, scratch_t *, scratch_t *, int)>;
     brgemm_dst_layer_iter_t(const ref_rnn_brgemm_t &rnn_brgemm_,
             const rnn_utils::rnn_conf_t &rnn,
             rnn_utils::cell_position_t cell_position, const src_t *src_iter,
             const src_t *src_layer, weights_t *w_iter, weights_t *w_layer,
-            scratch_t *scratch_gates, gemm_acc_t *amx_scratchpad,
+            scratch_t *scratch_gates, scratch_t *scratch_cell_,
+            gemm_acc_t *amx_scratchpad,
             x64::brgemm_batch_element_t *addr_batch_global,
             const postgemm_fused_t &fused_postgemm);
     void execute() const;
@@ -56,7 +57,8 @@ private:
     const src_t *const Ai_;
     const weights_t *const Bl_;
     const weights_t *const Bi_;
-    scratch_t *const C_;
+    scratch_t *const C_gates_;
+    scratch_t *const C_cell_;
     const dim_t LDAl_;
     const dim_t LDAi_;
     const dim_t max_nthr_;

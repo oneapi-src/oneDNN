@@ -42,7 +42,7 @@ different and auto-broadcasting is allowed if `auto_broadcast` attributes is
 
 ## Supported data types
 
-Substract operation supports the following data type combinations.
+Subtract operation supports the following data type combinations.
 
 | Src_0 / Src_1 | Dst  |
 |:--------------|:-----|

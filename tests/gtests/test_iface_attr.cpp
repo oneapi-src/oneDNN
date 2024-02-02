@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 * Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,6 +40,22 @@ TEST_F(attr_test_t, TestFPMathMode) {
         attr.set_fpmath_mode(m);
         ASSERT_EQ(m, attr.get_fpmath_mode());
     }
+}
+
+TEST_F(attr_test_t, TestFPMathModeV2) {
+    dnnl::primitive_attr attr;
+    ASSERT_EQ(attr.get_fpmath_mode(), fpmath_mode::strict);
+
+    for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
+                 fpmath_mode::tf32, fpmath_mode::any})
+        for (auto f : {true, false}) {
+            attr.set_fpmath_mode(m, f);
+            fpmath_mode ret_mode;
+            bool ret_f;
+            attr.get_fpmath_mode(ret_mode, ret_f);
+            ASSERT_EQ(m, ret_mode);
+            ASSERT_EQ(f, ret_f);
+        }
 }
 
 TEST_F(attr_test_t, TestFPMathModeDefault) {
@@ -100,6 +116,17 @@ TEST_F(attr_test_t, TestScratchpadModeEx) {
     }
 }
 
+TEST_F(attr_test_t, TestDeterministic) {
+    dnnl::primitive_attr attr;
+    // Check the default value
+    ASSERT_EQ(false, attr.get_deterministic());
+
+    for (auto b : {true, false}) {
+        attr.set_deterministic(b);
+        ASSERT_EQ(b, attr.get_deterministic());
+    }
+}
+
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScratchpadArg) {
     engine eng = get_test_engine();
 
@@ -141,14 +168,38 @@ TEST_F(attr_test_t, TestZeroPoints) {
     for (auto arg : supported_args) {
         // single non-default zero_point for supported arg
         attr.set_zero_points_mask(arg, 0);
+        // multiple zero_points for supported arg
+        attr.set_zero_points_mask(arg, 1 << 0);
     }
 
     for (auto arg : unsupported_args) {
         // single **default** zero_point for **unsupported** arg
         EXPECT_ANY_THROW(attr.set_zero_points_mask(arg, 0));
     }
+}
 
-    // multiple zero_points not implemented yet ...
+TEST_F(attr_test_t, TestZeroPointsWithGroups) {
+    dnnl::primitive_attr attr;
+
+    const std::vector<int> supported_args = {DNNL_ARG_WEIGHTS};
+    const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
+            DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
+
+    for (auto arg : supported_args) {
+        // single zero_point for supported arg
+        attr.set_zero_points(arg, 0, {});
+        // single zero_point for supported arg with data type specified
+        attr.set_zero_points(arg, 0, {}, data_type::s8);
+        // multiple zero_points for supported arg with data type specified
+        attr.set_zero_points(arg, 1 << 0, {4}, data_type::s8);
+    }
+
+    for (auto arg : unsupported_args) {
+        // multiple zero_points for supported arg with data type specified
+        EXPECT_ANY_THROW(attr.set_zero_points(arg, 1 << 0, {4}));
+        // single zero_point for **unsupported** arg with data type specified
+        EXPECT_ANY_THROW(attr.set_zero_points(arg, 0, {}, data_type::s8));
+    }
 }
 
 TEST_F(attr_test_t, TestZeroPointsExpectFailure) {
@@ -181,6 +232,30 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
     for (auto arg : unsupported_args) {
         // single scales for unsupported args
         EXPECT_ANY_THROW(attr.set_scales_mask(arg, 0));
+    }
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScalesWithGroups) {
+    dnnl::primitive_attr attr;
+
+    const std::vector<int> supported_args = {DNNL_ARG_WEIGHTS};
+    const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_SRC,
+            DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
+
+    for (auto arg : supported_args) {
+        // single non-default scales for supported arg
+        attr.set_scales(arg, 0, {});
+        // multiple scales with groups
+        attr.set_scales(arg, 1 << 0, {4});
+        // scales with groups and a data type
+        attr.set_scales(arg, 1 << 0, {4}, data_type::f32);
+    }
+
+    for (auto arg : unsupported_args) {
+        // multiple scales with groups for unsupported args
+        EXPECT_ANY_THROW(attr.set_scales(arg, 1 << 0, {4}));
+        // multiple scales with non-default data type for unsupported args
+        EXPECT_ANY_THROW(attr.set_scales(arg, 1 << 0, {}, data_type::bf16));
     }
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,11 +75,13 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
                         binary_injector_utils::extract_bcast_strategies(
                                 post_ops.entry_, dst_md()),
                         broadcasting_strategy_t::per_oc);
+        const bool has_prelu = post_ops.find(prelu) != -1;
         return cpu::inner_product_utils::post_ops_ok(
                        post_ops, dst_md(), enabled_bcast_strategy)
                 && IMPLICATION(is_binary_po_per_oc,
                         gemm_based::check_gemm_binary_per_oc_compatible_formats(
-                                *this));
+                                *this))
+                && IMPLICATION(N() == DNNL_RUNTIME_DIM_VAL, !has_prelu);
     };
 
     const bool problem_dt_correct = src_md()->data_type == src_type

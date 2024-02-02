@@ -21,6 +21,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <vector>
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -31,6 +32,7 @@
 #include "utils/compare.hpp"
 #include "utils/dims.hpp"
 #include "utils/dnnl_query.hpp"
+#include "utils/fill.hpp"
 #include "utils/numeric.hpp"
 #include "utils/parallel.hpp"
 
@@ -656,7 +658,11 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                     break;
                 }
             }
-            if (!key_found_in_exec_args) keys_to_erase.push_back(key);
+            // Don't remove stashed memory for bitwise validation.
+            const bool bitwise_stash
+                    = has_bench_mode_bit(mode_bit_t::bitwise) && key < 0;
+            bool add_key_to_erase = !key_found_in_exec_args && !bitwise_stash;
+            if (add_key_to_erase) keys_to_erase.push_back(key);
         }
         for (const auto &k : keys_to_erase)
             mem_map.erase(mem_map.find(k));
@@ -713,6 +719,52 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
         }
     }
 
+    // Bitwise mode demands exactly the same inputs between two runs. There are
+    // certain scenarios that affect original memory objects content. When such
+    // scenarios occur, memory objects have their original content overwritten.
+    // The logic below stashes additional memory objects for a copy of data
+    // which will get reordered before the second run.
+    //
+    // An implementation detail:
+    // All such memory objects' counterparts are created with the same arg value
+    // but with a negative sign. This is the only guaranteed value that is not
+    // used by the library.
+    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
+        // A sum post-op has the destination memory data overwritten by the
+        // accumulation memory.
+        if (query_post_ops_has_kind(const_po, dnnl_sum)) {
+            const int query_arg = DNNL_ARG_DST;
+            const int insert_arg = -query_arg;
+            const auto &md = query_md(const_pd, query_arg);
+            if (has_runtime_dims(md)) {
+                mem_map.emplace(insert_arg,
+                        dnn_mem_t(prb->get_md(query_arg), test_engine));
+            } else {
+                mem_map.emplace(insert_arg, dnn_mem_t(md, test_engine));
+            }
+        }
+
+        // An inplace mode uses the source memory object as the destination one.
+        // It results in the source is overwritten after the operation is done.
+        if (prb->inplace) {
+            const bool has_multiple_args = std::any_of(
+                    supported_exec_args.begin(), supported_exec_args.end(),
+                    [](int arg) { return arg == DNNL_ARG_MULTIPLE_SRC; });
+            const auto prop_kind = query_prop_kind(const_pd);
+            const auto query_arg = is_fwd_prop_kind(prop_kind)
+                    ? (has_multiple_args ? DNNL_ARG_MULTIPLE_SRC : DNNL_ARG_SRC)
+                    : DNNL_ARG_DIFF_DST;
+            const int insert_arg = -query_arg;
+            const auto &md = query_md(const_pd, query_arg);
+            if (has_runtime_dims(md)) {
+                mem_map.emplace(insert_arg,
+                        dnn_mem_t(prb->get_md(query_arg), test_engine));
+            } else {
+                mem_map.emplace(insert_arg, dnn_mem_t(md, test_engine));
+            }
+        }
+    }
+
     const auto &scratch_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
     mem_map.emplace(DNNL_ARG_SCRATCHPAD, dnn_mem_t(scratch_md, test_engine));
 
@@ -763,7 +815,8 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
 
         const auto append_scales = [&](int exec_arg) {
             const int exec_sc_arg = DNNL_ARG_ATTR_SCALES | exec_arg;
-            int64_t count = 1;
+            dims_t dims = {};
+            int64_t ndims = 1;
             const auto mask
                     = sc.get_mask(exec_arg, prim_kind, wei_md, has_groups);
 
@@ -771,16 +824,19 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    const auto dims = md2dims(prb_md);
-                    const auto ndims = static_cast<int>(dims.size());
-                    count = dims_nelems(dims, ndims, mask);
+                    dims = md2dims(prb_md);
+                    ndims = static_cast<int>(dims.size());
                 } else {
-                    const auto dims = md2dims(md);
-                    const auto ndims = static_cast<int>(dims.size());
-                    count = dims_nelems(dims, ndims, mask);
+                    dims = md2dims(md);
+                    ndims = static_cast<int>(dims.size());
                 }
+            } else {
+                dims = {1};
+                ndims = 1;
             }
-            auto scales_md = dnn_mem_t::init_md(1, &count, dnnl_f32, tag::abx);
+            const auto dt = sc.get(exec_arg).dt;
+            auto scales_md
+                    = dnn_mem_t::init_md(ndims, dims.data(), dt, tag::abx);
             mem_map.emplace(exec_sc_arg, dnn_mem_t(scales_md, test_engine));
         };
 
@@ -802,26 +858,30 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
     if (!prb->attr.zero_points.is_def()) {
         const auto &zp = prb->attr.zero_points;
 
+        const auto &wei_md = query_md(const_pd, DNNL_ARG_WEIGHTS);
+
         const auto append_zero_points = [&](int exec_arg) {
             const int exec_zp_arg = DNNL_ARG_ATTR_ZERO_POINTS | exec_arg;
             const auto &e = zp.get(exec_arg);
-            int64_t count = 1;
-            const auto mask = attr_t::get_default_mask(e.policy);
+            int64_t ndims = 1;
+            dims_t dims = {};
+            const auto mask = zp.get_mask(exec_arg, prim_kind, wei_md);
 
             if (mask > 0) {
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    const auto dims = md2dims(prb_md);
-                    const auto ndims = static_cast<int>(dims.size());
-                    count = dims_nelems(dims, ndims, mask);
+                    dims = md2dims(prb_md);
+                    ndims = static_cast<int>(dims.size());
                 } else {
-                    const auto dims = md2dims(md);
-                    const auto ndims = static_cast<int>(dims.size());
-                    count = dims_nelems(dims, ndims, mask);
+                    dims = md2dims(md);
+                    ndims = static_cast<int>(dims.size());
                 }
+            } else {
+                dims = {1};
+                ndims = 1;
             }
-            auto zp_md = dnn_mem_t::init_md(1, &count, dnnl_s32, tag::abx);
+            auto zp_md = dnn_mem_t::init_md(ndims, dims.data(), e.dt, tag::abx);
             mem_map.emplace(exec_zp_arg, dnn_mem_t(zp_md, test_engine));
         };
 
@@ -860,5 +920,12 @@ void update_inplace_memory_args(
 int update_ref_mem_map_from_prim(dnnl_primitive_t prim_ref,
         const dnn_mem_t &library_mem, dnn_mem_map_t &ref_mem_map, int exec_arg,
         dnnl_data_type_t swapped_dt);
+
+int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
+        dnn_mem_t &ref_mem, const attr_t &attr, res_t *res,
+        const std::unordered_map<int, fill_cfg_t> &fill_cfg_map = {});
+
+int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
+        const args_t &args, bool inplace, res_t *res);
 
 #endif

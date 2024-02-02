@@ -373,6 +373,7 @@ void validate_impl_t::view(intrin_call_c v) {
                     "reduce expects 1 argument, "
                     "got " << v);
             break;
+        case intrin_type::fnmadd:
         case intrin_type::fmadd:
             validate_type(v);
             COMPILE_ASSERT_POS(v->args_.size() == 3,

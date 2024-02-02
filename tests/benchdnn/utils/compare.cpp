@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -376,7 +376,8 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // Nvidia backend with fpmath mode enabled returns not exact output
             // values (presumably on conversion to fp32), thus, make sure they
             // fit single ulp for a reduced data type.
-            ok = is_nvidia_gpu() && attr.fpmath_mode != dnnl_fpmath_mode_strict
+            ok = is_nvidia_gpu()
+                    && attr.fpmath_mode.mode != dnnl_fpmath_mode_strict
                     && args.diff
                             <= epsilon_dt(deduce_cfg_data_type(dt, attr, SRC));
             if (ok) break;

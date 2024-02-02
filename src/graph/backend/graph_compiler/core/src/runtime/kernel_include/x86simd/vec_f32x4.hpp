@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -117,6 +117,11 @@ INLINE vec_f32x4 sc_select(
 INLINE vec_f32x4 sc_fmadd(
         vec_f32x4 const &a, vec_f32x4 const &b, vec_f32x4 const &c) {
     return _mm_fmadd_ps(a.v, b.v, c.v);
+}
+
+INLINE vec_f32x4 sc_fnmadd(
+        vec_f32x4 const &a, vec_f32x4 const &b, vec_f32x4 const &c) {
+    return _mm_fnmadd_ps(a.v, b.v, c.v);
 }
 
 INLINE vec_f32x4 sc_max(vec_f32x4 const &a, vec_f32x4 const &b) {

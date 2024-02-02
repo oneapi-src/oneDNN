@@ -367,7 +367,7 @@ struct brgemm_t {
 
     bool is_b_data_layout_vnni() {
         // True in general, only exception is f16 with avx512_core_fp16.
-        // We also return `true` for bf32 (brgattr.fpmath_mode_ = bf16),
+        // We also return `true` for bf32 (brgattr.fpmath_.mode_ = bf16),
         // because the data transformation to vnni layout is internal
         // and transparent to user.
         return !(dt_b == data_type::f16 && isa_impl == avx512_core_fp16);
@@ -380,6 +380,9 @@ struct brgemm_t {
 private:
     primitive_attr_t *attr_ {nullptr};
     memory_desc_t *dst_md_ {nullptr};
+    void set_attr_null() { attr_ = nullptr; };
+    void set_dst_md_null() { dst_md_ = nullptr; };
+
     void cleanup_attr();
     void cleanup_dst_md();
 

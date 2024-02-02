@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -123,6 +123,8 @@ extern "C" void sc_global_aligned_free(void *ptr, size_t align) noexcept;
 
 #define DEF_FMADD(T) \
     inline T sc_fmadd(T v1, T v2, T v3) { return v1 * v2 + v3; }
+#define DEF_FNMADD(T) \
+    inline T sc_fnmadd(T v1, T v2, T v3) { return -(v1 * v2) + v3; }
 DEF_OP(float)
 DEF_OP(int32_t)
 DEF_OP(int8_t)
@@ -133,12 +135,14 @@ DEF_MINMAX(uint64_t)
 #ifdef __AVX512FP16__
 DEF_MINMAX(_Float16)
 DEF_FMADD(_Float16)
+DEF_FNMADD(_Float16)
 #endif
 DEF_ROUND(float)
 DEF_EXP(float)
 DEF_SQRT(float)
 DEF_RSQRT(float)
 DEF_FMADD(float)
+DEF_FNMADD(float)
 
 using generic_val = gc::generic_val;
 

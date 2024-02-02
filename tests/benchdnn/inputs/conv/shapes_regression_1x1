@@ -25,3 +25,6 @@ g2ic72oc80_ih56oh56kh1sh1dh0ph0_iw56ow56kw1sw1dw0pw0_n"generated_group_tails_con
 
 # Shape with huge stride
 mb1_ic16oc16_ih14oh1kh1sh14dh0ph0_n"1x1_shape_with_huge_stride"
+
+# Shape with nb_os tail
+mb1_ic96oc96_ih6oh6kh1sh1dh0ph0_iw6ow6kw1sw1dw0pw0_n"1x1_with_nb_os_tail"

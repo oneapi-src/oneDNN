@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,9 @@ bool reschedule_forbid_op(const sc_op_ptr &node) {
                     || node->isa<tensor_view_op_t>()
                     || node->isa<reshape_op_t>() || node->isa<concat_op_t>()
                     || node->isa<split_op_t>())
-                   && node->attrs_.get_or_else(attr_keys::per_channel, false))
+                   && node->attrs_.get_or_else(attr_keys::per_channel, false)
+                   && !node->attrs_.get_or_else(
+                           "allow_quantize_reschedule", false))
             || node->isa<concat_op_t>();
 }
 void dequantize_elimination(sc_graph_t &mgr, const context_ptr &ctx) {

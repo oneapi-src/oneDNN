@@ -217,7 +217,7 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     // Are we allowed to cast down to bf16 or not?
     acp.fast_math
-            = one_of(attr.fpmath_mode_, fpmath_mode::bf16, fpmath_mode::any);
+            = one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
     if (is_depthwise) {
         // There is no support for fixed format kernels for depthwise convolution
         // in ACL so we are going to use weight format that we set up earlier

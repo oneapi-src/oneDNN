@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,8 @@ public:
     std::unordered_map<std::string, func_t> func_decl_replace_map_;
     // def stmts to insert before call node
     std::vector<stmt> def_stmts_;
+    // def internal dynamic var stmts to insert before call node
+    std::vector<stmt> internal_dyn_var_stmts_;
     expr create_dyn_tsr_from_tensor(
             const expr &in, std::vector<stmt> &def_stmts) {
         COMPILE_ASSERT(in.isa<tensor>() || in.isa<tensorptr>(),
@@ -140,6 +142,22 @@ public:
                         dyn_tsr, dyn_mask, dyn_tsr_struct_t::name,
                         dyn_tsr_struct_t::fields::dyn_mask)));
         return dyn_tsr;
+    }
+
+    void add_new_dynamic_var(const expr &new_var) {
+        if (var_defined_in_func_.find(new_var) == var_defined_in_func_.end()) {
+            if (new_var->attr_
+                    && new_var->attr_->has_key(attr_keys::cal_expression)
+                    && !new_var->equals(new_var->attr_->get<expr_c>(
+                            attr_keys::cal_expression))) {
+                internal_dyn_var_stmts_.emplace_back(
+                        builder::make_var_tensor_def_unattached(new_var,
+                                linkage::local,
+                                new_var->attr_->get<expr_c>(
+                                        attr_keys::cal_expression)));
+                var_defined_in_func_.insert(new_var);
+            };
+        }
     }
 
     expr_c visit(intrin_call_c v) override {
@@ -273,8 +291,26 @@ public:
             return builder::make_stmts_unattached({});
         }
         auto ret = ir_visitor_t::visit(v).checked_as<define_c>();
-        if (ret->var_.isa<var>()) { var_defined_in_func_.insert(ret->var_); }
+        if (ret->var_.isa<tensor>()) {
+            auto plain_dims = any_map_t::fetch_or_else(ret->var_->attr_.get(),
+                    attr_keys::plain_dims, std::vector<expr>());
+            for (size_t i = 0; i < plain_dims.size(); i++) {
+                auto &d = plain_dims[i];
+                if (!d.isa<constant>()) {
+                    assert(d.isa<var>());
+                    add_new_dynamic_var(d);
+                }
+            }
+        } else if (ret->var_.isa<var>()) {
+            var_defined_in_func_.insert(ret->var_);
+        }
         return ret;
+    }
+
+    stmt_c visit(assign_c v) override {
+        auto d = v->value_;
+        if (d.isa<var>()) { add_new_dynamic_var(d); }
+        return v;
     }
 
     func_c dispatch(func_c v) override {
@@ -288,6 +324,7 @@ public:
         std::vector<expr> new_params;
         // base and shape define stmts insert to front of body.
         assert(def_stmts_.empty());
+        internal_dyn_var_stmts_.clear();
         var_defined_in_func_.clear();
         new_params.reserve(v->params_.size());
         // kernel func should transform all tensors.
@@ -296,10 +333,6 @@ public:
         for (auto &p : v->params_) {
             if (p.isa<tensor>()) {
                 auto old_tsr = p.static_as<tensor>();
-                if (old_tsr->name_ == "partial_out") {
-                    int a = 1;
-                    int b = 2;
-                }
                 std::vector<std::pair<size_t, expr>> shape_vars;
                 bool cur_const = true;
                 auto plain_dims
@@ -389,6 +422,12 @@ public:
                     auto seq = body.static_as<stmts>()->seq_;
                     seq.insert(seq.begin(), def_stmts_backup.begin(),
                             def_stmts_backup.end());
+                    if (!internal_dyn_var_stmts_.empty()) {
+                        seq.insert(seq.begin() + def_stmts_backup.size(),
+                                internal_dyn_var_stmts_.begin(),
+                                internal_dyn_var_stmts_.end());
+                        internal_dyn_var_stmts_.clear();
+                    }
                     body = copy_attr(
                             *body, make_stmt<stmts_node_t>(std::move(seq)));
                 } else {

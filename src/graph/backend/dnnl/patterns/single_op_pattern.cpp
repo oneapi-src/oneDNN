@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -192,6 +192,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, ln_pass)
                     p_layernorm->append_decision_function(
                             check_input_dtype_from_offset<graph::data_type::f32,
                                     1>);
+                    p_layernorm->append_decision_function(
+                            check_begin_norm_axis_attr);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<layernorm_fwd_t>();
@@ -208,6 +210,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, ln_bw_pass)
                     p_layernorm_bwd->append_decision_function(
                             check_input_dtype_from_offset<graph::data_type::f32,
                                     2>);
+                    p_layernorm_bwd->append_decision_function(
+                            check_begin_norm_axis_attr);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<layernorm_bwd_t>();

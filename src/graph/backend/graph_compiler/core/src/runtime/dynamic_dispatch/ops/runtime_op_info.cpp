@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,6 +47,23 @@ SC_CLASS(dyn_padding_runtime_info_t)
   SC_FIELD(pads_end_h)
   SC_FIELD(pads_end_w)
 SC_CLASS_END();
+
+SC_CLASS(dyn_pooling_runtime_info_t)
+  SC_FIELD(stride_d)
+  SC_FIELD(stride_h)
+  SC_FIELD(stride_w)
+  SC_FIELD(pads_begin_d)
+  SC_FIELD(pads_begin_h)
+  SC_FIELD(pads_begin_w)
+  SC_FIELD(pads_end_d)
+  SC_FIELD(pads_end_h)
+  SC_FIELD(pads_end_w)
+  SC_FIELD(kernel_d)
+  SC_FIELD(kernel_h)
+  SC_FIELD(kernel_w)
+  SC_FIELD(rounding_type_floor)
+  SC_FIELD(auto_pads_same)
+  SC_CLASS_END();
 // clang-format on
 
 } // namespace gc

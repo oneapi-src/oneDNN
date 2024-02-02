@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@
 #include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
+
+#include "cpu/ref_io_helper.hpp"
 
 // Use `...` for `msg` and additional variables used in msg
 #define VCHECK_ATTR(cond, ...) \
@@ -73,16 +75,17 @@
             VCHECK_ATTR(scales != nullptr, \
                     "Scales buffer for arg %d is missing", arg); \
             const auto scales_d = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | arg); \
-            VCHECK_ATTR(scales_d.data_type() == data_type::f32, \
-                    "Scales data type is not f32"); \
-            VCHECK_ATTR(scales_d.ndims() == 1, "Scales ndims is not 1"); \
-            if (scales_d.dims()[0] == 1) { \
+            VCHECK_ATTR(utils::one_of(scales_d.data_type(), data_type::f32, \
+                                data_type::f16, data_type::bf16), \
+                    "Unsupported scales data type"); \
+            if (scales_d.nelems() == 1) { \
+                const float s = cpu::io::load_float_value( \
+                        scales_d.data_type(), scales, 0); \
                 if (utils::one_of(arg, DNNL_ARG_DST, \
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST)) { \
-                    utils::array_set( \
-                            CONCAT2(scales, _buf16), 1.f / scales[0], 16); \
+                    utils::array_set(CONCAT2(scales, _buf16), 1.f / s, 16); \
                 } else { \
-                    utils::array_set(CONCAT2(scales, _buf16), scales[0], 16); \
+                    utils::array_set(CONCAT2(scales, _buf16), s, 16); \
                 } \
                 scales = CONCAT2(scales, _buf16); \
             } \
@@ -128,9 +131,9 @@
     if (!attr->zero_points_.has_default_values(mem_arg)) { \
         const auto zero_points_d \
                 = ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | mem_arg); \
-        VCHECK_ATTR(zero_points_d.data_type() == data_type::s32, \
-                "Zero points data type is not s32"); \
-        VCHECK_ATTR(zero_points_d.ndims() == 1, "Zero points ndims is not 1"); \
+        VCHECK_ATTR(utils::one_of(zero_points_d.data_type(), data_type::s32, \
+                            data_type::s8, data_type::u8), \
+                "Unsupported zero points type"); \
         VCHECK_ATTR(zero_points_d.dims()[0] == 1, \
                 "Not a single zero points was provided"); \
         const int32_t *zero_points_ptr = CTX_IN_MEM( \

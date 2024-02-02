@@ -89,11 +89,13 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
                         binary_injector_utils::extract_bcast_strategies(
                                 post_ops.entry_, dst_md()),
                         broadcasting_strategy_t::per_oc);
+        const bool has_prelu = post_ops.find(prelu) != -1;
         return cpu::inner_product_utils::post_ops_ok(
                        post_ops, dst_md(), enabled_bcast_strategy)
                 && IMPLICATION(is_binary_po_per_oc,
                         gemm_based::check_gemm_binary_per_oc_compatible_formats(
-                                *this));
+                                *this))
+                && IMPLICATION(N() == DNNL_RUNTIME_DIM_VAL, !has_prelu);
     };
 
     VDISPATCH_MATMUL(is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);

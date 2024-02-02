@@ -5,7 +5,7 @@ Quantize {#dev_guide_op_quantize}
 
 Quantize operation converts an f32 tensor to a quantized (u8/s8/f8_e4m3/f8_e5m2)
 tensor. It supports both per-tensor and per-channel asymmetric linear
-quantization. Output data type is specified in output tensor data type. Rounding
+quantization. Output data type is specified in the output tensor data type. Rounding
 mode is library-implementation defined. Zero points (`zps` in the attribute
 table) are not supported for f8_e4m3 and f8_e5m2 quantization.
 

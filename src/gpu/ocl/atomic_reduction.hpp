@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,29 +17,82 @@
 #ifndef GPU_atomic_REDUCTION_HPP
 #define GPU_atomic_REDUCTION_HPP
 
+#include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "gpu/compute/dispatch_reusable.hpp"
 #include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_primitive_attr.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
 #include "gpu/ocl/reduction_utils.h"
 #include "gpu/primitive_conf.hpp"
+#include "gpu/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
+struct atomic_reduction_key_params_t {
+    status_t create_generator(const compute::compute_engine_t &engine,
+            compute::kernel_bundle_t &bundle) const {
+        compute::kernel_ctx_t kernel_ctx;
+        CHECK(get_kernel_ctx(kernel_ctx));
+        auto status = engine.create_kernel_bundle(
+                bundle, get_kernel_names(), kernel_ctx);
+        return status;
+    }
+
+    const std::vector<const char *> &get_kernel_names() const {
+        static const std::vector<const char *> kernel_names = {"atomic_reduce"};
+        return kernel_names;
+    }
+
+#if __cplusplus >= 202002L
+    bool operator==(const atomic_reduction_key_params_t &) const = default;
+#endif
+    serialized_t serialize() const {
+        assert_trivially_serializable(atomic_reduction_key_params_t);
+        return {*this};
+    }
+
+    static atomic_reduction_key_params_t deserialize(const serialized_t &s) {
+        atomic_reduction_key_params_t t {};
+        deserializer_t d(s);
+        d.pop(t);
+        return t;
+    }
+
+    status_t get_kernel_ctx(compute::kernel_ctx_t &) const;
+
+    // Basic reduction parameters
+    alg_kind_t alg;
+    data_type_t src_type, dst_type;
+
+    // Implementation-specific parameters
+    bool is_first, is_final;
+    bool padding[2] = {0};
+    int32_t threads_per_eu;
+    int32_t subgroup_size;
+    int32_t vect_size;
+    int32_t full_unroll_factor;
+    int32_t tail_unroll_factor;
+    int32_t global_acc;
+    dim_t local_acc;
+
+    compute::dispatch_compile_params_t params;
+};
+assert_trivially_serializable(atomic_reduction_key_params_t);
+
 struct atomic_reduction_conf_t : public reduction_subproblem_t {
     atomic_reduction_conf_t(const reduction_subproblem_t &subprb,
             data_type_t src_type, data_type_t dst_type, bool is_first,
             bool is_final, const compute::device_info_t &device_info,
-            bool large_grf_mode);
-    data_type_t src_type, dst_type;
-    compute::nd_range_t nd_range;
+            gpu_primitive_attr_t *gpu_attr);
+    status_t init_dispatcher(const compute::compute_engine_t *engine,
+            const gpu_primitive_attr_t *gpu_attr);
 
-    bool is_first, is_final;
-    int subgroup_size;
-    int global_acc;
-    int vect_size;
+    atomic_reduction_key_params_t conf;
+    compute::dispatch_runtime_params_t rt_conf;
 };
 
 struct atomic_reduction_t : public gpu_primitive_t {
@@ -55,7 +108,8 @@ struct atomic_reduction_t : public gpu_primitive_t {
             bool ok = set_default_params() == status::success
                     && attr()->has_default_values(attr_skip_mask)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && attr_.set_default_formats(dst_md(0)) == status::success
+                    && !attr()->deterministic_;
             if (!ok) return status::unimplemented;
 
             CHECK(init_conf(engine));
@@ -65,12 +119,11 @@ struct atomic_reduction_t : public gpu_primitive_t {
         }
 
         status_t init_conf(engine_t *engine);
-        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-                const atomic_reduction_conf_t &phase) const;
         status_t init_finalization_pd(engine_t *engine);
         void init_scratchpad();
 
-        reduction_conf_t conf;
+        int div;
+        float eps, power;
         std::vector<atomic_reduction_conf_t> phases;
         bool needs_finalization = false;
         std::shared_ptr<primitive_desc_t> eltwise_pd_;
@@ -79,15 +132,9 @@ struct atomic_reduction_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         auto &phases = pd()->phases;
 
-        status_t status;
         for (auto &phase : phases) {
-            compute::kernel_ctx_t kernel_ctx(pd()->attr());
-            status = pd()->init_kernel_ctx(kernel_ctx, phase);
-            CHECK(status);
             compute::kernel_t kernel;
-            status = create_kernel(
-                    engine, &kernel, "atomic_reduce", kernel_ctx);
-            CHECK(status);
+            CHECK(create_kernel(engine, kernel, "atomic_reduce", phase.conf));
             kernels_.push_back(kernel);
         }
 

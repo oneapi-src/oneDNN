@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,17 +46,35 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
 
     // Check attributes
     const data_type_t src_dt = desc.src_desc.data_type;
+    const data_type_t wei_dt = desc.weights_desc.data_type;
     const data_type_t dst_dt = desc.dst_desc.data_type;
 
+    auto attr_mask = smask_t::post_ops | smask_t::sum_dt;
     // Matmul supports scales for floating point data types
-    auto attr_mask
-            = smask_t::post_ops | smask_t::sum_dt | smask_t::scales_runtime;
+    attr_mask |= smask_t::scales_runtime;
 
     const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8);
     if (is_int8) attr_mask |= smask_t::zero_points_runtime;
 
+    // Matmul supports zero points for floating point data types as part of weights decompression
+    const bool wei_is_int8
+            = utils::one_of(wei_dt, data_type::s8, data_type::u8);
+    if (!is_int8 && wei_is_int8) {
+        attr_mask |= smask_t::zero_points_runtime_data_type;
+        attr_mask |= smask_t::zero_points_runtime_groups;
+        attr_mask |= smask_t::scales_runtime_data_type;
+        attr_mask |= smask_t::scales_runtime_groups;
+    }
+    // Matmul supports fpmath mode
+    attr_mask |= smask_t::fpmath_mode;
+
     VCHECK_MATMUL_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);
+
+    int ndims_wei = desc.weights_desc.ndims;
+    assert(ndims_wei >= 2);
+    int wei_qmask_N = 1 << (ndims_wei - 1);
+    int wei_qmask_K = 1 << (ndims_wei - 2);
 
     // Check scales
     if (!attr->scales_.has_default_values()) {
@@ -66,8 +84,8 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
 
         VCHECK_MATMUL_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
-                        && utils::one_of(mask_wei, 0,
-                                1 << (desc.weights_desc.ndims - 1)),
+                        && utils::one_of(mask_wei, 0, wei_qmask_N,
+                                wei_qmask_N + wei_qmask_K),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
@@ -79,13 +97,14 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         zp.get(DNNL_ARG_WEIGHTS, &mask_wei);
         zp.get(DNNL_ARG_DST, &mask_dst);
 
-        VCHECK_MATMUL_UNIMPL(mask_wei == 0
-                        && (mask_src == 0
-                                || (desc.src_desc.ndims == 2
-                                        && mask_src == 1 << 1))
-                        && (mask_dst == 0
-                                || (desc.dst_desc.ndims == 2
-                                        && mask_dst == 1 << 1)),
+        VCHECK_MATMUL_UNIMPL(mask_src == 0
+                        || (desc.src_desc.ndims == 2 && mask_src == 1 << 1),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+        VCHECK_MATMUL_UNIMPL(utils::one_of(mask_wei, 0, wei_qmask_N,
+                                     wei_qmask_N + wei_qmask_K),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+        VCHECK_MATMUL_UNIMPL(mask_dst == 0
+                        || (desc.dst_desc.ndims == 2 && mask_dst == 1 << 1),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
     }
 

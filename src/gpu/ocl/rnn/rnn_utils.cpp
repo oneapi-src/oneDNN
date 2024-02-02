@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -136,9 +136,10 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
 
     // Decide if to merge gemm across iterations or layers
-    auto dst_layer_ld = dst_layer_d.blocking_desc().strides[1];
-    auto dst_layer_is_trivial_stride
-            = dst_layer_d.blocking_desc().strides[0] == (dst_layer_ld * rnn.mb);
+    auto dst_layer_is_trivial_stride = dst_layer_d.dims()[0] <= 1
+            || dst_layer_d.dims()[1] <= 1
+            || (dst_layer_d.blocking_desc().strides[0]
+                    == (dst_layer_d.blocking_desc().strides[1] * rnn.mb));
 
     // Does not account for alignment striding
     dim_t merge_scratch_size_estimate = rnn.gates_ld * rnn.mb * rnn.n_iter;
@@ -354,19 +355,12 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     bool require_copy_diff_src_layer = [&]() {
         if (is_fwd) return false;
 
-        auto &strides = diff_src_layer_d.strides();
-        auto &pdims = diff_src_layer_d.padded_dims();
-
         // Unimplemented
         if (rnn.merge_gemm_iter || rnn.merge_gemm_layer) return true;
 
         // Direction need to be summed together. This requires generating new
         // GEMM kernels to perform a sum accumulation for the final accumulation.
         if (rnn.n_dir > 1) return true;
-
-        // A new kernel needs to be generated if the strides differ.
-        if (pdims[1] == 1 || rnn.scratch_diff_states_ld != strides[1])
-            return true;
 
         return false;
     }();
@@ -384,10 +378,9 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     // TODO: seprate diff_c_offsets from diff-states & seprate h- and c- off
     rnn.ws_c_states_cell_size
             = is_lstm ? rnn.mb * rnn.states_ws_ld * aux_elsz : 0;
-    rnn.ws_c_states_size = is_lstm
-            ? (copy_src_layer ? rnn.n_layer + 1 : rnn.n_layer) * rnn.n_dir
-                    * (rnn.n_iter + 1) * rnn.ws_c_states_cell_size
-            : 0;
+    rnn.ws_c_states_size = is_lstm ? rnn.n_layer * rnn.n_dir * (rnn.n_iter + 1)
+                    * rnn.ws_c_states_cell_size
+                                   : 0;
 
     auto scratch_diff_n_states
             = copy_diff_dst_layer || copy_diff_src_layer || rnn.n_layer != 1

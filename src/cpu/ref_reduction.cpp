@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,7 +152,7 @@ status_t ref_reduction_t<src_type, dst_type, acc_type>::execute_ref(
         args.dst_md = pd()->dst_md();
         ref_post_ops->execute(acc_f32, args);
 
-        dst[dst_off] = saturate_and_round<dst_t>(acc_f32);
+        dst[dst_off] = q10n::saturate_and_round<dst_t>(acc_f32);
     });
 
     return status::success;

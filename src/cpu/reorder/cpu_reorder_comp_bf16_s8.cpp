@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,11 +28,11 @@ const impl_list_map_t &comp_bf16_s8_impl_list_map() {
         {{bf16, s8, 2}, {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR(bf16, oi, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
-            DNNL_NON_X64_ONLY(REG_SR(bf16, io, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
+            DNNL_NON_X64_ONLY(REG_SR(bf16, format_tag::io, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(bf16, oi, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp))
-            DNNL_NON_X64_ONLY(REG_SR(bf16, io, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp))
+            DNNL_NON_X64_ONLY(REG_SR(bf16, format_tag::io, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(bf16, oi, s8, OI4i64o4i, fmt_order::keep, spec::conv_req_comp))
-            DNNL_NON_X64_ONLY(REG_SR(bf16, io, s8, OI4i64o4i, fmt_order::keep, spec::conv_req_comp))
+            DNNL_NON_X64_ONLY(REG_SR(bf16, format_tag::io, s8, OI4i64o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(bf16, ab, s8, BA16a16b4a, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(bf16, ab, s8, BA16a32b4a, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(bf16, ab, s8, BA16a48b4a, fmt_order::keep, spec::conv_req_comp))

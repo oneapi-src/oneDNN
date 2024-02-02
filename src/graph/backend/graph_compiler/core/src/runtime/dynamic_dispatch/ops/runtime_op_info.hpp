@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,6 +98,64 @@ struct dyn_padding_runtime_info_t {
         , pads_end_h(pads_end_h)
         , pads_end_w(pads_end_w) {}
 };
+
+struct dyn_pooling_runtime_info_t {
+    int stride_d = 1;
+    int stride_h = 1;
+    int stride_w = 1;
+
+    int pads_begin_d = 0;
+    int pads_begin_h = 0;
+    int pads_begin_w = 0;
+
+    int pads_end_d = 0;
+    int pads_end_h = 0;
+    int pads_end_w = 0;
+
+    int kernel_d = 0;
+    int kernel_h = 0;
+    int kernel_w = 0;
+
+    bool rounding_type_floor = true;
+    bool auto_pads_same = false;
+
+    dyn_pooling_runtime_info_t() = default;
+
+    dyn_pooling_runtime_info_t(int stride_d, int stride_h, int stride_w,
+            int pads_begin_d, int pads_begin_h, int pads_begin_w,
+            int pads_end_d, int pads_end_h, int pads_end_w, int kernel_d,
+            int kernel_h, int kernel_w, bool rounding_type_floor,
+            bool auto_pads_same)
+        : stride_d(stride_d)
+        , stride_h(stride_h)
+        , stride_w(stride_w)
+        , pads_begin_d(pads_begin_d)
+        , pads_begin_h(pads_begin_h)
+        , pads_begin_w(pads_begin_w)
+        , pads_end_d(pads_end_d)
+        , pads_end_h(pads_end_h)
+        , pads_end_w(pads_end_w)
+        , kernel_d(kernel_d)
+        , kernel_h(kernel_h)
+        , kernel_w(kernel_w)
+        , rounding_type_floor(rounding_type_floor)
+        , auto_pads_same(auto_pads_same) {}
+
+    dyn_pooling_runtime_info_t(int stride_h, int stride_w, int pads_begin_h,
+            int pads_begin_w, int pads_end_h, int pads_end_w, int kernel_h,
+            int kernel_w, bool rounding_type_floor, bool auto_pads_same)
+        : stride_h(stride_h)
+        , stride_w(stride_w)
+        , pads_begin_h(pads_begin_h)
+        , pads_begin_w(pads_begin_w)
+        , pads_end_h(pads_end_h)
+        , pads_end_w(pads_end_w)
+        , kernel_h(kernel_h)
+        , kernel_w(kernel_w)
+        , rounding_type_floor(rounding_type_floor)
+        , auto_pads_same(auto_pads_same) {}
+};
+
 } // namespace gc
 } // namespace graph
 } // namespace impl

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <ops/convolution.hpp>
 #include <ops/fusible/binary_elemwise.hpp>
 #include <ops/fusible/memory_movement.hpp>
+#include <ops/fusible/pooling.hpp>
 #include <ops/fusible/reduce.hpp>
 #include <ops/fusible/ternary_elemwise.hpp>
 #include <ops/fusible/unary_elemwise.hpp>
@@ -178,7 +179,50 @@ SC_API void dynamic_infer_shape_by_graph(sc_graph_t &graph,
                     auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
                     infer_shape_select_op(out, in0, in1, in2);
                     print_shapes(node->op_name_, out);
-                } else {
+                } else if (node->isa<pooling_op_t>()) {
+                    auto *data = get_or_create_dyn_tsr(node->get_inputs()[0]);
+                    auto *out = get_or_create_dyn_tsr(node->get_outputs()[0]);
+                    auto pooling_op = node->stc_cast<pooling_op_t>();
+                    std::string auto_pad
+                            = pooling_op->attrs_.get_or_else<std::string>(
+                                    pooling_attr_key::auto_pad,
+                                    auto_pad_options::none);
+                    auto auto_pads_same
+                            = auto_pad == auto_pad_options::same_upper
+                            || auto_pad == auto_pad_options::same_lower;
+                    auto rounding_type_floor
+                            = pooling_op->attrs_.get_or_else<std::string>(
+                                      pooling_attr_key::rounding_type,
+                                      rounding_type_options::floor)
+                            == rounding_type_options::floor;
+                    auto dyn_info = data->ndims_ == 5
+                            ? dyn_pooling_runtime_info_t(pooling_op->stride_[0],
+                                    pooling_op->stride_[1],
+                                    pooling_op->stride_[2],
+                                    pooling_op->pads_begin_[0],
+                                    pooling_op->pads_begin_[1],
+                                    pooling_op->pads_begin_[2],
+                                    pooling_op->pads_end_[0],
+                                    pooling_op->pads_end_[1],
+                                    pooling_op->pads_end_[2],
+                                    pooling_op->kernel_[0],
+                                    pooling_op->kernel_[1],
+                                    pooling_op->kernel_[2], rounding_type_floor,
+                                    auto_pads_same)
+                            : dyn_pooling_runtime_info_t(pooling_op->stride_[0],
+                                    pooling_op->stride_[1],
+                                    pooling_op->pads_begin_[0],
+                                    pooling_op->pads_begin_[1],
+                                    pooling_op->pads_end_[0],
+                                    pooling_op->pads_end_[1],
+                                    pooling_op->kernel_[0],
+                                    pooling_op->kernel_[1], rounding_type_floor,
+                                    auto_pads_same);
+                    infer_shape_pooling_fusible_op(out, data, dyn_info);
+                    print_shapes(node->op_name_, out);
+                }
+
+                else {
                     COMPILE_ASSERT(false,
                             "Unsupported op for shape inference: "
                                     << node->op_name_);

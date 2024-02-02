@@ -17,6 +17,8 @@
 #ifndef CPU_X64_JIT_BRGEMM_1X1_CONV_HPP
 #define CPU_X64_JIT_BRGEMM_1X1_CONV_HPP
 
+#include <forward_list>
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
@@ -46,21 +48,27 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , with_sum(false)
-            , sum_scale(0) {}
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgconv_1x1:", isa, ""),
                 brgemm_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine);
 
-        std::shared_ptr<brgemm_containers::brgemm_desc_container_t> brgs_;
-        bool with_sum;
-        float sum_scale;
+        struct brgemm_init_params_t {
+            brgemm_init_params_t(
+                    int k_accum_idx, int m, int n, int k, size_t lda)
+                : k_accum_idx_(k_accum_idx), M_(m), N_(n), K_(k), LDA_(lda) {}
+            const int k_accum_idx_; // controls brgemm:beta param
+            const int M_, N_, K_;
+            const size_t LDA_;
+        };
 
-        bool need_postwork;
-        int ic_chunks;
+        std::shared_ptr<brgemm_containers::brgemm_desc_container_t> brgs_;
+        std::forward_list<brgemm_init_params_t> brgemm_init_params_;
+
+        bool need_postwork_;
+        int ic_chunks_;
 
         jit_brgemm_conv_conf_t jcp_;
 
@@ -78,6 +86,9 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
             return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
                     && mask_src == 0 && mask_dst == 0;
         }
+
+    private:
+        status_t init_brgemm_desc();
     };
 
     brgemm_1x1_convolution_fwd_t(const pd_t *apd)
@@ -125,7 +136,7 @@ private:
             int od, int oh, int ow, int icc, int *last_brg_idx,
             const float *oscales, int32_t src_zp_vals, int32_t *src_zp_comp,
             int32_t *dst_zp_vals, int32_t *s8s8_compensation,
-            const float *dst_scales) const;
+            const float *dst_scales, const bool is_last_os = false) const;
     void execute_os_blocking(const brgemm_exec_ctx_t &brgemm_ctx,
             brgemm_batch_element_t *const brg_batch_global,
             const float *dst_scales, const float *oscales, int32_t src_zp_vals,
@@ -141,7 +152,16 @@ private:
     status_t execute_forward_all(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    static int get_brg_idx(bool do_initialization, int is_M_tail,
+    static int get_brg_idx(const jit_brgemm_conv_conf_t &jcp,
+            const typename pd_t::brgemm_init_params_t &bparams) {
+        const int k_accum_idx = bparams.k_accum_idx_;
+        const int is_M_tail = bparams.M_ == jcp.M_tail;
+        const int is_N_tail = bparams.N_ == jcp.N_tail;
+        const int is_K_tail = bparams.K_ == jcp.K_tail;
+        return get_brg_idx(k_accum_idx, is_M_tail, is_N_tail, is_K_tail);
+    }
+
+    static int get_brg_idx(int do_initialization, bool is_M_tail,
             bool is_N_tail, bool is_K_tail) {
         return (((int)do_initialization * 2 + (int)is_M_tail) * 2
                        + (int)is_N_tail)
@@ -153,8 +173,23 @@ private:
         return (int)is_M_tail * 2 + (int)is_N_tail;
     }
 
-    brgemm_containers::brgemm_kernel_container_t brg_kernels_ {16};
-    brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {16};
+    // when there is no M_tail and there are two or more M blocks
+    // e.g. 'jcp.nb_os > 1', use a separate BRGeMM and use RTUS input
+    // only for the last M block.
+    static bool get_extra_m_kernel_req(const jit_brgemm_conv_conf_t &jcp) {
+        return jcp.is_reduced_rtus && jcp.M_tail == 0 && jcp.nb_os > 1;
+    }
+
+    // Note: when there is only one BRGeMM to compute the M dimension, need to
+    // break K accumulation into two separate BRGeMMs, one for IC without RTUS,
+    // and another for padded IC through RTUS.
+    static bool get_compute_partial_k_in_rtus(
+            const jit_brgemm_conv_conf_t &jcp) {
+        return jcp.is_reduced_rtus && (!get_extra_m_kernel_req(jcp));
+    }
+
+    brgemm_containers::brgemm_kernel_container_t brg_kernels_ {32};
+    brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {32};
 
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_rtus_kernel_t>

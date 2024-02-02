@@ -109,6 +109,7 @@ ostream &operator<<(ostream &os, intrin_type val) {
         HANDLE_CASE(reduce_max)
         HANDLE_CASE(reduce_min)
         HANDLE_CASE(fmadd)
+        HANDLE_CASE(fnmadd)
         HANDLE_CASE(unpack_low)
         HANDLE_CASE(unpack_high)
         HANDLE_CASE(shuffle)

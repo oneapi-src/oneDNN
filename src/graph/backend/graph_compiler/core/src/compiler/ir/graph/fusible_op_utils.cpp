@@ -283,13 +283,13 @@ expr last_dim_generate_mask(const expr &iter_var, const expr &floor,
 }
 
 expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
-        int32_t step, const expr &sup_condition) {
+        int32_t step, const expr &sup_condition, bool direct_sup_cond) {
     // notice: cur_step must be s32
     sc_data_type_t var_dtype;
     uint64_t init_value;
     choose_mask_vartype_init_value(var_dtype, init_value, step);
-    auto mask_select
-            = generate_mask_by_step_directly(cur_step, step, sup_condition);
+    auto mask_select = generate_mask_by_step_directly(
+            cur_step, step, sup_condition, direct_sup_cond);
     auto mask = builder::make_var(
             var_dtype, "__mask_" + std::to_string(var_idx++));
     mask_def = builder::make_var_tensor_def_unattached(
@@ -297,16 +297,18 @@ expr generate_mask_var_by_step(stmt &mask_def, const expr &cur_step,
     return mask;
 }
 
-expr generate_mask_by_step_directly(
-        const expr &cur_step, int32_t step, const expr &sup_condition) {
+expr generate_mask_by_step_directly(const expr &cur_step, int32_t step,
+        const expr &sup_condition, bool direct_sup_cond) {
     // notice: cur_step must be s32
     sc_data_type_t var_dtype;
     uint64_t init_value;
     choose_mask_vartype_init_value(var_dtype, init_value, step);
     auto full_mask = builder::make_constant({init_value}, var_dtype);
     auto empty_mask = builder::make_constant({UINT64_C(0)}, var_dtype);
-    auto empty_mask_condition = (sup_condition.defined())
-            ? (cur_step == 0 || !sup_condition)
+    expr empty_mask_condition;
+    empty_mask_condition = (sup_condition.defined())
+            ? (cur_step == 0
+                    || (direct_sup_cond ? sup_condition : !sup_condition))
             : (cur_step == 0);
     return builder::make_select(empty_mask_condition, empty_mask,
             builder::make_select(cur_step == step, full_mask,

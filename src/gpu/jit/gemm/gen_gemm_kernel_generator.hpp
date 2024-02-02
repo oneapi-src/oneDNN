@@ -25,6 +25,7 @@
 
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
+#include "gpu/gpu_post_ops.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 #include "gpu/jit/gemm/utils.hpp"
 #include "gpu/jit/jit_generator.hpp"
@@ -247,6 +248,9 @@ enum RemainderOptions : uint8_t {
     AllowDescriptors
     = 2, // Allow indirect send descriptor-based remainder handling.
     AllowFragDesc = 3, // Allow fragmentation and descriptors.
+    NoFixedMasks = 4, // Do not allow fixed masks.
+    AllowFragDescNFM
+    = 7, // Allow fragmentation and descriptors, but no fixed masks
 };
 
 // Preferences for using scattered accesses.
@@ -866,7 +870,7 @@ struct GEMMProblem : public CommonProblem {
             = false; // If true, calculate A row sums/B column sums and store in CO.
     bool postOpFwd = true; // Eltwise parameters
 
-    post_ops_t postOps; // Fused post operations to apply
+    gpu_post_ops_t postOps; // Fused post operations to apply
     std::bitset<post_ops_t::post_ops_limit>
             binaryRow; // Binary-op broadcasts row data on false
     std::bitset<post_ops_t::post_ops_limit>
@@ -880,28 +884,22 @@ struct GEMMProblem : public CommonProblem {
     std::vector<MatrixAddressing> binary; // Binary postop data
     std::vector<Type> Tbinary; // Binary types
 
-    bool hasPostOp() const { return postOps.len() > 0; }
+    bool hasPostOp() const { return !postOps.empty(); }
     bool hasNonSum1PostOp() const {
-        for (const auto &e : postOps.entry_)
+        for (const auto &e : postOps)
             if (!e.is_sum()) return true;
         return false;
     }
     bool hasBinaryPostOp() const {
-        for (int idx = 0; idx < postOps.len(); idx++)
-            if (postOps.entry_[idx].is_binary()
-                    || postOps.entry_[idx].is_prelu())
-                return true;
+        for (auto &e : postOps)
+            if (e.is_binary()) return true;
         return false;
     }
     bool hasSum1PostOpAtEnd() const {
-        return postOps.len() > 0 && postOps.entry_[postOps.len() - 1].is_sum();
+        return !postOps.empty() && postOps.back().is_sum();
     }
     void removeFinalSumPostOp() {
-        if (postOps.len() > 0) {
-            auto &lastPO = postOps.entry_[postOps.len() - 1];
-            if (lastPO.kind == primitive_kind::sum)
-                postOps.entry_.resize(postOps.len() - 1);
-        }
+        if (hasSum1PostOpAtEnd()) { postOps.pop_back(); }
     }
 
     bool beta0() const { return (beta == 0); }
@@ -913,6 +911,8 @@ struct GEMMProblem : public CommonProblem {
         if (!(alpha1() || alphaM1())) return true;
         if (!(beta0() || beta1())) return true;
         if (beta1() && !Tc_ext.isSubsetOf(Tc)) return true;
+        if ((Tc == Type::s32 || Tc == Type::u32) && Tc_ext == Type::bf16)
+            return true;
         if (hasNonSum1PostOp()) return true;
         return false;
     }
@@ -968,11 +968,6 @@ enum class WalkOrder : uint8_t {
 
 // Strategy parameters for GEMM kernels.
 struct GEMMStrategyPOD : public CommonStrategy {
-    void serialize(serialized_data_t &s) const {
-        // Explicitly maintain zero padding to keep the implementation simple and
-        // robust
-        s.append(*this);
-    }
     int blocking[3] = {
             0}; // Recommended block size in each dimension (m/n/k) -- for driver.
     int blockingAlt[3] = {
@@ -1240,11 +1235,13 @@ struct GEMMStrategy : public GEMMStrategyPOD {
         return 64 * (int(fuseBeta) + int(fusePostOps));
     }
     bool needsTempC(const GEMMProblem &problem) const;
+    bool nondeterministic(const GEMMProblem &problem) const;
 
     bool checkAdd32Rem() const { return checkAdd32 && emulate.emulate64; }
 
     void serialize(serialized_data_t &s) const {
-        GEMMStrategyPOD::serialize(s);
+        const GEMMStrategyPOD &pod = *this;
+        s.append(pod);
         for (const auto &astrategy : binary)
             s.append(astrategy);
     }
@@ -2378,8 +2375,9 @@ protected:
     void gemmPrefetchC(const GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state);
 
-    void gemmApplyPostOps(int poMin, int poMax, const GEMMProblem &problem,
-            const GEMMStrategy &strategy, GEMMState &state);
+    void gemmApplyPostOps(size_t poMin, size_t poMax,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
     void gemmLoadBinaryOpArgs(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
 

@@ -96,15 +96,6 @@ inline bool check_if_null_producer(op_t *op) {
     return null_producer;
 }
 
-inline bool reject_fp16(op_t *op) {
-    for (const auto &in_value : op->get_input_values()) {
-        if (in_value->get_logical_tensor().data_type == data_type::f16) {
-            return false;
-        }
-    }
-    return true;
-}
-
 // checks datatype and isa
 inline bool check_isa_compatibility(op_t *op) {
     bool require_vnni = false;

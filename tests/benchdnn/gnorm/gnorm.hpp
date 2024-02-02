@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -154,6 +154,67 @@ private:
     std::string repro;
 
     std::string set_repro_line();
+};
+
+struct cfg_t {
+    // The idea of data filling is to choose source values the way both mean
+    // and variance values are computed exactly. Exactness must hold for any
+    // order of the computations. It is achieved when the following equation
+    // holds: src[i] + src[i + 1] = 2 * mean.
+    //
+    // The data variation in source values is allowed in the last `flex_bits_`
+    // bits. If the sequence `L_` is too big, e.g.,
+    // `flex_bits_ <= min_flex_bits_`, the mean value is set to `0.f` and source
+    // is partially filled with zeros according to `density_`. In such case at
+    // least `want_flex_bits_` is reserved for source values variation.
+    // Once source values are set, the variance value is computed.
+    //
+    // ALG_0: mean value is set to 0.
+    // ALG_1: mean value is set to 2^x, where `x` \in {-2, -1, ..., 4}.
+    // ALG_2: same as ALG_1 for mean and some more variation in src.
+    // ALG_AUTO: choose between algorithms automatically.
+    //
+    // `density_` is filled according to the following inequation:
+    //     (exact_bits - log_2(L * density)) / 2 >= flex_bits
+    cfg_t(const prb_t *prb)
+        : exact_bits_(digits_dt(prb->dt[0]))
+        , L_(prb->ic / prb->g * prb->id * prb->ih * prb->iw)
+        , logL_(static_cast<int64_t>(
+                  std::ceil(std::log2(static_cast<float>(L_)))))
+        , free_bits_((exact_bits_ - logL_) / 2 - 1)
+        , want_flex_bits_(MIN2(6, exact_bits_ / 2))
+        , check_alg_(prb->check_alg == bnorm::ALG_AUTO
+                          ? (free_bits_ >= min_flex_bits_
+                                          ? bnorm::ALG_1
+                                          : (want_flex_bits_ == exact_bits_ / 2
+                                                          ? bnorm::ALG_2
+                                                          : bnorm::ALG_0))
+                          : prb->check_alg)
+        , flex_bits_(check_alg_ == bnorm::ALG_1 ? MIN2(exact_bits_, free_bits_)
+                                                : want_flex_bits_)
+        , flex_mask_((1LL << flex_bits_) - 1)
+        , density_(check_alg_ == bnorm::ALG_0
+                          ? 1.f * (1LL << (exact_bits_ - 2 * flex_bits_)) / L_
+                          : 1.f) {
+        assert(logL_ <= 0 || (1LL << (logL_ - 1)) < L_);
+        assert(L_ <= (1LL << logL_));
+        assert(flex_bits_ >= min_flex_bits_);
+        BENCHDNN_PRINT(6,
+                "[CFG]: check_alg:%s; density:%g; flex_bits:" IFMT "\n",
+                check_alg2str(check_alg_), density_, flex_bits_);
+    }
+
+    int64_t exact_bits_;
+    int64_t L_;
+    int64_t logL_;
+    int64_t free_bits_; // Helper value holder.
+    int64_t want_flex_bits_;
+    check_alg_t check_alg_;
+    int64_t flex_bits_;
+    int64_t flex_mask_;
+    float density_;
+
+    static constexpr int64_t min_flex_bits_ = 3;
 };
 
 struct perf_report_t : public base_perf_report_t {

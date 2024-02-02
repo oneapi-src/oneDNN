@@ -78,16 +78,9 @@ public:
     CUdevice get_underlying_device() const;
     cudnnHandle_t *get_cudnn_handle();
     cublasHandle_t *get_cublas_handle();
-    const bool has_primary_context() const { return primary_context_; }
     device_id_t device_id() const override;
 
-protected:
-    ~sycl_cuda_engine_t() override = default;
-
 private:
-    // This functions sets the context type. Since cuda requires different
-    // approach in retaining/releasing primary/non-primary context.
-    status_t underlying_context_type();
     status_t set_cudnn_handle();
     status_t set_cublas_handle();
     // To avoid performance penalty cudnn/cublas required to have one handle per
@@ -105,8 +98,6 @@ private:
     utils::thread_local_storage_t<
             std::unique_ptr<cublasHandle_t, void (*)(cublasHandle_t *)>>
             cublas_handle_;
-
-    bool primary_context_;
 };
 
 } // namespace nvidia

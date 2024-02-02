@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -226,12 +226,18 @@ std::vector<pb_node_t *> pb_graph_t::get_nodes() {
     return retval;
 }
 
-pb_graph_t::pb_graph_t() {
+pb_graph_t::pb_graph_t() : min_op_num_ {0} {
     debug_string_ = "pgraph";
 }
 
 pb_op_t *pb_graph_t::append_op(const decision_function &p_fn,
         const in_edges_t &p_in_edges, std::string name) {
+    min_op_num_ += 1;
+    // special handling for op with variadic inputs, the minimum
+    // input num for this op should be 0.
+    if (p_in_edges.size() == VARIADIC_INPUT_NUM) {
+        min_op_num_ -= VARIADIC_INPUT_NUM;
+    }
     std::shared_ptr<pb_op_t> p_op(new pb_op_t(p_fn));
     p_op->set_name(std::move(name));
     connect_edges(p_op.get(), p_in_edges);
@@ -284,6 +290,7 @@ alternation_t *pb_graph_t::append_alternation(
     nodes_.push_back(dynamic_pointer_cast<pb_node_t>(p_alternation));
     auto contained_ops = p_alternation->get_contained_ops();
     p_ops_.insert(contained_ops.begin(), contained_ops.end());
+    min_op_num_ += p_alternation->get_min_op_num();
     return p_alternation.get();
 }
 
@@ -304,6 +311,7 @@ repetition_t *pb_graph_t::append_repetition(
     nodes_.push_back(dynamic_pointer_cast<pb_node_t>(p_repetition));
     auto contained_ops = p_repetition->get_contained_ops();
     p_ops_.insert(contained_ops.begin(), contained_ops.end());
+    min_op_num_ += p_repetition->get_min_op_num();
     return p_repetition.get();
 }
 
@@ -344,9 +352,16 @@ repetition_t *pb_graph_t::append_optional(
 }
 
 alternation_t::alternation_t(std::vector<std::shared_ptr<pb_graph_t>> p_nodes)
-    : alternatives_ {std::move(p_nodes)} {
+    : alternatives_ {std::move(p_nodes)}, min_op_num_ {0} {
     node_kind_ = pb_node_kind::PB_NODE_KIND_ALTERNATION;
+    if (!alternatives_.empty()) {
+        min_op_num_ = alternatives_[0]->get_min_op_num();
+    }
     for (const auto &node : alternatives_) {
+        // Find the minimum op number required to match the alternatives
+        if (min_op_num_ > node->get_min_op_num()) {
+            min_op_num_ = node->get_min_op_num();
+        }
         auto contained_ops = node->get_contained_ops();
         p_ops_.insert(contained_ops.begin(), contained_ops.end());
     }
@@ -367,12 +382,13 @@ repetition_t::repetition_t(std::shared_ptr<pb_graph_t> p_node, port_map p_map,
     , min_rep_ {min_rep}
     , max_rep_ {max_rep} {
     node_kind_ = pb_node_kind::PB_NODE_KIND_REPETITION;
+    min_op_num_ = body_->get_min_op_num() * min_rep_;
     auto contained_ops = body_->get_contained_ops();
     p_ops_.insert(contained_ops.begin(), contained_ops.end());
 }
 
 repetition_t::repetition_t(std::shared_ptr<pb_graph_t> p_node)
-    : body_ {std::move(p_node)}, min_rep_ {0}, max_rep_ {2} {
+    : body_ {std::move(p_node)}, min_rep_ {0}, max_rep_ {2}, min_op_num_ {0} {
     node_kind_ = pb_node_kind::PB_NODE_KIND_REPETITION;
     port_map_ = {0, 0};
     auto contained_ops = body_->get_contained_ops();

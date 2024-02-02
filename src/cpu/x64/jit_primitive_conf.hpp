@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -719,6 +719,8 @@ struct jit_brgemm_conv_conf_t {
     bool is_is_blocking;
     bool is_os_blocking;
     bool is_rtus;
+    bool is_reduced_rtus;
+    size_t rtus_ic_size, rtus_padded_ic_size;
     bool ununroll_bd_loop {false};
     int nb_ic, ic_block, inp_ic_block;
     int nb_tr_ic, tr_ic_block, tr_ic_tail;
@@ -753,8 +755,10 @@ struct jit_brgemm_conv_conf_t {
     int is_ic_scale, is_oc_scale;
 
     int LDA, LDB, LDC, LDD;
+
     int M, N, K, M_tail, N_tail, K_tail;
-    // M for brgemm kernel. For use_store_mask it is usually greater than M (M_tail). Otherwise it is equal to M (M_tail)
+    // Note: M for brgemm kernel. For use_store_mask it is usually greater than
+    // M (M_tail). Otherwise it is equal to M (M_tail).
     int brgM, brgM_tail;
     int gemm_batch_size, adjusted_batch_size;
     brgemm_batch_kind_t brg_type;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,12 +54,8 @@ public:
     void infer_binding_axis(binding_axis_map &bdax_map) override;
     void pre_infer_binding_axis(binding_axis_map &bdax_map) override;
 
-    void set_use_dst(bool used) { use_dst = used; }
-
 private:
     vectorized_info_t vx_info_;
-    // bool, whether use dst tensor to calculate backward
-    bool use_dst;
     binary_backward_operator backward_op_type;
 };
 

@@ -29,7 +29,20 @@ The @ref dnnl::fpmath_mode primitive attribute can take 3 types of values:
 This attribute is ignored if a primitive computation data-type is
 integral.
 
-## A note on default floating-point math mode
+## Enforcing the floating-point math mode to an integral primitive.
+
+A user can enforce an integral primitive to comply with the floating-point math mode by
+setting the second argument of @ref dnnl_set_default_fpmath_mode_v2 (C API) or
+the @ref dnnl::set_default_fpmath_mode_v2 (C++ API) functions to `1` or `true`.
+
+In this case, an integral primitive will be forced to add an implicit weights
+up-conversion to the data type specified in the @ref dnnl::fpmath_mode in addition
+to down-conversions described for the primitives with floating-point computation
+data-types. The de-quantization parameters of this up-conversion can be specified using
+[quantization attributes](@ref dev_guide_attributes_quantization). For more details,
+refer to [Matmul Tutorial: weights decompression](@ref weights_decompression_matmul_cpp).
+
+## A note on the default floating-point math mode.
 
 The default floating-point mode is `strict`, which means no implicit
 down-conversion is allowed.  However, this default behavior can be

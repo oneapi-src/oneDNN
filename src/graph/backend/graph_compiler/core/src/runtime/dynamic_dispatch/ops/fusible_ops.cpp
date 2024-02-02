@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -258,6 +258,79 @@ extern "C" void query_format_padding_op(void *table, void *out, void *in,
             = *op_table->op_info_
                        .unchecked_get_as<dyn_padding_runtime_info_t>();
     infer_shape_padding_fusible_op(out, in, info);
+    // query format
+    auto &format_table = op_table->format_table_;
+    if (format_table) {
+        void *value = format_table->get(in_fmt, 1);
+        assert(value);
+        *out_fmt = reinterpret_cast<uint64_t *>(value)[1];
+    }
+    // query kernel
+    auto &kernel_table = op_table->kernel_table_;
+    if (kernel_table) {
+        uint64_t keys[2] = {*in_fmt, *out_fmt};
+        void *func
+                = op_table->kernel_dispatch_func_(kernel_table.get(), keys, 2);
+        assert(func);
+        *reinterpret_cast<void **>(kernel) = func;
+    }
+    // query inplace
+    *out_size = runtime::calculate_blocking_dims(out, out_fmt);
+}
+
+extern "C" void infer_shape_pooling_fusible_op(
+        void *out, void *in, dyn_pooling_runtime_info_t &op_info) {
+    runtime::dynamic_tensor_t *out_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(out);
+    runtime::dynamic_tensor_t *in_dyn_tsr
+            = reinterpret_cast<runtime::dynamic_tensor_t *>(in);
+    int data_ndims = in_dyn_tsr->ndims_;
+    out_dyn_tsr->ndims_ = data_ndims;
+    int64_t *data_dims = in_dyn_tsr->dims_;
+    out_dyn_tsr->dims_[0] = data_dims[0];
+    out_dyn_tsr->dims_[1] = data_dims[1];
+    int strides[3] = {op_info.stride_d, op_info.stride_h, op_info.stride_w};
+    int kernels[3] = {op_info.kernel_d, op_info.kernel_h, op_info.kernel_w};
+    int pads_begin[3] = {
+            op_info.pads_begin_d, op_info.pads_begin_h, op_info.pads_begin_w};
+    int pads_end[3]
+            = {op_info.pads_end_d, op_info.pads_end_h, op_info.pads_end_w};
+    int offset = data_ndims == 5 ? -2 : -1;
+    if (op_info.auto_pads_same) {
+        for (int i = 2; i < data_ndims; i++) {
+            out_dyn_tsr->dims_[i] = (data_dims[i] + strides[i + offset] - 1)
+                    / strides[i + offset];
+        }
+    } else {
+        for (int i = 2; i < data_ndims; i++) {
+            if (op_info.rounding_type_floor) {
+                out_dyn_tsr->dims_[i]
+                        = (data_dims[i] + pads_begin[i + offset]
+                                  + pads_end[i + offset] - kernels[i + offset])
+                                / strides[i + offset]
+                        + 1;
+            } else {
+                out_dyn_tsr->dims_[i] = utils::divide_and_ceil(data_dims[i]
+                                                        + pads_begin[i + offset]
+                                                        + pads_end[i + offset]
+                                                        - kernels[i + offset],
+                                                strides[i + offset])
+                        + 1;
+            }
+        }
+    }
+}
+
+extern "C" void query_format_pooling_op(void *table, void *out, void *in,
+        uint64_t *out_fmt, uint64_t *in_fmt, uint64_t *out_size, void *kernel,
+        int *impl_alg) {
+    // infer shape
+    runtime::op_dispatch_tables_t *op_table
+            = reinterpret_cast<runtime::op_dispatch_tables_t *>(table);
+    dyn_pooling_runtime_info_t info
+            = *op_table->op_info_
+                       .unchecked_get_as<dyn_pooling_runtime_info_t>();
+    infer_shape_pooling_fusible_op(out, in, info);
     // query format
     auto &format_table = op_table->format_table_;
     if (format_table) {

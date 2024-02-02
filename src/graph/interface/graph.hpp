@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,6 +79,9 @@ private:
     std::vector<std::shared_ptr<graph::partition_impl_t>> partition_impls_;
 
     bool finalized_ {false};
+
+    /*! \brief num of ops that have not been partitioned */
+    size_t num_unpartitioned_ops_ {0};
 
 public:
     dnnl_graph_graph(graph::engine_kind_t kind = graph::engine_kind::cpu)
@@ -161,6 +164,9 @@ public:
     /*! \brief how many ops in the graph */
     size_t num_ops() const { return ops_.size(); }
 
+    /*! \brief how many ops in the graph have not been partitioned */
+    size_t num_unpartitioned_ops() const { return num_unpartitioned_ops_; }
+
     /*!
      * \brief Get the output ops of this graph.
      * \return vector of output op pointers
@@ -239,13 +245,17 @@ public:
 
     void add_partition(const std::shared_ptr<graph::partition_impl_t> &pimpl) {
         partition_impls_.push_back(pimpl);
+        num_unpartitioned_ops_ -= pimpl->get_ops().size();
     }
 
     std::vector<std::shared_ptr<graph::partition_impl_t>> &get_partitions() {
         return partition_impls_;
     }
 
-    void clean_partitions() { partition_impls_.clear(); }
+    void clean_partitions() {
+        partition_impls_.clear();
+        num_unpartitioned_ops_ = num_ops();
+    }
 
     /*!
      * \brief Get partition numbers

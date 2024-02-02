@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -84,6 +84,7 @@ public:
     std::vector<int> get_impl_dispatch_candidates(
             const context_ptr &ctx) override;
     shape_rl_vec get_dynamic_shape_relations() const override;
+    void calculate_dynamic_shape_expression() override;
     static shape_rl_vec get_shape_relations_impl(const sc_dims &data_plain_dims,
             const sc_dims &weight_plain_dims, const sc_dims &out_plain_dims,
             const any_map_t &attrs);
