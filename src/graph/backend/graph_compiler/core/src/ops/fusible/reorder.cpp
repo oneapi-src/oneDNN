@@ -25,6 +25,7 @@
 #include <compiler/ir/graph/anchor_loop_generator.hpp>
 #include <compiler/ir/graph/dynamic_dispatch_key.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/graph/tunable_op.hpp>
 #include <compiler/ir/graph/utils.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
@@ -856,6 +857,8 @@ infer_status_code reorder_op_t::pre_infer_slice_ranges(
     if (fsmap.datamap_.size() == 1) {
         if (!use_output_loop()
                 || (special_slice_check
+                        && !attrs_.get_or_else(
+                                mixed_partition_hint::pre_fuse_begin_op, false)
                         && !check_required_slice(get_outputs()[0],
                                 known_ranges_list, len_from_last))) {
             return infer_status_code::RETRY;
