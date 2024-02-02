@@ -104,7 +104,11 @@ __kernel void reusable_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #if FUSE_BN_RELU == 1
     if (bn_res <= 0) {
         bn_res = 0;
-        *ws = IS_TRAINING ? 0 : -1;
+#if IS_TRAINING == 1
+        *ws = 0;
+    } else {
+        *ws = -1;
+#endif
     }
 #endif
 
