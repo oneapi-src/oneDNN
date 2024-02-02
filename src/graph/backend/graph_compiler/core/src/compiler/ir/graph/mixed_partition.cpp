@@ -3023,6 +3023,8 @@ static mixed_parti_t::ptr try_execute_pre_op_fusion(const context_ptr &ctx,
     for (auto &rparti : reo_parti) {
         auto reo = rparti->committed_ops_[0];
         bool input_anchor_found = false;
+        // set pre-op fusion attr
+        reo->attrs_.set(mixed_partition_hint::pre_fuse_begin_op, true);
         for (auto &fanchor : parent_partition->fanchors_) {
             // only search input anchor
             if (!fanchor->is_input_anchor()) continue;
@@ -3040,17 +3042,15 @@ static mixed_parti_t::ptr try_execute_pre_op_fusion(const context_ptr &ctx,
             }
         }
         if (input_anchor_found) {
-            // set pre-op fusion attr
-            reo->attrs_.set(mixed_partition_hint::pre_fuse_begin_op, true);
             // pre fuse reorder
             parent_partition->add(reo);
-            // remove pre-op fusion attr
-            reo->attrs_.remove(mixed_partition_hint::pre_fuse_begin_op);
             // clear origin parti
             rparti->clear();
             // reset root pointer
             rparti->merged_to = parent_partition;
         }
+        // remove pre-op fusion attr
+        reo->attrs_.remove(mixed_partition_hint::pre_fuse_begin_op);
     }
     if (parent_partition->get_ops_size() == 1) {
         parent_partition->clear();
