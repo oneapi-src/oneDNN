@@ -44,7 +44,7 @@ macro(set_openmp_values_for_old_cmake)
     endif()
 endmacro()
 
-if(DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT")
+if(DPCPP_HOST_COMPILER_KIND STREQUAL "DEFAULT")
     # XXX: workaround: when -fsycl is specified the compiler doesn't define
     # _OPENMP macro causing `find_package(OpenMP)` to fail.
     # Use -fno-sycl option to disable SYCL. The rationale: dpcpp driver sets
@@ -100,6 +100,9 @@ if(DNNL_CPU_THREADING_RUNTIME MATCHES "OMP")
         # against libiomp5
         append(CMAKE_SHARED_LINKER_FLAGS "-fopenmp=libgomp")
         append(CMAKE_EXE_LINKER_FLAGS "-fopenmp=libgomp")
+    elseif(DNNL_WITH_SYCL AND DPCPP_HOST_COMPILER_KIND STREQUAL "CLANG")
+        append(CMAKE_SHARED_LINKER_FLAGS "-fopenmp")
+        append(CMAKE_EXE_LINKER_FLAGS "-fopenmp")
     elseif(OpenMP_CXX_FOUND)
         if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
             list(APPEND EXTRA_SHARED_LIBS ${OpenMP_CXX_LIBRARIES})

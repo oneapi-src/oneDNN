@@ -18,7 +18,8 @@
 #define STRINGIFY(s) STRINGIFy(s)
 
 int main() {
-#ifdef TRY_GNU
+#if defined(TRY_GNU)
+
 #if (defined __GNUC__) && (!defined(__INTEL_COMPILER)) \
         && (!defined(__INTEL_LLVM_COMPILER)) && (!defined(__clang_major__))
 #pragma message(STRINGIFY(__GNUC__) "." STRINGIFY(__GNUC_MINOR__))
@@ -26,6 +27,16 @@ int main() {
 #else
     breaks_on_purpose
 #endif
+
+#elif defined(TRY_CLANG)
+
+#if (!defined(__INTEL_LLVM_COMPILER)) && (defined(__clang_major__))
+#pragma message(STRINGIFY(__clang_major__) "." STRINGIFY(__clang_minor__))
+    return 0;
+#else
+    breaks_on_purpose
+#endif
+
 #else
     breaks_on_purpose
 #endif
