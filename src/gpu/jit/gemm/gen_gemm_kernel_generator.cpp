@@ -3139,8 +3139,6 @@ bool gemm_kernel_generator_t<hw>::getSubblock(Type T, RegisterBlock &blockDst,
                     blockDst.simdSize = blockDst.simdSize * (x2 - x1) / ns;
                     break;
             }
-
-        blockDst.calcBytes(T, astrategy);
     } else {
         blockDst.offsetBytes += x1 * Telem * blockSrc.crosspack;
 
@@ -3190,9 +3188,16 @@ bool gemm_kernel_generator_t<hw>::getSubblock(Type T, RegisterBlock &blockDst,
                     if (ns != oldNS) stub();
                     break;
             }
-
-        blockDst.calcBytes(T, astrategy);
     }
+
+    if (!blockDst.isLoadBlock()) {
+        // Shrink LD
+        auto nx = blockDst.colMajor ? blockDst.nr : blockDst.nc;
+        auto ny = blockDst.colMajor ? blockDst.nc : blockDst.nr;
+        if (ny == 1) blockDst.ld = std::min(blockDst.ld, nx);
+    }
+
+    blockDst.calcBytes(T, astrategy);
 
     return true;
 }
