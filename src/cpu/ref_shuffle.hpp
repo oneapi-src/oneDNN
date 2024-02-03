@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,11 +47,17 @@ struct ref_shuffle_t : public primitive_t {
             const memory_desc_wrapper dst_d(
                     is_fwd() ? dst_md() : diff_dst_md());
 
-            bool ok = src_d.data_type() == dst_d.data_type()
-                    && platform::has_data_type_support(src_d.data_type())
-                    && attr()->has_default_values()
-                    && set_default_formats_common() && src_d == dst_d;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SHUFFLE(src_d.data_type() == dst_d.data_type(),
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
+            VDISPATCH_SHUFFLE(
+                    platform::has_data_type_support(src_d.data_type()),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SHUFFLE(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_SHUFFLE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SHUFFLE(
+                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
             if (ndims() == 5) {
                 dat_tag_ = memory_desc_matches_one_of_tag(
