@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 * Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -82,21 +82,33 @@
 #define VERBOSE_UNSUPPORTED_BIAS_CFG "unsupported bias configuration"
 #define VERBOSE_UNSUPPORTED_DT_CFG "unsupported datatype combination"
 #define VERBOSE_UNSUPPORTED_SPARSE_CFG "unsupported sparse md configuration"
-#define VERBOSE_INCOMPATIBLE_GEMM_FMT "incompatible gemm format"
+#define VERBOSE_UNSUPPORTED_FEATURE "unsupported feature for implementation: %s"
+#define VERBOSE_UNSUPPORTED_DEVICE_FEATURE "%s feature unavailable for device"
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
 #define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"
-
 #define VERBOSE_ISA_SPARSE_ENCODING_MISMATCH \
     "sparse encoding is not supported on this isa"
 #define VERBOSE_ISA_DT_MISMATCH \
     "datatype configuration not supported on this isa"
+#define VERBOSE_OFFSET_DT_MISMATCH "%s offsets do not fit into %s datatype"
+#define VERBOSE_WS_MISMATCH \
+    "workspace mismatch between forward and backward primitive " \
+    "descriptors"
+
 #define VERBOSE_BLOCKING_FAIL "blocking heuristic failed"
 #define VERBOSE_SMALL_SHAPES "small shapes fall back"
 #define VERBOSE_NONTRIVIAL_STRIDE "only trivial strides are supported"
 #define VERBOSE_UNSUPPORTED_MEM_STRIDE "unsupported memory stride"
+
+#define VERBOSE_PADDING_ERROR "padding error for implementation: %s"
+#define VERBOSE_IMPL_HEURISTIC_FAIL "implementation heuristic failed: %s"
+#define VERBOSE_1x1CONV_HEURISTIC_FAIL \
+    "failed heuristic for 1x1 convolution: %s"
+#define VERBOSE_PERF_HEURISTICS_DISABLED \
+    "performance heuristics disabled for %s"
 #define VERBOSE_SCRATCHPAD_LIMIT "scratchpad memory limit exceeded"
 #define VERBOSE_PRIMITIVE_CREATION_FAIL "failed to create nested primitive %s"
-#define VERBOSE_UNSUPPORTED_FEATURE "%s feature unavailable for device"
+#define VERBOSE_INCOMPATIBLE_GEMM_FMT "incompatible gemm format"
 
 #endif
