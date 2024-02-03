@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2180,8 +2180,8 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         engine_t *engine, const primitive_attr_t *attr, engine_t *src_engine,
         const memory_desc_t *src_md, engine_t *dst_engine,
         const memory_desc_t *dst_md) {
-    if (!impl::is_dense_format_kind({src_md, dst_md}))
-        return status::unimplemented;
+    VDISPATCH_REORDER_IC(impl::is_dense_format_kind({src_md, dst_md}),
+            VERBOSE_UNSUPPORTED_SPARSE_CFG);
     auto prb = tr::prb_t();
 
     status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
@@ -2205,8 +2205,8 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
     if (ker_init_status != status::success) return ker_init_status;
 
     const int ndims_driver = prb.ndims - ker_desc.prb.ndims;
-    if (ndims_driver > jit_uni_reorder_t::ndims_driver_max)
-        return status::unimplemented;
+    VDISPATCH_REORDER_IC(ndims_driver <= jit_uni_reorder_t::ndims_driver_max,
+            VERBOSE_BAD_NDIMS, "driver", ndims_driver);
 
     DEBUG({
         printf("ker  : ");
@@ -2607,15 +2607,16 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         engine_t *engine, const primitive_attr_t *attr, engine_t *src_engine,
         const memory_desc_t *src_md, engine_t *dst_engine,
         const memory_desc_t *dst_md) {
-    if (!impl::is_dense_format_kind({src_md, dst_md}))
-        return status::unimplemented;
+    VDISPATCH_REORDER_IC(impl::is_dense_format_kind({src_md, dst_md}),
+            VERBOSE_UNSUPPORTED_SPARSE_CFG);
     auto prb = tr::prb_t();
 
     status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
     if (prb_init_status != status::success) return prb_init_status;
     // only uni_reorder supports tail processing now
     // TODO: Add tail processing support in blk_reorder
-    if (prb.is_tail_present) return status::unimplemented;
+    VDISPATCH_REORDER_IC(
+            !prb.is_tail_present, "tail processing is not supported");
 
     prb_tile_normalize(prb);
     DEBUG({
