@@ -51,13 +51,19 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
 
-            const bool ok = is_fwd() && !has_zero_dim_memory()
-                    && everyone_is(
-                            d_type, src_md()->data_type, dst_md()->data_type)
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, d_type)
-                    && !is_dilated() && set_default_params() == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_POOLING(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_POOLING(everyone_is(d_type, src_md()->data_type,
+                                      dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(
+                    attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, d_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_POOLING(!is_dilated(), VERBOSE_UNSUPPORTED_FEATURE,
+                    "does not support dilations");
+            VDISPATCH_POOLING(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
 
             const bool is_training
                     = desc_.prop_kind == prop_kind::forward_training;
@@ -121,22 +127,29 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
 
-            const bool ok = true && set_default_params() == status::success
-                    && !is_fwd() && !has_zero_dim_memory()
-                    && everyone_is(d_type, diff_src_md()->data_type,
-                            diff_dst_md()->data_type)
-                    // TODO: Current implementation uses diff_src_dt as
-                    // accumulation, which can cause accuracy issues due to
-                    // overflow or loss of precision for smaller data type.
-                    // Hence, disabling reduced precision for now.
-                    && diff_src_md()->data_type == data_type::f32
-                    && attr()->has_default_values() && !is_dilated();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_POOLING(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_POOLING(everyone_is(d_type, diff_src_md()->data_type,
+                                      diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            // TODO: Current implementation uses diff_src_dt as
+            // accumulation, which can cause accuracy issues due to
+            // overflow or loss of precision for smaller data type.
+            // Hence, disabling reduced precision for now.
+            VDISPATCH_POOLING(diff_src_md()->data_type == data_type::f32,
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_POOLING(!is_dilated(), VERBOSE_UNSUPPORTED_FEATURE,
+                    "does not support dilations");
 
             if (desc()->alg_kind == alg_kind::pooling_max) {
                 const auto ws_dt = hint_fwd_pd_->workspace_md()->data_type;
                 init_default_ws(ws_dt);
-                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+                VDISPATCH_POOLING(
+                        compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
             auto scratchpad = scratchpad_registry().registrar();
