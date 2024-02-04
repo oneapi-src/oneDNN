@@ -870,6 +870,10 @@ graph_tensor_ptr reduce_op_t::split_op(
 
     auto first = graph.make<reduce_compute_op_t>(get_inputs()[0], first_out,
             rd_ax, rd_op_, keep_dims_, /*local_mode*/ false);
+    if (this->attrs_.has_key(mixed_partition_hint::trial_break)) {
+        first->attrs_[mixed_partition_hint::trial_break]
+                = this->attrs_[mixed_partition_hint::trial_break];
+    }
 
     sc_op_ptr second;
     if (num_threads > 1) {
@@ -970,6 +974,10 @@ graph_tensor_ptr reduce_compute_op_t::split_op(
 
     auto first = graph.make<reduce_compute_op_t>(get_inputs()[0], first_out,
             real_rd_axis_, rd_op_, keep_dims_, /*local_mode*/ true);
+    if (this->attrs_.has_key(mixed_partition_hint::trial_break)) {
+        first->attrs_[mixed_partition_hint::trial_break]
+                = this->attrs_[mixed_partition_hint::trial_break];
+    }
     auto second = graph.make<reduce_collect_op_t>(first_out, second_out,
             real_rd_axis_, rd_op_, keep_dims_, reduce_collect_op_t::COPY);
     get_outputs()[0]->replace_with(second_out);

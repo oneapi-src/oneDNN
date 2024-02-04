@@ -2931,6 +2931,16 @@ std::vector<mixed_parti_t::ptr> collect_parti_set(
 }
 
 static bool check_repartition(const mixed_parti_t::ptr &parti) {
+    // if case 3's pre_fuse_break leads to standalone op
+    // we remove break_pre_fuse
+    if (parti && parti->get_ops_size() == 1
+            && parti->committed_ops_[0]->attrs_.get_or_else(
+                    mixed_partition_hint::trial_break, false)) {
+        parti->committed_ops_[0]->attrs_.remove(op_attr_key::break_pre_fuse);
+        parti->committed_ops_[0]->attrs_[mixed_partition_hint::trial_break]
+                = false;
+        return true;
+    }
     if (!parti || parti->get_ops_size() < 2) return false;
     // check tensorview in edge of partition
     bool repartition = false;
@@ -2980,6 +2990,34 @@ static bool check_repartition(const mixed_parti_t::ptr &parti) {
                 // the input of this reorder will be the new output of
                 // partition, check tptr in advance to reduce repartition times
                 check_parti_out_tptr(op->get_inputs()[0]);
+            }
+        }
+        // 3. check partition outputs and mark break_pre_fuse on B
+        // when encountering the topology below
+        //   A__
+        //  /   |
+        // out  B
+        //      |
+        //     out
+        // if B becomes a standalone op, we will re-fuse it
+        bool is_terminate_op = std::all_of(op->get_outputs().begin(),
+                op->get_outputs().end(), [&](const graph_tensor_ptr &gt) {
+                    if (parti->is_parti_out(gt)) return true;
+                    return false;
+                });
+        if (is_terminate_op) {
+            // find producer inputs
+            for (auto prod_input : op->get_inputs()) {
+                for (auto preced_output :
+                        prod_input->producer_owner_->get_outputs()) {
+                    if (parti->is_parti_out(preced_output)
+                            && !op->attrs_.has_key(
+                                    mixed_partition_hint::trial_break)) {
+                        op->attrs_[op_attr_key::break_pre_fuse] = true;
+                        op->attrs_[mixed_partition_hint::trial_break] = true;
+                        repartition = true;
+                    }
+                }
             }
         }
     }
@@ -3932,7 +3970,7 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
     // mapping from op id => partition
     std::vector<mixed_parti_t::ptr> op_2_partition;
     // set max iter times
-    constexpr int maxiter = 3;
+    constexpr int maxiter = 5;
     // dynamic policy condition
     expr fusion_policy_condition = false;
     // make dependency matrix from graph here in avoid of repeated construction
