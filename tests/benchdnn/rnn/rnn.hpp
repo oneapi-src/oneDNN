@@ -243,7 +243,7 @@ struct settings_t : public base_settings_t {
             dnnl_unidirectional_left2right};
     std::vector<activation_t> activation {RELU};
     std::vector<bool> skip_nonlinear {false};
-    std::vector<bool> trivial_strides {false};
+    std::vector<bool> trivial_strides {true};
     std::vector<bool> with_peephole {false};
     std::vector<bool> with_projection {false};
     std::vector<int64_t> n_layer {0}, n_iter {0};

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,17 +33,17 @@ namespace gpu {
                          : dnnl::impl::memory_storage_t::empty_storage())
 
 struct gemm_exec_args_t {
-    memory_storage_t *a = nullptr;
-    memory_storage_t *b = nullptr;
-    memory_storage_t *c = nullptr;
-    memory_storage_t *a_zero_point = nullptr;
-    memory_storage_t *b_zero_point = nullptr;
-    memory_storage_t *c_zero_point = nullptr;
-    memory_storage_t *bias = nullptr;
-    memory_storage_t *a_scales = nullptr;
-    memory_storage_t *b_scales = nullptr;
-    memory_storage_t *c_scales = nullptr;
-    memory_storage_t *sum_ab = nullptr;
+    const memory_storage_t *a = nullptr;
+    const memory_storage_t *b = nullptr;
+    const memory_storage_t *c = nullptr;
+    const memory_storage_t *a_zero_point = nullptr;
+    const memory_storage_t *b_zero_point = nullptr;
+    const memory_storage_t *c_zero_point = nullptr;
+    const memory_storage_t *bias = nullptr;
+    const memory_storage_t *a_scales = nullptr;
+    const memory_storage_t *b_scales = nullptr;
+    const memory_storage_t *c_scales = nullptr;
+    const memory_storage_t *sum_ab = nullptr;
     exec_args_t exec_args;
 };
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -439,7 +439,7 @@ inline dnnl_fpmath_mode_t convert_to_c(fpmath_mode mode) {
 
 /// @} dnnl_api_fpmath_mode
 
-/// @addtogroup dnnl_api_accumulation_mode Accumulation mode
+/// @addtogroup dnnl_api_accumulation_mode Accumulation Mode
 /// @{
 
 /// Accumulation mode

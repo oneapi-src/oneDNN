@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,6 +190,16 @@ struct EmulationImplementation {
 
     static ngen::Immediate lowWord(const ngen::Immediate &in) {
         return uint16_t(static_cast<uint64_t>(in) & 0xffff);
+    }
+
+    static ngen::RegData highWord(ngen::RegData in) {
+        auto out = lowWord(in);
+        out.setOffset(out.getOffset() + 1);
+        return out;
+    }
+
+    static ngen::Immediate highWord(const ngen::Immediate &in) {
+        return uint16_t(static_cast<uint64_t>(in) >> 16);
     }
 
     static bool isUnitStride(const ngen::RegData &rd) {

@@ -226,9 +226,9 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         bool a_offset, bool b_offset, bool c_offset, bool bias,
         sum_ab_t reduce_ab, float alpha, float beta, data_type_t a_type,
         data_type_t b_type, data_type_t c_type, data_type_t co_type,
-        data_type_t acc_type, int align_a, int align_b, int align_c, dim_t m,
-        dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc, dim_t batch,
-        gpu_post_ops_t &&post_ops) {
+        data_type_t acc_type, data_type_t a_offset_type, int align_a,
+        int align_b, int align_c, dim_t m, dim_t n, dim_t k, dim_t lda,
+        dim_t ldb, dim_t ldc, dim_t batch, gpu_post_ops_t &&post_ops) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -263,6 +263,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     problem_.Tco = convert_dnnl_to_kernel_type(co_type);
     problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
     problem_.Ts = problem_.Tc;
+    problem_.Ta_off = convert_dnnl_to_kernel_type(a_offset_type);
     problem_.A.layout = trans_a ? MatrixLayout::T : MatrixLayout::N;
     problem_.B.layout = trans_b ? MatrixLayout::T : MatrixLayout::N;
     problem_.C.layout = MatrixLayout::N;
@@ -374,8 +375,9 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
         bool packed_c, bool trans_co, bool a_offset, bool b_offset,
         bool c_offset, bool bias, float alpha, float beta, data_type_t a_type,
         data_type_t b_type, data_type_t c_type, data_type_t co_type,
-        data_type_t acc_type, dim_t m, dim_t n, dim_t k, dim_t batch,
-        int unroll_m, int unroll_n, bool alt, gpu_post_ops_t &&post_ops) {
+        data_type_t acc_type, data_type_t a_offset_type, dim_t m, dim_t n,
+        dim_t k, dim_t batch, int unroll_m, int unroll_n, bool alt,
+        gpu_post_ops_t &&post_ops) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -402,6 +404,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     problem_.Tc = convert_dnnl_to_kernel_type(acc_type);
     problem_.Tco = convert_dnnl_to_kernel_type(co_type);
     problem_.Tc_ext = convert_dnnl_to_kernel_type(c_type);
+    problem_.Ta_off = convert_dnnl_to_kernel_type(a_offset_type);
     problem_.Ts = Type::f32;
     problem_.A.layout = MatrixLayout::PackedColumns;
     problem_.B.layout = MatrixLayout::PackedRows;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -249,7 +249,7 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             // not reachable
         }
     }
-    attr.set_post_ops(dnnl_pops);
+    attr.set_post_ops(std::move(dnnl_pops));
 
     return attr;
 }

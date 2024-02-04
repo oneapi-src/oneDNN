@@ -212,12 +212,13 @@ int attr_t::policy2mask(int arg, policy_t policy,
             default: SAFE(FAIL, CRIT); return -1;
         }
     } else if (prim_kind == dnnl_matmul) {
+        if (query_md_ndims(wei_md) <= 0) SAFE_V(FAIL);
         switch (policy) {
             case PER_OC: return (1 << (query_md_ndims(wei_md) - 1));
             case PER_OCIC:
                 return (1 << (query_md_ndims(wei_md) - 1))
                         + (1 << (query_md_ndims(wei_md) - 2));
-            default: SAFE(FAIL, CRIT); return -1;
+            default: SAFE_V(FAIL); return -1;
         }
     } else {
         assert(prim_kind == dnnl_undefined_primitive);

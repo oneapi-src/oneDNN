@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -91,6 +91,11 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
     if (engine()->kind() == engine_kind::cpu) {
         storage->buffer_ = buffer_;
     } else {
+        gpu_assert(IMPLICATION(
+                is_intel_device(
+                        utils::downcast<const sycl_engine_base_t *>(engine())
+                                ->device()),
+                offset % gpu::ocl::OCL_BUFFER_ALIGNMENT == 0));
         buffer_u8_t *sub_buffer = buffer_
                 ? new buffer_u8_t(parent_buffer(), base_offset_ + offset, size)
                 : nullptr;

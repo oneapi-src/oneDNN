@@ -91,6 +91,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
 
     ocl_conf.src_dt = src_layer_d.data_type();
     ocl_conf.wei_dt = weights_layer_d.data_type();
+    ocl_conf.bia_dt = rnn.aux_data_type;
     ocl_conf.acc_dt = rnn.acc_data_type;
     ocl_conf.aux_dt = rnn.aux_data_type;
     ocl_conf.diff_dt = rnn.diff_data_type;
@@ -939,25 +940,12 @@ status_t _ref_rnn_common_t<aprop>::init_res_storage(
 
 template <prop_kind_t aprop>
 gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
-    // These memory storages provide a mechanism to reuse existing memory
-    // storage with an offset. These memory storages don't own attached memory
-    std::unique_ptr<memory_storage_t> gemm_A_;
-    std::unique_ptr<memory_storage_t> gemm_B_;
-    std::unique_ptr<memory_storage_t> gemm_C_;
-
-    gemm_A_ = a.clone();
-    gemm_B_ = b.clone();
-    gemm_C_ = c.clone();
-    gemm_A_->set_offset(off_a);
-    gemm_B_->set_offset(off_b);
-    gemm_C_->set_offset(off_c);
-
     // We flip A and B here since the GEMM API is row major but the
     // RNN code describes GEMM in column major fashion
     gemm_exec_args_t gemm_args;
-    gemm_args.a = gemm_B_.get();
-    gemm_args.b = gemm_A_.get();
-    gemm_args.c = gemm_C_.get();
+    gemm_args.a = b.get();
+    gemm_args.b = a.get();
+    gemm_args.c = c.get();
 
     auto gemm_ctx = gemm_exec_ctx_t(ctx, gemm_args);
 
@@ -1064,7 +1052,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
 
             auto grid_iter = rnn.merge_gemm_iter
                     ? workspace.states_range(lay, n_layer, dir, dir, -1, -1)
-                    : nullptr;
+                    : sub_buffer_t();
 
             set_offsets_fwd_gemm(
                     rnn, dir, lay, wei_layer_offsets, offset_wei_layer);
@@ -1085,9 +1073,8 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                         ? gemm_layer_fwd_src
                         : gemm_layer_fwd;
 
-                CHECK(gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
-                        *grid_layer, 0, *scratch.gates(), 0,
-                        gemm_grid_layer_fwd));
+                CHECK(gemm_primitive(engine, ctx, {wei_layer, offset_wei_layer},
+                        grid_layer, *scratch.gates(), gemm_grid_layer_fwd));
             }
 
             for (dim_t i = 0; i < n_iter; i++) {
@@ -1113,17 +1100,16 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                 auto diff_states
                         = scratch.diff_states(lay, dir, rnn.n_states, 0);
 
-                CHECK(gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
-                        *scratch.diff_gates(), 0, *diff_states, 0,
-                        gemm_layer_bwd));
-                CHECK(gemm_primitive(engine, ctx, *scratch.diff_gates(), 0,
-                        *grid_layer, 0, diff_weights_layer, offset_diff_wei_lay,
+                CHECK(gemm_primitive(engine, ctx, {wei_layer, offset_wei_layer},
+                        *scratch.diff_gates(), diff_states, gemm_layer_bwd));
+                CHECK(gemm_primitive(engine, ctx, *scratch.diff_gates(),
+                        grid_layer, {diff_weights_layer, offset_diff_wei_lay},
                         gemm_diff_wei_grid_layer));
             }
 
             if (aprop == prop_kind::backward && rnn.merge_gemm_iter) {
-                CHECK(gemm_primitive(engine, ctx, *scratch.diff_gates(), 0,
-                        *grid_iter, 0, diff_weights_iter, offset_diff_wei_iter,
+                CHECK(gemm_primitive(engine, ctx, *scratch.diff_gates(),
+                        grid_iter, {diff_weights_iter, offset_diff_wei_iter},
                         gemm_diff_wei_iter));
             }
         }

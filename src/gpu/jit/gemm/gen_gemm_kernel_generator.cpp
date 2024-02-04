@@ -888,7 +888,7 @@ void gemm_kernel_generator_t<hw>::emov(const ngen::InstructionModifier &mod,
         src0.setType(DataType::ud);
         add(mod, src0, src0, -0x8000);
         and_(mod | nz | flag, null.ud(), src0, 0x1FFFF);
-        shr(mod, dst, src0, 16);
+        mov(mod, dst, EmulationImplementation::highWord(src0));
         // add(mod, src0, src0, 0x8000);       // Preserve src0 -- if nondestructive mov -- not needed
         add(mod | flag, dst, dst, 1);
     } else
@@ -2576,7 +2576,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 case MatrixLayout::T:
                     if (atype.crosspack > 1) stub();
                     if (atype.tileC == C && C <= maxElements) {
-                        rblock = std::min<int>(maxElements / cblock, R);
+                        rblock = std::min<int>(maxElements / C, R);
                         cblock = C;
                     } else {
                         rblock = 1;
@@ -5843,7 +5843,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T, const GRFRange &addr,
 
             // Restore original cached index vector in case we extended it.
             releaseRanges(state.indexVec, state);
-            state.indexVec = oldIndexVec;
+            state.indexVec = std::move(oldIndexVec);
             state.ivEntries = oldIVEntries;
             reclaimRanges(state.indexVec, state);
             break;
@@ -9210,7 +9210,7 @@ static inline GRFMultirange trySplitAlloc(HW hw, Type T,
                                & oddHint)
                     != 0;
             auto &ny = block.colMajor ? block.nc : block.nr;
-            int xElems = (block.ld * block.crosspack * T);
+            int xElems = block.ld * block.crosspack;
             int xGRFs = xElems / elementsPerGRF(hw, T);
             if (xElems % elementsPerGRF(hw, T))
                 requests.push_back({block.nregs(), block.offsetReg(), 0,
@@ -9256,12 +9256,14 @@ static inline GRFMultirange trySplitAlloc(HW hw, Type T,
     return r;
 }
 
-static inline GRFMultirange splitAlloc(HW hw, Type T,
-        const vector<RegisterBlock> &layout, std::array<Bundle, 2> hints,
-        BundleGroup mask, CommonState &state, int copies = 1) {
+static inline GRFMultirange splitOrChunkAlloc(HW hw, Type T,
+        const vector<RegisterBlock> &layout, int chunk,
+        std::array<Bundle, 2> hints, BundleGroup mask, CommonState &state,
+        int copies = 1) {
     auto r = trySplitAlloc(hw, T, layout, hints, mask, state, copies);
-    if (r.empty() && !layout.empty()) throw out_of_registers_exception();
-    return r;
+    if (!r.empty()) return r;
+    return chunkAlloc(
+            getRegCount(layout) * copies, chunk, hints[0], mask, state);
 }
 
 // Allocate register ranges for A/B/C.
@@ -9289,6 +9291,8 @@ void gemm_kernel_generator_t<hw>::gemmAllocRegs(
 
     auto Tv = globalCM ? Ta : Tb;
     auto Tn = !globalCM ? Ta : Tb;
+    auto Tv_load = globalCM ? state.Ta_load : state.Tb_load;
+    auto Tn_load = globalCM ? state.Tb_load : state.Ta_load;
 
     auto &A_layout = state.A_layout;
     auto &B_layout = state.B_layout;
@@ -9301,7 +9305,6 @@ void gemm_kernel_generator_t<hw>::gemmAllocRegs(
     auto V_regCount = globalCM ? A_regCount : B_regCount;
     auto Vr_regCount = globalCM ? Ar_regCount : Br_regCount;
     auto &N_layout = !globalCM ? A_layout : B_layout;
-    auto &Nr_layout = !globalCM ? state.Ar_layout : state.Br_layout;
     auto &N_regs = !globalCM ? state.A_regs : state.B_regs;
     auto &Nr_regs = !globalCM ? state.Ar_regs : state.Br_regs;
     auto N_copies = !globalCM ? A_copies : B_copies;
@@ -9315,8 +9318,18 @@ void gemm_kernel_generator_t<hw>::gemmAllocRegs(
     const auto &C_layout = state.copyC ? state.C_layout : C_layoutExt;
 
     int C_chunk = state.copyC ? 1 : getMaxLoadBlock(C_layoutExt);
+    int Vr_chunk = 2, Nr_chunk = 2;
+
     C_chunk = alignup_pow2(C_chunk, Bundle(0, 0).group_size(raHW) * 2);
-    if (strategy.systolic) C_chunk = std::max(C_chunk, 8);
+    if (strategy.systolic) {
+        auto params = systolicParams(hw, problem, strategy);
+        C_chunk = std::max(C_chunk,
+                (params.osys * params.rcountMax * Tc) / GRF::bytes(hw));
+        Vr_chunk = std::max(
+                Vr_chunk, (params.osys * params.ksys * Tv) / GRF::bytes(hw));
+        Nr_chunk = std::max(Nr_chunk,
+                (params.rcountMax * params.ksys * Tn) / GRF::bytes(hw));
+    }
 
     state.C_accCount = strategy.cAccumulators
             ? AccumulatorRegister::count(hw, strategy.GRFs, Tc.ngen())
@@ -9513,13 +9526,17 @@ void gemm_kernel_generator_t<hw>::gemmAllocRegs(
             if (raHW < HW::Gen12LP) stub();
             if (state.C_accCount > 0) stub();
 
-            int chunk = strategy.nSeparateChunk;
+            bool repackV = (Vr_regCount > 0);
+            bool repackN = (Nr_regCount > 0);
             int bundles = Bundle::bundle_count(raHW) * Bundle::bank_count(raHW);
             int bregsConsecutive = Bundle(0, 0).group_size(raHW);
             int bregs = strategy.GRFs / bundles;
-            int V_chunk = std::max(getMaxLoadBlock(V_layout), chunk);
-            int N_chunk = std::max(getMaxLoadBlock(N_layout), chunk);
-            int N_nregs = Nr_regCount + N_regCount * N_copies;
+            int V_chunk = (repackV ? Vr_chunk : getMaxLoadBlock(V_layout));
+            int N_chunk = (repackN ? Nr_chunk : getMaxLoadBlock(N_layout));
+            V_chunk = std::max(V_chunk, strategy.nSeparateChunk);
+            N_chunk = std::max(N_chunk, strategy.nSeparateChunk);
+
+            int N_nregs = repackN ? Nr_regCount : N_regCount * N_copies;
             int N_nbundles = std::max(
                     div_up(N_chunk, bregsConsecutive), div_up(N_nregs, bregs));
             BundleGroup N_bundles(raHW), VC_bundles(raHW);
@@ -9542,34 +9559,37 @@ void gemm_kernel_generator_t<hw>::gemmAllocRegs(
                 }
             }
 
-            auto V_alloc = [&](int regCount,
-                                   const vector<RegisterBlock> &layout) {
-                return chunk ? chunkAlloc(
-                               regCount, V_chunk, hintV0, VC_bundles, state)
-                             : splitAlloc(raHW, Tv, layout, {hintV0, hintV1},
-                                     VC_bundles, state);
-            };
-
-            auto N_alloc = [&](int regCount,
-                                   const vector<RegisterBlock> &layout) {
-                return chunk
-                        ? chunkAlloc(regCount, N_chunk, hintN, N_bundles, state)
-                        : splitAlloc(raHW, Tn, layout, {hintN, hintN},
-                                N_bundles, state);
-            };
-
-            for (int copy = 0; copy < V_copies; copy++)
-                V_regs[copy] = V_alloc(V_regCount, V_layout);
-            if (Vr_regCount > 0) Vr_regs = V_alloc(Vr_regCount, Vr_layout);
+            if (repackV)
+                Vr_regs = chunkAlloc(
+                        Vr_regCount, V_chunk, hintV0, VC_bundles, state);
+            else
+                for (int copy = 0; copy < V_copies; copy++)
+                    V_regs[copy] = splitOrChunkAlloc(raHW, Tv_load, V_layout,
+                            V_chunk, {hintV0, hintV1}, VC_bundles, state);
             if (!strategy.systolic)
                 C_regs = trySplitAlloc(raHW, Tc, C_layout, {hintC0, hintC1},
                         VC_bundles, state, state.C_buffers);
             if (C_regs.empty())
                 C_regs = chunkAlloc(
                         C_regCount, C_chunk, hintC0, VC_bundles, state);
-            for (int copy = 0; copy < N_copies; copy++)
-                N_regs[copy] = N_alloc(N_regCount, N_layout);
-            if (Nr_regCount > 0) Nr_regs = N_alloc(Nr_regCount, Nr_layout);
+            if (repackN)
+                Nr_regs = chunkAlloc(
+                        Nr_regCount, N_chunk, hintN, N_bundles, state);
+            else
+                for (int copy = 0; copy < N_copies; copy++)
+                    N_regs[copy] = splitOrChunkAlloc(raHW, Tn_load, N_layout,
+                            N_chunk, {hintN, hintN}, N_bundles, state);
+
+            if (repackV)
+                for (int copy = 0; copy < V_copies; copy++)
+                    V_regs[copy] = splitOrChunkAlloc(raHW, Tv_load, V_layout,
+                            V_chunk, {Bundle(), Bundle()},
+                            BundleGroup::AllBundles(), state);
+            if (repackN)
+                for (int copy = 0; copy < N_copies; copy++)
+                    N_regs[copy] = splitOrChunkAlloc(raHW, Tn_load, N_layout,
+                            N_chunk, {Bundle(), Bundle()},
+                            BundleGroup::AllBundles(), state);
             break;
         }
         case GEMMStrategy::VAvoid: {
@@ -10952,14 +10972,26 @@ void gemm_kernel_generator_t<hw>::gemmApplyABOffset(const GEMMProblem &problem,
     // TODO: combine C adds into add3 on XeHP+.
     ngen::DataType c_type = problem.Tc.ngen();
     bool c_float = utils::one_of(c_type, ngen::DataType::hf, ngen::DataType::f);
-    //ngen::DataType tmp_type = c_float ? ngen::DataType::w : problem.Tc.ngen();
     auto temp = state.ra.alloc_sub(problem.Tc.ngen());
     auto bo_tmp
             = c_float ? state.ra.alloc_sub(problem.Tc.ngen()) : state.inputs.bo;
+    auto cvtOff = [&](ngen::Subregister &off, ngen::Subregister &tmp_off) {
+        auto copyTemp = state.ra.alloc_range(1);
+        auto tmp0 = copyTemp[0].sub(0, ngen::DataType::w);
+        int nelems_real = 1;
+        InstructionModifier modMov;
+        mov(nelems_real | modMov, tmp0(1), off.b()(1));
+        mov(nelems_real | modMov, tmp_off(1), tmp0(1));
+        state.ra.safeRelease(copyTemp);
+    };
     if (c_float) {
         auto k_tmp = state.ra.alloc_sub(problem.Tc.ngen());
         mov(1, k_tmp, state.k);
-        mov(1, bo_tmp, state.inputs.bo);
+        if (problem.Tb_off != Type::s32) {
+            cvtOff(state.inputs.bo, bo_tmp);
+        } else {
+            mov(1, bo_tmp, state.inputs.bo);
+        }
         mul(1, temp, k_tmp, bo_tmp);
         state.ra.safeRelease(k_tmp);
     } else {
@@ -10977,7 +11009,11 @@ void gemm_kernel_generator_t<hw>::gemmApplyABOffset(const GEMMProblem &problem,
     } else {
         auto ao_tmp = state.ra.alloc_sub(problem.Tc.ngen());
         if (c_float) {
-            mov(1, ao_tmp, state.inputs.ao);
+            if (problem.Ta_off != Type::s32) {
+                cvtOff(state.inputs.ao, ao_tmp);
+            } else {
+                mov(1, ao_tmp, state.inputs.ao);
+            }
             mul(1, temp, temp, ao_tmp);
         } else {
             mul(1, temp, temp, state.inputs.ao);
@@ -14936,7 +14972,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     if (state.effCoopA == CoopSplit::FullK)
         Ap_params.offR = Ai_params.offR = state.wgI0;
     if (state.effCoopB == CoopSplit::FullK)
-        Bp_params.offC = Bi_params.offR = state.wgJ0;
+        Bp_params.offC = Bi_params.offC = state.wgJ0;
 
     // Prepare remainders for cooperative operations.
     for (LoopType loop : {LoopM, LoopN, LoopK})
@@ -19338,7 +19374,7 @@ void gemm_kernel_generator_t<hw>::gemm(
         state.inputs.ao = state.inputs.abo.w(0);
         state.inputs.bo = state.inputs.abo.w(1);
 
-        auto loadABO = [&](const ngen::Subregister &xo,
+        auto loadABO = [&](const ngen::Subregister &xo, Type dt,
                                ngen::Subregister &xoPtr) {
             if (xoPtr.isInvalid())
                 mov(1, xo, 0);
@@ -19357,8 +19393,8 @@ void gemm_kernel_generator_t<hw>::gemm(
             }
         };
 
-        loadABO(state.inputs.ao, state.inputs.aoPtr);
-        loadABO(state.inputs.bo, state.inputs.boPtr);
+        loadABO(state.inputs.ao, problem.Ta_off, state.inputs.aoPtr);
+        loadABO(state.inputs.bo, problem.Tb_off, state.inputs.boPtr);
     }
 
     // Persistent thread preparation and re-entry.

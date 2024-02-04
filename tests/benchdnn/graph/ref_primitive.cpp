@@ -155,20 +155,25 @@ int ref_primitive_t::init_ref_memory_args(const engine_t &ref_eng, res_t *res) {
 #define CASE_INIT_REF_MEMORY_ARGS(driver) \
     case dnnl_driver_t::driver: { \
         dnn_mem_map_t ref_mems; \
-        const ::driver::prb_t *prb = prb_wrapper_->get<::driver::prb_t>(); \
-        SAFE(::driver::init_ref_memory_args( \
-                     ref_mems, mems_, prim_, prb, res, prb->dir), \
-                WARN); \
-        args_ = args_t(mems_); \
+        if (prb_wrapper_) { \
+            const ::driver::prb_t *prb = prb_wrapper_->get<::driver::prb_t>(); \
+            SAFE(::driver::init_ref_memory_args( \
+                         ref_mems, mems_, prim_, prb, res, prb->dir), \
+                    WARN); \
+            args_ = args_t(mems_); \
+        } \
         break; \
     }
 
 #define CASE_INIT_CUSTOM_REF_MEMORY_ARGS \
     case dnnl_driver_t::custom: { \
         dnn_mem_map_t ref_mems; \
-        const ::custom::prb_t *prb = prb_wrapper_->get<::custom::prb_t>(); \
-        SAFE(::custom::init_ref_memory_args(ref_mems, mems_, prb, res), WARN); \
-        args_ = args_t(mems_); \
+        if (prb_wrapper_) { \
+            const ::custom::prb_t *prb = prb_wrapper_->get<::custom::prb_t>(); \
+            SAFE(::custom::init_ref_memory_args(ref_mems, mems_, prb, res), \
+                    WARN); \
+            args_ = args_t(mems_); \
+        } \
         break; \
     }
 

@@ -90,12 +90,13 @@ argument index as specified by the following table.
 The MatMul primitive supports the following combinations of data
 types for source, destination, weights, and bias tensors:
 
-| Source | Weights | Destination                 | Bias                        |
-|:-------|:--------|:----------------------------|:----------------------------|
-| f32    | f32     | f32                         | f32                         |
-| f16    | f16     | f16, u8, s8                 | f16, f32                    |
-| bf16   | bf16    | f32, bf16                   | bf16, f32                   |
-| u8, s8 | s8      | u8, s8, s32, f32, f16, bf16 | u8, s8, s32, f32, f16, bf16 |
+| Source         | Weights | Destination                 | Bias                        |
+|:---------------|:--------|:----------------------------|:----------------------------|
+| f32            | f32     | f32                         | f32                         |
+| f16            | f16     | f16, u8, s8                 | f16, f32                    |
+| bf16           | bf16    | f32, bf16                   | bf16, f32                   |
+| f32, bf16, f16 | u8, s8  | f32, bf16, f16              | f32, bf16, f16              |
+| u8, s8         | s8      | u8, s8, s32, f32, f16, bf16 | u8, s8, s32, f32, f16, bf16 |
 
 
 ### Data Representation
@@ -174,6 +175,8 @@ source tensor zero points memory argument would be passed with index
 3. **CPU**
    - Configuration with int8 source data type, s8 weight data type and f16
      destination data type isn't supported.
+   - Configuration with floating point source data type, integer weights data
+     type and floating point destination data type is not optimized.
 
 ## Performance Tips
 
@@ -211,3 +214,7 @@ The following examples are available:
 [MatMul Tutorial: Quantization](@ref cpu_matmul_quantization_cpp) (CPU only)
 
 @copydetails cpu_matmul_quantization_cpp_short
+
+[MatMul Tutorial: Weights decompression](@ref weights_decompression_matmul_cpp) (CPU only)
+
+@copydetails weights_decompression_matmul_cpp_short

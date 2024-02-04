@@ -454,11 +454,11 @@ struct gpu_post_ops_t {
         void set_scale(float scale) {
             switch (kind_) {
                 case (post_op::kind_t::sum):
-                    gpu_assert(sum_.inline_scale);
+                    sum_.inline_scale = true;
                     sum_.scale = scale;
                     break;
                 case (post_op::kind_t::eltwise):
-                    gpu_assert(eltwise_.inline_scale);
+                    sum_.inline_scale = true;
                     eltwise_.scale = scale;
                     break;
                 default: gpu_error_not_expected();

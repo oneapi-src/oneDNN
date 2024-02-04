@@ -266,7 +266,7 @@ bool get_binary_prb_vdims(
             int64_t channel_idx = 1;
             if (base_op_ref.has_NXC_format()) { channel_idx = ndims - 1; }
             src1_dims_tmp[channel_idx] = src0_dims[channel_idx];
-            src1_dims = src1_dims_tmp;
+            src1_dims = std::move(src1_dims_tmp);
 
             // convert NXC to NCX
             if (base_op_ref.has_NXC_format()) {
@@ -311,8 +311,8 @@ bool get_binary_stag_and_dtag(
             || !get_driver_tag_by_idx(base_op_ref, stag0, 0, false)) {
         return false;
     }
-    op_setting.stag = {{stag0, stag1}};
-    op_setting.dtag.front() = dtag;
+    op_setting.stag = {{std::move(stag0), std::move(stag1)}};
+    op_setting.dtag.front() = std::move(dtag);
     return true;
 }
 
@@ -478,8 +478,8 @@ bool get_concat_stag_and_dtag(
     }
     if (!get_driver_tag_by_idx(base_op_ref, dtag, 0, true)) { return false; }
 
-    op_setting.stag.front() = stags;
-    op_setting.dtag.front() = dtag;
+    op_setting.stag.front() = std::move(stags);
+    op_setting.dtag.front() = std::move(dtag);
     return true;
 }
 
@@ -697,8 +697,8 @@ bool get_conv_stag_and_dtag(
         assert(!"unexpected op_kind");
         return false;
     }
-    op_setting.stag.front() = stag;
-    op_setting.dtag.front() = dtag;
+    op_setting.stag.front() = std::move(stag);
+    op_setting.dtag.front() = std::move(dtag);
     return true;
 }
 
