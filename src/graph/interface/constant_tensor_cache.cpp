@@ -22,7 +22,15 @@
 
 #include "common/engine.hpp"
 #include "common/utils.hpp"
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #include "cpu/cpu_engine.hpp"
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "gpu/ocl/ocl_engine.hpp"
+#endif
+
 #ifdef DNNL_WITH_SYCL
 #include "sycl/sycl_engine.hpp"
 #endif
@@ -289,6 +297,13 @@ static std::unique_ptr<impl::engine_factory_t> get_engine_factory(
     if (kind == impl::engine_kind::cpu && is_native_runtime(runtime_kind)) {
         return std::unique_ptr<impl::engine_factory_t>(
                 new impl::cpu::cpu_engine_factory_t());
+    }
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    if (kind == engine_kind::gpu && runtime_kind == runtime_kind::ocl) {
+        return std::unique_ptr<engine_factory_t>(
+                new gpu::intel::ocl::ocl_engine_factory_t(kind));
     }
 #endif
 
