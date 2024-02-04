@@ -346,9 +346,18 @@ graph::status_t compiler_partition_impl_t::compile(
         for (auto &in_out : fptr->inplace_pairs_) {
             // in graph compiler, the function's output args are at the front,
             // so the input idx needs to shift by outputs.size().
-            size_t in_tsr_id = inputs[in_out.first - outputs.size()].id;
-            size_t out_tsr_id = outputs[in_out.second].id;
-            inplace_pairs.push_back({in_tsr_id, out_tsr_id});
+            if (in_out.first >= outputs.size()
+                    && in_out.first - outputs.size() < inputs.size()
+                    && in_out.second >= 0 && in_out.second < outputs.size()) {
+                const auto &input = inputs[in_out.first - outputs.size()];
+                const auto &output = outputs[in_out.second];
+                logical_tensor_wrapper_t in_ltw(input), out_ltw(output);
+                if (in_ltw.layout_type() != out_ltw.layout_type()
+                        || in_ltw.property_type() == property_type::constant) {
+                    continue;
+                }
+                inplace_pairs.push_back({input.id, output.id});
+            }
         }
 
         // validate and set outputs strides

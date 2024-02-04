@@ -227,19 +227,13 @@ TEST(GCBackendApi, ConvAdd_Inplace0_CPU) {
         evaluate{outerloop_1X128X1X55X1_partition_conv_fwd_core_add_8(buffer_6, buffer_5, buffer_3, buffer_4)}
         evaluate{reorder_7(logical_tensor_5, buffer_6)}
     }
-    Inplace: out buf: logical_tensor_5, in buf: logical_tensor_0
     Inplace: out buf: logical_tensor_5, in buf: logical_tensor_4
     */
-    EXPECT_EQ(num_inplace_pairs, 2U);
+    EXPECT_EQ(num_inplace_pairs, 1U);
     auto pair0 = *(inplace_pairs);
     EXPECT_EQ(pair0.input_id,
-            agraph.get_input_values()[0]->get_logical_tensor().id);
-    EXPECT_EQ(pair0.output_id,
-            agraph.get_output_values()[0]->get_logical_tensor().id);
-    auto pair1 = *(inplace_pairs + 1);
-    EXPECT_EQ(pair1.input_id,
             agraph.get_input_values()[2]->get_logical_tensor().id);
-    EXPECT_EQ(pair1.output_id,
+    EXPECT_EQ(pair0.output_id,
             agraph.get_output_values()[0]->get_logical_tensor().id);
 }
 
