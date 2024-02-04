@@ -61,6 +61,10 @@ constexpr size_t small_op_workload_threshold = 1688UL;
 constexpr const char *no_gather_op = "no_gather_op";
 // Boolean: is the op which need to split common anchor into grouped anchor
 constexpr const char *split_anchor_op = "split_anchor_op";
+// Boolean: By default false. When marked as true, we will try to do fusion
+// break. However, if it becomes standalone op after fuse break, it will be
+// marked as false and we will remove the fuse break attribute
+constexpr const char *trial_break = "trial_break";
 } // namespace mixed_partition_hint
 
 // different fusion policies prepared for dynamic shape, policies will be JIT
