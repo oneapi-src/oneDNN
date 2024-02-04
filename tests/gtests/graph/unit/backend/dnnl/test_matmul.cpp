@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -3771,6 +3771,15 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddU8s8u8MixBf16) {
 TEST(test_matmul_execute_subgraph_int8, MatmulBiasGeluU8s8u8MixBf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
+
+    // Note(zhitao): Although this UT contains BF16 data type, but it works
+    // well on old platforms such as AVX2 which does not support BF16, as the
+    // graph will be lowered to an INT8 primitive. However, the library does
+    // not expect users to provide unsupported data types, hence skip the case.
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && engine->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
 
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
