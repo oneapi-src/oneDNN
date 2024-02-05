@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -157,7 +157,7 @@ template <typename T,
                 serialized_data_t::is_trivially_serialized<T>::value>::type>
 size_t get_hash(const T *t) {
     serialized_t s {};
-    s.append(t);
+    s.append(*t);
     return s.hash();
 }
 
