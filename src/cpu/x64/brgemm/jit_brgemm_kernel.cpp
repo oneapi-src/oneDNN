@@ -1198,8 +1198,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
         for (int bd = 0; bd < bd_block; bd++) {
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
-                uni_vcvtps2dq(vmm, vmm);
+                saturate_cvt_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
             }
         }
         // below call is not required as s32 doesn't use vmm_lbound
@@ -1359,8 +1358,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_without_post_ops(
         for (int bd = 0; bd < bd_block; bd++) {
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
-                uni_vcvtps2dq(vmm, vmm);
+                saturate_cvt_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
             }
         }
         // below call is not required as s32 doesn't use vmm_lbound

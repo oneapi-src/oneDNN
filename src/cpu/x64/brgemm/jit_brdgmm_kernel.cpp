@@ -484,8 +484,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_apply_post_ops(
             for (int v_i = 0; v_i < v_substep; ++v_i) {
                 if (get_substep_simd(n, v_i, has_n_tail) <= 0) continue;
                 auto vmm = accm(m_blocks, n_blocks, m, n, v_i);
-                saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
-                vcvtps2dq(vmm, vmm);
+                saturate_cvt_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
             }
         }
 
@@ -564,10 +563,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::store_accumulators_without_post_ops(
         if (substep_simd <= 0) continue;
         const bool mask_flag = substep_simd < simd_w_;
         auto vmm_acc = accm(m_blocks, n_blocks, m, n, v_i);
-        if (dt_requires_saturation) {
-            saturate_f32(vmm_acc, vmm_lbound, vmm_ubound, brg.dt_d);
-            vcvtps2dq(vmm_acc, vmm_acc);
-        }
+        if (dt_requires_saturation)
+            saturate_cvt_f32(vmm_acc, vmm_lbound, vmm_ubound, brg.dt_d);
         const auto offset = C_offset(m, n, v_i);
         if (IMPLICATION(mask_flag, isa_has_masks(brg.isa_impl))) {
             auto vmm_acc_masked = maybe_mask(vmm_acc, mask_flag, true);

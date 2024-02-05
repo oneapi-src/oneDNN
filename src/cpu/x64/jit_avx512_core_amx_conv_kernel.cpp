@@ -1533,8 +1533,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
     if (one_of(jcp.dst_dt, u8, s8, s32)) {
         init_saturate_f32(
                 zmm_zero, zmm_saturation, reg_aux_saturation, f32, jcp.dst_dt);
-        saturate_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dst_dt);
-        vcvtps2dq(zmm_out, zmm_out);
+        saturate_cvt_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dst_dt);
     }
 
     const Zmm zmm_out_store = zmm_mask(zmm_out, mask_flag, true);
@@ -3310,8 +3309,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_int8(
     if (one_of(jcp.dsrc_dt, u8, s8, s32)) {
         init_saturate_f32(
                 zmm_zero, zmm_saturation, reg_aux_saturation, f32, jcp.dsrc_dt);
-        saturate_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dsrc_dt);
-        vcvtps2dq(zmm_out, zmm_out);
+        saturate_cvt_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dsrc_dt);
     }
 
     const Zmm zmm_out_store = zmm_mask(zmm_out, mask_flag, true);
