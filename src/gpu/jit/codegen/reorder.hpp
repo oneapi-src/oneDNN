@@ -433,12 +433,12 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     = lex_scope.alloc_reg_buf_data(nregs).format(0, conv_src);
             emit_reorder_1d_tile(hw, host, scope, width, src, src_stride,
                     tmp_src, conv_src_stride);
-            src = tmp_src;
+            src = std::move(tmp_src);
         }
         if (do_post_reorder) {
             auto tmp_dst
                     = lex_scope.alloc_reg_buf_data(nregs).format(0, conv_dst);
-            dst = tmp_dst;
+            dst = std::move(tmp_dst);
         }
         const int conv_src_stride_bytes = conv_src_type_size * conv_src_stride;
         const int conv_dst_stride_bytes = conv_dst_type_size * conv_dst_stride;
@@ -779,7 +779,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             if (s.offset() != 0) {
                 auto t = tmp.format(0, src_type, esize, src_stride);
                 plan(mov, esize, t, s);
-                s = t;
+                s = std::move(t);
             }
             plan(mov, esize, d, s);
             if (!d_half_grf_aligned) plan(mov, esize, d_old, d);
@@ -825,7 +825,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     host->rnde(esize, t, t);
                 }
                 if (src_xf) {
-                    s = t;
+                    s = std::move(t);
                     local_src_f = true;
                     local_src_hf = local_src_bf = false;
                     local_src_type = ngen::DataType::f;
@@ -872,7 +872,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 auto td = dst.format(i * dst_stride_bytes, src_type, esize,
                         dst_stride * dst_type_size / src_type_size);
                 plan(mov, esize, td, s);
-                s = td;
+                s = std::move(td);
             }
             plan(mov, esize, d, s);
 
@@ -1020,7 +1020,7 @@ void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
     new_src = new_src.format(new_src_byte_off, src.type(), esize, src_stride);
     emit_reorder_1d_tile(scope.hw(), host, scope, esize, src, src_stride,
             new_src, src_stride);
-    src = new_src;
+    src = std::move(new_src);
 }
 
 template <typename GeneratorT>
