@@ -22,6 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/block_structure.hpp"
+#include "gpu/compute/data_type_converter.hpp"
 #include "gpu/compute/dispatch_reusable.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/utils.hpp"
@@ -79,7 +80,11 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     conf->use_shift = pd->use_shift();
     conf->input_dt = input_buf.data_type;
     conf->output_dt = output_buf.data_type;
-    conf->ss_dt = ss_buf.data_type;
+
+    conf->acc_dt
+            = types::default_accum_data_type(conf->input_dt, data_type::f32);
+    conf->acc_bwd_dt
+            = types::default_accum_data_type(conf->output_dt, data_type::f32);
 
     auto scales = pd->attr()->scales_;
     conf->with_src_scale = !scales.get(DNNL_ARG_SRC).has_default_values();
@@ -209,8 +214,11 @@ status_t reusable_layer_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
 compute::kernel_ctx_t reusable_lnorm_params_t::get_kernel_ctx() const {
     compute::kernel_ctx_t kernel_ctx;
     kernel_ctx.set_data_type(input_dt);
-    def_data_type(kernel_ctx, ss_dt, "WEI");
-    def_data_type(kernel_ctx, output_dt, "DST");
+
+    compute::data_type_converter_t converter;
+    converter.register_type("ACC", acc_dt);
+    converter.register_type("ACC_BWD", acc_bwd_dt);
+    converter.def_kernel_macros(kernel_ctx);
 
     kernel_ctx.define_int("USE_SCALE", use_scale);
     kernel_ctx.define_int("USE_SHIFT", use_shift);

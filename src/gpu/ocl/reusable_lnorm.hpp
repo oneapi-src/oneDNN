@@ -58,13 +58,15 @@ struct reusable_lnorm_params_t
 
     data_type_t input_dt = data_type::undef;
     data_type_t output_dt = data_type::undef;
-    data_type_t ss_dt = data_type::undef;
+    data_type_t acc_dt = data_type::undef;
+    data_type_t acc_bwd_dt = data_type::undef;
     bool use_scale = false;
     bool use_shift = false;
 
     // Not used by bwd impl, but would be padding otherwise
     bool with_src_scale = false;
     bool with_dst_scale = false;
+    uint8_t padding[4] = {0};
 
     compute::dispatch_compile_params_t gws_params;
     compute::dispatch_compile_params_t stat_params;
