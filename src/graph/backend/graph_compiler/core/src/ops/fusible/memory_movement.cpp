@@ -657,6 +657,28 @@ tensor_view_op_t::tensor_view_op_t(const std::vector<graph_tensor_ptr> &ins,
     }
 }
 
+bool tensor_view_op_t::is_only_expand_or_penetrate() const {
+    const auto &in_tensor = this->get_inputs()[0]->details_;
+    auto in_shape = in_tensor.get_plain_dims();
+    auto in_real_shape = in_tensor.get_blocking_dims();
+    auto out_tensor = this->get_outputs()[0]->details_;
+    auto out_shape = out_tensor.get_plain_dims();
+    auto out_real_shape = out_tensor.get_blocking_dims();
+    auto erase_element_one = [&](sc_dims &dim) {
+        dim.erase(std::remove_if(dim.begin(), dim.end(),
+                          [&](sc_dim v) { return v == 1; }),
+                dim.end());
+    };
+    erase_element_one(in_shape);
+    erase_element_one(in_real_shape);
+    erase_element_one(out_shape);
+    erase_element_one(out_real_shape);
+    if (in_real_shape == out_real_shape && in_shape == out_shape) {
+        return true;
+    }
+    return false;
+}
+
 tensor_view_op_t::tensor_view_op_t(graph_tensor_ptr v, const sc_dims &shapes)
     : tensor_view_op_t({std::move(v)}, {}, {{"shape", shapes}, {}}) {}
 
