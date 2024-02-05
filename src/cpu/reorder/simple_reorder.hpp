@@ -888,7 +888,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && mask_ok(req_comp, output_d.extra().compensation_mask)
                 && mask_ok(req_asymmetric_comp,
                         output_d.extra().asymm_compensation_mask)
-                && one_of(input_d.data_type(), f32, s8, bf16, f16)
+                && one_of(input_d.data_type(), f32, s8, bf16, f16, f8_e5m2,
+                        f8_e4m3)
                 && output_d.data_type() == s8 && D_mask == 1;
     }
 

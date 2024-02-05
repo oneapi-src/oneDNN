@@ -32,6 +32,7 @@
 #include "cpu/x64/jit_uni_reorder.hpp"
 
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/utils/jit_io_helper.hpp"
 
@@ -191,12 +192,22 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         using namespace data_type;
 
         bool ok = p.ndims > 0
-                && utils::one_of(p.itype, f32, bf16, f16, s32, s8, u8)
-                && utils::one_of(p.otype, f32, bf16, f16, s32, s8, u8)
-                && IMPLICATION(utils::one_of(p.itype, bf16, f16),
-                        utils::one_of(p.otype, s8, u8, f32, bf16, f16))
-                && IMPLICATION(utils::one_of(p.otype, bf16, f16),
-                        utils::one_of(p.itype, s8, u8, f32, bf16, f16))
+                && utils::one_of(
+                        p.itype, f32, bf16, f16, s32, f8_e5m2, f8_e4m3, s8, u8)
+                && utils::one_of(
+                        p.otype, f32, bf16, f16, s32, f8_e5m2, f8_e4m3, s8, u8)
+                && IMPLICATION(
+                        utils::one_of(p.itype, bf16, f16, f8_e5m2, f8_e4m3),
+                        utils::one_of(p.otype, s8, u8, f32, bf16, f16, f8_e5m2,
+                                f8_e4m3))
+                && IMPLICATION(
+                        utils::one_of(p.otype, bf16, f16, f8_e5m2, f8_e4m3),
+                        utils::one_of(p.itype, s8, u8, f32, bf16, f16, f8_e5m2,
+                                f8_e4m3))
+                && IMPLICATION(utils::one_of(p.itype, f8_e5m2, f8_e4m3)
+                                || utils::one_of(p.otype, f8_e5m2, f8_e4m3),
+                        !utils::one_of(p.itype, u8, s8)
+                                && !utils::one_of(p.otype, u8, s8))
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
                 && simple_impl_desc_init(p, nullptr) && mayiuse(sse41)
@@ -204,6 +215,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         mayiuse(avx512_core) || mayiuse(avx2_vnni_2))
                 && IMPLICATION(utils::one_of(f16, p.itype, p.otype),
                         mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2))
+                && IMPLICATION(utils::one_of(f8_e5m2, p.itype, p.otype)
+                                || utils::one_of(f8_e4m3, p.itype, p.otype),
+                        mayiuse(avx512_core_amx))
                 && IMPLICATION(!is_direct_copy(p), prb_has_small_strides(p))
                 && !prb_has_huge_prime_number(p);
         return ok;
@@ -282,51 +296,80 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     void tr8x8_avx2(int i_off, int o_off) {
         using namespace data_type;
 
-        const auto cvt2ps
-                = [this](const Ymm dst, const Operand &src, data_type_t idt) {
-                      switch (idt) {
-                          case f32:
-                              if (src.isMEM() || src.getIdx() != dst.getIdx())
-                                  vmovups(dst, src);
-                              break;
-                          case bf16:
-                              vpmovzxwd(dst, src);
-                              vpslld(dst, dst, 0x10);
-                              break;
-                          case f16:
-                              if (is_superset(isa_, avx512_core_fp16)) {
-                                  if (src.isMEM())
-                                      vcvtph2psx(dst, src);
-                                  else
-                                      vcvtph2psx(dst, Xmm(src.getIdx()));
-                              } else if (is_superset(isa_, avx2_vnni_2)) {
-                                  if (src.isMEM())
-                                      vcvtph2ps(dst, src);
-                                  else
-                                      vcvtph2ps(dst, Xmm(src.getIdx()));
-                              } else
-                                  assert(!"invalid isa");
-                              break;
-                          case s32: vcvtdq2ps(dst, src); break;
-                          case s8:
-                              vpmovsxbd(dst, src);
-                              vcvtdq2ps(dst, dst);
-                              break;
-                          case u8:
-                              vpmovzxbd(dst, src);
-                              vcvtdq2ps(dst, dst);
-                              break;
-                          default: assert(!"unreachable");
-                      }
-                  };
+        const auto cvt2ps = [this](const Ymm dst, const Operand &src,
+                                    data_type_t idt) {
+            switch (idt) {
+                case f32:
+                    if (src.isMEM() || src.getIdx() != dst.getIdx())
+                        vmovups(dst, src);
+                    break;
+                case bf16:
+                    vpmovzxwd(dst, src);
+                    vpslld(dst, dst, 0x10);
+                    break;
+                case f16:
+                    if (is_superset(isa_, avx512_core_fp16)) {
+                        if (src.isMEM())
+                            vcvtph2psx(dst, src);
+                        else
+                            vcvtph2psx(dst, Xmm(src.getIdx()));
+                    } else if (is_superset(isa_, avx2_vnni_2)) {
+                        if (src.isMEM())
+                            vcvtph2ps(dst, src);
+                        else
+                            vcvtph2ps(dst, Xmm(src.getIdx()));
+                    } else
+                        assert(!"invalid isa");
+                    break;
+                case s32: vcvtdq2ps(dst, src); break;
+                case f8_e5m2:
+                    if (f8_e5m2_emu_ && is_superset(isa_, avx512_core_amx))
+                        f8_e5m2_emu_->vcvt_f8_to_f32(Zmm(dst.getIdx()), src);
+                    else
+                        assert(!"invalid isa or fp8 emulation not "
+                                "available");
+                    break;
+                case f8_e4m3:
+                    if (f8_e4m3_emu_ && is_superset(isa_, avx512_core_amx))
+                        f8_e4m3_emu_->vcvt_f8_to_f32(Zmm(dst.getIdx()), src);
+                    else
+                        assert(!"invalid isa or fp8 emulation not "
+                                "available");
+                    break;
+                case s8:
+                    vpmovsxbd(dst, src);
+                    vcvtdq2ps(dst, dst);
+                    break;
+                case u8:
+                    vpmovzxbd(dst, src);
+                    vcvtdq2ps(dst, dst);
+                    break;
+                default: assert(!"unreachable");
+            }
+        };
 
         const auto cvt2odt = [this, cvt2ps](const Ymm ymm, data_type_t odt,
                                      data_type_t idt) {
             const Xmm xmm = Xmm(ymm.getIdx());
             switch (odt) {
                 case bf16:
-                    if (utils::one_of(idt, f32, f16, s8, u8)) {
-                        if (idt != f32) cvt2ps(ymm, ymm, idt);
+                    if (utils::one_of(
+                                idt, f32, f16, f8_e5m2, f8_e4m3, s8, u8)) {
+                        if (!utils::one_of(idt, f32, f8_e5m2, f8_e4m3))
+                            cvt2ps(ymm, ymm, idt);
+                        if (utils::one_of(idt, f8_e5m2, f8_e4m3)) {
+                            if (is_superset(isa_, avx512_core_amx)) {
+                                if (idt == f8_e5m2 && f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f8_to_f32(
+                                            Zmm(ymm.getIdx()), ymm);
+                                else if (idt == f8_e4m3 && f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f8_to_f32(
+                                            Zmm(ymm.getIdx()), ymm);
+                                else
+                                    assert(!"fp8 emulation not available");
+                            } else
+                                assert(!"invalid isa for fp8 emulation");
+                        }
                         if (is_superset(isa_, avx2_vnni_2)) {
                             vcvtneps2bf16(
                                     Xmm(ymm.getIdx()), ymm, Xbyak::VexEncoding);
@@ -339,9 +382,22 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     }
                     break;
                 case f16:
-                    if (utils::one_of(idt, f32, bf16, s8, u8)) {
-                        if (idt != f32) cvt2ps(ymm, ymm, idt);
-                        vcvtps2ph(Xmm(ymm.getIdx()), ymm, _op_mxcsr);
+                    if (utils::one_of(
+                                idt, f32, bf16, f8_e5m2, f8_e4m3, s8, u8)) {
+                        if (!utils::one_of(idt, f32, f8_e5m2, f8_e4m3))
+                            cvt2ps(ymm, ymm, idt);
+                        if (utils::one_of(idt, f8_e5m2, f8_e4m3)) {
+                            if (is_superset(isa_, avx512_core_amx)) {
+                                if (idt == f8_e5m2 && f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f8_to_f16(ymm, ymm);
+                                else if (idt == f8_e4m3 && f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f8_to_f16(ymm, ymm);
+                                else
+                                    assert(!"fp8 emulation not available");
+                            } else
+                                assert(!"invalid isa for fp8 emulation");
+                        } else
+                            vcvtps2ph(Xmm(ymm.getIdx()), ymm, _op_mxcsr);
                     }
                     break;
                 case s32:
@@ -352,6 +408,46 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     else if (idt == u8)
                         vpmovzxbd(ymm, ymm);
                     break;
+                case f8_e5m2:
+                    if (utils::one_of(idt, f32, bf16, f16, f8_e4m3)) {
+                        if (is_superset(isa_, avx512_core_amx)) {
+                            if (idt == f8_e4m3) {
+                                if (f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f8_to_f16(ymm, ymm);
+                                if (f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f16_to_f8(ymm, ymm);
+                            } else {
+                                if (idt != f32) cvt2ps(ymm, ymm, idt);
+                                if (f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f32_to_f8(
+                                            Xmm(ymm.getIdx()),
+                                            Zmm(ymm.getIdx()));
+                            }
+                        } else
+                            assert(!"invalid isa or fp8 emulation not "
+                                    "available");
+                        break;
+                    }
+                case f8_e4m3:
+                    if (utils::one_of(idt, f32, bf16, f16, f8_e5m2)) {
+                        if (is_superset(isa_, avx512_core_amx)) {
+                            if (idt == f8_e5m2) {
+                                if (f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f8_to_f16(ymm, ymm);
+                                if (f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f16_to_f8(ymm, ymm);
+                            } else {
+                                if (idt != f32) cvt2ps(ymm, ymm, idt);
+                                if (f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f32_to_f8(
+                                            Xmm(ymm.getIdx()),
+                                            Zmm(ymm.getIdx()));
+                            }
+                        } else
+                            assert(!"invalid isa or fp8 emulation not "
+                                    "available");
+                        break;
+                    }
                 case s8:
                     if (utils::one_of(idt, bf16, f16)) cvt2ps(ymm, ymm, idt);
                     if (utils::one_of(idt, f32, bf16, f16)) vcvtps2dq(ymm, ymm);
@@ -473,9 +569,10 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         // have to be equal to 1.
 
         return mayiuse(avx2) && prb_.ndims >= 2
-                && ((utils::one_of(prb_.itype, u8, s8, s32, f32, bf16, f16)
-                        && utils::one_of(
-                                prb_.otype, u8, s8, s32, f32, bf16, f16)))
+                && ((utils::one_of(prb_.itype, u8, s8, f8_e5m2, f8_e4m3, s32,
+                             f32, bf16, f16)
+                        && utils::one_of(prb_.otype, u8, s8, f8_e5m2, f8_e4m3,
+                                s32, f32, bf16, f16)))
                 && utils::everyone_is(desirable_node_size, prb_.n(0), prb_.n(1))
                 && utils::everyone_is(desirable_stride, prb_.os(0), prb_.is(1))
                 && !prb_.is_tail_present
@@ -537,11 +634,15 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx_,
                 bf16_emu_zmm_2_idx_, bf16_emu_zmm_3_idx_, reg_tmp_,
                 bf16_emu_zmm_4_idx_);
+        io::io_emu_fp8_conf_t io_fp8_conf(fp8_emu_zmm_1_idx_,
+                fp8_emu_zmm_2_idx_, fp8_emu_zmm_3_idx_, fp8_emu_zmm_4_idx_, fp8_emu_zmm_5_idx_, fp8_emu_kmask_aux_idx_,
+                fp8_emu_scratch_);
         io::io_saturation_conf_t io_saturation_conf(
                 zero_idx, saturation_ubound_idx, reg_tmp_);
         io::jit_io_multi_dt_helper_t<Vmm> io(this, isa_,
                 {prb_.itype, prb_.otype}, io_conf, io_tail_conf, io_bf16_conf,
-                {{prb_.otype, io_saturation_conf}});
+                {{prb_.otype, io_saturation_conf}}, utils::nullopt,
+                io_fp8_conf);
 
         io.init_saturate_f32({prb_.otype});
 
@@ -575,42 +676,71 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             const int *zero_padding, const bool tail_processing) {
         using namespace data_type;
 
-        const auto cvt2ps
-                = [this](const Xmm dst, const Operand &src, data_type_t idt) {
-                      Xmm dst_pure = Xmm(dst.getIdx());
-                      switch (idt) {
-                          case f32:
-                              if (src.isMEM() || src.getIdx() != dst.getIdx())
-                                  uni_vmovups(dst, src);
-                              break;
-                          case bf16:
-                              if (mayiuse(avx)) {
-                                  vpmovzxwd(dst, src);
-                                  vpslld(dst, dst, 0x10);
-                                  break;
-                              } else
-                                  assert("unreachable!");
-                          case f16: vcvtph2ps(dst, src); break;
-                          case s32: uni_vcvtdq2ps(dst, src); break;
-                          case s8:
-                              uni_vpmovsxbd(dst, src);
-                              uni_vcvtdq2ps(dst_pure, dst);
-                              break;
-                          case u8:
-                              uni_vpmovzxbd(dst, src);
-                              uni_vcvtdq2ps(dst_pure, dst);
-                              break;
-                          default: assert(!"unreachable");
-                      }
-                  };
+        const auto cvt2ps = [this](const Xmm dst, const Operand &src,
+                                    data_type_t idt) {
+            Xmm dst_pure = Xmm(dst.getIdx());
+            switch (idt) {
+                case f32:
+                    if (src.isMEM() || src.getIdx() != dst.getIdx())
+                        uni_vmovups(dst, src);
+                    break;
+                case bf16:
+                    if (mayiuse(avx)) {
+                        vpmovzxwd(dst, src);
+                        vpslld(dst, dst, 0x10);
+                        break;
+                    } else
+                        assert("unreachable!");
+                case f16: vcvtph2ps(dst, src); break;
+                case s32: uni_vcvtdq2ps(dst, src); break;
+                case f8_e5m2:
+                    if (f8_e5m2_emu_ && is_superset(isa_, avx512_core_amx))
+                        f8_e5m2_emu_->vcvt_f8_to_f32(Zmm(dst.getIdx()), src);
+                    else
+                        assert(!"invalid isa or fp8 emulation not "
+                                "available");
+                    break;
+                case f8_e4m3:
+                    if (f8_e4m3_emu_ && is_superset(isa_, avx512_core_amx))
+                        f8_e4m3_emu_->vcvt_f8_to_f32(Zmm(dst.getIdx()), src);
+                    else
+                        assert(!"invalid isa or fp8 emulation not "
+                                "available");
+                    break;
+                case s8:
+                    uni_vpmovsxbd(dst, src);
+                    uni_vcvtdq2ps(dst_pure, dst);
+                    break;
+                case u8:
+                    uni_vpmovzxbd(dst, src);
+                    uni_vcvtdq2ps(dst_pure, dst);
+                    break;
+                default: assert(!"unreachable");
+            }
+        };
 
         const auto cvt2odt = [this, cvt2ps](const Xmm xmm, data_type_t odt,
                                      data_type_t idt) {
             switch (odt) {
                 case bf16:
                     if (!mayiuse(avx)) assert(!"unreachable");
-                    if (utils::one_of(idt, f32, f16, s8, u8)) {
-                        if (idt != f32) cvt2ps(xmm, xmm, idt);
+                    if (utils::one_of(
+                                idt, f32, f16, f8_e5m2, f8_e4m3, s8, u8)) {
+                        if (!utils::one_of(idt, f32, f8_e5m2, f8_e4m3))
+                            cvt2ps(xmm, xmm, idt);
+                        if (utils::one_of(idt, f8_e5m2, f8_e4m3)) {
+                            if (is_superset(isa_, avx512_core_amx)) {
+                                if (idt == f8_e5m2 && f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f8_to_f32(
+                                            Zmm(xmm.getIdx()), xmm);
+                                else if (idt == f8_e4m3 && f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f8_to_f32(
+                                            Zmm(xmm.getIdx()), xmm);
+                                else
+                                    assert(!"fp8 emulation not available");
+                            } else
+                                assert(!"invalid isa for fp8 emulation");
+                        }
                         if (is_superset(isa_, avx2_vnni_2)) {
                             vcvtneps2bf16(xmm, xmm, Xbyak::VexEncoding);
                         } else if (mayiuse(avx512_core_bf16)) {
@@ -623,9 +753,22 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     break;
                 case f16:
                     if (!mayiuse(avx)) assert(!"unreachable");
-                    if (utils::one_of(idt, f32, bf16, s8, u8)) {
-                        if (idt != f32) cvt2ps(xmm, xmm, idt);
-                        vcvtps2ph(xmm, xmm, _op_mxcsr);
+                    if (utils::one_of(
+                                idt, f32, bf16, f8_e5m2, f8_e4m3, s8, u8)) {
+                        if (!utils::one_of(idt, f32, f8_e5m2, f8_e4m3))
+                            cvt2ps(xmm, xmm, idt);
+                        if (utils::one_of(idt, f8_e5m2, f8_e4m3)) {
+                            if (is_superset(isa_, avx512_core_amx)) {
+                                if (idt == f8_e5m2 && f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f8_to_f16(xmm, xmm);
+                                else if (idt == f8_e4m3 && f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f8_to_f16(xmm, xmm);
+                                else
+                                    assert(!"fp8 emulation not available");
+                            } else
+                                assert(!"invalid isa for fp8 emulation");
+                        } else
+                            vcvtps2ph(xmm, xmm, _op_mxcsr);
                     }
                     break;
                 case s32:
@@ -635,6 +778,44 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                         uni_vpmovsxbd(xmm, xmm);
                     else if (idt == u8)
                         uni_vpmovzxbd(xmm, xmm);
+                    break;
+                case f8_e5m2:
+                    if (utils::one_of(idt, f32, bf16, f16, f8_e4m3)) {
+                        if (is_superset(isa_, avx512_core_amx)) {
+                            if (idt == f8_e4m3) {
+                                if (f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f8_to_f16(xmm, xmm);
+                                if (f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f16_to_f8(xmm, xmm);
+                            } else {
+                                if (idt != f32) cvt2ps(xmm, xmm, idt);
+                                if (f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f32_to_f8(
+                                            xmm, Zmm(xmm.getIdx()));
+                            }
+                        } else
+                            assert(!"invalid isa or fp8 emulation not "
+                                    "available");
+                    }
+                    break;
+                case f8_e4m3:
+                    if (utils::one_of(idt, f32, bf16, f16, f8_e5m2)) {
+                        if (is_superset(isa_, avx512_core_amx)) {
+                            if (idt == f8_e5m2) {
+                                if (f8_e5m2_emu_)
+                                    f8_e5m2_emu_->vcvt_f8_to_f16(xmm, xmm);
+                                if (f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f16_to_f8(xmm, xmm);
+                            } else {
+                                if (idt != f32) cvt2ps(xmm, xmm, idt);
+                                if (f8_e4m3_emu_)
+                                    f8_e4m3_emu_->vcvt_f32_to_f8(
+                                            xmm, Zmm(xmm.getIdx()));
+                            }
+                        } else
+                            assert(!"invalid isa or fp8 emulation not "
+                                    "available");
+                    }
                     break;
                 case s8:
                     if (utils::one_of(idt, bf16, f16)) cvt2ps(xmm, xmm, idt);
@@ -1446,7 +1627,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         : kernel_t(desc)
         , jit_generator(jit_name())
         , isa_(get_max_cpu_isa())
-        , bf16_emu_(nullptr) {
+        , bf16_emu_(nullptr)
+        , f8_e5m2_emu_(nullptr)
+        , f8_e4m3_emu_(nullptr) {
         assert(!utils::one_of(isa_, isa_undef, isa_all));
         itype_sz_ = data_type_size(prb_.itype);
         otype_sz_ = data_type_size(prb_.otype);
@@ -1456,6 +1639,34 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                     bf16_emu_reserv_1_, bf16_emu_reserv_2_, bf16_emu_reserv_3_,
                     bf16_emu_scratch_, bf16_emu_reserv_4_);
+        }
+        if ((utils::one_of(prb_.otype, data_type::f8_e5m2, data_type::f8_e4m3)
+                    || utils::one_of(
+                            prb_.itype, data_type::f8_e5m2, data_type::f8_e4m3))
+                && is_superset(isa_, avx512_core_amx)) {
+            const auto create_fp8_emu = [&](const data_type_t &dtype) {
+                switch (dtype) {
+                    case data_type::f8_e5m2:
+                        f8_e5m2_emu_ = utils::make_unique<fp8_emulation_e5m2_t>(
+                                this, fp8_emu_reserv_1_, fp8_emu_reserv_2_,
+                                fp8_emu_reserv_3_, fp8_emu_kmask_aux_,
+                                fp8_emu_scratch_);
+                        break;
+                    case data_type::f8_e4m3:
+                        f8_e4m3_emu_ = utils::make_unique<fp8_emulation_e4m3_t>(
+                                this, fp8_emu_reserv_1_, fp8_emu_reserv_2_,
+                                fp8_emu_reserv_3_, fp8_emu_reserv_4_,
+                                fp8_emu_reserv_5_, fp8_emu_scratch_);
+                        break;
+                    default: assert(!"Unreachable.");
+                }
+            };
+            if (utils::one_of(
+                        prb_.otype, data_type::f8_e5m2, data_type::f8_e4m3))
+                create_fp8_emu(prb_.otype);
+            if (utils::one_of(
+                        prb_.itype, data_type::f8_e5m2, data_type::f8_e4m3))
+                create_fp8_emu(prb_.itype);
         }
     }
 
@@ -1537,6 +1748,15 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
         L(end_of_kernel);
         postamble();
+
+        const bool is_fp8_itype = utils::one_of(
+                prb_.itype, data_type::f8_e5m2, data_type::f8_e4m3);
+        const bool is_fp8_otype = utils::one_of(
+                prb_.otype, data_type::f8_e5m2, data_type::f8_e4m3);
+        if (is_fp8_itype || is_fp8_otype) {
+            if (f8_e5m2_emu_) f8_e5m2_emu_->prepare_table();
+            if (f8_e4m3_emu_) f8_e4m3_emu_->prepare_table();
+        }
     }
 
     ~jit_uni_reorder_kernel_f32_t() override = default;
@@ -1586,6 +1806,13 @@ private:
     const int bf16_emu_zmm_2_idx_ = 17;
     const int bf16_emu_zmm_3_idx_ = 18;
     const int bf16_emu_zmm_4_idx_ = 19;
+
+    const int fp8_emu_zmm_1_idx_ = 16;
+    const int fp8_emu_zmm_2_idx_ = 17;
+    const int fp8_emu_zmm_3_idx_ = 18;
+    const int fp8_emu_zmm_4_idx_ = 19;
+    const int fp8_emu_zmm_5_idx_ = 20;
+    const int fp8_emu_kmask_aux_idx_ = 1;
     /* bf16 support on SKX */
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
     const Zmm bf16_emu_reserv_1_ = Zmm(bf16_emu_zmm_1_idx_);
@@ -1593,6 +1820,16 @@ private:
     const Reg64 bf16_emu_scratch_ = reg_tmp_;
     const Zmm bf16_emu_reserv_3_ = Zmm(bf16_emu_zmm_3_idx_);
     const Zmm bf16_emu_reserv_4_ = Zmm(bf16_emu_zmm_4_idx_);
+    /* fp8 support on SPR */
+    std::unique_ptr<fp8_emulation_e5m2_t> f8_e5m2_emu_;
+    std::unique_ptr<fp8_emulation_e4m3_t> f8_e4m3_emu_;
+    const Zmm fp8_emu_reserv_1_ = Zmm(fp8_emu_zmm_1_idx_);
+    const Zmm fp8_emu_reserv_2_ = Zmm(fp8_emu_zmm_2_idx_);
+    const Zmm fp8_emu_reserv_3_ = Zmm(fp8_emu_zmm_3_idx_);
+    const Zmm fp8_emu_reserv_4_ = Zmm(fp8_emu_zmm_4_idx_);
+    const Zmm fp8_emu_reserv_5_ = Zmm(fp8_emu_zmm_5_idx_);
+    const Opmask fp8_emu_kmask_aux_ = Opmask(fp8_emu_kmask_aux_idx_);
+    const Reg64 fp8_emu_scratch_ = bf16_emu_scratch_;
 };
 
 // Seperate class for no unroll/threading burden
