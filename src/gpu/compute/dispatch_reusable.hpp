@@ -257,6 +257,7 @@ struct dispatch_compile_params_t {
     uint64_t buffer_term_index[MAX_REGISTERED_BUFFERS][MAX_INDEXING_TERMS]
             = {{0}};
     uint64_t buffer_num_terms[MAX_REGISTERED_BUFFERS] = {0};
+    data_type_t buffer_types[MAX_REGISTERED_BUFFERS] = {data_type::undef};
 };
 assert_trivially_serializable(dispatch_compile_params_t);
 
@@ -551,6 +552,9 @@ public:
             for (size_t j = 0; j < buf_terms.size(); j++) {
                 compile_params.buffer_term_index[buf_idx][j] = buf_terms[j];
             }
+
+            // Save the data type
+            compile_params.buffer_types[buf_idx] = buffer.data_type;
 
             // Check buffer sizes to see if we can use int32_t offsets
             max_buffer_size = std::max(max_buffer_size, buffer.nelems(true));

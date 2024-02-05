@@ -15,7 +15,9 @@
 *******************************************************************************/
 
 #include "gpu/compute/dispatch_reusable.hpp"
+#include "common/c_types_map.hpp"
 #include "gpu/block_structure.hpp"
+#include "gpu/compute/data_type_converter.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/utils.hpp"
 
@@ -501,9 +503,18 @@ void dispatch_compile_params_t::def_kernel_macros(
                 gpu_utils::into<dim_t>(term.gws_idx));
     }
 
+    // Define data types for conversion (Ignore the default suffix)
+    std::string conv_suff = (suffix == std::string("DEFAULT"))
+            ? ""
+            : utils::format("_%s", suffix);
+
     // For each buffer, define the sum that leads to the offset calculation
+    data_type_converter_t converter;
     for (size_t i = 0; i < num_buffers; i++) {
         const char *name = buffer_names[i];
+        if (buffer_types[i] != data_type::undef) {
+            converter.register_type(name + conv_suff, buffer_types[i]);
+        }
         std::string equation;
         for (size_t j = 0; j < buffer_num_terms[i]; j++) {
             equation += utils::format("%s_GET_ID%d(rt_params)", gws_prefix,
@@ -514,6 +525,7 @@ void dispatch_compile_params_t::def_kernel_macros(
         kernel_ctx.add_option(utils::format("-DGWS_%s_%s_OFF(rt_params)=%s",
                 name, suffix, equation.c_str()));
     }
+    converter.def_kernel_macros(kernel_ctx);
 
     kernel_ctx.define_int(
             utils::format("GWS_WITH_SG_%s", suffix), subgroup.used() ? 1 : 0);
