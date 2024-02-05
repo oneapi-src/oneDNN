@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -170,13 +170,18 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                 skip_mask |= smask_t::scales_runtime
                         | smask_t::zero_points_runtime;
 
-            const bool ok = is_fwd()
-                    && utils::one_of(desc()->alg_kind,
-                            alg_kind::deconvolution_direct,
-                            alg_kind::deconvolution_winograd)
-                    && attr()->has_default_values(skip_mask) && attr_scales_ok()
-                    && post_ops_ok() && zero_points_ok();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_DECONVOLUTION(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_DECONVOLUTION(utils::one_of(desc()->alg_kind,
+                                            alg_kind::deconvolution_direct,
+                                            alg_kind::deconvolution_winograd),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_DECONVOLUTION(attr()->has_default_values(skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_DECONVOLUTION(
+                    attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_DECONVOLUTION(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_DECONVOLUTION(
+                    zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
 
             CHECK(init_convolution(engine));
 
@@ -346,31 +351,35 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             auto dsrc_type = desc()->diff_src_desc.data_type;
             auto wei_type = desc()->weights_desc.data_type;
             auto ddst_type = desc()->diff_dst_desc.data_type;
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && utils::one_of(wei_type, f32, bf16, f16)
-                    && ddst_type == wei_type
-                    && utils::one_of(dsrc_type, wei_type, f32)
-                    && utils::one_of(desc()->alg_kind,
-                            alg_kind::deconvolution_direct,
-                            alg_kind::deconvolution_winograd)
-                    && attr()->has_default_values();
 
-            if (ok) {
-                CHECK(init_convolution(engine));
-                if (weights_md_.format_kind == format_kind::any)
-                    CHECK(weights_axes_permutation(&weights_md_,
-                            conv_pd_->weights_md(), with_groups()));
-                if (diff_src_md_.format_kind == format_kind::any)
-                    diff_src_md_ = *conv_pd_->dst_md();
-                if (diff_dst_md_.format_kind == format_kind::any)
-                    diff_dst_md_ = *conv_pd_->src_md();
+            VDISPATCH_DECONVOLUTION(
+                    desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_DECONVOLUTION(utils::one_of(wei_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(ddst_type == wei_type,
+                    VERBOSE_INCONSISTENT_DT, "diff_dst", "weights");
+            VDISPATCH_DECONVOLUTION(utils::one_of(dsrc_type, wei_type, f32),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(utils::one_of(desc()->alg_kind,
+                                            alg_kind::deconvolution_direct,
+                                            alg_kind::deconvolution_winograd),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_DECONVOLUTION(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-                init_name();
-                init_scratchpad();
-                return status::success;
-            }
+            CHECK(init_convolution(engine));
+            if (weights_md_.format_kind == format_kind::any)
+                CHECK(weights_axes_permutation(
+                        &weights_md_, conv_pd_->weights_md(), with_groups()));
+            if (diff_src_md_.format_kind == format_kind::any)
+                diff_src_md_ = *conv_pd_->dst_md();
+            if (diff_dst_md_.format_kind == format_kind::any)
+                diff_dst_md_ = *conv_pd_->src_md();
 
-            return status::unimplemented;
+            init_name();
+            init_scratchpad();
+            return status::success;
         }
 
         std::shared_ptr<primitive_desc_t> conv_pd_;
@@ -463,39 +472,42 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             auto src_type = desc()->src_desc.data_type;
             auto dwei_type = desc()->diff_weights_desc.data_type;
             auto ddst_type = desc()->diff_dst_desc.data_type;
-            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && utils::one_of(src_type, f32, bf16, f16)
-                    && ddst_type == src_type
-                    && utils::one_of(dwei_type, src_type, f32)
-                    && utils::one_of(desc()->alg_kind,
-                            alg_kind::deconvolution_direct,
-                            alg_kind::deconvolution_winograd)
-                    && attr()->has_default_values();
+            VDISPATCH_DECONVOLUTION(
+                    desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_DECONVOLUTION(utils::one_of(src_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(ddst_type == src_type,
+                    VERBOSE_INCONSISTENT_DT, "diff_dst", "src");
+            VDISPATCH_DECONVOLUTION(utils::one_of(dwei_type, src_type, f32),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(utils::one_of(desc()->alg_kind,
+                                            alg_kind::deconvolution_direct,
+                                            alg_kind::deconvolution_winograd),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_DECONVOLUTION(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-            if (ok) {
-                CHECK(init_convolution(engine));
-                if (diff_weights_md_.format_kind == format_kind::any)
-                    CHECK(weights_axes_permutation(&diff_weights_md_,
-                            conv_pd_->diff_weights_md(), with_groups()));
-                if (src_md_.format_kind == format_kind::any)
-                    src_md_ = *conv_pd_->diff_dst_md();
-                if (diff_dst_md_.format_kind == format_kind::any)
-                    diff_dst_md_ = *conv_pd_->src_md();
-                if (diff_bias_md_.format_kind == format_kind::any)
-                    CHECK(memory_desc_init_by_tag(diff_bias_md_, x));
+            CHECK(init_convolution(engine));
+            if (diff_weights_md_.format_kind == format_kind::any)
+                CHECK(weights_axes_permutation(&diff_weights_md_,
+                        conv_pd_->diff_weights_md(), with_groups()));
+            if (src_md_.format_kind == format_kind::any)
+                src_md_ = *conv_pd_->diff_dst_md();
+            if (diff_dst_md_.format_kind == format_kind::any)
+                diff_dst_md_ = *conv_pd_->src_md();
+            if (diff_bias_md_.format_kind == format_kind::any)
+                CHECK(memory_desc_init_by_tag(diff_bias_md_, x));
 
-                dst_tag_ = memory_desc_matches_one_of_tag(diff_dst_md_,
-                        utils::pick(ndims() - 3, ncw, nchw, ncdhw),
-                        utils::pick(ndims() - 3, nwc, nhwc, ndhwc),
-                        utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
-                        utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
+            dst_tag_ = memory_desc_matches_one_of_tag(diff_dst_md_,
+                    utils::pick(ndims() - 3, ncw, nchw, ncdhw),
+                    utils::pick(ndims() - 3, nwc, nhwc, ndhwc),
+                    utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
+                    utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
 
-                init_name();
-                init_scratchpad();
-                return status::success;
-            }
-
-            return status::unimplemented;
+            init_name();
+            init_scratchpad();
+            return status::success;
         }
 
         std::shared_ptr<primitive_desc_t> conv_pd_;

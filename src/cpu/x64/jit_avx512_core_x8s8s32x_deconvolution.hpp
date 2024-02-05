@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -251,20 +251,31 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
-            const bool ok = is_fwd()
-                    && (desc()->alg_kind & alg_kind::deconvolution_direct)
-                    && utils::one_of(src_md(0)->data_type, s8, u8)
-                    && weights_md(0)->data_type == s8
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(
-                                    weights_md(1)->data_type, f32, s32, s8, u8))
-                    && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
-                    && desc()->accum_data_type == s32
-                    && attr()->has_default_values(skip_mask_t::scales_runtime
+            VDISPATCH_DECONVOLUTION(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_DECONVOLUTION(
+                    (desc()->alg_kind & alg_kind::deconvolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_DECONVOLUTION(utils::one_of(src_md(0)->data_type, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    weights_md(0)->data_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    IMPLICATION(with_bias(),
+                            utils::one_of(weights_md(1)->data_type, f32, s32,
+                                    s8, u8)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    desc()->accum_data_type == s32, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    attr()->has_default_values(skip_mask_t::scales_runtime
                             | skip_mask_t::post_ops
-                            | skip_mask_t::zero_points_runtime)
-                    && attr_scales_ok();
-            if (!ok) return status::unimplemented;
+                            | skip_mask_t::zero_points_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_DECONVOLUTION(
+                    attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             CHECK(_jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(jcp_,
                     *desc(), src_md_, weights_md_, dst_md_, with_bias(),
