@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ struct ref_group_normalization_fwd_t : public primitive_t {
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
             bool ok = attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_GNORM(ok, VERBOSE_UNSUPPORTED_POSTOP);
 
             return status::success;
         }
