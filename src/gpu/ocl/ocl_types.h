@@ -87,6 +87,7 @@
 #ifndef GPU_OCL_OCL_TYPES_H
 #define GPU_OCL_OCL_TYPES_H
 
+#include "gpu/ocl/ocl_custom_types.h"
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/ocl_utils.h"
 
@@ -111,8 +112,6 @@
 #if DT_F64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif
-
-#define dim_t long // 64 bit per the OpenCL specification
 
 #if DT_F64 == 1
 #define AS_POST_OP_DATA_T(v) v
