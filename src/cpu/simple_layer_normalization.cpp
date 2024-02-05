@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,18 +39,27 @@ status_t simple_layer_normalization_fwd_t::pd_t::init(engine_t *engine) {
     using skip_mask_t = primitive_attr_t::skip_mask_t;
     const memory_desc_wrapper src_d(src_md());
 
-    const bool ok = is_fwd() && !has_zero_dim_memory()
-            && utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8)
-            && utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8)
-            && platform::has_data_type_support(src_md()->data_type)
-            && platform::has_data_type_support(dst_md()->data_type)
-            && stat_md()->data_type == f32 && check_scale_shift_data_type()
-            && attr()->has_default_values(skip_mask_t::scales_runtime)
-            && attr_scales_ok() && set_default_formats_common()
-            && src_d.is_blocking_desc()
-            // plain format, last logical dim is last physical
-            && src_d.blocking_desc().strides[ndims() - 1] == 1;
-    if (!ok) return status::unimplemented;
+    VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_LNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_LNORM(utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(platform::has_data_type_support(src_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(platform::has_data_type_support(dst_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(check_scale_shift_data_type(), VERBOSE_UNSUPPORTED_FEATURE,
+            "unsupported scale or shift data type");
+    VDISPATCH_LNORM(attr()->has_default_values(skip_mask_t::scales_runtime),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_LNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VDISPATCH_LNORM(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_LNORM(src_d.is_blocking_desc(), VERBOSE_BLOCKING_FAIL);
+    // plain format, last logical dim is last physical
+    VDISPATCH_LNORM(src_d.blocking_desc().strides[ndims() - 1] == 1,
+            VERBOSE_BLOCKING_FAIL);
 
     CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
@@ -201,19 +210,29 @@ status_t simple_layer_normalization_bwd_t::pd_t::init(engine_t *engine) {
     using namespace data_type;
     const memory_desc_wrapper src_d(src_md());
 
-    const bool ok = !is_fwd() && !has_zero_dim_memory()
-            && utils::one_of(src_md()->data_type, f32, bf16, f16)
-            && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
-            && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
-            && platform::has_data_type_support(src_md()->data_type)
-            && platform::has_data_type_support(diff_dst_md()->data_type)
-            && platform::has_data_type_support(diff_src_md()->data_type)
-            && stat_md()->data_type == f32 && check_scale_shift_data_type()
-            && attr()->has_default_values() && set_default_formats_common()
-            && src_d.is_blocking_desc()
-            // plain format, last logical dim is last physical
-            && src_d.blocking_desc().strides[ndims() - 1] == 1;
-    if (!ok) return status::unimplemented;
+    VDISPATCH_LNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_LNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_LNORM(utils::one_of(src_md()->data_type, f32, bf16, f16),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(utils::one_of(diff_dst_md()->data_type, f32, bf16, f16),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(utils::one_of(diff_src_md()->data_type, f32, bf16, f16),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(platform::has_data_type_support(src_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(platform::has_data_type_support(diff_dst_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(platform::has_data_type_support(diff_src_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(check_scale_shift_data_type(), VERBOSE_UNSUPPORTED_FEATURE,
+            "unsupported scale or shift data type");
+    VDISPATCH_LNORM(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_LNORM(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_LNORM(src_d.is_blocking_desc(), VERBOSE_BLOCKING_FAIL);
+    // plain format, last logical dim is last physical
+    VDISPATCH_LNORM(src_d.blocking_desc().strides[ndims() - 1] == 1,
+            VERBOSE_BLOCKING_FAIL);
 
     CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
