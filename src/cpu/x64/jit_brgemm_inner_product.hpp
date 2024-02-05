@@ -66,17 +66,31 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     | skip_mask_t::fpmath_mode;
             if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
-            bool ok = is_fwd() && mayiuse(isa)
-                    && expect_data_types(src_dt, wei_dt, data_type::undef,
-                            dst_dt, data_type::undef)
-                    && IMPLICATION(with_bias() && is_int8,
-                            one_of(bias_md_.data_type, f32, bf16, s32, s8, u8))
-                    && IMPLICATION(with_bias() && !is_int8,
-                            one_of(bias_md_.data_type, f32, src_dt))
-                    && attr()->has_default_values(skip_mask, dst_dt)
-                    && attr()->post_ops_.check_sum_consistency(dst_dt, is_int8)
-                    && !has_zero_dim_memory() && arg_scales_ok();
-            if (!ok) return status::unimplemented;
+            if (!mayiuse(isa)) return status::unimplemented;
+
+            VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(
+                    expect_data_types(src_dt, wei_dt, data_type::undef, dst_dt,
+                            data_type::undef),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(with_bias() && is_int8,
+                            one_of(bias_md_.data_type, f32, bf16, s32, s8, u8)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(with_bias() && !is_int8,
+                            one_of(bias_md_.data_type, f32, src_dt)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(skip_mask, dst_dt),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->post_ops_.check_sum_consistency(dst_dt, is_int8),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT(
+                    arg_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             CHECK(jbgp_.init_conf(isa, *desc(), src_md_, weights_md_, dst_md_,
                     bias_md_, attr_, dnnl_get_max_threads()));
@@ -253,14 +267,23 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             auto diff_dst_dt = invariant_dst_md()->data_type;
             auto wei_dt = invariant_wei_md()->data_type;
 
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && !has_zero_dim_memory() && mayiuse(isa)
-                    && utils::one_of(diff_dst_dt, data_type::f32,
-                            data_type::bf16, data_type::f16)
-                    && wei_dt == diff_dst_dt
-                    && utils::one_of(diff_src_dt, data_type::f32, diff_dst_dt)
-                    && attr()->has_default_values(skip_mask_t::fpmath_mode);
-            if (!ok) return status::unimplemented;
+            if (!mayiuse(isa)) return status::unimplemented;
+            VDISPATCH_INNER_PRODUCT(
+                    desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT(utils::one_of(diff_dst_dt, data_type::f32,
+                                            data_type::bf16, data_type::f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(wei_dt == diff_dst_dt,
+                    VERBOSE_INCONSISTENT_DT, "weights", "diff_dst");
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(diff_src_dt, data_type::f32, diff_dst_dt),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(skip_mask_t::fpmath_mode),
+                    VERBOSE_UNSUPPORTED_ATTR);
 
             memory_desc_t dummy_bias_md;
             CHECK(jbgp_.init_conf(isa, *desc(), diff_src_md_, weights_md_,
@@ -419,14 +442,23 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             auto diff_wei_type = invariant_wei_md()->data_type;
             auto diff_dst_type = invariant_dst_md()->data_type;
 
-            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && !has_zero_dim_memory() && mayiuse(isa)
-                    && utils::one_of(src_dt, data_type::f32, data_type::bf16,
-                            data_type::f16)
-                    && diff_dst_type == src_dt
-                    && utils::one_of(diff_wei_type, data_type::f32, src_dt)
-                    && attr()->has_default_values(skip_mask_t::fpmath_mode);
-            if (!ok) return status::unimplemented;
+            if (!mayiuse(isa)) return status::unimplemented;
+            VDISPATCH_INNER_PRODUCT(
+                    desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT(utils::one_of(src_dt, data_type::f32,
+                                            data_type::bf16, data_type::f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(diff_dst_type == src_dt,
+                    VERBOSE_INCONSISTENT_DT, "diff_dst", "src");
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(diff_wei_type, data_type::f32, src_dt),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(skip_mask_t::fpmath_mode),
+                    VERBOSE_UNSUPPORTED_ATTR);
 
             CHECK(jbgp_.init_conf(isa, *desc(), src_md_, diff_weights_md_,
                     diff_dst_md_, diff_bias_md_, attr_,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,28 +52,44 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            const bool ok = is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(src_md()->data_type, s8, u8)
-                    && weights_md()->data_type == s8
-                    && utils::one_of(dst_md()->data_type, f32, s32, s8, u8)
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(
-                                    weights_md(1)->data_type, f32, s32, s8, u8))
-                    && attr()->has_default_values(
+            VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT(utils::one_of(src_md()->data_type, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    weights_md()->data_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(dst_md()->data_type, f32, s32, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(with_bias(),
+                            utils::one_of(weights_md(1)->data_type, f32, s32,
+                                    s8, u8)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::scales_runtime
                                     | primitive_attr_t::skip_mask_t::post_ops,
-                            dst_md()->data_type)
-                    && attr()->post_ops_.check_sum_consistency(
-                            dst_md()->data_type, /* is_int */ true)
-                    && attr_scales_ok()
-                    && set_default_params() == status::success
-                    && dense_gemm_consitency_check(
-                            src_md(), weights_md(), dst_md())
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && inner_product_utils::post_ops_ok(
-                            attr()->post_ops_, &dst_md_);
-
-            if (!ok) return status::unimplemented;
+                            dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->post_ops_.check_sum_consistency(
+                            dst_md()->data_type, /* is_int */ true),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_INNER_PRODUCT(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(dense_gemm_consitency_check(
+                                            src_md(), weights_md(), dst_md()),
+                    VERBOSE_INCOMPATIBLE_GEMM_FMT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(inner_product_utils::post_ops_ok(
+                                            attr()->post_ops_, &dst_md_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             bool do_sum = attr()->post_ops_.find(primitive_kind::sum) >= 0;
             dst_is_acc_

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,25 +50,39 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
             using namespace utils;
             using namespace data_type;
 
-            bool ok = true && mayiuse(avx512_core) && is_fwd()
-                    && !has_zero_dim_memory()
-                    && everyone_is(
-                            bf16, src_md()->data_type, weights_md()->data_type)
-                    && dst_data_type == dst_md()->data_type
-                    && IMPLICATION(with_bias(),
-                            one_of(weights_md(1)->data_type, f32, bf16))
-                    && attr()->has_default_values(
+            if (!mayiuse(avx512_core)) return status::unimplemented;
+            VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT(everyone_is(bf16, src_md()->data_type,
+                                            weights_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(dst_data_type == dst_md()->data_type,
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(with_bias(),
+                            one_of(weights_md(1)->data_type, f32, bf16)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops,
-                            dst_md()->data_type)
-                    && attr()->post_ops_.check_sum_consistency(
-                            dst_md()->data_type, /* is_int8 */ false)
-                    && inner_product_utils::post_ops_ok(
-                            attr()->post_ops_, &dst_md_)
-                    && set_default_params() == status::success
-                    && dense_gemm_consitency_check(
-                            src_md(), weights_md(), dst_md())
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+                            dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->post_ops_.check_sum_consistency(
+                            dst_md()->data_type, /* is_int8 */ false),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(inner_product_utils::post_ops_ok(
+                                            attr()->post_ops_, &dst_md_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(dense_gemm_consitency_check(
+                                            src_md(), weights_md(), dst_md()),
+                    VERBOSE_INCOMPATIBLE_GEMM_FMT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             dst_is_acc_ = dst_data_type == f32;
 
@@ -143,17 +157,27 @@ struct gemm_bf16_inner_product_bwd_data_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            bool ok = true && mayiuse(avx512_core)
-                    && desc()->prop_kind == prop_kind::backward_data
-                    && !has_zero_dim_memory()
-                    && utils::everyone_is(bf16, weights_md()->data_type,
-                            diff_dst_md()->data_type)
-                    && diff_src_data_type == diff_src_md()->data_type
-                    && attr()->has_default_values()
-                    && this->set_default_params() == status::success
-                    && dense_gemm_consitency_check(
-                            diff_src_md(), weights_md(), diff_dst_md());
-            if (!ok) return status::unimplemented;
+            if (!mayiuse(avx512_core)) return status::unimplemented;
+            VDISPATCH_INNER_PRODUCT(
+                    desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT(
+                    utils::everyone_is(bf16, weights_md()->data_type,
+                            diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    diff_src_data_type == diff_src_md()->data_type,
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    this->set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(dense_gemm_consitency_check(diff_src_md(),
+                                            weights_md(), diff_dst_md()),
+                    VERBOSE_INCOMPATIBLE_GEMM_FMT);
 
             diff_src_is_acc_ = diff_src_data_type == data_type::f32;
 
@@ -204,20 +228,29 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
             using namespace utils;
             using namespace data_type;
 
-            bool ok = true && mayiuse(avx512_core)
-                    && desc()->prop_kind == prop_kind::backward_weights
-                    && !has_zero_dim_memory()
-                    && everyone_is(
-                            bf16, src_md()->data_type, diff_dst_md()->data_type)
-                    && diff_wei_data_type == diff_weights_md()->data_type
-                    && IMPLICATION(with_bias(),
-                            one_of(diff_weights_md(1)->data_type, f32, bf16))
-                    && attr()->has_default_values()
-                    && set_default_params() == status::success
-                    && dense_gemm_consitency_check(
-                            src_md(), diff_weights_md(), diff_dst_md());
-
-            if (!ok) return status::unimplemented;
+            if (!mayiuse(avx512_core)) return status::unimplemented;
+            VDISPATCH_INNER_PRODUCT(
+                    desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT(everyone_is(bf16, src_md()->data_type,
+                                            diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    diff_wei_data_type == diff_weights_md()->data_type,
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(with_bias(),
+                            one_of(diff_weights_md(1)->data_type, f32, bf16)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(dense_gemm_consitency_check(src_md(),
+                                            diff_weights_md(), diff_dst_md()),
+                    VERBOSE_INCOMPATIBLE_GEMM_FMT);
 
             diff_wei_is_acc_ = diff_wei_data_type == f32;
             bias_reduction_nthr_ = dnnl_get_max_threads();
