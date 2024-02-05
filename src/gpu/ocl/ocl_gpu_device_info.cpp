@@ -18,6 +18,8 @@
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_gpu_hw_info.hpp"
 
+#include "CL/cl_ext.h"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -146,6 +148,19 @@ status_t ocl_gpu_device_info_t::init_attributes(engine_t *engine) {
             sizeof(max_wg_size), &max_wg_size, nullptr);
     OCL_CHECK(err);
     max_wg_size_ = max_wg_size;
+
+#ifdef cl_intel_unified_shared_memory
+    cl_device_unified_shared_memory_capabilities_intel
+            system_memory_capabilities_intel
+            = 0;
+    err = clGetDeviceInfo(device,
+            CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL,
+            sizeof(cl_device_unified_shared_memory_capabilities_intel),
+            &system_memory_capabilities_intel, nullptr);
+    OCL_CHECK(err);
+    mayiuse_system_memory_allocators_ = system_memory_capabilities_intel
+            & CL_UNIFIED_SHARED_MEMORY_ACCESS_INTEL;
+#endif
 
     return status::success;
 }
