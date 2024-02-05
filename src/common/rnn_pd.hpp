@@ -25,6 +25,11 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#define VDISPATCH_RNN(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, rnn, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 
