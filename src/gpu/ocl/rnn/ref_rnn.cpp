@@ -377,27 +377,33 @@ status_t _ref_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
         CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
     if (weights_layer_md_.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(weights_layer_md_, ldgoi));
-        CHECK(rnn_utils::set_good_strides(arch_ld, weights_layer_md_, ldgoi));
+        if (!rnn_conf.is_int8)
+            CHECK(rnn_utils::set_good_strides(
+                    arch_ld, weights_layer_md_, ldgoi));
     }
     if (dst_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(dst_layer_md_, tnc));
 
     if (weights_iter_md_.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(weights_iter_md_, ldgoi));
-        CHECK(rnn_utils::set_good_strides(arch_ld, weights_iter_md_, ldgoi));
+        if (!rnn_conf.is_int8)
+            CHECK(rnn_utils::set_good_strides(
+                    arch_ld, weights_iter_md_, ldgoi));
     }
 
     if (diff_src_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(diff_src_layer_md_, tnc));
     if (diff_weights_layer_md_.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_weights_layer_md_, ldigo));
-        CHECK(rnn_utils::set_good_strides(
-                arch_ld, diff_weights_layer_md_, ldigo));
+        if (!rnn_conf.is_int8)
+            CHECK(rnn_utils::set_good_strides(
+                    arch_ld, diff_weights_layer_md_, ldigo));
     }
     if (diff_weights_iter_md_.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_weights_iter_md_, ldigo));
-        CHECK(rnn_utils::set_good_strides(
-                arch_ld, diff_weights_iter_md_, ldigo));
+        if (!rnn_conf.is_int8)
+            CHECK(rnn_utils::set_good_strides(
+                    arch_ld, diff_weights_iter_md_, ldigo));
     }
     if (diff_dst_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(diff_dst_layer_md_, tnc));
@@ -532,22 +538,22 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             return md.is_dense(true);
         };
         VCONDCHECK(primitive, create, dispatch, rnn,
-                has_trivial_strides(this->desc()->src_layer_desc),
+                has_trivial_strides(this->src_layer_md_), status::unimplemented,
+                VERBOSE_NONTRIVIAL_STRIDE);
+        VCONDCHECK(primitive, create, dispatch, rnn,
+                has_trivial_strides(this->src_iter_md_), status::unimplemented,
+                VERBOSE_NONTRIVIAL_STRIDE);
+        VCONDCHECK(primitive, create, dispatch, rnn,
+                has_trivial_strides(this->src_iter_c_md_),
                 status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
         VCONDCHECK(primitive, create, dispatch, rnn,
-                has_trivial_strides(this->desc()->src_iter_desc),
-                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
+                has_trivial_strides(this->dst_layer_md_), status::unimplemented,
+                VERBOSE_NONTRIVIAL_STRIDE);
         VCONDCHECK(primitive, create, dispatch, rnn,
-                has_trivial_strides(this->desc()->src_iter_c_desc),
-                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
+                has_trivial_strides(this->dst_iter_md_), status::unimplemented,
+                VERBOSE_NONTRIVIAL_STRIDE);
         VCONDCHECK(primitive, create, dispatch, rnn,
-                has_trivial_strides(this->desc()->dst_layer_desc),
-                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
-        VCONDCHECK(primitive, create, dispatch, rnn,
-                has_trivial_strides(this->desc()->dst_iter_desc),
-                status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
-        VCONDCHECK(primitive, create, dispatch, rnn,
-                has_trivial_strides(this->desc()->dst_iter_c_desc),
+                has_trivial_strides(this->dst_iter_c_md_),
                 status::unimplemented, VERBOSE_NONTRIVIAL_STRIDE);
     }
 
