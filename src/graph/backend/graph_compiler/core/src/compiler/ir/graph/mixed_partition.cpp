@@ -3000,10 +3000,15 @@ static bool check_repartition(const mixed_parti_t::ptr &parti) {
         //      |
         //     out
         // if B becomes a standalone op, we will re-fuse it
+        // we requires B to have all of its consumers outside of the current
+        // partition
         bool is_terminate_op = std::all_of(op->get_outputs().begin(),
                 op->get_outputs().end(), [&](const graph_tensor_ptr &gt) {
-                    if (parti->is_parti_out(gt)) return true;
-                    return false;
+                    return std::all_of(gt->uses_.begin(), gt->uses_.end(),
+                            [&parti](const std::pair<int, sc_op_weak_ptr_t>
+                                            &user) {
+                                return !parti->contains(user.second.get());
+                            });
                 });
         if (is_terminate_op) {
             // find producer inputs
