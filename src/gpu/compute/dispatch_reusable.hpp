@@ -75,6 +75,7 @@ inline std::string to_string(gws_op_t op) {
 #undef CASE
     }
     return "invalid";
+#undef CASE
 }
 
 // Encodes the information needed for one term like (idx / stride % max) * block
