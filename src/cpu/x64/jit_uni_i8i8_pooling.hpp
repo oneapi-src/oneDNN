@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2021 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,26 +44,41 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace format_tag;
-            bool ok = mayiuse(isa) && utils::one_of(ndims(), 3, 4, 5)
-                    && desc()->prop_kind == prop_kind::forward_inference
-                    && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
+            // disabling verbose dispatch messages for unsupported isa for better readability
+            if (!mayiuse(isa)) return status::unimplemented;
+
+            VDISPATCH_POOLING(utils::one_of(ndims(), 3, 4, 5),
+                    VERBOSE_BAD_NDIMS, "src", ndims());
+            VDISPATCH_POOLING(desc()->prop_kind == prop_kind::forward_inference,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(
+                    utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                             alg_kind::pooling_avg_include_padding,
-                            alg_kind::pooling_avg_exclude_padding)
-                    && utils::one_of(src_md()->data_type, data_type::s32,
-                            data_type::s8, data_type::u8)
-                    && src_md()->data_type == dst_md()->data_type
-                    && !is_dilated()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
-                    && set_default_params() == status::success
-                    && memory_desc_matches_one_of_tag(
-                               *src_md(), nwc, nhwc, ndhwc)
-                            != format_tag::undef
-                    && memory_desc_matches_one_of_tag(
-                               *dst_md(), nwc, nhwc, ndhwc)
-                            != format_tag::undef
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+                            alg_kind::pooling_avg_exclude_padding),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_POOLING(utils::one_of(src_md()->data_type, data_type::s32,
+                                      data_type::s8, data_type::u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(src_md()->data_type == dst_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
+            VDISPATCH_POOLING(!is_dilated(), VERBOSE_UNSUPPORTED_FEATURE,
+                    "does not support dilations");
+            VDISPATCH_POOLING(attr()->has_default_values(
+                                      primitive_attr_t::skip_mask_t::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_POOLING(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    memory_desc_matches_one_of_tag(*src_md(), nwc, nhwc, ndhwc)
+                            != format_tag::undef,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    memory_desc_matches_one_of_tag(*dst_md(), nwc, nhwc, ndhwc)
+                            != format_tag::undef,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             CHECK(jit_conf());
 

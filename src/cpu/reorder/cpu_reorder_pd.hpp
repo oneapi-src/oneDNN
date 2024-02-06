@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,8 @@ struct cpu_reorder_pd_t : public reorder_pd_t {
         bool args_ok = IMPLICATION(post_ops.len() != 0,
                 post_ops.len() == 1
                         && post_ops.entry_[0].kind == primitive_kind::sum);
-        return args_ok ? status::success : status::unimplemented;
+        VDISPATCH_REORDER(args_ok, VERBOSE_UNSUPPORTED_POSTOP);
+        return status::success;
     }
 
     // The function splits dimension products based on input mask and returns

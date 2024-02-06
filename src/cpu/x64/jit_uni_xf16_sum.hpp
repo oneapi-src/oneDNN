@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -264,27 +264,32 @@ struct jit_xf16_sum_t : public primitive_t {
                 max_num_arrs = jit_avx2_vnni_2_xf16_sum_kernel_t::max_num_arrs;
             }
 
-            bool ok = true && cpu_sum_pd_t::init(engine) == status::success
-                    && src_mds_.size() <= (long unsigned int)max_num_arrs;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM(cpu_sum_pd_t::init(engine) == status::success,
+                    VERBOSE_BAD_ENGINE_KIND);
+            VDISPATCH_SUM(src_mds_.size() <= (long unsigned int)max_num_arrs,
+                    "number of inputs exceed max number of arrays");
 
             const memory_desc_wrapper o_d(&dst_md_);
-            ok = true && o_d.data_type() == dst_data_type && o_d.is_dense(true);
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM(o_d.data_type() == dst_data_type,
+                    VERBOSE_INCONSISTENT_DT, "o_d", "dst");
+            VDISPATCH_SUM(o_d.is_dense(true), VERBOSE_UNSUPPORTED_SPARSE_CFG);
 
             for (size_t i = 0; i < src_mds_.size(); ++i) {
                 const memory_desc_wrapper i_d(&src_mds_[i]);
-                ok = true && src_data_type == i_d.data_type()
-                        && o_d.similar_to(i_d, true, false, 0)
-                        && i_d.is_dense(true);
+                VDISPATCH_SUM(src_data_type == i_d.data_type(),
+                        VERBOSE_INCONSISTENT_DT, "src", "i_d");
+                VDISPATCH_SUM(o_d.similar_to(i_d, true, false, 0),
+                        VERBOSE_INCONSISTENT_MDS, "o_d", "i_d");
+                VDISPATCH_SUM(
+                        i_d.is_dense(true), VERBOSE_UNSUPPORTED_SPARSE_CFG);
                 // are scales representable in their respective xfloat16 datatype? scales will be down
                 // converted to xf16.
                 if (src_data_type == data_type::bf16)
-                    ok = ok && scales_[i] == float(bfloat16_t(scales_[i]));
+                    VDISPATCH_SUM(scales_[i] == float(bfloat16_t(scales_[i])),
+                            VERBOSE_UNSUPPORTED_SCALES_CFG);
                 else
-                    ok = ok && scales_[i] == float(float16_t(scales_[i]));
-
-                if (!ok) return status::unimplemented;
+                    VDISPATCH_SUM(scales_[i] == float(float16_t(scales_[i])),
+                            VERBOSE_UNSUPPORTED_SCALES_CFG);
             }
 
             return is_superset(isa, avx512_core)

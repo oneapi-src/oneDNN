@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ using dnnl::impl::engine_t;
 using dnnl::impl::memory_desc_t;
 using dnnl::impl::memory_t;
 using dnnl::impl::status_t;
+using ::sycl::context;
+using ::sycl::get_pointer_type;
 
 status_t dnnl_sycl_interop_memory_create(memory_t **memory,
         const memory_desc_t *md, engine_t *engine, memory_kind_t memory_kind,
@@ -54,9 +56,18 @@ status_t dnnl_sycl_interop_memory_create(memory_t **memory,
     bool is_usm = memory_kind == memory_kind::usm;
 
     std::unique_ptr<memory_storage_t> mem_storage;
-    if (is_usm)
+    if (is_usm) {
+        if (handle != DNNL_MEMORY_NONE && handle != DNNL_MEMORY_ALLOCATE) {
+            auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine);
+            auto &sycl_ctx = sycl_engine->context();
+            ::sycl::usm::alloc ptr_type = get_pointer_type(handle, sycl_ctx);
+            if (ptr_type == ::sycl::usm::alloc::unknown
+                    && !sycl_engine->mayiuse_system_memory_allocators())
+                return status::invalid_arguments;
+        }
+
         mem_storage.reset(new sycl_usm_memory_storage_t(engine));
-    else
+    } else
         mem_storage.reset(new sycl_buffer_memory_storage_t(engine));
     if (!mem_storage) return status::out_of_memory;
 

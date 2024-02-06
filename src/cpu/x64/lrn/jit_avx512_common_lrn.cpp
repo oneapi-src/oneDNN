@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,24 +41,35 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init(engine_t *engine) {
     const memory_desc_wrapper src_d(src_md());
     const memory_desc_wrapper dst_d(dst_md());
 
-    const bool ok = is_fwd() && mayiuse(avx512_core) && !has_zero_dim_memory()
-            && everyone_is(d_type, src_d.data_type(), dst_d.data_type())
-            && IMPLICATION(d_type == f16, mayiuse(avx512_core_fp16))
-            && src_d.ndims() == 4 && attr()->has_default_values()
-            && set_default_formats_common() && src_d == dst_d;
-    if (!ok) return unimplemented;
+    VDISPATCH_LRN(is_fwd(), VERBOSE_BAD_PROPKIND);
+
+    // disabling verbose dispatch checks for unsupported isa for better readability
+    if (!mayiuse(avx512_core)) return status::unimplemented;
+
+    VDISPATCH_LRN(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_LRN(everyone_is(d_type, src_d.data_type(), dst_d.data_type()),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LRN(IMPLICATION(d_type == f16, mayiuse(avx512_core_fp16)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_LRN(src_d.ndims() == 4, VERBOSE_BAD_NDIMS, "src", src_d.ndims());
+    VDISPATCH_LRN(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_LRN(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_LRN(src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
     const auto fmt_tag
             = src_d.matches_one_of_tag(format_tag::nhwc, format_tag::nChw16c);
 
-    const bool args_ok_across = desc()->alg_kind == lrn_across_channels
-            && desc()->local_size >= 1 && desc()->local_size <= 16
-            && (desc()->lrn_beta == 0.75 || desc()->lrn_beta == 1.0)
-            && src_d.matches_tag(fmt_tag)
-            && IMPLICATION(fmt_tag == format_tag::nChw16c,
-                    src_d.dims()[1] % vsize == 0 && desc()->local_size == 5);
-
-    if (!args_ok_across) return unimplemented;
+    VDISPATCH_LRN(
+            desc()->alg_kind == lrn_across_channels, VERBOSE_BAD_ALGORITHM);
+    VDISPATCH_LRN(desc()->local_size >= 1 && desc()->local_size <= 16,
+            VERBOSE_BAD_PARAM, "local_size");
+    VDISPATCH_LRN((desc()->lrn_beta == 0.75 || desc()->lrn_beta == 1.0),
+            VERBOSE_BAD_PARAM, "lrn_beta");
+    VDISPATCH_LRN(src_d.matches_tag(fmt_tag), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_LRN(
+            IMPLICATION(fmt_tag == format_tag::nChw16c,
+                    src_d.dims()[1] % vsize == 0 && desc()->local_size == 5),
+            "unsupported format tag, dimension and local_size combination");
 
     if (desc()->prop_kind == forward_training) {
         dims_t ws_dims = {MB(), C(), H(), 2 * W()};
@@ -91,29 +102,43 @@ status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init(engine_t *engine) {
     const memory_desc_wrapper diff_src_d(diff_src_md());
     const memory_desc_wrapper diff_dst_d(diff_dst_md());
 
-    const bool ok = !is_fwd() && mayiuse(avx512_core) && !has_zero_dim_memory()
-            && utils::everyone_is(d_type, src_d.data_type(),
-                    diff_src_d.data_type(), diff_dst_d.data_type())
-            && IMPLICATION(d_type == f16, mayiuse(avx512_core_fp16))
-            && src_d.ndims() == 4 && attr()->has_default_values()
-            && set_default_formats_common() && src_d == diff_dst_d
-            && diff_dst_d == diff_src_d;
-    if (!ok) return unimplemented;
+    VDISPATCH_LRN(!is_fwd(), VERBOSE_BAD_PROPKIND);
+
+    // disabling verbose dispatch checks for unsupported isa for better readability
+    if (!mayiuse(avx512_core)) return status::unimplemented;
+
+    VDISPATCH_LRN(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_LRN(utils::everyone_is(d_type, src_d.data_type(),
+                          diff_src_d.data_type(), diff_dst_d.data_type()),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LRN(IMPLICATION(d_type == f16, mayiuse(avx512_core_fp16)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_LRN(src_d.ndims() == 4, VERBOSE_BAD_NDIMS, "src", src_d.ndims());
+    VDISPATCH_LRN(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_LRN(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_LRN(
+            src_d == diff_dst_d, VERBOSE_INCONSISTENT_MDS, "src", "diff_dst");
+    VDISPATCH_LRN(diff_dst_d == diff_src_d, VERBOSE_INCONSISTENT_MDS,
+            "diff_src", "diff_dst");
 
     const dims_t ws_dims = {MB(), C(), H(), 2 * W()};
     const auto fmt_tag
             = src_d.matches_one_of_tag(format_tag::nhwc, format_tag::nChw16c);
     memory_desc_init_by_tag(ws_md_, 4, ws_dims, d_type, fmt_tag);
-    if (!compare_ws(hint_fwd_pd_)) return unimplemented;
+    VDISPATCH_LRN(compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
 
-    const bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
-            && desc()->local_size >= 1 && desc()->local_size <= 16
-            && (desc()->lrn_beta == 0.75 || desc()->lrn_beta == 1.0)
-            && src_d.matches_tag(fmt_tag)
-            && IMPLICATION(fmt_tag == format_tag::nChw16c,
-                    src_d.dims()[1] % vsize == 0 && desc()->local_size == 5);
-
-    return args_ok_across ? success : unimplemented;
+    VDISPATCH_LRN(
+            desc()->alg_kind == lrn_across_channels, VERBOSE_BAD_ALGORITHM);
+    VDISPATCH_LRN(desc()->local_size >= 1 && desc()->local_size <= 16,
+            VERBOSE_BAD_PARAM, "local_size");
+    VDISPATCH_LRN((desc()->lrn_beta == 0.75 || desc()->lrn_beta == 1.0),
+            VERBOSE_BAD_PARAM, "lrn_beta");
+    VDISPATCH_LRN(src_d.matches_tag(fmt_tag), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_LRN(
+            IMPLICATION(fmt_tag == format_tag::nChw16c,
+                    src_d.dims()[1] % vsize == 0 && desc()->local_size == 5),
+            "unsupported format tag, dimension and local_size combination");
+    return success;
 }
 
 template <data_type_t d_type>

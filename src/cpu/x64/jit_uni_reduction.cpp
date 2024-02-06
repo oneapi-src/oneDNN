@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,12 +65,16 @@ status_t jit_uni_reduction_t::pd_t::init(engine_t *engine) {
     conf_.dst_dt_size = types::data_type_size(conf_.dst_type);
     conf_.acc_dt_size = types::data_type_size(conf_.acc_type);
 
-    const bool ok = impl_supports_datatype(conf_.src_type)
-            && impl_supports_datatype(conf_.dst_type)
-            && set_default_params() == status::success
-            && attr()->has_default_values(sm::post_ops)
-            && attr_.set_default_formats(dst_md(0)) == status::success;
-    if (!ok) return status::unimplemented;
+    VDISPATCH_REDUCTION(
+            impl_supports_datatype(conf_.src_type), VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_REDUCTION(
+            impl_supports_datatype(conf_.dst_type), VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_REDUCTION(
+            set_default_params() == status::success, VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_REDUCTION(
+            attr()->has_default_values(sm::post_ops), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_REDUCTION(attr_.set_default_formats(dst_md(0)) == status::success,
+            VERBOSE_UNSUPPORTED_POSTOP);
 
     const auto src_mdw = memory_desc_wrapper(src_md());
     const auto dst_mdw = memory_desc_wrapper(dst_md());
@@ -89,7 +93,7 @@ status_t jit_uni_reduction_t::pd_t::init(engine_t *engine) {
             attr()->post_ops_, &dst_mdw, sum_at_0_pos_only,
             sum_requires_scale_one, sum_requires_zp_zero,
             sum_requires_same_params, accepted_broadcasts);
-    if (!post_ops_ok(post_ops_args)) return status::unimplemented;
+    VDISPATCH_REDUCTION(post_ops_ok(post_ops_args), VERBOSE_UNSUPPORTED_POSTOP);
 
     conf_.post_ops = attr()->post_ops_;
 
@@ -112,9 +116,9 @@ status_t jit_uni_reduction_t::pd_t::init(engine_t *engine) {
             *src_md(), x, nc, ncw, nchw, ncdhw);
     const format_tag_t dst_md_desired_format = memory_desc_matches_one_of_tag(
             *dst_md(), x, nc, ncw, nchw, ncdhw);
-    if (src_md_desired_format != dst_md_desired_format
-            || src_md_desired_format == format_tag::undef)
-        return status::unimplemented;
+    VDISPATCH_REDUCTION(!(src_md_desired_format != dst_md_desired_format
+                                || src_md_desired_format == format_tag::undef),
+            VERBOSE_UNSUPPORTED_TAG);
 
     const int ndims = src_mdw.ndims();
     const auto &src_dims = src_mdw.dims();
@@ -133,15 +137,18 @@ status_t jit_uni_reduction_t::pd_t::init(engine_t *engine) {
             break;
     }
 
-    if (num_of_reduced_dims == 0) return status::unimplemented;
+    VDISPATCH_REDUCTION(
+            num_of_reduced_dims != 0, "dimensionality reduction not possible");
 
     for (int d = 0; d < ndims - num_of_reduced_dims; ++d)
         if (src_dims[d] != dst_dims[d]) return status::unimplemented;
 
     conf_.alg = desc()->alg_kind;
-    if (utils::one_of(conf_.alg, reduction_norm_lp_max, reduction_norm_lp_sum,
-                reduction_norm_lp_power_p_max, reduction_norm_lp_power_p_sum))
-        return status::unimplemented;
+    VDISPATCH_REDUCTION(
+            !(utils::one_of(conf_.alg, reduction_norm_lp_max,
+                    reduction_norm_lp_sum, reduction_norm_lp_power_p_max,
+                    reduction_norm_lp_power_p_sum)),
+            VERBOSE_BAD_ALGORITHM);
 
     return status::success;
 }

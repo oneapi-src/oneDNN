@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ bool check_quant_dequant_scales_zps(const op_t *n);
 
 bool check_dyn_quant_dequant_scales_zps(const op_t *n);
 
+bool check_maxpool_dilations(const op_t *n);
 } // namespace graph
 } // namespace impl
 } // namespace dnnl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -176,6 +176,21 @@ void test_usm_map_unmap(
         mem.unmap_data(mapped_ptr);
     }
     free_func(eng.get(), ptr);
+}
+
+/// This test checks if passing system allocated memory(e.g. using malloc)
+/// will throw if passed into the make_memory
+TEST(ocl_memory_usm_test, ErrorMakeMemoryUsingSystemMemory) {
+    SKIP_IF(engine::get_count(engine::kind::gpu) == 0, "Engine not found.");
+
+    engine eng(engine::kind::gpu, 0);
+    memory::dim n = 100;
+    memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
+
+    std::vector<float> system_buf(n);
+    EXPECT_THROW(memory mem = ocl_interop::make_memory(mem_d, eng,
+                         ocl_interop::memory_kind::usm, system_buf.data()),
+            dnnl::error);
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, DeviceMapUnmap) {

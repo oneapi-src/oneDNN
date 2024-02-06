@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -148,13 +148,18 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     if (is_int8)
         skip_mask |= smask_t::scales_runtime | smask_t::zero_points_runtime;
 
-    const bool ok = is_fwd()
-            && (desc()->alg_kind & alg_kind::deconvolution_direct)
-            && attr()->has_default_values(skip_mask, dst_type)
-            && attr()->post_ops_.check_sum_consistency(dst_type, is_int8)
-            && attr_scales_ok() && post_ops_ok() && zero_points_ok()
-            && !has_zero_dim_memory();
-    if (!ok) return status::unimplemented;
+    VDISPATCH_DECONVOLUTION(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_DECONVOLUTION((desc()->alg_kind & alg_kind::deconvolution_direct),
+            VERBOSE_BAD_ALGORITHM);
+    VDISPATCH_DECONVOLUTION(attr()->has_default_values(skip_mask, dst_type),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_DECONVOLUTION(
+            attr()->post_ops_.check_sum_consistency(dst_type, is_int8),
+            VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_DECONVOLUTION(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VDISPATCH_DECONVOLUTION(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_DECONVOLUTION(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
+    VDISPATCH_DECONVOLUTION(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
 
     convolution_desc_t conv_d = convolution_desc_t();
 

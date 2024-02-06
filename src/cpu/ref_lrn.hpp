@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,13 +46,18 @@ struct ref_lrn_fwd_t : public primitive_t {
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper dst_d(dst_md());
 
-            bool ok = is_fwd()
-                    && utils::everyone_is(
-                            d_type, src_md()->data_type, dst_md()->data_type)
-                    && platform::has_data_type_support(d_type)
-                    && attr()->has_default_values()
-                    && set_default_formats_common() && src_d == dst_d;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_LRN(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LRN(utils::everyone_is(d_type, src_md()->data_type,
+                                  dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LRN(platform::has_data_type_support(d_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LRN(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LRN(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_LRN(
+                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
             dat_tag_ = memory_desc_matches_one_of_tag(
                     *src_md(), nChw16c, nChw8c, nchw, nhwc);
@@ -98,13 +103,19 @@ struct ref_lrn_bwd_t : public primitive_t {
             const memory_desc_wrapper diff_src_d(diff_src_md());
             const memory_desc_wrapper diff_dst_d(diff_dst_md());
 
-            bool ok = !is_fwd()
-                    && utils::everyone_is(d_type, src_md()->data_type,
-                            diff_src_md()->data_type, diff_dst_md()->data_type)
-                    && platform::has_data_type_support(d_type)
-                    && attr()->has_default_values()
-                    && set_default_formats_common() && diff_dst_d == diff_src_d;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_LRN(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LRN(
+                    utils::everyone_is(d_type, src_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LRN(platform::has_data_type_support(d_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LRN(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LRN(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_LRN(diff_dst_d == diff_src_d, VERBOSE_INCONSISTENT_MDS,
+                    "diff_src", "diff_dst");
 
             dat_tag_ = memory_desc_matches_one_of_tag(
                     *src_md(), nChw16c, nChw8c, nchw, nhwc);

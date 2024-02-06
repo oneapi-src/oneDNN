@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1306,10 +1306,11 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
     int right_pad = calculate_end_padding(
             jpp.l_pad, jpp.ow, jpp.iw, jpp.stride_w, jpp.kw);
 
-    if (jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
-            || back_pad >= jpp.kd || bottom_pad >= jpp.kh
-            || right_pad >= jpp.kw)
-        return status::unimplemented;
+    VDISPATCH_POOLING_IC(
+            !(jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
+                    || back_pad >= jpp.kd || bottom_pad >= jpp.kh
+                    || right_pad >= jpp.kw),
+            VERBOSE_PADDING_ERROR, "");
 
     jpp.alg = pd.alg_kind;
 
@@ -1330,7 +1331,7 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
                             * nstl::min(jpp.ih, jpp.oh)
                             * nstl::min(jpp.iw, jpp.ow)
                     >= simd_w);
-    if (!safe_load_n_store) return status::unimplemented;
+    VDISPATCH_POOLING_IC(safe_load_n_store, "safe load-and-store not possible");
 
     jpp.c_block = simd_w;
     jpp.c_tail = jpp.c % jpp.c_block;
@@ -1369,7 +1370,8 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
         default: return status::unimplemented;
     }
 
-    if (!post_ops_ok(jpp, *ppd->attr(), dst_d)) return status::unimplemented;
+    VDISPATCH_POOLING_IC(
+            post_ops_ok(jpp, *ppd->attr(), dst_d), VERBOSE_UNSUPPORTED_POSTOP);
 
     return status::success;
 }

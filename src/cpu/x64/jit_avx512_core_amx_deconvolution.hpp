@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,11 +65,15 @@ struct jit_avx512_core_amx_deconvolution_fwd_t : public primitive_t {
                             smask_t::scales_runtime | smask_t::post_ops)
                     && attr_scales_ok();
 
-            bool ok = is_fwd()
-                    && (desc()->alg_kind & alg_kind::deconvolution_direct)
-                    && (is_bf16_deconvolution || is_int8_deconvolution)
-                    && !has_zero_dim_memory();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_DECONVOLUTION(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_DECONVOLUTION(
+                    (desc()->alg_kind & alg_kind::deconvolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_DECONVOLUTION(
+                    (is_bf16_deconvolution || is_int8_deconvolution),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_DECONVOLUTION(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
 
             CHECK(jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jcp_,
                     *desc(), dst_md_, weights_md_, src_md_, &bias_md_, attr_,

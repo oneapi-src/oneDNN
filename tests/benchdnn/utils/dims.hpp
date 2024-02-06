@@ -18,6 +18,7 @@
 #define UTILS_DIMS_T_HPP
 
 #include <cassert>
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <vector>

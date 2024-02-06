@@ -63,23 +63,36 @@ void dump_norm_values(
             diff_norm.diff_[norm_t::L8], diff_norm.rel_diff(norm_t::L8));
 }
 
-bool has_binary_comparison_po(const attr_t &attr) {
+bool has_binary_po_algs(const attr_t &attr,
+        const std::vector<attr_t::post_ops_t::kind_t> &algs) {
     const auto &po = attr.post_ops;
     if (po.is_def()) return false;
-
-    using alg_t = attr_t::post_ops_t::kind_t;
-    static const std::vector<alg_t> cmp_alg = {alg_t::MAX, alg_t::MIN,
-            alg_t::GE, alg_t::GT, alg_t::LE, alg_t::LT, alg_t::EQ, alg_t::NE};
 
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
         if (!e.is_binary_kind()) continue;
 
-        if (std::any_of(cmp_alg.cbegin(), cmp_alg.cend(),
-                    [&](const alg_t alg) { return e.kind == alg; }))
+        if (std::any_of(algs.cbegin(), algs.cend(),
+                    [&](const attr_t::post_ops_t::kind_t alg) {
+                        return e.kind == alg;
+                    }))
             return true;
     }
     return false;
+}
+
+bool has_binary_comparison_po(const attr_t &attr) {
+    using alg_t = attr_t::post_ops_t::kind_t;
+    static const std::vector<alg_t> cmp_alg = {alg_t::MAX, alg_t::MIN,
+            alg_t::GE, alg_t::GT, alg_t::LE, alg_t::LT, alg_t::EQ, alg_t::NE};
+    return has_binary_po_algs(attr, cmp_alg);
+}
+
+bool has_binary_compute_po(const attr_t &attr) {
+    using alg_t = attr_t::post_ops_t::kind_t;
+    static const std::vector<alg_t> cmp_alg
+            = {alg_t::ADD, alg_t::SUB, alg_t::MUL, alg_t::DIV};
+    return has_binary_po_algs(attr, cmp_alg);
 }
 
 bool negative_converts_to_zero(const attr_t &attr, dnnl_data_type_t target_dt) {
@@ -256,8 +269,12 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     // These global metrics are updated at the synchronization point.
     bool global_ok = true;
     int64_t zeros = 0;
-    float max_rdiff = 0.f;
-    float max_diff = 0.f;
+    // "all_" stuff is across the whole tensor. "err_" stuff is just for points
+    // that didn't pass any criteria.
+    float all_max_rdiff = 0.f;
+    float all_max_diff = 0.f;
+    float err_max_rdiff = 0.f;
+    float err_max_diff = 0.f;
     int64_t n_errors = 0;
     volatile bool from_parallel = true;
     const bool need_dump = verbose >= 99;
@@ -269,8 +286,10 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         // Stats for all validated points per one thread.
         static thread_local bool ithr_ok = true;
         static thread_local int64_t ithr_zeros = 0;
-        static thread_local float ithr_max_rdiff = 0.f;
-        static thread_local float ithr_max_diff = 0.f;
+        static thread_local float ithr_all_max_rdiff = 0.f;
+        static thread_local float ithr_all_max_diff = 0.f;
+        static thread_local float ithr_err_max_rdiff = 0.f;
+        static thread_local float ithr_err_max_diff = 0.f;
 
         driver_check_func_args_t args(exp_f32, got_f32, i, dt, trh_);
 
@@ -337,6 +356,25 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             ok = has_binary_comparison_po(attr) && output_has_nans;
             if (ok) break;
 
+            // Binary Add/Sub/Mul/Div usually produce additional noise in the
+            // output. For Add/Sub it's mostly catastrophic cancellation, for
+            // Mul it's usually rounding, for Div it's usually different
+            // precision level of instructions for different backends. Those are
+            // hard to fix with filling adjustments. Since binary po filling
+            // operates with integers or large numbers, it's safe to let some
+            // minor diff error to exist under assumption that original problem
+            // lacks those errors.
+            //
+            // Note: use specific dt and correspondent values not to mess with
+            // broad set of supported data types.
+            float binary_comp_po_trh = 0.f;
+            if (args.dt == dnnl_f16)
+                binary_comp_po_trh = 5.f * epsilon_dt(args.dt); // == 5e-3;
+            if (args.dt == dnnl_f32)
+                binary_comp_po_trh = 20.f * epsilon_dt(args.dt); // == 2e-6f;
+            ok = has_binary_compute_po(attr) && args.diff <= binary_comp_po_trh;
+            if (ok) break;
+
             // Some drivers (like pooling or resampling) on integer data types
             // may result in sporadic order of operations. This may cause a
             // difference around `x.5f` value, and can be rounded either way to
@@ -386,8 +424,11 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         // Update compare stats.
         if (from_parallel) {
             if (fabsf(args.got) == 0) ithr_zeros++;
-            ithr_max_rdiff = MAX2(ithr_max_rdiff, args.rel_diff);
-            ithr_max_diff = MAX2(ithr_max_diff, args.diff);
+            ithr_all_max_rdiff = MAX2(ithr_all_max_rdiff, args.rel_diff);
+            ithr_all_max_diff = MAX2(ithr_all_max_diff, args.diff);
+            if (!ok)
+                ithr_err_max_rdiff = MAX2(ithr_err_max_rdiff, args.rel_diff);
+            if (!ok) ithr_err_max_diff = MAX2(ithr_err_max_diff, args.diff);
         }
 
         if (!ok && ithr_ok) ithr_ok = false;
@@ -409,12 +450,16 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
             if (from_parallel) {
                 zeros += ithr_zeros;
-                max_rdiff = MAX2(max_rdiff, ithr_max_rdiff);
-                max_diff = MAX2(max_diff, ithr_max_diff);
+                all_max_rdiff = MAX2(all_max_rdiff, ithr_all_max_rdiff);
+                all_max_diff = MAX2(all_max_diff, ithr_all_max_diff);
+                err_max_rdiff = MAX2(err_max_rdiff, ithr_err_max_rdiff);
+                err_max_diff = MAX2(err_max_diff, ithr_err_max_diff);
             }
             ithr_zeros = 0;
-            ithr_max_rdiff = 0.f;
-            ithr_max_diff = 0.f;
+            ithr_all_max_rdiff = 0.f;
+            ithr_all_max_diff = 0.f;
+            ithr_err_max_rdiff = 0.f;
+            ithr_err_max_diff = 0.f;
         }
     };
 
@@ -445,8 +490,10 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
     // Status may be propagated from previous tensor. Use stats from cur tensor.
     BENCHDNN_PRINT((n_errors ? 0 : 6),
-            "[COMPARE_STATS]%s: trh=%g max_diff:%8g max_rdiff:%8g\n",
-            get_kind_str().c_str(), trh_, max_diff, max_rdiff);
+            "[COMPARE_STATS]%s: trh=%g err_max_diff:%8g err_max_rdiff:%8g "
+            "all_max_diff:%8g all_max_rdiff:%8g\n",
+            get_kind_str().c_str(), trh_, err_max_diff, err_max_rdiff,
+            all_max_diff, all_max_rdiff);
 
     BENCHDNN_PRINT((is_mistrusted ? 2 : 6),
             "[COMPARE_TRUST]%s: z:%2.0f%% (>%2.0f%%) (z: %ld, total: %ld)\n",

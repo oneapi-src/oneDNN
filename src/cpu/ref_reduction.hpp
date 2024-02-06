@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,18 +38,28 @@ struct ref_reduction_t : public primitive_t {
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = src_type == src_md()->data_type
-                    && dst_type == dst_md()->data_type
-                    && acc_type
+            VDISPATCH_REDUCTION(
+                    src_type == src_md()->data_type, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_REDUCTION(
+                    dst_type == dst_md()->data_type, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_REDUCTION(acc_type
                             == types::default_accum_data_type(
-                                    src_type, dst_type)
-                    && platform::has_data_type_support(src_type)
-                    && platform::has_data_type_support(dst_type)
-                    && set_default_params() == status::success
-                    && attr()->has_default_values(sm::post_ops)
-                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+                                    src_type, dst_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_REDUCTION(platform::has_data_type_support(src_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_REDUCTION(platform::has_data_type_support(dst_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_REDUCTION(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_REDUCTION(attr()->has_default_values(sm::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_REDUCTION(
+                    ref_post_ops_t::primitive_kind_ok(attr()->post_ops_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_REDUCTION(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             return status::success;
         }

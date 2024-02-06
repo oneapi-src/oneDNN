@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,23 +47,42 @@ struct ref_inner_product_int8_fwd_t : public primitive_t {
 
             const bool allow_all_tags = true; // ref should support all tags
 
-            bool ok = is_fwd() && utils::one_of(src_type, s8, u8)
-                    && wei_type == s8
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16, s32, s8, u8))
-                    && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
-                    && IMPLICATION(with_bias(),
-                            platform::has_data_type_support(bia_type))
-                    && platform::has_data_type_support(dst_type)
-                    && set_default_params(allow_all_tags) == status::success
-                    && attr()->has_default_values(smask_t::scales_runtime
-                            | smask_t::post_ops | smask_t::sum_dt)
-                    && attr()->post_ops_.check_sum_consistency(dst_type,
-                            /* is_int8 */ true)
-                    && attr_scales_ok()
-                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            return ok ? status::success : status::unimplemented;
+            VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(src_type, s8, u8), VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(wei_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(with_bias(),
+                            utils::one_of(bia_type, f32, bf16, s32, s8, u8)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(dst_type, f32, bf16, s32, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(with_bias(),
+                            platform::has_data_type_support(bia_type)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(platform::has_data_type_support(dst_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    set_default_params(allow_all_tags) == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(smask_t::scales_runtime
+                            | smask_t::post_ops | smask_t::sum_dt),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->post_ops_.check_sum_consistency(dst_type,
+                            /* is_int8 */ true),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(attr_scales_ok(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    ref_post_ops_t::primitive_kind_ok(attr()->post_ops_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            return status::success;
         }
     };
 

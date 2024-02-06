@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -820,20 +820,27 @@ data_type_t jit_avx512_core_resampling_kernel_base_t::dst_data_type() const {
 status_t jit_avx512_core_resampling_bwd_t::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using namespace data_type;
-    const bool ok = mayiuse(avx512_core) && !is_fwd() && !has_zero_dim_memory()
-            && impl_supports_datatype(diff_dst_md()->data_type)
-            && impl_supports_datatype(diff_src_md()->data_type)
-            && IMPLICATION(diff_src_md()->data_type == f16,
+    if (!mayiuse(avx512_core)) return status::unimplemented;
+    VDISPATCH_RESAMPLING(!is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_RESAMPLING(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_RESAMPLING(impl_supports_datatype(diff_dst_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_RESAMPLING(impl_supports_datatype(diff_src_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_RESAMPLING(
+            IMPLICATION(diff_src_md()->data_type == f16,
                     mayiuse(avx512_core_fp16)
-                            && memory_desc_wrapper(diff_src_md()).is_plain())
-            && set_default_params() == status::success
-            && attr()->has_default_values();
-    if (!ok) return status::unimplemented;
+                            && memory_desc_wrapper(diff_src_md()).is_plain()),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_RESAMPLING(
+            set_default_params() == status::success, VERBOSE_BAD_PARAM, "");
+    VDISPATCH_RESAMPLING(
+            attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
     format_tag_t dat_tag = memory_desc_matches_one_of_tag(*diff_src_md(), nCw8c,
             nChw8c, nCdhw8c, nCw16c, nChw16c, nCdhw16c, nwc, nhwc, ndhwc);
-    if (!memory_desc_matches_tag(*diff_dst_md(), dat_tag))
-        return status::unimplemented;
+    VDISPATCH_RESAMPLING(memory_desc_matches_tag(*diff_dst_md(), dat_tag),
+            VERBOSE_UNSUPPORTED_TAG);
 
     return status::success;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,18 +35,24 @@ status_t jit_prelu_fwd_t::pd_t::init(engine_t *engine) {
     const memory_desc_wrapper weights_d {weights_md(0)};
     const memory_desc_wrapper dst_d {dst_md(0)};
 
-    const bool ok = is_fwd()
-            && prelu::dt_supported({src_d.data_type(), weights_d.data_type(),
-                    dst_d.data_type()})
-            && set_default_formats() && bcast_supported(src_d, weights_d, dst_d)
-            && !has_zero_dim_memory() && src_d.is_dense(true)
-            && weights_d.is_dense(true) && attr()->has_default_values()
-            && utils::one_of(prelu::get_supported_isa(), avx512_core_fp16,
-                    avx512_core_bf16, avx512_core, avx2_vnni_2, avx2, avx,
-                    sse41)
-            && dst_d == src_d;
+    VDISPATCH_PRELU(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_PRELU(prelu::dt_supported({src_d.data_type(),
+                            weights_d.data_type(), dst_d.data_type()}),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_PRELU(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_PRELU(bcast_supported(src_d, weights_d, dst_d),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_PRELU(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_PRELU(src_d.is_dense(true), VERBOSE_UNSUPPORTED_SPARSE_CFG);
+    VDISPATCH_PRELU(weights_d.is_dense(true), VERBOSE_UNSUPPORTED_SPARSE_CFG);
+    VDISPATCH_PRELU(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_PRELU(utils::one_of(prelu::get_supported_isa(), avx512_core_fp16,
+                            avx512_core_bf16, avx512_core, avx2_vnni_2, avx2,
+                            avx, sse41),
+            VERBOSE_UNSUPPORTED_ISA);
+    VDISPATCH_PRELU(dst_d == src_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
-    return ok ? status::success : status::unimplemented;
+    return status::success;
 }
 
 bool jit_prelu_fwd_t::pd_t::bcast_supported(const memory_desc_wrapper &src_d,

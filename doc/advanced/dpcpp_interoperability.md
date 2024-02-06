@@ -63,7 +63,8 @@ To construct a oneDNN memory object, use one of the following interfaces:
     allocation kind `kind`. The `handle` could be one of special values
     #DNNL_MEMORY_ALLOCATE or #DNNL_MEMORY_NONE, or it could be a user-provided
     USM pointer. The latter works only when `kind` is
-    dnnl::sycl_interop::memory_kind::usm.
+    dnnl::sycl_interop::memory_kind::usm and the `handle` is a USM-allocated
+    pointer.
 
 - dnnl::memory(const memory::desc &, const engine &, void \*)
 

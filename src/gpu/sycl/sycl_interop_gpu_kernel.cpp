@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
             }
         }
     }
-    CHECK(gpu::compute::check_scalar_arguments(arg_list, arg_types_));
+    CHECK(check_scalar_arguments(arg_list));
 
     auto event = queue.submit([&](::sycl::handler &cgh) {
         cgh.depends_on(sycl_event_t::from(deps).events);

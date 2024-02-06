@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,6 +137,8 @@ status_t sycl_device_info_t::init_attributes(engine_t *engine) {
         eu_count_ = device.get_info<::sycl::info::device::max_compute_units>();
     }
     max_wg_size_ = device.get_info<::sycl::info::device::max_work_group_size>();
+    mayiuse_system_memory_allocators_
+            = device.has(::sycl::aspect::usm_system_allocations);
     return status::success;
 }
 

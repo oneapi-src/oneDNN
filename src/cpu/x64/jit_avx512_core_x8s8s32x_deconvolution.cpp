@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,12 +86,13 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper bias_d(&bias_md);
 
-    if (!(mayiuse(avx512_core)
-                && one_of(src_d.data_type(), data_type::u8, data_type::s8)
-                && weights_d.data_type() == data_type::s8
-                && one_of(dst_d.data_type(), data_type::f32, data_type::s32,
-                        data_type::s8, data_type::u8)))
-        return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(
+            (mayiuse(avx512_core)
+                    && one_of(src_d.data_type(), data_type::u8, data_type::s8)
+                    && weights_d.data_type() == data_type::s8
+                    && one_of(dst_d.data_type(), data_type::f32, data_type::s32,
+                            data_type::s8, data_type::u8)),
+            VERBOSE_ISA_DT_MISMATCH);
 
     jcp = zero<decltype(jcp)>();
     jcp.nthr = nthreads;
@@ -115,10 +116,14 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
 
     /* TODO: future work, on hold until depthwise specialized kernel is
      * implemented. */
-    if (jcp.is_depthwise && (jcp.signed_input || is_3d))
-        return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(
+            !(jcp.is_depthwise && (jcp.signed_input || is_3d)),
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "unsupported depthwise implementation for 3d convolution/signed "
+            "input");
 
-    if (!zero_points_valid(&attr)) return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(
+            zero_points_valid(&attr), VERBOSE_UNSUPPORTED_ZP_CFG);
     jcp.src_zero_point = !attr.zero_points_.has_default_values(DNNL_ARG_SRC);
     jcp.dst_zero_point = !attr.zero_points_.has_default_values(DNNL_ARG_DST);
     jcp.zp_src_is_common = attr.zero_points_.common(DNNL_ARG_SRC);
@@ -132,7 +137,7 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     } else {
         jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
     }
-    if (jcp.src_tag != dat_tag) return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(jcp.src_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
 
     if (dst_d.format_kind() == format_kind::any) {
         CHECK(memory_desc_init_by_tag(dst_md, dat_tag));
@@ -140,7 +145,7 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     } else {
         jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
     }
-    if (jcp.dst_tag != dat_tag) return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(jcp.dst_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
 
     auto set_or_check_wei_format = [&]() {
         using namespace format_tag;
@@ -233,20 +238,24 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
             jcp.ic_block = (jcp.ic % 8 == 0) && (jcp.oc % 8 == 0) ? 8 : 4;
             jcp.oc_block = jcp.ic_block;
         }
-        if (jcp.ic % jcp.ic_block != 0 || jcp.oc % jcp.oc_block != 0)
-            return status::unimplemented;
+        VDISPATCH_DECONVOLUTION_IC(
+                !(jcp.ic % jcp.ic_block != 0 || jcp.oc % jcp.oc_block != 0),
+                VERBOSE_BLOCKING_FAIL);
     }
 
-    if (!set_or_check_wei_format()) return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(
+            set_or_check_wei_format(), VERBOSE_UNSUPPORTED_TAG);
 
     jcp.dilate_d = is_3d ? cd.dilates[0] : 0;
     jcp.dilate_h = is_1d ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
 
-    if (!IMPLICATION(jcp.dilate_d, jcp.stride_d == 1)
-            || !IMPLICATION(jcp.dilate_h, jcp.stride_h == 1)
-            || !IMPLICATION(jcp.dilate_w, jcp.stride_w == 1))
-        return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(
+            !(!IMPLICATION(jcp.dilate_d, jcp.stride_d == 1)
+                    || !IMPLICATION(jcp.dilate_h, jcp.stride_h == 1)
+                    || !IMPLICATION(jcp.dilate_w, jcp.stride_w == 1)),
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "unsupported shape with 'stride = 1' when 'dilate > 0'");
 
     int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
     int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
@@ -260,10 +269,12 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     bool kernel_outside_src = false || ext_kw <= jcp.l_pad
             || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad || ext_kh <= jcp.b_pad
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
-    if (kernel_outside_src) return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(!kernel_outside_src, VERBOSE_PADDING_ERROR,
+            "weights and src size mismatch");
 
     CHECK(attr.set_default_formats(&dst_md));
-    if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(
+            post_ops_ok(jcp, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
 
     const auto &p = attr.post_ops_;
     const int eltwise_ind = p.find(primitive_kind::eltwise);

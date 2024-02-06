@@ -112,17 +112,22 @@ struct gen_gemm_t : public gpu_gemm_t {
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8)) {
                 ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp);
-
-                a_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_A);
-                b_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_B);
-                if (swap_ab_) std::swap(a_zp_, b_zp_);
+                bool a_zp
+                        = !attr()->zero_points_.has_default_values(DNNL_ARG_A);
+                bool b_zp
+                        = !attr()->zero_points_.has_default_values(DNNL_ARG_B);
 
                 int cmask_a = 0, cmask_b = 0, cmask_c = 0;
-                CHECK(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b));
-                CHECK(attr()->zero_points_.get(DNNL_ARG_SRC, &cmask_a));
-                CHECK(attr()->zero_points_.get(DNNL_ARG_DST, &cmask_c));
-                ok &= (cmask_a == 0) && (cmask_b == 0)
+                CHECK(attr()->zero_points_.get(DNNL_ARG_A, &cmask_a));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_B, &cmask_b));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_C, &cmask_c));
+                ok &= utils::one_of(cmask_a, 0, 1 << 1)
+                        && utils::one_of(cmask_b, 0, 1 << 0)
                         && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
+
+                ao_dims_ = a_zp ? (cmask_a != 0 ? 1 : 0) : -1;
+                bo_dims_ = b_zp ? (cmask_b != 0 ? 1 : 0) : -1;
+                if (swap_ab_) std::swap(ao_dims_, bo_dims_);
 
                 attr_skip_mask |= smask_t::zero_points_runtime;
 
@@ -198,6 +203,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
 
             // choose kernel
+            auto ao_type = with_a_zero_points()
+                    ? attr()->zero_points_.get_data_type(DNNL_ARG_A)
+                    : data_type::s32;
+            auto bo_type = data_type::s32;
             auto co_type = with_bias() ? d->bias_type()
                     : with_sum_ab()
                     ? d->sum_ab_type
@@ -205,6 +214,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             auto acc_type = utils::one_of(eff_a_type(), s8, u8) ? s32 : f32;
 
+            if (swap_ab_) std::swap(ao_type, bo_type);
             if (d->c_type() == f16 && !has_systolic) acc_type = data_type::f16;
 
             if (types::data_type_size(acc_type) < 4) {
@@ -234,11 +244,9 @@ struct gen_gemm_t : public gpu_gemm_t {
             status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
                     eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
-                    with_a_zero_points(), with_b_zero_points(),
-                    with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
-                    beta(), eff_a_type(), eff_b_type(), desc()->c_type(),
-                    co_type, acc_type,
-                    attr()->zero_points_.get_data_type(DNNL_ARG_A),
+                    ao_dims_, bo_dims_, with_c_zero_points(), with_bias(),
+                    eff_sum_ab(), alpha(), beta(), eff_a_type(), eff_b_type(),
+                    desc()->c_type(), ao_type, bo_type, co_type, acc_type,
                     eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
                     d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch(),
                     std::move(gpu_post_ops));
@@ -411,9 +419,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
         }
 
-        bool with_a_zero_points() const { return a_zp_; }
-        bool with_b_zero_points() const { return b_zp_; }
-
+        bool with_a_zero_points() const { return (ao_dims_ >= 0); }
+        bool with_b_zero_points() const { return (bo_dims_ >= 0); }
         bool with_c_zero_points() const {
             return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
         }
@@ -496,7 +503,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         size_t dyn_offset_co = 0;
 
         bool swap_ab_ = false;
-        bool a_zp_ = false, b_zp_ = false;
+        int ao_dims_ = -1, bo_dims_ = -1;
         dim_t eff_lda_ = 0, eff_ldb_ = 0;
 
         const compute::device_info_t *dev_info_ = nullptr;

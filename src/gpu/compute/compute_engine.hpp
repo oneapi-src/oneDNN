@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -143,6 +143,10 @@ public:
     }
     bool mayiuse_non_uniform_work_groups() const {
         return device_info_->mayiuse_non_uniform_work_groups();
+    }
+    /// Returns true if the engine can directly access pointers from system allocators
+    bool mayiuse_system_memory_allocators() const {
+        return device_info_->mayiuse_system_memory_allocators();
     }
     bool mayiuse_sub_group(int size) const {
         return device_info_->mayiuse_sub_group(size);

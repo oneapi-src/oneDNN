@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,11 +39,14 @@ struct simple_concat_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             const memory_desc_wrapper dst_d(dst_md());
-            bool ok = platform::has_data_type_support(data_type)
-                    && attr()->has_default_values()
-                    && cpu_concat_pd_t::init() == status::success
-                    && dst_d.ndims() <= 6;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONCAT(platform::has_data_type_support(data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONCAT(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONCAT(cpu_concat_pd_t::init() == status::success,
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "concat");
+            VDISPATCH_CONCAT(dst_d.ndims() <= 6, VERBOSE_BAD_NDIMS, "dst",
+                    dst_d.ndims());
 
             for (size_t i = 0; i < src_mds_.size(); ++i) {
                 const memory_desc_wrapper i_d(&src_mds_[i]);
@@ -51,17 +54,20 @@ struct simple_concat_t : public primitive_t {
 
                 const bool ignore_strides = true;
 
-                ok = ok
-                        && utils::everyone_is(
-                                data_type, i_d.data_type(), o_d.data_type())
-                        && utils::everyone_is(format_kind::blocked,
-                                i_d.format_kind(), o_d.format_kind())
-                        && types::blocking_desc_is_equal(
-                                *i_d.md_, *o_d.md_, ignore_strides)
-                        && types::blocking_desc_is_equal(
-                                *i_d.md_, *dst_d.md_, ignore_strides)
-                        && !i_d.is_additional_buffer();
-                if (!ok) return status::unimplemented;
+                VDISPATCH_CONCAT(utils::everyone_is(data_type, i_d.data_type(),
+                                         o_d.data_type()),
+                        VERBOSE_UNSUPPORTED_DT);
+                VDISPATCH_CONCAT(utils::everyone_is(format_kind::blocked,
+                                         i_d.format_kind(), o_d.format_kind()),
+                        VERBOSE_UNSUPPORTED_TAG);
+                VDISPATCH_CONCAT(types::blocking_desc_is_equal(
+                                         *i_d.md_, *o_d.md_, ignore_strides),
+                        VERBOSE_BLOCKING_FAIL);
+                VDISPATCH_CONCAT(types::blocking_desc_is_equal(
+                                         *i_d.md_, *dst_d.md_, ignore_strides),
+                        VERBOSE_BLOCKING_FAIL);
+                VDISPATCH_CONCAT(!i_d.is_additional_buffer(),
+                        "memory format does not have additional buffer");
             }
 
             dst_d.compute_blocks(blocks_);
@@ -72,10 +78,13 @@ struct simple_concat_t : public primitive_t {
             const int start_dim = perm_[concat_dim()];
 
             // check that contiguous part is indeed contiguous (i.e. dense)
-            if (nelems_to_concat(dst_d)
-                    != dst_d.padded_dims()[concat_dim()] / blocks_[concat_dim()]
-                            * dst_d.blocking_desc().strides[concat_dim()])
-                return status::unimplemented;
+            VDISPATCH_CONCAT(!(nelems_to_concat(dst_d)
+                                     != dst_d.padded_dims()[concat_dim()]
+                                             / blocks_[concat_dim()]
+                                             * dst_d.blocking_desc()
+                                                       .strides[concat_dim()]),
+                    VERBOSE_INCONSISTENT_NDIMS, "dst",
+                    "(padded_dims, concat_dim)");
 
             // check that all inputs have the same strides for the
             // contiguous part [concat_dim .. ndims] for the *major* dims.
@@ -83,9 +92,10 @@ struct simple_concat_t : public primitive_t {
             for (size_t i = 0; i < src_mds_.size(); ++i) {
                 const memory_desc_wrapper i_d(&src_mds_[i]);
                 for (int d = start_dim; d < dst_d.ndims(); ++d) {
-                    if (dst_d.blocking_desc().strides[iperm_[d]]
-                            != i_d.blocking_desc().strides[iperm_[d]])
-                        return status::unimplemented;
+                    VDISPATCH_CONCAT(
+                            !(dst_d.blocking_desc().strides[iperm_[d]]
+                                    != i_d.blocking_desc().strides[iperm_[d]]),
+                            "inputs have inconsistent strides for major dims");
                 }
             }
 

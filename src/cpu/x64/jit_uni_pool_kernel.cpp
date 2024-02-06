@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -185,9 +185,10 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     const auto fmt_tag = src_d.matches_one_of_tag(
             blocked_fmt_tag, ncsp_fmt_tag, nspc_fmt_tag);
 
-    if (!dst_d.matches_tag(fmt_tag)) return status::unimplemented;
+    VDISPATCH_POOLING_IC(dst_d.matches_tag(fmt_tag), VERBOSE_UNSUPPORTED_TAG);
 
-    if (!post_ops_ok(jpp, attr, dst_d)) return status::unimplemented;
+    VDISPATCH_POOLING_IC(
+            post_ops_ok(jpp, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
 
     if (fmt_tag == ncsp_fmt_tag) {
         // transform input to blocked f32, call f32 jit, transform result to
@@ -222,26 +223,33 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.isa = (jpp.is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16
                                                          : isa;
 
-    const bool args_ok = true && mayiuse(isa) && (fmt_tag != format_tag::undef)
-            && IMPLICATION(jpp.is_bf16,
-                    utils::one_of(jpp.isa, avx512_core_bf16, avx512_core,
-                            avx2_vnni_2))
-            && IMPLICATION(jpp.is_f16,
-                    utils::one_of(jpp.isa, avx512_core_fp16, avx2_vnni_2))
-            && utils::one_of(pd.alg_kind, pooling_max,
-                    pooling_avg_include_padding, pooling_avg_exclude_padding);
-    if (!args_ok) return status::unimplemented;
+    if (!mayiuse(isa)) return status::unimplemented;
+
+    VDISPATCH_POOLING_IC(
+            (fmt_tag != format_tag::undef), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_POOLING_IC(IMPLICATION(jpp.is_bf16,
+                                 utils::one_of(jpp.isa, avx512_core_bf16,
+                                         avx512_core, avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_POOLING_IC(
+            IMPLICATION(jpp.is_f16,
+                    utils::one_of(jpp.isa, avx512_core_fp16, avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_POOLING_IC(
+            utils::one_of(pd.alg_kind, pooling_max, pooling_avg_include_padding,
+                    pooling_avg_exclude_padding),
+            VERBOSE_BAD_ALGORITHM);
 
     const bool is_xf16_avx2_vnni_2
             = (jpp.is_bf16 || jpp.is_f16) && isa == avx2_vnni_2;
     // note: avx2_vnni_2 only supports nxc format
-    if (!IMPLICATION(is_xf16_avx2_vnni_2,
-                jpp.tag_kind == jit_memory_tag_kind_t::nspc))
-        return status::unimplemented;
+    VDISPATCH_POOLING_IC(IMPLICATION(is_xf16_avx2_vnni_2,
+                                 jpp.tag_kind == jit_memory_tag_kind_t::nspc),
+            "isa, format tag mismatch");
 
     // note: avx2_vnni_2 only supports FWD direction
-    if (!IMPLICATION(is_xf16_avx2_vnni_2, !jpp.is_backward))
-        return status::unimplemented;
+    VDISPATCH_POOLING_IC(IMPLICATION(is_xf16_avx2_vnni_2, !jpp.is_backward),
+            "isa, propagation kind mismatch");
 
     jpp.c = jpp.tag_kind == jit_memory_tag_kind_t::blocked
             ? utils::rnd_up(jpp.c_without_padding, jpp.c_block)
@@ -271,10 +279,11 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     const int right_pad = calculate_end_padding(
             jpp.l_pad, jpp.ow, jpp.iw, jpp.stride_w, jpp.kw);
 
-    if (jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
-            || back_pad >= jpp.kd || bottom_pad >= jpp.kh
-            || right_pad >= jpp.kw)
-        return status::unimplemented;
+    VDISPATCH_POOLING_IC(
+            !(jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
+                    || back_pad >= jpp.kd || bottom_pad >= jpp.kh
+                    || right_pad >= jpp.kw),
+            VERBOSE_PADDING_ERROR, "");
 
     jpp.ind_dt = ppd->workspace_md() ? ppd->workspace_md()->data_type
                                      : data_type::undef;

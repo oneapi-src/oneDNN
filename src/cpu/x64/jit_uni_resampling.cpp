@@ -74,18 +74,27 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
     fill_format_tag_info();
     conf_.isa = get_supported_isa(src_d.is_plain());
 
-    const bool ok = is_fwd() && !has_zero_dim_memory()
-            && conf_.src_tag != format_tag::undef
-            && set_default_params(conf_.src_tag) == status::success
-            && impl_supports_datatype(conf_.src_data_type)
-            && impl_supports_datatype(conf_.dst_data_type)
-            && IMPLICATION(conf_.src_data_type == f16, src_d.is_plain())
-            && attr()->has_default_values(sm::post_ops, conf_.dst_data_type)
-            && attr_.set_default_formats(dst_md(0)) == status::success;
-    if (!ok) return status::unimplemented;
-
-    if (!memory_desc_matches_tag(*dst_md(), conf_.src_tag))
-        return status::unimplemented;
+    VDISPATCH_RESAMPLING(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_RESAMPLING(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_RESAMPLING(
+            conf_.src_tag != format_tag::undef, VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_RESAMPLING(set_default_params(conf_.src_tag) == status::success,
+            VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_RESAMPLING(impl_supports_datatype(conf_.src_data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_RESAMPLING(impl_supports_datatype(conf_.dst_data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_RESAMPLING(
+            IMPLICATION(conf_.src_data_type == f16, src_d.is_plain()),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_RESAMPLING(
+            attr()->has_default_values(sm::post_ops, conf_.dst_data_type),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_RESAMPLING(
+            attr_.set_default_formats(dst_md(0)) == status::success,
+            VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_RESAMPLING(memory_desc_matches_tag(*dst_md(), conf_.src_tag),
+            VERBOSE_UNSUPPORTED_TAG);
 
     conf_.alg = desc()->alg_kind;
     conf_.c = C();
@@ -135,7 +144,8 @@ status_t jit_uni_resampling_fwd_t::pd_t::init(engine_t *engine) {
             attr()->post_ops_, &dst_d, sum_at_0_pos_only,
             sum_requires_scale_one, sum_requires_zp_zero,
             sum_requires_same_params, accepted_broadcasts);
-    if (!post_ops_ok(post_ops_args)) return status::unimplemented;
+    VDISPATCH_RESAMPLING(
+            post_ops_ok(post_ops_args), VERBOSE_UNSUPPORTED_POSTOP);
 
     conf_.post_ops = attr()->post_ops_;
 

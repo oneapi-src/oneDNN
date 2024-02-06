@@ -673,7 +673,8 @@ DNNL_GRAPH_OP_SCHEMA(MaxPool, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_pool_output_shape)
-                .set_op_def_constraint_function(check_pads))
+                .set_op_def_constraint_function(check_pads)
+                .set_op_def_constraint_function(check_maxpool_dilations))
 
 DNNL_GRAPH_OP_SCHEMA(MaxPoolBackward, 1,
         op_schema_t()
@@ -695,7 +696,8 @@ DNNL_GRAPH_OP_SCHEMA(MaxPoolBackward, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_pool_bwd_output_shape)
-                .set_op_def_constraint_function(check_pads))
+                .set_op_def_constraint_function(check_pads)
+                .set_op_def_constraint_function(check_maxpool_dilations))
 
 DNNL_GRAPH_OP_SCHEMA(Minimum, 1,
         op_schema_t()
