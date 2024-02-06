@@ -20,7 +20,7 @@
 #include "common/primitive.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
-#include "gpu/ocl/reduction_utils.h"
+#include "gpu/ocl/reduction_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
