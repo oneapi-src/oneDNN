@@ -37,8 +37,6 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
-// How many dims the ndrange can assign to
-#define GWS_MAX_NDIMS 3
 // How many buffers can be registered simultaneously
 #define MAX_REGISTERED_BUFFERS 4
 // Maximum length of each indexed dim's name
@@ -313,8 +311,6 @@ public:
     size_t idx;
 };
 
-using work_size = std::array<size_t, GWS_MAX_NDIMS>;
-
 class gws_bin_mapping_t;
 
 struct lws_strategy_t {
@@ -323,8 +319,9 @@ struct lws_strategy_t {
         : engine(engine), gpu_attr(gpu_attr) {};
     virtual ~lws_strategy_t() = default;
 
-    virtual work_size create_lws(
-            const work_size &gws, const gws_bin_mapping_t &mapper) const = 0;
+    virtual nd_range_t::work_size_t create_lws(
+            const nd_range_t::work_size_t &gws,
+            const gws_bin_mapping_t &mapper) const = 0;
 
     // Determine if a given block (mapped to each buffer) should be in the lws.
     // Gets called for each block dispatched to the GWS.
@@ -347,11 +344,10 @@ struct default_lws_strategy_t : public lws_strategy_t {
     default_lws_strategy_t(const compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr)
         : lws_strategy_t(engine, gpu_attr) {};
-    work_size create_lws(const work_size &gws,
+    nd_range_t::work_size_t create_lws(const nd_range_t::work_size_t &gws,
             const gws_bin_mapping_t &mapper) const override {
-        work_size lws;
-        get_optimal_lws(gws.data(), lws.data(), gws.size(), -1,
-                engine->device_info()->gpu_arch());
+        nd_range_t::work_size_t lws = get_optimal_lws(
+                gws.data(), gws.size(), -1, engine->device_info()->gpu_arch());
         return lws;
     }
 
@@ -633,11 +629,11 @@ public:
     }
 
     nd_range_t nd_range(const lws_strategy_t &lws_strategy) const {
-        work_size lws = lws_strategy.create_lws(gws_, *this);
+        nd_range_t::work_size_t lws = lws_strategy.create_lws(gws_, *this);
         return compute::nd_range_t(gws_.data(), lws.data());
     }
 
-    const work_size &gws() const { return gws_; }
+    const nd_range_t::work_size_t &gws() const { return gws_; }
 
     const std::vector<block_bin_t> &get_bins(size_t idx) const {
         return map[idx];
@@ -650,13 +646,13 @@ private:
         gws_[gws_dim] *= bin.size();
     }
     void clear_(size_t gws_idx) {
-        gpu_assert(gws_idx < GWS_MAX_NDIMS);
+        gpu_assert(gws_idx < nd_range_t::max_ndims);
         map[gws_idx].clear();
         gws_[gws_idx] = 1;
     }
     subgroup_data_t sg;
-    std::array<std::vector<block_bin_t>, GWS_MAX_NDIMS> map;
-    work_size gws_;
+    std::array<std::vector<block_bin_t>, nd_range_t::max_ndims> map;
+    nd_range_t::work_size_t gws_;
 };
 
 class reusable_dispatch_config_t {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,11 +17,10 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
-#include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/dispatch.hpp"
-#include "gpu/primitive_conf.hpp"
+#include "gpu/compute/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -29,7 +28,7 @@ namespace gpu {
 namespace compute {
 
 // Compute optimal local work size for the given global work size.
-void get_optimal_lws(const size_t *gws, size_t *lws, const size_t n,
+nd_range_t::work_size_t get_optimal_lws(const size_t *gws, const size_t n,
         const int mapped_vec_dim_idx, const gpu_arch_t gpu_arch) {
     const size_t lws_max = 256;
     // Factors in descending order, prefer bigger sizes for local work size.
@@ -37,11 +36,13 @@ void get_optimal_lws(const size_t *gws, size_t *lws, const size_t n,
             = {256, 224, 192, 160, 128, 96, 64, 32, 16, 8, 7, 6, 5, 4, 3, 2, 1};
     size_t total_lws = 1;
 
-    size_t gws_copy[3];
+    gpu_assert(n <= nd_range_t::max_ndims) << "LWS has more than allowed dims";
+    size_t gws_copy[nd_range_t::max_ndims];
     for (size_t i = 0; i < n; ++i) {
-        lws[i] = 1;
         gws_copy[i] = gws[i];
     }
+    nd_range_t::work_size_t lws;
+    lws.fill(1);
 
     // Iterate through global work size and calculate max divisor from
     // the array optimal_lws_values.
@@ -70,6 +71,7 @@ void get_optimal_lws(const size_t *gws, size_t *lws, const size_t n,
             }
         }
     }
+    return lws;
 }
 
 dispatch_t::dispatch_t(const compute_engine_t *engine, const memory_desc_t *md)
@@ -277,7 +279,8 @@ void dispatch_t::generate(bool generate_lws) {
     }
 
     // Handle a vectorized dimension (if presented).
-    size_t lws[3] = {1, 1, 1};
+    nd_range_t::work_size_t lws;
+    lws.fill(1);
     bool with_lws = false;
     if (vec_dim_idx != dim_not_found) {
         int gws_index = dims_[vec_dim_idx].gws_index;
@@ -316,13 +319,14 @@ void dispatch_t::generate(bool generate_lws) {
 
     if (!with_lws) {
         // Compute the best lws.
-        get_optimal_lws(gws, lws, 3,
+        lws = get_optimal_lws(gws, 3,
                 vec_dim_idx != -1 ? dims_[vec_dim_idx].gws_index : -1,
                 dev_info->gpu_arch());
         with_lws = true;
     }
 
-    nd_range_ = nd_range_t(gws, with_lws && generate_lws ? lws : nullptr);
+    nd_range_
+            = nd_range_t(gws, with_lws && generate_lws ? lws.data() : nullptr);
     generate_called = true;
 }
 

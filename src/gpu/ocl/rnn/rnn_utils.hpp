@@ -17,10 +17,10 @@
 #ifndef GPU_OCL_RNN_RNN_UTILS_HPP
 #define GPU_OCL_RNN_RNN_UTILS_HPP
 
-#include "oneapi/dnnl/dnnl_types.h"
-
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 #include "gpu/serialization.hpp"

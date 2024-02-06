@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,14 +25,13 @@
 #include "gpu/compute/device_info.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
 #include "gpu/compute/utils.hpp"
-#include "gpu/gpu_primitive_attr.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace compute {
 
-void get_optimal_lws(const size_t *gws, size_t *lws, const size_t n,
+nd_range_t::work_size_t get_optimal_lws(const size_t *gws, const size_t n,
         const int mapped_vec_dim_idx, const gpu_arch_t gpu_arch);
 
 class compute_engine_t;
