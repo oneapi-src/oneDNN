@@ -323,17 +323,20 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
         fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
                 /* is_service_prim = */ true);
 
-        if (pdw) {
-            if (query_impl_info(pdw) == "ref:any") return OK;
+        // Prim desc wasn't created - try the next set...
+        if (!pdw) continue;
+        // Reference impl was fetched - try the next set...
+        if (query_impl_info(pdw) == "ref:any") continue;
 
-            auto st = dnnl_primitive_create(&prim_ref_, pdw);
-            if (st != dnnl_success) continue;
+        auto st = dnnl_primitive_create(&prim_ref_, pdw);
+        // Primitive wan't created - try the next set...
+        if (st != dnnl_success) continue;
 
-            BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
-                    query_impl_info(pdw).c_str());
-            res->prim_ref_repro = prb_cpu.str();
-            break;
-        }
+        BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
+                query_impl_info(pdw).c_str());
+        res->prim_ref_repro = prb_cpu.str();
+        prim_ref.reset(prim_ref_);
+        return OK;
     }
 
     prim_ref.reset(prim_ref_);
