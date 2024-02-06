@@ -647,6 +647,12 @@ void gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("group_stride", DataType::ud);
     if (strategy.variableSLM())
         interface_.newArgument("local_mem", ExternalArgumentType::LocalPtr);
+    if (problem.abOffset != ABOffset::None) {
+        if (problem.aoPtrDims >= 1)
+            interface_.newArgument("offset_AO", DataType::d);
+        if (problem.boPtrDims >= 1)
+            interface_.newArgument("offset_BO", DataType::d);
+    }
 
     interface_.externalName(kernel_name());
 }
