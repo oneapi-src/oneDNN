@@ -46,6 +46,28 @@ bool check_pads(const op_t *n) {
     return true;
 }
 
+// check function for pool dilations.
+// dilations size should be same as kernel size.
+bool check_maxpool_dilations(const op_t *n) {
+    const dims dilations = n->get_attr<dims>(op_attr::dilations);
+    const dims kernel = n->get_attr<dims>(op_attr::kernel);
+    const size_t dilations_size = dilations.size();
+    const size_t kernel_size = kernel.size();
+
+    // default dilations is vector(12,1) if user not set
+    if ((dilations_size == DNNL_MAX_NDIMS) && (dilations_size != kernel_size)) {
+        bool allOnes = std::all_of(dilations.begin(), dilations.end(),
+                [](dim_t element) { return element == 1; });
+        if (allOnes) return true;
+    }
+
+    VCHECK_SHAPE_INFER(dilations_size == kernel_size,
+            "%s, dilations size should be same as kernel_size",
+            op_t::kind2str(n->get_kind()).c_str());
+
+    return true;
+}
+
 // check function for data_type of BatchNorm.
 // only when data is bf16, gamma/beta/mean/var can be bf16.
 // If data is bf16, gamma/beta/mean/var can be f32 or bf16.
