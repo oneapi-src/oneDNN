@@ -1473,6 +1473,19 @@ int update_ref_mem_map_from_prim(dnnl_primitive_t prim_ref,
             break;
         }
 
+        const int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+        const bool is_post_ops_arg = (exec_arg & post_ops_range);
+        const bool is_prelu_arg
+                = is_post_ops_arg && (exec_arg & DNNL_ARG_WEIGHTS);
+        // The library doesn't return a memory desc for prelu post-op. Prelu
+        // requires `tag::axb` format, thus, need to put a desc into ref prim.
+        if (is_prelu_arg) {
+            prim_ref_mem = dnn_mem_t(
+                    library_mem.md_, dnnl_f32, tag::axb, ref_engine);
+            break;
+        }
+
         // Rest arguments don't need special handling and should be
         // skipped as empty.
         skip_replace = true;
