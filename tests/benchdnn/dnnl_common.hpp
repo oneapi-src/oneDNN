@@ -804,6 +804,16 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 dnn_mem_t(ndims, dims, dnnl_f32, tag::axb, test_engine));
     }
 
+    const auto mask2dims = [&](int mask, const dims_t &arg_dims) {
+        dims_t dims;
+
+        const int arg_ndims = static_cast<int>(arg_dims.size());
+        for (int d = 0; d < arg_ndims; ++d) {
+            if (mask & (1 << d)) dims.push_back(arg_dims[d]);
+        }
+        return dims;
+    };
+
     // Scales.
     if (!prb->attr.scales.is_def()) {
         const auto &sc = prb->attr.scales;
@@ -824,10 +834,10 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    dims = md2dims(prb_md);
+                    dims = mask2dims(mask, md2dims(prb_md));
                     ndims = static_cast<int>(dims.size());
                 } else {
-                    dims = md2dims(md);
+                    dims = mask2dims(mask, md2dims(md));
                     ndims = static_cast<int>(dims.size());
                 }
             } else {
@@ -871,10 +881,10 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    dims = md2dims(prb_md);
+                    dims = mask2dims(mask, md2dims(prb_md));
                     ndims = static_cast<int>(dims.size());
                 } else {
-                    dims = md2dims(md);
+                    dims = mask2dims(mask, md2dims(md));
                     ndims = static_cast<int>(dims.size());
                 }
             } else {
