@@ -17,9 +17,13 @@
 #ifndef GPU_COMPUTE_UTILS_HPP
 #define GPU_COMPUTE_UTILS_HPP
 
+#include <array>
 #include <cassert>
 #include <sstream>
+#include <tuple>
 #include <vector>
+
+#include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -39,6 +43,8 @@ struct device_uuid_hasher_t {
 // Stores global/local ranges to use for kernel enqueueing
 class nd_range_t {
 public:
+    static constexpr size_t max_ndims = 3;
+    using work_size_t = std::array<size_t, nd_range_t::max_ndims>;
     nd_range_t() {
         global_range_[0] = 1;
         global_range_[1] = 1;
@@ -49,10 +55,10 @@ public:
     nd_range_t(size_t n, const size_t *global_range,
             const size_t *local_range = nullptr) {
 
-        assert(n <= 3);
+        assert(n <= max_ndims);
         with_local_range_ = bool(local_range);
 
-        for (size_t i = 0; i < 3; ++i) {
+        for (size_t i = 0; i < max_ndims; ++i) {
             global_range_[i] = (i < n) ? global_range[i] : 1;
             if (with_local_range_) {
                 local_range_[i] = (i < n) ? local_range[i] : 1;
@@ -61,7 +67,7 @@ public:
     }
 
     nd_range_t(const size_t *global_range, const size_t *local_range = nullptr)
-        : nd_range_t(3, global_range, local_range) {}
+        : nd_range_t(max_ndims, global_range, local_range) {}
 
     template <typename int_type>
     nd_range_t(std::initializer_list<int_type> global_range,
@@ -71,7 +77,7 @@ public:
             assert(global_range.size() == local_range.size());
         }
         size_t n = global_range.size();
-        for (size_t i = 0; i < 3; i++) {
+        for (size_t i = 0; i < max_ndims; i++) {
             global_range_[i] = (i < n) ? *(global_range.begin() + i) : 1;
             if (with_local_range_) {
                 local_range_[i] = (i < n) ? *(local_range.begin() + i) : 1;
@@ -87,7 +93,7 @@ public:
             assert(global_range.size() == local_range.size());
         }
         size_t n = global_range.size();
-        for (size_t i = 0; i < 3; i++) {
+        for (size_t i = 0; i < max_ndims; i++) {
             global_range_[i] = (i < n) ? global_range[i] : 1;
             if (with_local_range_) {
                 local_range_[i] = (i < n) ? local_range[i] : 1;
@@ -95,7 +101,7 @@ public:
         }
     }
 
-    size_t ndims() const { return 3; }
+    size_t ndims() const { return max_ndims; }
     const size_t *global_range() const { return global_range_; }
 
     const size_t *local_range() const {
@@ -121,8 +127,8 @@ public:
     }
 
 private:
-    size_t global_range_[3];
-    size_t local_range_[3];
+    size_t global_range_[max_ndims];
+    size_t local_range_[max_ndims];
     bool with_local_range_;
 };
 

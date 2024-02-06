@@ -26,7 +26,8 @@
 #include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
 #include "gpu/block_structure.hpp"
-#include "gpu/compute/compute.hpp"
+#include "gpu/compute/dispatch.hpp"
+#include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/gpu_eltwise_pd.hpp"
 
 namespace dnnl {
@@ -817,7 +818,8 @@ struct concat_conf_t {
     int n;
     int simd;
     int data_type_size;
-    size_t gws_d[3], lws_d[3];
+    size_t gws_d[3];
+    compute::nd_range_t::work_size_t lws_d;
 
     data_type_t src_type, dst_type;
     compute::dispatch_t dispatch;
