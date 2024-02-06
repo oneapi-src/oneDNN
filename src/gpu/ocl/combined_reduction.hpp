@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include "common/primitive.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
-#include "gpu/ocl/reduction_utils.h"
+#include "gpu/ocl/reduction_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
