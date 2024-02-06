@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1501,6 +1501,58 @@ TEST(test_interface_op_schema, InferMaxpoolOutputShapeWithRoundingType) {
             EXPECT_EQ(inferred_out_strides, expected_out_strides);
         }
     }
+}
+
+TEST(test_interface_op_schema, TestMaxpoolDilations) {
+    op_t pool_op {op_kind::MaxPool, op_t::kind2str(op_kind::MaxPool)};
+    std::vector<int64_t> strides = {1, 1};
+    std::vector<int64_t> kernel = {4, 4};
+    std::vector<int64_t> pads_begin = {0, 0};
+    std::vector<int64_t> pads_end = {0, 0};
+    std::vector<int64_t> invalid_dilations = {2, 2, 2};
+    std::string data_format = "NCX";
+    const std::vector<int64_t> expected_out_shape = {1, 1, 10, 10};
+    int64_t id = 0;
+
+    pool_op.set_attr(op_attr::strides, strides);
+    pool_op.set_attr(op_attr::pads_begin, pads_begin);
+    pool_op.set_attr(op_attr::pads_end, pads_end);
+    pool_op.set_attr(op_attr::kernel, kernel);
+    pool_op.set_attr(op_attr::dilations, invalid_dilations);
+
+    pool_op.set_attr(op_attr::data_format, data_format);
+    pool_op.set_attr<std::string>(op_attr::auto_pad, "VALID");
+
+    logical_tensor_t lt_data
+            = logical_tensor_init(id++, {1, 1, 16, 16}, data_type::f32);
+    std::vector<logical_tensor_t *> lt_in {&lt_data};
+    logical_tensor_t lt_o
+            = logical_tensor_init(id++, data_type::f32, layout_type::strided);
+    pool_op.add_input(lt_data);
+    pool_op.add_output(lt_o);
+
+    graph_t agraph;
+    // failed due to invalid_dilations.size() != kernel.size()
+    ASSERT_NE(agraph.add_op(&pool_op), status::success);
+
+    pool_op.remove_attr(op_attr::dilations);
+    std::vector<int64_t> invalid_dilations_2(12, 2);
+    pool_op.set_attr(op_attr::dilations, invalid_dilations_2);
+    // failed due to invalid_dilations.size() != kernel.size()
+    ASSERT_NE(agraph.add_op(&pool_op), status::success);
+
+    pool_op.remove_attr(op_attr::dilations);
+    // dilations will be added by default in add_op()
+    ASSERT_EQ(agraph.add_op(&pool_op), status::success);
+
+    agraph.finalize();
+    ASSERT_EQ(agraph.num_ops(), 1U);
+
+    const auto &graph_max_pool_op = agraph.get_ops()[0];
+    // dilations: default value is vec(12, 1)
+    std::vector<int64_t> expected_dilations(12, 1);
+    ASSERT_EQ(graph_max_pool_op->get_attr<dims>(op_attr::dilations),
+            expected_dilations);
 }
 
 TEST(test_interface_op_schema, InferMatmulOutputShape) {
