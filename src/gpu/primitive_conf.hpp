@@ -1256,7 +1256,7 @@ inline status_t get_prelu_md(int prelu_mask, const dim_t *dst_dims,
 }
 
 inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
-        const post_ops_t &post_ops, const dim_t *dst_dims) {
+        const post_ops_t &post_ops, const memory_desc_t &dst_md) {
     const int po_nop_id = 0;
     const int po_binary_id = 1;
     const int po_eltwise_id = 2;
@@ -1294,22 +1294,10 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             kernel_ctx.define_int("PO_" + std::to_string(idx) + "_ALG",
                     alg_kind_t::dnnl_eltwise_relu);
 
-            assert(dst_dims != nullptr);
-
             memory_desc_t weight_mem_desc;
-            int weight_ndims = 0;
-            if (e.prelu.mask == 0) {
-                weight_ndims = 1;
-            } else {
-                // prelu weights are assumed to be up to prelu_max_ndims dims
-                for (int d = 0; d < prelu_max_ndims; ++d) {
-                    if (((e.prelu.mask >> d) & 0x1) == 1) {
-                        weight_ndims = d + 1;
-                    }
-                }
-            }
+            int weight_ndims = dst_md.ndims;
             CHECK(get_prelu_md(
-                    e.prelu.mask, dst_dims, weight_mem_desc, weight_ndims));
+                    e.prelu.mask, dst_md.dims, weight_mem_desc, weight_ndims));
             const memory_desc_wrapper weight_mdw(weight_mem_desc);
             const auto mdi = memory_desc_info_t::create(weight_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
@@ -1463,7 +1451,7 @@ inline bool post_ops_preserves_zeroes(
 
 inline status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
         const attr_info_t &attr_info, const post_ops_t &post_ops,
-        const dim_t *dst_dims) {
+        const memory_desc_t &dst_md) {
     assert(attr_info.initialized);
 
     kernel_ctx.define_int("WITH_POST_OP", post_ops.len() > 0);
@@ -1502,17 +1490,13 @@ inline status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
     def_binary_alg_kinds(kernel_ctx);
     def_eltwise_alg_kinds(kernel_ctx);
 
-    return def_post_ops_cfg(kernel_ctx, post_ops, dst_dims);
+    return def_post_ops_cfg(kernel_ctx, post_ops, dst_md);
 }
 
-// Helper to make sure fixed size array is large enough
-template <int size>
 inline status_t def_attr_info(compute::kernel_ctx_t &kernel_ctx,
         const attr_info_t &attr_info, const post_ops_t &post_ops,
-        const dim_t (&dst_dims)[size]) {
-    static_assert(size >= prelu_max_ndims,
-            "Insufficient dims to support prelu post ops");
-    return def_attr_info_impl(kernel_ctx, attr_info, post_ops, dst_dims);
+        const memory_desc_t &dst_md) {
+    return def_attr_info_impl(kernel_ctx, attr_info, post_ops, dst_md);
 }
 
 inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -363,14 +363,8 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
 
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
 
-    dnnl_dims_t dst_dims;
-    dst_dims[0] = conf.mb;
-    dst_dims[1] = conf.oc_without_padding;
-    dst_dims[2] = conf.ndims > 4 ? conf.od : conf.oh;
-    dst_dims[3] = conf.ndims > 4 ? conf.oh : conf.ow;
-    dst_dims[4] = conf.ow;
-    CHECK(def_attr_info(
-            kernel_ctx, conf.attr_info, attr()->post_ops_, dst_dims));
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_,
+            *invariant_dst_md()));
 
     return status::success;
 }

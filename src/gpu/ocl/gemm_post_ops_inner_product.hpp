@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -189,7 +189,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
 
             CHECK(def_attr_info(kernel_ctx, pd()->attr_info_,
-                    pd()->attr()->post_ops_, pd()->dst_md()->dims));
+                    pd()->attr()->post_ops_, *pd()->invariant_dst_md()));
 
             CHECK(create_kernel(engine, &post_process_kernel_,
                     "gemm_post_ops_inner_product", kernel_ctx));

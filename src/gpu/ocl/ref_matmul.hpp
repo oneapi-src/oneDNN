@@ -115,7 +115,7 @@ struct ref_matmul_t : public gpu_primitive_t {
 
         kernel_ctx.set_data_type(pd()->dst_dt_);
         CHECK(def_attr_info(kernel_ctx, pd()->attr_info_,
-                pd()->attr()->post_ops_, pd()->dst_md()->dims));
+                pd()->attr()->post_ops_, *pd()->dst_md()));
 
         bool runtime_dims = pd()->has_runtime_dims_or_strides() || ndims > 5;
         if (!runtime_dims) {
