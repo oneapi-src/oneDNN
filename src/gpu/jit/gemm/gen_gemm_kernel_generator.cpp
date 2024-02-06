@@ -17743,6 +17743,8 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
     state.inputs.offsetB = interface.getArgumentIfExists("offset_B");
     state.inputs.offsetC[0] = interface.getArgumentIfExists("offset_C");
     state.inputs.offsetC[1] = interface.getArgumentIfExists("offset_P");
+    state.inputs.offsetAO = interface.getArgumentIfExists("offset_AO");
+    state.inputs.offsetBO = interface.getArgumentIfExists("offset_BO");
     state.inputs.offsetCO = interface.getArgumentIfExists("offset_CO");
     if (problem.batch == BatchMode::Strided) {
         state.inputs.strideA[0] = interface.getArgumentIfExists("stride_A");
@@ -17915,6 +17917,10 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
         if (state.inputs.bo.isValid()) state.ra.claim(state.inputs.bo);
         if (state.inputs.aoPtr.isValid()) state.ra.claim(state.inputs.aoPtr);
         if (state.inputs.boPtr.isValid()) state.ra.claim(state.inputs.boPtr);
+        if (state.inputs.offsetAO.isValid())
+            state.ra.claim(state.inputs.offsetAO);
+        if (state.inputs.offsetBO.isValid())
+            state.ra.claim(state.inputs.offsetBO);
     }
 
     if (problem.usesCO()) {
@@ -19597,6 +19603,17 @@ void gemm_kernel_generator_t<hw>::gemm(
                     Tc.ngen(), getHint(HintType::LongTerm, strategy));
             state.inputs.bo = state.ra.alloc_sub(
                     Tc.ngen(), getHint(HintType::LongTerm, strategy));
+        }
+
+        if (state.inputs.offsetAO.isValid()) {
+            eadd(1, state.inputs.aoPtr, state.inputs.aoPtr,
+                    state.inputs.offsetAO, strategy, state);
+            state.ra.safeRelease(state.inputs.offsetAO);
+        }
+        if (state.inputs.offsetBO.isValid()) {
+            eadd(1, state.inputs.boPtr, state.inputs.boPtr,
+                    state.inputs.offsetBO, strategy, state);
+            state.ra.safeRelease(state.inputs.offsetBO);
         }
 
         auto loadABO = [&](Type T, const ngen::Subregister &xo,

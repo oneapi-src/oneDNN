@@ -563,11 +563,11 @@ private:
             const memory_storage_t *ao, const memory_storage_t *bo,
             const memory_storage_t &co, const memory_storage_t *c_temp,
             int po_count, const memory_storage_t **po_src, int64_t offset_a,
-            int64_t offset_b, int64_t offset_c, int32_t offset_co,
-            int32_t *offset_po_src, int32_t lda, int32_t ldb, int32_t ldc,
-            int32_t m, int32_t n, int32_t k, int32_t k0, float alpha,
-            float beta, int32_t cmask, bool last_k_block, bool swapab,
-            bool disable_hilbert) const;
+            int64_t offset_b, int64_t offset_c, int32_t offset_ao,
+            int32_t offset_bo, int32_t offset_co, int32_t *offset_po_src,
+            int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n,
+            int32_t k, int32_t k0, float alpha, float beta, int32_t cmask,
+            bool last_k_block, bool swapab, bool disable_hilbert) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const CommonDriverInfo *nocopy_info() const {
