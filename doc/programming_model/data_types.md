@@ -170,28 +170,40 @@ types that oneDNN recognizes.
 ### Intel(R) Processor Graphics and Xe Architecture graphics
 oneDNN performance optimizations for Intel Processor graphics and
 Xe Architecture graphics are specialized based on device microarchitecture (uArch).
-The following uArchs have specialized optimizations in the library:
-* GEN9 (also covers GEN11)
-* Xe-LP (previously known as GEN12LP)
-* Xe-HP
+The following uArchs and associated devices have specialized optimizations in the 
+library:
+ * Xe-LP (accelerated u8, s8 support via DP4A)
+   * Intel(R) UHD Graphics for 11th-14th Gen Intel(R) Processors
+   * Intel(R) Iris(R) Xe Graphics
+   * Intel(R) Iris(R) Xe MAX Graphics (formerly DG1)
+ * Xe-HPG (accelerated f16, bf16, u8, and s8 support via Intel(R) Xe Matrix Extensions (Intel(R) XMX), aka DPAS)
+   * Intel(R) Arc(TM) Graphics (formerly Achemist)
+   * Intel(R) Data Center GPU Flex Series (formerly Arctic Sound)
+ * Xe-HPC (accelerated f16, bf16, u8, and s8 support via DPAS and f64 support via MAD)
+   * Intel(R) Data Center GPU Max Series (formerly Ponte Vecchio)
 
-The following table indicates the minimal supported uArch for each of the data
-types that oneDNN recognizes.
-| Data type | Minimal supported uArch |
-|:----------|:------------------------|
-| f32       | GEN9                    |
-| s8, u8    | Xe-LP                   |
-| bf16      | Xe-HP                   |
-| f16       | GEN9                    |
+The following table indicates the data types with performant compute primitives
+for each uArch supported by oneDNN. Unless otherwise noted, all data types have 
+reference support on all architectures.
+
+| uArch  | Supported Data types                             |
+|:-------|:-------------------------------------------------|
+| Xe-LP  | f32, f16, s8, u8                                 |
+| Xe-HPG | f32, f16, bf16, s8, u8                           |
+| Xe-HPC | f64, f32, bf16, f16, s8, u8                      |
+| TBA    | f64, f32, bf16, f16, s8, u8, f8\_e5m2, f8\_e4m3  |
 
 @note
   f64 configurations are only supported on GPU engines with HW capability for
   double-precision floating-point.
 
 @note
-  f16 operations may be faster with f16 accumulation on GPU
-  architectures older than Xe-HPC. Newer architectures accumulate to
-  f32.
+  f8\_e5m2 compute operations have limited performance through upconversion on
+  Xe-HPC.
+
+@note
+  f16 operations may be faster with f16 accumulation on GPU architectures older
+  than Xe-HPC. Newer architectures accumulate to f32.
 
 @note
   Boolean is only supported by the oneDNN graph API when the graph compiler
