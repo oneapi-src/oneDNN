@@ -1388,11 +1388,15 @@ float reorder_rescale_factor() {
     return factor;
 }
 
-dims_t md2dims(const_dnnl_memory_desc_t md) {
+dims_t md2dims(const_dnnl_memory_desc_t md, int mask, bool extend_by_ones) {
     auto ndims = query_md_ndims(md);
-    dims_t dims(ndims, 0);
-    for (int d = 0; d < ndims; ++d)
-        dims[d] = query_md_dims(md)[d];
+    dims_t dims;
+    for (int d = 0; d < ndims; ++d) {
+        if (mask & (1 << d))
+            dims.push_back(query_md_dims(md)[d]);
+        else if (extend_by_ones)
+            dims.push_back(1);
+    }
     return dims;
 }
 
