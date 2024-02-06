@@ -356,7 +356,8 @@ graph::status_t compiler_partition_impl_t::compile(
                         || in_ltw.property_type() == property_type::constant) {
                     continue;
                 }
-                inplace_pairs.push_back({input.id, output.id});
+                // Temporarily disable this feature.
+                // inplace_pairs.push_back({input.id, output.id});
             }
         }
 
