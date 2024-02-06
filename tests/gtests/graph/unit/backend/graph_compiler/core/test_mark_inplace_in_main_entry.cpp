@@ -58,7 +58,8 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, AddAdd) {
 
     buffer_3 -> buffer_0
     */
-    EXPECT_EQ(fptr0->inplace_pairs_.size(), 1UL);
+    EXPECT_EQ(fptr0->inplace_pairs_.size(), 0UL);
+    /*
     EXPECT_EQ(fptr0->inplace_pairs_[0].first, 1UL); // input id
     EXPECT_EQ(fptr0->inplace_pairs_[0].second, 2UL); // output id
 
@@ -73,6 +74,7 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, AddAdd) {
     for (size_t i = 0; i < size_t(N * Cin * Hin * Win); ++i) {
         EXPECT_FLOAT_EQ(out0_data[i], in1_data[i]);
     }
+    */
 }
 
 TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, ConvAdd0) {
@@ -173,7 +175,8 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, ConvAdd1) {
     }
     buffer_3 -> buffer_2
     */
-    EXPECT_EQ(fptr0->inplace_pairs_.size(), 1UL);
+    EXPECT_EQ(fptr0->inplace_pairs_.size(), 0UL);
+    /*
     EXPECT_EQ(fptr0->inplace_pairs_[0].first, 0UL); // input id
     EXPECT_EQ(fptr0->inplace_pairs_[0].second, 3UL); // output id
 
@@ -186,6 +189,7 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, ConvAdd1) {
     for (size_t i = 0; i < size_t(N * Cout0 * Hin * Win); ++i) {
         EXPECT_FLOAT_EQ(out_data[i], in0_data[i]);
     }
+    */
 }
 
 TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, MatmulAdd) {
@@ -231,7 +235,8 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, MatmulAdd) {
 
     buffer_4 -> buffer_2
     */
-    EXPECT_EQ(fptr0->inplace_pairs_.size(), 1UL);
+    EXPECT_EQ(fptr0->inplace_pairs_.size(), 0UL);
+    /*
     EXPECT_EQ(fptr0->inplace_pairs_[0].first, 0UL); // input id
     EXPECT_EQ(fptr0->inplace_pairs_[0].second, 3UL); // output id
 
@@ -244,6 +249,7 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, MatmulAdd) {
     for (size_t i = 0; i < size_t(M * N); ++i) {
         EXPECT_FLOAT_EQ(out_data[i], in0_data[i]);
     }
+    */
 }
 
 TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, MatmulMulAdd) {
@@ -301,5 +307,5 @@ TEST(GCCore_CPU_mark_inplace_in_main_entry_cpp, MatmulMulAdd) {
 
     no output arg can inplace input arg.
     */
-    EXPECT_EQ(fptr0->inplace_pairs_.size(), 1UL);
+    EXPECT_EQ(fptr0->inplace_pairs_.size(), 0UL);
 }

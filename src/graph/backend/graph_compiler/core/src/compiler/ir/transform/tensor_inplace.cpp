@@ -387,7 +387,8 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
                                 std::make_pair(in_idx, out_idx));
                     }
                 }
-                entry_f->attr()[function_attrs::inplace_hint] = inplace_pairs;
+                // entry_f->attr()[function_attrs::inplace_hint] =
+                // inplace_pairs;
             }
         }
 
