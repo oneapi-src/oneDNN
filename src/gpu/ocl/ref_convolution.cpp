@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,7 +88,8 @@ static status_t init_conf_common(
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const conv_conf_t &conf, const post_ops_t &post_ops) {
+        const conv_conf_t &conf, const post_ops_t &post_ops,
+        const memory_desc_t *dst_md) {
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("WITH_GROUPS", conf.with_groups);
@@ -157,17 +158,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
                     : conf.attr_info.sum_data_type,
             "SUM");
 
-    dims_t dst_dims {};
-
-    for (int d = 0; d < MAX_NDIMS; d++) {
-        if (d < conf.ndims)
-            dst_dims[d] = (conf.prop_kind & dnnl_backward)
-                    ? conf.src_md_info.dims[d]
-                    : conf.dst_md_info.dims[d];
-        else
-            dst_dims[d] = 1;
-    }
-    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops, dst_dims));
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops, *dst_md));
     return status::success;
 }
 
@@ -178,7 +169,8 @@ status_t ref_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_convolution_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, attr()->post_ops_, invariant_dst_md());
 }
 
 status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
@@ -235,7 +227,8 @@ status_t ref_convolution_bwd_data_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_convolution_bwd_data_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, attr()->post_ops_, invariant_src_md());
 }
 
 status_t ref_convolution_bwd_data_t::execute_backward_data(
@@ -293,7 +286,8 @@ status_t ref_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_convolution_bwd_weights_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, attr()->post_ops_, invariant_wei_md());
 }
 
 status_t ref_convolution_bwd_weights_t::execute_backward_weights(

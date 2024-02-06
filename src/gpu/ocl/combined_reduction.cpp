@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -453,7 +453,7 @@ status_t combined_reduction_t::pd_t::init_kernel_ctx(
 
     // Set post-op macros
     CHECK(def_attr_info(
-            kernel_ctx, conf.attr_info, attr()->post_ops_, dst_md()->dims));
+            kernel_ctx, conf.attr_info, attr()->post_ops_, *dst_md()));
     if (attr()->post_ops_.len() > 0) {
         if (phase.is_final) {
             // Can only do this for the final phase, since it overwrites def_data_type for DST

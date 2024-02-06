@@ -160,7 +160,7 @@ struct ref_gemm_t : public gpu_gemm_t {
         const auto d = pd()->desc();
         kernel_ctx.set_data_type(d->c_type());
         CHECK(def_attr_info(kernel_ctx, pd()->attr_info,
-                pd()->attr()->post_ops_, pd()->dst_md()->dims));
+                pd()->attr()->post_ops_, *pd()->dst_md()));
 
         const auto bias_type = d->bias_type() != data_type::undef
                 ? d->bias_type()
