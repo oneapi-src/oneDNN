@@ -1113,10 +1113,8 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_w(
     ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_kon);
     ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_ikon);
     ret.add(k_is_ow && small_ic, conv_schemes::bwd_w_T_io_I_ikow);
-    ret.add(k_is_mb && cfg.prb().deterministic,
-            conv_schemes::bwd_w_T_io_I_ion_d);
-    ret.add(k_is_ow && cfg.prb().deterministic,
-            conv_schemes::bwd_w_T_io_I_iow_d);
+    ret.add(cfg.prb().deterministic, conv_schemes::bwd_w_T_io_I_ion_d);
+    ret.add(cfg.prb().deterministic, conv_schemes::bwd_w_T_io_I_iow_d);
     return ret;
 }
 
