@@ -301,7 +301,7 @@ public:
     nd_range_t nd_range;
 
 private:
-    size_t num_terms;
+    size_t num_terms = 0;
     dispatch_gws_rt_params_t rt_params;
 };
 
