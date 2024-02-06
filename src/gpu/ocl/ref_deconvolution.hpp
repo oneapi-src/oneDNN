@@ -178,7 +178,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             if (dst_md_.format_kind == format_kind::any)
                 dst_md_ = *conv_pd_->diff_src_md();
             if (bias_md_.format_kind == format_kind::any) {
-                VDISPATCH_DECONVOLUTION(memory_desc_init_by_tag(bias_md_, x),
+                VDISPATCH_DECONVOLUTION_SC(memory_desc_init_by_tag(bias_md_, x),
                         VERBOSE_UNSUPPORTED_TAG);
             }
             init_scratchpad();
@@ -417,19 +417,21 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
             VDISPATCH_DECONVOLUTION_SC(
                     init_convolution(engine), "init_convolution()");
-            if (diff_weights_md_.format_kind == format_kind::any)
+            if (diff_weights_md_.format_kind == format_kind::any) {
                 VDISPATCH_DECONVOLUTION_SC(
                         weights_axes_permutation(&diff_weights_md_,
                                 conv_pd_->diff_weights_md(), with_groups()),
                         "weights_axes_permutation()");
+            }
             if (src_md_.format_kind == format_kind::any)
                 src_md_ = *conv_pd_->diff_dst_md();
             if (diff_dst_md_.format_kind == format_kind::any)
                 diff_dst_md_ = *conv_pd_->src_md();
-            if (diff_bias_md_.format_kind == format_kind::any)
+            if (diff_bias_md_.format_kind == format_kind::any) {
                 VDISPATCH_DECONVOLUTION_SC(
                         memory_desc_init_by_tag(diff_bias_md_, x),
                         VERBOSE_UNSUPPORTED_TAG);
+            }
             init_scratchpad();
 
             return status::success;

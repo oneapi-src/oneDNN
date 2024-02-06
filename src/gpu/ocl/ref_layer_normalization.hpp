@@ -48,16 +48,16 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
 
+            bool uses_f16 = utils::one_of(f16, src_dt, dst_dt);
+            bool uses_f64 = utils::one_of(f64, src_dt, dst_dt);
+
             VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
-            VDISPATCH_LNORM(utils::everyone_is(u8, src_dt, dst_dt)
-                            || utils::everyone_is(s8, src_dt, dst_dt)
-                            || utils::everyone_is(f16, src_dt, dst_dt)
-                            || utils::everyone_is(bf16, src_dt, dst_dt)
-                            || utils::everyone_is(f32, src_dt, dst_dt)
-                            || (utils::everyone_is(f64, src_dt, dst_dt)
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values()),
+            VDISPATCH_LNORM(IMPLICATION(uses_f16,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16))
+                            && IMPLICATION(uses_f64,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp64)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_LNORM(
                     !memory_desc_ndims_ok(src_md(), dst_md(), stat_md()),
@@ -131,18 +131,18 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
             auto diff_dst_dt = diff_dst_md()->data_type;
             auto diff_src_dt = diff_src_md()->data_type;
 
+            bool uses_f16
+                    = utils::one_of(f16, src_dt, diff_dst_dt, diff_src_dt);
+            bool uses_f64
+                    = utils::one_of(f64, src_dt, diff_dst_dt, diff_src_dt);
+
             VDISPATCH_LNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
-            VDISPATCH_LNORM(
-                    utils::everyone_is(f32, src_dt, diff_dst_dt, diff_src_dt)
-                            || utils::everyone_is(
-                                    bf16, src_dt, diff_dst_dt, diff_src_dt)
-                            || utils::everyone_is(
-                                    f16, src_dt, diff_dst_dt, diff_src_dt)
-                            || (utils::everyone_is(
-                                        f64, src_dt, diff_dst_dt, diff_src_dt)
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values()),
+            VDISPATCH_LNORM(IMPLICATION(uses_f16,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16))
+                            && IMPLICATION(uses_f64,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp64)),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_LNORM(
                     stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
