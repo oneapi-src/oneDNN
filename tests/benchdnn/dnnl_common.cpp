@@ -1576,7 +1576,7 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
 // * `res` object to save the state of the validation result.
 //
 int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
-        const args_t &args, bool inplace, res_t *res) {
+        const args_t &args, const attr_t &attr, bool inplace, res_t *res) {
     // Fast exit for any modes but bitwise.
     if (!has_bench_mode_bit(mode_bit_t::bitwise)) return OK;
 
@@ -1635,7 +1635,7 @@ int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
         auto &mem = args.find(arg);
         auto &run1_mem = run1_args.find(arg);
 
-        TIME_COMPARE(cmp.compare(run1_mem, mem, attr_t(), res));
+        TIME_COMPARE(cmp.compare(run1_mem, mem, attr, res));
     }
 
     return OK;

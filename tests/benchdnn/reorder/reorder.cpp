@@ -499,7 +499,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
             compare_compensation(prb, mem_map, ref_mem_map, res);
         }
     }
-    SAFE(check_bitwise(prim, {DST}, args, prb->inplace, res), WARN);
+    SAFE(check_bitwise(prim, {DST}, args, prb->attr, prb->inplace, res), WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

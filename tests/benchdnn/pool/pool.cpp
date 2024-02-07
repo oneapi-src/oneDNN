@@ -354,7 +354,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(prb, get_kinds_to_check(prb, FLAG_FWD), args, ref_args,
             setup_cmp, res);
-    SAFE(check_bitwise(prim, get_kinds_to_check(prb, FLAG_FWD), args,
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb, FLAG_FWD), args, prb->attr,
                  prb->inplace, res),
             WARN);
 
@@ -374,7 +374,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         check_correctness(prb, get_kinds_to_check(prb, FLAG_BWD), args,
                 ref_args, setup_cmp, res);
         SAFE(check_bitwise(prim, get_kinds_to_check(prb, FLAG_BWD), args,
-                     prb->inplace, res),
+                     prb->attr, prb->inplace, res),
                 WARN);
     }
 
