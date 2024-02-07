@@ -19,8 +19,12 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_storage.hpp"
 #include "common/memory_tracking.hpp"
+#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "gpu/block_structure.hpp"
 #include "gpu/compute/dispatch_reusable.hpp"
+#include "gpu/compute/kernel_arg_list.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/reusable_lnorm.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -53,89 +57,126 @@ static std::vector<compute::dim_id_t> get_dims(
     return ret;
 }
 
-status_t reusable_layer_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
-    const auto *gpu_attr
-            = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
+static compute::named_buffer_t get_ss_buffer(
+        const memory_desc_t *md, compute::dim_id_t dim) {
+    if (types::is_zero_md(md)) {
+        // Scale/shift are unused. We need to construct a buffer that will not be dispatched to
+        compute::named_buffer_t ret("SS");
+        ret.data_type = data_type::f32; // Anything but undef
+        return ret;
+    } else {
+        return compute::named_buffer_t("SS", *md, {dim});
+    }
+}
 
-    conf.use_scale = use_scale();
-    conf.use_shift = use_shift();
-    conf.src_dt = src_md()->data_type;
-    conf.dst_dt = dst_md()->data_type;
+static status_t init_conf_common(const layer_normalization_pd_t *pd,
+        reusable_lnorm_params_t *conf, reusable_lnorm_runtime_params_t *rt_conf,
+        const engine_t *engine, const compute::named_buffer_t &input_buf,
+        const compute::named_buffer_t &output_buf,
+        const compute::named_buffer_t &stat_buf,
+        const compute::named_buffer_t &ss_buf) {
+    conf->use_scale = pd->use_scale();
+    conf->use_shift = pd->use_shift();
+    conf->input_dt = input_buf.data_type;
+    conf->output_dt = output_buf.data_type;
+    conf->ss_dt = ss_buf.data_type;
 
-    // If scale/shift are not used, weights_md()->data_type is undefined,
-    // which causes problems. Set it to float in this case, since it's
-    // unused anyway.
-    conf.ss_dt = (conf.use_scale || conf.use_shift) ? weights_md()->data_type
-                                                    : data_type::f32;
+    auto scales = pd->attr()->scales_;
+    conf->with_src_scale = !scales.get(DNNL_ARG_SRC).has_default_values();
+    conf->with_dst_scale = !scales.get(DNNL_ARG_DST).has_default_values();
 
-    auto scales = attr()->scales_;
-    conf.with_src_scale = !scales.get(DNNL_ARG_SRC).has_default_values();
-    conf.with_dst_scale = !scales.get(DNNL_ARG_DST).has_default_values();
-
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-
-    size_t ndims = static_cast<size_t>(src_md()->ndims);
+    // We require that the lnorm axis is a single dense block, so that it can
+    // be represented by a stride + size alone.
+    size_t ndims = gpu_utils::into<size_t>(input_buf.ndims);
     std::vector<compute::dim_id_t> dims = get_dims(ndims);
-
-    // SRC: all dimensions
-    compute::named_buffer_t src_buffer("SRC", *src_md(), dims);
-
-    // Only allow SRC formats where the last dimension exists in a dense block
-    const block_t *reduction_block = nullptr;
-    for (const block_t &block : src_buffer.layout()) {
-        if (gpu_utils::into<size_t>(block.dim_idx) == dims.back()) {
-            if (reduction_block) return status::unimplemented;
-            reduction_block = &block;
+    block_layout_t layout = input_buf.layout();
+    const block_t *norm_block = [layout, dims]() -> const block_t * {
+        const block_t *ret = nullptr;
+        for (const block_t &block : layout) {
+            if (gpu_utils::into<size_t>(block.dim_idx) == dims.back()) {
+                if (ret) return nullptr;
+                ret = &block;
+            }
         }
-    }
-    assert(reduction_block);
-    rt_conf.reduction_stride = reduction_block->stride;
+        gpu_assert(ret) << "Expected to find a norm block";
+        return ret;
+    }();
+    if (!norm_block) return status::unimplemented;
+    rt_conf->norm_stride = norm_block->stride;
 
-    // DST: all dimensions (may differ from SRC's format)
-    compute::named_buffer_t dst_buffer("DST", *dst_md(), dims);
+    const auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+            pd->attr()->gpu_attr_.get());
 
-    // STAT: all but the last dimension (used for mean/variance)
-    compute::named_buffer_t stat_buffer(
-            "STAT", *stat_md(), get_dims(ndims, true));
+    const auto *compute_engine
+            = utils::downcast<const compute::compute_engine_t *>(engine);
 
-    // LINEAR: just the last dimension (used for scale/shift)
-    compute::named_buffer_t linear_buffer("LINEAR", src_buffer);
-    for (size_t i = 0; i < dims.size() - 1; i++) {
-        linear_buffer.remove_dim(dims[i]);
-    }
-
-    // full lnorm dispatch: all dimensions
+    // Norm dispatch: all dimensions
     auto lws_strategy
             = compute::default_lws_strategy_t(compute_engine, gpu_attr);
     compute::reusable_dispatch_config_t dispatch_config(compute_engine, dims);
-    CHECK(dispatch_config.register_buffer(src_buffer));
-    CHECK(dispatch_config.register_buffer(dst_buffer));
-    CHECK(dispatch_config.register_buffer(stat_buffer));
-    CHECK(dispatch_config.register_buffer(linear_buffer));
+    CHECK(dispatch_config.register_buffer(input_buf));
+    CHECK(dispatch_config.register_buffer(output_buf));
+    CHECK(dispatch_config.register_buffer(stat_buf));
+    CHECK(dispatch_config.register_buffer(ss_buf));
     compute::reusable_dispatch_t dispatch;
 
     CHECK(dispatch_config.generate(dispatch, lws_strategy));
-    conf.gws_params = dispatch.get_compile_params();
-    rt_conf.gws_params = dispatch.get_runtime_params();
+    conf->gws_params = dispatch.get_compile_params();
+    rt_conf->gws_params = dispatch.get_runtime_params();
 
     // stat calculation dispatch: all stat dimensions
     compute::reusable_dispatch_config_t calc_stat_dispatch_config(
-            compute_engine, stat_buffer.get_dim_ids());
-    CHECK(calc_stat_dispatch_config.register_buffer(src_buffer));
-    CHECK(calc_stat_dispatch_config.register_buffer(stat_buffer));
+            compute_engine, stat_buf.get_dim_ids());
+    CHECK(calc_stat_dispatch_config.register_buffer(input_buf));
+    CHECK(calc_stat_dispatch_config.register_buffer(output_buf));
+    CHECK(calc_stat_dispatch_config.register_buffer(stat_buf));
 
     compute::reusable_dispatch_t dispatch_calc_stat;
     CHECK(calc_stat_dispatch_config.generate(dispatch_calc_stat, lws_strategy));
-    conf.calc_stat_params = dispatch_calc_stat.get_compile_params();
-    rt_conf.calc_stat_params = dispatch_calc_stat.get_runtime_params();
+    conf->stat_params = dispatch_calc_stat.get_compile_params();
+    rt_conf->stat_params = dispatch_calc_stat.get_runtime_params();
+    return status::success;
+}
+
+void init_scratchpad_common(
+        memory_tracking::registrar_t &scratchpad, dim_t nelems) {
+    using namespace memory_tracking::names;
+    for (auto key : {key_lnorm_tmp_mean, key_lnorm_tmp_var}) {
+        scratchpad.book<float>(
+                key, gpu_utils::into<size_t>(nelems), OCL_BUFFER_ALIGNMENT);
+    }
+}
+
+status_t reusable_layer_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+    size_t ndims = static_cast<size_t>(src_md()->ndims);
+    std::vector<compute::dim_id_t> dims = get_dims(ndims);
+    std::vector<compute::dim_id_t> stat_dims = get_dims(ndims, true);
+
+    // FWD buffers:
+    // - src: all dims
+    // - dst: all dims
+    // - stat: (mean/variance) all but last dim
+    // - SS: (scale/shift) just the last dim
+    compute::named_buffer_t src_buffer("SRC", *src_md(), dims);
+    compute::named_buffer_t dst_buffer("DST", *dst_md(), dims);
+    compute::named_buffer_t stat_buffer("STAT", *stat_md(), stat_dims);
+    compute::named_buffer_t ss_buffer
+            = get_ss_buffer(weights_md(), dims.back());
+    CHECK(init_conf_common(this, &conf, &rt_conf, engine, src_buffer,
+            dst_buffer, stat_buffer, ss_buffer));
+    const auto *gpu_attr
+            = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
+
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto lws_strategy
+            = compute::default_lws_strategy_t(compute_engine, gpu_attr);
 
     return status::success;
 }
 
 static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const reusable_lnorm_params_t &conf) {
-    kernel_ctx.set_data_type(conf.src_dt);
-    def_data_type(kernel_ctx, conf.dst_dt, "DST");
+    kernel_ctx.set_data_type(conf.input_dt);
     def_data_type(kernel_ctx, conf.ss_dt, "WEI");
 
     kernel_ctx.define_int("USE_SCALE", conf.use_scale);
@@ -145,25 +186,19 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_DST_SCALES", conf.with_dst_scale);
 
     conf.gws_params.def_kernel_macros(kernel_ctx);
-    conf.calc_stat_params.def_kernel_macros(kernel_ctx, "CALC");
+    conf.stat_params.def_kernel_macros(kernel_ctx, "STAT");
 }
 
 compute::kernel_ctx_t reusable_lnorm_params_t::get_kernel_ctx() const {
     compute::kernel_ctx_t kernel_ctx;
     init_kernel_ctx_common(kernel_ctx, *this);
+    def_data_type(kernel_ctx, output_dt, "DST");
     return kernel_ctx;
 }
 
 void reusable_layer_normalization_fwd_t::pd_t::init_scratchpad() {
-    if (stats_are_tmp()) {
-        auto scratchpad = scratchpad_registry().registrar();
-        using namespace memory_tracking::names;
-        for (auto key : {key_lnorm_tmp_mean, key_lnorm_tmp_var}) {
-            scratchpad.book(key, gpu_utils::into<size_t>(across_axis()),
-                    types::data_type_size(data_type::f32),
-                    OCL_BUFFER_ALIGNMENT);
-        }
-    }
+    auto scratchpad = scratchpad_registry().registrar();
+    init_scratchpad_common(scratchpad, across_axis());
 }
 
 status_t reusable_layer_normalization_fwd_t::execute_forward(
@@ -205,10 +240,10 @@ status_t reusable_layer_normalization_fwd_t::execute_forward(
         calc_mean_arg_list.append(src);
         calc_mean_arg_list.append(*mean_ptr);
         calc_mean_arg_list.append(pd()->norm_axis());
-        calc_mean_arg_list.append(rt_conf.reduction_stride);
-        calc_mean_arg_list.append(rt_conf.calc_stat_params.get());
+        calc_mean_arg_list.append(rt_conf.norm_stride);
+        calc_mean_arg_list.append(rt_conf.stat_params.get());
 
-        auto &nd_range_calc = rt_conf.calc_stat_params.nd_range;
+        auto &nd_range_calc = rt_conf.stat_params.nd_range;
 
         CHECK(parallel_for(ctx, nd_range_calc, calculate_mean_kernel_,
                 calc_mean_arg_list));
@@ -218,8 +253,8 @@ status_t reusable_layer_normalization_fwd_t::execute_forward(
         calc_var_arg_list.append(*mean_ptr);
         calc_var_arg_list.append(*variance_ptr);
         calc_var_arg_list.append(pd()->norm_axis());
-        calc_var_arg_list.append(rt_conf.reduction_stride);
-        calc_var_arg_list.append(rt_conf.calc_stat_params.get());
+        calc_var_arg_list.append(rt_conf.norm_stride);
+        calc_var_arg_list.append(rt_conf.stat_params.get());
 
         CHECK(parallel_for(ctx, nd_range_calc, calculate_variance_kernel_,
                 calc_var_arg_list));

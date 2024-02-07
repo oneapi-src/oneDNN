@@ -18,12 +18,12 @@
 #include "gpu/ocl/ocl_types.h"
 #include "gpu/ocl/types_interop.h"
 
-NAMED_KERNEL_ATTR(CALC)
+NAMED_KERNEL_ATTR(STAT)
 __kernel void lnorm_reusable_calc_mean(__global DATA_T *src,
         __global float *mean, dim_t reduce_size, dim_t reduce_stride,
         dispatch_gws_rt_params_t gws_params) {
-    src = GWS_GET_BUFFER_POS_NAMED(SRC, CALC, gws_params, src);
-    mean = GWS_GET_BUFFER_POS_NAMED(STAT, CALC, gws_params, mean);
+    src = GWS_GET_BUFFER_POS_NAMED(SRC, STAT, gws_params, src);
+    mean = GWS_GET_BUFFER_POS_NAMED(STAT, STAT, gws_params, mean);
 
     float sum = 0;
     for (off_t i = 0; i < reduce_size; i++) {
@@ -33,13 +33,13 @@ __kernel void lnorm_reusable_calc_mean(__global DATA_T *src,
     *mean = sum / reduce_size;
 }
 
-NAMED_KERNEL_ATTR(CALC)
+NAMED_KERNEL_ATTR(STAT)
 __kernel void lnorm_reusable_calc_var(__global DATA_T *src,
         __global float *mean, __global float *variance, dim_t reduce_size,
         dim_t reduce_stride, dispatch_gws_rt_params_t gws_params) {
-    src = GWS_GET_BUFFER_POS_NAMED(SRC, CALC, gws_params, src);
-    mean = GWS_GET_BUFFER_POS_NAMED(STAT, CALC, gws_params, mean);
-    variance = GWS_GET_BUFFER_POS_NAMED(STAT, CALC, gws_params, variance);
+    src = GWS_GET_BUFFER_POS_NAMED(SRC, STAT, gws_params, src);
+    mean = GWS_GET_BUFFER_POS_NAMED(STAT, STAT, gws_params, mean);
+    variance = GWS_GET_BUFFER_POS_NAMED(STAT, STAT, gws_params, variance);
 
     float mean_val = *mean;
     float sum = 0;
@@ -61,8 +61,8 @@ __kernel void lnorm_reusable_fwd(__global DATA_T *src, __global float *mean,
     mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
     variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
 
-    scale = GWS_GET_BUFFER_POS(LINEAR, gws_params, scale);
-    shift = GWS_GET_BUFFER_POS(LINEAR, gws_params, shift);
+    scale = GWS_GET_BUFFER_POS(SS, gws_params, scale);
+    shift = GWS_GET_BUFFER_POS(SS, gws_params, shift);
 
     src = GWS_GET_BUFFER_POS(SRC, gws_params, src);
     dst = GWS_GET_BUFFER_POS(DST, gws_params, dst);

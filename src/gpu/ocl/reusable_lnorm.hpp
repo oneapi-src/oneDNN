@@ -17,9 +17,11 @@
 #ifndef GPU_OCL_REUSABLE_LNORM_HPP
 #define GPU_OCL_REUSABLE_LNORM_HPP
 
+#include "common/c_types_map.hpp"
 #include "common/layer_normalization_pd.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/dispatch_reusable.hpp"
+#include "gpu/compute/kernel_ctx.hpp"
 #include "gpu/gpu_layer_normalization_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/serialization.hpp"
@@ -29,18 +31,13 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+//************* Common Reusable structs *************//
+
 struct reusable_lnorm_params_t
     : trivially_serializable_t<reusable_lnorm_params_t> {
 #if __cplusplus >= 202002L
     bool operator==(const reusable_lnorm_params_t &) const = default;
 #endif
-
-    status_t create_generator(const compute::compute_engine_t &engine,
-            compute::kernel_bundle_t &bundle) const {
-        auto status = engine.create_kernel_bundle(
-                bundle, get_kernel_names(), get_kernel_ctx());
-        return status;
-    }
 
     const std::vector<const char *> &get_kernel_names() const {
         static const std::vector<const char *> kernel_names
@@ -49,23 +46,32 @@ struct reusable_lnorm_params_t
         return kernel_names;
     }
 
+    status_t create_generator(const compute::compute_engine_t &engine,
+            compute::kernel_bundle_t &bundle) const {
+        auto status = engine.create_kernel_bundle(
+                bundle, get_kernel_names(), get_kernel_ctx());
+        return status;
+    }
+
     compute::kernel_ctx_t get_kernel_ctx() const;
 
-    data_type_t src_dt, dst_dt, ss_dt;
+    data_type_t input_dt = data_type::undef;
+    data_type_t output_dt = data_type::undef;
     bool use_scale = false;
     bool use_shift = false;
+
+    // Not used by bwd impl, but would be padding otherwise
     bool with_src_scale = false;
     bool with_dst_scale = false;
 
-    compute::dispatch_compile_params_t calc_stat_params;
     compute::dispatch_compile_params_t gws_params;
+    compute::dispatch_compile_params_t stat_params;
 };
 
 struct reusable_lnorm_runtime_params_t {
-    stride_t reduction_stride;
-
-    compute::dispatch_runtime_params_t calc_stat_params;
+    stride_t norm_stride;
     compute::dispatch_runtime_params_t gws_params;
+    compute::dispatch_runtime_params_t stat_params;
 };
 
 struct reusable_layer_normalization_fwd_t : public gpu_primitive_t {
@@ -107,7 +113,7 @@ struct reusable_layer_normalization_fwd_t : public gpu_primitive_t {
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
             VDISPATCH_LNORM_SC(init_conf(engine), "Failed init_conf");
-            init_scratchpad();
+            if (stats_are_tmp()) init_scratchpad();
 
             return status::success;
         }
