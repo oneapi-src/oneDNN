@@ -704,10 +704,13 @@ bool tensor_view_op_t::try_penetrate(
     std::unordered_map<size_t, size_t> inp_blk_map;
     size_t short_idx = 0, long_idx = 0;
     while (short_idx < short_size) {
+        COMPILE_ASSERT(long_idx < long_plain_shapes.size(),
+                "long_idx shall be within the valid range.");
         int64_t acc_shape = long_plain_shapes[long_idx];
         long_to_short[long_idx] = short_idx;
         long_idx++;
         while (long_idx < long_size
+                && (long_size - long_idx) >= (short_size - short_idx)
                 && (acc_shape < short_plain_shapes[short_idx]
                         || long_plain_shapes[long_idx] == 1)) {
             acc_shape *= long_plain_shapes[long_idx];
