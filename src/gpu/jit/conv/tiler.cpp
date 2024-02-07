@@ -263,11 +263,11 @@ private:
         auto &prb = cfg.prb();
         bool is_dpas = cfg.is_dp_fma();
         int rdims = 0;
-        for (auto d : iter_) {
+        for (auto &d : iter_) {
             if (is_reduction_dim(d, prb)) rdims++;
         }
         bool is_fused_reduction = (rdims > 1);
-        for (auto d : iter_) {
+        for (auto &d : iter_) {
             auto &info = tile_info(d);
             int unit = 1;
             if (is_vectorized_dim(d, prb)) unit = cfg.vec_size();
@@ -303,7 +303,7 @@ private:
             // Reduce min block size for mad/x8 as it requires a lot of
             // additional space for x8 -> s16 reorder.
             int min_m_iter_block_hint = 2;
-            for (auto d : iter_) {
+            for (auto &d : iter_) {
                 if (to_gemm(d, prb) != prb_dims::m) continue;
                 auto &info = tile_info(d);
                 int blk = std::min(info.min_iter_blk, min_m_iter_block_hint);
@@ -319,7 +319,7 @@ private:
         int rdims = 0;
         prb_dim_t d0;
         prb_dim_t d1;
-        for (auto d : iter_) {
+        for (auto &d : iter_) {
             if (!is_reduction_dim(d, prb)) continue;
             rdims++;
             (d0.is_undef() ? d0 : d1) = d;
@@ -361,7 +361,7 @@ private:
             auto shape = cfg.shape(/*pad=*/true);
             std::vector<loop_dim_t> loop_dims;
             const int iter_dim_hint = 16;
-            for (auto d : loop_) {
+            for (auto &d : loop_) {
                 if (any(tile_info(d).flags & tile_flags_t::loop_iter_unroll))
                     continue;
                 loop_dim_t ld;
@@ -386,7 +386,7 @@ private:
                     loop_dims[i].dim = prb_dim_t();
             }
 
-            for (auto d : loop_) {
+            for (auto &d : loop_) {
                 auto &info = tile_info(d);
                 if (any(info.flags & tile_flags_t::loop_iter_unroll)) continue;
                 if (!loop_dim_t::find(d, loop_dims))
@@ -592,7 +592,7 @@ private:
 
             // Use 2x reduction when the reduction dimension is dense to avoid
             // partial cache line loads.
-            for (auto d : blk.iter())
+            for (auto &d : blk.iter())
                 if (is_reduction_dim(d, cfg.prb()))
                     if (is_inner_non_blocked(cfg, d)) return true;
 
@@ -670,7 +670,7 @@ private:
         if (!is_enabled(check_kind_t::check_vec)) return true;
 
         int vec_ndims = 0;
-        for (auto d : ctx.blk.iter()) {
+        for (auto &d : ctx.blk.iter()) {
             if (is_vectorized_dim(d, cfg_.prb())) vec_ndims++;
         }
         return vec_ndims == 1;
@@ -682,7 +682,7 @@ private:
         auto &tg = ctx.blk.thread_group();
         int tg_size = 1;
         int max_tg = 1;
-        for (auto d : tg) {
+        for (auto &d : tg) {
             tg_size *= tg[d];
             max_tg = std::max(tg[d], max_tg);
         }
@@ -859,7 +859,7 @@ private:
     int min_m_iter(const context_t &ctx) const {
         auto &prb = cfg_.prb();
         int max_blk = 1;
-        for (auto d : ctx.blk.iter()) {
+        for (auto &d : ctx.blk.iter()) {
             if (to_gemm(d, prb) == prb_dims::m) {
                 int d_blk = inner_block(cfg_, d);
                 max_blk = std::max(max_blk, d_blk);
@@ -987,7 +987,7 @@ prb_dim_t select_non_blocked_iter_dim(
         const conv_config_t &cfg, const std::vector<prb_dim_t> &dims) {
     const auto shape = cfg.shape(/*pad=*/false);
     std::vector<double> scores;
-    for (auto d : dims)
+    for (auto &d : dims)
         scores.push_back(get_iter_dim_score(d, cfg, shape[d]));
     auto max_it = std::max_element(scores.begin(), scores.end());
     return dims[max_it - scores.begin()];
@@ -999,7 +999,7 @@ prb_dim_t select_iter_dim(
             bwd_d_optimize_kind_t::skip_strided_dhw,
             bwd_d_optimize_kind_t::skip_out_of_bound_w);
     std::vector<prb_dim_t> dims;
-    for (auto d : _dims) {
+    for (auto &d : _dims) {
         if (is_bwd_d_w_opt && d == prb_dims::iw) continue;
         dims.push_back(d);
     }
