@@ -80,8 +80,10 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
             vreg_d_weights = Vmm(idx_compute_vreg_max_--);
             vreg_d_bias = Vmm(idx_compute_vreg_max_--);
         }
-        if (utils::one_of(isa, avx2, sse41))
+        if (utils::one_of(isa, avx2, sse41)) {
             vreg_zero = Vmm(idx_compute_vreg_start_++);
+            vreg_tmp = Vmm(idx_compute_vreg_start_++);
+        }
     }
     ~jit_pp_kernel_t() {
         for (auto inj : jit_eltwise_injectors_)
@@ -146,6 +148,7 @@ private:
     Xbyak::Reg64 reg_shift_table = r13;
     Vmm vreg_mask = Vmm(0); //  sse41: mask for blendvps must be in xmm0
     Vmm vreg_zero;
+    Vmm vreg_tmp;     //  post_ops
 
     //  post_ops
     Xbyak::Reg64 eltwise_reserved_1_ = r11;
@@ -303,7 +306,8 @@ void jit_pp_kernel_t<isa>::generate() {
         } else {
             if (apply_mask) {
                 if (isa != sse41) {
-                    uni_vblendvps(vreg_dst_, vreg_zero, dst_addr, vreg_mask);
+                    vmaskmovps(vreg_tmp, vreg_mask, dst_addr);
+                    uni_vblendvps(vreg_dst_, vreg_zero, vreg_tmp, vreg_mask);
                 } else {
                     uni_vmovups(vreg_dst_, dst_addr);
                 }
