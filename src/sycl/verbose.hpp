@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ namespace sycl {
 void print_verbose_header(engine_kind_t kind) {
     sycl_engine_factory_t factory(kind);
     for (size_t i = 0; i < factory.count(); ++i) {
-        engine_t *eng_ptr = nullptr;
-        factory.engine_create(&eng_ptr, i);
-        std::unique_ptr<sycl_engine_base_t, engine_deleter_t> eng;
-        eng.reset(utils::downcast<sycl_engine_base_t *>(eng_ptr));
         try {
+            engine_t *eng_ptr = nullptr;
+            factory.engine_create(&eng_ptr, i);
+            std::unique_ptr<sycl_engine_base_t, engine_deleter_t> eng;
+            eng.reset(utils::downcast<sycl_engine_base_t *>(eng_ptr));
             auto *dev_info = eng ? eng->device_info() : nullptr;
 
             auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
