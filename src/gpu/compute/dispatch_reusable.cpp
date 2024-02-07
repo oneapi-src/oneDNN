@@ -70,7 +70,8 @@ status_t reusable_dispatch_config_t::define_dim_index(
 
 // Validate whether the given buffer is consistent with existing buffer layouts,
 // and then add to the internal buffer registry.
-status_t reusable_dispatch_config_t::register_buffer(named_buffer_t &buffer) {
+status_t reusable_dispatch_config_t::register_buffer(
+        const named_buffer_t &buffer) {
     if (buffers.size() >= MAX_REGISTERED_BUFFERS) return status::unimplemented;
 
     // Don't allow zero-padding

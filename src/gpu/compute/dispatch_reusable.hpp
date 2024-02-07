@@ -467,14 +467,14 @@ struct named_buffer_t : public memory_desc_t {
         padded_dims[dim_idx] *= size;
     }
 
-    size_t get_dim_idx(dim_id_t dim) {
+    size_t get_dim_idx(dim_id_t dim) const {
         for (size_t i = 0; i < dim_ids.size(); i++) {
             if (dim_ids[i] == dim) { return i; }
         }
         return dim_not_found;
     }
 
-    block_layout_t layout() {
+    block_layout_t layout() const {
         // Create the block layout and reindex to the canonical dimension indexing
         block_layout_t layout(*this);
         for (auto &block : layout) {
@@ -662,7 +662,7 @@ public:
         : dispatched_dims(std::move(dims)), engine(engine) {};
     status_t generate(
             reusable_dispatch_t &dispatch, const lws_strategy_t &lws_strategy);
-    status_t register_buffer(named_buffer_t &buffer);
+    status_t register_buffer(const named_buffer_t &buffer);
     status_t define_dim_index(
             const char *dim_name, dim_id_t dim_id, dim_t size);
     status_t use_subgroup(const std::string &buf_name, size_t size);
