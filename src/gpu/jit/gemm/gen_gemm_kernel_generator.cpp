@@ -25449,7 +25449,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
 
     const int nphases = 2, qCXMin = -1, qCXMax = -1;
 
-    Subregister saveF0_0;
+    Subregister saveF0;
     bool releaseEmuFlag = false;
     bool preswizzle = (hw >= HW::XeHP);
     GRFRange copyTemp;
@@ -25458,14 +25458,15 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
     if (!strategy.systolicAvailable && Td_real == Type::bf16
             && Ts_real == Type::f32) {
         if (state.emulate.flag.isInvalid()) {
-            state.emulate.flag = state.raVFlag.tryAlloc();
+            int nflag = (GRF::bytes(hw) == 64) ? 2 : 1;
+            state.emulate.flag = state.raVFlag.tryAlloc(nflag);
             state.emulate.flagOffset = 0;
             if (state.emulate.flag.isValid())
                 releaseEmuFlag = true;
             else {
-                state.emulate.flag = f0[0];
-                saveF0_0 = state.ra.alloc_sub<uint16_t>();
-                mov(1, saveF0_0, f0[0]);
+                state.emulate.flag = f0;
+                saveF0 = state.ra.alloc_sub<uint32_t>();
+                mov(1, saveF0, f0);
             }
         }
     }
@@ -25866,9 +25867,9 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
 
     if (releaseEmuFlag) state.raVFlag.safeRelease(state.emulate.flag);
 
-    if (saveF0_0.isValid()) {
-        mov(1, f0[0], saveF0_0);
-        state.ra.safeRelease(saveF0_0);
+    if (saveF0.isValid()) {
+        mov(1, f0, saveF0);
+        state.ra.safeRelease(saveF0);
         state.emulate.flag = invalid;
     }
     state.ra.safeRelease(copyTemp);
