@@ -81,8 +81,15 @@ managed_matmul_core_op_t::managed_matmul_core_op_t(
     attrs_["temp.padded_A_K"] = std::make_shared<VConst>();
 
     auto num_threads = runtime_config_t::get().get_num_threads();
-    sc_dim M = A_dims[A_dims.size() - 2]; // A is always 2D
-    if (!is_dynamic() && M <= 2 && num_threads <= 32) {
+    sc_dim M = A_dims.front(); // A is always 2D
+    sc_dim K = A_dims.back(); // A is always 2D
+    sc_dim N = B_dims.back(); // B is always 2D
+    bool is_int8 = info_.inputs_[0]->details_.dtype_ == datatypes::u8
+            || info_.inputs_[0]->details_.dtype_ == datatypes::s8;
+    if (!is_dynamic() && M <= 2 && K >= 4096
+            && N >= 4096 // TODO(niuxiaoguang): K, N shapes are from gpt-j-6B
+            // and llama on SPR. Change them when necessary.
+            && num_threads <= 32 && is_int8) {
         attrs_["dispatch_avx"] = true;
     }
 }

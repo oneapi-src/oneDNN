@@ -578,10 +578,66 @@ TEST(GCCore_CPU_graph_conv_test, TestQuantizedGraphGroupedConvolution) {
   [v9: s32[4, 8]] = outerloop_4X8_partition_cast_reduce_compute_reduce_collect_mul(v8, v4)
   [v10: s32[1, 1, 1, 4, 8]] = tensor_view(v9)
   [v11: s8[4, 1, 1, 1, 1, 1, 8, 4]] = tensor_view(v8)
-  [v12: u8[64, 32, 32, 16]] = reorder(v0)
-  [v13: u8[64, 32, 32, 4, 4]] = tensor_view(v12)
+  [v12: u8[64, 4, 4, 32, 32]] = tensor_view(v0)
+  [v13: u8[64, 32, 32, 4, 4]] = reorder(v12)
   [v3: f32[64, 32, 32, 32]] = outerloop_64_partition_quantized_conv_fwd_core_sub_tensor_view_cast_mul_add_reorder(v13, v11, v10, v6, v7)
 }
 )";
     EXPECT_EQ(ss.str(), expected_graph);
+}
+
+TEST(GCCore_CPU_graph_conv_test, TestQuantizedGraphGroupedConvolution2) {
+    REQUIRE_AVX2();
+    int N = 64, IC = 16, OC = 16, H = 32, W = 32, R = 1, S = 1, G = 16;
+    sc_dims input_dims {N, IC, H, W};
+    sc_dims filter_dims_shrink {OC, R, S};
+    sc_dims filter_dims {OC, 1, R, S};
+    sc_dims output_dims {N, OC, H, W};
+    auto ins0
+            = graph_tensor::make(input_dims, sc_data_format_t(), datatypes::u8);
+    auto ins1 = graph_tensor::make(
+            filter_dims, sc_data_format_t(), datatypes::f32);
+    auto ins2 = graph_tensor::make({OC});
+    auto out0 = graph_tensor::make(output_dims);
+
+    std::unordered_map<std::string, any_t> attrs = {{"data_format", "NCX"},
+            {"weights_format", "OIX"}, {"strides", sc_dims {1, 1}},
+            {"groups", G}, {"pads_begin", sc_dims {0, 0}},
+            {"pads_end", sc_dims {0, 0}}};
+
+    sc_graph_t graph;
+    auto in = graph.make_input({ins0, ins1, ins2});
+    auto reshape_weight = graph.make("static_reshape", {in->get_outputs()[1]},
+            {}, {{"shape", filter_dims_shrink}, {"special_zero", false}});
+    auto quantize_weight
+            = graph.make("quantize", reshape_weight->get_outputs(), {},
+                    any_map_t {{"channel_axis", 0}, {"per_channel", true},
+                            {"scales", std::vector<float> {0.1f}},
+                            {"zero_points", std::vector<int>(OC, 0)},
+                            {"dtype", datatypes::s8}});
+
+    auto dequantize_input = graph.make("dequantize", {in->get_outputs()[0]}, {},
+            {{"channel_axis", 1}, {"scales", std::vector<float> {0.1f}},
+                    {"zero_points", std::vector<int> {126}},
+                    {"per_channel", false}, {"dtype", datatypes::f32}});
+    auto dequantize_weight = graph.make("dequantize",
+            quantize_weight->get_outputs(), {},
+            {{"channel_axis", 0}, {"scales", std::vector<float>(OC, 0.1f)},
+                    {"zero_points", std::vector<int>(OC, 0)},
+                    {"per_channel", true}, {"dtype", datatypes::f32}});
+    dequantize_weight
+            = graph.make("static_reshape", dequantize_weight->get_outputs(), {},
+                    {{"shape", filter_dims}, {"special_zero", false}});
+    auto conv = graph.make("conv_fwd",
+            {dequantize_input->get_outputs()[0],
+                    dequantize_weight->get_outputs()[0], in->get_outputs()[2]},
+            {}, any_map_t(attrs));
+    auto quantize_conv = graph.make("quantize", conv->get_outputs(), {},
+            any_map_t {{"channel_axis", 1}, {"per_channel", false},
+                    {"scales", std::vector<float> {0.1f}},
+                    {"zero_points", std::vector<int> {0}},
+                    {"dtype", datatypes::u8}});
+    auto out = graph.make_output(conv->get_outputs());
+    auto ctx = std::make_shared<context_t>(*get_test_ctx());
+    graph_driver(graph, ctx);
 }

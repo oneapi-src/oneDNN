@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,16 +42,21 @@ struct ref_prelu_fwd_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
 
-            bool ok = is_fwd() && src_md()->data_type == dst_md()->data_type
-                    && set_default_formats() && attr()->has_default_values()
-                    && !memory_desc_ndims_ok(
-                            src_md(0), dst_md(0), weights_md(0))
-                    && memory_desc_wrapper(src_md())
-                            == memory_desc_wrapper(dst_md());
+            VDISPATCH_PRELU(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_PRELU(src_md()->data_type == dst_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
+            VDISPATCH_PRELU(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_PRELU(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_PRELU(
+                    !memory_desc_ndims_ok(src_md(0), dst_md(0), weights_md(0)),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst weights");
+            VDISPATCH_PRELU(memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
-            if (!ok) return status::unimplemented;
-
-            return init_conf(engine);
+            VDISPATCH_PRELU_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
@@ -100,23 +105,28 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
 
-            bool ok = !is_fwd()
-                    && diff_dst_md()->data_type == diff_src_md()->data_type
-                    && set_default_formats() && attr()->has_default_values()
-                    && !memory_desc_ndims_ok(
-                            diff_src_md(0), diff_dst_md(0), diff_weights_md(0))
-                    && memory_desc_wrapper(diff_dst_md())
-                            == memory_desc_wrapper(diff_src_md());
+            VDISPATCH_PRELU(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_PRELU(
+                    diff_dst_md()->data_type == diff_src_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
+            VDISPATCH_PRELU(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_PRELU(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_PRELU(!memory_desc_ndims_ok(diff_src_md(0),
+                                    diff_dst_md(0), diff_weights_md(0)),
+                    VERBOSE_INCONSISTENT_NDIMS, "diff_src",
+                    "diff_dst diff_weights");
+            VDISPATCH_PRELU(memory_desc_wrapper(diff_dst_md())
+                            == memory_desc_wrapper(diff_src_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
-            if (!ok) return status::unimplemented;
-
-            status_t status = init_conf(engine);
+            VDISPATCH_PRELU_SC(init_conf(engine), "init_conf()");
             if (conf.reduce_diff_weights) {
-                CHECK(init_reduction(engine));
+                VDISPATCH_PRELU_SC(init_reduction(engine), "init_reduction()");
                 init_scratchpad();
             }
 
-            return status;
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

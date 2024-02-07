@@ -346,7 +346,7 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
     impl::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), impl::status::success);
 
-    int thread_num = 8;
+    int thread_num = 2;
 
     auto thread_func = [&](size_t tid) {
         std::vector<test_tensor> execution_inputs;

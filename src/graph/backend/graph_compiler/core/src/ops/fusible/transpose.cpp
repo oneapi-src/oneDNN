@@ -1039,7 +1039,7 @@ void compute_fast_transpose(sc_graph_t &graph, const context_ptr &ctx,
                             trans_lanes_16bitx8);
                     auto assign_floor = builder::make_assign_unattached(rows[i],
                             p > 0 ? builder::make_select(
-                                    0xff << (p * step), brct_src, rows[i])
+                                    0xff << (p * step), brct_src_floor, rows[i])
                                   : brct_src_floor);
                     assign_floor->attr()
                             [op_traits::workload_computable_t::workload_number]

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -782,6 +782,8 @@ public:
         opt_args.emplace_back(brg_setting_arg);
 
         // top and bottom padding
+        // TODO(zhicong): optimize the brgemm call with vpad in compilation
+        // phase
         expr top_pad = v->args_[num_full_args - 2],
              bottom_pad = v->args_[num_full_args - 1];
         opt_args.emplace_back(top_pad);

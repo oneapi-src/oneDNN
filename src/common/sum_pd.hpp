@@ -33,6 +33,10 @@
             status::unimplemented, "%s," msg, this->info(engine), \
             ##__VA_ARGS__)
 
+#define VDISPATCH_SUM_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, sum, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 

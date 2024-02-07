@@ -47,7 +47,8 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         pd_t(const pd_t &rhs) = default;
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_inner_product_fwd_t);
+        DECLARE_COMMON_PD_T((gemm_pd_ ? gemm_pd_->name() : "ocl:gemm"),
+                gemm_inner_product_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -59,35 +60,48 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                     = primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = is_fwd() && set_default_params() == status::success
-                    && !has_zero_dim_memory()
-                    && dense_consistency_check(src_md(), weights_md(), dst_md())
-                    && dense_gemm_consistency_check(
-                            src_md(), weights_md(), dst_md())
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(
-                            attr(), desc()->dst_desc.data_type)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT(
+                    dense_consistency_check(src_md(), weights_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "weights, dst");
+            VDISPATCH_INNER_PRODUCT(dense_gemm_consistency_check(
+                                            src_md(), weights_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "weights, dst");
+            VDISPATCH_INNER_PRODUCT(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    post_ops_with_binary_ok(attr(), desc()->dst_desc.data_type),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             attr_info_ = attr_info_t::create(attr());
 
             memory_desc_t a_md, b_md, c_md;
-            CHECK(init_2d_desc(&a_md, src_md()));
-            CHECK(init_2d_desc(&b_md, weights_md(), true));
-            CHECK(init_2d_desc(&c_md, dst_md()));
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_2d_desc(&a_md, src_md()), "init_2d_desc()");
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_2d_desc(&b_md, weights_md(), true), "init_2d_desc()");
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_2d_desc(&c_md, dst_md()), "init_2d_desc()");
             primitive_attr_t gemm_attr = *attr();
             auto wei_mask = gemm_attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
             if (wei_mask == 1) //transpose mask for gemm
-                CHECK(gemm_attr.scales_.set(
-                        DNNL_ARG_WEIGHTS, 1 << (b_md.ndims - 1)));
+                VDISPATCH_INNER_PRODUCT_SC(
+                        gemm_attr.scales_.set(
+                                DNNL_ARG_WEIGHTS, 1 << (b_md.ndims - 1)),
+                        VERBOSE_UNSUPPORTED_ATTR);
             else if (wei_mask != 0)
                 return status::unimplemented;
-            bool gemm_ok = status::success
-                    == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
+            VDISPATCH_INNER_PRODUCT_SC(
+                    create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
                             weights_md(1), desc()->accum_data_type, &gemm_attr,
-                            true);
-            if (!gemm_ok) return status::unimplemented;
+                            true),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "gemm");
 
             init_scratchpad();
 
@@ -129,7 +143,8 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
         pd_t(const pd_t &rhs) = default;
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_inner_product_bwd_data_t);
+        DECLARE_COMMON_PD_T((gemm_pd_ ? gemm_pd_->name() : "ocl:gemm"),
+                gemm_inner_product_bwd_data_t);
 
         bool has_type(data_type_t v) const {
             return utils::one_of(v, weights_md()->data_type,
@@ -142,29 +157,42 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
 
             assert(engine->kind() == engine_kind::gpu);
 
-            bool ok = this->desc()->prop_kind == backward_data
-                    && set_default_params() == status::success
-                    && !has_zero_dim_memory()
-                    && (!(has_type(f16) && has_type(bf16)))
-                    && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
-                    && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
-                    && attr()->has_default_values()
-                    && dense_consistency_check(
-                            diff_src_md(), weights_md(), diff_dst_md())
-                    && dense_gemm_consistency_check(
-                            diff_src_md(), weights_md(), diff_dst_md());
-            if (!ok) return status::unimplemented;
+            VDISPATCH_INNER_PRODUCT(this->desc()->prop_kind == backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT((!(has_type(f16) && has_type(bf16))),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(diff_src_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(diff_dst_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(dense_consistency_check(diff_src_md(),
+                                            weights_md(), diff_dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "diff_weights, diff_dst");
+            VDISPATCH_INNER_PRODUCT(dense_gemm_consistency_check(diff_src_md(),
+                                            weights_md(), diff_dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "diff_weights, diff_dst");
 
             memory_desc_t a_md, b_md, c_md;
-            CHECK(init_2d_desc(&a_md, diff_dst_md()));
-            CHECK(init_2d_desc(&b_md, weights_md()));
-            CHECK(init_2d_desc(&c_md, diff_src_md()));
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_2d_desc(&a_md, diff_dst_md()), "init_2d_desc()");
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_2d_desc(&b_md, weights_md()), "init_2d_desc()");
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_2d_desc(&c_md, diff_src_md()), "init_2d_desc()");
 
-            bool gemm_ok = status::success
-                    == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
+            VDISPATCH_INNER_PRODUCT_SC(
+                    create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
                             &glob_zero_md, desc()->accum_data_type, attr(),
-                            true);
-            if (!gemm_ok) return status::unimplemented;
+                            true),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "gemm");
             init_scratchpad();
 
             return status::success;
@@ -206,7 +234,8 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_inner_product_bwd_weights_t);
+        DECLARE_COMMON_PD_T(gemm_pd_ ? gemm_pd_->name() : "ocl:gemm",
+                gemm_inner_product_bwd_weights_t);
 
         bool has_type(data_type_t v) const {
             return utils::one_of(v, diff_weights_md()->data_type,
@@ -218,30 +247,50 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
             using namespace data_type;
 
             assert(engine->kind() == engine_kind::gpu);
-            bool ok = this->desc()->prop_kind == backward_weights
-                    && set_default_params() == status::success
-                    && !has_zero_dim_memory()
-                    && (!(has_type(f16) && has_type(bf16)))
-                    && utils::one_of(
-                            diff_weights_md()->data_type, f32, bf16, f16)
-                    && utils::one_of(src_md()->data_type, f32, bf16, f16)
-                    && utils::one_of(diff_dst_md()->data_type, f32, bf16, f16)
-                    && attr()->has_default_values()
-                    && dense_consistency_check(
-                            src_md(), diff_weights_md(), diff_dst_md())
-                    && dense_gemm_consistency_check(
-                            src_md(), diff_weights_md(), diff_dst_md());
-            if (!ok) return status::unimplemented;
+
+            VDISPATCH_INNER_PRODUCT(this->desc()->prop_kind == backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT((!(has_type(f16) && has_type(bf16))),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(diff_weights_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(src_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(diff_dst_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(dense_consistency_check(src_md(),
+                                            diff_weights_md(), diff_dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "diff_weights, diff_dst");
+            VDISPATCH_INNER_PRODUCT(dense_gemm_consistency_check(src_md(),
+                                            diff_weights_md(), diff_dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "diff_weights, diff_dst");
 
             memory_desc_t a_md, b_md, c_md;
             if (wei_tr()) {
-                CHECK(init_2d_desc(&a_md, src_md(), true));
-                CHECK(init_2d_desc(&b_md, diff_dst_md()));
-                CHECK(init_2d_desc(&c_md, diff_weights_md(), true));
+                VDISPATCH_INNER_PRODUCT_SC(
+                        init_2d_desc(&a_md, src_md(), true), "init_2d_desc");
+                VDISPATCH_INNER_PRODUCT_SC(
+                        init_2d_desc(&b_md, diff_dst_md()), "init_2d_desc");
+                VDISPATCH_INNER_PRODUCT_SC(
+                        init_2d_desc(&c_md, diff_weights_md(), true),
+                        "init_2d_desc");
             } else {
-                CHECK(init_2d_desc(&a_md, diff_dst_md(), true));
-                CHECK(init_2d_desc(&b_md, src_md()));
-                CHECK(init_2d_desc(&c_md, diff_weights_md()));
+                VDISPATCH_INNER_PRODUCT_SC(
+                        init_2d_desc(&a_md, diff_dst_md(), true),
+                        "init_2d_desc");
+                VDISPATCH_INNER_PRODUCT_SC(
+                        init_2d_desc(&b_md, src_md()), "init_2d_desc");
+                VDISPATCH_INNER_PRODUCT_SC(
+                        init_2d_desc(&c_md, diff_weights_md()), "init_2d_desc");
             }
             bool gemm_ok = false;
             auto reduce_bias = sum_ab::sum_none;
@@ -267,29 +316,41 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                 reduction_bias_md.dims[1] = diff_bias_md_.dims[0];
                 reduction_bias_md.dims[2] = 1;
                 bool use_blocked = OC() % 16 == 0;
-                CHECK(memory_desc_init_by_tag(reduction_bias_md,
-                        reduction_bias_md.ndims, reduction_bias_md.dims,
-                        diff_bias_md_.data_type,
-                        use_blocked ? format_tag::aBc16b : format_tag::abc));
+                VDISPATCH_INNER_PRODUCT_SC(
+                        memory_desc_init_by_tag(reduction_bias_md,
+                                reduction_bias_md.ndims, reduction_bias_md.dims,
+                                diff_bias_md_.data_type,
+                                use_blocked ? format_tag::aBc16b
+                                            : format_tag::abc),
+                        VERBOSE_UNSUPPORTED_TAG);
                 reduction_dst_md = *diff_dst_md();
                 reduction_dst_md.ndims = 3;
                 reduction_dst_md.dims[2] = 1;
-                CHECK(memory_desc_init_by_tag(reduction_dst_md,
-                        reduction_dst_md.ndims, reduction_dst_md.dims,
-                        diff_dst_md_.data_type,
-                        use_blocked ? format_tag::aBc16b : format_tag::abc));
+                VDISPATCH_INNER_PRODUCT_SC(
+                        memory_desc_init_by_tag(reduction_dst_md,
+                                reduction_dst_md.ndims, reduction_dst_md.dims,
+                                diff_dst_md_.data_type,
+                                use_blocked ? format_tag::aBc16b
+                                            : format_tag::abc),
+                        VERBOSE_UNSUPPORTED_TAG);
                 reduction_desc_t reduction_d;
-                CHECK(reduction_desc_init(&reduction_d,
-                        dnnl::impl::alg_kind::reduction_sum, &reduction_dst_md,
-                        &reduction_bias_md, 0.0f, 0.0f));
+                VDISPATCH_INNER_PRODUCT_SC(
+                        reduction_desc_init(&reduction_d,
+                                dnnl::impl::alg_kind::reduction_sum,
+                                &reduction_dst_md, &reduction_bias_md, 0.0f,
+                                0.0f),
+                        VERBOSE_UNSUPPORTED_TAG);
                 primitive_attr_t reduction_attr = *attr();
                 int threads_per_eu;
                 auto status
                         = gemm_pd_->query(query::preferred_gpu_threads_per_eu,
                                 0, &threads_per_eu);
-                if (status == status::success)
-                    CHECK(reduction_attr.set_gpu_attr(
-                            gpu_primitive_attr_t(threads_per_eu)));
+                if (status == status::success) {
+                    VDISPATCH_INNER_PRODUCT_SC(
+                            reduction_attr.set_gpu_attr(
+                                    gpu_primitive_attr_t(threads_per_eu)),
+                            VERBOSE_UNSUPPORTED_ATTR);
+                }
                 primitive_desc_iterator_t it(engine, (op_desc_t *)&reduction_d,
                         &reduction_attr, nullptr);
                 if (!it.is_initialized()) return status::out_of_memory;

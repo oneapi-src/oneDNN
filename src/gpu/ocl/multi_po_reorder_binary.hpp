@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
             if (attr()->scales_.get(DNNL_ARG_SRC_0).is_set_
                     || attr()->scales_.get(DNNL_ARG_SRC_1).is_set_
                     || attr()->post_ops_.len() >= 1) {
-                return status::unimplemented;
+                VDISPATCH_BINARY(false, VERBOSE_UNSUPPORTED_ATTR);
             }
 
             // Assumption: src_mds have different layouts with dst mem
@@ -63,7 +63,8 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
 
             if ((!need_output_reorder && !need_input_reorder)
                     || is_broadcast(src_md(0), src_md(1))) {
-                return status::unimplemented;
+                VDISPATCH_BINARY(false, VERBOSE_INCONSISTENT_NDIMS,
+                        "src(0) src(1)", "dst");
             }
 
             alg_kind_t binary_alg = desc()->alg_kind;
@@ -73,36 +74,44 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
 
             if (need_input_reorder) {
                 if (binary_alg != dnnl::impl::alg_kind::binary_add) {
-                    return status::unimplemented;
+                    VDISPATCH_BINARY(false, VERBOSE_BAD_ALGORITHM);
                 }
 
-                CHECK(reorder_primitive_desc_create(
-                        reorder_pd_list.back(), engine, src_md(0), dst_md()));
+                VDISPATCH_BINARY_SC(
+                        reorder_primitive_desc_create(reorder_pd_list.back(),
+                                engine, src_md(0), dst_md()),
+                        VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
 
                 reorder_pd_list.emplace_back(nullptr);
 
-                CHECK(attr.post_ops_.append_sum(1.f));
+                VDISPATCH_BINARY_SC(attr.post_ops_.append_sum(1.f),
+                        VERBOSE_UNSUPPORTED_ATTR);
 
-                CHECK(reorder_primitive_desc_create(reorder_pd_list.back(),
-                        engine, src_md(1), dst_md(), &attr));
+                VDISPATCH_BINARY_SC(
+                        reorder_primitive_desc_create(reorder_pd_list.back(),
+                                engine, src_md(1), dst_md(), &attr),
+                        VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
             } else { //need_output_reorder else-block
                 switch (binary_alg) {
                     case alg_kind::binary_add:
                     case alg_kind::binary_mul:
                     case alg_kind::binary_min:
                     case alg_kind::binary_max: break;
-                    default: return status::unimplemented;
+                    default: VDISPATCH_BINARY(false, VERBOSE_BAD_ALGORITHM);
                 };
 
                 // Check for memory descriptor layours for SRC and DST
                 // Matching layouts will not cause a reorder
                 src_index = dnnl_memory_desc_equal(src_md(0), dst_md()) ? 0 : 1;
 
-                CHECK(attr.post_ops_.append_binary(
-                        binary_alg, src_md(src_index)));
+                VDISPATCH_BINARY_SC(attr.post_ops_.append_binary(
+                                            binary_alg, src_md(src_index)),
+                        VERBOSE_UNSUPPORTED_ATTR);
 
-                CHECK(reorder_primitive_desc_create(reorder_pd_list.back(),
-                        engine, src_md(!src_index), dst_md(), &attr));
+                VDISPATCH_BINARY_SC(
+                        reorder_primitive_desc_create(reorder_pd_list.back(),
+                                engine, src_md(!src_index), dst_md(), &attr),
+                        VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
             }
 
             return status::success;

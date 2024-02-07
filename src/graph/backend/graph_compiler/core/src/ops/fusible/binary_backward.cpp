@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,12 +57,10 @@ binary_backward_op_impl_t::get_inplace_map() {
     return {{0, std::move(ret)}, {1, std::move(ret)}};
 }
 
-binary_backward_op_impl_t::binary_backward_op_impl_t(graph_tensor_ptr v)
-    : binary_backward_op_impl_t({std::move(v)}, {}, {}) {}
-
 binary_backward_op_impl_t::binary_backward_op_impl_t(
         const std::vector<graph_tensor_ptr> &ins,
-        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs) {
+        const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs,
+        const binary_backward_operator &backward_opt) {
     info_.inputs_ = ins;
     COMPILE_ASSERT(ins.size() == 3, "Binary backward op shall have 3 inputs.");
     COMPILE_ASSERT(ins[0]->details_.get_plain_dims()
@@ -70,6 +68,7 @@ binary_backward_op_impl_t::binary_backward_op_impl_t(
                     && ins[1]->details_.get_plain_dims()
                             == ins[2]->details_.get_plain_dims(),
             "Binary backward op's all inputs should have the same shape ");
+    backward_op_type = backward_opt;
     auto &input_1 = info_.inputs_[0]->details_.get_plain_dims();
     auto &input_2 = info_.inputs_[1]->details_.get_plain_dims();
     auto &input_3 = info_.inputs_[2]->details_.get_plain_dims();

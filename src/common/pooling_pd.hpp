@@ -33,6 +33,10 @@
     VCONDCHECK(primitive, create, dispatch, pooling, (cond), \
             status::unimplemented, msg, ##__VA_ARGS__);
 
+#define VDISPATCH_POOLING_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, pooling, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 

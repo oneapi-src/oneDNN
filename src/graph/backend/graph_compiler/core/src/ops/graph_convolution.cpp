@@ -270,35 +270,29 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
         filter = permute_weight->get_outputs()[0];
     }
     if (groups > 1) {
-        input = (graph->make("reorder", {input}, {},
-                         {{"out_format",
-                                  is_3D ? sc_data_format_t::NDHWC()
-                                        : sc_data_format_t::NHWC()},
-                                 {"internal", true}}))
-                        ->get_outputs()[0];
         input = (graph->make("tensor_view", {input}, {},
                          {{"shape",
                                   parse_shape_to_NGCX(
                                           info_.inputs_[0]
                                                   ->details_.get_plain_dims(),
                                           data_format, groups)},
+                                 {"cache_input_format",
+                                         is_3D ? sc_data_format_t::NDHWC()
+                                               : sc_data_format_t::NHWC()},
                                  {"format",
                                          is_3D ? sc_data_format_t::NDHWGC()
                                                : sc_data_format_t::NHWGC()},
                                  {"expand_dim", std::vector<int> {}}}))
                         ->get_outputs()[0];
-        filter = (graph->make("reorder", {filter}, {},
-                          {{"out_format",
-                                   is_3D ? sc_data_format_t::KCDRS()
-                                         : sc_data_format_t::KCRS()},
-                                  {"internal", true}}))
-                         ->get_outputs()[0];
         filter = (graph->make("tensor_view", {filter}, {},
                           {{"shape",
                                    parse_shape_to_GOIX(
                                            info_.inputs_[1]
                                                    ->details_.get_plain_dims(),
                                            filter_format, groups)},
+                                  {"cache_input_format",
+                                          is_3D ? sc_data_format_t::KCDRS()
+                                                : sc_data_format_t::KCRS()},
                                   {"format",
                                           is_3D ? sc_data_format_t::GKCDRS()
                                                 : sc_data_format_t::GKCRS()},
@@ -309,8 +303,13 @@ void conv_fwd_op_t::get_graph_impl(std::shared_ptr<sc_graph_t> &graph) {
     }
     conv = graph->make("conv_fwd_core", {input, filter}, {}, attrs);
     if (groups > 1) {
+        auto output_shape = info_.outputs_[0]->details_.get_plain_dims();
+        if (data_format == "NXC") permute_shape_NXC2NCX(output_shape);
         conv = graph->make("tensor_view", conv->get_outputs(), {},
-                {{"shape", info_.outputs_[0]->details_.get_plain_dims()},
+                {{"shape", output_shape},
+                        {"cache_input_format",
+                                is_3D ? sc_data_format_t::NGCDHW()
+                                      : sc_data_format_t::NGCHW()},
                         {"format",
                                 is_3D ? sc_data_format_t::NCDHW()
                                       : sc_data_format_t::NCHW()},

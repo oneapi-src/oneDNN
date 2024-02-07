@@ -2931,6 +2931,16 @@ std::vector<mixed_parti_t::ptr> collect_parti_set(
 }
 
 static bool check_repartition(const mixed_parti_t::ptr &parti) {
+    // if case 3's pre_fuse_break leads to standalone op
+    // we remove break_pre_fuse
+    if (parti && parti->get_ops_size() == 1
+            && parti->committed_ops_[0]->attrs_.get_or_else(
+                    mixed_partition_hint::trial_break, false)) {
+        parti->committed_ops_[0]->attrs_.remove(op_attr_key::break_pre_fuse);
+        parti->committed_ops_[0]->attrs_[mixed_partition_hint::trial_break]
+                = false;
+        return true;
+    }
     if (!parti || parti->get_ops_size() < 2) return false;
     // check tensorview in edge of partition
     bool repartition = false;
@@ -2982,6 +2992,39 @@ static bool check_repartition(const mixed_parti_t::ptr &parti) {
                 check_parti_out_tptr(op->get_inputs()[0]);
             }
         }
+        // 3. check partition outputs and mark break_pre_fuse on B
+        // when encountering the topology below
+        //   A__
+        //  /   |
+        // out  B
+        //      |
+        //     out
+        // if B becomes a standalone op, we will re-fuse it
+        // we requires B to have all of its consumers outside of the current
+        // partition
+        bool is_terminate_op = std::all_of(op->get_outputs().begin(),
+                op->get_outputs().end(), [&](const graph_tensor_ptr &gt) {
+                    return std::all_of(gt->uses_.begin(), gt->uses_.end(),
+                            [&parti](const std::pair<int, sc_op_weak_ptr_t>
+                                            &user) {
+                                return !parti->contains(user.second.get());
+                            });
+                });
+        if (is_terminate_op) {
+            // find producer inputs
+            for (auto prod_input : op->get_inputs()) {
+                for (auto preced_output :
+                        prod_input->producer_owner_->get_outputs()) {
+                    if (parti->is_parti_out(preced_output)
+                            && !op->attrs_.has_key(
+                                    mixed_partition_hint::trial_break)) {
+                        op->attrs_[op_attr_key::break_pre_fuse] = true;
+                        op->attrs_[mixed_partition_hint::trial_break] = true;
+                        repartition = true;
+                    }
+                }
+            }
+        }
     }
     return repartition;
 }
@@ -3023,6 +3066,8 @@ static mixed_parti_t::ptr try_execute_pre_op_fusion(const context_ptr &ctx,
     for (auto &rparti : reo_parti) {
         auto reo = rparti->committed_ops_[0];
         bool input_anchor_found = false;
+        // set pre-op fusion attr
+        reo->attrs_.set(mixed_partition_hint::pre_fuse_begin_op, true);
         for (auto &fanchor : parent_partition->fanchors_) {
             // only search input anchor
             if (!fanchor->is_input_anchor()) continue;
@@ -3040,17 +3085,15 @@ static mixed_parti_t::ptr try_execute_pre_op_fusion(const context_ptr &ctx,
             }
         }
         if (input_anchor_found) {
-            // set pre-op fusion attr
-            reo->attrs_.set(mixed_partition_hint::pre_fuse_begin_op, true);
             // pre fuse reorder
             parent_partition->add(reo);
-            // remove pre-op fusion attr
-            reo->attrs_.remove(mixed_partition_hint::pre_fuse_begin_op);
             // clear origin parti
             rparti->clear();
             // reset root pointer
             rparti->merged_to = parent_partition;
         }
+        // remove pre-op fusion attr
+        reo->attrs_.remove(mixed_partition_hint::pre_fuse_begin_op);
     }
     if (parent_partition->get_ops_size() == 1) {
         parent_partition->clear();
@@ -3932,7 +3975,7 @@ void do_mixed_partition(const context_ptr &ctx, sc_graph_t &graph) {
     // mapping from op id => partition
     std::vector<mixed_parti_t::ptr> op_2_partition;
     // set max iter times
-    constexpr int maxiter = 3;
+    constexpr int maxiter = 5;
     // dynamic policy condition
     expr fusion_policy_condition = false;
     // make dependency matrix from graph here in avoid of repeated construction

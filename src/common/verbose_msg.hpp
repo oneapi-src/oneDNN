@@ -95,6 +95,8 @@
 #define VERBOSE_WS_MISMATCH \
     "workspace mismatch between forward and backward primitive " \
     "descriptors"
+#define VERBOSE_WS_INIT "workspace initialization failed"
+#define VERBOSE_SCRATCHPAD_INIT "scratchpad initialization unsuccessful"
 
 #define VERBOSE_BLOCKING_FAIL "blocking heuristic failed"
 #define VERBOSE_SMALL_SHAPES "small shapes fall back"

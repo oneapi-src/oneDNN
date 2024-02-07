@@ -30,6 +30,10 @@
             status::unimplemented, "%s," msg, this->info(engine), \
             ##__VA_ARGS__)
 
+#define VDISPATCH_CONCAT_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, concat, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 

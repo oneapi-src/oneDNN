@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,58 +41,66 @@ struct ref_reorder_t : public gpu_primitive_t {
 
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-            bool ok = src_engine == dst_engine
-                    && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && src_engine->kind() == engine_kind::gpu && attr_ok()
-                    && extra_ok();
-            if (!ok) return status::unimplemented;
 
-            if (memory_desc_wrapper(src_md()).has_runtime_dims_or_strides())
-                return status::unimplemented;
+            VDISPATCH_REORDER(
+                    src_engine == dst_engine, VERBOSE_BAD_ENGINE_KIND);
+            VDISPATCH_REORDER(!memory_desc_ndims_ok(src_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
+            VDISPATCH_REORDER(src_engine->kind() == engine_kind::gpu,
+                    VERBOSE_BAD_ENGINE_KIND);
+            VDISPATCH_REORDER(attr_ok(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_REORDER(
+                    extra_ok(), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");
+
+            VDISPATCH_REORDER(!(memory_desc_wrapper(src_md())
+                                              .has_runtime_dims_or_strides()),
+                    VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
             using namespace data_type;
-            if (!utils::one_of(src_md()->data_type, f32, f16, bf16, f8_e5m2,
-                        f8_e4m3, s32, s8, u8, f64))
-                return status::unimplemented;
-            if (!utils::one_of(dst_md()->data_type, f32, f16, bf16, f8_e5m2,
-                        f8_e4m3, s32, s8, u8, f64))
-                return status::unimplemented;
+            VDISPATCH_REORDER(utils::one_of(src_md()->data_type, f32, f16, bf16,
+                                      f8_e5m2, f8_e4m3, s32, s8, u8, f64),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_REORDER(utils::one_of(dst_md()->data_type, f32, f16, bf16,
+                                      f8_e5m2, f8_e4m3, s32, s8, u8, f64),
+                    VERBOSE_UNSUPPORTED_DT);
 
-            if (!IMPLICATION(
-                        utils::one_of(dst_md()->data_type, f8_e4m3, f8_e5m2),
-                        utils::one_of(src_md()->data_type, f32, f16, bf16, f64))
-                    || !IMPLICATION(utils::one_of(src_md()->data_type, f8_e4m3,
-                                            f8_e5m2),
-                            utils::one_of(
-                                    dst_md()->data_type, f32, f16, bf16, f64)))
-                return status::unimplemented;
+            VDISPATCH_REORDER(IMPLICATION(utils::one_of(dst_md()->data_type,
+                                                  f8_e4m3, f8_e5m2),
+                                      utils::one_of(src_md()->data_type, f32,
+                                              f16, bf16, f64))
+                            && IMPLICATION(utils::one_of(src_md()->data_type,
+                                                   f8_e4m3, f8_e5m2),
+                                    utils::one_of(dst_md()->data_type, f32, f16,
+                                            bf16, f64)),
+                    VERBOSE_UNSUPPORTED_DT);
 
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
                     dst_engine->kind() == engine_kind::gpu ? dst_engine
                                                            : src_engine);
 
-            ok = ok
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(
+            VDISPATCH_REORDER(compute_engine->mayiuse(
+                                      compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
+            VDISPATCH_REORDER(
+                    IMPLICATION(
                             utils::one_of(data_type::f16, src_md()->data_type,
                                     dst_md()->data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short))
-                    && IMPLICATION(
+                                                    intel_subgroups_short)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_REORDER(
+                    IMPLICATION(
                             utils::one_of(data_type::f64, src_md()->data_type,
                                     dst_md()->data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values());
+                                    && attr()->post_ops_.has_default_values()),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
 
-            if (!ok) return status::unimplemented;
-
-            status_t status = init_conf(engine);
-            if (status != status::success) return status;
+            VDISPATCH_REORDER_SC(init_conf(engine), "init_conf()");
             init_scratchpad();
 
             return status::success;

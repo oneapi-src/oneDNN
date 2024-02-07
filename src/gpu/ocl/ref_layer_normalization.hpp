@@ -50,21 +50,31 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
 
             bool uses_f16 = utils::one_of(f16, src_dt, dst_dt);
             bool uses_f64 = utils::one_of(f64, src_dt, dst_dt);
-            bool ok = is_fwd()
-                    && IMPLICATION(uses_f16,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && IMPLICATION(uses_f64,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp64))
-                    && !memory_desc_ndims_ok(src_md(), dst_md(), stat_md())
-                    && stat_md()->data_type == f32
-                    && check_scale_shift_data_type({f32, bf16, f16})
-                    && attr()->has_default_values(skip_mask_t::scales_runtime)
-                    && attr_scales_ok() && set_default_formats_common();
-            if (!ok) return status::unimplemented;
 
-            return init_conf(engine);
+            VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LNORM(IMPLICATION(uses_f16,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16))
+                            && IMPLICATION(uses_f64,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp64)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    !memory_desc_ndims_ok(src_md(), dst_md(), stat_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst stat");
+            VDISPATCH_LNORM(
+                    stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    attr()->has_default_values(skip_mask_t::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_LNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+
+            VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
@@ -126,20 +136,24 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
             bool uses_f64
                     = utils::one_of(f64, src_dt, diff_dst_dt, diff_src_dt);
 
-            bool ok = !is_fwd()
-                    && IMPLICATION(uses_f16,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && IMPLICATION(uses_f64,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp64))
-                    && stat_md()->data_type == f32
-                    && check_scale_shift_data_type({f32, bf16, f16})
-                    && attr()->has_default_values()
-                    && set_default_formats_common();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_LNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LNORM(IMPLICATION(uses_f16,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16))
+                            && IMPLICATION(uses_f64,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp64)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LNORM(
+                    stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
-            CHECK(init_conf(engine));
+            VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
             if (conf.vectorize_bwd_scaleshift) { init_scratchpad(); }
             return status::success;
         }

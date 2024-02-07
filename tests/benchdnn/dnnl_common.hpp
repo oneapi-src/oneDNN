@@ -622,7 +622,18 @@ bool check_md_consistency_with_tag(
 memory_kind_ext_t str2memory_kind(const char *str);
 
 float reorder_rescale_factor();
-dims_t md2dims(const_dnnl_memory_desc_t md);
+
+// The function converts a memory descriptor dims into a `dims_t` object under
+// // certain rules.
+// //
+// // `mask` argument picks what dimensions to put into a new object as is.
+// // `extend_by_ones` specifies the behavior with dimensions not matched by
+// //     `mask`. When set to `true` (the default), a dim value of `1` is used
+// //     for a not matched dimension. Thus, `ndims` of a new object will remain
+// //     the same as for original md. When set to `false`, a dim is skipped and
+// //     the final object may smaller `ndims` (or `size()`) value.
+dims_t md2dims(
+        const_dnnl_memory_desc_t md, int mask = -1, bool extend_by_ones = true);
 
 // Function adjusts data type if fpmath mode is present or sum_dt is different
 // from destination_dt. It is used in `cfg` objects that regulate filling.
@@ -791,17 +802,14 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
 
         const auto ndims = query_md_ndims(dst_md);
         int mask = 0;
-        dnnl_dims_t dims = {0};
         dnnl_post_ops_get_params_prelu(const_po, idx, &mask);
 
         // Deduce prelu weights dims based on input policy.
-        for (int d = 0; d < ndims; ++d) {
-            dims[d] = (mask & (1 << d)) ? query_md_dims(dst_md)[d] : 1;
-        }
+        dims_t dims = md2dims(dst_md, mask);
 
         int po_arg = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS;
         mem_map.emplace(po_arg,
-                dnn_mem_t(ndims, dims, dnnl_f32, tag::axb, test_engine));
+                dnn_mem_t(ndims, dims.data(), dnnl_f32, tag::axb, test_engine));
     }
 
     // Scales.
@@ -824,10 +832,10 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    dims = md2dims(prb_md);
+                    dims = md2dims(prb_md, mask, false);
                     ndims = static_cast<int>(dims.size());
                 } else {
-                    dims = md2dims(md);
+                    dims = md2dims(md, mask, false);
                     ndims = static_cast<int>(dims.size());
                 }
             } else {
@@ -871,10 +879,10 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    dims = md2dims(prb_md);
+                    dims = md2dims(prb_md, mask, false);
                     ndims = static_cast<int>(dims.size());
                 } else {
-                    dims = md2dims(md);
+                    dims = md2dims(md, mask, false);
                     ndims = static_cast<int>(dims.size());
                 }
             } else {
