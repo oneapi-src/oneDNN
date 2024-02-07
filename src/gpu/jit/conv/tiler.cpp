@@ -2371,7 +2371,7 @@ private:
                 blocking_checker_t blocking_checker(cfg);
                 if (!params.is_empty()
                         && (blocking_checker.is_ok(params.blocking()))) {
-                        params_gen_ = params_generator_t(cfg, params);
+                    params_gen_ = params_generator_t(cfg, params);
                 } else {
                     mode_ = tiler_mode_t::model;
                     params_gen_ = params_generator_t(cfg);
