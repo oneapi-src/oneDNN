@@ -870,6 +870,22 @@ private:
     std::unique_ptr<mst> diff_ht_;
 };
 
+struct arg_list_t {
+    template <typename T>
+    void append(const T &t) {
+        args.append(t);
+    }
+    void append(const rnn_utils::sub_buffer_t &buffer, data_type_t dt) {
+        args.append(buffer.get_storage());
+        args.append(gpu_utils::into<dim_t>(buffer.offset(dt)));
+    }
+    compute::kernel_arg_list_t args;
+};
+
+static_assert(sizeof(arg_list_t) == sizeof(compute::kernel_arg_list_t),
+        "The arg_list_t is a helper for injecting RNN specific helper "
+        "functions structures into kernel_args_list_t.");
+
 } // namespace rnn_utils
 
 } // namespace ocl
