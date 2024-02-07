@@ -1143,14 +1143,6 @@ send_pattern_t<prb_dim_t> validate_blocking(const conv_config_t &cfg,
         return true;
     };
 
-    struct pattern_match_t {
-        pattern_match_t(
-                send_pattern pattern, std::vector<send_hint_t<prb_dim_t>> hints)
-            : pattern(pattern), hints(std::move(hints)) {};
-        send_pattern pattern;
-        std::vector<send_hint_t<prb_dim_t>> hints;
-    };
-
     auto layout = conv_stride_layout_t(cfg.prb(), tensor);
 
     auto idiom = [&] {

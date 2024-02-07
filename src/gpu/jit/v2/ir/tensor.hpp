@@ -530,7 +530,7 @@ struct plane_t {
     // Width and height algorithmic dimensions.
     prb_dim_t w_dim, h_dim;
     // Width and height block size.
-    int w, h;
+    int w = 0, h = 0;
     // Width, height, pitch of the plane.
     expr_t W, H, P;
     // Width and height layout dimensions.
