@@ -45,9 +45,9 @@ void print_verbose_header(engine_kind_t kind) {
                     ? dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled"
                     : "unknown";
 
-            printf("onednn_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
-                   "version:%s,binary_kernels:%s\n",
-                    s_engine_kind, (int)i, s_backend.c_str(), s_name.c_str(),
+            printf("onednn_verbose,info,%s,engine,%zu,backend:%s,name:%s,"
+                   "driver_version:%s,binary_kernels:%s\n",
+                    s_engine_kind, i, s_backend.c_str(), s_name.c_str(),
                     s_ver.c_str(), s_binary_kernels);
         } catch (...) {
             VERROR(common, dpcpp, VERBOSE_INVALID_DEVICE_ENV,
