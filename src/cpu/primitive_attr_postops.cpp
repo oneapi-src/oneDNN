@@ -312,7 +312,7 @@ void ref_post_ops_t::execute(float &res, const args_t &args) const {
                 ++it_binary_po;
             } break;
             case primitive_kind::prelu: {
-                if (res >= 0) break;
+                if ((res >= 0) && !e.prelu.has_scaleshift) break;
 
                 assert(args.ctx);
                 assert(args.l_offset >= 0);
@@ -336,7 +336,23 @@ void ref_post_ops_t::execute(float &res, const args_t &args) const {
                         = get_prelu_weights_off(prelu_weights_md, args.l_offset,
                                 dst_d.dims(), dst_d.ndims(), e.prelu.mask);
                 const auto &weights_value = prelu_weights[off];
-                res = weights_value * res;
+
+                if (e.prelu.has_scaleshift) {
+                    const auto prelu_scale = CTX_IN_MEM(const float *,
+                            (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                    | DNNL_ARG_SCALE));
+                    const auto prelu_shift = CTX_IN_MEM(const float *,
+                            (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                    | DNNL_ARG_SHIFT));
+                    float control = math::logistic_fwd(
+                            (res * prelu_scale[off] + prelu_shift[off]));
+                    res = control * res
+                            + (1.0f - control) * weights_value * res;
+                } else {
+                    assert(res < 0 && "res >=0 should be fast exited before");
+                    res = weights_value * res;
+                }
+
                 ++it_prelu_md;
             } break;
             default: assert(!"unsupported post op primitive kind!");

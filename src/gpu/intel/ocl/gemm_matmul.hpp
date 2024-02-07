@@ -198,6 +198,8 @@ struct gemm_matmul_t : public gpu_primitive_t {
                                     po_desc, po_desc, reshape_size, po_dims));
                             tmp_post_ops.entry_[i].binary.src1_desc = po_desc;
                         } else if (po.is_prelu()) {
+                            if (po.prelu.has_scaleshift)
+                                return status::unimplemented;
                             auto mask = po.prelu.mask;
                             int new_mask = 0;
                             int batch_idx = reshape_size - 1;

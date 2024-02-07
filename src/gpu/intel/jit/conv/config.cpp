@@ -942,6 +942,8 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
                 // kernel always works correctly in benchdnn.
                 return false;
         }
+        // prelu with scaleshift is not supported yet
+        if (po.is_prelu() && po.prelu.has_scaleshift) return false;
     }
     return true;
 }

@@ -85,7 +85,13 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
             : gemm_desc.acc_type;
     use_reorder = dst_md(0)->data_type != gemm_desc.c_desc.data_type;
     gemm_desc.bias_desc = glob_zero_md;
+
     // Setup empty attributes but keep zero points for gemm.
+    // Current po kernel has no support for prelu with scaleshift
+    int prelu_idx = attr()->post_ops_.find(primitive_kind::prelu);
+    if (prelu_idx > -1
+            && attr()->post_ops_.entry_[prelu_idx].prelu.has_scaleshift)
+        return status::unimplemented;
     primitive_attr_t attributes_without_po = *attr();
     attributes_without_po.set_post_ops(post_ops_t());
     attributes_without_po.scales_ = arg_scales_t();

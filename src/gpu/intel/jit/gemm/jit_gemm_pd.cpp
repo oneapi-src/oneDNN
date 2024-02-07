@@ -59,6 +59,7 @@ status_t jit_gemm_pd_t::init_post_ops() {
                 binary_srcs_.push_back(binary_src_t {binary_src_t::none, 0});
                 break;
             case prelu:
+                if (e.prelu.has_scaleshift) return status::unimplemented;
                 binary_srcs_.push_back(
                         binary_src_t {binary_src_t::prelu, int(i)});
                 ok &= get_prelu_md(e.prelu.mask, dst_md()->dims, prelu_wei_md,

@@ -299,10 +299,11 @@ The parameters (C++ API for simplicity):
 
 ~~~cpp
 void dnnl::post_ops::append_prelu(
-    int mask /*mask describing prelu weights broadcast.*/);
+    int mask /*mask describing prelu weights broadcast.*/,
+    bool has_scaleshift);
 ~~~
 
-The prelu post-op replaces:
+When `has_scaleshift` is set to `false` (or `0`), the prelu post-op replaces:
 \f[
     \dst[:] = \operatorname{Op}(...)
 \f]
@@ -313,16 +314,41 @@ with
     \dst[:] = \operatorname{prelu}(\operatorname{Op}(...), weights[:])
 \f]
 
+with \f$prelu(x, weights) = x if (x > 0)\f$ or \f$weights * x\f$ otherwise.
+
+When `has_scaleshift` is set to `true` (non-zero value), the prelu post-op replaces:
+\f[
+    \dst[:] = \operatorname{Op}(...)
+\f]
+
+with
+
+\f[
+    \dst[:] = \operatorname{prelu}(\operatorname{Op}(...), weights[:], scale[:], shift[:])
+\f]
+
+with \f$prelu(x, weight, scale, shift) = P(x) * x + (1 - P(x)) *
+weights * x\f$, and \f$P(x) = sigmoid(x * scale + shift)\f$.
+
 Assumptions:
-- the weights tensor is passed in runtime using
-DNNL_ARG_ATTR_MULTIPLE_POST_OP(index) | DNNL_ARG_WEIGHTS mechanism, where index
+- the weights tensor is passed at runtime using
+`DNNL_ARG_ATTR_MULTIPLE_POST_OP(index) | DNNL_ARG_WEIGHTS` mechanism, where `index`
 is the sequence number of the prelu in post-operations chain;
-- only fp32 weights tensor data type is supported;
-- only plain layout (a, ab, acb, acdb, acdeb) is supported for weights tensor;
-- mask defines the correspondence between the output tensor dimensions and
-  the prelu weights tensor. The set i-th bit indicates that a dedicated weights
-  value is used for each index along that dimension. Mask 0 value means common
-  (scalar) weights value for the whole output tensor.
+- the scale and shift tensors are passed at runtime only if
+`has_scaleshift=true`, and using `DNNL_ARG_ATTR_MULTIPLE_POST_OP(index) |
+DNNL_ARG_SCALES` and `DNNL_ARG_ATTR_MULTIPLE_POST_OP(index) |
+DNNL_ARG_SHIFT` mechanism respectively, where `index` is the sequence
+number of the prelu in post-operations chain.
+- weights, scale, and shift tensors share the exact same shape, layout
+  and data type.
+- only fp32 weights, scale and shift tensor data type is supported;
+- only plain layout (a, ab, acb, acdb, acdeb) is supported for
+  weights, scale and shift tensors;
+- mask defines the correspondence between the output tensor dimensions
+  and the prelu weights/scale/shift tensors. The set i-th bit
+  indicates that a dedicated weights value is used for each index
+  along that dimension. Mask 0 value means common (scalar) weights
+  value for the whole output tensor.
 - the order of dimensions does not depend on how elements are laid out in memory.
 For example:
     * for a 2D CNN activations tensor the order is always (n, c)

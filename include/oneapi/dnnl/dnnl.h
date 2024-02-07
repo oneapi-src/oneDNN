@@ -775,6 +775,12 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_prelu(
 dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu(
         const_dnnl_post_ops_t post_ops, int index, int *mask);
 
+dnnl_status_t DNNL_API dnnl_post_ops_append_prelu_v2(
+        dnnl_post_ops_t post_ops, int mask, int has_stats);
+
+dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu_v2(
+        const_dnnl_post_ops_t post_ops, int index, int *mask, int *has_stats);
+
 /// @} dnnl_api_attributes
 
 /// @} dnnl_api_primitives

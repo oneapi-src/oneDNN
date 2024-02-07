@@ -389,9 +389,11 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                 case prelu:
                     if (entry.is_like_binary()) {
                         assert(dst_d != nullptr && "dst_d is null");
-                        return binary_injector::is_supported(isa,
-                                binary_injector::get_src1_desc(entry, *dst_d),
-                                *dst_d, enabled_bcast_strategy);
+                        return !entry.prelu.has_scaleshift
+                                && binary_injector::is_supported(isa,
+                                        binary_injector::get_src1_desc(
+                                                entry, *dst_d),
+                                        *dst_d, enabled_bcast_strategy);
                     }
                     break;
                 default: assert(false && "Unhandled post_op type");

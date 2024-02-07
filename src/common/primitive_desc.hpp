@@ -39,7 +39,11 @@ namespace impl {
 static int po_inputs(const post_ops_t &post_ops, const primitive_kind_t kind) {
     int n_inputs = 0;
     for (int idx = 0; idx < post_ops.len(); ++idx) {
-        if (post_ops.contain(kind, idx)) n_inputs++;
+        if (post_ops.contain(kind, idx)) {
+            n_inputs++;
+            // handle prelu optional args
+            if (post_ops.entry_[idx].prelu.has_scaleshift) n_inputs += 2;
+        }
     }
     return n_inputs;
 }
@@ -183,7 +187,11 @@ struct primitive_desc_t : public c_compatible {
             if (post_op_has_proper_input(
                         attr(), binary, idx, arg, DNNL_ARG_SRC_1)
                     || post_op_has_proper_input(
-                            attr(), prelu, idx, arg, DNNL_ARG_WEIGHTS))
+                            attr(), prelu, idx, arg, DNNL_ARG_WEIGHTS)
+                    || post_op_has_proper_input(
+                            attr(), prelu, idx, arg, DNNL_ARG_SCALE)
+                    || post_op_has_proper_input(
+                            attr(), prelu, idx, arg, DNNL_ARG_SHIFT))
                 return arg_usage_t::input;
         }
 
