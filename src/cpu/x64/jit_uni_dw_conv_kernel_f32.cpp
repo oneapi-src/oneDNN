@@ -844,6 +844,8 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_postprocess(int ur_ch_block
     const auto &p = attr_.post_ops_;
     std::size_t post_ops_data_offset = 0;
     int depthwise_inj_idx = 0;
+    base_post_ops_data_offset += reg64_size;
+    push(reg_d_weights);
     for (int i = 0; i < p.len(); i++) {
         auto& post_op = p.entry_[i];
         if (post_op.is_depthwise()) {
@@ -864,6 +866,8 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_postprocess(int ur_ch_block
             depthwise_inj_idx++;
         }
     }
+    pop(reg_d_weights);
+    base_post_ops_data_offset -= reg64_size;
 }
 
 template <cpu_isa_t isa>
