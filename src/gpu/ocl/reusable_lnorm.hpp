@@ -88,15 +88,14 @@ struct reusable_layer_normalization_fwd_t : public gpu_primitive_t {
             const bool uses_f16 = utils::one_of(f16, src_dt, dst_dt);
             const bool uses_f64 = utils::one_of(f64, src_dt, dst_dt);
 
+            const bool f16_ok = IMPLICATION(uses_f16,
+                    compute_engine->mayiuse(compute::device_ext_t::khr_fp16));
+            const bool f64_ok = IMPLICATION(uses_f64,
+                    compute_engine->mayiuse(compute::device_ext_t::khr_fp64));
+
             VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
-            VDISPATCH_LNORM(IMPLICATION(uses_f16,
-                                    compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp16)),
-                    VERBOSE_UNSUPPORTED_FEATURE, "fp16");
-            VDISPATCH_LNORM(IMPLICATION(uses_f64,
-                                    compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp64)),
-                    VERBOSE_UNSUPPORTED_FEATURE, "fp64");
+            VDISPATCH_LNORM(f16_ok, VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "fp16");
+            VDISPATCH_LNORM(f64_ok, VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "fp64");
             VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
                     VERBOSE_UNSUPPORTED_DT);
 
