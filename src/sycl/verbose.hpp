@@ -28,6 +28,7 @@ namespace sycl {
 
 void print_verbose_header(engine_kind_t kind) {
     sycl_engine_factory_t factory(kind);
+    auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
     for (size_t i = 0; i < factory.count(); ++i) {
         try {
             engine_t *eng_ptr = nullptr;
@@ -36,7 +37,6 @@ void print_verbose_header(engine_kind_t kind) {
             eng.reset(utils::downcast<sycl_engine_base_t *>(eng_ptr));
             auto *dev_info = eng ? eng->device_info() : nullptr;
 
-            auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
             auto s_backend = eng ? to_string(eng->backend()) : "unknown";
             auto s_name = dev_info ? dev_info->name() : "unknown";
             auto s_ver
@@ -50,8 +50,7 @@ void print_verbose_header(engine_kind_t kind) {
                     s_engine_kind, i, s_backend.c_str(), s_name.c_str(),
                     s_ver.c_str(), s_binary_kernels);
         } catch (...) {
-            VERROR(common, dpcpp, VERBOSE_INVALID_DEVICE_ENV,
-                    dnnl_engine_kind2str(engine_kind::gpu), i);
+            VERROR(common, dpcpp, VERBOSE_INVALID_DEVICE_ENV, s_engine_kind, i);
         }
     }
 }
