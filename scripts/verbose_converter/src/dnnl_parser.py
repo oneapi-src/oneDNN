@@ -212,6 +212,8 @@ class LogParser:
                     start_idx += len(type) + 1
                     end_symbol = " "
                     end_idx = attrs.find(end_symbol, start_idx)
+                    if end_idx == -1:
+                        end_idx = None
                     return attrs[start_idx:end_idx]
 
                 def convert_structure_to_ir_seq(ir, value):
