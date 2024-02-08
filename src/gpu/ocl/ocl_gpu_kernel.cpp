@@ -251,10 +251,7 @@ status_t ocl_gpu_kernel_t::dump() const {
 }
 
 std::string ocl_gpu_kernel_t::name() const {
-    char name_data[32] = {};
-    UNUSED_OCL_RESULT(clGetKernelInfo(ocl_kernel(), CL_KERNEL_FUNCTION_NAME,
-            sizeof(name_data) - 1, name_data, nullptr));
-    return std::string(name_data);
+    return get_kernel_name(ocl_kernel());
 }
 
 } // namespace ocl

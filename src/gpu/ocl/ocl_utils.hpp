@@ -35,6 +35,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+std::string get_kernel_name(cl_kernel kernel);
+
 inline status_t convert_to_dnnl(cl_int cl_status) {
     switch (cl_status) {
         case CL_SUCCESS: return status::success;
