@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,8 +128,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(abcdefghji);
     CASE(abcdefghikj);
     CASE(abcdefghijlk);
-    CASE(Ab4a);
-    CASE(Ab8a);
     CASE(Abc16a);
     CASE(ABc16a16b);
     CASE(ABc32a32b);
@@ -581,8 +579,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(BA4b8a16b4a);
     CASE(aCB4c8b16c2b);
     CASE(aCB4c8b16c4b);
-    CASE(BA4b4a);
-    CASE(BA8b4a);
     CASE(BA16a16b);
     CASE(BA16a32b);
     CASE(BA16a48b);
@@ -901,6 +897,10 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(AcB4b8a4b);
     CASE(AcdB4b8a4b);
     CASE(AcdeB4b8a4b);
+    CASE(Ab4a);
+    CASE(Ab8a);
+    CASE(BA4b4a);
+    CASE(BA8b4a);
     CASE(x);
     CASE(nc);
     CASE(cn);
