@@ -352,36 +352,49 @@ bool ref_partition_t::is_bf16_partition_support_f32_intermediate_result()
 
 //     TypeCast (f32->x16)
 //        |    ->
-//       OPs*  ->  change all tensors to f32
+//       OP     change all tensors to f32
 //        |    ->
 //     TypeCast (x16->f32) Stop if find x16->f32 Typecast
 void ref_partition_t::handle_typecast_x16() {
 
-    // depth first search to change all tensor to f32
-    // unless we meet x16->f32 TypeCast
-    std::function<void(size_t)> dfs = [&](size_t lt_id) {
-        bf16_to_f32_rewrite_lt_id_.insert(lt_id);
-        if (in_lt_2_ops_.find(lt_id) == in_lt_2_ops_.end()) return;
-        for (const auto &op : in_lt_2_ops_.at(lt_id)) {
-            // find a x16 -> f32 typecast, skip this path
-            if (op.get().kind_ == "TypeCast"
-                    && (op.get().in_lts_[0].data_type_ == "bf16"
-                            || op.get().in_lts_[0].data_type_ == "f16")
-                    && op.get().out_lts_[0].data_type_ == "f32")
-                continue;
-            for (const auto &lt : op.get().out_lts_) {
-                dfs(lt.id_);
+    for (const auto &par_op_ref : partition_ops_ref_) {
+        bool fail = false;
+        const auto &op = par_op_ref.get();
+        // check all input/output tensor is bf16 & connected with typecast
+        for (const auto &in : op.in_lts_) {
+            // ensure:
+            // 1. the input is bf16
+            // 2. the producer op is typecast
+            // 3. current op is the only one consumer
+            if (in.data_type_ != "bf16"
+                    || out_lt_2_op_.find(in.id_) == out_lt_2_op_.end()
+                    || out_lt_2_op_.at(in.id_).get().kind_ != "TypeCast"
+                    || in_lt_2_ops_.at(in.id_).size() != 1) {
+                fail = true;
+                break;
             }
         }
-    };
-    for (const auto &par_op_ref : partition_ops_ref_) {
-        const auto &op = par_op_ref.get();
-        // find a f32 -> x16 typecast
-        if (op.kind_ == "TypeCast"
-                && (op.out_lts_[0].data_type_ == "bf16"
-                        || op.out_lts_[0].data_type_ == "f16")
-                && op.in_lts_[0].data_type_ == "f32") {
-            dfs(op.out_lts_[0].id_);
+        for (const auto &out : op.out_lts_) {
+            // ensure:
+            // 1. the output is bf16
+            // 2. the consumer op is typecast
+            // 3. typecast op is the only one consumer
+            if (out.data_type_ != "bf16"
+                    || in_lt_2_ops_.find(out.id_) == in_lt_2_ops_.end()
+                    || in_lt_2_ops_.at(out.id_).size() != 1
+                    || in_lt_2_ops_.at(out.id_).front().get().kind_
+                            != "TypeCast") {
+                fail = true;
+                break;
+            }
+        }
+        if (!fail) {
+            for (const auto &in : op.in_lts_) {
+                bf16_to_f32_rewrite_lt_id_.insert(in.id_);
+            }
+            for (const auto &out : op.out_lts_) {
+                bf16_to_f32_rewrite_lt_id_.insert(out.id_);
+            }
         }
     }
 }

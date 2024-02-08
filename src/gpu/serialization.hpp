@@ -38,8 +38,9 @@ struct serialized_data_t {
     template <typename T>
     struct is_trivially_serialized {
         static const bool value
-                = std::has_unique_object_representations<T>::value
-                || std::is_floating_point<T>::value;
+                = (std::has_unique_object_representations<T>::value
+                          || std::is_floating_point<T>::value)
+                && !(std::is_pointer<T>::value);
     };
 
 #else
@@ -48,7 +49,8 @@ struct serialized_data_t {
     // structures are valid for this use case.
     template <typename T>
     struct is_trivially_serialized {
-        static const bool value = std::is_trivially_copyable<T>::value;
+        static const bool value = std::is_trivially_copyable<T>::value
+                && !(std::is_pointer<T>::value);
     };
 #endif
 

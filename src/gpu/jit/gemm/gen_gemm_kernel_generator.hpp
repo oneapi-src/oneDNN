@@ -1263,7 +1263,7 @@ struct GEMMState : public CommonState {
         ngen::Subregister ao, bo, abo; // w/w/ud
         ngen::Subregister aoPtr, boPtr; // q
         ngen::Subregister offsetA, offsetB, offsetC[2]; // q
-        ngen::Subregister offsetCO; // d
+        ngen::Subregister offsetAO, offsetBO, offsetCO; // d
         ngen::Subregister lda, ldb, ldc[2], ldco; // d
         ngen::Subregister m, n, k, k0; // d
         SubregisterPair alpha_real, alpha_imag; // T_real
