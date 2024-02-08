@@ -39,6 +39,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{backward}, REG_BWD_PK({
         INSTANCE(ocl::vectorized_lnorm_bwd_t)
         INSTANCE(ocl::ref_layer_normalization_bwd_t)
+        INSTANCE(ocl::reusable_layer_normalization_bwd_t)
         nullptr,
     })},
 });
