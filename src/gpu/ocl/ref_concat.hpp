@@ -50,8 +50,7 @@ struct ref_concat_t : public gpu_primitive_t {
             VDISPATCH_CONCAT(attr()->has_default_values(sm::scales_runtime),
                     VERBOSE_UNSUPPORTED_ATTR);
 
-            status_t status = gpu_concat_pd_t::init();
-            if (status != status::success) {
+            if (gpu_concat_pd_t::init() != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);
                 VDISPATCH_CONCAT_SC(
                         memory_desc_init_by_strides(tent_dst_md_, dst_md_.ndims,
@@ -91,7 +90,7 @@ struct ref_concat_t : public gpu_primitive_t {
                         "reorder_primitive_desc_create");
             }
             init_scratchpad();
-            return status;
+            return status::success;
         }
 
         // if dst is forced and cannot be used directly.
