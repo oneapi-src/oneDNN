@@ -157,7 +157,7 @@ inline const char *convert_cl_int_to_str(cl_int cl_status) {
         CL_STATUS_CASE(CL_INVALID_BUFFER_SIZE);
         CL_STATUS_CASE(CL_INVALID_MIP_LEVEL);
         CL_STATUS_CASE(CL_INVALID_GLOBAL_WORK_SIZE);
-
+#undef CL_STATUS_CASE
         default: return "unknown macro name";
     }
 }
