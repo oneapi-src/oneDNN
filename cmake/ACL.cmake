@@ -32,11 +32,17 @@ endif()
 find_package(ACL REQUIRED)
 
 set(ACL_MINIMUM_VERSION "23.02.1")
+set(ACL_MAXIMUM_VERSION "23.08")
 
 if(ACL_FOUND)
-    file(GLOB_RECURSE ACL_VERSION_FILE $ENV{ACL_ROOT_DIR}/*/arm_compute_version.embed)
+    file(GLOB_RECURSE ACL_VERSION_FILE ${ACL_INCLUDE_DIR}/*/arm_compute_version.embed)
     if ("${ACL_VERSION_FILE}" STREQUAL "")
-        message(WARNING "Build may fail: Could not determine ACL version (minimum required is ${ACL_MINIMUM_VERSION})")
+        message(WARNING
+            "Build may fail. Could not determine ACL version.\n"
+            "Supported ACL versions:\n"
+            "- minimum required is ${ACL_MINIMUM_VERSION}\n"
+            "- maximum supported is ${ACL_MAXIMUM_VERSION}\n"
+        )
     else()
         file(READ ${ACL_VERSION_FILE} ACL_VERSION_STRING)
         string(REGEX MATCH "v([0-9]+\\.[0-9]+\\.?[0-9]*)" ACL_VERSION "${ACL_VERSION_STRING}")
@@ -44,9 +50,23 @@ if(ACL_FOUND)
         if ("${ACL_VERSION}" VERSION_EQUAL "0.0")
             # Unreleased ACL versions come with version string "v0.0-unreleased", and may not be compatible with oneDNN.
             # It is recommended to use the latest release of ACL.
-            message(WARNING "Build may fail: Using unreleased ACL version (minimum required is ${ACL_MINIMUM_VERSION})")
-        elseif("${ACL_VERSION}" VERSION_LESS "${ACL_MINIMUM_VERSION}")
-            message(FATAL_ERROR "Detected ACL version ${ACL_VERSION}, but minimum required is ${ACL_MINIMUM_VERSION}")
+            message(WARNING
+                "Build may fail. Using unreleased ACL version.\n"
+                "Supported ACL versions:\n"
+                "- minimum required is ${ACL_MINIMUM_VERSION}\n"
+                "- maximum supported is ${ACL_MAXIMUM_VERSION}\n"
+            )
+        else()
+            if("${ACL_VERSION}" VERSION_GREATER "${ACL_MAXIMUM_VERSION}")
+                message(FATAL_ERROR
+                    "Detected ACL version ${ACL_VERSION}, but maximum supported is ${ACL_MAXIMUM_VERSION}\n"
+                )
+            endif()
+            if("${ACL_VERSION}" VERSION_LESS "${ACL_MINIMUM_VERSION}")
+                message(FATAL_ERROR
+                    "Detected ACL version ${ACL_VERSION}, but minimum required is ${ACL_MINIMUM_VERSION}\n"
+                )
+            endif()
         endif()
     endif()
 
