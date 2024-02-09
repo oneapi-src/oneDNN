@@ -387,7 +387,7 @@ inline void append_strides(compute::kernel_arg_list_t &arg_list,
 }
 
 inline void append_strides(compute::kernel_arg_list_t &arg_list,
-        const strides_t &strides, int ocl_nparams) {
+        const strides_t<MAX_NDIMS> &strides, int ocl_nparams) {
     for (int d = 0; d < ocl_nparams; d++) {
         assert(strides[d] < INT_MAX);
         arg_list.append((cl_int)strides[d]);
