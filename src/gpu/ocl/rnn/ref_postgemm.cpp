@@ -107,7 +107,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
         arg_list.append(scratch_diff_states_iter, diff_dt);
         arg_list.append(scratch_diff_states_layer, diff_dt);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list.args, pd()->off.diff_bias, 4);
+        arg_list.append(pd()->off.diff_bias);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list.args);
 }
@@ -182,7 +182,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
         arg_list.append(scratch_diff_states_s1, diff_dt);
         arg_list.append(scratch_diff_states_iter_s1, diff_dt);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list.args, pd()->off.diff_bias, 4);
+        arg_list.append(pd()->off.diff_bias);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list.args);
 }
@@ -316,7 +316,7 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
         arg_list.append(scratch_diff_states_iter, diff_dt);
         arg_list.append(scratch_diff_states_layer, diff_dt);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list.args, pd()->off.diff_bias, 4);
+        arg_list.append(pd()->off.diff_bias);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list.args);
 }
@@ -393,7 +393,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
         arg_list.append(scratch_diff_states_iter, diff_dt);
         arg_list.append(scratch_diff_states_layer, diff_dt);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list.args, pd()->off.diff_bias, 4);
+        arg_list.append(pd()->off.diff_bias);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list.args);
 }

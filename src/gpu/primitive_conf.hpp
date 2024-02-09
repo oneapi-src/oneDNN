@@ -263,26 +263,26 @@ struct offsets_t {
 };
 
 struct rnn_offsets_t {
-    strides_t<MAX_NDIMS> src_layer;
-    strides_t<MAX_NDIMS> src_iter;
-    strides_t<MAX_NDIMS> src_iter_c;
-    strides_t<MAX_NDIMS> weights_layer;
-    strides_t<MAX_NDIMS> weights_iter;
+    strides_t<3> src_layer;
+    strides_t<4> src_iter;
+    strides_t<4> src_iter_c;
+    strides_t<5> weights_layer;
+    strides_t<5> weights_iter;
     dim_t weights_layer_comp_off;
     dim_t weights_iter_comp_off;
-    strides_t<MAX_NDIMS> bias;
-    strides_t<MAX_NDIMS> dst_layer;
-    strides_t<MAX_NDIMS> dst_iter;
-    strides_t<MAX_NDIMS> dst_iter_c;
-    strides_t<MAX_NDIMS> diff_src_layer;
-    strides_t<MAX_NDIMS> diff_src_iter;
-    strides_t<MAX_NDIMS> diff_src_iter_c;
-    strides_t<MAX_NDIMS> diff_weights_layer;
-    strides_t<MAX_NDIMS> diff_weights_iter;
-    strides_t<MAX_NDIMS> diff_bias;
-    strides_t<MAX_NDIMS> diff_dst_layer;
-    strides_t<MAX_NDIMS> diff_dst_iter;
-    strides_t<MAX_NDIMS> diff_dst_iter_c;
+    strides_t<4> bias;
+    strides_t<3> dst_layer;
+    strides_t<4> dst_iter;
+    strides_t<4> dst_iter_c;
+    strides_t<3> diff_src_layer;
+    strides_t<4> diff_src_iter;
+    strides_t<4> diff_src_iter_c;
+    strides_t<5> diff_weights_layer;
+    strides_t<5> diff_weights_iter;
+    strides_t<4> diff_bias;
+    strides_t<3> diff_dst_layer;
+    strides_t<4> diff_dst_iter;
+    strides_t<4> diff_dst_iter_c;
 };
 
 // Convolution

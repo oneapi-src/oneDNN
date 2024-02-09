@@ -125,12 +125,7 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
         __global char *src_base, __global DIFF_DATA_T *scratch_diff_states,
         int lr, int rl, int batch, int dhc, int slc, int n_iter, int n_layer,
         int n_dir, int n_states, int states_ws_ld, int scratch_diff_states_ld,
-#if IS_FWD
-        int it_stride
-#else
-        int it_stride, int b_stride
-#endif
-) {
+        int64x3_t strides) {
 
 #if IS_FWD
 
@@ -141,7 +136,7 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
 
     __global WS_STATE_DATA_T *dst;
     __global WS_STATE_DATA_T *src = (__global WS_STATE_DATA_T *)src_base
-            + src_l_off(it_stride, it) + b * slc + c;
+            + src_l_off(strides, it, b, c);
 
     if (lr) {
         dst = dst_base
@@ -164,40 +159,39 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
     if (s >= dhc || b >= batch || it >= n_iter) return;
 
     __global DIFF_DATA_T *dst = scratch_diff_states;
-    const param4 strides = {it_stride, b_stride, 0, 0};
 
 #if DIRECTION_KIND == CONCAT
-    __global DIFF_DATA_T *src
-            = (__global DIFF_DATA_T *)src_base + diff_dst_l_off(strides, it, b);
+    __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
+            + diff_dst_l_off(strides, it, b, s);
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
-            = src[s];
+            = src[0];
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 1, n_states, n_iter - it - 1, b,
             s)]
-            = src[dhc + s];
+            = src[dhc];
 #elif DIRECTION_KIND == SUM
-    __global DIFF_DATA_T *src
-            = (__global DIFF_DATA_T *)src_base + diff_dst_l_off(strides, it, b);
+    __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
+            + diff_dst_l_off(strides, it, b, s);
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
-            = src[s];
+            = src[0];
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 1, n_states, n_iter - it - 1, b,
             s)]
-            = src[s];
+            = src[0];
 #elif DIRECTION_KIND == L2R
-    __global DIFF_DATA_T *src
-            = (__global DIFF_DATA_T *)src_base + diff_dst_l_off(strides, it, b);
+    __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
+            + diff_dst_l_off(strides, it, b, s);
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
-            = src[s];
+            = src[0];
 #elif DIRECTION_KIND == R2L
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
-            + diff_dst_l_off(strides, n_iter - it - 1, b);
+            + diff_dst_l_off(strides, n_iter - it - 1, b, s);
     dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
             scratch_diff_states_ld, n_layer, 0, n_states, it, b, s)]
-            = src[s];
+            = src[0];
 #else
 #error "Unsupported direction_kind"
 #endif
@@ -208,29 +202,26 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
         __global AUX_DATA_T *dst_c_base, __global char *src_base,
         __global char *src_c_base, __global char *scratch_diff_states,
         int batch, int dhc, int sic, int n_iter, int n_layer, int n_dir,
-        int n_states, int states_ws_ld, int scratch_diff_states_ld,
+        int n_states, int states_ws_ld,
 #if IS_FWD
-        int lay_stride, int dir_stride, int b_stride, int s_stride
+        int64x4_t src_iter_strides,
 #if WITH_SRC_ITER_C
-        ,
-        int lay_c_stride, int dir_c_stride, int b_c_stride, int s_c_stride
+        int64x4_t src_iter_c_strides,
 #endif // WITH_SRC_ITER_C
-        ,
-        const float shift, const float scale, const int quantize
+        const float shift, const float scale, const int quantize,
 #else // BWD
-        int lay_stride, int dir_stride, int b_stride, int s_stride
+        int64x4_t diff_dst_iter_strides,
 #if WITH_DST_ITER_C
-        ,
-        int lay_c_stride, int dir_c_stride, int b_c_stride, int s_c_stride
+        int64x4_t diff_dst_iter_c_strides,
 #endif // WITH_DST_ITER_C
+
 #endif // IS_FWD
-) {
+        int scratch_diff_states_ld) {
 
     const int s = get_global_id(0);
     const int b = get_global_id(1);
     const int lay = get_global_id(2) / n_dir;
     const int dir = get_global_id(2) % n_dir;
-    const param4 strides = {lay_stride, dir_stride, b_stride, s_stride};
 
 #if IS_FWD
     __global INPUT_DATA_T *src = (__global INPUT_DATA_T *)(src_base);
@@ -238,7 +229,7 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
     int ws_state_offset = off_ws_state(
             n_layer, n_dir, n_iter, batch, states_ws_ld, lay, dir, -1, b, s);
     if (s < sic) {
-        int src_i_offset = src_i_off(strides, lay, dir, b, s);
+        int src_i_offset = src_i_off(src_iter_strides, lay, dir, b, s);
         dst[ws_state_offset] = src_base
                 ? (quantize ? TO_WS_STATE(src[src_i_offset] * scale + shift)
                             : src[src_i_offset])
@@ -250,10 +241,8 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
     if (s < dhc) {
         int ws_c_state_offset = off_ws_c_state(n_layer, n_dir, n_iter, batch,
                 states_ws_ld, lay, dir, -1, b, s);
-        const param4 c_strides
-                = {lay_c_stride, dir_c_stride, b_c_stride, s_c_stride};
         dst_c[ws_c_state_offset] = src_c_base
-                ? src_c[src_i_c_off(c_strides, lay, dir, b, s)]
+                ? src_c[src_i_c_off(src_iter_c_strides, lay, dir, b, s)]
                 : TO_WS_STATE(0.0f);
     }
 #endif
@@ -266,40 +255,37 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
     if (s < dhc)
         dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
                 scratch_diff_states_ld, lay, dir, 0, n_iter, b, s)]
-                = src_base ? src[diff_dst_i_off(strides, lay, dir, b, s)]
-                           : 0.0f;
+                = src_base
+                ? src[diff_dst_i_off(diff_dst_iter_strides, lay, dir, b, s)]
+                : 0.0f;
 #if WITH_DST_ITER_C
     __global DIFF_DATA_T *src_c = (__global DIFF_DATA_T *)(src_c_base);
     if (s < dhc) {
-        const param4 c_strides
-                = {lay_c_stride, dir_c_stride, b_c_stride, s_c_stride};
         dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
                 scratch_diff_states_ld, lay, dir, 1, n_iter, b, s)]
-                = src_c_base
-                ? src_c[diff_dst_i_c_off(c_strides, lay, dir, b, s)]
-                : 0.0f;
+                = src_c_base ? src_c[diff_dst_i_c_off(
+                          diff_dst_iter_c_strides, lay, dir, b, s)]
+                             : 0.0f;
     }
 #endif
 #endif
 }
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
-ref_rnn_copy_res_layer(__global WS_STATE_DATA_T *src_base,
-        __global char *dst_base, __global char *scratch_diff_states, int lr,
-        int rl, int batch, int dhc, int slc, int n_iter, int n_layer, int n_dir,
-        int n_states, int states_ws_ld, int scratch_diff_states_ld,
+ref_rnn_copy_res_layer(
+        __global WS_STATE_DATA_T *src_base, __global char *dst_base,
+        __global char *scratch_diff_states, int lr, int rl, int batch, int dhc,
+        int slc, int n_iter, int n_layer, int n_dir, int n_states,
+        int states_ws_ld, int scratch_diff_states_ld, int64x3_t strides
 #if IS_FWD
-        int it_stride, int b_stride, int s_stride, const float shift,
-        const float scale, const int dequantize
-#else
-        int it_stride, int b_stride, int s_stride
+        ,
+        const float shift, const float scale, const int dequantize
 #endif
 ) {
 
     const int it = get_global_id(2);
     const int b = get_global_id(1);
     const int s = get_global_id(0);
-    const param4 strides = {it_stride, b_stride, s_stride, 0};
 
 #if IS_FWD
     if (s >= dhc || b >= batch || it >= n_iter) return;
@@ -376,25 +362,19 @@ ref_rnn_copy_res_layer(__global WS_STATE_DATA_T *src_base,
 #endif
 }
 
-__kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
-        __global AUX_DATA_T *src_c_base, __global char *dst_base,
-        __global char *dst_c_base, __global char *scratch_diff_states,
-        int batch, int dhc, int sic, int n_iter, int n_layer, int n_dir,
-        int n_states, int states_ws_ld, int scratch_diff_states_ld,
-#if IS_FWD
-        int lay_stride, int dir_stride, int b_stride, int s_stride
-#if WITH_DST_ITER_C
+__kernel void ref_rnn_copy_res_iter(
+        __global WS_STATE_DATA_T *src_base, __global AUX_DATA_T *src_c_base,
+        __global char *dst_base, __global char *dst_c_base,
+        __global char *scratch_diff_states, int batch, int dhc, int sic,
+        int n_iter, int n_layer, int n_dir, int n_states, int states_ws_ld,
+        int scratch_diff_states_ld, int64x4_t strides
+#if (IS_FWD && WITH_DST_ITER_C) || (!IS_FWD && WITH_SRC_ITER_C)
         ,
-        int lay_c_stride, int dir_c_stride, int b_c_stride, int s_c_stride
+        int64x4_t c_strides
 #endif // WITH_DST_ITER_C
+#if IS_FWD
         ,
         const float shift, const float scale, const int dequantize
-#else // BWD
-        int lay_stride, int dir_stride, int b_stride, int s_stride
-#if WITH_SRC_ITER_C
-        ,
-        int lay_c_stride, int dir_c_stride, int b_c_stride, int s_c_stride
-#endif // WITH_SRC_ITER_C
 #endif
 ) {
 
@@ -402,7 +382,6 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
     const int b = get_global_id(1);
     const int lay = get_global_id(2) / n_dir;
     const int dir = get_global_id(2) % n_dir;
-    const param4 strides = {lay_stride, dir_stride, b_stride, s_stride};
 
 #if IS_FWD
     __global WS_STATE_DATA_T *src = src_base;
@@ -421,8 +400,6 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
 #if WITH_DST_ITER_C
     __global AUX_DATA_T *src_c = src_c_base;
     __global AUX_DATA_T *dst_c = (__global AUX_DATA_T *)(dst_c_base);
-    const param4 c_strides
-            = {lay_c_stride, dir_c_stride, b_c_stride, s_c_stride};
     if (dst_c_base && s < dhc) {
         dst_c[dst_i_c_off(c_strides, lay, dir, b, s)]
                 = src_c[off_ws_c_state(n_layer, n_dir, n_iter, batch,
@@ -442,8 +419,6 @@ __kernel void ref_rnn_copy_res_iter(__global WS_STATE_DATA_T *src_base,
     }
 #if WITH_SRC_ITER_C
     if (dst_base && s < dhc) {
-        const param4 c_strides
-                = {lay_c_stride, dir_c_stride, b_c_stride, s_c_stride};
         dst_c[diff_src_i_c_off(c_strides, lay, dir, b, s)]
                 = src[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter,
                         batch, scratch_diff_states_ld, lay, dir, 1, 0, b, s)];
@@ -577,15 +552,13 @@ __kernel void ref_rnn_bias_prepare(__global float *ws_bias,
         __global float *scales, __global char *wei_layer,
         __global char *wei_iter, __global float *bias, int dhc, int n_layer,
         int n_dir, float data_shift, float data_scale, int wei_l_comp_off,
-        int wei_i_comp_off, int lay_stride, int dir_stride, int nbias_stride,
-        int dhc_stride) {
+        int wei_i_comp_off, int64x4_t bias_strides) {
 #if COPY_BIAS
 
     const int dhc_ = get_global_id(0);
     const int nbias_ = get_global_id(1);
     const int layer_ = get_global_id(2) / n_dir;
     const int dir_ = get_global_id(2) % n_dir;
-    const param4 strides = {lay_stride, dir_stride, nbias_stride, dhc_stride};
 
     const float wei_scale
 #if WEI_QPARAM_MASK
@@ -604,7 +577,7 @@ __kernel void ref_rnn_bias_prepare(__global float *ws_bias,
     const int off = comp_off(n_dir, dhc, layer_, dir_, nbias_, dhc_);
     const float comp = wei_layer_comp[off] + wei_iter_comp[off];
     ws_bias[off_ws_bias(n_layer, n_dir, dhc, layer_, dir_, nbias_, dhc_)]
-            = bias[bias_off(strides, layer_, dir_, nbias_, dhc_)]
+            = bias[bias_off(bias_strides, layer_, dir_, nbias_, dhc_)]
             - comp * data_shift / (wei_scale * data_scale);
 
 #endif
@@ -936,16 +909,14 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         __global DIFF_DATA_T *diff_states_tp1_l_s1_,
         dim_t diff_states_tp1_l_s1_off,
 #endif
-        MAYBE_ATOMIC DIFF_BIAS_DATA_T *diff_bias_base, int lay_stride,
-        int dir_stride, int diff_bias_s2, int diff_bias_s3) {
+        MAYBE_ATOMIC DIFF_BIAS_DATA_T *diff_bias_base,
+        int64x4_t diff_bias_strides) {
 #if !IS_FWD
     const int i_ = get_global_id(1) * ELEMWISE_BWD_BATCH_BLOCK; // batch
     const int j = get_global_id(0); // dhc
 
-    const param4 strides = {lay_stride, dir_stride, diff_bias_s2, diff_bias_s3};
-
     MAYBE_ATOMIC DIFF_BIAS_DATA_T *diff_bias
-            = diff_bias_base + diff_bias_off(strides, lay, dir, 0, 0);
+            = diff_bias_base + diff_bias_off(diff_bias_strides, lay, dir, 0, 0);
 
     if (j >= dhc) return;
 

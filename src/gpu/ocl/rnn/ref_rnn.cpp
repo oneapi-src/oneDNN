@@ -1222,7 +1222,7 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
 
     arg_list.append(into<int32_t>(pd()->off.weights_layer_comp_off));
     arg_list.append(into<int32_t>(pd()->off.weights_iter_comp_off));
-    rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
+    arg_list.append(pd()->off.bias);
 
     return parallel_for(ctx,
             compute::nd_range_t({gpu_utils::into<size_t>(dhc),
@@ -1260,7 +1260,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_states));
         arg_list.append(into<int32_t>(states_ws_ld));
         arg_list.append(unused_ld);
-        rnn_utils::append_strides(arg_list, pd()->off.src_layer, 1);
+        arg_list.append(pd()->off.src_layer);
 
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({slc, batch, n_iter})),
@@ -1282,7 +1282,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_states));
         arg_list.append(unused_ld);
         arg_list.append(into<int32_t>(scratch_diff_states_ld));
-        rnn_utils::append_strides(arg_list, pd()->off.diff_dst_layer, 2);
+        arg_list.append(pd()->off.diff_dst_layer);
 
         return parallel_for(ctx,
                 compute::nd_range_t(get_nd_range({dhc, batch, n_iter})),
@@ -1321,15 +1321,15 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
         arg_list.append(into<int32_t>(states_ws_ld));
-        arg_list.append(unused_ld);
 
-        rnn_utils::append_strides(arg_list, pd()->off.src_iter, 4);
+        arg_list.append(pd()->off.src_iter);
         if (pd()->ocl_conf.with_src_iter_c)
-            rnn_utils::append_strides(arg_list, pd()->off.src_iter_c, 4);
+            arg_list.append(pd()->off.src_iter_c);
 
         arg_list.append(shift);
         arg_list.append(scale);
         arg_list.append(into<int32_t>(quantize));
+        arg_list.append(unused_ld);
         return parallel_for(ctx,
                 compute::nd_range_t({gpu_utils::into<size_t>(max_d),
                         gpu_utils::into<size_t>(batch),
@@ -1351,11 +1351,10 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_dir));
         arg_list.append(into<int32_t>(n_states));
         arg_list.append(unused_ld);
-        arg_list.append(into<int32_t>(scratch_diff_states_ld));
-
-        rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter, 4);
+        arg_list.append(pd()->off.diff_dst_iter);
         if (pd()->ocl_conf.with_dst_iter_c)
-            rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter_c, 4);
+            arg_list.append(pd()->off.diff_dst_iter_c);
+        arg_list.append(into<int32_t>(scratch_diff_states_ld));
 
         return parallel_for(ctx,
                 compute::nd_range_t({gpu_utils::into<size_t>(dhc),
@@ -1396,7 +1395,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(states_ws_ld));
         arg_list.append(unused_ld);
 
-        rnn_utils::append_strides(arg_list, pd()->off.dst_layer, 3);
+        arg_list.append(pd()->off.dst_layer);
 
         arg_list.append(shift);
         arg_list.append(scale);
@@ -1420,7 +1419,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(n_states));
         arg_list.append(unused_ld);
         arg_list.append(into<int32_t>(scratch_diff_states_ld));
-        rnn_utils::append_strides(arg_list, pd()->off.diff_src_layer, 3);
+        arg_list.append(pd()->off.diff_src_layer);
 
         return parallel_for(ctx, get_nd_range({slc, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
@@ -1459,9 +1458,9 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(into<int32_t>(states_ws_ld));
         arg_list.append(unused_ld);
 
-        rnn_utils::append_strides(arg_list, pd()->off.dst_iter, 4);
+        arg_list.append(pd()->off.dst_iter);
         if (pd()->ocl_conf.with_dst_iter_c)
-            rnn_utils::append_strides(arg_list, pd()->off.dst_iter_c, 4);
+            arg_list.append(pd()->off.dst_iter_c);
 
         arg_list.append(shift);
         arg_list.append(scale);
@@ -1490,9 +1489,9 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(unused_ld);
         arg_list.append(into<int32_t>(scratch_diff_states_ld));
 
-        rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter, 4);
+        arg_list.append(pd()->off.diff_src_iter);
         if (pd()->ocl_conf.with_src_iter_c)
-            rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter_c, 4);
+            arg_list.append(pd()->off.diff_src_iter_c);
 
         return parallel_for(ctx,
                 compute::nd_range_t({gpu_utils::into<size_t>(max_d),
