@@ -482,17 +482,22 @@ void dispatch_compile_params_t::def_kernel_macros(
     // For each term, define each parameter
     for (size_t i = 0; i < gpu_utils::into<size_t>(num_terms); i++) {
         const gws_indexing_term_t::compile_params_t &term = terms[i];
-        const char *gws_dim_op;
-        switch (term.op) {
-            case (gws_op_t::ZERO): gws_dim_op = "ZERO"; break;
-            case (gws_op_t::SOLO): gws_dim_op = "SOLO"; break;
-            case (gws_op_t::FIRST): gws_dim_op = "FIRST"; break;
-            case (gws_op_t::MOD): gws_dim_op = "MOD"; break;
-            case (gws_op_t::SOLO_BLOCK): gws_dim_op = "SOLO_BLOCK"; break;
-            case (gws_op_t::FIRST_BLOCK): gws_dim_op = "FIRST_BLOCK"; break;
-            case (gws_op_t::MOD_BLOCK): gws_dim_op = "MOD_BLOCK"; break;
-            default: assert(!"Not expected");
-        }
+        const char *gws_dim_op = [term]() -> const char * {
+            switch (term.op) {
+                case (gws_op_t::ZERO): return "ZERO";
+                case (gws_op_t::SOLO): return "SOLO";
+                case (gws_op_t::FIRST): return "FIRST";
+                case (gws_op_t::MOD): return "MOD";
+                case (gws_op_t::SOLO_BLOCK): return "SOLO_BLOCK";
+                case (gws_op_t::FIRST_BLOCK): return "FIRST_BLOCK";
+                case (gws_op_t::MOD_BLOCK): return "MOD_BLOCK";
+                default:
+                    gpu_assert(false) << "Unexpected GWS indexing operation";
+            }
+            return nullptr;
+        }();
+        if (!gws_dim_op) continue; // Will not be hit due to gpu_assert above
+
         // GWS<X>_OP<Y>
         kernel_ctx.add_option(utils::format(
                 "-D%s_OP%zu=GWS_OP_%s", gws_prefix, i, gws_dim_op));
