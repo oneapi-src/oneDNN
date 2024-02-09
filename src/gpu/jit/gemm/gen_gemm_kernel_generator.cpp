@@ -15652,8 +15652,10 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
         }
     }
 
-    // Starting address adjustments for DPASW.
+    // Starting address and remainder adjustments for DPASW.
     bool cColMajor = isRegisterColMajor(Tc_ext, problem.C, strategy.C);
+    Subregister saveRemM = state.remainders[LoopM];
+    Subregister saveRemN = state.remainders[LoopN];
     if (strategy.dpasw) {
         if (cColMajor) {
             int t = strategy.B.tileC;
@@ -15676,6 +15678,11 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                     break;
                 default: stub();
             }
+            if (!strategy.slmB && remN_B) {
+                state.remainders[LoopN] = state.ra.alloc_sub<int16_t>();
+                mov(1, state.remainders[LoopN], saveRemN);
+                add(1 | state.flagAP, state.remainders[LoopN], saveRemN, -t);
+            }
         } else {
             int t = strategy.A.tileR;
             and_(1 | nz | state.flagAP, null.uw(), state.lidN, 1);
@@ -15696,6 +15703,11 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                             strategy, state);
                     break;
                 default: stub();
+            }
+            if (!strategy.slmA && remM_A) {
+                state.remainders[LoopM] = state.ra.alloc_sub<int16_t>();
+                mov(1, state.remainders[LoopM], saveRemM);
+                add(1 | state.flagAP, state.remainders[LoopM], saveRemN, -t);
             }
         }
     }
@@ -15894,6 +15906,9 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
 
     loadMasks(masks, state.remainders, strategy, state);
     loadMasks(masksCoop, state.remaindersCoop, strategy, state);
+
+    state.remainders[LoopM] = saveRemM;
+    state.remainders[LoopN] = saveRemN;
 
     if (!state.simd32KMasks)
         releaseCoopRemainders(
