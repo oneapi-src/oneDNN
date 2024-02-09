@@ -20,7 +20,7 @@
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/stream_profiler.hpp"
-#include "gpu/ocl/types_interop.h"
+#include "gpu/ocl/types_interop.hpp"
 #include "gpu/utils.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_c_types_map.hpp"

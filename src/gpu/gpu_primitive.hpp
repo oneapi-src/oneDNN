@@ -30,6 +30,7 @@
 #include "gpu/gpu_resource.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
 #include "gpu/kernel_cache.hpp"
+#include "gpu/ocl/types_interop.hpp"
 
 #define CTX_GPU_RES_STORAGE(arg) \
     (*(ctx.get_resource_mapper() \
