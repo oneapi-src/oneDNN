@@ -417,6 +417,11 @@ struct sub_buffer_t {
         if (buffer_) buffer_->set_offset(buffer.offset() + offset);
     }
 
+    ~sub_buffer_t() = default;
+
+    // Aligns with memory_storage_t
+    sub_buffer_t &operator=(const sub_buffer_t &) = delete;
+
     operator bool() const { return buffer_ != nullptr && !buffer_->is_null(); }
 
     const memory_storage_t *get() const { return buffer_.get(); }
