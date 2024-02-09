@@ -15,7 +15,7 @@ dst[i] &= p(src[i]) \cdot src[i] + (1- p(src[i])) \cdot \alpha[i] \cdot src[i] \
 \end{align}
 ```
 
-with $p(src[i]) = sigmoid ((src[i] - E[i]) / \sqrt{V[i] + \epsilon)}$.
+with $p(src[i]) = sigmoid ((src[i] - E[i]) / \sqrt{V[i] + \epsilon})$.
 These two formulas are mathematically equivalent, but not numerically
 equivalent when evaluated in floating-point arithmetic.
 
@@ -176,7 +176,7 @@ example:
 - For prelu there is only a single set of weights, so it is fully
   described by weight_desc,
 - For Dice `mean`, `var` and `alpha` will all have the same shape,
-  described by weight_desc. This is consistent with AliBaba dice
+  described by weight_desc. This is consistent with Alibaba dice
   implementation
 
 This new primitive will take execution arguments depending on the
