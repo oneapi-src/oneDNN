@@ -26,8 +26,28 @@ namespace gpu {
 namespace compute {
 
 template <>
+struct scalar_type_traits<int64x2_t> {
+    static const auto type = scalar_type_t::_int64x3_t;
+};
+
+template <>
 struct scalar_type_traits<int64x3_t> {
     static const auto type = scalar_type_t::_int64x3_t;
+};
+
+template <>
+struct scalar_type_traits<int64x4_t> {
+    static const auto type = scalar_type_t::_int64x4_t;
+};
+
+template <>
+struct scalar_type_traits<int64x5_t> {
+    static const auto type = scalar_type_t::_int64x5_t;
+};
+
+template <>
+struct scalar_type_traits<int64x6_t> {
+    static const auto type = scalar_type_t::_int64x6_t;
 };
 
 template <>

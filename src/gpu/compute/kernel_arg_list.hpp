@@ -55,7 +55,11 @@ enum class scalar_type_t {
     _ulong,
     _ushort,
     _zero_pad_mask_t,
+    _int64x2_t,
     _int64x3_t,
+    _int64x4_t,
+    _int64x5_t,
+    _int64x6_t,
     _dispatch_gws_rt_params_t,
 };
 
@@ -78,7 +82,11 @@ inline std::string to_string(scalar_type_t type) {
         CASE(_ulong);
         CASE(_ushort);
         CASE(_zero_pad_mask_t);
+        CASE(_int64x2_t);
         CASE(_int64x3_t);
+        CASE(_int64x4_t);
+        CASE(_int64x5_t);
+        CASE(_int64x6_t);
         CASE(_dispatch_gws_rt_params_t);
     }
     return "unexpected";
