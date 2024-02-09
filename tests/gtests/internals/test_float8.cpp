@@ -262,8 +262,8 @@ TEST(test_jit_float8_conversions, f16_to_fp8) {
 }
 
 TEST(test_f16_conversions, f16_to_f32) {
-    SKIP_IF(!impl::cpu::platform::has_data_type_support(impl::data_type::f16),
-            "Engine does not support this data type.");
+    SKIP_IF(!mayiuse(impl::cpu::x64::avx512_core_fp16),
+            "Engine does not support this ISA.");
 
     // check all 2^16 f16 values
     impl::parallel_nd(0xffff, [&](uint16_t u32) {
