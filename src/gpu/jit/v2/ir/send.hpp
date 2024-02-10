@@ -62,7 +62,7 @@ struct addr_t {
 
     addr_t() = default;
     addr_t(const layout_t &layout, int slots, int elems_per_slot) {
-        base = layout.base() * layout.type().size();
+        base = simplify_rewrite(layout.base() * layout.type().size());
         slot_incs.resize(slots, 0);
         layout_iterator_t it(layout);
         for (int i = 1; i < slots; i++) {
@@ -126,8 +126,8 @@ struct mask_t {
             it.next(elems_per_slot);
             auto coord = it.coord();
             for (int j = 0; j < md.nmasks(); j++) {
-                dim_masks[j].slot_incs[i]
-                        = md[j].to_expr(coord, /*with_const=*/false);
+                dim_masks[j].slot_incs[i] = simplify_rewrite(
+                        md[j].to_expr(coord, /*with_const=*/false));
             }
         }
     }
@@ -147,10 +147,13 @@ struct mask_t {
 
     std::string str() const {
         std::ostringstream oss;
+        bool is_first = true;
         for (int i = 0; i < nmasks(); i++) {
-            if (i != 0) oss << std::endl;
+            if (dim_masks[i].is_empty()) continue;
+            if (!is_first) oss << std::endl;
             auto tag = "#" + std::to_string(i);
             oss << ir_utils::add_tag(tag, dim_masks[i].str());
+            is_first = false;
         }
         return oss.str();
     }
@@ -655,6 +658,7 @@ struct send_plan_t : public base_plan_t {
     }
 
     std::string str() const {
+        if (!*this) return "(empty)";
         if (is_1d()) return _1d.str();
         return _2d.str();
     }
