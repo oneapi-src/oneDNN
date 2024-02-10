@@ -31,6 +31,42 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
+load_desc_t str_to_load_desc(const std::string &s) {
+    auto parts = gpu_utils::split(s, ",");
+    load_desc_t ret;
+    for (auto &p : parts) {
+        auto p_parts = gpu_utils::split(p, ":");
+        ir_assert(p_parts.size() == 2);
+        auto tensor = p_parts[0];
+        auto kind = p_parts[1];
+        if (tensor == "a") {
+            ret.a = str_to_send_kind(kind);
+        } else if (tensor == "b") {
+            ret.b = str_to_send_kind(kind);
+        } else {
+            ir_error_not_expected() << p;
+        }
+    }
+    return ret;
+}
+
+store_desc_t str_to_store_desc(const std::string &s) {
+    auto parts = gpu_utils::split(s, ",");
+    store_desc_t ret;
+    for (auto &p : parts) {
+        auto p_parts = gpu_utils::split(p, ":");
+        ir_assert(p_parts.size() == 2);
+        auto tensor = p_parts[0];
+        auto kind = p_parts[1];
+        if (tensor == "c") {
+            ret.c = str_to_send_kind(kind);
+        } else {
+            ir_error_not_expected() << p;
+        }
+    }
+    return ret;
+}
+
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group) {
     bool is_wei = (tensor_kind == tensor_kind_t::wei);
@@ -286,9 +322,8 @@ std::string kernel_desc_t::str() const {
     oss << "Iteration tile:     " << iter_tile << std::endl;
     oss << "Thread group tile:  " << thread_group_tile << std::endl;
     oss << "Loop nest:          " << loop_nest << std::endl;
-    oss << "A access kind:      " << to_string(a_access_kind) << std::endl;
-    oss << "B access kind:      " << to_string(b_access_kind) << std::endl;
-    oss << "C access kind:      " << to_string(c_access_kind) << std::endl;
+    oss << "Load:               " << load.str() << std::endl;
+    oss << "Store:              " << store.str() << std::endl;
     if (reqs) oss << ir_utils::add_tag("Reqs", reqs.str()) << std::endl;
     oss << "Command:            " << cmd_str();
     return ir_utils::add_tag("Desc", oss.str());
@@ -411,15 +446,15 @@ ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
             "kw,kh,kd,ic).",
             MAKE_GETTER(desc->loop_nest.str()),
             MAKE_SETTER(loop_nest, str_to_loop_nest(value)));
-    iface.add_arg("--a-access", "Access type for A (block, scattered, 2d).",
-            MAKE_GETTER(to_string(desc->a_access_kind)),
-            MAKE_SETTER(a_access_kind, str_to_send_kind(value)));
-    iface.add_arg("--b-access", "Access type for B (block, scattered, 2d).",
-            MAKE_GETTER(to_string(desc->b_access_kind)),
-            MAKE_SETTER(b_access_kind, str_to_send_kind(value)));
-    iface.add_arg("--c-access", "Access type for C (block, scattered, 2d).",
-            MAKE_GETTER(to_string(desc->c_access_kind)),
-            MAKE_SETTER(c_access_kind, str_to_send_kind(value)));
+    iface.add_arg("--load",
+            "Load type (block, scattered [default], 2d) for A and B, e.g. "
+            "a:2d,b:block.",
+            MAKE_GETTER(desc->load.str()),
+            MAKE_SETTER(load, str_to_load_desc(value)));
+    iface.add_arg("--store",
+            "Store type (block, scattered [default], 2d) for C,  e.g. c:2d.",
+            MAKE_GETTER(desc->store.str()),
+            MAKE_SETTER(store, str_to_store_desc(value)));
     return iface;
 #undef MAKE_SETTER
 #undef MAKE_GETTER

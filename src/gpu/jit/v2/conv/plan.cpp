@@ -526,11 +526,14 @@ private:
         return plan_status_t::ok;
     }
 
-    send_params_t get_send_params(
-            tensor_kind_t abc, send_op_t op, const view_t &view) const {
+    send_params_t get_send_params(tensor_kind_t abc, send_op_t op,
+            const view_t &view,
+            send_kind_t send_kind = send_kind_t::undef) const {
         send_params_t params;
         params.hw = desc_.hw;
-        params.kind = desc_.access_kind(abc);
+        params.kind = (send_kind != send_kind_t::undef
+                        ? send_kind
+                        : desc_.access_kind(op, abc));
         params.op = op;
         if (params.kind == send_kind_t::_2d)
             params.hint_2d = send_2d_hint_t(view, op, mul_info_.hint(abc));
