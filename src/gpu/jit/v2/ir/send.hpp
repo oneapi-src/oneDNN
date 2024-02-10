@@ -220,7 +220,7 @@ struct send_2d_hint_t {
         is_valid = true;
     }
 
-    operator bool() const { return is_valid; }
+    explicit operator bool() const { return is_valid; }
 
     bool init(send_op_t send_op, const type_t &type, bool vnni, bool transpose,
             int w_tile, int h_tile, int w_blk, int h_blk) {
@@ -302,7 +302,7 @@ struct send_1d_desc_t {
     int type_size = 0;
     int slots = 0;
 
-    operator bool() const { return op != send_op_t::undef; }
+    explicit operator bool() const { return op != send_op_t::undef; }
 
     bool base_alignment_ok(const expr_t &off, const prover_t &prover) {
         int align = (type_size >= 16 ? 8 : 1);
@@ -360,7 +360,7 @@ struct send_1d_plan_t : public base_plan_t {
 
     int nmasks() const { return mask.nmasks(); }
     int nentries() const { return static_cast<int>(entries.size()); }
-    operator bool() const { return desc; }
+    explicit operator bool() const { return (bool)desc; }
 
     bool add_entry(const layout_iterator_t &it, const mask_desc_t &mask_desc,
             int reg_off, const prover_t &prover) {
@@ -454,7 +454,7 @@ struct send_2d_desc_t {
         is_valid = is_supported(view, prover);
     }
 
-    operator bool() const { return is_valid; }
+    explicit operator bool() const { return is_valid; }
 
     // Reduce the number of messages by increasing count per
     // message.
@@ -586,7 +586,7 @@ struct send_2d_plan_t : public base_plan_t {
     using base_plan_t::base_plan_t;
 
     int nentries() const { return static_cast<int>(entries.size()); }
-    operator bool() const { return desc; }
+    explicit operator bool() const { return (bool)desc; }
 
     bool add_entry(const prb_coord_t<int> &coord, int reg_off,
             const prover_t &prover) {
@@ -631,8 +631,8 @@ struct send_plan_t : public base_plan_t {
 
     using base_plan_t::base_plan_t;
 
-    bool is_1d() const { return _1d; }
-    bool is_2d() const { return _2d; }
+    bool is_1d() const { return (bool)_1d; }
+    bool is_2d() const { return (bool)_2d; }
     send_1d_plan_t &get_1d() { return _1d; }
     const send_1d_plan_t &get_1d() const { return _1d; }
     send_2d_plan_t &get_2d() { return _2d; }
