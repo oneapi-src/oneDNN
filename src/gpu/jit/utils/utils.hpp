@@ -522,8 +522,12 @@ inline std::string add_tag(
         const std::string &tag, const std::string &s, bool eol = true) {
     std::ostringstream oss;
     oss << tag << ":";
-    if (eol) oss << std::endl;
-    oss << add_indent(s, "  ", /*skip_first=*/!eol);
+    if (s.empty()) {
+        oss << " (empty)";
+    } else {
+        if (eol) oss << std::endl;
+        oss << add_indent(s, "  ", /*skip_first=*/!eol);
+    }
     return oss.str();
 }
 
