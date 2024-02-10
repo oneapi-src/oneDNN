@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2021 Intel Corporation
+# Copyright 2017-2024 Intel Corporation
 # Copyright 2021 FUJITSU LIMITED
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ macro(sdl_unix_common_ccxx_flags var)
 endmacro()
 
 macro(sdl_gnu_common_ccxx_flags var)
-    if (DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
+    if(DPCPP_HOST_COMPILER_KIND STREQUAL "GNU")
         # GNU compiler 7.4 or newer is required for host compiler
         append(${var} "-fstack-protector-strong")
     else()
