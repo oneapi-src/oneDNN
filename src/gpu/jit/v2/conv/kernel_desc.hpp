@@ -208,14 +208,18 @@ public:
     void finalize(const plan_t &plan);
 
     bool fits(const problem_t &prb, bool check_tags = true) const {
-        if (prb.prop() != prop) return false;
+        ir_check(prb.prop() == prop) << "Propagation kind does not match";
         if (check_tags) {
-            if (!prb.src_tag().matches(src_tag, prb.shape())) return false;
-            if (!prb.wei_tag().matches(wei_tag, prb.shape())) return false;
-            if (!prb.dst_tag().matches(dst_tag, prb.shape())) return false;
+            ir_check(prb.src_tag().matches(src_tag, prb.shape()))
+                    << "Source tag does not match";
+            ir_check(prb.wei_tag().matches(wei_tag, prb.shape()))
+                    << "Weights tag does not match";
+            ir_check(prb.dst_tag().matches(dst_tag, prb.shape()))
+                    << "Destination tag does not match";
         }
-        if (prb.is_depthwise() != is_dw) return false;
-        if (!reqs.fits(prb.shape())) return false;
+        ir_check(prb.is_depthwise() == is_dw)
+                << "Mixing depthwise/non-depthwise descriptor and problem";
+        ir_check(reqs.fits(prb.shape()));
         return true;
     }
 

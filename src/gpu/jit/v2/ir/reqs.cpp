@@ -102,7 +102,7 @@ prover_t prb_reqs_t::prover(bool enable) {
 
 bool prb_reqs_t::fits(const prb_tile_t &sizes) const {
     for (auto &r : reqs_) {
-        if (!r.fits(sizes)) return false;
+        ir_check(r.fits(sizes));
     }
     return true;
 }
@@ -301,16 +301,19 @@ bool prb_reqs_t::req_t::fits(const prb_tile_t &sizes) const {
     if (auto *op = expr.as_ptr<req_binary_op_t>()) {
         int64_t a = op->a.to_int(sizes);
         int64_t b = op->b.to_int(sizes);
+        bool ret = false;
         switch (op->op_kind) {
-            case op_kind_t::_eq: return a == b;
-            case op_kind_t::_ge: return a >= b;
-            case op_kind_t::_gt: return a > b;
-            case op_kind_t::_le: return a <= b;
-            case op_kind_t::_lt: return a < b;
+            case op_kind_t::_eq: ret = (a == b); break;
+            case op_kind_t::_ge: ret = (a >= b); break;
+            case op_kind_t::_gt: ret = (a > b); break;
+            case op_kind_t::_le: ret = (a <= b); break;
+            case op_kind_t::_lt: ret = (a < b); break;
             default: ir_error_not_expected();
         }
+        ir_check(ret) << "Requirement is not satisfied: " << expr.to_ir();
+        return true;
     }
-    ir_error_not_expected();
+    ir_error_not_expected() << expr.to_ir();
     return false;
 }
 

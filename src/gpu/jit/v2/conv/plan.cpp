@@ -399,7 +399,8 @@ private:
     plan_status_t init_x_g2r_plan(tensor_kind_t abc, const view_t &view,
             layout_t &reg_layout, send_plan_t &load) const {
         auto params = get_send_params(abc, send_op_t::load, view);
-        load = create_send_plan(params, view);
+        load = create_send_plan(params, view, /*allow_fail=*/true);
+        ir_check(load) << "init_x_x2r_plan: cannot create send plan";
         bool ok = layout_info_.is_compatible(abc, load.reg_layout());
         if (params.hint_2d && !ok) {
             params.downgrade_to_1d();

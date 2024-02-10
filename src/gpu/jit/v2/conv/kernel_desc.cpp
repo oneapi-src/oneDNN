@@ -275,6 +275,7 @@ std::string kernel_desc_t::cmd_str() const {
 std::string kernel_desc_t::str() const {
     std::ostringstream oss;
     oss << "Propagation:        " << ir_utils::to_string(prop) << std::endl;
+    oss << "Depthwise:          " << ir_utils::to_string(is_dw) << std::endl;
     oss << "Source tag:         " << src_tag << std::endl;
     oss << "Weights tag:        " << wei_tag << std::endl;
     oss << "Destination tag:    " << dst_tag << std::endl;
@@ -376,7 +377,7 @@ ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
             "Whether the problem is a depthwise convolution (0 or 1).",
             MAKE_GETTER(std::string(desc->is_dw ? "1" : "0")),
             MAKE_SETTER(is_dw, ir_utils::str_to_bool(value)));
-    iface.add_arg("--src", "Source layout tag (e.g. axb:f32).",
+    iface.add_arg("--src", "Source layout tag. Examples: axb:f32, aBx16b:f16).",
             MAKE_GETTER(desc->src_tag.str()),
             MAKE_SETTER(
                     src_tag, make_conv_layout_tag(tensor_kind_t::src, value)));
