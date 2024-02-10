@@ -933,6 +933,7 @@ public:
                 std::cout << std::left << std::setw(22) << a.key;
                 std::cout << a.help << std::endl;
             }
+            exit(0);
             return;
         }
         std::vector<bool> seen(args_.size());
