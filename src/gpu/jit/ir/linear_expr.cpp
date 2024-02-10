@@ -357,13 +357,13 @@ expr_t linear_div(const expr_t &e, int factor) {
     return linear_t::to_expr(c, u_vec, v_vec);
 }
 
-expr_t linear_mod_impl(const expr_t &e, int factor) {
+expr_t simplify_linear_mod_reduce(const expr_t &e, int factor) {
     if (factor == 1) return 0;
     if (is_const(e)) return to_cpp<int>(e) % factor;
     if (e.is<const_var_t>()) return e;
     if (auto *op = e.as_ptr<binary_op_t>()) {
-        auto a = linear_mod_impl(op->a, factor);
-        auto b = linear_mod_impl(op->b, factor);
+        auto a = simplify_linear_mod_reduce(op->a, factor);
+        auto b = simplify_linear_mod_reduce(op->b, factor);
         switch (op->op_kind) {
             case op_kind_t::_add:
                 if (is_zero(a)) return b;
@@ -376,11 +376,10 @@ expr_t linear_mod_impl(const expr_t &e, int factor) {
             default: break;
         }
     }
-    ir_error_not_expected() << e;
-    return 1;
+    return e;
 }
 
-expr_t linear_mod(const expr_t &e, int factor) {
+expr_t simplify_linear_mod(const expr_t &e, int factor) {
     ir_assert(factor > 0);
     if (factor == 1) return 0;
     auto _linear = to_linear(e);
@@ -398,7 +397,8 @@ expr_t linear_mod(const expr_t &e, int factor) {
     int div = math::gcd(common.imm(), factor);
     int new_factor = factor / div;
     common.set_imm(1);
-    return linear_mod_impl(common.to_expr(), new_factor) % new_factor;
+    auto reduced = simplify_linear_mod_reduce(common.to_expr(), new_factor);
+    return reduced % new_factor;
 }
 
 // Updates the base and the increment of linear expression `expr` when

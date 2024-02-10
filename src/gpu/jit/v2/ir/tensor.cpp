@@ -830,10 +830,10 @@ bool block_iterator_t::is_dense(const prover_t &prover) const {
     expr_t stride = 1;
     for (int i = 0; i < block_idx_; i++) {
         auto &b = parent_->blocks()[i];
-        if (!prover.prove(b.stride == stride)) return false;
+        if (!prover.require(b.stride == stride)) return false;
         stride = b.int_size() * b.stride;
     }
-    return prover.prove(block_.stride == stride);
+    return prover.require(block_.stride == stride);
 }
 
 int block_iterator_t::elems(const prb_dim_t &dim) const {
@@ -1045,7 +1045,7 @@ bool mask_desc_t::is_uniform(
         int dim_size = it.elems((*it).dim);
         ir_assert(math::is_pow2(dim_size));
         if (dim_size > dm.block) return false;
-        if (!prover.prove(dm.bound % dim_size == 0)) return false;
+        if (!prover.require(dm.bound % dim_size == 0)) return false;
     }
     return true;
 }

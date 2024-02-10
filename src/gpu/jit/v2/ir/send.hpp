@@ -303,7 +303,7 @@ struct send_1d_desc_t {
 
     bool base_alignment_ok(const expr_t &off, const prover_t &prover) {
         int align = (type_size >= 16 ? 8 : 1);
-        if (!prover.prove(off % align == 0)) return false;
+        if (!prover.require(off % align == 0)) return false;
         return true;
     }
 
@@ -473,17 +473,17 @@ struct send_2d_desc_t {
         auto pitch_bytes = P * type.size();
         int base_align = block_2d_base_alignment(hw);
         int x_align = block_2d_x_alignment(type.size());
-        if (!prover.prove(width_bytes >= 64)) return false;
-        if (!prover.prove(width_bytes <= (1 << 24))) return false;
-        if (!prover.prove(width_bytes % std::max(4, type.size()) == 0))
+        if (!prover.require(width_bytes >= 64)) return false;
+        if (!prover.require(width_bytes <= (1 << 24))) return false;
+        if (!prover.require(width_bytes % std::max(4, type.size()) == 0))
             return false;
-        if (!prover.prove(H <= (1 << 24))) return false;
-        if (!prover.prove(pitch_bytes >= 64)) return false;
-        if (!prover.prove(pitch_bytes <= (1 << 24))) return false;
-        if (!prover.prove(pitch_bytes % 8 == 0)) return false;
-        if (!prover.prove(plane.y_stride == 1)) return false;
-        if (!prover.prove(base % base_align == 0)) return false;
-        if (!prover.prove(plane.x % x_align == 0)) return false;
+        if (!prover.require(H <= (1 << 24))) return false;
+        if (!prover.require(pitch_bytes >= 64)) return false;
+        if (!prover.require(pitch_bytes <= (1 << 24))) return false;
+        if (!prover.require(pitch_bytes % 8 == 0)) return false;
+        if (!prover.require(plane.y_stride == 1)) return false;
+        if (!prover.require(base % base_align == 0)) return false;
+        if (!prover.require(plane.x % x_align == 0)) return false;
         return true;
     }
 
