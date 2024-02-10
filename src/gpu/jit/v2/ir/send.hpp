@@ -731,7 +731,13 @@ public:
         addr_t addr(layout, slots, elems_per_slot);
         if (!desc.base_alignment_ok(addr, reqs.prover())) return false;
 
-        auto reg_layout = middle_last.sub_layout();
+        int elem_stride = 1;
+        if (slot_stride > slot_size) {
+            ir_assert(slot_size < 4);
+            ir_assert(type_size == slot_size);
+            elem_stride = ir_utils::safe_div(slot_stride, slot_size);
+        }
+        auto reg_layout = middle_last.sub_layout(elem_stride);
         reg_layout.pad_bytes(grf_size);
 
         auto entry_tile = reg_layout.int_dim_sizes();

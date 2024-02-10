@@ -624,7 +624,6 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
     idxs.fill_missing(0);
     rem_sizes.fill_missing(1);
     expr_t base = base_;
-    expr_t stride = 1;
     std::vector<block_t> mapped_blocks;
     dim_map_t<prb_dim_t, bool> seen_outer;
     for (auto &b : blocks()) {
@@ -652,7 +651,7 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
             }
             if (mapped_size != 1) {
                 cur_size /= mapped_size;
-                auto mapped_stride = linear.u_vec[i] * stride;
+                auto mapped_stride = linear.u_vec[i] * b.stride;
                 mapped_blocks.emplace_back(dim, mapped_size, mapped_stride);
             }
             bool is_outer = true;
@@ -670,8 +669,7 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
                 off += idxs[dim] * linear.u_vec[i];
             }
         }
-        base += off * stride;
-        stride = b.size * b.stride;
+        base += off * b.stride;
     }
     return layout_t(dim_mapper.layout_desc(), type(), base, mapped_blocks);
 }
