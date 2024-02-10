@@ -63,7 +63,7 @@ public:
     ref_primitive_t() = default;
     ref_primitive_t(const deserialized_op &op);
 
-    int init_prb(::std::unordered_set<size_t> &bf16_rewrite, res_t *res);
+    int init_prb(res_t *res);
     // By default, the reference primitives are created with f32 data type.
     // However, there's a displacer that relies on the logic that would fill
     // memories with int8 data. `force_override` flag restricts forcing f32

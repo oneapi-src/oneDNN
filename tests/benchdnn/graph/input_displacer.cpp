@@ -175,7 +175,7 @@ int partition_data_displacer_t::displace_input_data(
         res_t res {};
 
         ref_primitive_t ref_prim(op);
-        ref_prim.init_prb(empty_set, &res);
+        ref_prim.init_prb(&res);
         SAFE_V(ref_prim.init_prim(
                 get_cpu_engine(), &res, /* force_override = */ true));
 
@@ -250,7 +250,7 @@ int partition_data_displacer_t::gen_quantize_filling(
     ::std::unordered_set<size_t> empty_set;
 
     ref_primitive_t ref_prim(op);
-    ref_prim.init_prb(empty_set, res);
+    ref_prim.init_prb(res);
     if (res->state == INVALID_ARGUMENTS) return FAIL;
     SAFE_V(ref_prim.init_prim(
             get_cpu_engine(), res, /* force_override = */ true));

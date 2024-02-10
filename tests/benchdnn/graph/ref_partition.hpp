@@ -53,20 +53,6 @@ public:
     }
 
 private:
-    // check whether partition input ops support bf16-in-f32-out rewrite
-    bool check_valid_bf16_in() const;
-
-    // check whether partition output ops support bf16-in-f32-out rewrite
-    bool check_valid_bf16_out() const;
-
-    bool is_bf16_partition_support_f32_intermediate_result() const;
-
-    // bf16 cases:use f32 as intermediate tensor dt to improve accuracy
-    void handle_special_case_bf16(res_t *res);
-
-    // rewrite x16->f32 from typecast (f32->x16) to typecast (x16->f32)
-    void handle_typecast_x16();
-
     // Objects below are constructed.
     // OPs in the partition, which is Topo ordered
     op_ref_list_t partition_ops_ref_;
@@ -79,9 +65,6 @@ private:
     std::vector<size_t> partition_in_ids_;
     // partition out logical tensors' ids
     std::vector<size_t> partition_out_ids_;
-    // Objects below are modified at special bf16 and int8 cases.
-    // IDs of logical tensors to replace bf16 data type with fp32.
-    std::unordered_set<size_t> bf16_to_f32_rewrite_lt_id_;
 
     // reference primitives for a single partition
     std::unordered_map<size_t, ::std::shared_ptr<ref_primitive_t>> ref_prims_;
