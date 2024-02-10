@@ -383,7 +383,7 @@ void auto_search() {
     // clang-format off
     std::vector<const char *> recipes = {
         "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128",
-        "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --a-access 2d --b-access block --c-access 2d",
+        "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:block --store c:2d",
     };
     // clang-format on
     for (const char *r : recipes) {
