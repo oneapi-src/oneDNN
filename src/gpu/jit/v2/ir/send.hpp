@@ -527,6 +527,7 @@ struct send_2d_desc_t {
             add_block(w_dim, w, pad_kind_t::dim_pow2);
             add_block(h_dim, h, pad_kind_t::stride_grf);
         }
+        add_block(w_dim, c);
         return ret;
     }
 
@@ -799,7 +800,7 @@ public:
 
         int reg_off = 0;
         for (int h = 0; h < plane.h; h += desc.h) {
-            for (int w = 0; w < plane.w; w += desc.w) {
+            for (int w = 0; w < plane.w; w += desc.w * desc.c) {
                 prb_coord_t<int> coord;
                 coord[plane.w_dim] = w;
                 coord[plane.h_dim] = h;
