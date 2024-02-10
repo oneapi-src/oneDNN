@@ -17,6 +17,8 @@
 #ifndef GPU_JIT_V2_CONV_PLANNER_SEARCH_HPP
 #define GPU_JIT_V2_CONV_PLANNER_SEARCH_HPP
 
+#include "gpu/jit/v2/conv/planner/bench.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -28,8 +30,8 @@ class kernel_desc_t;
 
 namespace planner {
 
-void search(const kernel_desc_t &desc);
-void auto_search();
+void search(const bench_manager_t &bench_mger, const kernel_desc_t &desc);
+void auto_search(const bench_manager_t &bench_mger);
 
 } // namespace planner
 } // namespace conv

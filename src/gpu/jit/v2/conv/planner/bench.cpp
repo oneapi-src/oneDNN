@@ -19,6 +19,7 @@
 #include "common/dnnl_thread.hpp"
 #include "gpu/jit/v2/conv/plan.hpp"
 #include "gpu/jit/v2/conv/plan_preset.hpp"
+#include "gpu/jit/v2/conv/plan_registry.hpp"
 #include "gpu/ocl/ocl_usm_utils.hpp"
 
 #include <algorithm>
@@ -43,6 +44,10 @@ namespace jit {
 namespace v2 {
 namespace conv {
 namespace planner {
+
+bench_manager_t::~bench_manager_t() {
+    dump_plan_registry();
+}
 
 static void fill_mem(stream &strm, const memory &mem) {
     auto eng = mem.get_engine();
@@ -174,7 +179,7 @@ namespace prb_dims = dnnl::impl::gpu::jit::prb_dims;
 
 class bench_task_t : public bench_task_base_t {
 public:
-    bench_task_t(const problem_t &prb) {
+    bench_task_t(const problem_t &prb) : prb_(prb) {
         mb = prb.shape()[prb_dims::mb];
         oc = prb.shape()[prb_dims::oc];
         ic = prb.shape()[prb_dims::ic];
@@ -200,12 +205,10 @@ public:
             memory::dims padding_l = {ph, pw};
             memory::dims padding_r = {ph, pw};
 
-            memory::desc src_md(
-                    src_dims, memory::data_type::f32, memory::format_tag::nhwc);
-            memory::desc wei_md(wei_dims, memory::data_type::f32,
-                    memory::format_tag::ghwio);
-            memory::desc dst_md(
-                    dst_dims, memory::data_type::f32, memory::format_tag::nhwc);
+            auto src_md = to_memory_desc(prb_.src_tag(), src_dims);
+            auto wei_md
+                    = to_memory_desc(prb_.wei_tag(), wei_dims, /*is_wei=*/true);
+            auto dst_md = to_memory_desc(prb_.dst_tag(), dst_dims);
 
             primitive_attr attr;
             auto pd = convolution_forward::primitive_desc(eng,
@@ -238,6 +241,15 @@ public:
     }
 
 private:
+    memory::desc to_memory_desc(const layout_tag_t &tag,
+            const memory::dims &dims, bool is_wei = false) const {
+        auto type = static_cast<dnnl::memory::data_type>(to_dnnl(tag.type()));
+        memory::desc md(dims, type,
+                is_wei ? memory::format_tag::ghwio : memory::format_tag::nhwc);
+        return md;
+    }
+
+    problem_t prb_;
     memory::dim mb;
     memory::dim oc, ic;
     memory::dim ih, iw;
@@ -281,8 +293,10 @@ std::vector<problem_t> generate_problems(const kernel_desc_t &kd) {
         if ((int)ret.size() >= nprbs) break;
     }
     if ((int)ret.size() < nprbs) {
-        printf("Could not generate %d problems after %d iterations\n", nprbs,
-                max_iters);
+        std::cout << "Could not generate " << nprbs << " problems after "
+                  << max_iters << " iterations" << std::endl;
+        std::cout << kd.reqs << std::endl;
+        exit(1);
     }
     return ret;
 }
@@ -298,15 +312,14 @@ std::vector<problem_t> load_problems(const std::string &path) {
     return prbs;
 }
 
-bench_data_t bench(const kernel_desc_t &_kernel_desc) {
-    engine eng(engine::kind::gpu, 0);
+bench_data_t bench(
+        const bench_manager_t &bench_mger, const kernel_desc_t &_kernel_desc) {
+    if (!_kernel_desc.is_supported()) return {};
     auto kernel_desc = _kernel_desc;
-    kernel_desc.hw = hw_t(eng.get());
-    if (!kernel_desc.is_supported()) return {};
-    auto plan = create_conv_plan(kernel_desc);
+    auto plan = create_conv_plan_and_finalize_desc(kernel_desc);
     if (!plan) return {};
-    kernel_desc.finalize(plan);
 
+    auto eng = bench_mger.get_engine();
     auto prbs = generate_problems(kernel_desc);
     int nprbs = (int)prbs.size();
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@
 #include "gpu/jit/v2/conv/bench_data.hpp"
 #include "gpu/jit/v2/conv/kernel_desc.hpp"
 
+#include "oneapi/dnnl/dnnl.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -28,7 +30,18 @@ namespace v2 {
 namespace conv {
 namespace planner {
 
-bench_data_t bench(const kernel_desc_t &kernel_desc);
+class bench_manager_t {
+public:
+    bench_manager_t() : engine_(engine::kind::gpu, 0) {}
+    const engine &get_engine() const { return engine_; }
+    ~bench_manager_t();
+
+private:
+    engine engine_;
+};
+
+bench_data_t bench(
+        const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc);
 
 } // namespace planner
 } // namespace conv
