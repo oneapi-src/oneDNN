@@ -447,7 +447,7 @@ private:
             if (mul_info_.is_k(b.dim)) continue;
             c.add_block(b.dim, b.size);
         }
-        c.block_by(block_t(inner_dim, inner_block_size));
+        c.block_by({block_t(inner_dim, inner_block_size)});
         return c;
     }
 
