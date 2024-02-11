@@ -1537,6 +1537,15 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             "skipping implementation due to performance reason for 2d/3d "
             "shapes with small iw");
 
+    // Disable 2 shapes that cause performance regression
+    const auto is_regression_shape = jcp.id == 1 && jcp.od == 1
+            && ((jcp.ic == 128 && jcp.oc == 256 && jcp.ih == 101 && jcp.oh == 49
+                        && jcp.iw == 85 && jcp.ow == 41)
+                    || (jcp.ic == 3 && jcp.oc == 128 && jcp.ih == 207
+                            && jcp.oh == 101 && jcp.iw == 175 && jcp.ow == 85));
+    VDISPATCH_CONV_IC(!(is_f32 && is_regression_shape),
+            "implementation skipped due to low performance");
+
     const bool is_signed_input = jcp.src_dt == s8;
     jcp.s8s8_compensation_required = is_signed_input && !isa_has_s8s8(jcp.isa);
     jcp.has_int8_vnni = isa_has_int8_vnni(jcp.isa);

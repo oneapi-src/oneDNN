@@ -17,10 +17,10 @@
 #ifndef GPU_OCL_RNN_RNN_UTILS_HPP
 #define GPU_OCL_RNN_RNN_UTILS_HPP
 
-#include "oneapi/dnnl/dnnl_types.h"
-
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 #include "gpu/serialization.hpp"
@@ -416,6 +416,11 @@ struct sub_buffer_t {
                         : buffer.buffer_->clone()) {
         if (buffer_) buffer_->set_offset(buffer.offset() + offset);
     }
+
+    ~sub_buffer_t() = default;
+
+    // Aligns with memory_storage_t
+    sub_buffer_t &operator=(const sub_buffer_t &) = delete;
 
     operator bool() const { return buffer_ != nullptr && !buffer_->is_null(); }
 

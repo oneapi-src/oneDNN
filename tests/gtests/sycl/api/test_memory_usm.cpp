@@ -183,9 +183,15 @@ TEST_P(sycl_memory_usm_test, ErrorMakeMemoryUsingSystemMemory) {
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
     std::vector<float> system_buf(n);
-    EXPECT_THROW(memory mem = sycl_interop::make_memory(mem_d, eng,
-                         sycl_interop::memory_kind::usm, system_buf.data()),
-            dnnl::error);
+    auto device = sycl_interop::get_device(eng);
+    if (device.has(::sycl::aspect::usm_system_allocations)) {
+        memory mem = sycl_interop::make_memory(
+                mem_d, eng, sycl_interop::memory_kind::usm, system_buf.data());
+    } else {
+        EXPECT_THROW(memory mem = sycl_interop::make_memory(mem_d, eng,
+                             sycl_interop::memory_kind::usm, system_buf.data()),
+                dnnl::error);
+    }
 }
 
 /// This test checks if passing system allocated memory(e.g. using malloc)
@@ -199,7 +205,12 @@ TEST_P(sycl_memory_usm_test, ErrorMemoryConstructorUsingSystemMemory) {
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
     std::vector<float> system_buf(n);
-    EXPECT_THROW(memory mem(mem_d, eng, system_buf.data()), dnnl::error);
+    auto device = sycl_interop::get_device(eng);
+    if (device.has(::sycl::aspect::usm_system_allocations)) {
+        memory mem(mem_d, eng, system_buf.data());
+    } else {
+        EXPECT_THROW(memory mem(mem_d, eng, system_buf.data()), dnnl::error);
+    }
 }
 
 namespace {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,15 +28,15 @@ namespace sycl {
 
 void print_verbose_header(engine_kind_t kind) {
     sycl_engine_factory_t factory(kind);
+    auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
     for (size_t i = 0; i < factory.count(); ++i) {
-        engine_t *eng_ptr = nullptr;
-        factory.engine_create(&eng_ptr, i);
-        std::unique_ptr<sycl_engine_base_t, engine_deleter_t> eng;
-        eng.reset(utils::downcast<sycl_engine_base_t *>(eng_ptr));
         try {
+            engine_t *eng_ptr = nullptr;
+            factory.engine_create(&eng_ptr, i);
+            std::unique_ptr<sycl_engine_base_t, engine_deleter_t> eng;
+            eng.reset(utils::downcast<sycl_engine_base_t *>(eng_ptr));
             auto *dev_info = eng ? eng->device_info() : nullptr;
 
-            auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
             auto s_backend = eng ? to_string(eng->backend()) : "unknown";
             auto s_name = dev_info ? dev_info->name() : "unknown";
             auto s_ver
@@ -45,13 +45,12 @@ void print_verbose_header(engine_kind_t kind) {
                     ? dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled"
                     : "unknown";
 
-            printf("onednn_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
-                   "version:%s,binary_kernels:%s\n",
-                    s_engine_kind, (int)i, s_backend.c_str(), s_name.c_str(),
+            printf("onednn_verbose,info,%s,engine,%zu,backend:%s,name:%s,"
+                   "driver_version:%s,binary_kernels:%s\n",
+                    s_engine_kind, i, s_backend.c_str(), s_name.c_str(),
                     s_ver.c_str(), s_binary_kernels);
         } catch (...) {
-            VERROR(common, dpcpp, VERBOSE_INVALID_DEVICE_ENV,
-                    dnnl_engine_kind2str(engine_kind::gpu), i);
+            VERROR(common, dpcpp, VERBOSE_INVALID_DEVICE_ENV, s_engine_kind, i);
         }
     }
 }

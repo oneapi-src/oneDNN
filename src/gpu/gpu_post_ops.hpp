@@ -421,6 +421,9 @@ struct gpu_post_ops_t {
             }
         }
 
+        entry_t(const entry_t &other) = default;
+        entry_t &operator=(const entry_t &) = default;
+
         post_op::kind_t kind() const { return kind_; }
 
         // Only const ref accessors are allowed to ensure specializations are

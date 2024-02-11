@@ -54,7 +54,7 @@ static status_t init_kernel_ctx_common(
 
     // create post-op macro required definitions
     CHECK(def_attr_info(kernel_ctx, attr_info_t::create(pd->attr()),
-            pd->attr()->post_ops_, output_data_mdw_info.dims));
+            pd->attr()->post_ops_, *pd->invariant_dst_md()));
 
     offsets_t off;
     set_offsets(input_data_mdw, off.src_off);

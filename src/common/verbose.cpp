@@ -141,7 +141,7 @@ void print_header(const filter_status_t &filter_status) {
 
 // hint parameter is the kind of verbose we are querying for
 uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
-        component_t::flag_kind filter_kind) {
+        component_t::flag_kind filter_kind) noexcept {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #else
@@ -189,7 +189,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
             std::regex regexp;
             try {
                 regexp = std::regex(s);
-            } catch (const std::regex_error &e) {
+            } catch (const std::exception &e) {
                 filter_status.status = filter_status_t::flags::invalid;
                 filter_status.err_msg = e.what();
                 return component_t::all;

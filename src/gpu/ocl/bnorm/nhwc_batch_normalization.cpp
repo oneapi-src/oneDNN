@@ -382,9 +382,16 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
     // but can be overridden due to performance reason.
     if (!conf.max_vect_size_param().is_overridden()) conf.set_max_vect_size(8);
 
+    auto default_conf = conf;
     // Attempt to get tunable parameters from a lookup table
     // or from environment in tuning mode
     maybe_override_bn_conf_params(conf, engine);
+
+    // If lookup table entry uses atomics, use default conf instead.
+    if (conf.use_fused_atomics_reduction()
+            && conf.use_fused_atomics_reduction_param().is_overridden()
+            && pd->attr()->deterministic_)
+        conf = default_conf;
 
     // Get non-overridden parameters, performance modeling way
     hw_params_t hw_params;

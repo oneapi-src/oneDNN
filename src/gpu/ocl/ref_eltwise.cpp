@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,7 +62,8 @@ static status_t init_conf_common(
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const ref_eltwise_conf_t &conf, const post_ops_t &post_ops) {
+        const ref_eltwise_conf_t &conf, const post_ops_t &post_ops,
+        const memory_desc_t *dst_md) {
     kernel_ctx.set_data_type(conf.data_type);
 
     def_eltwise_alg_kinds(kernel_ctx);
@@ -88,8 +89,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         kernel_ctx.define_int("IS_FWD", 1);
     }
 
-    CHECK(def_attr_info(
-            kernel_ctx, conf.attr_info, post_ops, conf.data_md_info.dims));
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops, *dst_md));
     def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;
@@ -101,7 +101,8 @@ status_t ref_eltwise_fwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_eltwise_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, attr()->post_ops_, invariant_dst_md());
 }
 
 status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
@@ -132,7 +133,8 @@ status_t ref_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_eltwise_bwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, attr()->post_ops_, invariant_dst_md());
 }
 
 status_t ref_eltwise_bwd_t::execute_backward_dense(

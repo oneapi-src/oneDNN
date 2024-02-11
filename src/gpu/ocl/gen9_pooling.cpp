@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -165,7 +165,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const pool_conf_t &conf, const offsets_t &off,
-        const post_ops_t &post_ops) {
+        const post_ops_t &post_ops, const memory_desc_t *dst_md) {
     using namespace dnnl::impl::alg_kind;
     kernel_ctx.set_data_type(conf.src_dt);
 
@@ -217,8 +217,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
     def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
 
-    CHECK(def_attr_info(
-            kernel_ctx, conf.attr_info, post_ops, conf.dst_md_info.dims));
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops, *dst_md));
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -231,7 +230,8 @@ status_t gen9_pooling_fwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t gen9_pooling_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, off, attr()->post_ops_, invariant_dst_md());
 }
 
 status_t gen9_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
@@ -265,7 +265,8 @@ status_t gen9_pooling_bwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t gen9_pooling_bwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, attr()->post_ops_);
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, off, attr()->post_ops_, invariant_dst_md());
 }
 
 status_t gen9_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {

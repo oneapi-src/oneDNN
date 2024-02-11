@@ -25,10 +25,11 @@
 #include "gpu/compute/device_info.hpp"
 #include "gpu/compute/dispatch_reusable.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
 #include "gpu/ocl/atomic_reduction.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/reduction_utils.h"
+#include "gpu/ocl/reduction_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -54,9 +55,10 @@ public:
 
 private:
     using compute::lws_strategy_t::lws_strategy_t;
-    compute::work_size create_lws(const compute::work_size &gws,
+    compute::nd_range_t::work_size_t create_lws(
+            const compute::nd_range_t::work_size_t &gws,
             const compute::gws_bin_mapping_t &mapper) const override {
-        compute::work_size lws;
+        compute::nd_range_t::work_size_t lws;
         lws.fill(1);
 
         for (size_t i = 0; i < gws.size(); i++) {

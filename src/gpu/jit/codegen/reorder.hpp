@@ -299,6 +299,11 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         // Max supported stride is 4.
         if (src_stride > 4 || dst_stride > 4) step = 1;
 
+        // Don't stride more than 4 bytes for word types.
+        if ((src_type_size == 2 && src_stride >= 4)
+                || (dst_type_size == 2 && dst_stride >= 4))
+            step = 1;
+
         // Non-power-of-2 strides must be handled element-by-element
         if (!math::is_pow2(src_stride) || !math::is_pow2(dst_stride)) step = 1;
 

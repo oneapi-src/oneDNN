@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,8 +106,8 @@ status_t ref_resampling_fwd_t::pd_t::init_kernel_ctx(
     def_data_type(kernel_ctx, dst_md()->data_type, "DST");
 
     // Set post-op variables
-    CHECK(def_attr_info(
-            kernel_ctx, conf.attr_info, attr()->post_ops_, dst_md()->dims));
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, attr()->post_ops_,
+            *invariant_dst_md()));
 
     return status;
 }

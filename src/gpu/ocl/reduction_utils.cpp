@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "reduction_utils.h"
+#include "reduction_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -57,10 +57,11 @@ std::vector<zero_padding_t> calc_zero_padding(
     return out;
 }
 
-block_t merge_blocks(block_layout_t blocks, size_t start_idx, size_t end_idx) {
+block_t merge_blocks(
+        const block_layout_t &blocks, size_t start_idx, size_t end_idx) {
     block_t ret = blocks[start_idx];
     for (size_t i = start_idx + 1; i < end_idx; i++) {
-        block_t &next_block = blocks[i];
+        const block_t &next_block = blocks[i];
         // Assumes they're ordered by increasing stride
         assert(ret.stride * ret.block == next_block.stride);
         ret.block *= next_block.block;

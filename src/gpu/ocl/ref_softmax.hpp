@@ -188,7 +188,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                 dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc));
 
         CHECK(def_attr_info(kernel_ctx, attr_info_t::create(pd()->attr()),
-                pd()->attr()->post_ops_, dst_md_info.dims));
+                pd()->attr()->post_ops_, *pd()->invariant_dst_md()));
 
         for (int i = 0; i < 3; i++)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
