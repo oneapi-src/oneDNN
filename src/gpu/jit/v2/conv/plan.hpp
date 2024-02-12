@@ -280,6 +280,7 @@ struct plan_t : public base_plan_t {
 };
 
 plan_t create_conv_plan(const kernel_desc_t &desc);
+plan_t create_conv_plan_and_finalize_desc(kernel_desc_t &desc);
 
 } // namespace conv
 } // namespace v2
