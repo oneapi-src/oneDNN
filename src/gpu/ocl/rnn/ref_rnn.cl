@@ -16,6 +16,7 @@
 
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/rnn/rnn_types.h"
+#include "gpu/ocl/types_interop.h"
 
 float one_m_square(float a) {
     return 1.0f - a * a;

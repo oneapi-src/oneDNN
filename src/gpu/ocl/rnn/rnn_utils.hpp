@@ -379,21 +379,6 @@ status_t set_good_strides(
         dim_t ld_, memory_desc_t &weights_md, format_tag_t tag);
 memory_storage_t &get_storage(const std::unique_ptr<memory_storage_t> &storage);
 
-inline void append_strides(compute::kernel_arg_list_t &arg_list,
-        const dim_t offs[4][MAX_NDIMS], int ocl_nparams, int ndims) {
-    for (int d = 0; d < ocl_nparams; d++) {
-        arg_list.append((d < ndims) ? (cl_int)offs[1][d] : 0);
-    }
-}
-
-inline void append_strides(compute::kernel_arg_list_t &arg_list,
-        const strides_t<MAX_NDIMS> &strides, int ocl_nparams) {
-    for (int d = 0; d < ocl_nparams; d++) {
-        assert(strides[d] < INT_MAX);
-        arg_list.append((cl_int)strides[d]);
-    }
-}
-
 struct sub_buffer_t {
     static constexpr dim_t unset = 0;
 
