@@ -620,38 +620,55 @@ std::string arg2str(int arg) {
 }
 
 std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
+    struct {
+        const char *operator()() {
+            current[0] = next;
+            next = ' ';
+            return current;
+        }
+
+    private:
+        char current[2] = {};
+        char next = 0;
+    } field_delim;
+
     // scratchpad and fpmath mode are not a part of
     // has_default_values(). Check them first.
     const scratchpad_mode_t &spm = attr->scratchpad_mode_;
     if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
-        ss << "attr-scratchpad:" << dnnl_scratchpad_mode2str(spm) << " ";
+        ss << field_delim()
+           << "attr-scratchpad:" << dnnl_scratchpad_mode2str(spm);
     }
     const fpmath_t &fpm = attr->fpmath_;
     if (fpm.mode_ != fpmath_mode_t::dnnl_fpmath_mode_strict
             || fpm.apply_to_int_) {
-        ss << "attr-fpmath:" << dnnl_fpmath_mode2str(fpm.mode_);
+        ss << field_delim()
+           << "attr-fpmath:" << dnnl_fpmath_mode2str(fpm.mode_);
         if (fpm.apply_to_int_) ss << ":true";
-        ss << " ";
     }
 
     const accumulation_mode_t &am = attr->acc_mode_;
     if (am != accumulation_mode::strict) {
-        ss << "attr-acc:" << dnnl_accumulation_mode2str(am) << " ";
+        ss << field_delim() << "attr-acc:" << dnnl_accumulation_mode2str(am);
     }
 
     const bool deterministic = attr->deterministic_;
-    if (deterministic) { ss << "attr-deterministic:" << deterministic << " "; }
+    if (deterministic) {
+        ss << field_delim() << "attr-deterministic:" << deterministic;
+    }
     if (attr->has_default_values()) return ss;
 
     const runtime_scales_t &os = attr->output_scales_;
-    if (!os.has_default_values()) { ss << "attr-oscale:" << os << " "; }
+    if (!os.has_default_values()) {
+        ss << field_delim() << "attr-oscale:" << os;
+    }
 
     std::string empty_delim, attr_delim = "+";
 
     const arg_scales_t &as = attr->scales_;
     if (!as.has_default_values()) {
         std::string delim = empty_delim;
-        ss << "attr-scales:";
+        ss << field_delim() << "attr-scales:";
         for (const auto &map_entry : as.scales_) {
             const auto &val = map_entry.second;
             if (val.has_default_values()) continue;
@@ -660,13 +677,12 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             ss << delim << arg2str(arg) << ":" << val;
             delim = attr_delim;
         }
-        ss << " ";
     }
 
     const zero_points_t &zp = attr->zero_points_;
     if (!zp.has_default_values()) {
         std::string delim = empty_delim;
-        ss << "attr-zero-points:";
+        ss << field_delim() << "attr-zero-points:";
         for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
             if (zp.has_default_values(arg)) continue;
 
@@ -687,13 +703,12 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
 
             delim = attr_delim;
         }
-        ss << " ";
     }
 
     const post_ops_t &po = attr->post_ops_;
     if (!po.has_default_values()) {
         std::string delim = empty_delim;
-        ss << "attr-post-ops:";
+        ss << field_delim() << "attr-post-ops:";
         for (int i = 0; i < po.len(); ++i) {
             const post_ops_t::entry_t &e = po.entry_[i];
             switch (e.kind) {
@@ -749,13 +764,12 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             }
             delim = attr_delim;
         }
-        ss << " ";
     }
 
     const rnn_data_qparams_t &rnn_qp = attr->rnn_data_qparams_;
     if (!rnn_qp.has_default_values()) {
-        ss << "rnn_data_qparams:" << rnn_qp.scale_ << ":" << rnn_qp.shift_
-           << ";";
+        ss << field_delim() << "rnn_data_qparams:" << rnn_qp.scale_ << ":"
+           << rnn_qp.shift_ << ";";
     }
 
     return ss;

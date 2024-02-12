@@ -275,7 +275,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
-    SAFE(check_bitwise(prim, {DST}, args, prb->inplace, res), WARN);
+    SAFE(check_bitwise(prim, {DST}, args, prb->attr, prb->inplace, res), WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

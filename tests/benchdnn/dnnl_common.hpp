@@ -934,6 +934,6 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
         const std::unordered_map<int, fill_cfg_t> &fill_cfg_map = {});
 
 int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
-        const args_t &args, bool inplace, res_t *res);
+        const args_t &args, const attr_t &attr, bool inplace, res_t *res);
 
 #endif

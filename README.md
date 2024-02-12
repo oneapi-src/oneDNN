@@ -99,11 +99,12 @@ oneDNN only supports Compute Library versions 23.11 or later.
 > for more details.
 
 The library is optimized for the following GPUs:
-* Intel UHD Graphics for 11th generation Intel processors or newer
-* Intel Iris(R) Xe graphics (formerly DG1)
-* Intel Arc(TM) graphics (formerly Alchemist and DG2)
-* Intel Data Center GPU Flex Series (formerly Arctic Sound-M)
-* Intel Data Center GPU Max Series (formerly Ponte Vecchio)
+* Intel(R) UHD Graphics for 11th-14th Gen Intel(R) Processors
+* Intel(R) Iris(R) Xe Graphics
+* Intel(R) Iris(R) Xe MAX Graphics (formerly DG1)
+* Intel(R) Arc(TM) Graphics (formerly Alchemist)
+* Intel(R) Data Center GPU Flex Series (formerly Arctic Sound)
+* Intel(R) Data Center GPU Max Series (formerly Ponte Vecchio)
 
 ## Requirements for Building from Source
 

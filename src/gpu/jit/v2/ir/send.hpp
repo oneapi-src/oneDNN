@@ -18,6 +18,7 @@
 #define GPU_JIT_V2_IR_SEND_HPP
 
 #include "gpu/jit/ir/block_2d_utils.hpp"
+#include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/v2/ir/plan_utils.hpp"
 #include "gpu/jit/v2/ir/reqs.hpp"
 #include "gpu/jit/v2/ir/tensor.hpp"
@@ -466,13 +467,13 @@ struct send_2d_desc_t {
     }
 
     bool is_supported(const view_t &view, const prover_t &prover) const {
-        if (w % block_2d_x_alignment(type.size()) != 0) return false;
+        if (w % block_2d_x_alignment(hw, type.size()) != 0) return false;
 
         auto &plane = view.plane();
         auto width_bytes = W * type.size();
         auto pitch_bytes = P * type.size();
         int base_align = block_2d_base_alignment(hw);
-        int x_align = block_2d_x_alignment(type.size());
+        int x_align = block_2d_x_alignment(hw, type.size());
         if (!prover.prove(width_bytes >= 64)) return false;
         if (!prover.prove(width_bytes <= (1 << 24))) return false;
         if (!prover.prove(width_bytes % std::max(4, type.size()) == 0))

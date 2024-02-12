@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,12 +29,13 @@ namespace jit {
 inline int block_2d_base_alignment(const hw_t &hw) {
     ir_assert(hw >= ngen::HW::XeHPC);
     // XXX: A steppings require 128 byte alignment due to a HW bug.
-    if (hw.stepping_id() <= 6) return 128;
+    if (hw == ngen::HW::XeHPC && hw.stepping_id() <= 6) return 128;
     return 64;
 }
 
-inline int block_2d_x_alignment(int type_size) {
-    return std::max(4, type_size) / type_size;
+inline int block_2d_x_alignment(const hw_t &hw, int type_size) {
+    int min_alignment = (hw == ngen::HW::Xe2) ? 16 : 4;
+    return std::max(min_alignment, type_size) / type_size;
 }
 
 inline bool block_2d_width_ok(int width, int type_size) {

@@ -58,6 +58,11 @@ argument index as specified by the following table.
    - Quantized weights for convolution with #dnnl_s8 source data type cannot
      be dequantized back to the #dnnl_f32 data type;
 
+   - Only reference support is available for reorders to or from f8_e4m3.
+
+   - Optimized implementation of reorders to or from f8_e5m2 is available on 
+     Intel(R) Data Center GPU Max Series Only.
+
 3. To alleviate the problem a user may rely on fact that the reorder from
    original plain memory format and user's data type to the *optimized* format
    with chosen data type should be always implemented.
