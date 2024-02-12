@@ -42,6 +42,35 @@ class kernel_info_t;
 namespace v2 {
 namespace conv {
 
+class spec_reqs_t {
+public:
+    spec_reqs_t() = default;
+    spec_reqs_t(const prb_tile_t &spec_tile) : spec_tile_(spec_tile) {}
+
+    bool is_equal(const prb_dim_t &dim, int value) const {
+        return spec_tile_.has(dim) && spec_tile_.at(dim) == value;
+    }
+
+    prb_reqs_t reqs() const {
+        prb_reqs_t ret;
+        for (auto &d : spec_tile_) {
+            ret.add(size_var(d) == spec_tile_.at(d));
+        }
+        return ret;
+    }
+
+    std::string str() const { return spec_tile_.str(); }
+
+    IR_DEFINE_DUMP()
+
+private:
+    prb_tile_t spec_tile_;
+};
+
+inline spec_reqs_t str_to_spec_reqs(const std::string &s) {
+    return spec_reqs_t(str_to_prb_tile(s));
+}
+
 struct loop_nest_entry_t {
     prb_dim_t dim;
     int idx = -1;
@@ -291,6 +320,7 @@ public:
     layout_tag_t src_tag;
     layout_tag_t wei_tag;
     layout_tag_t dst_tag;
+    spec_reqs_t spec_reqs;
     hw_t hw;
     fma_kind_t fma = fma_kind_t::undef;
     int simd = 0;

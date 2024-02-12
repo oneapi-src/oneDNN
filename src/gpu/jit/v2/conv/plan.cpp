@@ -505,8 +505,8 @@ private:
             int tg_tile = desc_.thread_group_tile.get(d, 1);
             int iter_tile = desc_.iter_tile.get(d, 1);
             auto thr_idx = thr_grid_.index_var(d);
-            coord_info_.add_dim(
-                    d, is_loop, is_global_loop, tg_tile, thr_idx, iter_tile);
+            coord_info_.add_dim(d, is_loop, is_global_loop, tg_tile, thr_idx,
+                    iter_tile, desc_.spec_reqs);
         }
     }
 
@@ -759,6 +759,7 @@ private:
 
 prb_reqs_t plan_t::reqs() const {
     prb_reqs_t ret;
+    ret.add(desc.spec_reqs.reqs());
     ret.add(prefetch.reqs());
     ret.add(x2r.reqs());
     ret.add(epilogue.c_store.reqs());

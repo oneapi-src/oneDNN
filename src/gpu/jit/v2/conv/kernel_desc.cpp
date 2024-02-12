@@ -334,6 +334,7 @@ std::string kernel_desc_t::str() const {
     oss << "Source tag:         " << src_tag << std::endl;
     oss << "Weights tag:        " << wei_tag << std::endl;
     oss << "Destination tag:    " << dst_tag << std::endl;
+    oss << "Specialization:     " << spec_reqs << std::endl;
     oss << "HW:                 " << ir_utils::to_lower(hw.str()) << std::endl;
     oss << "FMA kind:           " << to_string(fma) << std::endl;
     oss << "SIMD:               " << simd << std::endl;
@@ -444,6 +445,11 @@ ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
             MAKE_GETTER(desc->dst_tag.str()),
             MAKE_SETTER(
                     dst_tag, make_conv_layout_tag(tensor_kind_t::dst, value)));
+    iface.add_arg("--spec-reqs",
+            "Specialization requirements for problem dimensions (e.g. "
+            "kd1kw1kh1 for convolution without filter).",
+            MAKE_GETTER(desc->spec_reqs.str()),
+            MAKE_SETTER(spec_reqs, str_to_spec_reqs(value)));
     iface.add_arg("--hw", "Hardware (xehpc).",
             MAKE_GETTER(ir_utils::to_lower(jit::to_string(desc->hw.to_ngen()))),
             MAKE_SETTER(hw, str_to_hw(value)));
