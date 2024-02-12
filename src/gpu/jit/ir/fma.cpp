@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -170,10 +170,8 @@ bool mad_t::matches_types(
     if (a.is_f32() && c.is_f32()) return true;
     if (a.is_f16() && c.is_f16()) return true;
     if (a.is_f16() && c.is_f32()) return true;
-    if (hw >= ngen::HW::XeHP) {
-        if (a.is_bf16() && c.is_f32()) return true;
-        if (a.is_f32() && c.is_bf16()) return true;
-    }
+    if (a.is_bf16() && c.is_f32()) return true;
+    if (a.is_f32() && c.is_bf16()) return true;
     if (a.is_x8() && (c.is_x16() || c.is_x32())) return true;
     if ((a.is_x16() || a.is_x32()) && (c.is_x16() || c.is_x32())) return true;
 

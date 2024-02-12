@@ -305,6 +305,8 @@ public:
         ra_.setRegisterCount(regs_);
     }
 
+    const exec_config_t &exec_cfg() { return exec_cfg_; }
+
     void setup_interface(const stmt_t &kernel_body = stmt_t()) {
         externalName(kernel_name_);
         requireLocalID(3);
