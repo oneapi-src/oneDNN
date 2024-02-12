@@ -163,6 +163,8 @@ private:
             mapper.set_dim(prb_dims::ih);
             mapper.set_dim(prb_dims::iw);
         }
+        mapper.set_layout_desc(
+                make_conv_algo_layout_desc(prop_, tensor_kind_t::src));
         return mapper;
     }
 
@@ -174,6 +176,8 @@ private:
         mapper.set_dim(prb_dims::kd);
         mapper.set_dim(prb_dims::kh);
         mapper.set_dim(prb_dims::kw);
+        mapper.set_layout_desc(
+                make_conv_algo_layout_desc(prop_, tensor_kind_t::wei));
         return mapper;
     }
 
@@ -192,6 +196,8 @@ private:
             mapper.set_dim(prb_dims::oh, oh_bwd_d_idx - kh_bwd_d_idx);
             mapper.set_dim(prb_dims::ow, ow_bwd_d_idx - kw_bwd_d_idx);
         }
+        mapper.set_layout_desc(
+                make_conv_algo_layout_desc(prop_, tensor_kind_t::dst));
         return mapper;
     }
 

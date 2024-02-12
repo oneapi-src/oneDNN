@@ -172,6 +172,8 @@ inline loop_nest_t str_to_loop_nest(const std::string &s) {
 
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group = false);
+layout_desc_t make_conv_algo_layout_desc(
+        prop_kind_t prop, tensor_kind_t tensor_kind);
 layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, const std::string &s);
 layout_tag_t make_conv_layout_tag(

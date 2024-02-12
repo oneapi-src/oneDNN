@@ -43,17 +43,59 @@ layout_desc_t make_conv_layout_desc(
             case prb_dim_kind_t::ic: c = is_wei ? 'i' : 'c'; break;
             case prb_dim_kind_t::oc: c = is_wei ? 'o' : 'c'; break;
             case prb_dim_kind_t::id:
-            case prb_dim_kind_t::od:
-            case prb_dim_kind_t::kd: c = 'd'; break;
+            case prb_dim_kind_t::od: c = 'd'; break;
+            case prb_dim_kind_t::kd: c = is_wei ? 'd' : 'z'; break;
             case prb_dim_kind_t::ih:
-            case prb_dim_kind_t::oh:
-            case prb_dim_kind_t::kh: c = 'h'; break;
+            case prb_dim_kind_t::oh: c = 'h'; break;
+            case prb_dim_kind_t::kh: c = is_wei ? 'h' : 'y'; break;
             case prb_dim_kind_t::iw:
-            case prb_dim_kind_t::ow:
-            case prb_dim_kind_t::kw: c = 'w'; break;
+            case prb_dim_kind_t::ow: c = 'w'; break;
+            case prb_dim_kind_t::kw: c = is_wei ? 'w' : 'x'; break;
             default: ir_error_not_expected();
         }
         letter_map[d] = c;
+    }
+    return layout_desc_t(letter_map);
+}
+
+layout_desc_t make_conv_algo_layout_desc(
+        prop_kind_t prop, tensor_kind_t tensor_kind) {
+    auto desc = make_conv_layout_desc(tensor_kind, /*src_dst_with_group=*/true);
+    switch (tensor_kind) {
+        case tensor_kind_t::wei: return desc;
+        case tensor_kind_t::src:
+            if (prop == prop_kind::backward_data) return desc;
+            break;
+        case tensor_kind_t::dst:
+            if (prop != prop_kind::backward_data) return desc;
+            break;
+        default: ir_error_not_expected();
+    }
+    dim_map_t<prb_dim_t, char> letter_map;
+    bool is_src = (tensor_kind == tensor_kind_t::src);
+    prb_dim_t xd = (is_src ? prb_dims::od : prb_dims::id);
+    prb_dim_t xh = (is_src ? prb_dims::oh : prb_dims::ih);
+    prb_dim_t xw = (is_src ? prb_dims::ow : prb_dims::iw);
+    for (int i = 0; i < desc.ndims(); i++) {
+        auto d = desc.prb_dim(i);
+        switch (d.kind()) {
+            case prb_dim_kind_t::id:
+            case prb_dim_kind_t::od:
+                letter_map[xd] = 'd';
+                letter_map[prb_dims::kd] = 'z';
+                break;
+            case prb_dim_kind_t::ih:
+            case prb_dim_kind_t::oh:
+                letter_map[xh] = 'h';
+                letter_map[prb_dims::kh] = 'y';
+                break;
+            case prb_dim_kind_t::iw:
+            case prb_dim_kind_t::ow:
+                letter_map[xw] = 'w';
+                letter_map[prb_dims::kw] = 'x';
+                break;
+            default: letter_map[d] = desc.layout_letter(d); break;
+        }
     }
     return layout_desc_t(letter_map);
 }
