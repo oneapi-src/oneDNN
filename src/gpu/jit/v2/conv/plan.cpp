@@ -561,9 +561,9 @@ private:
 
 prb_reqs_t plan_t::reqs() const {
     prb_reqs_t ret;
-    ret.add(x2r.a_load.reqs());
-    ret.add(x2r.b_load.reqs());
+    ret.add(x2r.reqs());
     ret.add(epilogue.c_store.reqs());
+    ret.simplify();
     return ret;
 }
 

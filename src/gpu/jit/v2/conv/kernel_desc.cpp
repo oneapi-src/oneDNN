@@ -301,7 +301,6 @@ void kernel_desc_t::set_defaults() {
 void kernel_desc_t::finalize(const plan_t &plan) {
     is_finalized = true;
     reqs = plan.reqs();
-    reqs.simplify();
 }
 
 std::string kernel_desc_t::cmd_str() const {

@@ -179,6 +179,14 @@ struct x2r_plan_t : public base_plan_t {
         return ret;
     }
 
+    prb_reqs_t reqs() const {
+        prb_reqs_t ret;
+        ret.add(a_load.reqs());
+        ret.add(b_load.reqs());
+        ret.simplify();
+        return ret;
+    }
+
     std::string str() const {
         if (!*this) return "(empty)";
         std::ostringstream oss;
