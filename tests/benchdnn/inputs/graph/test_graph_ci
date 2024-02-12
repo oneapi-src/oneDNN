@@ -5,3 +5,4 @@
 --batch=pattern/harness_f16_ci
 --batch=pattern/harness_bf16_ci
 --batch=pattern/harness_int8_ci
+--batch=complex_fusion/harness_mha_ci
