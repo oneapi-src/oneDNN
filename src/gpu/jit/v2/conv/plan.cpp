@@ -405,10 +405,56 @@ private:
         plan.desc = desc_;
         plan.tg_grid = tg_grid_;
         plan.thr_grid = thr_grid_;
+        plan.virt_grid = virt_grid_;
         plan.coord_info = coord_info_;
         ir_check(init_x2r_plan(plan.x2r));
+        ir_check(init_prefetch_plan(plan.x2r, plan.virt_grid, plan.prefetch));
         ir_check(init_fma_plan(plan.x2r, plan.fma));
         ir_check(init_epilogue_plan(plan.fma, plan.epilogue));
+        return true;
+    }
+
+    bool init_x_prefetch_plan(tensor_kind_t abc,
+            const prb_coord_t<expr_t> &coord, const prb_tile_t &tile,
+            const x2r_plan_t &x2r, virt_grid_t &virt_grid,
+            send_plan_t &prefetch) const {
+        auto &mapper = dim_mapper_manager_.mapper(abc);
+        auto &layout = (abc == tensor_kind_t::a ? a_layout_ : b_layout_);
+        grid_splitter_t grid_splitter;
+        for (auto &d : thr_grid_.all_dims()) {
+            grid_splitter.add(
+                    thr_grid_.index_var(d), desc_.thread_group_tile[d]);
+        }
+        auto view = view_t::split(mapper, layout, coord, tile, grid_splitter);
+        for (auto &kv : grid_splitter.virt_grid_idxs()) {
+            virt_grid.add(kv.first, kv.second);
+        }
+        // Try 2D messages first.
+        auto params = get_send_params(
+                abc, send_op_t::prefetch, view, send_kind_t::_2d);
+        prefetch = create_send_plan(params, view, /*allow_fail=*/true);
+        if (!prefetch || !x2r.reqs().implies(prefetch.reqs())) {
+            // If 2D failed, try compressed prefetch.
+            params = get_send_params(abc, send_op_t::prefetch, view,
+                    send_kind_t::compressed_prefetch);
+            prefetch = create_send_plan(params, view, /*allow_fail=*/true);
+            if (!prefetch) return false;
+        }
+        return true;
+    }
+
+    bool init_prefetch_plan(const x2r_plan_t &x2r, virt_grid_t &virt_grid,
+            prefetch_plan_t &plan) const {
+        if (desc_.prefetch.a) {
+            ir_check(init_x_prefetch_plan(tensor_kind_t::a,
+                    coord_info_.tg_iter_coord(), coord_info_.tg_iter_tile(),
+                    x2r, virt_grid, plan.a_prefetch));
+        }
+        if (desc_.prefetch.b) {
+            ir_check(init_x_prefetch_plan(tensor_kind_t::b,
+                    coord_info_.tg_iter_coord(), coord_info_.tg_iter_tile(),
+                    x2r, virt_grid, plan.b_prefetch));
+        }
         return true;
     }
 
@@ -587,6 +633,7 @@ private:
     coord_info_t coord_info_;
     grid_t tg_grid_;
     grid_t thr_grid_;
+    virt_grid_t virt_grid_;
     layout_t a_layout_;
     layout_t b_layout_;
     layout_t c_layout_;
@@ -597,6 +644,7 @@ private:
 
 prb_reqs_t plan_t::reqs() const {
     prb_reqs_t ret;
+    ret.add(prefetch.reqs());
     ret.add(x2r.reqs());
     ret.add(epilogue.c_store.reqs());
     ret.simplify();

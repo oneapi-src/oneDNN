@@ -67,6 +67,26 @@ store_desc_t str_to_store_desc(const std::string &s) {
     return ret;
 }
 
+prefetch_desc_t str_to_prefetch_desc(const std::string &s) {
+    auto parts = gpu_utils::split(s, ".");
+    ir_assert(utils::one_of((int)parts.size(), 1, 2));
+    ir_assert(parts[0].size() >= 2);
+    int dist = std::stoi(parts[0].substr(1));
+    ir_assert(dist >= 0);
+    bool a = (dist > 0);
+    bool b = (dist > 0);
+    if (parts.size() == 2 && dist > 0) {
+        ir_assert(utils::one_of(parts[1], "a", "b", "ab"));
+        a = (parts[1].find("a") != std::string::npos);
+        b = (parts[1].find("b") != std::string::npos);
+    }
+    prefetch_desc_t ret;
+    ret.dist = dist;
+    ret.a = a;
+    ret.b = b;
+    return ret;
+}
+
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group) {
     bool is_wei = (tensor_kind == tensor_kind_t::wei);
@@ -322,6 +342,7 @@ std::string kernel_desc_t::str() const {
     oss << "Thread group tile:  " << thread_group_tile << std::endl;
     oss << "Loop nest:          " << loop_nest << std::endl;
     oss << "Load:               " << load.str() << std::endl;
+    oss << "Prefetch:           " << prefetch.str() << std::endl;
     oss << "Store:              " << store.str() << std::endl;
     if (reqs) oss << ir_utils::add_tag("Reqs", reqs.str()) << std::endl;
     oss << "Command:            " << cmd_str();
@@ -454,6 +475,13 @@ ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
             "Store type (block, scattered [default], 2d) for C,  e.g. c:2d.",
             MAKE_GETTER(desc->store.str()),
             MAKE_SETTER(store, str_to_store_desc(value)));
+    iface.add_arg("--prefetch",
+            "Prefetch description specifying distance and whether A/B are "
+            "prefetched. Examples: x3 (distance is 3, both A/B are "
+            "prefetched), x2.a (distance is 2, only A is prefetched), x0 (no "
+            "prefetch, default).",
+            MAKE_GETTER(desc->prefetch.str()),
+            MAKE_SETTER(prefetch, str_to_prefetch_desc(value)));
     return iface;
 #undef MAKE_SETTER
 #undef MAKE_GETTER

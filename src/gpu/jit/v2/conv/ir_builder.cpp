@@ -38,8 +38,8 @@ public:
     friend class let_ctx_mutator_t;
 
     let_ctx_t(const kernel_info_t &kernel_info, const grid_context_t &grid_ctx,
-            const grid_t &tg_grid, const grid_t &thr_grid, int simd,
-            ir_context_t &ir_ctx)
+            const grid_t &tg_grid, const grid_t &thr_grid,
+            const virt_grid_t &virt_grid, int simd, ir_context_t &ir_ctx)
         : kernel_info_(kernel_info), ir_ctx_(ir_ctx) {
         // Handle thread indices.
         for (int i = 0; i < grid_ctx.ndims(); i++) {
@@ -53,6 +53,10 @@ public:
         for (int i = 0; i < grid_ctx.ndims(); i++) {
             auto tg_idx = tg_grid.index_var(i);
             expr_map_.emplace(tg_idx, grid_ctx.tg_idx(i));
+        }
+        // Handle virtual grid indices.
+        for (auto &kv : virt_grid.idxs()) {
+            expr_map_.emplace(kv.first, get(kv.second));
         }
     }
 
@@ -80,16 +84,21 @@ private:
     }
 
     expr_t register_expr(const expr_t &key, const expr_t &value) {
-        if (auto *cached = find(key)) return *cached;
-        if (is_const(key) || is_var(key)) return key;
-        if (key.is<const_var_t>()) {
-            expr_map_.emplace(key, value);
+        if (is_const(key) || key.is<const_var_t>() || key.is<var_t>())
+            return value;
+        if (auto *cached = find(key)) {
+            ir_assert(value.is_same(*cached));
             return value;
         }
         auto tmp_var = ir_ctx_.create_tmp_var(type_t::s32());
         let_stmts_.push_back(let_t::make(tmp_var, value));
         expr_map_.emplace(key, tmp_var);
         return tmp_var;
+    }
+
+    expr_t get_var(const var_t &var) {
+        if (auto *cached = find(var)) return *cached;
+        return var;
     }
 
     expr_t get_const_var(const const_var_t &var) {
@@ -124,11 +133,14 @@ public:
         return mutate(obj.to_expr());
     }
 
+    object_t _mutate(const var_t &obj) override { return ctx_.get_var(obj); }
+
 private:
     let_ctx_t &ctx_;
 };
 
 expr_t let_ctx_t::get(const expr_t &expr) {
+    if (auto *cached = find(expr)) return *cached;
     let_ctx_mutator_t mutator(*this);
     auto ret = mutator.mutate(expr);
     return register_expr(expr, ret);
@@ -402,12 +414,11 @@ public:
         return ret;
     }
 
-    stmt_t init_stmt(const stmt_t &body) const {
+    stmt_t init_stmt() const {
         stmt_t ret;
         for (auto &o : offsets_) {
             ret = ret.append(o.init_stmt());
         }
-        ret = ret.append(body);
         return ret;
     }
 
@@ -522,6 +533,94 @@ private:
     std::vector<offset_t> offsets_;
 };
 
+class iterator_t {
+public:
+    iterator_t() = default;
+
+    iterator_t(buffer_manager_t &buf_mgr) : buf_mgr_(&buf_mgr) {
+        linear_loop_ = loop_t(loop_nest_entry_t(), 0, buf_mgr);
+    }
+
+    int nloops() const { return (int)loops_.size(); }
+
+    void add_loop(const loop_nest_entry_t &e, const expr_t &bound) {
+        if (is_one(bound)) return;
+        loops_.emplace_back(e, bound, *buf_mgr_);
+    }
+
+    stmt_t init_stmt() const {
+        stmt_t ret;
+        for (auto &l : loops_) {
+            ret = ret.append(l.store_stmt(0));
+        }
+        ret = linear_loop_.store_stmt(linear_bound() - 1).append(ret);
+        return ret;
+    }
+
+    expr_t linear_loop_var() const { return linear_loop_.var(); }
+
+    stmt_t check_bounds_stmt(const stmt_t &body) const {
+        return if_t::make(linear_loop_.var() >= 0, body);
+    }
+
+    stmt_t inc_stmt(const offset_ctx_t &off_ctx) const {
+        stmt_t body;
+        for (int i = nloops() - 1; i >= 0; i--) {
+            auto &l = loops_[i];
+            auto *l_prev = (i - 1 >= 0) ? &loops_[i - 1] : nullptr;
+            auto *l_next = (i + 1 < nloops()) ? &loops_[i + 1] : nullptr;
+            stmt_t stmt;
+            if (l_prev) stmt = stmt.append(l_prev->store_stmt(0));
+            stmt = stmt.append(l.inc_stmt());
+            stmt = stmt.append(off_ctx.inc_loop_stmt(l.entry));
+            if (l_next)
+                stmt = stmt.append(if_t::make(l.var() >= l.bound, body));
+            body = stmt;
+        }
+        body = linear_loop_.inc_stmt(-1).append(body);
+        return body;
+    }
+
+private:
+    struct loop_t {
+        loop_nest_entry_t entry;
+        expr_t bound;
+        expr_t var_buf;
+
+        loop_t() = default;
+        loop_t(const loop_nest_entry_t &entry, const expr_t &bound,
+                buffer_manager_t &buf_mgr)
+            : entry(entry), bound(bound) {
+            auto buf_name = buf_mgr.ir_ctx().create_tmp_name("i");
+            var_buf = buf_mgr.get(buf_name, sizeof(int32_t));
+        }
+
+        stmt_t store_stmt(const expr_t &value) const {
+            return store_t::make(var_buf, 0, value);
+        }
+
+        stmt_t inc_stmt(int inc = 1) const { return store_stmt(var() + inc); }
+
+        expr_t var() const { return load_t::make(type_t::s32(), var_buf, 0); }
+    };
+
+    expr_t linear_bound() const {
+        expr_t ret;
+        for (auto &l : loops_) {
+            if (ret.is_empty()) {
+                ret = l.bound;
+            } else {
+                ret *= l.bound;
+            }
+        }
+        return ret;
+    }
+
+    buffer_manager_t *buf_mgr_ = nullptr;
+    std::vector<loop_t> loops_;
+    loop_t linear_loop_;
+};
+
 type_t to_send_type(const send_1d_desc_t &desc) {
     if (desc.type_size <= 8) return type_t::u(desc.type_size * 8);
     return type_t::oword(desc.type_size / 16);
@@ -560,8 +659,10 @@ stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
         auto header
                 = off_ctx.add_header(plan.desc, mem_buf, plan.addr, e.addr_inc);
         auto mask = off_ctx.add_mask(plan.mask, e.mask_incs);
-        auto call_reg_buf = reg_buf
-                + payload_layout.offset_in_bytes(payload_coord + sub_coord);
+        auto call_reg_buf = reg_buf;
+        if (!reg_buf.is_empty())
+            call_reg_buf += payload_layout.offset_in_bytes(
+                    payload_coord + sub_coord);
         auto call
                 = send(mem_buf, header.to_expr(), call_reg_buf, mask.to_expr());
         ret = ret.append(header.local_init());
@@ -589,8 +690,10 @@ stmt_t create_stmt(const send_2d_plan_t &plan, const expr_t &mem_buf,
         auto header = off_ctx.add_header(plan.desc, mem_buf, plan.base,
                 plan.x_base, plan.y_base, e.x_inc, e.y_inc);
         auto mask = off_ctx.add_mask(plan.mask);
-        auto call_reg_buf = reg_buf
-                + payload_layout.offset_in_bytes(payload_coord + sub_coord);
+        auto call_reg_buf = reg_buf;
+        if (!reg_buf.is_empty())
+            call_reg_buf += payload_layout.offset_in_bytes(
+                    payload_coord + sub_coord);
         auto call
                 = send(mem_buf, header.to_expr(), call_reg_buf, mask.to_expr());
         ret = ret.append(header.local_init());
@@ -631,41 +734,71 @@ public:
         , ir_ctx_(desc.exec_cfg(), cset_)
         , buf_mgr_(ir_ctx_)
         , let_ctx_(kernel_info, grid_ctx, plan.tg_grid, plan.thr_grid,
-                  desc.simd, ir_ctx_)
-        , off_ctx_(let_ctx_, buf_mgr_, desc_.loop_nest, plan_.coord_info) {}
+                  plan.virt_grid, desc.simd, ir_ctx_)
+        , off_ctx_(let_ctx_, buf_mgr_, desc_.loop_nest, plan_.coord_info)
+        , prefetch_off_ctx_(
+                  let_ctx_, buf_mgr_, desc_.loop_nest, plan_.coord_info) {}
 
     stmt_t build() {
+        build_prefetch();
         build_x2r_mul();
         build_c_store();
 
         stmt_t stmt;
         stmt = loop();
         stmt = inject_compute_alloc(stmt);
-        stmt = init_stmt(stmt);
+        stmt = init_stmt().append(stmt);
         stmt = zero_out_stmt().append(stmt);
         stmt = stmt.append(c_store_stmt_);
         stmt = inject_alloc_and_let(stmt);
         stmt = simplify(stmt, ir_ctx_);
         stmt = optimize_alloc_let(stmt, ir_ctx_);
         stmt = split_wide_stores(stmt, ir_ctx_);
+        stmt = fixup_if_conditions(stmt, ir_ctx_);
         stmt = eliminate_common_subexprs(stmt, ir_ctx_, 16, 0);
         stmt = inject_bank_conflict_attribute(stmt, ir_ctx_);
         return stmt;
     }
 
 private:
-    stmt_t iter_stmt() const { return x2r_mul_stmt_; }
-
     stmt_t loop() const {
         auto &loop_nest = desc_.loop_nest;
         auto &coord_info = plan_.coord_info;
-        stmt_t ret = iter_stmt();
+        int prefetch_dist = desc_.prefetch.dist;
+        stmt_t init_stmt;
+        iterator_t prefetch_it;
+        if (prefetch_dist > 0) {
+            prefetch_it = iterator_t(buf_mgr_);
+            for (auto &e : loop_nest) {
+                auto bound = let_ctx_.get(coord_info.loop_size(e.dim));
+                prefetch_it.add_loop(e, bound);
+            }
+            init_stmt = init_stmt.append(prefetch_it.init_stmt());
+            for (int i = 0; i < prefetch_dist; i++) {
+                auto i_prefetch_stmt = prefetch_stmt_;
+                if (i > 0)
+                    i_prefetch_stmt
+                            = prefetch_it.check_bounds_stmt(i_prefetch_stmt);
+                init_stmt = init_stmt.append(i_prefetch_stmt);
+                init_stmt = init_stmt.append(
+                        prefetch_it.inc_stmt(prefetch_off_ctx_));
+            }
+        }
+        stmt_t ret;
+        if (prefetch_dist > 0) {
+            ret = ret.append(prefetch_it.check_bounds_stmt(prefetch_stmt_));
+        }
+        ret = ret.append(x2r_mul_stmt_);
+        if (prefetch_dist > 0) {
+            ret = ret.append(prefetch_it.inc_stmt(prefetch_off_ctx_));
+        }
         for (auto &e : loop_nest) {
             auto var = let_ctx_.get(coord_info.loop_index(e.dim));
             auto bound = let_ctx_.get(coord_info.loop_size(e.dim));
             ret = ret.append(off_ctx_.inc_loop_stmt(e));
             ret = for_t::make(var, 0, bound, ret);
         }
+        ret = init_stmt.append(ret);
         return ret;
     }
 
@@ -676,8 +809,11 @@ private:
         return ret;
     }
 
-    stmt_t init_stmt(const stmt_t &stmt) const {
-        return off_ctx_.init_stmt(stmt);
+    stmt_t init_stmt() const {
+        stmt_t ret;
+        ret = ret.append(off_ctx_.init_stmt());
+        ret = ret.append(prefetch_off_ctx_.init_stmt());
+        return ret;
     }
 
     stmt_t inject_alloc_and_let(const stmt_t &stmt) const {
@@ -764,6 +900,20 @@ private:
         auto magic = kernel_info_.find_arg(dim.str() + "_magic");
         value = ternary_op_t::make(op_kind_t::_imod, value, dim_size, magic);
         return value;
+    }
+
+    void build_prefetch() {
+        auto &prefetch = plan_.prefetch;
+        if (prefetch.a_prefetch) {
+            auto a_prefetch = create_stmt(prefetch.a_prefetch, a_mem_buf(),
+                    expr_t(), prefetch_off_ctx_);
+            prefetch_stmt_ = prefetch_stmt_.append(a_prefetch);
+        }
+        if (prefetch.b_prefetch) {
+            auto b_prefetch = create_stmt(prefetch.b_prefetch, b_mem_buf(),
+                    expr_t(), prefetch_off_ctx_);
+            prefetch_stmt_ = prefetch_stmt_.append(b_prefetch);
+        }
     }
 
     void build_x2r() {
@@ -900,7 +1050,9 @@ private:
     mutable buffer_manager_t buf_mgr_;
     mutable let_ctx_t let_ctx_;
     mutable offset_ctx_t off_ctx_;
+    mutable offset_ctx_t prefetch_off_ctx_;
 
+    stmt_t prefetch_stmt_;
     stmt_t x2r_mul_stmt_;
     stmt_t c_store_stmt_;
 };

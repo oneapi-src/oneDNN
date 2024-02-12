@@ -142,6 +142,19 @@ private:
     dim_map_t<prb_dim_t, entry_t> entries_;
 };
 
+class virt_grid_t {
+public:
+    void add(const expr_t &var, const expr_t &expr) {
+        auto ret = idxs_.emplace(var, expr);
+        ir_assert(ret.second);
+    }
+
+    const object_map_t<expr_t, expr_t> &idxs() const { return idxs_; }
+
+private:
+    object_map_t<expr_t, expr_t> idxs_;
+};
+
 struct reorder_plan_t : public base_plan_t {
     layout_t src;
     layout_t dst;
@@ -153,6 +166,38 @@ struct reorder_plan_t : public base_plan_t {
         std::ostringstream oss;
         oss << "src_layout: " << src.str() << std::endl;
         oss << "dst_layout: " << dst.str();
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
+};
+
+struct prefetch_plan_t : public base_plan_t {
+    send_plan_t a_prefetch;
+    send_plan_t b_prefetch;
+
+    using base_plan_t::base_plan_t;
+
+    int grf_usage_bytes() const {
+        int ret = 0;
+        ret += a_prefetch.grf_usage_bytes();
+        ret += b_prefetch.grf_usage_bytes();
+        return ret;
+    }
+
+    prb_reqs_t reqs() const {
+        prb_reqs_t ret;
+        ret.add(a_prefetch.reqs());
+        ret.add(b_prefetch.reqs());
+        ret.simplify();
+        return ret;
+    }
+
+    std::string str() const {
+        if (!*this) return "(empty)";
+        std::ostringstream oss;
+        oss << ir_utils::add_tag("a_prefetch", a_prefetch.str()) << std::endl;
+        oss << ir_utils::add_tag("b_prefetch", b_prefetch.str());
         return oss.str();
     }
 
@@ -252,13 +297,15 @@ struct plan_t : public base_plan_t {
     coord_info_t coord_info;
     grid_t tg_grid;
     grid_t thr_grid;
+    virt_grid_t virt_grid;
 
+    prefetch_plan_t prefetch;
     x2r_plan_t x2r;
     fma_plan_t fma;
     epilogue_plan_t epilogue;
 
     plan_t(const hw_t &hw = hw_t())
-        : base_plan_t(hw), x2r(hw), fma(hw), epilogue(hw) {}
+        : base_plan_t(hw), prefetch(hw), x2r(hw), fma(hw), epilogue(hw) {}
 
     int grf_usage_bytes() const {
         int ret = 0;
@@ -273,6 +320,7 @@ struct plan_t : public base_plan_t {
     std::string str() const {
         if (!*this) return "(empty)";
         std::ostringstream oss;
+        oss << ir_utils::add_tag("prefetch", prefetch.str()) << std::endl;
         oss << ir_utils::add_tag("x2r", x2r.str()) << std::endl;
         oss << ir_utils::add_tag("fma", fma.str()) << std::endl;
         oss << ir_utils::add_tag("epilogue", epilogue.str());
