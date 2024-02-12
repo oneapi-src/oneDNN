@@ -278,6 +278,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool src_df = (src_type == ngen::DataType::df);
     bool src_xf = src_bf || src_f || src_hf || src_df;
     bool f_to_xf = (src_f && (dst_bf || dst_hf));
+    bool native_bf16 = host->exec_cfg().hw().systolic_support();
     op_plan_t plan = grf_size;
     ngen_register_scope_t lex_scope {scope.register_allocator()};
 
@@ -317,6 +318,16 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     using reg_data_t = ngen::RegData;
     auto shl16 = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
         host->eshl(mod, dst, src, 16);
+    };
+    auto cvt_f32_to_bf16 = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
+        auto exec_size = mod.getExecSize();
+        host->add(mod, src, src, -0x8000);
+        host->and_(mod | host->nz | host->f0, host->null.ud(), src, 0x1FFFF);
+        src.setType(ngen::DataType::uw);
+        src.setOffset(src.getOffset() * 2 + 1);
+        src.setRegion(exec_size * 2, exec_size, 2);
+        host->emov(mod, dst, src);
+        host->add(mod | host->f0, dst, dst, 1);
     };
     auto mov = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
         host->emov(mod, dst, src);
@@ -838,7 +849,6 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             }
             bool do_d0_align = false;
             if (esize > 1 && dst_bf) {
-                ir_assert(hw != ngen::HW::Gen9); // not gonna happen on Gen9
                 bool d_0_aligned = (d.byte_offset() == 0);
                 bool d_half_grf_aligned = (d.byte_offset() == grf_size / 2);
                 if (!d_0_aligned && (!d_half_grf_aligned || dst_stride != 1)) {
@@ -879,7 +889,13 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 plan(mov, esize, td, s);
                 s = std::move(td);
             }
-            plan(mov, esize, d, s);
+
+            if (dst_bf && !native_bf16) {
+                auto s_int = s.reinterpret(ngen::DataType::d);
+                auto d_int = d.reinterpret(ngen::DataType::uw);
+                plan(cvt_f32_to_bf16, esize, d_int, s_int);
+            } else
+                plan(mov, esize, d, s);
 
             if (do_d0_align) {
                 auto i_type = to_ngen(type_t::u(ngen::getBytes(dst_type) * 8));
