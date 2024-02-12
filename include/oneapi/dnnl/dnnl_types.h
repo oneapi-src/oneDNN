@@ -2837,15 +2837,18 @@ typedef enum {
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support
     /// for Intel Xeon Scalable processor family
     /// and Intel Core processor family.
-    dnnl_cpu_isa_avx512_core_fp16 = 0x1ef,
+    dnnl_cpu_isa_avx10_1_512 = 0x1ef,
+    dnnl_cpu_isa_avx512_core_fp16 = dnnl_cpu_isa_avx10_1_512,
 
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer and bfloat16 support
-    dnnl_cpu_isa_avx512_core_amx = 0xfef,
+    dnnl_cpu_isa_avx10_1_512_amx = 0xfef,
+    dnnl_cpu_isa_avx512_core_amx = dnnl_cpu_isa_avx10_1_512_amx,
 
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer, bfloat16 and float16 support
-    dnnl_cpu_isa_avx512_core_amx_fp16 = 0x1fef,
+    dnnl_cpu_isa_avx10_1_512_amx_fp16 = 0x1fef,
+    dnnl_cpu_isa_avx512_core_amx_fp16 = dnnl_cpu_isa_avx10_1_512_amx_fp16,
 } dnnl_cpu_isa_t;
 
 /// CPU ISA hints flags

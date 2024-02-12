@@ -114,9 +114,12 @@ enum cpu_isa_t : unsigned {
     amx_int8 = amx_int8_bit | amx_tile,
     amx_bf16 = amx_bf16_bit | amx_tile,
     amx_fp16 = amx_fp16_bit | amx_tile,
-    avx512_core_fp16 = avx512_core_fp16_bit | avx512_core_bf16 | avx_vnni_bit,
-    avx512_core_amx = avx512_core_fp16 | amx_int8 | amx_bf16,
-    avx512_core_amx_fp16 = avx512_core_amx | amx_fp16,
+    avx10_1_512 = avx512_core_fp16_bit | avx512_core_bf16 | avx_vnni_bit,
+    avx512_core_fp16 = avx10_1_512,
+    avx10_1_512_amx = avx10_1_512 | amx_int8 | amx_bf16,
+    avx512_core_amx = avx10_1_512_amx,
+    avx10_1_512_amx_fp16 = avx10_1_512_amx | amx_fp16,
+    avx512_core_amx_fp16 = avx10_1_512_amx_fp16,
     // NOTES: 1. isa_all by default has no isa specific hints
     isa_all = ~0u & ~cpu_isa_hints_utils::hints_mask,
 };
@@ -279,26 +282,25 @@ struct cpu_isa_traits<avx512_core_bf16> : public cpu_isa_traits<avx512_core> {
 };
 
 template <>
-struct cpu_isa_traits<avx512_core_amx> {
+struct cpu_isa_traits<avx10_1_512_amx> {
     typedef Xbyak::Zmm Vmm;
     static constexpr dnnl_cpu_isa_t user_option_val
-            = dnnl_cpu_isa_avx512_core_amx;
-    static constexpr const char *user_option_env = "avx512_core_amx";
+            = dnnl_cpu_isa_avx10_1_512_amx;
+    static constexpr const char *user_option_env = "avx10_1_512_amx";
 };
 
 template <>
-struct cpu_isa_traits<avx512_core_fp16> : public cpu_isa_traits<avx512_core> {
-    static constexpr dnnl_cpu_isa_t user_option_val
-            = dnnl_cpu_isa_avx512_core_fp16;
-    static constexpr const char *user_option_env = "avx512_core_fp16";
+struct cpu_isa_traits<avx10_1_512> : public cpu_isa_traits<avx512_core> {
+    static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx10_1_512;
+    static constexpr const char *user_option_env = "avx10_1_512";
 };
 
 template <>
-struct cpu_isa_traits<avx512_core_amx_fp16> {
+struct cpu_isa_traits<avx10_1_512_amx_fp16> {
     typedef Xbyak::Zmm Vmm;
     static constexpr dnnl_cpu_isa_t user_option_val
-            = dnnl_cpu_isa_avx512_core_amx_fp16;
-    static constexpr const char *user_option_env = "avx512_core_amx_fp16";
+            = dnnl_cpu_isa_avx10_1_512_amx_fp16;
+    static constexpr const char *user_option_env = "avx10_1_512_amx_fp16";
 };
 
 inline const Xbyak::util::Cpu &cpu() {
@@ -427,9 +429,9 @@ static inline int isa_num_vregs(cpu_isa_t isa) {
     (isa) == avx512_core ? prefix STRINGIFY(avx512_core) : \
     (isa) == avx512_core_vnni ? prefix STRINGIFY(avx512_core_vnni) : \
     (isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
-    (isa) == avx512_core_fp16 ? prefix STRINGIFY(avx512_core_fp16) : \
-    (isa) == avx512_core_amx ? prefix STRINGIFY(avx512_core_amx) : \
-    (isa) == avx512_core_amx_fp16 ? prefix STRINGIFY(avx512_core_amx_fp16) : \
+    (isa) == avx10_1_512 ? prefix STRINGIFY(avx10_1_512) : \
+    (isa) == avx10_1_512_amx ? prefix STRINGIFY(avx10_1_512_amx) : \
+    (isa) == avx10_1_512_amx_fp16 ? prefix STRINGIFY(avx10_1_512_amx_fp16) : \
     prefix suffix_if_any)
 /* clang-format on */
 

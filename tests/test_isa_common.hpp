@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -122,8 +122,10 @@ inline const std::set<cpu_isa> &compatible_cpu_isa(cpu_isa input_isa) {
     // the correctness of cpu_isa_traits routines
     static const std::map<cpu_isa, const std::set<cpu_isa>> isa_cmpt_info {
             {cpu_isa::isa_default,
-                    {cpu_isa::isa_default, cpu_isa::avx512_core_amx_fp16,
-                            cpu_isa::avx512_core_amx, cpu_isa::avx512_core_fp16,
+                    {cpu_isa::isa_default, cpu_isa::avx10_1_512_amx_fp16,
+                            cpu_isa::avx512_core_amx_fp16,
+                            cpu_isa::avx512_core_amx, cpu_isa::avx10_1_512_amx,
+                            cpu_isa::avx512_core_fp16, cpu_isa::avx10_1_512,
                             cpu_isa::avx512_core_bf16,
                             cpu_isa::avx512_core_vnni, cpu_isa::avx512_core,
                             cpu_isa::avx2_vnni_2, cpu_isa::avx2_vnni,
