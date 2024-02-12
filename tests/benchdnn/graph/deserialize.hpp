@@ -123,7 +123,9 @@ struct deserialized_graph {
     // Returns an op based on its ID.
     const deserialized_op &get_op(size_t id) const;
     // Returns an op based on its output logical tensor ID.
-    const deserialized_op &get_op_by_out_lt(size_t id) const;
+    const deserialized_op &get_op_by_out_lt(size_t out_lt_id) const;
+    // Returns an op based on its input logical tensor ID.
+    const deserialized_op &get_op_by_in_lt(size_t in_lt_id) const;
 
     // Outputs the information about graph from operator<< into a string.
     std::string get_string() const;
