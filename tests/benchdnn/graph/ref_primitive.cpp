@@ -317,4 +317,17 @@ int ref_primitive_t::displace_scales() const {
     return OK;
 }
 
+dnnl_data_type_t ref_primitive_t::get_lt_dt(size_t id) const {
+    for (size_t i = 0; i < op_.in_lts_.size(); i++) {
+        if (op_.in_lts_[i].id_ == id)
+            return str2dt(op_.in_lts_[i].data_type_.c_str());
+    }
+    for (size_t i = 0; i < op_.out_lts_.size(); i++) {
+        if (op_.out_lts_[i].id_ == id)
+            return str2dt(op_.out_lts_[i].data_type_.c_str());
+    }
+    assert(!"id not found");
+    return dnnl_data_type_undef;
+}
+
 } // namespace graph

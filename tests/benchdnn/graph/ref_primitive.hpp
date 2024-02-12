@@ -93,6 +93,7 @@ public:
     ::dnnl::graph::op::kind get_kind() const { return kind_; }
     // Displaces scale values in a memory object with scale values from `op`.
     int displace_scales() const;
+    dnnl_data_type_t get_lt_dt(size_t id) const;
 
 private:
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(ref_primitive_t);
