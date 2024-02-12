@@ -22,6 +22,7 @@
 #include "gpu/jit/ir/kernel_info.hpp"
 #include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/ir/reorder.hpp"
+#include "gpu/jit/pass/dpas_atomic.hpp"
 #include "gpu/jit/pass/pass.hpp"
 #include "gpu/jit/v2/conv/bridge.hpp"
 #include "gpu/jit/v2/conv/plan.hpp"
@@ -935,6 +936,11 @@ private:
         auto b_buf = buf_mgr_.get("b");
         auto c_buf = buf_mgr_.get("c", c_layout.size());
 
+        for (auto &d : a_layout.dims())
+            ir_assert(fma.inst_tile.has(d)) << d;
+        for (auto &d : b_layout.dims())
+            ir_assert(fma.inst_tile.has(d)) << d;
+
         // BMNK order.
         prb_dim_t dims[4];
         int blocks[4] = {1, 1, 1, 1};
@@ -960,10 +966,22 @@ private:
         prb_coord_t<int> off(0);
         bool is_a_bcast = (blocks[0] * blocks[1] * blocks[3] == 1);
         bool is_b_bcast = (blocks[0] * blocks[2] * blocks[3] == 1);
-        int a_stride = is_a_bcast ? 0 : a_layout.inner_stride();
-        int b_stride = is_b_bcast ? 0 : b_layout.inner_stride();
-        auto mad = mad_t::make(plan_.hw, c_layout.type(), fma.simd,
-                a_layout.type(), a_stride, b_layout.type(), b_stride);
+        func_t fma_func;
+        switch (fma.fma) {
+            case fma_kind_t::mad: {
+                int a_stride = is_a_bcast ? 0 : a_layout.inner_stride();
+                int b_stride = is_b_bcast ? 0 : b_layout.inner_stride();
+                fma_func = mad_t::make(plan_.hw, c_layout.type(), fma.simd,
+                        a_layout.type(), a_stride, b_layout.type(), b_stride);
+                break;
+            }
+            case fma_kind_t::dpas: {
+                fma_func = dpas_t::make(/*is_dpasw=*/false, fma.simd, 8, 8,
+                        c_layout.type(), b_layout.type(), a_layout.type());
+                break;
+            }
+            default: ir_error_not_expected();
+        }
         for (int b = 0; b < sizes[i0]; b += blocks[i0]) {
             off[dims[i0]] = b;
             for (int k = 0; k < sizes[i1]; k += blocks[i1]) {
@@ -975,12 +993,17 @@ private:
                         int a_off = a_layout.offset_in_bytes(off);
                         int b_off = b_layout.offset_in_bytes(off);
                         int c_off = c_layout.offset_in_bytes(off);
-                        stmt = stmt.append(mad.call({c_buf[c_off], c_buf[c_off],
-                                a_buf[a_off], b_buf[b_off]}));
+                        auto dst = c_buf[c_off];
+                        auto src1 = a_buf[a_off];
+                        auto src2 = b_buf[b_off];
+                        if (fma.fma == fma_kind_t::dpas) std::swap(src1, src2);
+                        stmt = stmt.append(
+                                fma_func.call({dst, dst, src1, src2}));
                     }
                 }
             }
         }
+        stmt = inject_atomic(stmt);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(stmt);
     }
 
