@@ -66,6 +66,7 @@ using namespace dnnl::impl::cpu::x64;
 using namespace dnnl::impl::cpu::aarch64;
 #endif
 #if DNNL_USE_ACL
+#include "cpu/acl/acl_dw_convolution.hpp"
 #include "cpu/acl/acl_gemm_convolution.hpp"
 #include "cpu/acl/acl_indirect_gemm_convolution.hpp"
 #include "cpu/acl/acl_depthwise_convolution.hpp"
@@ -113,6 +114,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AVX2(jit_avx2_convolution_fwd_t)
             CPU_INSTANCE_SSE41(jit_sse41_convolution_fwd_t)
             CPU_INSTANCE_ACL(acl_wino_convolution_fwd_t)
+            CPU_INSTANCE_ACL(acl_dw_convolution_fwd_t, f32)
             CPU_INSTANCE_AARCH64(jit_sve_512_dw_convolution_fwd_t)
             CPU_INSTANCE_AARCH64(jit_sve_512_1x1_convolution_fwd_f32_t)
             CPU_INSTANCE_AARCH64(jit_sve_512_convolution_fwd_t, f32)
