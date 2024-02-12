@@ -161,6 +161,16 @@ struct reorder_plan_t : public base_plan_t {
 
     using base_plan_t::base_plan_t;
 
+    reorder_plan_t() = default;
+    reorder_plan_t(const hw_t &hw, const layout_t &src, const layout_t &dst)
+        : base_plan_t(hw), src(src), dst(dst) {}
+
+    int grf_usage_bytes() const {
+        int ret = 0;
+        ret += utils::rnd_up(dst.size(), grf_size());
+        return ret;
+    }
+
     std::string str() const {
         if (!*this) return "(empty)";
         std::ostringstream oss;
@@ -207,6 +217,8 @@ struct prefetch_plan_t : public base_plan_t {
 struct x2r_plan_t : public base_plan_t {
     send_plan_t a_load;
     send_plan_t b_load;
+    reorder_plan_t a_reorder;
+    reorder_plan_t b_reorder;
     layout_t a_layout;
     layout_t b_layout;
 
@@ -233,7 +245,11 @@ struct x2r_plan_t : public base_plan_t {
         oss << "a_layout: " << a_layout.str() << std::endl;
         oss << "b_layout: " << b_layout.str() << std::endl;
         oss << ir_utils::add_tag("a_load", a_load.str()) << std::endl;
-        oss << ir_utils::add_tag("b_load", b_load.str());
+        oss << ir_utils::add_tag("b_load", b_load.str()) << std::endl;
+        if (a_reorder)
+            oss << ir_utils::add_tag("a_reorder", a_reorder.str()) << std::endl;
+        if (b_reorder)
+            oss << ir_utils::add_tag("b_reorder", b_reorder.str()) << std::endl;
         return oss.str();
     }
 

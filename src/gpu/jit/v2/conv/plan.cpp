@@ -622,26 +622,27 @@ private:
     }
 
     bool init_x_g2r_plan(tensor_kind_t abc, const view_t &view,
-            layout_t &reg_layout, send_plan_t &load) const {
+            reorder_plan_t &reorder, layout_t &reg_layout,
+            send_plan_t &load) const {
         auto params = get_send_params(abc, send_op_t::load, view);
         load = create_send_plan(params, view, /*allow_fail=*/true);
         ir_check(load) << "init_x_x2r_plan: cannot create send plan";
-        bool ok = mul_info_.is_compatible(abc, load.reg_layout());
-        if (params.hint_2d && !ok) {
-            params.downgrade_to_1d();
-            load = create_send_plan(params, view);
-            ok = mul_info_.is_compatible(abc, load.reg_layout());
+        if (mul_info_.is_compatible(abc, load.reg_layout())) {
+            reg_layout = load.reg_layout();
+        } else {
+            auto src = load.reg_layout();
+            auto dst = mul_info_.to_compatible_layout(abc, load.reg_layout());
+            reorder = reorder_plan_t(desc_.hw, src, dst);
+            reg_layout = reorder.dst;
         }
-        ir_check(ok) << "init_x_x2r_plan: incompatible layout";
-        reg_layout = load.reg_layout();
         return true;
     }
 
     bool init_x2r_plan(x2r_plan_t &plan) const {
-        ir_check(init_x_g2r_plan(
-                tensor_kind_t::a, a_iter_view_, plan.a_layout, plan.a_load));
-        ir_check(init_x_g2r_plan(
-                tensor_kind_t::b, b_iter_view_, plan.b_layout, plan.b_load));
+        ir_check(init_x_g2r_plan(tensor_kind_t::a, a_iter_view_, plan.a_reorder,
+                plan.a_layout, plan.a_load));
+        ir_check(init_x_g2r_plan(tensor_kind_t::b, b_iter_view_, plan.b_reorder,
+                plan.b_layout, plan.b_load));
         return true;
     }
 

@@ -633,6 +633,7 @@ int get_reg_off(const send_1d_plan_t &plan, const prb_coord_t<int> &coord) {
 
 stmt_t create_stmt(const reorder_plan_t &plan, const expr_t &src_buf,
         const expr_t &dst_buf) {
+    if (!plan) return stmt_t();
     return create_reorder_stmt(
             to_ir(plan.src), to_ir(plan.dst), src_buf, dst_buf);
 }
@@ -917,14 +918,27 @@ private:
         }
     }
 
+    void build_x2r_x_load(const std::string &prefix, const send_plan_t &load,
+            const reorder_plan_t &reorder, const expr_t &mem_buf) {
+        expr_t load_buf;
+        expr_t mul_buf;
+        if (reorder) {
+            load_buf = buf_mgr_.get(prefix + "_tmp", load.reg_layout().size());
+            mul_buf = buf_mgr_.get(prefix, reorder.dst.size());
+        } else {
+            load_buf = buf_mgr_.get(prefix, load.reg_layout().size());
+            mul_buf = load_buf;
+        }
+        auto load_stmt = create_stmt(load, mem_buf, load_buf, off_ctx_);
+        auto reorder_stmt = create_stmt(reorder, load_buf, mul_buf);
+        x2r_mul_stmt_ = x2r_mul_stmt_.append(load_stmt);
+        x2r_mul_stmt_ = x2r_mul_stmt_.append(reorder_stmt);
+    }
+
     void build_x2r() {
         auto &x2r = plan_.x2r;
-        auto a_buf = buf_mgr_.get("a", x2r.a_load.reg_layout().size());
-        auto b_buf = buf_mgr_.get("b", x2r.b_load.reg_layout().size());
-        auto a_load = create_stmt(x2r.a_load, a_mem_buf(), a_buf, off_ctx_);
-        auto b_load = create_stmt(x2r.b_load, b_mem_buf(), b_buf, off_ctx_);
-        x2r_mul_stmt_ = x2r_mul_stmt_.append(a_load);
-        x2r_mul_stmt_ = x2r_mul_stmt_.append(b_load);
+        build_x2r_x_load("a", x2r.a_load, x2r.a_reorder, a_mem_buf());
+        build_x2r_x_load("b", x2r.b_load, x2r.b_reorder, b_mem_buf());
     }
 
     void build_mul() {
