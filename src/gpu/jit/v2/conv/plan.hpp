@@ -41,9 +41,10 @@ public:
         e.dim = dim;
         e.tg_size = tg_tile;
         e.iter_size = iter_tile;
+        e.loop_idx = expr_t(0);
         e.loop_size = expr_t(1);
         if (is_loop) {
-            e.loop_idx = var_t::make(type_t::s32(), e.dim.str() + "_iter_idx");
+            e.loop_idx = var_t::make(type_t::s32(), e.dim.str() + "_loop_idx");
             if (is_global_loop) {
                 e.loop_size = const_var_t::make(
                         type_t::s32(), e.dim.str() + "_loop_size");
@@ -53,22 +54,19 @@ public:
                         size_var(e.dim), tg_tile * iter_tile);
             }
         }
+        e.tg_idx = expr_t(0);
+        e.thr_idx = (tg_tile == 1 ? expr_t(0) : thr_idx);
         if (!is_loop || is_global_loop) {
             e.tg_idx = var_t::make(type_t::s32(), dim.str() + "_tg_idx");
-            e.thr_idx = (tg_tile == 1) ? e.tg_idx
-                                       : (tg_tile * e.tg_idx + thr_idx);
-        } else {
-            e.tg_idx = expr_t(0);
-            e.thr_idx = (tg_tile == 1 ? expr_t(0) : thr_idx);
         }
-        if (is_loop) {
-            e.iter_idx = e.loop_size * e.thr_idx + e.loop_idx;
-        } else {
-            e.iter_idx = e.thr_idx;
-        }
+        auto iter_idx = e.tg_idx;
+        iter_idx = iter_idx * e.tg_size + e.thr_idx;
+        iter_idx = iter_idx * e.loop_size + e.loop_idx;
+        iter_idx = simplify_rewrite(iter_idx);
+
         e.tg_idx = simplify_rewrite(e.tg_idx);
         e.thr_idx = simplify_rewrite(e.thr_idx);
-        e.iter_idx = simplify_rewrite(e.iter_idx);
+        e.iter_idx = simplify_rewrite(iter_idx);
         e.loop_idx = simplify_rewrite(e.loop_idx);
         e.loop_size = simplify_rewrite(e.loop_size);
     }
@@ -97,12 +95,9 @@ public:
         return entries_.at(dim).loop_idx;
     }
 
-    bool needs_mask(const prb_dim_t &dim) const {
-        auto &e = entries_.at(dim);
-        if (e.is_global_loop) return true;
-        int block = e.tg_size * e.iter_size;
-        return block > 1;
-    }
+    prb_coord_t<expr_t> iter_coord() const;
+    prb_coord_t<expr_t> tg_iter_coord() const;
+    prb_tile_t tg_iter_tile() const;
 
     std::string str() const {
         std::ostringstream oss;

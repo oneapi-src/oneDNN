@@ -26,6 +26,37 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
+prb_coord_t<expr_t> coord_info_t::iter_coord() const {
+    prb_coord_t<expr_t> ret;
+    for (auto &d : entries_) {
+        auto &e = entries_.at(d);
+        ret[d] = simplify_rewrite(e.iter_size * e.iter_idx);
+    }
+    return ret;
+}
+
+prb_coord_t<expr_t> coord_info_t::tg_iter_coord() const {
+    prb_coord_t<expr_t> ret;
+    for (auto &d : entries_) {
+        auto &e = entries_.at(d);
+        auto idx = e.iter_size * e.iter_idx;
+        if (!is_const(e.thr_idx)) {
+            idx = substitute(idx, e.thr_idx, expr_t(0));
+        }
+        ret[d] = simplify_rewrite(idx);
+    }
+    return ret;
+}
+
+prb_tile_t coord_info_t::tg_iter_tile() const {
+    prb_tile_t ret;
+    for (auto &d : entries_) {
+        auto &e = entries_.at(d);
+        ret[d] = e.tg_size * e.iter_size;
+    }
+    return ret;
+}
+
 layout_tag_t append_groups(
         tensor_kind_t tensor_kind, const layout_tag_t &layout_tag, bool is_dw) {
     bool is_src = (tensor_kind == tensor_kind_t::src);
@@ -325,8 +356,6 @@ private:
             auto thr_idx = thr_grid_.index_var(d);
             coord_info_.add_dim(
                     d, is_loop, is_global_loop, tg_tile, thr_idx, iter_tile);
-            iter_coord_[d]
-                    = simplify_rewrite(iter_tile * coord_info_.iter_index(d));
         }
     }
 
@@ -342,10 +371,10 @@ private:
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
-        a_iter_view_
-                = view_t(a_mapper, a_layout_, iter_coord_, desc_.iter_tile);
-        b_iter_view_
-                = view_t(b_mapper, b_layout_, iter_coord_, desc_.iter_tile);
+        a_iter_view_ = view_t(
+                a_mapper, a_layout_, coord_info_.iter_coord(), desc_.iter_tile);
+        b_iter_view_ = view_t(
+                b_mapper, b_layout_, coord_info_.iter_coord(), desc_.iter_tile);
     }
 
     bool init_info() {
@@ -357,7 +386,6 @@ private:
                 mul_info_, desc_.iter_tile, a_layout_, b_layout_);
         return true;
     }
-
 
     plan_t init_plan() {
         plan_t plan(desc_.hw);
@@ -474,8 +502,8 @@ private:
     bool init_epilogue_plan(
             const fma_plan_t &fma, epilogue_plan_t &plan) const {
         auto &c_mapper = dim_mapper_manager_.mapper(tensor_kind_t::c);
-        auto c_iter_view
-                = view_t(c_mapper, c_layout_, iter_coord_, desc_.iter_tile);
+        auto c_iter_view = view_t(
+                c_mapper, c_layout_, coord_info_.iter_coord(), desc_.iter_tile);
         int target_elems = 128 / c_layout_.type().size();
         auto it_beg = begin(c_iter_view.layout());
         auto it_end = end(c_iter_view.layout());
@@ -532,12 +560,21 @@ private:
     std::vector<prb_dim_t> skip_mask(const view_t &view) const {
         std::vector<prb_dim_t> ret;
         auto &mask_desc = view.mask_desc();
+        auto tg_iter_tile = coord_info_.tg_iter_tile();
+        auto dim_sizes = view.base_layout().dim_sizes();
         for (int i = 0; i < mask_desc.nmasks(); i++) {
-            prb_dim_t d = mask_desc[i].dim;
-            if (!view.dim_mapper().has(d)) continue;
-            if (!view.dim_mapper().expr(d).is_same(index_var(d))) continue;
-            if (coord_info_.needs_mask(d)) continue;
-            ret.push_back(d);
+            prb_dim_t dim = mask_desc[i].dim;
+            ir_assert(view.dim_mapper().has(dim));
+            // Assume that dimensions with non-trivial mapping always require
+            // masking.
+            if (!view.dim_mapper().expr(dim).is_same(index_var(dim))) continue;
+            // Assume global k-slciing implies masking.
+            if (coord_info_.is_global_loop(dim)) continue;
+            // Check if the mask can be proven with known dimension requirements.
+            if (!reqs_.can_prove(dim_sizes.at(dim) % tg_iter_tile.at(dim) == 0))
+                continue;
+            // Mask is not required for this dimension.
+            ret.push_back(dim);
         }
         return ret;
     }
@@ -548,7 +585,6 @@ private:
     multiply_info_t mul_info_;
     layout_info_t layout_info_;
     coord_info_t coord_info_;
-    prb_coord_t<expr_t> iter_coord_;
     grid_t tg_grid_;
     grid_t thr_grid_;
     layout_t a_layout_;
