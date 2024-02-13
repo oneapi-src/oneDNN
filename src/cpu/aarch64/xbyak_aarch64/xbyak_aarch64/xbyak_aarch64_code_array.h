@@ -20,7 +20,7 @@
 static const size_t CSIZE = sizeof(uint32_t);
 
 inline void *AlignedMalloc(size_t size, size_t alignment) {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__MINGW64__)
   return _aligned_malloc(size, alignment);
 #else
   void *p;
@@ -30,7 +30,7 @@ inline void *AlignedMalloc(size_t size, size_t alignment) {
 }
 
 inline void AlignedFree(void *p) {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__MINGW64__)
   _aligned_free(p);
 #else
   free(p);
@@ -277,7 +277,7 @@ public:
     default:
       return false;
     }
-#if defined(__GNUC__) || defined(__APPLE__)
+#if (defined(__GNUC__) || defined(__APPLE__)) && !defined(__MINGW64__)
     size_t pageSize = inner::getPageSize();
     size_t iaddr = reinterpret_cast<size_t>(addr);
     size_t roundAddr = iaddr & ~(pageSize - static_cast<size_t>(1));
