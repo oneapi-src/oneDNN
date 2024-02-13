@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -767,14 +767,17 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
-    const bool args_ok = true
-            && IMPLICATION(!is_data_layout_nxc, jcp.oc % simd_w == 0)
-            && jcp.l_pad <= jcp.ur_w
-            && IMPLICATION(jcp.kw > 7,
+    VDISPATCH_CONV_IC(IMPLICATION(!is_data_layout_nxc, jcp.oc % simd_w == 0),
+            "failed shape restrictions");
+    VDISPATCH_CONV_IC(jcp.l_pad <= jcp.ur_w, "failed shape restrictions");
+    VDISPATCH_CONV_IC(
+            IMPLICATION(jcp.kw > 7,
                     (jcp.t_pad == 0 && jcp.l_pad == 0)
-                            || (jcp.stride_w == 1 && jcp.stride_h == 1))
-            && IMPLICATION(mimo && !is_data_layout_nxc, jcp.ic % simd_w == 0);
-    VDISPATCH_CONV_IC(args_ok, "failed shape restrictions");
+                            || (jcp.stride_w == 1 && jcp.stride_h == 1)),
+            "failed shape restrictions");
+    VDISPATCH_CONV_IC(
+            IMPLICATION(mimo && !is_data_layout_nxc, jcp.ic % simd_w == 0),
+            "failed shape restrictions");
 
     jcp.ic_tail = is_data_layout_nxc ? jcp.ic % simd_w : 0;
     jcp.oc_tail = is_data_layout_nxc
