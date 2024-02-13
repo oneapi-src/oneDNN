@@ -224,16 +224,7 @@ private:
             const rnn_utils::workspace_t &ws, const float shift,
             const float scale, const bool dequantize) const;
 
-    compute::kernel_t ws_print_kernel_;
-
-    compute::kernel_t bias_prepare_kernel_;
-    compute::kernel_t copy_init_layer_kernel_;
-    compute::kernel_t copy_init_iter_kernel_;
-    compute::kernel_t copy_res_layer_kernel_;
-    compute::kernel_t copy_res_iter_kernel_;
-
-    compute::kernel_t elemwise_fwd_kernel_;
-    compute::kernel_t elemwise_bwd_kernel_;
+    std::vector<compute::kernel_t> kernels_;
 
     // ptrs to GEMM primitives
     std::shared_ptr<primitive_t> gemm_layer_fwd_;

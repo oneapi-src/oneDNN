@@ -155,6 +155,16 @@ enum ws_part_t {
     bias
 };
 
+namespace kernel_id {
+constexpr size_t bias_prepare = 0;
+constexpr size_t copy_init_layer = 1;
+constexpr size_t copy_init_iter = 2;
+constexpr size_t copy_res_layer = 3;
+constexpr size_t copy_res_iter = 4;
+constexpr size_t elemwise_fwd = 5;
+constexpr size_t elemwise_bwd = 6;
+} // namespace kernel_id
+
 struct ocl_conf_t {
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_bundle_t &bundle) const {

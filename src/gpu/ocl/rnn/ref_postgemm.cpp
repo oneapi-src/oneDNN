@@ -23,6 +23,7 @@ namespace gpu {
 namespace ocl {
 
 using namespace dnnl::impl::gpu::gpu_utils;
+using namespace rnn_utils;
 
 struct arg_list_t {
     template <typename T>
@@ -47,8 +48,8 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? kernels_[kernel_id::elemwise_fwd]
+            : kernels_[kernel_id::elemwise_bwd];
 
     arg_list_t arg_list;
     if (aprop == prop_kind::backward) {
@@ -121,8 +122,8 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? kernels_[kernel_id::elemwise_fwd]
+            : kernels_[kernel_id::elemwise_bwd];
 
     arg_list_t arg_list;
     if (aprop == prop_kind::backward) {
@@ -242,7 +243,8 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
     arg_list.append(pd()->rnn_conf.tm_cscale);
-    return parallel_for(ctx, nd_range, elemwise_fwd_kernel_, arg_list.args);
+    return parallel_for(
+            ctx, nd_range, kernels_[kernel_id::elemwise_fwd], arg_list.args);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise_u8s8);
 template elemwise_sig(ref_rnn_bwd_t::lstm_elemwise_u8s8);
@@ -254,8 +256,8 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? kernels_[kernel_id::elemwise_fwd]
+            : kernels_[kernel_id::elemwise_bwd];
 
     arg_list_t arg_list;
     if (aprop == prop_kind::backward) {
@@ -330,8 +332,8 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? kernels_[kernel_id::elemwise_fwd]
+            : kernels_[kernel_id::elemwise_bwd];
 
     arg_list_t arg_list;
     if (aprop == prop_kind::backward) {
