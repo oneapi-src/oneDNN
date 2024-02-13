@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,12 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <atomic>
-#include <limits>
-#include <mutex>
-#include <utility>
-#include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "sycl/stream_profiler.hpp"
 
