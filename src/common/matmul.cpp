@@ -106,6 +106,18 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         VCHECK_MATMUL_UNIMPL(mask_dst == 0
                         || (desc.dst_desc.ndims == 2 && mask_dst == 1 << 1),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
+
+        if (utils::one_of(zp.get_data_type(DNNL_ARG_WEIGHTS), data_type::s4,
+                    data_type::u4)) {
+            dim_t k = desc.weights_desc.dims[ndims_wei - 2];
+            dim_t n = desc.weights_desc.dims[ndims_wei - 1];
+            VCHECK_MATMUL_UNIMPL(
+                    IMPLICATION(mask_wei & wei_qmask_K, k % 2 == 0),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+            VCHECK_MATMUL_UNIMPL(
+                    IMPLICATION(mask_wei & wei_qmask_N, n % 2 == 0),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+        }
     }
 
     // Check post-ops
