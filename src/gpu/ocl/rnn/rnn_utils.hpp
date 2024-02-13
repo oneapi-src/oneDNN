@@ -777,9 +777,9 @@ struct scratch_t : public data_helper_t {
     }
 
     dim_t calc_off_gates(dim_t iter) const {
-        return conf_.n_iter_scratch_gates != 1 ? iter * conf_.mb
-                        * conf_.scratch_gates_ld * conf_.scratch_gates_elsz
-                                               : 0;
+        return conf_.n_iter_scratch_gates != 1
+                ? iter * conf_.mb * conf_.scratch_gates_ld
+                : 0;
     };
 
     const mst *gates() const {
@@ -793,7 +793,7 @@ struct scratch_t : public data_helper_t {
         auto g = gates();
         if (g == nullptr) return {};
 
-        auto off = calc_off_gates(iter);
+        auto off = calc_off_gates(iter) * conf_.scratch_gates_elsz;
         auto cell_size
                 = conf_.mb * conf_.scratch_gates_ld * conf_.scratch_gates_elsz;
         return {*g, off, cell_size};
@@ -802,7 +802,6 @@ struct scratch_t : public data_helper_t {
     dim_t calc_off_diff_gates(dim_t iter) const {
         return conf_.n_iter_scratch_gates != 1
                 ? iter * conf_.mb * conf_.scratch_diff_gates_ld
-                        * conf_.scratch_diff_gates_elsz
                 : 0;
     };
     const mst *diff_gates() const { return diff_gates_.get(); }
@@ -811,7 +810,7 @@ struct scratch_t : public data_helper_t {
         auto g = diff_gates();
         if (g == nullptr) return {};
 
-        auto off = calc_off_diff_gates(iter);
+        auto off = calc_off_diff_gates(iter) * conf_.scratch_diff_gates_elsz;
         auto cell_size = conf_.mb * conf_.scratch_diff_gates_ld
                 * conf_.scratch_diff_gates_elsz;
         return {*g, off, cell_size};
