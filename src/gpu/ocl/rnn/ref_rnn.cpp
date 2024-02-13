@@ -44,10 +44,6 @@
             fflush(nullptr); \
         } \
     } while (0)
-#define WS_PRINT(c, s, w) \
-    do { \
-        if (is_ws_print_enabled()) { ws_print(c, s, w); } \
-    } while (0)
 
 namespace dnnl {
 namespace impl {
@@ -306,7 +302,6 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("COPY_BIAS", copy_bias);
     kernel_ctx.define_int("WEI_QPARAM_MASK", wei_qparam_mask);
     kernel_ctx.define_int("IS_TESTMODE", is_testmode);
-    if (is_ws_print_enabled()) kernel_ctx.define_int("DEBUGPRINT", true);
 
     return status::success;
 }
@@ -917,10 +912,8 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     copy_init_iter_kernel_ = kernels[2];
     copy_res_layer_kernel_ = kernels[3];
     copy_res_iter_kernel_ = kernels[4];
-    ws_set_kernel_ = kernels[5];
     elemwise_fwd_kernel_ = kernels[6];
     elemwise_bwd_kernel_ = kernels[7];
-    if (is_ws_print_enabled()) ws_print_kernel_ = kernels[9];
 
     bool gemm_ok = utils::everyone_is(status::success,
             pd()->gemm_layer_fwd_pd_ ? create_nested_primitive(
@@ -1502,53 +1495,6 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
-        compute::compute_stream_t *compute_stream,
-        const memory_storage_t &workspace_, const dim_t ws_offset,
-        const int ws_part, const float val, const dim_t size) const {
-    compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, workspace_);
-    arg_list.set(1, ws_offset);
-    arg_list.set(2, val);
-    arg_list.set(3, ws_part);
-
-    compute::range_t gws(gpu_utils::into<size_t>(size));
-    auto nd_range = compute::nd_range_t(gws);
-
-    return parallel_for(ctx, nd_range, ws_set_kernel_, arg_list);
-}
-
-template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
-        compute::compute_stream_t *compute_stream,
-        const rnn_utils::workspace_t &workspace_) const {
-    // This is only for use in DNNL_DEV_MODE
-    assert(is_dev_mode());
-    if (!is_dev_mode()) return status::runtime_error;
-
-    compute::kernel_arg_list_t arg_list;
-    arg_list.append(workspace_.gates());
-    arg_list.append(workspace_.states());
-    arg_list.append(workspace_.c_states());
-    arg_list.append(workspace_.bias());
-    arg_list.append(workspace_.grid_comp());
-
-    arg_list.append(into<int32_t>(pd()->rnn_conf.mb));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_iter));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_bias));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.dhc));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.n_gates));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.states_ws_ld));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.gates_ws_ld));
-    arg_list.append(into<int32_t>(pd()->rnn_conf.wic));
-
-    compute::nd_range_t nd_range; // Defaults to 1 work item
-    return parallel_for(ctx, nd_range, ws_print_kernel_, arg_list);
-}
-
-template <prop_kind_t aprop>
 weights_assign_sig((_ref_rnn_common_t<aprop>::assign_weight_offsets)) {
     assert(md->format_kind == format_kind::blocked);
     AOC<dim_t, 3> weights(weights_.data(), rnn.n_layer, rnn.n_dir, n_parts);
@@ -1668,30 +1614,6 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             rnn_pd->with_dst_iter_c() ? "yes" : "no");
     DPRINT("%s\n", "+++++++++++++++");
 
-#if WS_NAN_FILLING
-    if (rnn.is_fwd) {
-        DPRINT("DEBUG ws NaN filling: (offset, size) states: %ld %ld c_states: "
-               "%ld %ld gates: %ld %ld\n",
-                ws_states_offset_, rnn.ws_states_size, ws_c_states_offset_,
-                rnn.ws_c_states_size, ws_gates_offset_, rnn.ws_gates_size);
-
-        ws_set(compute_stream, workspace_, ws_states_offset_, rnn_utils::states,
-                NAN, rnn.ws_states_size / rnn.ws_states_elsz);
-        if (rnn_pd->with_src_iter_c()) {
-            ws_set(compute_stream, workspace_, ws_c_states_offset_,
-                    rnn_utils::c_states, NAN,
-                    rnn.ws_c_states_size / sizeof(float));
-        }
-        ws_set(compute_stream, workspace_, ws_gates_offset_, rnn_utils::gates,
-                NAN, rnn.ws_gates_size / rnn.ws_gates_elsz);
-        ws_set(compute_stream, workspace_, ws_bias_offset_, rnn_utils::bias,
-                NAN, rnn.ws_bias_size / rnn.ws_bias_elsz);
-    }
-#endif
-
-    DPRINT("\n%s(%d) WS before bias prepare\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(ctx, compute_stream, workspace);
-
     // TODO: implement without copies
     bool is_lr = !one_of(rnn.exec_dir, r2l, r2l);
     bool is_rl = !one_of(rnn.exec_dir, l2r, l2r);
@@ -1707,8 +1629,6 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
                 dhc, workspace.bias(), *scales_buf, wei_layer_native_,
                 wei_iter_native_, user_data.bias()));
     }
-    DPRINT("\n%s(%d) WS before copy init\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(ctx, compute_stream, workspace);
 
     float shift = (pd()->attr()->rnn_data_qparams_.shift_);
     float scale = (pd()->attr()->rnn_data_qparams_.scale_);
@@ -1729,9 +1649,6 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             src_c_iter_native_, diff_dst_iter_native_, diff_dst_iter_c_native_,
             shift, scale, quantize));
 
-    DPRINT("\n%s(%d) WS before grid\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(ctx, compute_stream, workspace);
-
     const memory_storage_t *tm_scales_buf = nullptr;
     if (pd()->rnn_conf.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
         tm_scales_buf = &CTX_GPU_RES_STORAGE(TM_SCALES_);
@@ -1742,9 +1659,6 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             wei_layer_native_, wei_iter_native_, diff_weights_layer_native_,
             diff_weights_iter_native_, diff_bias_native_, scales_buf,
             tm_scales_buf));
-
-    DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(ctx, compute_stream, workspace);
 
     // Finally we copy the results to the result buffers
 

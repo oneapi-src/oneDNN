@@ -120,10 +120,6 @@
             const dim_t *gates_per_part, dim_t ld, dim_t nld, \
             data_type_t wei_t) const
 
-static inline bool is_ws_print_enabled() {
-    return get_verbose_dev_mode(dnnl::impl::verbose_t::debuginfo) >= 5;
-}
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -169,22 +165,11 @@ struct ocl_conf_t {
                 bundle, get_kernel_names(), kernel_ctx);
     }
     const std::vector<const char *> &get_kernel_names() const {
-        if (!is_ws_print_enabled()) {
-            static const std::vector<const char *> names
-                    = {"ref_rnn_bias_prepare", "ref_rnn_copy_init_layer",
-                            "ref_rnn_copy_init_iter", "ref_rnn_copy_res_layer",
-                            "ref_rnn_copy_res_iter", "ref_rnn_ws_set",
-                            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd"};
-            return names;
-        } else {
-            static const std::vector<const char *> names
-                    = {"ref_rnn_bias_prepare", "ref_rnn_copy_init_layer",
-                            "ref_rnn_copy_init_iter", "ref_rnn_copy_res_layer",
-                            "ref_rnn_copy_res_iter", "ref_rnn_ws_set",
-                            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd",
-                            "ref_rnn_ws_print"};
-            return names;
-        }
+        static const std::vector<const char *> names = {"ref_rnn_bias_prepare",
+                "ref_rnn_copy_init_layer", "ref_rnn_copy_init_iter",
+                "ref_rnn_copy_res_layer", "ref_rnn_copy_res_iter",
+                "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd"};
+        return names;
     }
 
 #if __cplusplus >= 202002L
