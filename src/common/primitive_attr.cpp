@@ -551,9 +551,10 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
         const dnnl_dims_t group_dims, dnnl_data_type_t data_type) {
     using namespace data_type;
     bool ok = attr && arg >= 0 && mask >= 0 && ndims >= 0
-            && utils::one_of(data_type, s32, s8, u8)
+            && utils::one_of(data_type, s32, s8, u8, s4, u4)
             && IMPLICATION(
                     arg != DNNL_ARG_WEIGHTS, data_type == s32 && ndims == 0)
+            && IMPLICATION(utils::one_of(data_type, s4, u4), mask > 0)
             && IMPLICATION(ndims, validate_dims(ndims, group_dims));
     if (!ok) return invalid_arguments;
 

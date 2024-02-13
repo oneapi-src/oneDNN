@@ -132,7 +132,8 @@
         const auto zero_points_d \
                 = ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | mem_arg); \
         VCHECK_ATTR(utils::one_of(zero_points_d.data_type(), data_type::s32, \
-                            data_type::s8, data_type::u8), \
+                            data_type::s8, data_type::u8, data_type::s4, \
+                            data_type::u4), \
                 "Unsupported zero points type"); \
         VCHECK_ATTR(zero_points_d.dims()[0] == 1, \
                 "Not a single zero points was provided"); \
