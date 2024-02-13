@@ -179,44 +179,44 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
 
         auto update_filter = [&](const std::string &s,
                                      filter_status_t &filter_status) -> int {
+            int k = component_t::none;
+            try {
+                std::regex regexp = std::regex(s);
 
 #define REGEX_SEARCH(k, component, regexp, filter_status) \
     if (std::regex_search("" #component "", regexp)) { \
         (k) |= component_t::component; \
         (filter_status).components += "" #component ","; \
     }
-            int k = component_t::none;
-            std::regex regexp;
-            try {
-                regexp = std::regex(s);
+                REGEX_SEARCH(k, primitive, regexp, filter_status);
+                REGEX_SEARCH(k, reorder, regexp, filter_status);
+                REGEX_SEARCH(k, shuffle, regexp, filter_status);
+                REGEX_SEARCH(k, concat, regexp, filter_status);
+                REGEX_SEARCH(k, sum, regexp, filter_status);
+                REGEX_SEARCH(k, convolution, regexp, filter_status);
+                REGEX_SEARCH(k, deconvolution, regexp, filter_status);
+                REGEX_SEARCH(k, eltwise, regexp, filter_status);
+                REGEX_SEARCH(k, lrn, regexp, filter_status);
+                REGEX_SEARCH(k, batch_normalization, regexp, filter_status);
+                REGEX_SEARCH(k, inner_product, regexp, filter_status);
+                REGEX_SEARCH(k, rnn, regexp, filter_status);
+                REGEX_SEARCH(k, binary, regexp, filter_status);
+                REGEX_SEARCH(k, matmul, regexp, filter_status);
+                REGEX_SEARCH(k, resampling, regexp, filter_status);
+                REGEX_SEARCH(k, pooling, regexp, filter_status);
+                REGEX_SEARCH(k, reduction, regexp, filter_status);
+                REGEX_SEARCH(k, prelu, regexp, filter_status);
+                REGEX_SEARCH(k, softmax, regexp, filter_status);
+                REGEX_SEARCH(k, layer_normalization, regexp, filter_status);
+                REGEX_SEARCH(k, group_normalization, regexp, filter_status);
+                REGEX_SEARCH(k, graph, regexp, filter_status);
+                REGEX_SEARCH(k, gemm_api, regexp, filter_status);
+#undef REGEX_SEARCH
             } catch (const std::exception &e) {
                 filter_status.status = filter_status_t::flags::invalid;
                 filter_status.err_msg = e.what();
                 return component_t::all;
             }
-            REGEX_SEARCH(k, primitive, regexp, filter_status);
-            REGEX_SEARCH(k, reorder, regexp, filter_status);
-            REGEX_SEARCH(k, shuffle, regexp, filter_status);
-            REGEX_SEARCH(k, concat, regexp, filter_status);
-            REGEX_SEARCH(k, sum, regexp, filter_status);
-            REGEX_SEARCH(k, convolution, regexp, filter_status);
-            REGEX_SEARCH(k, deconvolution, regexp, filter_status);
-            REGEX_SEARCH(k, eltwise, regexp, filter_status);
-            REGEX_SEARCH(k, lrn, regexp, filter_status);
-            REGEX_SEARCH(k, batch_normalization, regexp, filter_status);
-            REGEX_SEARCH(k, inner_product, regexp, filter_status);
-            REGEX_SEARCH(k, rnn, regexp, filter_status);
-            REGEX_SEARCH(k, binary, regexp, filter_status);
-            REGEX_SEARCH(k, matmul, regexp, filter_status);
-            REGEX_SEARCH(k, resampling, regexp, filter_status);
-            REGEX_SEARCH(k, pooling, regexp, filter_status);
-            REGEX_SEARCH(k, reduction, regexp, filter_status);
-            REGEX_SEARCH(k, prelu, regexp, filter_status);
-            REGEX_SEARCH(k, softmax, regexp, filter_status);
-            REGEX_SEARCH(k, layer_normalization, regexp, filter_status);
-            REGEX_SEARCH(k, group_normalization, regexp, filter_status);
-            REGEX_SEARCH(k, graph, regexp, filter_status);
-            REGEX_SEARCH(k, gemm_api, regexp, filter_status);
 
             // filter enabled and at least one component is hit
             if (filter_status.components.length() != 0) {
