@@ -222,12 +222,13 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     const auto trh_dt = (prb->dir & FLAG_FWD) ? prb->ddt : prb->sdt;
+    const bool is_flt_or_dbl = trh_dt == dnnl_f32 || trh_dt == dnnl_f64;
     const float trh_coeff_log = prb->alg == LOGSOFTMAX ? 5 : 1;
-    const float trh_coeff_f32
-            = (trh_dt == dnnl_f32 || trh_dt == dnnl_f64) ? 10.f : 1.f;
+    const float trh_coeff_f32 = is_flt_or_dbl ? 10.f : 1.f;
     const float trh_coeff_bwd = (prb->dir & FLAG_FWD) ? 1.f : 4.f;
-    const float trh = trh_coeff_log * trh_coeff_bwd * trh_coeff_f32
+    const float trh_f32 = trh_coeff_log * trh_coeff_bwd * trh_coeff_f32
             * epsilon_dt(trh_dt);
+    const float trh = is_flt_or_dbl ? trh_f32 : 0.f;
     cmp.set_threshold(trh);
 
     // LogSoftMax is unstable enough when there are attributes on top.
@@ -252,7 +253,10 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
             = [&](const compare::compare_t::driver_check_func_args_t &args) {
                   // SSE4.1 and OpenCL rdiff tolerance is too high for
                   // certain scenarios.
-                  return args.diff < epsilon_dt(args.dt);
+                  // Additionally, OpenCL expf implementation may return 1e-38f
+                  // values for big negative numbers. This is the guard from
+                  // such values.
+                  return args.diff < epsilon_dt(dnnl_f32);
               };
     cmp.set_driver_check_function(softmax_add_check);
 }
