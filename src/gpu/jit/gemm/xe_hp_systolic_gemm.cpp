@@ -767,6 +767,7 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
         const memory_storage_t **po_srcs, int32_t *offset_po_src,
         bool first_k_block, bool last_k_block, int32_t batch, int32_t stride_a,
         int32_t stride_b, int32_t stride_c) const {
+    if (batch == 0) return status::success;
 
     auto tg_m = compute_info_.wg[LoopM];
     auto tg_n = compute_info_.wg[LoopN];

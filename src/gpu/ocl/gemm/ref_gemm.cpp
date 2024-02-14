@@ -28,6 +28,7 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
     const auto exec_d = ctx.desc() ? ctx.desc() : pd()->desc();
+    if (exec_d->batch() == 0 || exec_d->n() == 0) return status::success;
 
     dim_t off_a0 = a.offset() / types::data_type_size(exec_d->a_type());
     dim_t off_b0 = b.offset() / types::data_type_size(exec_d->b_type());

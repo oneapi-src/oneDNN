@@ -39,6 +39,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
         int32_t k0, float alpha, float beta, int32_t cmask, bool last_k_block,
         bool swapab, bool disable_hilbert) const {
+    if (pd()->desc()->batch() == 0) return status::success;
 
     uint32_t flags = 0;
     bool k_parallel_fixed
