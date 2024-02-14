@@ -952,8 +952,7 @@ void jit_brgemm_amx_uker_base_t::apply_post_ops_to_range(
 
 void jit_brgemm_amx_uker_base_t::maybe_saturation(Xbyak::Zmm &zmm) {
     if (!dt_requires_saturation_) return;
-    saturate_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
-    vcvtps2dq(zmm, zmm);
+    saturate_cvt_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
 }
 
 void jit_brgemm_amx_uker_base_t::prepare_post_ops_registers_ldb(

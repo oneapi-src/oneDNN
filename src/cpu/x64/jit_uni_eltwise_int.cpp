@@ -267,9 +267,7 @@ void jit_uni_subkernel_int_t<isa>::process_linear(
     uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
     init_saturate_f32(vmm_zero, vmm_saturation_ubound, reg_tmp, data_type::f32,
             data_type());
-    saturate_f32(vr_to, vmm_zero, vmm_saturation_ubound, data_type());
-
-    uni_vcvtps2dq(vr_to, vr_to);
+    saturate_cvt_f32(vr_to, vmm_zero, vmm_saturation_ubound, data_type());
 }
 
 template <cpu_isa_t isa>

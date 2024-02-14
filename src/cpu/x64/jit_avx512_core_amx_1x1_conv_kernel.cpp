@@ -379,8 +379,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vectors_int8(
                 zmm_zero, zmm_saturation, aux_reg_saturation, f32, jcp.dst_dt);
         for (int j = 0; j < jcp.tile_width; j++) {
             const Zmm zmm_r = zmm_out(j);
-            saturate_f32(zmm_r, zmm_zero, zmm_saturation, jcp.dst_dt);
-            vcvtps2dq(zmm_r, zmm_r);
+            saturate_cvt_f32(zmm_r, zmm_zero, zmm_saturation, jcp.dst_dt);
         }
     }
 
@@ -466,8 +465,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
     if (one_of(jcp.dst_dt, u8, s8, s32)) {
         init_saturate_f32(
                 zmm_zero, zmm_saturation, aux_reg_saturation, f32, jcp.dst_dt);
-        saturate_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dst_dt);
-        vcvtps2dq(zmm_out, zmm_out);
+        saturate_cvt_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dst_dt);
     }
 
     const Zmm zmm_out_store = zmm_mask(zmm_out, mask_flag, true);

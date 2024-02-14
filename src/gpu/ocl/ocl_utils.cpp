@@ -57,14 +57,14 @@ static std::string get_ocl_name(T obj, F get_func, cl_uint name_query) {
     size_t name_size;
     cl_int err = get_func(obj, name_query, 0, nullptr, &name_size);
     // Ignore error.
-    if (err != CL_SUCCESS) return {};
+    UNUSED_OCL_RESULT(err);
 
     // Include null terminator explicitly - to safely overwrite it in
     // clGetKernelInfo
     std::string name(name_size, 0);
     err = get_func(obj, name_query, name_size, &name[0], nullptr);
     // Ignore error.
-    if (err != CL_SUCCESS) return {};
+    UNUSED_OCL_RESULT(err);
 
     // Remove the null terminator as std::string already includes it
     name.resize(name_size - 1);

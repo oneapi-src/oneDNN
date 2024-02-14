@@ -183,7 +183,15 @@ TEST_P(sycl_memory_usm_test, ErrorMakeMemoryUsingSystemMemory) {
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
     std::vector<float> system_buf(n);
-    auto device = sycl_interop::get_device(eng);
+    sycl::device device;
+    try {
+        device = sycl_interop::get_device(eng);
+    } catch (const error &err) {
+        if (err.status == dnnl_status_t::dnnl_invalid_arguments)
+            GTEST_SKIP() << "The selected device is not using a sycl runtime";
+        else
+            GTEST_FAIL() << "Failed to create a device from the engine.";
+    }
     if (device.has(::sycl::aspect::usm_system_allocations)) {
         memory mem = sycl_interop::make_memory(
                 mem_d, eng, sycl_interop::memory_kind::usm, system_buf.data());
@@ -205,7 +213,15 @@ TEST_P(sycl_memory_usm_test, ErrorMemoryConstructorUsingSystemMemory) {
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
     std::vector<float> system_buf(n);
-    auto device = sycl_interop::get_device(eng);
+    sycl::device device;
+    try {
+        device = sycl_interop::get_device(eng);
+    } catch (const error &err) {
+        if (err.status == dnnl_status_t::dnnl_invalid_arguments)
+            GTEST_SKIP() << "The selected device is not using a sycl runtime";
+        else
+            GTEST_FAIL() << "Failed to create a device from the engine.";
+    }
     if (device.has(::sycl::aspect::usm_system_allocations)) {
         memory mem(mem_d, eng, system_buf.data());
     } else {

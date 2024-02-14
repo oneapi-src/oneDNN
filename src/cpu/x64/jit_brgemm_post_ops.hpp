@@ -843,8 +843,7 @@ private:
             const auto addr = ptr[aux_reg_out + offset];
 
             if (dt_requires_saturation) {
-                saturate_f32(vmm, vmm_lbound, vmm_ubound, out_dt_);
-                vcvtps2dq(vmm, vmm);
+                saturate_cvt_f32(vmm, vmm_lbound, vmm_ubound, out_dt_);
             }
 
             if (is_superset(isa, avx512_core)) {

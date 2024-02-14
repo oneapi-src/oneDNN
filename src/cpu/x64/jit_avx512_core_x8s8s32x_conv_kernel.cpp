@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -348,8 +348,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
         for (int k = 0; k < nb_oc_block; k++) {
             for (int j = 0; j < ur_w; j++) {
                 Vmm vmm = vmm_out(j, k);
-                saturate_f32(vmm, vmm_zero, vmm_saturation, jcp.dst_dt);
-                vcvtps2dq(vmm, vmm);
+                saturate_cvt_f32(vmm, vmm_zero, vmm_saturation, jcp.dst_dt);
             }
         }
     }

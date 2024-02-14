@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -401,8 +401,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
             for (int i_ur = 0; i_ur < ur; ++i_ur)
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                     auto r = vreg_accum(load_loop_blk, i_load, i_ur);
-                    saturate_f32(r, vmm_zero, vmm_saturation, jcp.dst_dt);
-                    uni_vcvtps2dq(r, r);
+                    saturate_cvt_f32(r, vmm_zero, vmm_saturation, jcp.dst_dt);
                 }
         }
 

@@ -84,19 +84,13 @@ namespace cpu_isa_hints_utils {
 static constexpr unsigned hints_mask = prefer_ymm_bit;
 
 static unsigned cvt2mask(dnnl_cpu_isa_hints_t hints) {
-    static const std::unordered_map<dnnl_cpu_isa_hints_t, unsigned,
-            std::hash<int>>
-            hints_map = {{dnnl_cpu_isa_no_hints, 0},
-                    {dnnl_cpu_isa_prefer_ymm, prefer_ymm_bit}};
-
-    auto iter = hints_map.find(hints);
-    if (iter != hints_map.end())
-        return iter->second;
-    else {
-        assert(!"unexpected CPU ISA hint");
-        return 0;
+    switch (hints) {
+        case dnnl_cpu_isa_no_hints: return 0;
+        case dnnl_cpu_isa_prefer_ymm: return prefer_ymm_bit;
     }
-}
+    assert(!"Unexpected CPU ISA hint");
+    return 0;
+};
 
 static bool is_hints_bit_set(cpu_isa_bit_t hint_bit, bool soft) {
     const dnnl_cpu_isa_hints_t hints = get_cpu_isa_hints(soft);

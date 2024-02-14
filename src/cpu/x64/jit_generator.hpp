@@ -2118,6 +2118,13 @@ public:
             minps(vmm, vmm_ubound);
     }
 
+    template <typename Vmm>
+    void saturate_cvt_f32(const Vmm &vmm, const Vmm &vmm_lbound,
+            const Vmm &vmm_ubound, data_type_t odt, bool force_lbound = false) {
+        saturate_f32(vmm, vmm_lbound, vmm_ubound, odt, force_lbound);
+        uni_vcvtps2dq(vmm, vmm);
+    }
+
     /**
     * load_bytes is the utility function to facilitate loading of
     * load_size (0 <= load_size <= 32) many contiguous bytes into the Xmm/Ymm
