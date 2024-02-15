@@ -81,11 +81,12 @@ problem_bounds get_problem_bounds(alg_t alg, dnnl_data_type_t dt) {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->vdims[0].data(), prb->sdt, prb->stag);
-    auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, prb->vdims[1].data(), prb->ddt, prb->dtag);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->vdims[0].data(),
+            force_f32_dt ? dnnl_f32 : prb->sdt, prb->stag);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->vdims[1].data(),
+            force_f32_dt ? dnnl_f32 : prb->ddt, prb->dtag);
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->vdims[1].data());

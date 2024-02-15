@@ -66,8 +66,8 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
             }
         } else
 #endif
-            return dnn_mem_t::init_md(prb->ndims, src_rt_dims.data(),
-                    prb->src_dt(), prb->stag, prb->strides[STRIDES_SRC]);
+            return dnn_mem_t::init_md(prb->ndims, src_rt_dims.data(), dt,
+                    prb->stag, prb->strides[STRIDES_SRC]);
     }
 
     if (kind == WEI) {
@@ -94,8 +94,8 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
             }
         } else
 #endif
-            return dnn_mem_t::init_md(prb->ndims, weights_rt_dims.data(),
-                    prb->wei_dt(), prb->wtag, prb->strides[STRIDES_WEI]);
+            return dnn_mem_t::init_md(prb->ndims, weights_rt_dims.data(), dt,
+                    prb->wtag, prb->strides[STRIDES_WEI]);
     }
 
     if (kind == DST) {
@@ -111,16 +111,21 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
-    auto src_d = create_md(prb, SRC);
-    auto wei_d = create_md(prb, WEI);
-    auto dst_d = create_md(prb, DST);
+    auto src_d = create_md(
+            prb, SRC, force_f32_dt ? dnnl_f32 : dnnl_data_type_undef);
+    auto wei_d = create_md(
+            prb, WEI, force_f32_dt ? dnnl_f32 : dnnl_data_type_undef);
+    auto dst_d = create_md(
+            prb, DST, force_f32_dt ? dnnl_f32 : dnnl_data_type_undef);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_d {};
     if (prb->bia_dt != dnnl_data_type_undef) {
         auto bia_dims = get_runtime_dims(
                 prb->bia_dims(), prb->bias_runtime_dim_mask());
-        bia_d = dnn_mem_t::init_md(prb->ndims, bia_dims.data(), prb->bia_dt,
+        bia_d = dnn_mem_t::init_md(prb->ndims, bia_dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->bia_dt,
                 prb->dst_runtime_dim_mask() != 0 ? tag::abx : tag::any);
     }
 

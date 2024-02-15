@@ -34,15 +34,16 @@ namespace ip {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->src_dims().data(), prb->get_dt(SRC), prb->stag);
-    auto wei_d = dnn_mem_t::init_md(
-            prb->ndims, prb->wei_dims().data(), prb->get_dt(WEI), prb->wtag);
-    auto bia_d = dnn_mem_t::init_md(
-            1, prb->bia_dims().data(), prb->get_dt(BIA), tag::any);
-    auto dst_d = dnn_mem_t::init_md(
-            2, prb->dst_dims().data(), prb->get_dt(DST), prb->dtag);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->get_dt(SRC), prb->stag);
+    auto wei_d = dnn_mem_t::init_md(prb->ndims, prb->wei_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->get_dt(WEI), prb->wtag);
+    auto bia_d = dnn_mem_t::init_md(1, prb->bia_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->get_dt(BIA), tag::any);
+    auto dst_d = dnn_mem_t::init_md(2, prb->dst_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->get_dt(DST), prb->dtag);
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, 2, prb->dst_dims().data());

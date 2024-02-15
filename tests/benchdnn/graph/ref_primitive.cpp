@@ -99,7 +99,8 @@ int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
         dnn_mem_map_t ref_mems; \
         if (is_special_backward_op_) { \
             SAFE(create_primitive(fwd_prim_, ref_eng, ::driver::init_pd, prb, \
-                         res, FLAG_FWD, nullptr, prb->dir &FLAG_BWD, nullptr), \
+                         res, FLAG_FWD, nullptr, prb->dir &FLAG_BWD, nullptr, \
+                         false), \
                     WARN); \
             if (res->state == SKIPPED || res->state == UNIMPLEMENTED) \
                 return OK; \
@@ -114,7 +115,7 @@ int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
         SAFE(create_primitive(prim_, ref_eng, ::driver::init_pd, prb, res, \
                      prb->dir, \
                      is_special_backward_op_ ? query_pd(fwd_prim_) : nullptr, \
-                     false, nullptr), \
+                     false, nullptr, false), \
                 WARN); \
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK; \
         break; \

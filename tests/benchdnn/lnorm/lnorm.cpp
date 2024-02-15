@@ -371,9 +371,10 @@ int prepare_bwd(const prb_t *prb, dnn_mem_map_t &mem_map,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+            force_f32_dt ? dnnl_f32 : prb->dt[0], prb->tag[0]);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> stat_d {};
     if (prb->stat_tag != tag::undef) {
@@ -386,8 +387,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (prb->dir & FLAG_FWD) {
-        auto dst_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
+        auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         TIME_C_PD(DNN_SAFE_STATUS(
@@ -397,10 +398,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                         dst_d, stat_d, prb->ss_dt, prb->eps, flags,
                         dnnl_attr)));
     } else {
-        auto diff_src_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
-        auto diff_dst_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
+        auto diff_src_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->dt[0], prb->tag[0]);
+        auto diff_dst_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
         TIME_C_PD(DNN_SAFE_STATUS(
                 dnnl_layer_normalization_backward_primitive_desc_create_v2(

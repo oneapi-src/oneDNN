@@ -95,21 +95,22 @@ int fill_data(data_kind_t kind, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
     const auto &src_dims = prb->vdims[0];
     const auto &weight_dims = prb->vdims[1];
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, src_dims.data(), prb->sdt[0], prb->stag[0]);
-    auto weights_d = dnn_mem_t::init_md(
-            prb->ndims, weight_dims.data(), prb->sdt[1], prb->stag[1]);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, src_dims.data(),
+            force_f32_dt ? dnnl_f32 : prb->sdt[0], prb->stag[0]);
+    auto weights_d = dnn_mem_t::init_md(prb->ndims, weight_dims.data(),
+            force_f32_dt ? dnnl_f32 : prb->sdt[1], prb->stag[1]);
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args_t()));
 
     if (prb->dir & FLAG_FWD) {
-        auto dst_d = dnn_mem_t::init_md(
-                prb->ndims, src_dims.data(), prb->sdt[0], tag::any);
+        auto dst_d = dnn_mem_t::init_md(prb->ndims, src_dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->sdt[0], tag::any);
 
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
@@ -118,12 +119,12 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 init_pd_args.src_md ? init_pd_args.src_md : src_d, weights_d,
                 dst_d, dnnl_attr)));
     } else {
-        auto diff_src_d = dnn_mem_t::init_md(
-                prb->ndims, src_dims.data(), prb->sdt[0], tag::any);
-        auto diff_weights_d = dnn_mem_t::init_md(
-                prb->ndims, weight_dims.data(), prb->sdt[1], tag::any);
-        auto diff_dst_d = dnn_mem_t::init_md(
-                prb->ndims, src_dims.data(), prb->sdt[0], tag::any);
+        auto diff_src_d = dnn_mem_t::init_md(prb->ndims, src_dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->sdt[0], tag::any);
+        auto diff_weights_d = dnn_mem_t::init_md(prb->ndims, weight_dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->sdt[1], tag::any);
+        auto diff_dst_d = dnn_mem_t::init_md(prb->ndims, src_dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->sdt[0], tag::any);
 
         TIME_C_PD(DNN_SAFE_STATUS(dnnl_prelu_backward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, src_d, weights_d,

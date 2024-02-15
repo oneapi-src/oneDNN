@@ -71,15 +71,16 @@ int fill_mem(
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
-    auto src0_d = dnn_mem_t::init_md(
-            prb->ndims, prb->vdims[0].data(), prb->sdt[0], prb->stag[0]);
+    auto src0_d = dnn_mem_t::init_md(prb->ndims, prb->vdims[0].data(),
+            force_f32_dt ? dnnl_f32 : prb->sdt[0], prb->stag[0]);
 
-    auto src1_d = dnn_mem_t::init_md(
-            prb->ndims, prb->vdims[1].data(), prb->sdt[1], prb->stag[1]);
+    auto src1_d = dnn_mem_t::init_md(prb->ndims, prb->vdims[1].data(),
+            force_f32_dt ? dnnl_f32 : prb->sdt[1], prb->stag[1]);
 
-    auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dst_dims.data(), prb->ddt, prb->dtag);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
+            force_f32_dt ? dnnl_f32 : prb->ddt, prb->dtag);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 

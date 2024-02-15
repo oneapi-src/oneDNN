@@ -68,6 +68,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
     dnnl_dims_t data_dims_0d = {prb->mb, prb->ic};
     dnnl_dims_t data_dims_1d = {prb->mb, prb->ic, prb->iw};
@@ -79,8 +80,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             : prb->ndims == 3               ? data_dims_1d
                                             : data_dims_0d;
 
-    auto src_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, prb->tag);
-    auto dst_d = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
+    auto src_d = dnn_mem_t::init_md(
+            prb->ndims, data_dims, force_f32_dt ? dnnl_f32 : prb->dt, prb->tag);
+    auto dst_d = dnn_mem_t::init_md(
+            prb->ndims, data_dims, force_f32_dt ? dnnl_f32 : prb->dt, tag::any);
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
 
@@ -95,10 +98,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
                 prb->ls, prb->alpha, prb->beta, prb->k, dnnl_attr)));
     } else {
-        auto diff_src_d
-                = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
-        auto diff_dst_d
-                = dnn_mem_t::init_md(prb->ndims, data_dims, prb->dt, tag::any);
+        auto diff_src_d = dnn_mem_t::init_md(prb->ndims, data_dims,
+                force_f32_dt ? dnnl_f32 : prb->dt, tag::any);
+        auto diff_dst_d = dnn_mem_t::init_md(prb->ndims, data_dims,
+                force_f32_dt ? dnnl_f32 : prb->dt, tag::any);
         TIME_C_PD(DNN_SAFE_STATUS(dnnl_lrn_backward_primitive_desc_create(
                 &init_pd_args.pd, init_pd_args.engine, alg, diff_src_d,
                 diff_dst_d, src_d, prb->ls, prb->alpha, prb->beta, prb->k,
