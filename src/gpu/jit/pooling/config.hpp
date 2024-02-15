@@ -21,6 +21,7 @@
 #include <sstream>
 
 #include "common/utils.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/ir/config.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -490,12 +491,12 @@ public:
     compute::nd_range_t nd_range() const {
         const auto &kg = kernel_grid();
         const auto &tg = thread_group_grid();
-        std::array<size_t, 3> local {size_t(tg[0] * exec_cfg().simd()),
-                size_t(tg[1]), size_t(tg[2])};
-        std::array<size_t, 3> global {size_t(kg[0]) * local[0],
-                size_t(kg[1]) * local[1], size_t(kg[2]) * local[2]};
+        compute::range_t local(size_t(tg[0] * exec_cfg().simd()), size_t(tg[1]),
+                size_t(tg[2]));
+        compute::range_t global(size_t(kg[0]) * local[0],
+                size_t(kg[1]) * local[1], size_t(kg[2]) * local[2]);
 
-        return compute::nd_range_t(global.data(), local.data());
+        return compute::nd_range_t(global, local);
     }
 
     std::string str() const override {

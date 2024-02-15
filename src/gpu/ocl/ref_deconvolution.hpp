@@ -22,6 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
 #include "gpu/gpu_deconvolution_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
@@ -516,7 +517,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
             arg_list.set(1, diff_bias);
 
             // Setting up global work-space to {OC*G, 1, 1}
-            auto nd_range = compute::nd_range_t({gws[0], gws[1], gws[2]});
+            auto nd_range = compute::nd_range_t(gws);
             status = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
         }
         return status::success;
@@ -526,7 +527,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> conv_p_;
     compute::kernel_t bias_kernel_;
-    size_t gws[3];
+    compute::range_t gws;
     data_type_t dst_data_type = data_type::undef;
     data_type_t bias_data_type = data_type::undef;
     data_type_t accum_data_type = data_type::undef;

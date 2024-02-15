@@ -162,7 +162,7 @@ private:
             lws_max = lws_max / l_dim;
         }
 
-        return compute::nd_range_t(gws, lws);
+        return compute::nd_range_t(gws, {lws});
     }
 
     // set the class names

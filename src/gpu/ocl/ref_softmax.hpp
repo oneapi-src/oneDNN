@@ -21,6 +21,7 @@
 #include "common/nstl.hpp"
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_softmax_pd.hpp"
@@ -133,9 +134,9 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        size_t gws[3] = {};
-        size_t lws[3] = {};
-        size_t block[3] = {};
+        compute::range_t gws;
+        compute::range_t lws;
+        compute::range_t block;
         size_t group_size = 0;
         int subgroup_size = 16;
     };
@@ -297,9 +298,9 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        size_t lws[3] = {};
-        size_t gws[3] = {};
-        size_t block[3] = {};
+        compute::range_t gws;
+        compute::range_t lws;
+        compute::range_t block;
         size_t group_size = 0;
     };
 

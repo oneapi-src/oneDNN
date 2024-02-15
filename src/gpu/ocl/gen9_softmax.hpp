@@ -21,6 +21,7 @@
 #include "common/nstl.hpp"
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_softmax_pd.hpp"
@@ -179,9 +180,8 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         bool is_blocked = false;
         bool is_write_aligned = false;
         bool is_read_aligned = false;
-        size_t gws[3] = {};
-        size_t lws[3] = {};
-        size_t block[3] = {};
+        compute::range_t gws;
+        compute::range_t lws;
         size_t group_size = 0;
         const int subgroup_size = 16;
         const int byte_alignment_read = 4;
@@ -233,9 +233,6 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         def_memory_desc_info(kernel_ctx, src_md_info, "SRC");
         kernel_ctx.set_data_type(dst_mdw.data_type());
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
-
-        for (int i = 0; i < 3; ++i)
-            kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
         CHECK(create_kernel(engine, &kernel_, "gen9_softmax_fwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
@@ -325,9 +322,8 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        size_t gws[3] = {};
-        size_t lws[3] = {};
-        size_t block[3] = {};
+        compute::range_t gws;
+        compute::range_t lws;
         size_t group_size = 0;
         size_t batches = 0;
         bool is_nhwc = false;
@@ -368,9 +364,6 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
         def_memory_desc_info(kernel_ctx, diff_dst_md_info, "DST");
         kernel_ctx.set_data_type(pd()->diff_src_md()->data_type);
         set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
-
-        for (int i = 0; i < 3; ++i)
-            kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
         CHECK(create_kernel(engine, &kernel_, "gen9_softmax_bwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;

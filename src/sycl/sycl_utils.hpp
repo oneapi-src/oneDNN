@@ -57,8 +57,8 @@ using buffer_u8_t = ::sycl::buffer<uint8_t, 1>;
 
 inline ::sycl::nd_range<3> to_sycl_nd_range(
         const gpu::compute::nd_range_t &range) {
-    auto *local_range = range.local_range();
-    auto *global_range = range.global_range();
+    const auto &local_range = range.local_range();
+    const auto &global_range = range.global_range();
 
     auto sycl_global_range = ::sycl::range<3>(
             global_range[2], global_range[1], global_range[0]);
@@ -69,8 +69,10 @@ inline ::sycl::nd_range<3> to_sycl_nd_range(
                 sycl_global_range, ::sycl::range<3>(1, 1, 1));
     }
 
-    auto sycl_local_range
-            = ::sycl::range<3>(local_range[2], local_range[1], local_range[0]);
+    assert(local_range.has_value());
+    const auto &lws = local_range.value();
+    assert(lws.ndims() == 3);
+    auto sycl_local_range = ::sycl::range<3>(lws[2], lws[1], lws[0]);
     return ::sycl::nd_range<3>(sycl_global_range, sycl_local_range);
 }
 

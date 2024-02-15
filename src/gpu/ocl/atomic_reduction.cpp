@@ -55,13 +55,11 @@ public:
 
 private:
     using compute::lws_strategy_t::lws_strategy_t;
-    compute::nd_range_t::work_size_t create_lws(
-            const compute::nd_range_t::work_size_t &gws,
+    compute::range_t create_lws(const compute::range_t &gws,
             const compute::gws_bin_mapping_t &mapper) const override {
-        compute::nd_range_t::work_size_t lws;
-        lws.fill(1);
+        compute::range_t lws;
 
-        for (size_t i = 0; i < gws.size(); i++) {
+        for (size_t i = 0; i < gws.ndims(); i++) {
             const auto &bins = mapper.get_bins(i);
             if (bins.empty()) continue;
             for (const block_t &inc_block : inc_blocks) {

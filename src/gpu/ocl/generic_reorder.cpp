@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ Difficulty is in determining how to achieve the above goal for
 */
 
 #include <algorithm>
+#include "common/c_types_map.hpp"
 #include "gpu/ocl/generic_reorder.hpp"
 
 #include "common/utils.hpp"
@@ -893,9 +894,9 @@ status_t generic_reorder_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("LIMIT_SSGID", conf.aux_data.vld.src_vect_limit);
     kernel_ctx.define_int("LIMIT_DSGID", conf.aux_data.vld.dst_vect_limit);
     auto r = conf.dispatch.nd_range();
-    auto *lr = r.local_range();
-    kernel_ctx.define_int(
-            "SG_PER_WG", (lr[0] * lr[1] * lr[2]) / conf.sub_group_size);
+    if (!r.local_range().has_value()) return status::runtime_error;
+    const auto &lws = r.local_range().value();
+    kernel_ctx.define_int("SG_PER_WG", lws.nelems() / conf.sub_group_size);
     int i = 0;
     int cache_dim[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
     while (i < LOOP_NEST_LEVEL) {

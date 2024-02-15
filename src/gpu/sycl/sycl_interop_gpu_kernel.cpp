@@ -88,7 +88,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
     if (sycl_engine->backend() == backend_t::level0 && range.local_range()) {
         for (size_t i = 0; i < range.ndims(); i++) {
             size_t gws = range.global_range()[i];
-            size_t lws = range.local_range()[i];
+            size_t lws = range.local_range().value()[i];
             if (lws > 0 && gws % lws != 0) {
                 VERROR(common, level_zero,
                         "only uniform work-groups are supported");
@@ -144,7 +144,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
             auto sycl_nd_range = to_sycl_nd_range(range);
             cgh.parallel_for(sycl_nd_range, *sycl_kernel_);
         } else {
-            auto *global_range = range.global_range();
+            const auto &global_range = range.global_range();
             auto sycl_range = ::sycl::range<3>(
                     global_range[2], global_range[1], global_range[0]);
             cgh.parallel_for(sycl_range, *sycl_kernel_);

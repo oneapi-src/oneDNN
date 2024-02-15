@@ -514,8 +514,8 @@ static status_t init_conf_common(
             && dst_md.dims[axis::concat] < 8)
         return status::unimplemented;
 
-    conf.lws_d = compute::get_optimal_lws(
-            conf.gws_d, 3, 0, device_info->gpu_arch());
+    conf.lws_d
+            = compute::get_optimal_lws(conf.gws_d, 0, device_info->gpu_arch());
     return status::success;
 }
 
@@ -579,7 +579,7 @@ status_t simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
         arg_list.set(next_arg++, src);
     }
 
-    auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d.data());
+    auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;

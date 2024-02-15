@@ -15,6 +15,9 @@
 *******************************************************************************/
 
 #include "gpu/ocl/bnorm/gen9_batch_normalization.hpp"
+#include <climits>
+#include "common/utils.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/bnorm/bnorm_utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -40,10 +43,11 @@ static bool use_fused_atomics_reduction(bn_lookup_table::params_t &conf,
             && conf.ic % conf.sub_group_size == 0 && sp / conf.ic > 40;
 }
 
-static size_t get_slm_buff_size(bn_lookup_table::params_t &conf, size_t *lws) {
+static size_t get_slm_buff_size(
+        bn_lookup_table::params_t &conf, const compute::range_t &lws) {
     // Returns size of SLM buffer of nhwc stat calculation kernels.
-    const size_t base_size = div_up(conf.ic_block(), conf.sub_group_size)
-            * lws[0] * lws[1] * lws[2];
+    const size_t base_size
+            = div_up(conf.ic_block(), conf.sub_group_size) * lws.nelems();
     if (conf.use_stats_one_pass) {
         return 2 * base_size * 2 * sizeof(float);
     } else {
@@ -64,10 +68,11 @@ static void adjust_lws_calc_kernel(bn_lookup_table::params_t &conf,
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
     const int max_slm_size = compute::device_info_t::max_slm_size(gpu_arch);
     auto generated_nd = dispatch.nd_range();
-    const size_t *base_gws = generated_nd.global_range();
-    const size_t *base_lws = generated_nd.local_range();
+    const compute::range_t &base_gws = generated_nd.global_range();
+    gpu_assert(generated_nd.local_range().has_value()) << "lws is missing";
+    const compute::range_t &base_lws = generated_nd.local_range().value();
 
-    size_t tuned_lws[3], curr_lws[3];
+    compute::range_t tuned_lws, curr_lws;
     curr_lws[0] = tuned_lws[0] = conf.sub_group_size; // Assuming IC is dim 0
     curr_lws[1] = tuned_lws[1] = base_lws[1];
     curr_lws[2] = tuned_lws[2] = base_lws[2];

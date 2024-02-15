@@ -1225,7 +1225,9 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     rnn_utils::append_strides(arg_list, pd()->off.bias, 4);
 
     return parallel_for(ctx,
-            compute::nd_range_t({dhc, n_bias, n_layer * n_dir}),
+            compute::nd_range_t({gpu_utils::into<size_t>(dhc),
+                    gpu_utils::into<size_t>(n_bias),
+                    gpu_utils::into<size_t>(n_layer * n_dir)}),
             bias_prepare_kernel_, arg_list);
 }
 
@@ -1329,7 +1331,9 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.append(scale);
         arg_list.append(into<int32_t>(quantize));
         return parallel_for(ctx,
-                compute::nd_range_t({max_d, batch, n_layer * n_dir}),
+                compute::nd_range_t({gpu_utils::into<size_t>(max_d),
+                        gpu_utils::into<size_t>(batch),
+                        gpu_utils::into<size_t>(n_layer * n_dir)}),
                 copy_init_iter_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
@@ -1354,7 +1358,9 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
             rnn_utils::append_strides(arg_list, pd()->off.diff_dst_iter_c, 4);
 
         return parallel_for(ctx,
-                compute::nd_range_t({dhc, batch, n_layer * n_dir}),
+                compute::nd_range_t({gpu_utils::into<size_t>(dhc),
+                        gpu_utils::into<size_t>(batch),
+                        gpu_utils::into<size_t>(n_layer * n_dir)}),
                 copy_init_iter_kernel_, arg_list);
     }
 }
@@ -1461,7 +1467,9 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.append(scale);
         arg_list.append(into<int32_t>(dequantize));
         return parallel_for(ctx,
-                compute::nd_range_t({dhc, batch, n_layer * n_dir}),
+                compute::nd_range_t({gpu_utils::into<size_t>(dhc),
+                        gpu_utils::into<size_t>(batch),
+                        gpu_utils::into<size_t>(n_layer * n_dir)}),
                 copy_res_iter_kernel_, arg_list);
     } else {
         dim_t max_d = std::max(dhc, sic);
@@ -1487,7 +1495,9 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
             rnn_utils::append_strides(arg_list, pd()->off.diff_src_iter_c, 4);
 
         return parallel_for(ctx,
-                compute::nd_range_t({max_d, batch, n_layer * n_dir}),
+                compute::nd_range_t({gpu_utils::into<size_t>(max_d),
+                        gpu_utils::into<size_t>(batch),
+                        gpu_utils::into<size_t>(n_layer * n_dir)}),
                 copy_res_iter_kernel_, arg_list);
     }
 }
@@ -1502,7 +1512,9 @@ status_t _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
     arg_list.set(1, ws_offset);
     arg_list.set(2, val);
     arg_list.set(3, ws_part);
-    auto nd_range = compute::nd_range_t({size});
+
+    compute::range_t gws(gpu_utils::into<size_t>(size));
+    auto nd_range = compute::nd_range_t(gws);
 
     return parallel_for(ctx, nd_range, ws_set_kernel_, arg_list);
 }
@@ -1533,8 +1545,7 @@ status_t _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
     arg_list.append(into<int32_t>(pd()->rnn_conf.gates_ws_ld));
     arg_list.append(into<int32_t>(pd()->rnn_conf.wic));
 
-    auto nd_range = compute::nd_range_t({1});
-
+    compute::nd_range_t nd_range; // Defaults to 1 work item
     return parallel_for(ctx, nd_range, ws_print_kernel_, arg_list);
 }
 

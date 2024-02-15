@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/conv/key.hpp"
 #include "gpu/jit/conv/problem.hpp"
 #include "gpu/jit/ir/config.hpp"
@@ -539,8 +540,8 @@ public:
     }
 
     compute::nd_range_t nd_range() const {
-        size_t gws[3];
-        size_t lws[3];
+        compute::range_t gws;
+        compute::range_t lws;
         for (int i = 0; i < 3; i++) {
             lws[i] = thread_group_grid().dim(i) * (i == 0 ? simd() : 1);
             gws[i] = kernel_grid().dim(i) * lws[i];

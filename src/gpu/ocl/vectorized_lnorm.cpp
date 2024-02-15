@@ -19,6 +19,7 @@
 
 #include "common/primitive_exec_types.hpp"
 #include "common/scratchpad.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -168,7 +169,7 @@ bool is_fused_kernel_applicable(lnorm_conf_t &conf,
     conf.dispatch_fused.define_dim("N_fused", gws1);
     conf.dispatch_fused.set_kernel_attr_suffix("FUSED");
     conf.dispatch_fused.generate();
-    const size_t tuned_lws[3] = {lws0, lws1, lws2};
+    const compute::range_t tuned_lws = {lws0, lws1, lws2};
     conf.dispatch_fused.set_lws(tuned_lws);
     return true;
 }
@@ -354,7 +355,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                         utils::format("X%d", i), md_hint_idx, dim);
         }
         conf.dispatch.generate();
-        const size_t tuned_lws[3] = {norm_gws, 1, 1};
+        const compute::range_t tuned_lws = {norm_gws, 1, 1};
         conf.dispatch.set_lws(tuned_lws);
 
     } else { // bwd
@@ -457,7 +458,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         conf.dispatch_scaleshift_finalize.set_kernel_attr_suffix(
                 "SCALESHIFT_FINALIZE");
         conf.dispatch_scaleshift_finalize.generate();
-        const size_t tuned_lws[3] = {(size_t)conf.finalize_n_chunks, 1, 1};
+        const compute::range_t tuned_lws
+                = {(size_t)conf.finalize_n_chunks, 1, 1};
         conf.dispatch_scaleshift_finalize.set_lws(tuned_lws);
     } // bwd
 

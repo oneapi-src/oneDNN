@@ -17,6 +17,7 @@
 #include "gpu/jit/v2/conv/kernel_desc.hpp"
 
 #include "common/memory_desc_wrapper.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/codegen/kernel.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
 #include "gpu/jit/v2/conv/kernel.hpp"
@@ -466,11 +467,11 @@ status_t kernel_params_t::init_dispatch_kernel_info(
         tg_dims[d] = utils::div_up(dims.at(d), tg_size * iter_size);
     }
     init_dispatch_kernel_info_div_magic(kernel_info, tg_dims);
-    size_t gws[3] = {};
-    size_t lws[3] = {};
-    for (int i = 0; i < 3; i++) {
-        int tg_dim = thr_grid.size(i, desc.thread_group_tile);
-        lws[i] = tg_dim * (i == 0 ? desc.simd : 1);
+    compute::range_t gws;
+    compute::range_t lws;
+    for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
+        size_t tg_dim = thr_grid.size(i, desc.thread_group_tile);
+        lws[i] = tg_dim * (i == 0 ? gpu_utils::into<size_t>(desc.simd) : 1);
         gws[i] = tg_grid.size(i, tg_dims) * lws[i];
     }
     auto nd_range = compute::nd_range_t(gws, lws);

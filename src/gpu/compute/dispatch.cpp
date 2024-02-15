@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
+#include "common/optional.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/dispatch.hpp"
@@ -28,7 +29,7 @@ namespace gpu {
 namespace compute {
 
 // Compute optimal local work size for the given global work size.
-nd_range_t::work_size_t get_optimal_lws(const size_t *gws, const size_t n,
+compute::range_t get_optimal_lws(const compute::range_t &gws,
         const int mapped_vec_dim_idx, const gpu_arch_t gpu_arch) {
     const size_t lws_max = 256;
     // Factors in descending order, prefer bigger sizes for local work size.
@@ -36,17 +37,12 @@ nd_range_t::work_size_t get_optimal_lws(const size_t *gws, const size_t n,
             = {256, 224, 192, 160, 128, 96, 64, 32, 16, 8, 7, 6, 5, 4, 3, 2, 1};
     size_t total_lws = 1;
 
-    gpu_assert(n <= nd_range_t::max_ndims) << "LWS has more than allowed dims";
-    size_t gws_copy[nd_range_t::max_ndims];
-    for (size_t i = 0; i < n; ++i) {
-        gws_copy[i] = gws[i];
-    }
-    nd_range_t::work_size_t lws;
-    lws.fill(1);
+    compute::range_t gws_copy = gws;
+    auto lws = compute::range_t::empty_like(gws_copy);
 
     // Iterate through global work size and calculate max divisor from
     // the array optimal_lws_values.
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i = 0; i < gws_copy.ndims(); ++i) {
         auto rest_lws = lws_max / total_lws;
         size_t lws_idx = 0;
         while (rest_lws < optimal_lws_values[lws_idx])
@@ -66,7 +62,7 @@ nd_range_t::work_size_t get_optimal_lws(const size_t *gws, const size_t n,
     // TODO: remove it when the original issue fixed
     if (mapped_vec_dim_idx != -1 && gpu_arch >= gpu_arch_t::xe_hp) {
         if (!math::is_pow2(lws[mapped_vec_dim_idx])) {
-            for (size_t i = 0; i < n; i++) {
+            for (size_t i = 0; i < lws.ndims(); i++) {
                 if (i != (size_t)mapped_vec_dim_idx) lws[i] = 1;
             }
         }
@@ -212,11 +208,13 @@ void dispatch_t::def_kernel_macros(kernel_ctx_t &kernel_ctx) const {
                 dims_[vec_dim_idx].vector_size);
 
     auto r = nd_range();
-    for (int i = 0; i < 3; i++) {
-        auto *lws = r.local_range();
-        // lws may be NULL only when dispatch_info is default-initialized.
-        kernel_ctx.define_int(utils::format("GWS_LWS%d_%s", i, attr_suffix_),
-                lws ? lws[i] : 1);
+    if (r.local_range().has_value()) {
+        const auto &lws = r.local_range().value();
+        for (size_t i = 0; i < r.global_range().ndims(); i++) {
+            kernel_ctx.define_int(
+                    utils::format("GWS_LWS%zu_%s", i, attr_suffix_),
+                    gpu_utils::into<int64_t>(lws[i]));
+        }
     }
 }
 
@@ -253,14 +251,14 @@ void dispatch_t::generate(bool generate_lws) {
         }
     }
 
-    size_t gws[3] = {1, 1, 1};
+    compute::range_t gws;
     for (int i = ndims_ - 1; i >= 0; --i) {
         dim_t block = std::max(dims_[i].block, (dim_t)1);
         int gws_index = dims_[i].gws_index;
         gws[gws_index] *= utils::div_up(dims_[i].size, block);
     }
 
-    size_t gws_size = gws[0] * gws[1] * gws[2];
+    size_t gws_size = gws.nelems();
 
     auto *dev_info = engine_->device_info();
     size_t hw_threads = dev_info->hw_threads();
@@ -279,59 +277,64 @@ void dispatch_t::generate(bool generate_lws) {
     }
 
     // Handle a vectorized dimension (if presented).
-    nd_range_t::work_size_t lws;
-    lws.fill(1);
-    bool with_lws = false;
-    if (vec_dim_idx != dim_not_found) {
-        int gws_index = dims_[vec_dim_idx].gws_index;
-        int vec_size = dims_[vec_dim_idx].vector_size;
-        int nblocks = dims_[vec_dim_idx].size / dims_[vec_dim_idx].block;
-        // XXX: max 256 work items per group
-        lws[gws_index]
-                = utils::max_div(gws[gws_index] / vec_size, 256 / vec_size)
-                * vec_size;
-        lws[gws_index] = utils::max_div(nblocks / vec_size,
-                                 (int)lws[gws_index] / vec_size)
-                * vec_size;
-        with_lws = true;
+    utils::optional_t<compute::range_t> lws;
+    if (generate_lws) {
 
-        // Move the vectorized dimension to the first place in the group.
-        int group_beg = ndims_ - 1;
-        int group_end = 0;
-        for (int i = 0; i < ndims_; ++i) {
-            if (dims_[i].gws_index == gws_index) {
-                group_beg = std::min(group_beg, i);
-                group_end = std::max(group_end, i);
+        if (vec_dim_idx != dim_not_found) {
+            lws = compute::range_t();
+            int gws_index = dims_[vec_dim_idx].gws_index;
+            size_t vec_size
+                    = gpu_utils::into<size_t>(dims_[vec_dim_idx].vector_size);
+            size_t nblocks = gpu_utils::into<size_t>(
+                    dims_[vec_dim_idx].size / dims_[vec_dim_idx].block);
+            // XXX: max 256 work items per group
+            lws.value()[gws_index]
+                    = utils::max_div(gws[gws_index] / vec_size, 256 / vec_size)
+                    * vec_size;
+            lws.value()[gws_index] = utils::max_div(nblocks / vec_size,
+                                             lws.value()[gws_index] / vec_size)
+                    * vec_size;
+
+            // Move the vectorized dimension to the first place in the group.
+            int group_beg = ndims_ - 1;
+            int group_end = 0;
+            for (int i = 0; i < ndims_; ++i) {
+                if (dims_[i].gws_index == gws_index) {
+                    group_beg = std::min(group_beg, i);
+                    group_end = std::max(group_end, i);
+                }
+            }
+
+            if (vec_dim_idx != group_beg) {
+                auto vec_dim_info = dims_[vec_dim_idx];
+                for (int i = vec_dim_idx - 1; i >= group_beg; --i) {
+                    dims_[i + 1] = dims_[i];
+                }
+                dims_[group_beg] = vec_dim_info;
             }
         }
 
-        if (vec_dim_idx != group_beg) {
-            auto vec_dim_info = dims_[vec_dim_idx];
-            for (int i = vec_dim_idx - 1; i >= group_beg; --i) {
-                dims_[i + 1] = dims_[i];
-            }
-            dims_[group_beg] = vec_dim_info;
+        // Use a work-group size = 1 if the number of work items < HW threads.
+        if (!lws.has_value() && gws_size < hw_threads) {
+            lws = compute::range_t();
         }
+
+        if (!lws.has_value()) {
+            // Compute the best lws.
+            lws = get_optimal_lws(gws,
+                    vec_dim_idx != -1 ? dims_[vec_dim_idx].gws_index : -1,
+                    dev_info->gpu_arch());
+        }
+        assert(lws.has_value());
     }
 
-    // Use a work-group size = 1 if the number of work items < HW threads.
-    if (!with_lws && gws_size < hw_threads) { with_lws = true; }
-
-    if (!with_lws) {
-        // Compute the best lws.
-        lws = get_optimal_lws(gws, 3,
-                vec_dim_idx != -1 ? dims_[vec_dim_idx].gws_index : -1,
-                dev_info->gpu_arch());
-        with_lws = true;
-    }
-
-    nd_range_
-            = nd_range_t(gws, with_lws && generate_lws ? lws.data() : nullptr);
+    nd_range_ = nd_range_t(gws, lws);
     generate_called = true;
 }
 
 // Allows manual setting of global and local work sizes.
-void dispatch_t::generate_override(const size_t *grange, const size_t *lrange) {
+void dispatch_t::generate_override(
+        const range_t &grange, const utils::optional_t<range_t> &lrange) {
     dims_[1].gws_index = 2;
     dims_[2].gws_index = 1;
     dims_[3].gws_index = 0;
@@ -341,9 +344,9 @@ void dispatch_t::generate_override(const size_t *grange, const size_t *lrange) {
 }
 
 // Allows manual setting of local work sizes.
-void dispatch_t::set_lws(const size_t *lrange) {
+void dispatch_t::set_lws(const compute::range_t &lrange) {
     assert(generate_called);
-    auto *grange = nd_range_.global_range();
+    const auto &grange = nd_range_.global_range();
     nd_range_ = nd_range_t(grange, lrange);
 }
 

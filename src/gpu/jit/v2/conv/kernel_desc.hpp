@@ -391,11 +391,11 @@ public:
         return ret;
     }
 
-    int size(int idx, const prb_tile_t &tile) const {
-        ir_assert(idx >= 0 && idx < N);
-        int ret = 1;
+    size_t size(size_t idx, const prb_tile_t &tile) const {
+        ir_assert(idx < N);
+        size_t ret = 1;
         for (auto &d : entries_[idx].dims) {
-            ret *= tile.get(d, 1);
+            ret *= gpu_utils::into<size_t>(tile.get(d, 1));
         }
         return ret;
     }

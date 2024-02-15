@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/gemm/ref_gemm.hpp"
+#include "gpu/compute/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -99,7 +100,7 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(29, scale_stride);
     arg_list.set(30, beta);
 
-    const size_t gws[3] = {1, (size_t)N, (size_t)MB};
+    const compute::range_t gws = {1, (size_t)N, (size_t)MB};
     const auto nd_range = compute::nd_range_t(gws);
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);

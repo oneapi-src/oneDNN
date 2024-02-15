@@ -213,15 +213,21 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         cl_uint num_events = (cl_uint)events.size();
         const cl_event *events_data = num_events ? events.data() : nullptr;
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
-                range.global_range(), range.local_range(), num_events,
-                events_data, &event.unwrap());
+                range.global_range().data(),
+                range.local_range().has_value()
+                        ? range.local_range().value().data()
+                        : nullptr,
+                num_events, events_data, &event.unwrap());
         OCL_CHECK(err);
         ocl_event_t::from(out_dep).events = {event};
     } else {
         bool save_event = save_events_ || stream.is_profiling_enabled();
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
-                range.global_range(), range.local_range(), 0, nullptr,
-                save_event ? &event.unwrap() : nullptr);
+                range.global_range().data(),
+                range.local_range().has_value()
+                        ? range.local_range().value().data()
+                        : nullptr,
+                0, nullptr, save_event ? &event.unwrap() : nullptr);
         OCL_CHECK(err);
     }
 
