@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,6 +107,9 @@ struct deserialized_graph {
     // need to maintain for further use
     std::map<size_t, std::string> lt_2_mtag_;
     std::vector<size_t> graph_inputs_with_mb_;
+
+    // Returns a correspondent element from `ops_` based on a given ID.
+    const deserialized_op &get_op(size_t id) const;
 
 private:
     std::string engine_kind_;

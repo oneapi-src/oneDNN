@@ -358,6 +358,15 @@ dnnl::graph::graph deserialized_graph::to_graph(
     return g;
 }
 
+const deserialized_op &deserialized_graph::get_op(size_t id) const {
+    for (const auto &op : ops_) {
+        if (op.id_ == id) return op;
+    }
+    assert(!"Given id was not found in the deserialized graph.");
+    static deserialized_op dummy;
+    return dummy;
+}
+
 bool deserialized_graph::check_tensor_with_mb(size_t tensor_id) const {
     if (in_lt_2_ops_.find(tensor_id) == in_lt_2_ops_.end()) return true;
 

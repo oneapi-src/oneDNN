@@ -373,6 +373,31 @@ std::string case_to_str(const std::string &json_file,
     return s.str();
 }
 
+void skip_unimplemented_ops(const dnnl::graph::partition &partition,
+        const deserialized_graph &dg, res_t *res) {
+    // A list of ops that don't have DNNL backend support so far.
+    static const std::vector<std::string> unimplemented_ops {
+            "Pow", "Select", "StaticReshape", "StaticTranspose"};
+
+    // For an unsupported partition, retrieve all operation IDs, find a
+    // correspondent operation kind in a deserialized_graph and match it against
+    // a list of known unsupported ops.
+    const std::vector<size_t> &partition_op_ids = partition.get_ops();
+    for (const size_t op_id : partition_op_ids) {
+        const std::string &dg_op_kind = dg.get_op(op_id).kind_;
+        const bool has_unimplemented_op = std::any_of(unimplemented_ops.begin(),
+                unimplemented_ops.end(),
+                [&dg_op_kind](const std::string &kind) {
+                    return dg_op_kind == kind;
+                });
+        if (has_unimplemented_op) {
+            res->state = SKIPPED;
+            res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+}
+
 /// @brief check if the current partition is actually an End op
 /// @param parti the current partition
 /// @param end_op_ids a collection of End op's ids
@@ -412,16 +437,18 @@ int doit(const prb_t *prb, res_t *res) {
     BENCHDNN_PRINT(1, "Partition size %zd.\n", partitions.size());
 
     for (size_t i = 0; i < partitions.size(); ++i) {
-        if (!partitions[i].is_supported()) {
-            BENCHDNN_PRINT(1, "Partition %zd is unsupported!\n", i);
-            // Single end op partition is an unsupported partition in the library
-            if (is_single_end_op_partition(partitions[i], end_opid_v)) {
-                continue;
-            }
-            res->state = SKIPPED;
-            res->reason = CASE_NOT_SUPPORTED;
-            return OK;
-        }
+        if (partitions[i].is_supported()) continue;
+
+        // End operation is not supported in the library, and it's fine to
+        // continue validation as it's a knob without functional meaning.
+        if (is_single_end_op_partition(partitions[i], end_opid_v)) continue;
+
+        skip_unimplemented_ops(partitions[i], dg, res);
+        if (res->state == SKIPPED) return OK;
+
+        BENCHDNN_PRINT(3, "[INFO]: partition #%zd is unsupported!\n", i);
+        res->state = UNIMPLEMENTED;
+        return FAIL;
     }
 
     for (size_t i = 0; i < partitions.size(); ++i) {
