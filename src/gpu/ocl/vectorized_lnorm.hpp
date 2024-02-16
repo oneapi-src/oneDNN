@@ -19,12 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_layer_normalization_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {

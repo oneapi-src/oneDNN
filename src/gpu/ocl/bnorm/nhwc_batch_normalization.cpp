@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
+#include "common/experimental.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/bnorm/bnorm_model.hpp"

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,10 +17,8 @@
 #ifndef GPU_SYCL_SYCL_OCL_GPU_KERNEL_HPP
 #define GPU_SYCL_SYCL_OCL_GPU_KERNEL_HPP
 
-#include <assert.h>
 #include <string>
 
-#include "gpu/compute/compute.hpp"
 #include "sycl/sycl_utils.hpp"
 
 namespace dnnl {

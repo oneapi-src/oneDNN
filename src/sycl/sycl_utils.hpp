@@ -19,12 +19,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
-
-#include <vector>
 
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>

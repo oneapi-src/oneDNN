@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include "gpu/ocl/bnorm/bnorm_lookup_table.hpp"
+#include "gpu/compute/compute_engine.hpp"
 
 #include <string>
 #include <vector>

@@ -18,15 +18,10 @@
 #define GPU_OCL_GEN9_SOFTMAX_HPP
 
 #include "common/c_types_map.hpp"
-#include "common/nstl.hpp"
 #include "common/primitive.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_softmax_pd.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {

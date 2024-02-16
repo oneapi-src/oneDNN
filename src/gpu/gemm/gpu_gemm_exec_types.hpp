@@ -18,7 +18,7 @@
 #define GPU_GEMM_GPU_GEMM_EXEC_TYPES_HPP
 
 #include "common/memory_storage.hpp"
-#include "common/stream.hpp"
+#include "common/primitive_exec_types.hpp"
 
 #define DNNL_ARG_A DNNL_ARG_WEIGHTS
 #define DNNL_ARG_B DNNL_ARG_SRC

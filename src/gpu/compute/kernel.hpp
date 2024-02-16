@@ -17,10 +17,10 @@
 #ifndef GPU_COMPUTE_KERNEL_HPP
 #define GPU_COMPUTE_KERNEL_HPP
 
+#include <functional>
 #include <memory>
 #include <utility>
 
-#include "common/stream.hpp"
 #include "gpu/compute/context.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/utils.hpp"

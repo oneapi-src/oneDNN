@@ -23,14 +23,11 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/compute/kernel.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
 #include "gpu/jit/gemm/jit_gemm_pd.hpp"
 #include "gpu/jit/gemm/zero_pool.hpp"
-#include "gpu/jit/jit_post_op_injector.hpp"
-#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -19,26 +19,16 @@
 
 #include <iostream>
 #include <sstream>
-#include <unordered_map>
 
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
-#include "common/math_utils.hpp"
-#include "common/memory_desc_wrapper.hpp"
-#include "common/type_helpers.hpp"
-#include "gpu/compute/compute.hpp"
-#include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/jit/conv/key.hpp"
 #include "gpu/jit/conv/problem.hpp"
 #include "gpu/jit/ir/config.hpp"
 #include "gpu/jit/ir/fma.hpp"
 #include "gpu/jit/ir/hw.hpp"
-#include "gpu/jit/ir/message_patterns.hpp"
-#include "gpu/jit/ir/post_ops.hpp"
-#include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/ir/tensor_config.hpp"
-#include "gpu/jit/jit_eltwise_injector.hpp"
 #include "gpu/jit/utils/utils.hpp"
 
 namespace dnnl {

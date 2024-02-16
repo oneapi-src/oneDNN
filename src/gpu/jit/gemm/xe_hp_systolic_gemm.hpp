@@ -22,14 +22,10 @@
 #include <tuple>
 
 #include "common/c_types_map.hpp"
-#include "common/gemm_utils.hpp"
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
-#include "gpu/jit/gemm/gen_gemm_kernel.hpp"
 #include "gpu/jit/gemm/jit_gemm_pd.hpp"
-#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

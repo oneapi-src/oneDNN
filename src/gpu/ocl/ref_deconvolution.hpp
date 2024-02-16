@@ -21,13 +21,9 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/compute/utils.hpp"
-#include "gpu/gpu_convolution_pd.hpp"
 #include "gpu/gpu_deconvolution_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {

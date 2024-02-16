@@ -20,18 +20,15 @@
 #include <cassert>
 #include "gpu/compute/utils.hpp"
 
-#ifndef DISABLE_VERBOSE
-#include <iostream>
-#include <sstream>
-#include "common/verbose.hpp"
-#endif
-
 #include "common/cache_blob.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
+#include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/compute_stream.hpp"
+#include "gpu/compute/kernel.hpp"
 #include "gpu/gemm/gpu_gemm_exec_types.hpp"
 #include "gpu/gpu_resource.hpp"
+#include "gpu/jit/jit_generator_base.hpp"
 #include "gpu/kernel_cache.hpp"
 
 #define CTX_GPU_RES_STORAGE(arg) \

@@ -26,9 +26,9 @@
 #include "gpu/jit/conv/plan.hpp"
 #include "gpu/jit/conv/problem.hpp"
 #include "gpu/jit/conv/tiler.hpp"
-#include "gpu/jit/ir/block_2d_utils.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/tensor_config.hpp"
+#include "gpu/jit/jit_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {

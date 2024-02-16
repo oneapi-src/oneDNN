@@ -17,12 +17,10 @@
 #ifndef GPU_OCL_OCL_GPU_KERNEL_HPP
 #define GPU_OCL_OCL_GPU_KERNEL_HPP
 
-#include <assert.h>
 #include <string>
 #include <CL/cl.h>
 
-#include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/compute/kernel.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -17,6 +17,7 @@
 #include <algorithm>
 
 #include "gpu/ocl/gen9_eltwise.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

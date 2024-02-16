@@ -17,25 +17,18 @@
 #ifndef GPU_OCL_RNN_REF_RNN_HPP
 #define GPU_OCL_RNN_REF_RNN_HPP
 
-#include <assert.h>
 #include <stdio.h>
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_desc_iterator.hpp"
-#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
-#include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_rnn_pd.hpp"
-#include "gpu/ocl/ocl_memory_storage.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"
 #include "gpu/primitive_conf.hpp"
-#include "gpu/utils.hpp"
 
 // TODO just to debug
 #define WS_NAN_FILLING 0

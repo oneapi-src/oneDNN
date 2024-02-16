@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/bnorm/gen9_batch_normalization.hpp"
-#include <climits>
+#include "common/experimental.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/bnorm/bnorm_utils.hpp"
