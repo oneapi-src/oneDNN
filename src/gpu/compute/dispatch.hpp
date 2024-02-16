@@ -21,7 +21,6 @@
 #include <string>
 
 #include "common/c_types_map.hpp"
-#include "common/optional.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
@@ -76,8 +75,8 @@ public:
 
     void generate(bool generate_lws = true);
 
-    void generate_override(const range_t &grange,
-            const utils::optional_t<range_t> &lrange = utils::nullopt);
+    void generate_override(
+            const range_t &grange, const range_t &lrange = range_t());
     void set_lws(const range_t &lrange);
 
     // Dimension information necessary for mapping to global work IDs.

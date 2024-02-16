@@ -57,13 +57,12 @@ static void adjust_lws_calc_kernel(int ic_block, nhwc_bnorm_params_t &conf,
 
     auto generated_nd = dispatch.nd_range();
     const compute::range_t &base_gws = generated_nd.global_range();
-    gpu_assert(generated_nd.local_range().has_value()) << "lws is missing";
-    const compute::range_t &base_lws = generated_nd.local_range().value();
+    const compute::range_t &base_lws = generated_nd.local_range();
+    gpu_assert(base_lws) << "lws is missing";
 
-    compute::range_t tuned_lws, curr_lws;
-    curr_lws[0] = tuned_lws[0] = conf.sub_group_size; // Assuming IC is dim 0
-    curr_lws[1] = tuned_lws[1] = base_lws[1];
-    curr_lws[2] = tuned_lws[2] = base_lws[2];
+    compute::range_t tuned_lws = {gpu_utils::into<size_t>(conf.sub_group_size),
+            base_lws[1], base_lws[2]};
+    compute::range_t curr_lws = tuned_lws;
 
     // The search is based on subslice utilization which calculated as the ratio
     // used_subslices / max_available_subslices.

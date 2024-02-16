@@ -467,8 +467,8 @@ status_t kernel_params_t::init_dispatch_kernel_info(
         tg_dims[d] = utils::div_up(dims.at(d), tg_size * iter_size);
     }
     init_dispatch_kernel_info_div_magic(kernel_info, tg_dims);
-    compute::range_t gws;
-    compute::range_t lws;
+    compute::range_t gws = compute::range_t::empty();
+    compute::range_t lws = compute::range_t::empty();
     for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
         size_t tg_dim = thr_grid.size(i, desc.thread_group_tile);
         lws[i] = tg_dim * (i == 0 ? gpu_utils::into<size_t>(desc.simd) : 1);

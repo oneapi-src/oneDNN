@@ -376,9 +376,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             = phase.reduction_block.block / inner_dim_per_sg;
 
     kernel_ctx.define_int("SUBGROUP_SIZE", phase.subgroup_size);
-    if (!phase.nd_range.local_range().has_value()) return status::runtime_error;
-    kernel_ctx.define_int("LWS_SIZE",
-            static_cast<int64_t>(phase.nd_range.local_range().value()[0]));
+    const auto &lws = phase.nd_range.local_range();
+    if (!lws) return status::runtime_error;
+    kernel_ctx.define_int("LWS_SIZE", static_cast<int64_t>(lws[0]));
 
     kernel_ctx.define_int("DIV", conf.div);
     kernel_ctx.define_float("POWER", conf.power);

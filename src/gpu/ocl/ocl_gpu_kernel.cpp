@@ -214,9 +214,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const cl_event *events_data = num_events ? events.data() : nullptr;
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
                 range.global_range().data(),
-                range.local_range().has_value()
-                        ? range.local_range().value().data()
-                        : nullptr,
+                range.local_range() ? range.local_range().data() : nullptr,
                 num_events, events_data, &event.unwrap());
         OCL_CHECK(err);
         ocl_event_t::from(out_dep).events = {event};
@@ -224,10 +222,8 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         bool save_event = save_events_ || stream.is_profiling_enabled();
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
                 range.global_range().data(),
-                range.local_range().has_value()
-                        ? range.local_range().value().data()
-                        : nullptr,
-                0, nullptr, save_event ? &event.unwrap() : nullptr);
+                range.local_range() ? range.local_range().data() : nullptr, 0,
+                nullptr, save_event ? &event.unwrap() : nullptr);
         OCL_CHECK(err);
     }
 

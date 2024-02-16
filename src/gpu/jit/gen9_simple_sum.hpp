@@ -84,7 +84,7 @@ struct gen9_simple_sum_t : public gpu_primitive_t {
             arg_list.set(3, a);
 
             compute::range_t gws(nelems);
-            compute::range_t lws; // defaults to 1 work item
+            compute::range_t lws = compute::range_t::one(gws.ndims());
             auto nd_range = compute::nd_range_t(gws, lws);
             status = parallel_for(ctx, nd_range, kernel_, arg_list);
             if (status != status::success) return status;

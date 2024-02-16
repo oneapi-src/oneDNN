@@ -45,6 +45,7 @@ Difficulty is in determining how to achieve the above goal for
 
 #include <algorithm>
 #include "common/c_types_map.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/generic_reorder.hpp"
 
 #include "common/utils.hpp"
@@ -893,9 +894,9 @@ status_t generic_reorder_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("RESCALE_COEFF", conf.aux_data.vld.rescale_coeff);
     kernel_ctx.define_int("LIMIT_SSGID", conf.aux_data.vld.src_vect_limit);
     kernel_ctx.define_int("LIMIT_DSGID", conf.aux_data.vld.dst_vect_limit);
-    auto r = conf.dispatch.nd_range();
-    if (!r.local_range().has_value()) return status::runtime_error;
-    const auto &lws = r.local_range().value();
+    compute::nd_range_t nd_range = conf.dispatch.nd_range();
+    const auto &lws = nd_range.local_range();
+    if (!lws) return status::runtime_error;
     kernel_ctx.define_int("SG_PER_WG", lws.nelems() / conf.sub_group_size);
     int i = 0;
     int cache_dim[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};

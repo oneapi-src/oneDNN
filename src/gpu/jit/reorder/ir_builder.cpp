@@ -348,8 +348,8 @@ compute::nd_range_t reorder_ir_builder_t::nd_range(
     grid_info_t tg_grid;
     compute_grid(src, dst, iter_blocks, loop_blocks, tg_blocks, kernel_grid,
             tg_grid);
-    compute::range_t global;
-    compute::range_t local;
+    compute::range_t global = compute::range_t::empty(kernel_grid.ndims());
+    compute::range_t local = compute::range_t::empty(kernel_grid.ndims());
     for (int i = 0; i < kernel_grid.ndims(); i++) {
         global[i] = kernel_grid[i] * tg_grid[i];
         local[i] = tg_grid[i];

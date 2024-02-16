@@ -471,8 +471,6 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         kernel_ctx.define_int("NDIMS", pd()->desc()->src_desc.ndims);
 
         gws[0] = pd()->OC();
-        gws[1] = 1;
-        gws[2] = 1;
 
         dst_data_type = pd()->diff_dst_md()->data_type;
         bias_data_type = pd()->diff_weights_md(1)->data_type;
@@ -527,7 +525,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> conv_p_;
     compute::kernel_t bias_kernel_;
-    compute::range_t gws;
+    compute::range_t gws = compute::range_t::empty(1);
     data_type_t dst_data_type = data_type::undef;
     data_type_t bias_data_type = data_type::undef;
     data_type_t accum_data_type = data_type::undef;

@@ -311,10 +311,11 @@ struct conv_conf_t {
     size_t wei_slm_size, src_slm_size, dst_slm_size;
     int sub_group_size;
 
-    compute::range_t gws_d, lws_d;
+    compute::range_t gws_d = compute::range_t::empty();
+    compute::range_t lws_d = compute::range_t::empty();
     // Original global work sizes, before applying rounding in case when
     // non-uniform work-groups are not supported.
-    compute::range_t gws_orig_d;
+    compute::range_t gws_orig_d = compute::range_t::empty();
     compute::dispatch_t dispatch;
 
     bool with_bias, with_groups;
@@ -341,9 +342,12 @@ struct conv_conf_t {
     int wino_ic_block;
     int wino_oc_block;
     int vect_size;
-    compute::range_t U_gws_d, U_lws_d;
-    compute::range_t V_gws_d, V_lws_d;
-    compute::range_t M_gws_d, M_lws_d;
+    compute::range_t U_gws_d = compute::range_t::empty();
+    compute::range_t U_lws_d = compute::range_t::empty();
+    compute::range_t V_gws_d = compute::range_t::empty();
+    compute::range_t V_lws_d = compute::range_t::empty();
+    compute::range_t M_gws_d = compute::range_t::empty();
+    compute::range_t M_lws_d = compute::range_t::empty();
     bool is_fused;
 
     data_type_t src_data_type;
@@ -602,7 +606,8 @@ struct resampling_conf_t {
     float FD, FH, FW;
     dim_t vect_size;
     dims_t padded_strides;
-    compute::range_t lws, gws;
+    compute::range_t gws = compute::range_t::empty();
+    compute::range_t lws = compute::range_t::empty();
     int sub_group_size;
     dim_t padded_c;
     attr_info_t attr_info;
@@ -818,7 +823,7 @@ struct concat_conf_t {
     int n;
     int simd;
     int data_type_size;
-    compute::range_t gws_d;
+    compute::range_t gws_d = compute::range_t::one();
     compute::range_t lws_d;
 
     data_type_t src_type, dst_type;

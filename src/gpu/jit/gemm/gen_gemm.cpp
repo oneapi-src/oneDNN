@@ -135,7 +135,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     auto lws_k = pd()->kernel_desc()->aux_params()->wgK;
 
-    compute::range_t gws;
+    compute::range_t gws = compute::range_t::empty();
 
     gws[0] = utils::div_up(m, nocopy_info()->unroll[LoopM]);
     gws[1] = utils::div_up(n, nocopy_info()->unroll[LoopN]);

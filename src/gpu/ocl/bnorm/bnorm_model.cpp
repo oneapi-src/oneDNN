@@ -531,8 +531,8 @@ status_t get_estimated_hw_utilization(model_params_t &p,
 
     auto nd_range = dry_run_dispatch.nd_range();
     const compute::range_t gws = nd_range.global_range();
-    if (!nd_range.local_range().has_value()) return status::runtime_error;
-    const compute::range_t lws = nd_range.local_range().value();
+    const compute::range_t lws = nd_range.local_range();
+    if (lws.nelems() == 0) return status::runtime_error;
     desc.num_wgs = gws.nelems() / lws.nelems();
     desc.used_ss_thr_util = get_used_ss_thr_utilization(
             hw_params, conf.sub_group_size, gws, lws);
