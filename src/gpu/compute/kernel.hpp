@@ -21,6 +21,7 @@
 #include <memory>
 #include <utility>
 
+#include "common/verbose.hpp"
 #include "gpu/compute/context.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/utils.hpp"

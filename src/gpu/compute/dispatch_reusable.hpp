@@ -20,6 +20,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <unordered_map>
+
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "gpu/block_structure.hpp"
@@ -30,7 +32,6 @@
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/types_interop.h"
 #include "gpu/serialization.hpp"
-#include <unordered_map>
 
 namespace dnnl {
 namespace impl {
