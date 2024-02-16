@@ -144,8 +144,9 @@ govern your use of the third party programs as set forth in the
 
 # Security
 
-See Intel's Security Center (https://www.intel.com/content/www/us/en/security-center/default.html)
-for information on how to report a potential security issue or vulnerability.
+Security Policy (https://github.com/oneapi-src/oneDNN/blob/main/SECURITY.md)
+outlines our guidelines and procedures for ensuring the highest level
+of Security and trust for our users who consume oneDNN.
 
 # Trademark Information
 
