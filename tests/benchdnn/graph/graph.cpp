@@ -431,7 +431,7 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     if (partitions.empty()) {
-        BENCHDNN_PRINT(0, "FAIL: partition empty %d.\n", 0);
+        BENCHDNN_PRINT(0, "%s\n", "Error: partitions are empty");
         return res->state = FAILED, FAIL;
     }
     BENCHDNN_PRINT(1, "Partition size %zd.\n", partitions.size());
@@ -521,13 +521,8 @@ int doit(const prb_t *prb, res_t *res) {
         set_any_layout(dg, partitions, id_to_set_any_layout);
     }
 
-    // the index offset for current partition compared with the previous partition index
-    size_t idx_offset = 0;
     for (size_t i = 0; i < partitions.size(); ++i) {
-        if (is_single_end_op_partition(partitions[i], end_opid_v)) {
-            idx_offset += 1;
-            continue;
-        }
+        if (is_single_end_op_partition(partitions[i], end_opid_v)) { continue; }
 
         auto inputs = partitions[i].get_input_ports();
         auto outputs = partitions[i].get_output_ports();
@@ -546,12 +541,14 @@ int doit(const prb_t *prb, res_t *res) {
                                partitions[i].compile(inputs, outputs, eng)),
                 WARN, res);
 
-        record_queried_logical_tensors(outputs, c_partitions[i - idx_offset],
-                id_to_queried_logical_tensors);
+        record_queried_logical_tensors(
+                outputs, c_partitions.back(), id_to_queried_logical_tensors);
     }
     if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
-    idx_offset = 0;
+    // `idx_offset` points to the correspondent `compiled_partition`, if any
+    // of `partitions` were skipped expectedly and not compiled.
+    size_t idx_offset = 0;
     for (size_t i = 0; i < partitions.size(); ++i) {
         if (is_single_end_op_partition(partitions[i], end_opid_v)) {
             idx_offset += 1;
@@ -569,8 +566,9 @@ int doit(const prb_t *prb, res_t *res) {
 
         ref_partition_t ref_partition(dg, partitions[i], inputs, outputs);
         // Construct memory for both perf & corr modes
-        ref_partition.init_ref(
-                bench_mode, graph_in_ports, partition_mem_map_v[i], res);
+        SAFE(ref_partition.init_ref(
+                     graph_in_ports, partition_mem_map_v[i], res),
+                WARN);
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
             // correctness mode, run ref partition

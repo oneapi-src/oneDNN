@@ -64,8 +64,9 @@ extern bdnn_state_t convert_state(const dnnl_status_t &s);
                 if (ss->state == res_state_t::SKIPPED) { \
                     ss->reason = bs.reason; \
                 } \
-                BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s\n", \
-                        __PRETTY_FUNCTION__, __LINE__, #f, e.what()); \
+                BENCHDNN_PRINT(0, \
+                        "Error: Function '%s' at (%s:%d) returned '%s'\n", \
+                        __FUNCTION__, __FILE__, __LINE__, e.what()); \
                 fflush(0); \
                 if (s == CRIT) exit(2); \
             } \

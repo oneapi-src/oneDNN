@@ -251,7 +251,7 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
     for (const auto &exec_arg : supported_exec_args) {
         if (prb->arg_mds_.find(exec_arg) == prb->arg_mds_.end()) {
             assert(!"missing required args");
-            continue;
+            SAFE_V(FAIL);
         };
         auto arg_mds_ = prb->arg_mds_.find(exec_arg)->second;
         dnnl_dims_t dnnl_dims;

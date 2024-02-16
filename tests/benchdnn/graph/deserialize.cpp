@@ -133,10 +133,7 @@ void deserialized_op::load(utils::json::json_reader_t *reader) {
 
 op deserialized_op::create() const {
     op aop(id_, opstr2kind(kind_), name_);
-    for (typename std::unordered_map<std::string,
-                 deserialized_attr>::const_iterator it
-            = attrs_.begin();
-            it != attrs_.end(); ++it) {
+    for (auto it = attrs_.begin(); it != attrs_.end(); ++it) {
         const auto &attr = attrstr2kind(it->first);
         const auto &attr_value = it->second;
         const auto &type = attr_value.type_;
@@ -256,7 +253,7 @@ void deserialized_graph::load(const std::string &pass_config_json) {
     if (ops_.empty()) {
         BENCHDNN_PRINT(
                 0, "Error: Graph %s is empty.\n", pass_config_json.c_str());
-        exit(2);
+        SAFE_V(FAIL);
     }
 
     BENCHDNN_PRINT(1,
@@ -311,7 +308,7 @@ void deserialized_graph::load(const std::string &pass_config_json) {
     if (ops_map.size() != ops_.size()) {
         BENCHDNN_PRINT(0, "FAIL: the graph %s is not a DAG.\n",
                 pass_config_json.c_str());
-        exit(2);
+        SAFE_V(FAIL);
     }
 
     for (const auto &in_lt : in_lt_2_ops_) {
@@ -350,9 +347,9 @@ dnnl::graph::graph deserialized_graph::to_graph(
         try {
             g.add_op(aop.create());
         } catch (const dnnl::error &e) {
-            BENCHDNN_PRINT(0, "FAIL: add op %s failed: %s\n", aop.name_.c_str(),
-                    e.message);
-            exit(2);
+            BENCHDNN_PRINT(0, "Error: Adding op %s failed: %s\n",
+                    aop.name_.c_str(), e.message);
+            SAFE_V(FAIL);
         }
     }
     return g;

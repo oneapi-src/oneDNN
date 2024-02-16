@@ -37,9 +37,8 @@ public:
             const std::vector<dnnl::graph::logical_tensor> &ins,
             const std::vector<dnnl::graph::logical_tensor> &outs);
 
-    // prepare memorise in both paths, one by one ref primitive
-    void init_ref(const bench_mode_t mode,
-            const std::vector<size_t> &graph_ports,
+    // prepare memories in both paths, one by one ref primitive
+    int init_ref(const std::vector<size_t> &graph_ports,
             partition_mem_map_t &partition_mem_map, res_t *res);
     // run partition in ref path, one by one ref primitive
     void exec_ops(res_t *res);

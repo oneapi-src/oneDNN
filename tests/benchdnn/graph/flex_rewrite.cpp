@@ -123,7 +123,7 @@ void flex_rewrite::broadcast(
         if (l != r) {
             if (l != 1 && r != 1) {
                 fprintf(stderr, "graph: failed to broadcast in infer shape!\n");
-                exit(2);
+                SAFE_V(FAIL);
             }
             z[i] = (l == 1 ? r : l);
         } else {
@@ -166,7 +166,7 @@ void flex_rewrite::cal_pads(dims_t &pads_begin, dims_t &pads_end,
             }
         } else {
             fprintf(stderr, "graph: invalid arguments for `auto_pad`!\n");
-            exit(2);
+            SAFE_V(FAIL);
         }
     }
 }
@@ -517,7 +517,7 @@ void flex_rewrite::infer_output_shape(
                         fprintf(stderr,
                                 "graph: LayerNorm output number "
                                 "mismatch!\n");
-                        exit(2);
+                        SAFE_V(FAIL);
                     }
                 }
                 break;
@@ -715,14 +715,15 @@ bool flex_rewrite::get_inport_shape_stride(const std::string &in_shape,
     size_t in_length = in_shape.size();
     size_t star_pos = in_shape.find('*');
     const static std::string err_msg
-            = "Make sure shape is in the form of `NUMxNUMxNUM...`. And the tag "
-              "is only composed of letters. ";
+            = "A shape is expected in the form of `NUMxNUMxNUM...`. A tag must "
+              "be composed of letters only.";
     // shape and stride are provided
     if (star_pos != std::string::npos) {
         // invalid CML info, e.g. "1x2x3*", "*abc"
         if (star_pos == 0 || star_pos == in_length - 1) {
-            msg = "Please provide shape before `*` or tag after "
-                  "`*`, or remove `*` if you apply the default shape or stride";
+            msg = "A shape must be provided before the `*`, a tag - after the "
+                  "`*`. Alternatively, remove the `*` to apply the default "
+                  "shape or stride.";
             return false;
         }
         shape = in_shape.substr(0, star_pos);
@@ -796,8 +797,7 @@ void flex_rewrite::inports_shape_rewrite(
                     in_shapes_[lt.id_], new_shape, new_stride, message);
             if (!result) {
                 BENCHDNN_PRINT(0,
-                        "graph: `--in-shapes` is not valid: \n%s\n"
-                        "Please check the CML\n",
+                        "Error: `--in-shapes` is not valid. Reason: %s\n",
                         message.c_str());
                 SAFE_V(FAIL);
             }
@@ -825,18 +825,15 @@ void flex_rewrite::inports_shape_rewrite(
                 if (!new_stride.empty()) {
                     if (new_shape_dims.size() != new_stride.size()) {
                         BENCHDNN_PRINT(0,
-                                "graph: Shape size is `%d`, stride size is "
-                                "`%d`, they are not of the same size, "
-                                "please check the CML\n",
-                                static_cast<int>(new_shape_dims.size()),
-                                static_cast<int>(new_stride.size()));
+                                "Error: the shape size (`%zu`) must coinside "
+                                "with the stride size (`%zu`).\n",
+                                new_shape_dims.size(), new_stride.size());
                         SAFE_V(FAIL);
                     }
                     if (!is_valid_stride(new_stride)) {
                         BENCHDNN_PRINT(0,
-                                "graph: Tag provided is not valid: `%s`, "
-                                "there exists unexpected letters, "
-                                "please check the CML\n",
+                                "Error: the tag provided is not valid: `%s`: "
+                                "unexpected letters encountered.\n",
                                 new_stride.c_str());
                         SAFE_V(FAIL);
                     }
@@ -862,17 +859,15 @@ void flex_rewrite::inports_shape_rewrite(
                 // this is not valid stride
                 if (new_shape.empty() && new_stride.size() != ndims) {
                     BENCHDNN_PRINT(0,
-                            "graph: Tag provided is not valid: `%s`, "
-                            "tag size should be `%d`, "
-                            "please check the CML\n",
+                            "Error: the tag provided is not valid: `%s`: the "
+                            "tag size must be `%d`.\n",
                             new_stride.c_str(), static_cast<int>(ndims));
                     SAFE_V(FAIL);
                 }
                 if (!is_valid_stride(new_stride)) {
                     BENCHDNN_PRINT(0,
-                            "graph: Tag provided is not valid: `%s`, there "
-                            "exists unexpected letters, "
-                            "please check the CML\n",
+                            "Error: the tag provided is not valid: `%s`: "
+                            "unexpected letters encountered.\n",
                             new_stride.c_str());
                     SAFE_V(FAIL);
                 }
@@ -916,7 +911,7 @@ void flex_rewrite::op_attrs_rewrite(deserialized_graph &dgraph) {
         if (iter == op_ids_.end()) {
             BENCHDNN_PRINT(0, "graph: rewrite: no op id %zd in the graph.\n",
                     temp_attrs.first);
-            exit(2);
+            SAFE_V(FAIL);
         }
         auto &temp_op = dgraph.ops_[std::distance(op_ids_.begin(), iter)];
         const auto attrs = parse_attrs(temp_attrs.second);
@@ -926,7 +921,7 @@ void flex_rewrite::op_attrs_rewrite(deserialized_graph &dgraph) {
                 BENCHDNN_PRINT(0,
                         "graph: rewrite: no attr name `%s` in op %zd.\n",
                         attr_name.c_str(), temp_attrs.first);
-                exit(2);
+                SAFE_V(FAIL);
             }
             auto new_val = new_attr.second;
             auto attr_type = temp_op.attrs_[attr_name].type_;
