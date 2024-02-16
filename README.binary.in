@@ -34,9 +34,10 @@ The library is optimized for the following CPUs:
 * Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
 * Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, Cooper
-  Lake, Ice Lake, and Sapphire Rapids)
+  Lake, Ice Lake, Sapphire Rapids, and Emerald Rapids)
 * Intel Xeon CPU Max Series (formerly Sapphire Rapids HBM)
-* future Intel Xeon Scalable processor (code name Granite Rapids)
+* future Intel Xeon Scalable processors (code name Sierra Forest
+and Granite Rapids)
 
 oneDNN detects the instruction set architecture (ISA) at runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
@@ -46,62 +47,12 @@ them. See CPU dispatcher control (https://oneapi-src.github.io/oneDNN/dev_guide_
 for more details.
 
 The library is optimized for the following GPUs:
-* Intel UHD Graphics for 11th generation Intel processors or newer
-* Intel Iris(R) Xe graphics (formerly DG1)
-* Intel Arc(TM) graphics (formerly Alchemist and DG2)
-* Intel Data Center GPU Flex Series (formerly Arctic Sound-M)
+* Intel Graphics for 11th-14th Generation Intel Core Processors
+* Intel Graphics for Intel Core Ultra Processors (formerly Meteor Lake)
+* Intel Iris Xe MAX Graphics (formerly DG1)
+* Intel Arc(TM) Graphics (formerly Alchemist)
+* Intel Data Center GPU Flex Series (formerly Arctic Sound)
 * Intel Data Center GPU Max Series (formerly Ponte Vecchio)
-
-## Linux
-
-Common dependencies:
-* GNU C Library (libc.so) 2.12 or later
-* GNU Standard C++ Library v3 (libstdc++.so) compatible with GCC 4.8 or later
-* Dynamic Linking Library (libdl.so)
-* C Math Library (libm.so)
-* POSIX Threads Library (libpthread.so)
-
-Runtime specific dependencies:
-
-| Runtime configuration | Dependency                                         |
-| --------------------- | -------------------------------------------------- |
-| cpu_gomp              | GNU OpenMP runtime (libgomp.so)                    |
-| cpu_iomp              | Intel OpenMP runtime (libiomp5.so)                 |
-| cpu_tbb               | Threading Building Blocks (libtbb.so)              |
-| cpu_dpcpp_gpu_dpcpp   | Intel oneAPI DPC++ Compiler runtime (libsycl.so)   |
-|                       | Threading Building Blocks (libtbb.so)              |
-|                       | oneAPI Level Zero loader (libze_loader.so)         |
-|                       | OpenCL loader (libOpenCL.so)                       |
-
-## Windows
-
-Common dependencies:
-* Microsoft Visual C++ Redistributable 2015 or later (msvcrt.dll)
-
-Runtime specific dependencies:
-
-| Runtime configuration | Dependency                                         |
-| --------------------- | -------------------------------------------------- |
-| cpu_vcomp             | No additional dependencies                         |
-| cpu_iomp              | Intel OpenMP runtime (iomp5.dll)                   |
-| cpu_tbb               | Threading Building Blocks (tbb.dll)                |
-| cpu_dpcpp_gpu_dpcpp   | Intel oneAPI DPC++ Compiler runtime (sycl.dll)     |
-|                       | Threading Building Blocks (tbb.dll)                |
-|                       | oneAPI Level Zero loader (ze_loader.dll)           |
-|                       | OpenCL loader (OpenCL.dll)                         |
-
-## macOS
-
-Common dependencies:
-* System C/C++ runtime (libc++.dylib, libSystem.dylib) compatible with
-  macOS 10.13 (High Sierra) or later
-
-Runtime specific dependencies:
-
-| Runtime configuration | Dependency                                |
-| --------------------- | ----------------------------------------- |
-| cpu_iomp              | Intel OpenMP runtime (libiomp5.dylib)     |
-| cpu_tbb               | Threading Building Blocks (libtbb.dylib) |
 
 Support
 -------

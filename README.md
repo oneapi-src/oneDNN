@@ -69,12 +69,14 @@ oneDNN supports platforms based on the following architectures:
 The library is optimized for the following CPUs:
 * Intel Atom(R) processor (at least Intel SSE4.1 support is required)
 * Intel Core(TM) processor (at least Intel SSE4.1 support is required)
+* Intel Core Ultra processors (formerly Meteor Lake)
 * Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
 * Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, Cooper
-  Lake, Ice Lake, and Sapphire Rapids)
+  Lake, Ice Lake, Sapphire Rapids, and Emerald Rapids)
 * Intel Xeon CPU Max Series (formerly Sapphire Rapids HBM)
-* future Intel Xeon Scalable processor (code name Granite Rapids)
+* future Intel Xeon Scalable processors (code name Sierra Forest
+and Granite Rapids)
 
 On a CPU based on Intel 64 or on AMD64 architecture, oneDNN detects
 the instruction set architecture (ISA) at runtime and uses just-in-time (JIT)
@@ -99,12 +101,12 @@ oneDNN only supports Compute Library versions 23.11 or later.
 > for more details.
 
 The library is optimized for the following GPUs:
-* Intel(R) UHD Graphics for 11th-14th Gen Intel(R) Processors
-* Intel(R) Iris(R) Xe Graphics
-* Intel(R) Iris(R) Xe MAX Graphics (formerly DG1)
-* Intel(R) Arc(TM) Graphics (formerly Alchemist)
-* Intel(R) Data Center GPU Flex Series (formerly Arctic Sound)
-* Intel(R) Data Center GPU Max Series (formerly Ponte Vecchio)
+* Intel Graphics for 11th-14th Generation Intel Core Processors
+* Intel Graphics for Intel Core Ultra Processors (formerly Meteor Lake)
+* Intel Iris Xe MAX Graphics (formerly DG1)
+* Intel Arc(TM) Graphics (formerly Alchemist)
+* Intel Data Center GPU Flex Series (formerly Arctic Sound)
+* Intel Data Center GPU Max Series (formerly Ponte Vecchio)
 
 ## Requirements for Building from Source
 
@@ -159,7 +161,7 @@ is enabled:
       with Intel subgroups and USM extensions support
 * SYCL runtime requires
     * [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html)
-    * OpenCL runtime library (OpenCL version 1.2 or later)
+    * OpenCL runtime library (OpenCL version 3.0 or later)
     * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
 * SYCL runtime with NVIDIA GPU support requires
     * [oneAPI DPC++ Compiler with support for CUDA](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-nvidia-cuda)
@@ -249,36 +251,31 @@ Runtime-specific dependencies:
 
 ### Validated Configurations
 
-CPU engine was validated on RedHat\* Enterprise Linux 7 with
-* GNU Compiler Collection 4.8, 5.4, 6.1, 7.2, 8.1, and 9.1
-* Clang\* 3.8.1, 7.1, 8.0, and 9.0
-* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2023.1
+CPU engine was validated on RedHat\* Enterprise Linux 8 with
+* GNU Compiler Collection 5.4, 6.1, 7.2, 8.1, 9.1, 11.1, 11.3
+* Clang\* 7.1, 8.0, 9.0, 14.0.6
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2024.0
 
-on Windows Server\* 2016 with
-* Microsoft Visual Studio 2019 and 2022
-* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2023.1
+on Windows Server\* 2019 with
+* Microsoft Visual Studio 2022
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2024.0
 
 on macOS 11 (Big Sur) with
 * Apple LLVM version 13.0
-* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2023.1
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2024.0
 
-GPU engine was validated on Ubuntu\* 20.04 with
+GPU engine was validated on Ubuntu\* 22.04 with
 * GNU Compiler Collection 7.2, 8.1, and 9.1
-* Clang 3.8.1, 7.1, 8.0, and 9.0
-* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2023.1
+* Clang 7.1, 8.0, 9.0
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2024.0
 * [Intel Software for General Purpose GPU capabilities](https://dgpu-docs.intel.com/index.html)
 latest stable version available at the time of release
 
 on Windows Server 2019 with
-* Microsoft Visual Studio 2019 and 2022
-* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2023.1
-* [Intel Graphics - Windows 10 DCH Drivers](https://www.intel.com/content/www/us/en/download/19344/intel-graphics-windows-dch-drivers.html)
-* [Intel Arc Graphics Windows DCH Driver](https://www.intel.com/content/www/us/en/download/726609/intel-arc-graphics-windows-dch-driver.html)
+* Microsoft Visual Studio 2022
+* [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html) 2024.0
+* [Intel Arc & Iris Xe Graphics Driver](https://www.intel.com/content/www/us/en/download/785597/intel-arc-iris-xe-graphics-windows.html)
 latest stable version available at the time of release
-
-## Requirements for Pre-built Binaries
-
-See the README included in the corresponding binary package.
 
 # Applications Enabled with oneDNN
 
@@ -383,4 +380,3 @@ OpenCL and the OpenCL logo are trademarks of Apple Inc. used by permission
 by Khronos.
 
 (C) Intel Corporation
-
