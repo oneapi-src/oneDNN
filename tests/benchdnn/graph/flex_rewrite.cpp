@@ -24,18 +24,6 @@
 #include "flex_rewrite.hpp"
 #include "parser.hpp"
 
-namespace {
-std::string shape_to_string(const dnnl::graph::logical_tensor::dims &shape) {
-    if (shape.empty()) return std::string();
-
-    std::stringstream ss;
-    std::copy(shape.begin(), shape.end(),
-            std::ostream_iterator<int64_t>(ss, "x"));
-    auto res = ss.str();
-    return res.substr(0, res.length() - 1);
-}
-} // namespace
-
 namespace graph {
 
 void flex_rewrite::rewrite(deserialized_graph &dgraph) {
@@ -888,15 +876,6 @@ void flex_rewrite::inports_shape_rewrite(
     for (auto &lt : aop.out_lts_) {
         set_default_deserialized_lt(lt);
     }
-
-    std::string shapes_str;
-    for (const auto &graph_input : dgraph.graph_tensors_) {
-        std::string shape_str = std::to_string(graph_input.first) + ":"
-                + shape_to_string(graph_input.second) + " ";
-        shapes_str += shape_str;
-    }
-    BENCHDNN_PRINT(7, "[INFO] Graph input tensor ids and shapes: %s\n",
-            shapes_str.c_str());
 }
 
 void flex_rewrite::op_attrs_rewrite(deserialized_graph &dgraph) {

@@ -20,6 +20,7 @@
 #include <map>
 #include <numeric>
 #include <queue>
+#include <sstream>
 #include <stdexcept>
 
 #include "deserialize.hpp"
@@ -330,6 +331,79 @@ void deserialized_graph::load(const std::string &pass_config_json) {
     for (const auto &item : graph_tensors_) {
         input_ports_.emplace_back(item.first);
     }
+}
+
+// Prints the lt in the plain string format: `(id):dt:shape`.
+std::ostream &operator<<(std::ostream &s, const deserialized_lt &dlt) {
+    s << "(" << dlt.id_ << "):" << dlt.data_type_ << ":"
+      << lt_dims2str(dlt.shape_);
+    return s;
+}
+
+std::string deserialized_lt::get_string() const {
+    std::stringstream ss;
+    ss << *this;
+    return ss.str();
+}
+
+// Prints the op in the plain string format:
+// {(id) OpKind}
+//     In: { lt0, lt1, ... }
+//     Out: { lt0, lt1, ... }
+//     Attrs: { Scales: { val0, ... } }  // <-- if any available.
+std::ostream &operator<<(std::ostream &s, const deserialized_op &dop) {
+    s << "{(" << dop.id_ << ") " << dop.kind_ << "}\n";
+
+    s << "    In: { ";
+    for (size_t i = 0; i < dop.in_lts_.size(); i++) {
+        s << dop.in_lts_[i];
+        if (i != dop.in_lts_.size() - 1) s << ",";
+        s << " ";
+    }
+    s << "}\n";
+
+    s << "    Out: { ";
+    for (size_t i = 0; i < dop.out_lts_.size(); i++) {
+        s << dop.out_lts_[i];
+        if (i != dop.out_lts_.size() - 1) s << ",";
+        s << " ";
+    }
+    s << "}\n";
+
+    const auto it_attr_scales = dop.attrs_.find("scales");
+    const bool has_scales = it_attr_scales != dop.attrs_.end();
+    if (has_scales) {
+        s << "    Attrs: { ";
+        s << "Scales: { ";
+        const auto &scales_v = it_attr_scales->second.f32_vector_;
+        for (size_t i = 0; i < scales_v.size(); i++) {
+            s << scales_v[i];
+            if (i != scales_v.size() - 1) s << ",";
+            s << " ";
+        }
+        s << "} "; // Scales
+        s << "}\n"; // Attrs
+    }
+    return s;
+}
+
+std::string deserialized_op::get_string() const {
+    std::stringstream ss;
+    ss << *this;
+    return ss.str();
+}
+
+std::ostream &operator<<(std::ostream &s, const deserialized_graph &dg) {
+    for (const auto &op : dg.ops_) {
+        s << op;
+    }
+    return s;
+}
+
+std::string deserialized_graph::get_string() const {
+    std::stringstream ss;
+    ss << *this;
+    return ss.str();
 }
 
 dnnl::graph::graph deserialized_graph::to_graph(

@@ -34,7 +34,7 @@ following information is printed for certain verbosity levels.
 * Compare configuration stats.
 
 ## Level 7
-* Graph: shapes information (after the rewriter pass).
+* Graph: prints the essential part of the graph (after the rewriter pass).
 
 ## Level 50
 * Full path of batch file used.

@@ -814,6 +814,16 @@ std::string verbose_partitions_n_ops(
     return s;
 }
 
+std::string lt_dims2str(const dnnl::graph::logical_tensor::dims &dims) {
+    if (dims.empty()) return std::string();
+
+    std::stringstream ss;
+    std::copy(
+            dims.begin(), dims.end(), std::ostream_iterator<int64_t>(ss, "x"));
+    auto res = ss.str();
+    return res.substr(0, res.length() - 1);
+}
+
 void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation) {
     std::vector<int> axes(permutation.size(), -1);
     for (int i = 0; i < static_cast<int>(permutation.size()); i++) {

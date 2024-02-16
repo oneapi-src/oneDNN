@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ void check_correctness(const settings_t &s) {
         dg.load(locate_file(s.json_file));
         flex_rewrite fw(i_in_shapes, i_op_attrs, i_mb);
         fw.rewrite(dg);
+        BENCHDNN_PRINT(7, "[INFO] Graph dump:\n%s\n", dg.get_string().c_str());
+
         const prb_t prb(dg, i_fpmath_mode);
         const auto &cpp_pstr
                 = case_to_str(s.json_file, i_in_shapes, i_op_attrs, i_mb);
