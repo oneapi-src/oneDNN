@@ -805,6 +805,15 @@ void change_format_to_ncx(dims_t &dims) {
     dims.erase(dims.end() - 1);
 }
 
+std::string verbose_partitions_n_ops(
+        const std::vector<dnnl::graph::partition> &partitions) {
+    std::string s;
+    for (const auto &partition : partitions) {
+        s += " {" + std::to_string(partition.get_ops_num()) + "}";
+    }
+    return s;
+}
+
 void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation) {
     std::vector<int> axes(permutation.size(), -1);
     for (int i = 0; i < static_cast<int>(permutation.size()); i++) {

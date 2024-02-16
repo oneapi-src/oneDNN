@@ -238,8 +238,6 @@ logical_tensor::dims deserialized_op::get_NCX_shape(
 
 void deserialized_graph::load(const std::string &pass_config_json) {
     std::ifstream fs(pass_config_json.c_str());
-    BENCHDNN_PRINT(
-            1, "Deserializing graph from %s\n", pass_config_json.c_str());
     utils::json::json_reader_t read(&fs);
     utils::json::read_helper_t helper;
     helper.declare_field("graph", &ops_);
@@ -255,11 +253,6 @@ void deserialized_graph::load(const std::string &pass_config_json) {
                 0, "Error: Graph %s is empty.\n", pass_config_json.c_str());
         SAFE_V(FAIL);
     }
-
-    BENCHDNN_PRINT(1,
-            "The graph was serialized with oneDNN Graph v%s on %s engine "
-            "with %s fpmath mode.\n",
-            version_.c_str(), engine_kind_.c_str(), fpmath_mode_.c_str());
 
     std::map<size_t, size_t> deg; // record indegree for each op
     std::map<size_t, deserialized_op> ops_map; // op_id -> op

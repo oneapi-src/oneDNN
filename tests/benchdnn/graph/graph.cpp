@@ -434,7 +434,9 @@ int doit(const prb_t *prb, res_t *res) {
         BENCHDNN_PRINT(0, "%s\n", "Error: partitions are empty");
         return res->state = FAILED, FAIL;
     }
-    BENCHDNN_PRINT(1, "Partition size %zd.\n", partitions.size());
+
+    BENCHDNN_PRINT(3, "[INFO]: n_partitions:%zd; ops_in_partitions:%s\n",
+            partitions.size(), verbose_partitions_n_ops(partitions).c_str());
 
     for (size_t i = 0; i < partitions.size(); ++i) {
         if (partitions[i].is_supported()) continue;

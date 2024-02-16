@@ -751,9 +751,8 @@ void flex_rewrite::inports_shape_rewrite(
         deserialized_graph &dgraph, bool &change_stride) {
     // reminder mb rewrite status
     if (mb_ != 0 && dgraph.graph_inputs_with_mb_.empty()) {
-        BENCHDNN_PRINT(1,
-                "graph: rewrite: Cannot rewrite mb as "
-                "%ld!\n",
+        BENCHDNN_PRINT(0,
+                "Error: flex_rewrite: can't rewrite mb value with \'%ld\'.\n",
                 (long)mb_);
     }
 
@@ -896,8 +895,8 @@ void flex_rewrite::inports_shape_rewrite(
                 + shape_to_string(graph_input.second) + " ";
         shapes_str += shape_str;
     }
-    BENCHDNN_PRINT(
-            1, "Graph input tensor ids and shapes: %s\n", shapes_str.c_str());
+    BENCHDNN_PRINT(7, "[INFO] Graph input tensor ids and shapes: %s\n",
+            shapes_str.c_str());
 }
 
 void flex_rewrite::op_attrs_rewrite(deserialized_graph &dgraph) {

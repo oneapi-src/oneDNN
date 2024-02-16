@@ -187,6 +187,11 @@ dnnl::graph::logical_tensor::layout_type str2layout(
 
 void change_format_to_ncx(dims_t &dims);
 
+// For a given vector of partitions provide a string with number of ops in
+// every partition in format: `{N} {M} ...`.
+std::string verbose_partitions_n_ops(
+        const std::vector<dnnl::graph::partition> &partitions);
+
 template <typename First, typename... Rest>
 void change_format_to_ncx(First &first, Rest &...rest) {
     change_format_to_ncx(first);
