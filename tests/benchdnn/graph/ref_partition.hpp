@@ -44,7 +44,7 @@ public:
     void exec_ops(res_t *res);
 
     // ref execution and cmp
-    void check_partition_correctness(
+    int check_partition_correctness(
             partition_mem_map_t &partition_mem_map, res_t *res);
 
     // get the reference of ops of the partition

@@ -641,8 +641,9 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
             // args for correctness check of the last op
-            ref_partition.check_partition_correctness(
-                    partition_mem_map_v[i], res);
+            SAFE(ref_partition.check_partition_correctness(
+                         partition_mem_map_v[i], res),
+                    WARN);
         }
     }
 

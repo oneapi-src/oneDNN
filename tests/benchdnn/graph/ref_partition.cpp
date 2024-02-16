@@ -209,14 +209,13 @@ void ref_partition_t::exec_ops(res_t *res) {
     }
 }
 
-void ref_partition_t::check_partition_correctness(
+int ref_partition_t::check_partition_correctness(
         partition_mem_map_t &partition_mem_map, res_t *res) {
 
-    size_t errors = 0, total = 0;
     bool mistrusted = false, has_eltwise = false, output_has_nans = false;
     const auto &map_kind_to_alg = eltwise::get_eltwise_kind_map();
 
-    for (auto op : partition_ops_ref_) {
+    for (const auto &op : partition_ops_ref_) {
         size_t op_id = op.get().id_;
         const auto op_kind = op.get().kind_;
         const auto ref_prim = ref_prims_.at(op_id);
@@ -266,16 +265,14 @@ void ref_partition_t::check_partition_correctness(
 
         ref_prim->check_correctness(
                 output_args, has_eltwise, output_has_nans, res);
+        if (res->state == FAILED) {
+            BENCHDNN_PRINT(
+                    2, "Op failed: {(%zu) %s}\n", op_id, op_kind.c_str());
+            return FAIL;
+        }
 
-        // accumulate error count and reset the counter
-        errors += res->errors;
-        total += res->total;
         mistrusted = mistrusted || (res->state == MISTRUSTED);
-        res->errors = 0;
-        res->total = 0;
     }
-    res->errors = errors;
-    res->total = total;
     if (res->errors > 0) {
         res->state = FAILED;
     } else if (mistrusted) {
@@ -283,6 +280,8 @@ void ref_partition_t::check_partition_correctness(
     } else {
         res->state = PASSED;
     }
+
+    return OK;
 }
 
 bool ref_partition_t::check_valid_bf16_in() const {
