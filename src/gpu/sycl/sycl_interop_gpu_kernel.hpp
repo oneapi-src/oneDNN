@@ -47,7 +47,7 @@ public:
         return arg_types_;
     }
 
-    bool is_on(const gpu::compute::compute_engine_t &engine) const override;
+    bool is_on(const engine_t *engine) const override;
     status_t dump() const override;
     std::string name() const override {
         return sycl_kernel_->get_info<::sycl::info::kernel::function_name>();

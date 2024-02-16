@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,8 +65,7 @@ status_t get_cached_kernels(std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
         if (kernel_names[0] && std::string(kernel_names[0]) != kernel.name())
             return status::runtime_error;
 
-        if (!kernel.is_on(*utils::downcast<const compute_engine_t *>(engine)))
-            return status::runtime_error;
+        if (!kernel.is_on(engine)) return status::runtime_error;
 
         kernels[0] = kernel;
         return status::success;
