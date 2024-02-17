@@ -1738,7 +1738,7 @@ private:
             const tdim_info_t &w_tdim, const mod_info_t &mod_info) const {
         if (!params_.use_xy) return true;
         auto x_mod = w_tdim.offset(mod_info.vmods(), w_tdim.base_mod());
-        int align = block_2d_x_alignment(info_.hw(), params_.type.size());
+        int align = block_2d_x_alignment(params_.type.size());
         int x_align = align;
         if (!x_mod.is_divisible(x_align) != 0)
             return fail_2d("Unsupported x alignment: ", x_mod);
