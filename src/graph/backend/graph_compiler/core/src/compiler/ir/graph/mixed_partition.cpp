@@ -624,8 +624,13 @@ void mxp_buffer_allocator::tensor_initialize() {
                 range_list = anchor->fsmap_.get(b2g_map_[pair.second]);
                 decl_body = anchor->get_parent_scope();
             }
-            auto ret = padding->get_zero_out_stmt(pad_tsr, range_list);
-            decl_body->seq_.insert(decl_body->seq_.begin(), ret);
+            if (!op->attrs_.has_key(
+                        mixed_partition_hint::tensor_already_initialized)) {
+                auto ret = padding->get_zero_out_stmt(pad_tsr, range_list);
+                decl_body->seq_.insert(decl_body->seq_.begin(), ret);
+                op->attrs_[mixed_partition_hint::tensor_already_initialized]
+                        = true;
+            }
         }
     }
 }
