@@ -637,7 +637,7 @@ TEST(GCCore_CPU_graph_conv_test, TestQuantizedGraphGroupedConvolution2) {
                     {"scales", std::vector<float> {0.1f}},
                     {"zero_points", std::vector<int> {0}},
                     {"dtype", datatypes::u8}});
-    auto out = graph.make_output(conv->get_outputs());
+    auto out = graph.make_output(quantize_conv->get_outputs());
     auto ctx = std::make_shared<context_t>(*get_test_ctx());
     graph_driver(graph, ctx);
 }
