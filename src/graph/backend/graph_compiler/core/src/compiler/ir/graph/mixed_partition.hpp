@@ -65,6 +65,8 @@ constexpr const char *split_anchor_op = "split_anchor_op";
 // break. However, if it becomes standalone op after fuse break, it will be
 // marked as false and we will remove the fuse break attribute
 constexpr const char *trial_break = "trial_break";
+// Boolean: whether the tensor has been initialized
+constexpr const char *tensor_already_initialized = "tensor_already_initialized";
 } // namespace mixed_partition_hint
 
 // different fusion policies prepared for dynamic shape, policies will be JIT
