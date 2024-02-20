@@ -20,6 +20,7 @@
                 add:u8:per_oc,\
                 prelu:per_tensor,\
                 prelu:per_oc,\
+                prelu:per_oc:true,\
                 sum+relu:0.5+add:f32
 --batch=shapes_2d
 --batch=shapes_3d
