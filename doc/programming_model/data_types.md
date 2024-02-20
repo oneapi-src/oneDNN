@@ -16,6 +16,7 @@ operations which take bool as inputs and/or outputs data type.
 | bf16      | [non-IEEE 16-bit floating-point](https://www.intel.com/content/dam/develop/external/us/en/documents/bf16-hardware-numerics-definition-white-paper.pdf)                                  |
 | f16       | [IEEE half precision floating-point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)                 |
 | s8/u8     | signed/unsigned 8-bit integer                                                                                                                                                           |
+| s4/u4     | signed/unsigned 4-bit integer                                                                                                                                                           |
 | f64       | [IEEE double precision floating-point](https://en.wikipedia.org/wiki/Double-precision_floating-point_format#IEEE_754_double-precision_binary_floating-point_format:_binary64)           |
 | boolean   | bool (size is C++ implementation defined)                                                                                                                                               |
 | f8\_e5m2  | [OFP8 standard 8-bit floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf) with 5 exponent and 2 mantissa bits |
@@ -30,10 +31,10 @@ operations which take bool as inputs and/or outputs data type.
 
 oneDNN supports training and inference with the following data types:
 
-| Usage mode | CPU                                               | GPU                                           |
-|:-----------|:--------------------------------------------------|:----------------------------------------------|
-| Inference  | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, boolean | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, f64 |
-| Training   | f32, bf16, f16                                    | f32, bf16, f64                                |
+| Usage mode | CPU                                                      | GPU                                           |
+|:-----------|:---------------------------------------------------------|:----------------------------------------------|
+| Inference  | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, s4/u4, boolean | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, f64 |
+| Training   | f32, bf16, f16                                           | f32, bf16, f64                                |
 
 @note
     Using lower precision arithmetic may require changes in the deep learning
@@ -47,10 +48,17 @@ oneDNN supports training and inference with the following data types:
     Boolean is only supported by the oneDNN graph API when the graph compiler
     backend is enabled.
 
+@note
+    s4/u4 data types are only supported as a storage data type for weights argument
+    in case of weights decompression. For more details, refer to
+    [Matmul Tutorial: weights decompression](@ref weights_decompression_matmul_cpp).
+
 See topics for the corresponding data types details:
  * @ref dev_guide_inference_int8
  * @ref dev_guide_attributes_quantization
  * @ref dev_guide_training_bf16
+ * @ref dev_guide_attributes_fpmath_mode
+ * @ref weights_decompression_matmul_cpp
 
 Individual primitives may have additional limitations with respect to data type
 by each primitive is included in the corresponding sections of the developer
