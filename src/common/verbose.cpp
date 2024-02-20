@@ -78,7 +78,7 @@ namespace impl {
 
 static setting_t<uint32_t> verbose {0};
 
-void print_header(const filter_status_t &filter_status) {
+void print_header(const filter_status_t &filter_status) noexcept {
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (!version_printed.test_and_set()) {
         printf("onednn_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
@@ -93,15 +93,23 @@ void print_header(const filter_status_t &filter_status) {
 #endif
         printf("onednn_verbose,info,gpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
+        // Printing the header generally requires iterating over devices/backends,
+        // which may involve an allocation. Use a try/catch block in case
+        // these fail (not printing a header is reasonable in this case)
+        try {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        gpu::ocl::print_verbose_header();
+            gpu::ocl::print_verbose_header();
 #endif
 #ifdef DNNL_WITH_SYCL
-        sycl::print_verbose_header();
+            sycl::print_verbose_header();
 #endif
 #ifdef ONEDNN_BUILD_GRAPH
-        graph::utils::print_verbose_header();
+            graph::utils::print_verbose_header();
 #endif
+        } catch (...) {
+            printf("onednn_verbose,info,exception while printing verbose "
+                   "header\n");
+        }
 #ifdef DNNL_EXPERIMENTAL
         printf("onednn_verbose,info,experimental features are enabled\n");
         printf("onednn_verbose,info,use batch_normalization stats one pass is "
