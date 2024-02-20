@@ -202,6 +202,42 @@ TEST_F(attr_test_t, TestZeroPointsWithGroups) {
     }
 }
 
+TEST_F(attr_test_t, TestZeroPointsDataTypes) {
+    dnnl::primitive_attr attr;
+
+    const std::vector<int> supported_args = {DNNL_ARG_WEIGHTS};
+    const std::vector<int> unsupported_args = {DNNL_ARG_SRC};
+
+    const std::vector<data_type> supported_dts = {data_type::s32, data_type::s8,
+            data_type::u8, data_type::s4, data_type::u4};
+    const std::vector<data_type> unsupported_dts
+            = {data_type::f32, data_type::f16, data_type::bf16};
+
+    for (auto arg : supported_args) {
+        for (auto dt : supported_dts) {
+            attr.set_zero_points(arg, 1 << 0, {}, dt);
+        }
+        for (auto dt : unsupported_dts) {
+            EXPECT_ANY_THROW(attr.set_zero_points(arg, 0, {}, dt));
+        }
+    }
+
+    for (auto arg : unsupported_args) {
+        for (auto dt : supported_dts) {
+            if (dt == data_type::s32) {
+                // s32 is a default zero point data type supported by all eligible arguments
+                attr.set_zero_points(arg, 0, {}, dt);
+            } else {
+                // Only weights support non-default zero point data type
+                EXPECT_ANY_THROW(attr.set_zero_points(arg, 0, {}, dt));
+            }
+        }
+        for (auto dt : unsupported_dts) {
+            EXPECT_ANY_THROW(attr.set_zero_points(arg, 0, {}, dt));
+        }
+    }
+}
+
 TEST_F(attr_test_t, TestZeroPointsExpectFailure) {
     dnnl::primitive_attr attr;
 
