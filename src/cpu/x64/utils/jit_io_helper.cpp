@@ -1060,6 +1060,11 @@ std::shared_ptr<jit_io_helper_t<Vmm>> jit_io_multi_dt_helper_t<Vmm>::at(
 }
 
 template <typename Vmm>
+bool jit_io_multi_dt_helper_t<Vmm>::empty() const {
+    return storage_.empty();
+}
+
+template <typename Vmm>
 std::shared_ptr<jit_io_helper_t<Vmm>> jit_io_multi_dt_helper_t<Vmm>::operator[](
         const data_type_t dt) const {
     auto res = this->at(dt);

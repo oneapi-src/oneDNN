@@ -275,6 +275,7 @@ public:
     void init_bf16();
 
     std::shared_ptr<jit_io_helper_t<Vmm>> at(const data_type_t dt) const;
+    bool empty() const;
     std::shared_ptr<jit_io_helper_t<Vmm>> operator[](
             const data_type_t dt) const;
 
