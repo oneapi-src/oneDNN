@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,7 +70,6 @@ status_t gen_reorder_t::pd_t::init(
                 dt, data_type::bf16, data_type::f32, data_type::f8_e5m2);
     };
     bool any_hf8 = utils::one_of(data_type::f8_e4m3, dst_dt, src_dt);
-    bool has_native_bf16 = device_info->has_native(data_type::bf16);
     auto skip_mask = dnnl_primitive_attr::skip_mask_t::post_ops
             | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
             | dnnl_primitive_attr::skip_mask_t::scales_runtime;
@@ -80,10 +79,10 @@ status_t gen_reorder_t::pd_t::init(
             && utils::one_of(dst_dt, f32, f16, bf16, f8_e5m2, s32, s8, u8, f64)
             && IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
                     device_info->has_native(data_type::f16))
-            && IMPLICATION(src_dt == data_type::bf16,
-                    has_native_bf16 && is_bf16_or_f32_or_bf8(dst_dt))
-            && IMPLICATION(dst_dt == data_type::bf16,
-                    has_native_bf16 && is_bf16_or_f32_or_bf8(src_dt))
+            && IMPLICATION(
+                    src_dt == data_type::bf16, is_bf16_or_f32_or_bf8(dst_dt))
+            && IMPLICATION(
+                    dst_dt == data_type::bf16, is_bf16_or_f32_or_bf8(src_dt))
             && IMPLICATION(utils::one_of(data_type::f8_e5m2, src_dt, dst_dt),
                     device_info->has_native(data_type::f8_e5m2))
             && IMPLICATION(src_dt == data_type::f64 || dst_dt == data_type::f64,
