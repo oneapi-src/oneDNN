@@ -61,9 +61,9 @@ enum class gws_op_t : uint32_t {
 };
 
 inline std::string to_string(gws_op_t op) {
+    switch (op) {
 #define CASE(x) \
     case gws_op_t::x: return #x;
-    switch (op) {
         CASE(ZERO);
         CASE(SOLO);
         CASE(FIRST);
@@ -72,6 +72,7 @@ inline std::string to_string(gws_op_t op) {
         CASE(FIRST_BLOCK);
         CASE(MOD_BLOCK);
         CASE(UNDEF);
+#undef CASE
     }
     return "invalid";
 }
