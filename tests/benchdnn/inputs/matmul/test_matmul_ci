@@ -96,7 +96,7 @@
 --dtag=ab
 --batch=shapes_2d_ci
 
-### wei decomp
+### int8 wei decomp
 --reset
 --dt=bf16:s8:bf16,bf16:u8:bf16
 --attr-scales=wei:common:2,wei:per_oc:bf16
@@ -117,6 +117,19 @@
 5x12:12x17
 3x5x12:3x12x17
 3x5x12:1x12x17
+
+### int4 wei decomp
+--reset
+--dt=bf16:s4:bf16,bf16:u4:bf16
+--stag=abc,acb
+--attr-scales=wei:common:2,wei:per_oc:bf16,wei:per_ocic:bf16:32x1
+# There is no support for a common u4/s4 zero point
+--attr-zero-points=wei:per_oc:u4,wei:per_ocic:s4,wei:per_ocic:s4:32x1
+--attr-fpmath=bf16:true
+7x6x32:7x32x64
+7x6x32:1x32x64
+3x6x96:3x96x64
+3x6x96:1x96x64
 
 # Test bf32, tf32 data type configuration
 --reset
