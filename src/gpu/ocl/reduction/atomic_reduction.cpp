@@ -27,9 +27,9 @@
 #include "gpu/compute/kernel_ctx.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
-#include "gpu/ocl/atomic_reduction.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/reduction_utils.hpp"
+#include "gpu/ocl/reduction/atomic_reduction.hpp"
+#include "gpu/ocl/reduction/reduction_utils.hpp"
 
 namespace dnnl {
 namespace impl {

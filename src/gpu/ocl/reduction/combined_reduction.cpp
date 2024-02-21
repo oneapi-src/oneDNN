@@ -14,9 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/combined_reduction.hpp"
+#include "gpu/ocl/reduction/combined_reduction.hpp"
 #include "common/c_types_map.hpp"
-#include "common/scratchpad.hpp"
 #include "gpu/block_structure.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
