@@ -374,8 +374,8 @@ constexpr size_t dim_not_found = std::numeric_limits<size_t>::max();
 
 struct named_buffer_t : public memory_desc_t {
     named_buffer_t(const char *name, const memory_desc_t &md,
-            std::vector<dim_id_t> dims)
-        : memory_desc_t(md), name(name), dim_ids(std::move(dims)) {
+            const std::vector<dim_id_t> &dims)
+        : memory_desc_t(md), name(name), dim_ids(dims) {
         gpu_assert(this->name.size() <= MAX_BUFFER_NAME_LENGTH);
         gpu_assert(format_kind == format_kind::blocked);
         gpu_assert(static_cast<size_t>(md.ndims) <= dim_ids.size());
