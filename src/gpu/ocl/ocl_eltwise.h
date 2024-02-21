@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@
 #endif
 
 POST_OP_DATA_T relu_fwd(POST_OP_DATA_T s, float alpha) {
-    return s > 0 ? s : ((alpha == 0) ? 0 : s * alpha);
+    return s > 0 ? s : s * alpha;
 }
 POST_OP_DATA_T relu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s, float alpha) {
     return s > 0 ? dd : dd * alpha;
