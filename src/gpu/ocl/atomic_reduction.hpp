@@ -126,8 +126,8 @@ struct atomic_reduction_t : public gpu_primitive_t {
         status_t init_finalization_pd(engine_t *engine);
         void init_scratchpad();
 
-        int div;
-        float eps, power;
+        int div = 0;
+        float eps = 1, power = 1;
         std::vector<atomic_reduction_conf_t> phases;
         bool needs_finalization = false;
         std::shared_ptr<primitive_desc_t> eltwise_pd_;
