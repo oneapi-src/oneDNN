@@ -90,7 +90,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     size_t ndims = gpu_utils::into<size_t>(input_buf.ndims);
     std::vector<compute::dim_id_t> dims = get_dims(ndims);
     block_layout_t layout = input_buf.layout();
-    const block_t *norm_block = [layout, dims]() -> const block_t * {
+    const block_t *norm_block = [&layout, &dims]() -> const block_t * {
         const block_t *ret = nullptr;
         for (const block_t &block : layout) {
             if (gpu_utils::into<size_t>(block.dim_idx) == dims.back()) {
@@ -329,9 +329,9 @@ status_t reusable_layer_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
     // reduces stat dimensions, which requires elementwise-alignment between
     // src/stats over these dims. Skip cases where this is not the case
     if (conf.use_scale || conf.use_shift) {
-        compute::named_buffer_t src_no_norm(diff_src_buffer);
-        src_no_norm.remove_dim(dims.back());
-        if (src_no_norm.layout() != stat_buffer.layout()) {
+        // OK to mutate diff_src_buffer
+        diff_src_buffer.remove_dim(dims.back());
+        if (diff_src_buffer.layout() != stat_buffer.layout()) {
             return status::unimplemented;
         }
     }
