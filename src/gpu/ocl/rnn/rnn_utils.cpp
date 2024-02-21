@@ -28,6 +28,7 @@ namespace ocl {
 
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::gpu::gpu_utils;
+using namespace dnnl::impl::gpu::compute;
 using namespace prop_kind;
 using namespace data_type;
 
@@ -58,8 +59,10 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d, bool is_xe_hpc) {
+        const memory_desc_wrapper &dst_layer_d, data_type_t acc_data_t,
+        const device_info_t &device_info) {
 
+    bool is_xe_hpc = device_info.gpu_arch() == gpu_arch_t::xe_hpc;
     rnn = utils::zero<decltype(rnn)>();
     rnn.is_fwd = utils::one_of(rd.prop_kind, prop_kind::forward_training,
             prop_kind::forward_inference);
@@ -102,6 +105,9 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.aux_data_type
             = rnn.dt_conf == all_f16 ? data_type::f16 : data_type::f32;
     rnn.diff_data_type = data_type::f32;
+
+    rnn.acc_data_type = acc_data_t;
+    rnn.acc_data_type_elsz = types::data_type_size(acc_data_t);
 
     rnn.n_layer = weights_layer_d.dims()[0];
     rnn.n_iter = src_layer_d.dims()[0];
@@ -150,37 +156,64 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             is_small_scratch && dst_layer_is_trivial_stride
                     && !(rnn.is_fwd || is_gru));
 
-    bool can_fuse_gemm = rnn.dt_conf == all_f32 && rnn.is_fwd
-            && utils::one_of(rd.cell_kind, alg_kind::vanilla_rnn,
-                    alg_kind::vanilla_lstm);
-
     if (rnn.is_fwd) {
-        // Since RNN cells may result in very small workloads the CPU overhead to
-        // dispatch kernels may be significant.
-        // dhc = 64, mb >= 2048 -> 2^23
-        // dhc <= 128, mb <= 128 -> 2^21
-        // Poor performance if dhc % subgroup_size != 0 (OpenCL compiles poorly when mn_tail is enabled)
-        size_t fuse_gemm_limit = 0;
+        bool can_fuse_gemm = rnn.dt_conf == all_f32 && rnn.is_fwd
+                && utils::one_of(rd.cell_kind, alg_kind::vanilla_rnn,
+                        alg_kind::vanilla_lstm);
+        // Poor implementation performance if dhc % subgroup_size != 0
+        bool tail_dhc = rnn.dhc % device_info.min_subgroup_size() != 0;
+
+        // Since RNN cells may result in very small workloads the CPU overhead
+        // to dispatch kernels may be significant. As such, if the work per eu
+        // is too small, we need to fuse kernel operations to reduce CPU
+        // workload.
+        dim_t fuse_gemm_limit = [&]() {
+            const dim_t work_threshold = tail_dhc ? 512 : 1024;
+            return work_threshold * device_info.eu_count()
+                    * device_info.max_subgroup_size(rnn.acc_data_type);
+        }();
+
+        // For large enough k dimension, parallelization in external gemm
+        // kernels is more performant.
+        const dim_t k_limit = tail_dhc ? 50 : 160;
+
         rnn.cell_fusion.gemm_iter
-                = dev_getenv("fuse_gemm_iter", !rnn.merge_gemm_iter)
+                = dev_getenv("fuse_gemm_iter",
+                          !rnn.merge_gemm_iter
+                                  && rnn.dhc * rnn.sic * rnn.mb * rnn.n_gates
+                                          < fuse_gemm_limit
+                                  && rnn.sic < k_limit)
                 && can_fuse_gemm;
         rnn.cell_fusion.gemm_layer
                 = dev_getenv("fuse_gemm_layer",
-                          rnn.cell_fusion.gemm_iter && !rnn.merge_gemm_layer)
+                          rnn.cell_fusion.gemm_iter && !rnn.merge_gemm_layer
+                                  && rnn.dhc * rnn.slc * rnn.mb * rnn.n_gates
+                                          < fuse_gemm_limit
+                                  && rnn.slc < k_limit)
                 && can_fuse_gemm;
 
         // Currently, external gemm_iter always accumulates in C. As such,
         // external gemm_layer is required to initialize the memory.
         gpu_assert(IMPLICATION(
                 rnn.cell_fusion.gemm_layer, rnn.cell_fusion.gemm_iter));
-        rnn.dhc_loop = std::min(
-                static_cast<dim_t>(dev_getenv("dhc_loop", 1)), rnn.dhc);
-        if (rnn.dhc_loop == 0) rnn.dhc_loop = rnn.dhc;
+
         bool can_iter_loop = rnn.cell_fusion.gemm_iter
-                && (rnn.merge_gemm_layer || rnn.cell_fusion.gemm_layer)
-                && rnn.dhc_loop >= rnn.dhc;
-        rnn.iter_loop = can_iter_loop ? dev_getenv("iter_loop", 1) : 1;
-        if (rnn.iter_loop == 0) rnn.iter_loop = rnn.n_iter;
+                && (rnn.merge_gemm_layer || rnn.cell_fusion.gemm_layer);
+
+        const int loop_all = 0;
+        rnn.iter_loop = dev_getenv("iter_loop", can_iter_loop ? loop_all : 1);
+        if (rnn.iter_loop == loop_all) rnn.iter_loop = rnn.n_iter;
+
+        rnn.dhc_loop = dev_getenv("dhc_loop", rnn.iter_loop ? loop_all : 1);
+        if (rnn.dhc_loop == loop_all) rnn.dhc_loop = rnn.dhc;
+
+        // A synchronization point is required after cell computation on along
+        // the dhc dimension. This requires dhc to be calculated on one thread
+        // group.
+        gpu_assert(IMPLICATION(rnn.iter_loop, rnn.dhc_loop == rnn.dhc));
+    } else {
+        rnn.iter_loop = 1;
+        rnn.dhc_loop = 1;
     }
 
     // Decide to copy bias
