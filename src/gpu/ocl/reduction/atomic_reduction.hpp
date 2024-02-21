@@ -32,7 +32,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct atomic_reduction_key_params_t {
+struct atomic_reduction_key_params_t
+    : trivially_serializable_t<atomic_reduction_key_params_t> {
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_bundle_t &bundle) const {
         compute::kernel_ctx_t kernel_ctx;
@@ -50,17 +51,6 @@ struct atomic_reduction_key_params_t {
 #if __cplusplus >= 202002L
     bool operator==(const atomic_reduction_key_params_t &) const = default;
 #endif
-    serialized_t serialize() const {
-        assert_trivially_serializable(atomic_reduction_key_params_t);
-        return {*this};
-    }
-
-    static atomic_reduction_key_params_t deserialize(const serialized_t &s) {
-        atomic_reduction_key_params_t t {};
-        deserializer_t d(s);
-        d.pop(t);
-        return t;
-    }
 
     status_t get_kernel_ctx(compute::kernel_ctx_t &) const;
 
