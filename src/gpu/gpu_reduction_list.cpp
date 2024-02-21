@@ -19,6 +19,7 @@
 #include "gpu/ocl/reduction/atomic_reduction.hpp"
 #include "gpu/ocl/reduction/combined_reduction.hpp"
 #include "gpu/ocl/reduction/ref_reduction.hpp"
+#include "gpu/ocl/reduction/reusable_ref_reduction.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,6 +32,7 @@ constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
         INSTANCE(ocl::atomic_reduction_t)
         INSTANCE(ocl::combined_reduction_t)
         INSTANCE(ocl::ref_reduction_t)
+        INSTANCE(ocl::reusable_ref_reduction_t)
         nullptr,
 });
 // clang-format on
