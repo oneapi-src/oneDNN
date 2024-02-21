@@ -476,7 +476,7 @@ struct jit_avx512_core_amx_bwd_data_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_bwd_data_kernel_t)
 
     jit_avx512_core_amx_bwd_data_kernel_t(
-            const jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jit_generator(
                 jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
         , jcp(ajcp)
