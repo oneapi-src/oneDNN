@@ -98,23 +98,26 @@
 
 ### int8 wei decomp
 --reset
+--stag=ab,ba
 --dt=bf16:s8:bf16,bf16:u8:bf16
 --attr-scales=wei:common:2,wei:per_oc:bf16
 --attr-fpmath=bf16:true
 --batch=shapes_2d
 
 --reset
+--stag=ab,ba
 --dt=f16:s8:f16,f16:u8:f16
 --attr-scales=wei:common:2,wei:per_oc,wei:per_ocic:f16
 --attr-zero-points=,wei:common:2,wei:per_oc,wei:per_ocic:s8
 --attr-fpmath=f16:true
 --batch=shapes_2d_ci
 
+--stag=abc,acb
 --dt=bf16:s8:bf16,bf16:u8:bf16
 --attr-scales=wei:per_ocic:bf16:2x1
 --attr-zero-points=,wei:per_ocic:u8:4x1
 --attr-fpmath=bf16:true
-5x12:12x17
+1x5x12:1x12x17
 3x5x12:3x12x17
 3x5x12:1x12x17
 
