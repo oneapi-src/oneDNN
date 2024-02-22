@@ -28,7 +28,11 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const auto &bias = GEMM_CTX_ARG_STORAGE(bias);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
-    const auto exec_d = ctx.desc() ? ctx.desc() : pd()->desc();
+    auto pd_desc = pd()->desc();
+    bool runtime_dims = utils::one_of(
+            DNNL_RUNTIME_DIM_VAL, pd_desc->m(), pd_desc->n(), pd_desc->k());
+    const auto exec_d = runtime_dims ? ctx.desc() : pd()->desc();
+
     if (exec_d->batch() == 0 || exec_d->n() == 0) return status::success;
 
     dim_t off_a0 = a.offset() / types::data_type_size(exec_d->a_type());
