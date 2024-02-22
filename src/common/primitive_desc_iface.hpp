@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "cache_blob.hpp"
+#include "cache_stats_types.hpp"
 #include "primitive_desc_iterator.hpp"
 
 namespace dnnl {
@@ -69,7 +70,8 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
             dnnl::impl::query_t what, int idx, void *result) const;
 
     virtual dnnl::impl::status_t create_primitive_iface(
-            std::pair<primitive_iface_t *, bool> &primitive_iface,
+            std::pair<primitive_iface_t *, dnnl::impl::cache_hit_t>
+                    &primitive_iface,
             const dnnl::impl::cache_blob_t &cache_blob) const;
 
     const std::shared_ptr<dnnl::impl::primitive_desc_t> &impl() const;
