@@ -238,6 +238,14 @@ int parse_value_and_runtime(float &value, const std::string &s) {
     return OK;
 }
 
+#define HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING() \
+    if (start_pos == std::string::npos) return OK; \
+    if (start_pos >= s.size()) { \
+        BENCHDNN_PRINT(0, "%s \'%s\'\n", \
+                "Error: dangling symbol at the end of input", s.c_str()); \
+        SAFE_V(FAIL); \
+    }
+
 int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
     *this = arg_scales_t::entry_t();
     if (s.empty()) return OK;
@@ -251,13 +259,7 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
                 policy_str.c_str(), "is not recognized.");
         SAFE_V(FAIL);
     }
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process scale value for COMMON policy
     if (this->policy == COMMON) {
@@ -270,26 +272,12 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
             SAFE_V(FAIL);
         }
     }
-
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process data type
     const auto dt_str = parser::get_substr(s, start_pos, ':');
     this->dt = str2dt(dt_str.c_str());
-
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process groups
     const auto g_str = parser::get_substr(s, start_pos, ':');
@@ -312,14 +300,7 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
                 SAFE_V(FAIL);
         }
     }
-
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     return OK;
 }
@@ -338,13 +319,7 @@ int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
                 policy_str.c_str());
         SAFE_V(FAIL);
     }
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     if (this->policy == COMMON) {
         float value = 0.0f;
@@ -359,26 +334,12 @@ int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
         }
         this->value = zp_val;
     }
-
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process data type
     const auto dt_str = parser::get_substr(s, start_pos, ':');
     this->dt = str2dt(dt_str.c_str());
-
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process groups
     if (!groups.empty()) {
@@ -397,17 +358,12 @@ int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
                 SAFE_V(FAIL);
         }
     }
-
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     return OK;
 }
+
+#undef HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING
 
 int attr_t::zero_points_t::from_str(const std::string &s) {
     *this = zero_points_t();
