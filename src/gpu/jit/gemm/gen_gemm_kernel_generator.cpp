@@ -25955,6 +25955,14 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                             tmp0.w()(1), 4);
                                     and_(n_bytes | modMov, tmp1.w(2)(4),
                                             tmp0.w()(1), 0x0F);
+                                    // if signed, do sign extension
+                                    if (Ts == Type::s4) {
+                                        shl(nelems_real | modMov, tmp1.w()(2),
+                                                tmp1.w()(2), 12);
+                                        asr(nelems_real | modMov, tmp1.w()(2),
+                                                tmp1.w()(2), 12);
+                                    }
+
                                     mov(nelems_real | modMov, tmp1.f(),
                                             tmp1.w()(2));
                                     if (Td != Type::f32) {
