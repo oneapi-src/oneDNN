@@ -26715,7 +26715,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                     movePipes(tmp0);
                                     movePipes(sreg);
                                     mov(nelems_real | modMov, tmp1(1), tmp0(1));
-                                    mov(nelems_real | modMov, tmp0.bf8(),
+                                    mov(nelems_real | modMov, tmp0.bf8()(1),
                                             tmp1(1));
                                     mov(nelems_real | modMov,
                                             dreg.ub()(dcrosspack),
