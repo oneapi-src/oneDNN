@@ -707,8 +707,10 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
                 size_t sz = dnnl_memory_desc_get_size(md_padded);
 #endif
                 if (memory_kind == memory_kind_ext_t::usm_device) {
+                    printf("Benchdnn: USM malloc device with size %lu\n", sz);
                     data_.push_back(::sycl::malloc_device(sz, dev, ctx));
                 } else {
+                    printf("Benchdnn: USM malloc shared with size %lu\n", sz);
                     data_.push_back(::sycl::malloc_shared(sz, dev, ctx));
                 }
                 if (sz > 0 && !data_[i]) {

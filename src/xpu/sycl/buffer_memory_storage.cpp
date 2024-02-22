@@ -135,6 +135,7 @@ status_t buffer_memory_storage_t::init_allocate(size_t size) {
         return status::out_of_memory;
     }
 
+    printf("Allocating Buffer memory with size: %zu\n", size);
     buffer_ = std::make_shared<xpu::sycl::buffer_u8_t>(::sycl::range<1>(size));
     if (!buffer_) return status::out_of_memory;
     return status::success;

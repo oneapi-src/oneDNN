@@ -749,6 +749,44 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
         }
     } else {
         for (const auto &exec_arg : supported_exec_args) {
+            auto exec_arg_str = [&]() -> std::string {
+                if (exec_arg == 0) return "DNNL_ARG_UNDEF";
+                if (exec_arg == 1) return "DNNL_ARG_SRC_0";
+                if (exec_arg == 2) return "DNNL_ARG_SRC_1";
+                if (exec_arg == 3) return "DNNL_ARG_SRC_2";
+                if (exec_arg == 4) return "DNNL_ARG_SRC_3";
+                if (exec_arg == 17) return "DNNL_ARG_DST_0";
+                if (exec_arg == 18) return "DNNL_ARG_DST_1";
+                if (exec_arg == 19) return "DNNL_ARG_DST_2";
+                if (exec_arg == 33) return "DNNL_ARG_WEIGHTS_0";
+                if (exec_arg == 34) return "DNNL_ARG_WEIGHTS_1";
+                if (exec_arg == 35) return "DNNL_ARG_WEIGHTS_2";
+                if (exec_arg == 36) return "DNNL_ARG_WEIGHTS_3";
+                if (exec_arg == 41) return "DNNL_ARG_BIAS";
+                if (exec_arg == 49) return "DNNL_ARG_MEAN";
+                if (exec_arg == 50) return "DNNL_ARG_VARIANCE";
+                if (exec_arg == 51) return "DNNL_ARG_SCALE";
+                if (exec_arg == 52) return "DNNL_ARG_SHIFT";
+                if (exec_arg == 64) return "DNNL_ARG_WORKSPACE";
+                if (exec_arg == 80) return "DNNL_ARG_SCRATCHPAD";
+                if (exec_arg == 129) return "DNNL_ARG_DIFF_SRC_0";
+                if (exec_arg == 130) return "DNNL_ARG_DIFF_SRC_1";
+                if (exec_arg == 131) return "DNNL_ARG_DIFF_SRC_2";
+                if (exec_arg == 132) return "DNNL_ARG_DIFF_SRC_3";
+                if (exec_arg == 145) return "DNNL_ARG_DIFF_DST_0";
+                if (exec_arg == 146) return "DNNL_ARG_DIFF_DST_1";
+                if (exec_arg == 147) return "DNNL_ARG_DIFF_DST_2";
+                if (exec_arg == 148) return "DNNL_ARG_DIFF_DST_3";
+                if (exec_arg == 161) return "DNNL_ARG_DIFF_WEIGHTS_0";
+                if (exec_arg == 162) return "DNNL_ARG_DIFF_WEIGHTS_1";
+                if (exec_arg == 163) return "DNNL_ARG_DIFF_WEIGHTS_2";
+                if (exec_arg == 164) return "DNNL_ARG_DIFF_WEIGHTS_3";
+                if (exec_arg == 255) return "DNNL_ARG_DIFF_SCALE";
+                if (exec_arg == 256) return "DNNL_ARG_DIFF_SHIFT";
+                return "unknown arg " + std::to_string(exec_arg);
+            }();
+            printf("Benchdnn: Allocating argument %s\n", exec_arg_str.c_str());
+
             if (exec_arg == DNNL_ARG_MULTIPLE_SRC) {
                 // `DNNL_ARG_MULTIPLE_SRC` corresponds to a pack of inputs.
                 const auto n_inputs = query_n_inputs(const_pd);

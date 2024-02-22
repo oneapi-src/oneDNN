@@ -52,11 +52,18 @@ bool is_usm_supported(impl::engine_t *engine) {
     return (bool)ext_func.get_func(engine);
 }
 
+static xpu::memory_registry_t usm_shared_mem;
+static xpu::memory_registry_t usm_device_mem;
+static xpu::memory_registry_t usm_host_mem;
+
 void *malloc_host(impl::engine_t *engine, size_t size) {
     using clHostMemAllocINTEL_func_t = void *(*)(cl_context, const cl_ulong *,
             size_t, cl_uint, cl_int *);
 
     if (size == 0) return nullptr;
+
+    printf("USM malloc host with size %lu, total allocation size: %f GiB\n",
+            size, 1.0 * (usm_host_mem.size() + size) / (1024 * 1024 * 1024));
 
     static xpu::ocl::ext_func_t<clHostMemAllocINTEL_func_t> ext_func(
             "clHostMemAllocINTEL");
@@ -64,6 +71,7 @@ void *malloc_host(impl::engine_t *engine, size_t size) {
     void *p = ext_func(engine, get_ocl_context(engine), nullptr, size, 0, &err);
     assert(utils::one_of(err, CL_SUCCESS, CL_OUT_OF_RESOURCES,
             CL_OUT_OF_HOST_MEMORY, CL_INVALID_BUFFER_SIZE));
+    printf("USM malloc host ptr=%p\n", p);
     return p;
 }
 
@@ -73,6 +81,9 @@ void *malloc_device(impl::engine_t *engine, size_t size) {
 
     if (size == 0) return nullptr;
 
+    printf("USM malloc device with size %lu, total allocation size: %f GiB\n",
+            size, 1.0 * (usm_device_mem.size() + size) / (1024 * 1024 * 1024));
+
     static xpu::ocl::ext_func_t<clDeviceMemAllocINTEL_func_t> ext_func(
             "clDeviceMemAllocINTEL");
     cl_int err;
@@ -80,6 +91,8 @@ void *malloc_device(impl::engine_t *engine, size_t size) {
             nullptr, size, 0, &err);
     assert(utils::one_of(err, CL_SUCCESS, CL_OUT_OF_RESOURCES,
             CL_OUT_OF_HOST_MEMORY, CL_INVALID_BUFFER_SIZE));
+    usm_device_mem.add(p, size);
+    printf("USM malloc device ptr=%p\n", p);
     return p;
 }
 
@@ -89,6 +102,9 @@ void *malloc_shared(impl::engine_t *engine, size_t size) {
 
     if (size == 0) return nullptr;
 
+    printf("USM malloc shared with size %lu, total allocation size: %f GiB\n",
+            size, 1.0 * (usm_shared_mem.size() + size) / (1024 * 1024 * 1024));
+
     static xpu::ocl::ext_func_t<clSharedMemAllocINTEL_func_t> ext_func(
             "clSharedMemAllocINTEL");
     cl_int err;
@@ -96,6 +112,8 @@ void *malloc_shared(impl::engine_t *engine, size_t size) {
             nullptr, size, 0, &err);
     assert(utils::one_of(err, CL_SUCCESS, CL_OUT_OF_RESOURCES,
             CL_OUT_OF_HOST_MEMORY, CL_INVALID_BUFFER_SIZE));
+    usm_shared_mem.add(p, size);
+    printf("USM malloc shared ptr=%p\n", p);
     return p;
 }
 
@@ -103,11 +121,40 @@ void free(impl::engine_t *engine, void *ptr) {
     using clMemFreeINTEL_func_t = cl_int (*)(cl_context, void *);
 
     if (!ptr) return;
+    auto mem_entry = [&]() {
+        if (usm_shared_mem.allocations.find(ptr)
+                != usm_shared_mem.allocations.end()) {
+            auto ret = usm_shared_mem.allocations[ptr];
+            usm_shared_mem.remove(ptr);
+            return std::tuple<const char *, size_t, size_t> {
+                    "shared", ret, usm_shared_mem.size()};
+        }
+        if (usm_device_mem.allocations.find(ptr)
+                != usm_device_mem.allocations.end()) {
+            auto ret = usm_device_mem.allocations[ptr];
+            usm_device_mem.remove(ptr);
+            return std::tuple<const char *, size_t, size_t> {
+                    "device", ret, usm_device_mem.size()};
+        }
+        if (usm_host_mem.allocations.find(ptr)
+                != usm_host_mem.allocations.end()) {
+            auto ret = usm_host_mem.allocations[ptr];
+            usm_host_mem.remove(ptr);
+            return std::tuple<const char *, size_t, size_t> {
+                    "host", ret, usm_host_mem.size()};
+        }
+        return std::tuple<const char *, size_t, size_t> {"unknown", 0ul, 0ul};
+    }();
+
     static xpu::ocl::ext_func_t<clMemFreeINTEL_func_t> ext_func(
             "clMemFreeINTEL");
     cl_int err = ext_func(engine, get_ocl_context(engine), ptr);
     assert(err == CL_SUCCESS);
     MAYBE_UNUSED(err);
+
+    printf("USM free %s ptr=%p with size %lu, total allocation=%f GiB\n",
+            std::get<0>(mem_entry), ptr, std::get<1>(mem_entry),
+            1.0 * std::get<2>(mem_entry) / (1024 * 1024 * 1024));
 }
 
 status_t set_kernel_arg(impl::engine_t *engine, cl_kernel kernel, int arg_index,

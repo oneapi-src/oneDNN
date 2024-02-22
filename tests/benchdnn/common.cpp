@@ -22,6 +22,7 @@
 #include <cctype>
 #include <fstream>
 #include <functional>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -236,10 +237,40 @@ static void zfree_protect(void *ptr) {
     ::free(ptr_start);
 }
 #endif
+struct memory_registry_t {
+    void add(void *ptr, size_t size) {
+        std::lock_guard<std::mutex> g(m);
+        allocations.emplace(std::pair<void *, size_t>(ptr, size));
+    }
+    void remove(void *ptr) {
+        std::lock_guard<std::mutex> g(m);
+        allocations.erase(ptr);
+    }
+    size_t size() {
+        std::lock_guard<std::mutex> g(m);
+        size_t size = 0;
+        for (auto &kv : allocations) {
+            size += kv.second;
+        }
+        return size;
+    }
+    std::unordered_map<void *, size_t> allocations;
+    std::mutex m;
+};
+
+static memory_registry_t zmalloc_mem;
 
 void *zmalloc(size_t size, size_t align) {
+    printf("Benchdnn: zmalloc with size %f GiB, total allocation "
+           "size: %f GiB\n",
+            1.0 * size / (1024 * 1024 * 1024),
+            1.0 * (zmalloc_mem.size() + size) / (1024 * 1024 * 1024));
 #ifdef BENCHDNN_MEMORY_CHECK
-    if (has_bench_mode_bit(mode_bit_t::corr)) { return zmalloc_protect(size); }
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
+        void *ptr = zmalloc_protect(size);
+        zmalloc_mem.add(ptr, size);
+        return ptr;
+    }
 #endif
 
     void *ptr;
@@ -257,12 +288,14 @@ void *zmalloc(size_t size, size_t align) {
     if (has_bench_mode_bit(mode_bit_t::perf) && (size < align)) size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
+    zmalloc_mem.add(ptr, size);
     return rc == 0 ? ptr : nullptr;
 }
 
 // zfree behavior is aligned with UNIX free().
 void zfree(void *ptr) {
     if (!ptr) return;
+    zmalloc_mem.remove(ptr);
 #ifdef BENCHDNN_MEMORY_CHECK
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         zfree_protect(ptr);

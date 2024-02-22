@@ -104,6 +104,12 @@ inout_memory_arg_t usm_memory_storage_t::get_inout_memory_arg(
         stream_t *stream, ::sycl::handler &cgh) const {
     return get_memory_arg<::sycl::access::mode::read_write>(this, stream, cgh);
 }
+
+memory_registry_t &usm_memory_storage_t::usm_mem() {
+    static memory_registry_t mem = {};
+    return mem;
+}
+
 } // namespace sycl
 } // namespace xpu
 } // namespace impl
