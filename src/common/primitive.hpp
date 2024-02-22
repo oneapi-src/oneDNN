@@ -105,7 +105,7 @@ protected:
         create_context_t context {
                 // default to cache_hit, create() will flag partial/complete cache miss
                 engine, pd, cache_blob, use_global_scratchpad,
-                cache_hit_t::cache_hit};
+                cache_hit_t::primitive_cache_hit};
 
         primitive_cache_iface_t::create_func_ptr_t create = [](void *context) {
             auto &c = *static_cast<create_context_t *>(context);

@@ -17,27 +17,32 @@
 #ifndef COMMON_CACHE_STATS_TYPES_HPP
 #define COMMON_CACHE_STATS_TYPES_HPP
 
+#include <cassert>
 #include <string>
 
 namespace dnnl {
 namespace impl {
 
-enum cache_hit_t {
-    cache_miss,
-    cache_hit,
-    kernel_cache_hit,
-    persistent_cache_hit
+enum class cache_hit_t {
+    cache_miss, //< complete cache miss, for all types of caches
+    primitive_cache_hit, //< primitive cache hit, complete primitive was available
+    kernel_cache_hit, //< kernel cache hit, primitive cache miss, but kernel was in cache
+    persistent_cache_hit, //< cache_blob() persistent cache hit from disk/long term storage
+    compiled_partition_cache_hit //< graph partition cache hit, already compiled
 };
 
 inline const char *cache_hit_string(const cache_hit_t cache_hit) {
     switch (cache_hit) {
         case cache_hit_t::cache_miss: return ":cache_miss";
-        case cache_hit_t::cache_hit: return ":cache_hit";
+        case cache_hit_t::primitive_cache_hit: return ":cache_hit";
         case cache_hit_t::kernel_cache_hit: return ":kernel_cache_hit";
         case cache_hit_t::persistent_cache_hit: return ":persistent_cache_hit";
-        default: return ":cache_miss";
+        case cache_hit_t::compiled_partition_cache_hit:
+            return ":compiled_partition_cache_hit";
+        default:
+            assert(!"no matching string representation for cache_hit_t");
+            return nullptr;
     }
-    return ":cache_miss";
 }
 
 } // namespace impl
