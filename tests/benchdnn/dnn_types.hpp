@@ -86,6 +86,8 @@ struct attr_t {
                     const std::vector<dnnl_dim_t> &agroups = {})
                 : policy(apolicy), value(avalue), dt(adt), groups(agroups) {}
 
+            int from_str(const std::string &s);
+
             bool is_def() const {
                 return policy == COMMON && value == 0 && dt == dnnl_s32
                         && groups.size() == 0;

@@ -324,6 +324,91 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
     return OK;
 }
 
+int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
+    *this = zero_points_t::entry_t();
+    if (s.empty()) return OK;
+
+    size_t start_pos = 0;
+
+    // process policy
+    const auto policy_str = parser::get_substr(s, start_pos, ':');
+    this->policy = str2policy(policy_str);
+    if (this->policy == POLICY_TOTAL) {
+        BENCHDNN_PRINT(0, "Error: policy \'%s\' was not recognized.\n",
+                policy_str.c_str());
+        SAFE_V(FAIL);
+    }
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
+
+    if (this->policy == COMMON) {
+        float value = 0.0f;
+        SAFE(parse_value_and_runtime(
+                     value, parser::get_substr(s, start_pos, ':')),
+                WARN);
+        int zp_val = static_cast<int>(value);
+        if (static_cast<float>(zp_val) != value) {
+            BENCHDNN_PRINT(0, "%s \'%d\'\n",
+                    "Error: the zero point is not exact:", zp_val);
+            SAFE_V(FAIL);
+        }
+        this->value = zp_val;
+    }
+
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
+
+    // process data type
+    const auto dt_str = parser::get_substr(s, start_pos, ':');
+    this->dt = str2dt(dt_str.c_str());
+
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
+
+    // process groups
+    if (!groups.empty()) {
+        switch (this->policy) {
+            case PER_OCIC:
+                if (this->groups.size() != 2) {
+                    BENCHDNN_PRINT(0, "%s\n",
+                            "Error: number of groups should be equal to number "
+                            "of dimension bits set in the mask.");
+                    SAFE_V(FAIL);
+                }
+                break;
+            default:
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Error: groups are supported only for policy PER_OCIC");
+                SAFE_V(FAIL);
+        }
+    }
+
+    if (start_pos == std::string::npos) return OK;
+
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
+
+    return OK;
+}
+
 int attr_t::zero_points_t::from_str(const std::string &s) {
     *this = zero_points_t();
     if (s.empty()) return OK;
@@ -342,75 +427,10 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
             SAFE_V(FAIL);
         }
 
-        auto policy = str2policy(parser::get_substr(subs, subs_pos, ':'));
-        if (policy == POLICY_TOTAL) {
-            BENCHDNN_PRINT(0, "Error: policy \'%s\' was not recognized.\n",
-                    subs.c_str());
-            SAFE_V(FAIL);
-        }
-        if (subs_pos == std::string::npos) {
-            if (policy == COMMON) {
-                BENCHDNN_PRINT(0, "%s\n",
-                        "Error: \'common\' policy requires an integer input.");
-                SAFE_V(FAIL);
-            }
-            set(arg, policy, 0); // zp value is not considered
-            continue;
-        }
-        if (subs_pos >= subs.size()) {
-            BENCHDNN_PRINT(0,
-                    "Error: dangling symbol at the end of input: \'%s\'\n",
-                    subs.c_str());
-            SAFE_V(FAIL);
-        }
-
-        float zp = 0;
-        if (policy == COMMON) {
-            SAFE(parse_value_and_runtime(
-                         zp, parser::get_substr(subs, subs_pos, ':')),
-                    WARN);
-        }
-
-        if (subs_pos == std::string::npos) {
-            set(arg, policy, static_cast<int>(zp));
-            continue;
-        }
-
-        dnnl_data_type_t dt = dnnl_s32;
-        // process data type
-        if (subs_pos != std::string::npos) {
-            const auto dt_str = parser::get_substr(subs, subs_pos, ':');
-            dt = str2dt(dt_str.c_str());
-        }
-
-        dims_t groups = {};
-        // process groups
-        if (subs_pos != std::string::npos) {
-            const auto g_str = parser::get_substr(subs, subs_pos, ':');
-            parser::parse_vector_str(groups, dims_t(),
-                    parser::parser_utils::stoll_safe, g_str, 'x');
-
-            if (!groups.empty()) {
-                switch (policy) {
-                    case PER_OCIC:
-                        if (groups.size() != 2) {
-                            BENCHDNN_PRINT(0, "%s\n",
-                                    "Error: number of groups should be equal "
-                                    "to number of dimension bits set in the "
-                                    "mask.");
-                            SAFE_V(FAIL);
-                        }
-                        break;
-                    default:
-                        BENCHDNN_PRINT(0, "%s\n",
-                                "Error: groups are supported only for policy "
-                                "PER_OCIC");
-                        SAFE_V(FAIL);
-                }
-            }
-        }
-
-        set(arg, policy, static_cast<int>(zp), dt, groups);
+        zero_points_t::entry_t zero_point;
+        SAFE(zero_point.from_str(parser::get_substr(subs, subs_pos, '\0')),
+                WARN);
+        set(arg, zero_point);
     }
     return OK;
 }
