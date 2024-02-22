@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ template <cpu_isa_t isa>
 struct jit_uni_shuffle_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_shuffle_kernel_t)
 
-    jit_uni_shuffle_kernel_t(const jit_shuffle_conf_t conf);
+    jit_uni_shuffle_kernel_t(const jit_shuffle_conf_t &conf);
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 

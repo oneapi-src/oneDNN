@@ -794,9 +794,8 @@ bool access_builder_t::try_build_2d(send_params_t &send_params) {
         }
 
         if (!skip_send) {
-            auto x_alignment
-                    = block_2d_x_alignment(ir_ctx_->hw(), send_type.size());
-            if (!ir_ctx_->cset().can_prove(x % x_alignment == 0)) {
+            if (!ir_ctx_->cset().can_prove(
+                        x % block_2d_x_alignment(send_type.size()) == 0)) {
                 ok = false;
                 return;
             }

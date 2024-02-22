@@ -33,6 +33,13 @@ cpu_isa_t init_max_cpu_isa() {
     // A macro applies only to env variable enabling/disabling.
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
     static std::string isa_val = getenv_string_user("MAX_CPU_ISA");
+    // handle aliases
+    if (isa_val == "avx512_core_fp16")
+        isa_val = "avx10_1_512";
+    else if (isa_val == "avx512_core_amx")
+        isa_val = "avx10_1_512_amx";
+    else if (isa_val == "avx512_core_amx_fp16")
+        isa_val = "avx10_1_512_amx_fp16";
 #else
     static std::string isa_val;
 #endif

@@ -359,7 +359,7 @@ stmt padding_op_t::get_zero_out_stmt(
                                : expr(int(input_plain_dims[plain_ndims_ - 1]
                                        + pads_begin[1] + pads_end[1]));
 
-        for_loop ln, lk;
+        for_loop ln, lk, lp;
         builder::ir_builder_t bld;
         bld.push_scope();
         _named_for_(ln, pad_n, 0, N, 1, for_type::PARALLEL) {
@@ -375,8 +375,11 @@ stmt padding_op_t::get_zero_out_stmt(
                     builtin::brgemm_init(
                             ptr, ph1_ * ow, c, c, out_dtype, padding_value);
                 }
-
-                _for_(p1, 0, ih) {
+            }
+        }
+        _named_for_(ln, pad_n, 0, N, 1, for_type::PARALLEL) {
+            _named_for_(lk, pad_k, 0, K) {
+                _named_for_(lp, p1, 0, ih) {
                     if (pw1_ > 0) {
                         builtin::brgemm_init(
                                 is_4d_out ? (is_channel_last
@@ -411,7 +414,10 @@ stmt padding_op_t::get_zero_out_stmt(
                                 pw2_, c, c, out_dtype, padding_value);
                     }
                 }
-
+            }
+        }
+        _named_for_(ln, pad_n, 0, N, 1, for_type::PARALLEL) {
+            _named_for_(lk, pad_k, 0, K) {
                 if (ph2_ > 0) {
                     builtin::brgemm_init(
                             is_4d_out ? (is_channel_last

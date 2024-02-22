@@ -1847,8 +1847,11 @@ const char *dnnl_cpu_isa2str(dnnl_cpu_isa_t v) {
     if (v == dnnl_cpu_isa_avx512_core) return "cpu_isa_avx512_core";
     if (v == dnnl_cpu_isa_avx512_core_vnni) return "cpu_isa_avx512_core_vnni";
     if (v == dnnl_cpu_isa_avx512_core_bf16) return "cpu_isa_avx512_core_bf16";
+    if (v == dnnl_cpu_isa_avx10_1_512) return "cpu_isa_avx10_1_512";
     if (v == dnnl_cpu_isa_avx512_core_fp16) return "cpu_isa_avx512_core_fp16";
+    if (v == dnnl_cpu_isa_avx10_1_512_amx) return "cpu_isa_avx10_1_512_amx";
     if (v == dnnl_cpu_isa_avx512_core_amx) return "cpu_isa_avx512_core_amx";
+    if (v == dnnl_cpu_isa_avx10_1_512_amx_fp16) return "cpu_isa_avx10_1_512_amx_fp16";
     if (v == dnnl_cpu_isa_avx512_core_amx_fp16) return "cpu_isa_avx512_core_amx_fp16";
     assert(!"unknown cpu_isa");
     return "unknown cpu_isa";
