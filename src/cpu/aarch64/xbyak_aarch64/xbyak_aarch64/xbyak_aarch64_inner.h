@@ -20,7 +20,7 @@ enum { DEFAULT_MAX_CODE_SIZE = 4096 };
 namespace inner {
 
 inline size_t getPageSize() {
-#if defined(__GNUC__) && !defined(__MINGW64__)
+#if defined(__GNUC__) && !defined(_WIN32)
   static const size_t pageSize = sysconf(_SC_PAGESIZE);
 #else
   static const size_t pageSize = 4096;
