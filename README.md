@@ -31,7 +31,7 @@ Deep learning practitioners should use one of the
 
 # Documentation
 
-* [Developer Guide] explains programming model, supported functionality,
+* [Developer Guide] explains the programming model, supported functionality,
   and implementation details, and includes annotated examples.
 * [API Reference] provides a comprehensive reference of the library API.
 
@@ -95,7 +95,7 @@ On a CPU based on Arm AArch64 architecture, oneDNN can be built with Arm Compute
 Library (ACL) integration. ACL is an open-source library for machine learning
 applications and provides AArch64 optimized implementations of core functions.
 This functionality currently requires that ACL is downloaded and built
-separately, see [Build from Source]. oneDNN only supports Compute Library
+separately; see [Build from Source]. oneDNN only supports Compute Library
 versions 23.11 or later.
 
 > **WARNING**
@@ -328,7 +328,7 @@ optimizations are available with [Intel Extension for Tensorflow].
 
 # Support
 
-Please submit your questions, feature requests, and bug reports on the
+Submit questions, feature requests, and bug reports on the
 [GitHub issues] page.
 
 You may reach out to project maintainers privately
