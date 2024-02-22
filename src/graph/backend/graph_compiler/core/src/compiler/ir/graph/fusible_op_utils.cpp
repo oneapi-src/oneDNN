@@ -14,11 +14,9 @@
  * limitations under the License.
  *******************************************************************************/
 
+#include <algorithm>
 #include <assert.h>
 #include <atomic>
-#include <unordered_map>
-
-#include <algorithm>
 #include <limits>
 #include <memory>
 #include <utility>
@@ -32,6 +30,8 @@
 #include <compiler/ir/transform/cpu/local_tensor_lower.hpp>
 #include <ops/fusible/memory_movement.hpp>
 #include <runtime/config.hpp>
+#include <unordered_map>
+#include <unordered_set>
 #include <util/optional_find.hpp>
 #include <util/utils.hpp>
 
@@ -736,6 +736,8 @@ void set_unknown_binding_axis(sc_op *cur,
         binding_axis_map &bdax_map) {
     // set other unknown axis.
     auto input_size = cur->get_inputs().size();
+    // prepare infer binding axis upwards
+    std::unordered_set<sc_op *> pre_infer_list;
     for (size_t i = 0; i < input_size; i++) {
         auto input = cur->get_inputs()[i];
         auto &inp_axis = bdax_map.get(input);
@@ -743,12 +745,15 @@ void set_unknown_binding_axis(sc_op *cur,
             inp_axis = *utils::find_map_value(known_axis_map, i).get();
             auto producer = input->producer_owner_;
             if (producer->isa<input_op>()) continue;
-            if (auto inp_op = producer->dyn_cast<
-                              op_traits::mixed_partition_acceptable>()) {
-                inp_op->pre_infer_binding_axis(bdax_map);
-                // in avoid of more than one users cases
-                call_output_user_axis_binding(producer, bdax_map);
-            }
+            pre_infer_list.insert(producer);
+        }
+    }
+    for (auto &op : pre_infer_list) {
+        if (auto preop
+                = op->dyn_cast<op_traits::mixed_partition_acceptable>()) {
+            preop->pre_infer_binding_axis(bdax_map);
+            // in avoid of more than one users cases
+            call_output_user_axis_binding(op, bdax_map);
         }
     }
     // call output

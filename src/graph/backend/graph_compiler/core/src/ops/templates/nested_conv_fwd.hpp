@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_NESTED_CONV_FWD_HPP
 
 #include <memory>
+#include <string>
 #include <tuple>
 #include <vector>
 #include <ops/body_generator.hpp>
@@ -127,6 +128,13 @@ public:
 
   void schedule_loops(context_ptr ctx, const nested_conv_fwd_config_t &config,
     stmt body, std::vector<for_loop> &fors) const override;
+  void bind_output_loop_axis(const for_loop &loop,
+    const std::vector<std::string> &axis, bool is_block = false) const;
+  void bind_output_loop_axis(
+    const for_loop &loop, const std::string axis, bool is_block = false) const {
+    this->bind_output_loop_axis(
+      loop, std::vector<std::string> {axis}, is_block);
+  }
 
   bool inverse_filter_ = false;
 

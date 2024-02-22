@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -395,7 +395,11 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
       }
     }
   }
-
+  // loop axis bind(NGCHW)
+  bind_loop_axis(owner_->get_outputs()[0], lpbs, 0);
+  bind_loop_axis(owner_->get_outputs()[0], lph, 3);
+  bind_loop_axis(owner_->get_outputs()[0], lpw, 4);
+  bind_loop_axis(owner_->get_outputs()[0], lpg, 1);
   loops = {lpbs, lph, lpw, lpg};
 }
 
@@ -1136,6 +1140,11 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
       }
     }
   }
+  bind_loop_axis(owner_->get_outputs()[0], ln, 0);
+  bind_loop_axis(owner_->get_outputs()[0], ld,
+    is_3d_ ? std::vector<int> {3} : std::vector<int> {});
+  bind_loop_axis(owner_->get_outputs()[0], lp, is_3d_ + reuse_aux_buffer + 3);
+  bind_loop_axis(owner_->get_outputs()[0], lg, 1);
   loops = {ln, ld, lp, lg};
 }
 

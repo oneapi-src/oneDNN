@@ -23,6 +23,7 @@
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
 
+#include <compiler/ir/graph/binding_axis.hpp>
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <compiler/ir/graph/fusible_op_utils.hpp>
 #include <compiler/ir/graph/fusion_anchor.hpp>
@@ -521,6 +522,7 @@ std::vector<expr> gen_conv_fwd_t::data_offset(const expr &N, const expr &G,
         : (!blocking_input_ ? std::vector<expr> {N, H, W, C * C_block + c_idx}
                             : std::vector<expr> {N, C, H, W, c_idx}));
 }
+
 std::vector<expr> gen_conv_fwd_t::output_offset(const expr &N, const expr &G,
   const expr &C, const expr &D, const expr &H, const expr &W,
   const expr &C_block, const expr &c_idx) const {
@@ -538,6 +540,29 @@ std::vector<expr> gen_conv_fwd_t::output_offset(const expr &N, const expr &G,
         : (!blocking_output_ ? std::vector<expr> {N, H, W, C * C_block + c_idx}
                              : std::vector<expr> {N, C, H, W, c_idx}));
 }
+
+void gen_conv_fwd_t::bind_output_loop_axis(const for_loop &loop,
+  const std::vector<std::string> &axis, bool is_block) const {
+  auto out_tsr = owner_->get_outputs()[0];
+  std::vector<int> real_axis;
+  for (const auto &ax : axis) {
+    if (ax == "N") {
+      real_axis.emplace_back(0);
+    } else if (ax == "C") {
+      real_axis.emplace_back(is_group_conv_ + 1);
+    } else if (ax == "G" && is_group_conv_) {
+      real_axis.emplace_back(is_group_conv_);
+    } else if (ax == "D" && is_3d_) {
+      real_axis.emplace_back(is_group_conv_ + 2);
+    } else if (ax == "H") {
+      real_axis.emplace_back(is_group_conv_ + is_3d_ + 2);
+    } else if (ax == "W") {
+      real_axis.emplace_back(is_group_conv_ + is_3d_ + 3);
+    }
+  }
+  bind_loop_axis(out_tsr, loop, real_axis);
+}
+
 std::vector<expr> gen_conv_fwd_t::weight_offset(const expr &G, const expr &K,
   const expr &C, const expr &D, const expr &R, const expr &S) const {
   int kpack = 1;
@@ -749,6 +774,11 @@ void gen_conv_fwd_t::compute_1x1_no_pack_input(CONV_ARG_LIST) const {
     create_anchor(fusion, owner_->get_outputs()[0], n, 1, 0, groups_, 0,
       K_num_block, 0, od_, 0, oh_expr_, 0, ow_, config.K_block);
   }
+  bind_output_loop_axis(ln, "N");
+  bind_output_loop_axis(lg, "G");
+  bind_output_loop_axis(lk, "C");
+  bind_output_loop_axis(lp, "H");
+  bind_output_loop_axis(ld, "D");
 }
 
 void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
@@ -869,6 +899,10 @@ void gen_conv_fwd_t::compute_1x1_pack_input(CONV_ARG_LIST) const {
     create_anchor(fusion, owner_->get_outputs()[0], n, 1, 0, groups_, 0,
       K_num_block, 0, 1, 0, oh_expr_, 0, ow_, config.K_block);
   }
+  bind_output_loop_axis(ln, "N");
+  bind_output_loop_axis(lg, "G");
+  bind_output_loop_axis(lk, "C");
+  bind_output_loop_axis(lp, "H");
 }
 
 void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
@@ -969,6 +1003,11 @@ void gen_conv_fwd_t::compute_conv3d_no_padding(CONV_ARG_LIST) const {
     create_anchor(fusion, owner_->get_outputs()[0], n, 1, 0, groups_, 0,
       K_num_block, 0, od_, 0, oh_, 0, ow_, config.K_block);
   }
+  bind_output_loop_axis(ln, "N");
+  bind_output_loop_axis(lg, "G");
+  bind_output_loop_axis(lk, "C");
+  bind_output_loop_axis(lp, "H");
+  bind_output_loop_axis(ld, "D");
 }
 
 void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
@@ -1150,6 +1189,7 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
             // version of fusion manager.
             create_anchor(fusion, owner_->get_outputs()[0], n, 1, g, 1, k_o, 1,
               0, 1, 0, oh_, 0, ow_, config.K_block);
+            bind_output_loop_axis(lp, std::vector<std::string> {"H", "W"});
           }
         } else {
           _named_for_(lp, p_o, 0, oh_ / config.tile_p) {
@@ -1229,6 +1269,7 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
           create_anchor(fusion, owner_->get_outputs()[0], n, 1, g, 1,
             outer_k * K_num_block / oc_split, K_num_block / oc_split, 0, 1, 0,
             oh_, 0, ow_, config.K_block);
+          bind_output_loop_axis(lp, "H");
         }
       }
       if (groups_ == 1) {
@@ -1242,6 +1283,10 @@ void gen_conv_fwd_t::compute_conv_no_padding(CONV_ARG_LIST) const {
       }
     }
   }
+  bind_output_loop_axis(ln, "N");
+  bind_output_loop_axis(lg, "G");
+  bind_output_loop_axis(lok, "C");
+  bind_output_loop_axis(lk, "C");
 }
 
 void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
@@ -1619,6 +1664,10 @@ void gen_conv_fwd_t::compute_conv_padding(CONV_ARG_LIST) const {
     create_anchor(fusion, owner_->get_outputs()[0], n, 1, 0, groups_, 0,
       K_num_block, 0, 1, 0, oh_, 0, ow_, config.K_block);
   }
+  bind_output_loop_axis(ln, "N");
+  bind_output_loop_axis(lg, "G");
+  bind_output_loop_axis(lk, "C");
+  bind_output_loop_axis(lp, "H");
 }
 
 void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
@@ -2466,6 +2515,13 @@ void gen_conv_fwd_t::compute_conv_padding_v2(CONV_ARG_LIST) const {
       }
     }
   }
+
+  // bind outer loops with axis hint
+  bind_output_loop_axis(lok, "C");
+  bind_output_loop_axis(ln, "N");
+  bind_output_loop_axis(lg, "G");
+  bind_output_loop_axis(lk, "C");
+  bind_output_loop_axis(lp, reuse_sub_tensor ? "W" : "H");
 }
 
 void gen_conv_fwd_t::schedule_loops(context_ptr ctx,

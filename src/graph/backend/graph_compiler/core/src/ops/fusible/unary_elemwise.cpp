@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,8 +140,9 @@ infer_status_code unary_elementwise_op_impl_t::pre_infer_slice_ranges(
 void infer_identical_binding_axis(
         fusible_op_t *cur, binding_axis_map &bdax_map) {
     auto known_axis_map = search_known_input_axis(cur, bdax_map);
-    if (!bdax_map.get(cur->get_outputs()[0]).empty()) return;
-    bdax_map.get(cur->get_outputs()[0]) = known_axis_map[0];
+    auto &outaxis = bdax_map.get(cur->get_outputs()[0]);
+    if (!outaxis.empty() && outaxis == known_axis_map[0]) { return; }
+    outaxis = known_axis_map[0];
     set_unknown_binding_axis(cur, known_axis_map, bdax_map);
 }
 
