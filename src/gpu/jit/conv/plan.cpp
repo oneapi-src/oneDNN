@@ -1252,7 +1252,7 @@ struct fma_context_t {
             auto bmnks = get_bmnk_kinds(abc, /*with_batch=*/true);
             auto bmnk_layout = mapper.map_to_bmnk(abc, bmnks, ret);
             auto fma_layout = bmnk_layout.make_with_block(
-                    layout_t(type, 0, (int)bmnks.size(), blocks));
+                    layout_t(ret.type(), 0, (int)bmnks.size(), blocks));
             auto abc_layout = mapper.map_from_bmnk(abc, bmnks, fma_layout, ret);
             return abc_layout;
         }
