@@ -52,7 +52,6 @@ public:
 
     void save_output_events() override { save_events_ = true; }
 
-    bool is_on(const engine_t *engine) const override;
     status_t dump() const override;
     std::string name() const override;
 

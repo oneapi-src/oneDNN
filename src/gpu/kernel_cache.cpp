@@ -65,8 +65,6 @@ status_t get_cached_kernels(std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
         if (kernel_names[0] && std::string(kernel_names[0]) != kernel.name())
             return status::runtime_error;
 
-        if (!kernel.is_on(engine)) return status::runtime_error;
-
         kernels[0] = kernel;
         return status::success;
     } else if (std::is_same<value_type, kernel_bundle_t>()) {
@@ -74,7 +72,7 @@ status_t get_cached_kernels(std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
                 const gpu_kernel_value_container_t<kernel_bundle_t> *>(
                 value.impl())
                                                 ->value;
-        return bundle.get_kernels(engine, kernels, kernel_names);
+        return bundle.get_kernels(kernels, kernel_names);
     }
     return status::runtime_error;
 }
