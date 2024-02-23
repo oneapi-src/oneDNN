@@ -72,8 +72,9 @@ status_t scales_t::set(dim_t count, int mask, const float *scales) {
     return status::success;
 }
 
-status_t zero_points_t::get(int arg, int *mask) const {
+status_t zero_points_t::get(int arg, int *mask, data_type_t *dt) const {
     if (mask) *mask = get_mask(arg);
+    if (dt) *dt = get_data_type(arg);
     return status::success;
 }
 
