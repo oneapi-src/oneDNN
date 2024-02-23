@@ -626,7 +626,10 @@ private:
             send_plan_t &load) const {
         auto params = get_send_params(abc, send_op_t::load, view);
         load = create_send_plan(params, view, /*allow_fail=*/true);
-        ir_check(load) << "init_x_x2r_plan: cannot create send plan";
+        ir_check(load) << "init_x_x2r_plan: cannot create send plan"
+                       << std::endl
+                       << params << std::endl
+                       << ir_utils::add_tag("view", view.str());
         if (mul_info_.is_compatible(abc, load.reg_layout())) {
             reg_layout = load.reg_layout();
         } else {
