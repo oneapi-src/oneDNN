@@ -277,6 +277,11 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
     // process data type
     const auto dt_str = parser::get_substr(s, start_pos, ':');
     this->dt = str2dt(dt_str.c_str());
+    if (this->dt == dnnl_data_type_undef) {
+        BENCHDNN_PRINT(0, "Error: data type \'%s\' was not recognized.\n",
+                dt_str.c_str());
+        SAFE_V(FAIL);
+    }
     HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process groups
@@ -339,6 +344,11 @@ int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
     // process data type
     const auto dt_str = parser::get_substr(s, start_pos, ':');
     this->dt = str2dt(dt_str.c_str());
+    if (this->dt == dnnl_data_type_undef) {
+        BENCHDNN_PRINT(0, "Error: data type \'%s\' was not recognized.\n",
+                dt_str.c_str());
+        SAFE_V(FAIL);
+    }
     HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process groups
