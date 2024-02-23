@@ -80,6 +80,17 @@ struct ref_pp_kernel_t : pp_kernel_t {
         ref_depthwise_injectors_.clear();
     }
 
+    static bool post_ops_ok(const convolution_pd_t *pd) {
+        using namespace dnnl::impl::primitive_kind;
+        const auto& po = pd->attr()->post_ops_;
+        for (int i = 0; i < po.len(); i++) {
+            if (!utils::one_of(po.entry_[i].kind, eltwise, depthwise, quantization)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     virtual void operator()(float *dst_orig, float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride,
                             const std::vector<const void *>& post_ops_binary_rhs_arg_vec) const override;
 
@@ -197,9 +208,12 @@ pp_kernel_t *pp_kernel_t::create(
     if (res) return res;
 #endif
 
-    return new ref_pp_kernel_t(pd, jcp);
-}
+    if (ref_pp_kernel_t::post_ops_ok(pd)) {
+        return new ref_pp_kernel_t(pd, jcp);
+    }
 
+    return nullptr;
+}
 } // namespace gemm_convolution_utils
 
 namespace jit_gemm_convolution_utils {

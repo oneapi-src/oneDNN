@@ -110,6 +110,23 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
         }
     }
 
+    static bool post_ops_ok(const convolution_pd_t *pd) {
+        const auto& post_ops = pd->attr()->post_ops_;
+        auto dst_md = pd->dst_md();
+        for (int i = 0; i < post_ops.len(); i++) {
+            const auto &post_op = post_ops.entry_[i];
+            if (post_op.is_binary()) {
+                if (!binary_injector::is_supported(isa,
+                        binary_injector::get_src1_desc(post_op, *dst_md),
+                        *dst_md,
+                        default_strategies())) {
+                        return false;
+                }
+            }
+        }
+        return true;
+    }
+
 private:
     void generate() override;
 
@@ -391,11 +408,11 @@ void jit_pp_kernel_t<isa>::generate() {
 
 pp_kernel_t *jit_pp_kernel_create(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp) {
-    if (mayiuse(avx512_core)) {
+    if (mayiuse(avx512_core) && jit_pp_kernel_t<avx512_core>::post_ops_ok(pd)) {
         return new jit_pp_kernel_t<avx512_core>(pd, jcp);
-    } else if (mayiuse(avx2)) {
+    } else if (mayiuse(avx2) && jit_pp_kernel_t<avx2>::post_ops_ok(pd)) {
         return new jit_pp_kernel_t<avx2>(pd, jcp);
-    } else if (mayiuse(sse41)) {
+    } else if (mayiuse(sse41) && jit_pp_kernel_t<sse41>::post_ops_ok(pd)) {
         return new jit_pp_kernel_t<sse41>(pd, jcp);
     }
     return nullptr;
