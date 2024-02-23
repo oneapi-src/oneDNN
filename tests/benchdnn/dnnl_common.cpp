@@ -1079,7 +1079,6 @@ static int check_total_size(
             GB(total_size_cpu), GB(benchdnn_cpu_limit),
             GB(cpu_device_capacity));
 
-    res->mem_check_done = true;
     return res->state == FAILED ? FAIL : OK;
 }
 
@@ -1189,8 +1188,20 @@ int check_mem_size(const_dnnl_memory_desc_t md, res_t *res) {
     return check_total_size(check_mem_size_args, res);
 }
 
-int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res) {
+int check_mem_size(
+        const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir) {
+    // Skip the check if it is disabled.
     if (!mem_check) return OK;
+
+    // Skip the check if the test object won't be executed.
+    if (!has_bench_mode_bit(mode_bit_t::exec)) return OK;
+
+    // Skip the check if it has already happened for provided `dir`. Saves from
+    // repreated run when the second test object is created to test the
+    // primitive cache, but allows to verify both objects when a double-run
+    // driver executes fwd-for-bwd first and bwd after.
+    if (res->mem_check_dir == dir) return OK;
+    res->mem_check_dir = dir;
 
     // Add reference memory estimation for correctness only.
     bool add_ref_size = has_bench_mode_bit(mode_bit_t::corr);

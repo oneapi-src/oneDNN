@@ -74,21 +74,6 @@ std::ostream &operator<<(std::ostream &s, dnnl_engine_kind_t ek) {
     return s;
 }
 
-dir_t str2dir(const char *str) {
-#define CASE(x) \
-    if (!strcasecmp(STRINGIFY(x), str)) return x
-    CASE(FWD_D);
-    CASE(FWD_I);
-    CASE(FWD_B);
-    CASE(BWD_D);
-    CASE(BWD_W);
-    CASE(BWD_WB);
-    CASE(BWD_DW);
-#undef CASE
-    assert(!"unknown dir");
-    return DIR_UNDEF;
-}
-
 dnnl_prop_kind_t prop2prop_kind(const dir_t dir) {
     if (dir == FWD_D) return dnnl_forward_training;
     if (dir == FWD_I) return dnnl_forward_inference;
