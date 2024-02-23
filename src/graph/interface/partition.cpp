@@ -27,7 +27,7 @@
 #include "oneapi/dnnl/dnnl_graph_ocl.h"
 #endif
 
-#include "common/cache_stats_types.hpp"
+#include "common/cache_hit_types.hpp"
 #include "common/stream.hpp"
 #include "common/verbose.hpp"
 
@@ -48,7 +48,7 @@
 #include "graph/utils/ocl_check.hpp"
 #endif
 
-using dnnl::impl::cache_hit_t;
+using dnnl::impl::cache_state_t;
 using namespace dnnl::impl::graph;
 
 /// This allows to create a partition directly with an op and an engine kind. In
@@ -724,14 +724,14 @@ status_t dnnl_graph_partition::compile(
         std::vector<const logical_tensor_t *> &inputs;
         std::vector<const logical_tensor_t *> &outputs;
         const engine_t *engine;
-        cache_hit_t cache_status;
+        cache_state_t cache_status;
     };
     create_context_t context {this, inputs, outputs, aengine,
-            cache_hit_t::compiled_partition_cache_hit};
+            cache_state_t::compiled_partition_hit};
 
     compiled_partition_cache_t::create_func_ptr_t create = [](void *context) {
         auto &c = *static_cast<create_context_t *>(context);
-        c.cache_status = cache_hit_t::cache_miss;
+        c.cache_status = cache_state_t::miss;
         std::shared_ptr<compiled_partition_t> cp
                 = std::make_shared<compiled_partition_t>(*c.partition);
         status_t status
@@ -745,8 +745,8 @@ status_t dnnl_graph_partition::compile(
     if (result.status != status::success) return result.status;
 
     compiled_partition.first->init(result.value->pimpl_);
-    const bool cp_from_cache = (context.cache_status
-            == cache_hit_t::compiled_partition_cache_hit);
+    const bool cp_from_cache
+            = (context.cache_status == cache_state_t::compiled_partition_hit);
     compiled_partition.second = cp_from_cache;
 
     return result.status;

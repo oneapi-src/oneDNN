@@ -133,11 +133,11 @@ struct gpu_primitive_t : public gpu::primitive_t {
                 params, compute_engine->engine_id());
         gpu_assert(key->key.is_valid());
 
-        cache_hit_t kernel_cache_status;
+        cache_state_t kernel_cache_status;
         CHECK(get_cached_kernels<typename trivial_key_t<T>::value_type>(
                 std::move(key), engine, kernels, kernel_names,
                 kernel_cache_status));
-        if (kernel_cache_status == cache_hit_t::kernel_cache_hit) {
+        if (kernel_cache_status == cache_state_t::kernel_hit) {
             created_with_cached_kernel_ = true;
         }
 

@@ -20,7 +20,7 @@
 #include <memory>
 #include <type_traits>
 
-#include "common/cache_stats_types.hpp"
+#include "common/cache_hit_types.hpp"
 #include "common/engine_id.hpp"
 #include "common/kernel_cache.hpp"
 #include "common/utils.hpp"
@@ -174,19 +174,19 @@ template <typename value_type>
 status_t get_cached_kernels(std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
         impl::engine_t *engine, std::vector<compute::kernel_t> &kernels,
         const std::vector<const char *> &kernel_names,
-        cache_hit_t &kernel_cache_hit);
+        cache_state_t &kernel_cache_hit);
 
 extern template status_t get_cached_kernels<compute::kernel_t>(
         std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
         impl::engine_t *engine, std::vector<compute::kernel_t> &kernels,
         const std::vector<const char *> &kernel_names,
-        cache_hit_t &kernel_cache_hit);
+        cache_state_t &kernel_cache_hit);
 
 extern template status_t get_cached_kernels<compute::kernel_bundle_t>(
         std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
         impl::engine_t *engine, std::vector<compute::kernel_t> &kernels,
         const std::vector<const char *> &kernel_names,
-        cache_hit_t &kernel_cache_hit);
+        cache_state_t &kernel_cache_hit);
 
 } // namespace intel
 } // namespace gpu
