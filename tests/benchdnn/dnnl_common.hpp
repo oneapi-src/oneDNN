@@ -204,6 +204,8 @@ struct init_pd_args_t {
     res_t *res;
     dnnl_engine_t engine;
     const prb_t *prb;
+    // Used to specify the prop_kind of the pd. Required for double-run drivers
+    // to differentiate between fwd-for-bwd pd and actual bwd pd.
     dir_t dir;
     const_dnnl_primitive_desc_t hint;
     // Use for memory propagation between pd. Nullptr will ignore the setting.

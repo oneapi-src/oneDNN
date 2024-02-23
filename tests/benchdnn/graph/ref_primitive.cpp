@@ -106,7 +106,7 @@ int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
             ::init_memory_args(mems_, prb, fwd_prim_, \
                     ::driver::supported_exec_args(FLAG_FWD), ref_eng); \
             SAFE(::driver::init_ref_memory_args( \
-                         ref_mems, mems_, fwd_prim_, prb, res, FLAG_FWD), \
+                         ref_mems, mems_, fwd_prim_, prb, res), \
                     WARN); \
             args_ = args_t(mems_); \
             SAFE(execute_and_wait(fwd_prim_, args_, res), WARN); \
@@ -158,7 +158,7 @@ int ref_primitive_t::init_ref_memory_args(const engine_t &ref_eng, res_t *res) {
         if (prb_wrapper_) { \
             const ::driver::prb_t *prb = prb_wrapper_->get<::driver::prb_t>(); \
             SAFE(::driver::init_ref_memory_args( \
-                         ref_mems, mems_, prim_, prb, res, prb->dir), \
+                         ref_mems, mems_, prim_, prb, res), \
                     WARN); \
             args_ = args_t(mems_); \
         } \
