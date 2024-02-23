@@ -959,11 +959,9 @@ int get_gpu_cache_size(size_t &cache_size) {
 }
 
 struct check_mem_size_args_t {
-    check_mem_size_args_t(const_dnnl_primitive_desc_t pd, bool want_input,
-            bool add_ref_size = false)
+    check_mem_size_args_t(const_dnnl_primitive_desc_t pd, bool want_input)
         : pd(pd)
         , want_input(want_input)
-        , add_ref_size(add_ref_size)
         , is_scratchpad(false)
         , total_size_device(0)
         , total_size_cpu(0)
@@ -972,7 +970,6 @@ struct check_mem_size_args_t {
     // Input args.
     const_dnnl_primitive_desc_t pd;
     bool want_input;
-    bool add_ref_size;
     bool is_scratchpad;
 
     // Output args:
@@ -1110,19 +1107,28 @@ void add_md_size(const_dnnl_memory_desc_t md,
     if (check_mem_size_args.is_scratchpad) {
         check_mem_size_args.scratchpad_size += mem_size;
     } else {
-        if (!check_mem_size_args.add_ref_size) return;
-
+        const bool is_corr = has_bench_mode_bit(mode_bit_t::corr);
+        const bool is_bitwise = has_bench_mode_bit(mode_bit_t::bitwise);
         // Reference memories are always tag::abx fp32, hence need re-creating
         // memory descriptor and take its size.
         auto ref_md = dnn_mem_t::init_md(
                 query_md_ndims(md), query_md_dims(md), dnnl_f32, tag::abx);
         const auto ref_md_size = dnnl_memory_desc_get_size(ref_md);
-        check_mem_size_args.total_size_cpu += ref_md_size; // Reference memory.
+        // A memory copy for ref_compute, happens only in correctness.
+        check_mem_size_args.total_size_cpu += is_corr * ref_md_size;
 
-        // Correctness pass allocates additional tag::abx f32 memory.
-        const bool compare_mem_factor = !check_mem_size_args.want_input
-                && check_mem_size_args.add_ref_size;
+        // Comparison function allocates an additional tag::abx f32 memory.
+        // This allocation holds for correctness and bitwise modes.
+        const bool compare_mem_factor
+                = !check_mem_size_args.want_input && (is_corr || is_bitwise);
         check_mem_size_args.total_size_cpu += compare_mem_factor * ref_md_size;
+
+        // Bitwise comparison allocates an additional tag::abx f32 memory from
+        // the first run to compare results against it.
+        const bool bitwise_compare_mem_factor
+                = !check_mem_size_args.want_input && is_bitwise;
+        check_mem_size_args.total_size_cpu
+                += bitwise_compare_mem_factor * ref_md_size;
     }
 }
 
@@ -1180,7 +1186,7 @@ static void get_memory_bytes(check_mem_size_args_t &check_mem_size_args) {
 int check_mem_size(const_dnnl_memory_desc_t md, res_t *res) {
     if (!mem_check) return OK;
 
-    check_mem_size_args_t check_mem_size_args(nullptr, false, false);
+    check_mem_size_args_t check_mem_size_args(nullptr, false);
     const auto md_size = dnnl_memory_desc_get_size(md);
     check_mem_size_args.total_size_device = md_size;
     check_mem_size_args.sizes.push_back(md_size);
@@ -1203,11 +1209,8 @@ int check_mem_size(
     if (res->mem_check_dir == dir) return OK;
     res->mem_check_dir = dir;
 
-    // Add reference memory estimation for correctness only.
-    bool add_ref_size = has_bench_mode_bit(mode_bit_t::corr);
     // Get input sizes.
-    check_mem_size_args_t check_mem_size_args(
-            const_pd, /* want_input = */ true, add_ref_size);
+    check_mem_size_args_t check_mem_size_args(const_pd, /* input = */ true);
     get_memory_bytes(check_mem_size_args);
 
     // Get scratchpad size.
@@ -1227,7 +1230,6 @@ int check_mem_size(
     }
 
     // Get output sizes.
-    // TODO: double the output sizes for bitwise mode?
     check_mem_size_args.want_input = false;
     get_memory_bytes(check_mem_size_args);
 
@@ -1603,8 +1605,10 @@ int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
 
         auto &mem = args.find(arg);
         SAFE_V(bool(mem) ? OK : FAIL);
+        // A memory used as reference for comparison, must be allocated on the
+        // CPU engine.
         run1_mem_map.emplace(
-                arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, get_test_engine()));
+                arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, get_cpu_engine()));
         SAFE(run1_mem_map.at(arg).reorder(mem), WARN);
     }
 
