@@ -3245,6 +3245,7 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
 
     auto get_vmm = [max_regs_available](int reg_idx) {
         MAYBE_UNUSED(max_regs_available);
+        MAYBE_UNUSED(reserved_regs); // some compilers detect it as unused
         assert(reg_idx >= 0 && reg_idx < max_regs_available);
         return Vmm(reg_idx + reserved_regs);
     };
@@ -4299,7 +4300,7 @@ status_t create_brgemm_matmul_copy_a(
         if (utils::one_of(conf->src_dt, data_type::s8, data_type::u8))
             CHECK(safe_ptr_assign(copy_ker,
                     new jit_brgemm_matmul_copy_a_transposed_int8_impl_t(conf)));
-        if (is_superset(conf->isa, avx512_core))
+        else if (is_superset(conf->isa, avx512_core))
             CHECK(safe_ptr_assign(copy_ker,
                     new jit_brgemm_matmul_copy_a_transposed_impl_t<Zmm>(conf)));
         else
