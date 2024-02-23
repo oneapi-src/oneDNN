@@ -3243,7 +3243,7 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
     constexpr int reserved_regs = 2;
     const int max_regs_available = max_isa_regs - reserved_regs;
 
-    auto get_vmm = [max_regs_available](int reg_idx) {
+    auto get_vmm = [max_regs_available, reserved_regs](int reg_idx) {
         MAYBE_UNUSED(max_regs_available);
         MAYBE_UNUSED(reserved_regs); // some compilers detect it as unused
         assert(reg_idx >= 0 && reg_idx < max_regs_available);
