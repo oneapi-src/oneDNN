@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 
 #include "graph/interface/c_types_map.hpp"
 
-#include "graph/utils/allocator.hpp"
+#include "graph/utils/alloc.hpp"
 #include "graph/utils/id.hpp"
 #include "graph/utils/utils.hpp"
 #include "graph/utils/verbose.hpp"
