@@ -1005,13 +1005,17 @@ static int check_total_size(
     assert(benchdnn_device_limit > 0 && benchdnn_cpu_limit > 0);
 
     auto GB = [](double bytes) { return bytes / powf(2, 30); };
+    auto dir_c_str = [&res]() {
+        return (res->mem_check_dir & FLAG_FWD) ? "FWD" : "BWD";
+    };
 
     if (is_gpu()) {
         const bool fits_device_ram = check_mem_size_args.total_size_device
                 <= benchdnn_device_limit;
         if (!fits_device_ram) {
-            BENCHDNN_PRINT(2, "%s\n",
-                    "benchdnn: not enough device RAM for a problem.");
+            BENCHDNN_PRINT(2,
+                    "[CHECK_MEM][%s]: Not enough device RAM for a problem.\n",
+                    dir_c_str());
             res->state = SKIPPED;
             res->reason = NOT_ENOUGH_RAM;
         }
@@ -1022,9 +1026,9 @@ static int check_total_size(
                     const bool fit = s < gpu_max_alloc_capacity;
                     if (!fit) {
                         BENCHDNN_PRINT(2,
-                                "benchdnn: allocation of size %g GB doesn't "
-                                "fit allocation limit of %g GB.\n",
-                                GB(s), GB(gpu_max_alloc_capacity));
+                                "[CHECK_MEM][%s]: Allocation of size %g GB "
+                                "doesn't fit allocation limit of %g GB.\n",
+                                dir_c_str(), GB(s), GB(gpu_max_alloc_capacity));
                     }
                     return fit;
                 });
@@ -1034,9 +1038,9 @@ static int check_total_size(
         }
 
         BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
-                "Requested: %g GB, benchdnn device limit: %g GB, device RAM "
-                "capacity: %g GB, gpu_max_alloc: %g GB\n",
-                GB(check_mem_size_args.total_size_device),
+                "[CHECK_MEM][%s]: Requested: %g GB; benchdnn_device_limit: %g "
+                "GB; device_RAM_capacity: %g GB; gpu_max_alloc: %g GB;\n",
+                dir_c_str(), GB(check_mem_size_args.total_size_device),
                 GB(benchdnn_device_limit), GB(gpu_device_capacity),
                 GB(gpu_max_alloc_capacity));
     }
@@ -1046,8 +1050,9 @@ static int check_total_size(
     bool fits_cpu_ram = total_size_cpu <= benchdnn_cpu_limit;
 
     if (!fits_cpu_ram) {
-        BENCHDNN_PRINT(
-                2, "%s\n", "benchdnn: not enough CPU RAM for a problem.");
+        BENCHDNN_PRINT(2,
+                "[CHECK_MEM][%s]: Not enough CPU RAM for a problem.\n",
+                dir_c_str());
         // Try to catch a huge scratchpad size requested by the library.
         // Use following logic:
         //     scratch_size
@@ -1058,11 +1063,11 @@ static int check_total_size(
         static constexpr float scratch_trh = 0.75f;
         if (check_mem_size_args.scratchpad_size
                 > scratch_trh * total_size_cpu) {
-            BENCHDNN_PRINT(2, "%s `%ld` %s `%ld`.\n",
-                    "benchdnn: CPU scratchpad size",
-                    (long)check_mem_size_args.scratchpad_size,
-                    "exceeded a given threshold",
-                    (long)(scratch_trh * total_size_cpu));
+            BENCHDNN_PRINT(2,
+                    "[CHECK_MEM][%s]: CPU scratchpad size `%zu` exceeded a "
+                    "given threshold `%zu`.\n",
+                    dir_c_str(), check_mem_size_args.scratchpad_size,
+                    (size_t)(scratch_trh * total_size_cpu));
             res->state = FAILED;
         } else {
             res->state = SKIPPED;
@@ -1071,9 +1076,9 @@ static int check_total_size(
     }
 
     BENCHDNN_PRINT((!fits_cpu_ram ? 2 : 6),
-            "Requested: %g GB, benchdnn CPU limit: %g GB, CPU RAM capacity: %g "
-            "GB\n",
-            GB(total_size_cpu), GB(benchdnn_cpu_limit),
+            "[CHECK_MEM][%s]: Requested: %g GB; benchdnn_CPU_limit: %g GB; "
+            "CPU_RAM_capacity: %g GB;\n",
+            dir_c_str(), GB(total_size_cpu), GB(benchdnn_cpu_limit),
             GB(cpu_device_capacity));
 
     return res->state == FAILED ? FAIL : OK;
