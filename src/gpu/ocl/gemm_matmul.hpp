@@ -75,7 +75,10 @@ struct gemm_matmul_t : public gpu_primitive_t {
                           bool is_set = false;
                           CHECK(attr()->scales_.get(arg, &mask, &is_set));
                           mask = mask >> diff_dims;
-                          if (is_set) { CHECK(scales.set(arg, mask)); }
+                          if (is_set) {
+                              CHECK(scales.set(arg, mask, 0, nullptr,
+                                      attr()->scales_.get(arg).data_type_));
+                          }
                           return status::success;
                       };
             if (!attr()->zero_points_.has_default_values()) {
