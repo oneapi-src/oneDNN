@@ -56,6 +56,43 @@ inline std::string to_string(send_op_t kind) {
     return {};
 }
 
+enum class send_kind_t {
+    undef,
+    _2d,
+    block,
+    scattered,
+    compressed_prefetch,
+};
+
+inline std::string to_string(send_kind_t kind) {
+    switch (kind) {
+#define CASE(name) \
+    case send_kind_t::name: return #name
+        CASE(undef);
+        CASE(block);
+        CASE(scattered);
+        CASE(compressed_prefetch);
+        case send_kind_t::_2d: return "2d";
+        default: ir_error_not_expected(); return "undef";
+#undef CASE
+    }
+}
+
+inline send_kind_t str_to_send_kind(const std::string &s) {
+    if (s == "2d") return send_kind_t::_2d;
+#define CASE(name) \
+    do { \
+        if (s == to_string(send_kind_t::name)) return send_kind_t::name; \
+    } while (false)
+    CASE(undef);
+    CASE(block);
+    CASE(scattered);
+    CASE(compressed_prefetch);
+#undef CASE
+    ir_error_not_expected();
+    return send_kind_t::undef;
+}
+
 struct addr_t {
     expr_t base;
     std::vector<expr_t> slot_incs;
@@ -67,7 +104,8 @@ struct addr_t {
         layout_iterator_t it(layout);
         for (int i = 1; i < slots; i++) {
             it.next(elems_per_slot);
-            slot_incs[i] = layout.offset_in_bytes(it.block_offset());
+            slot_incs[i] = simplify_rewrite(
+                    layout.offset_in_bytes(it.block_offset()));
         }
     }
 
@@ -671,26 +709,32 @@ class send_plan_builder_t {
 public:
     send_plan_builder_t() = default;
     send_plan_builder_t(const send_params_t &params, const view_t &view)
-        : init_params_(params), view_(view) {}
+        : init_params_(params), init_view_(view) {}
 
     send_plan_t build() const {
         send_params_t params = init_params_;
         switch (params.kind) {
-            case send_kind_t::_2d: return try_build_2d(params);
-            default: {
-                auto plan = try_build_1d(params);
-                return plan;
+            case send_kind_t::_2d: return try_build_2d(params, init_view_);
+            case send_kind_t::compressed_prefetch: {
+                prb_reqs_t reqs;
+                int cache_line_size = params.hw.cache_line_size();
+                auto view
+                        = init_view_.scatterize(cache_line_size, reqs.prover());
+                if (view.is_empty()) return send_plan_t();
+                params.kind = send_kind_t::scattered;
+                return try_build_1d(params, view, reqs);
             }
+            default: return try_build_1d(params, init_view_);
         }
     }
 
 private:
-    send_plan_t try_build_1d(const send_params_t &params) const {
+    send_plan_t try_build_1d(const send_params_t &params, const view_t &view,
+            prb_reqs_t reqs = prb_reqs_t()) const {
         send_plan_t plan(params.hw);
-        prb_reqs_t reqs;
-        auto &layout = view_.layout();
-        auto &mask_desc = view_.mask_desc();
-        auto inner_last = find_inner_last(params, mask_desc, reqs);
+        auto &layout = view.layout();
+        auto &mask_desc = view.mask_desc();
+        auto inner_last = find_inner_last(params, view, mask_desc, reqs);
         int type_size = layout.type().size();
         int inner_elems = inner_last.elems();
         int inner_bytes = type_size * inner_elems;
@@ -778,15 +822,15 @@ private:
         return plan;
     }
 
-    send_plan_t try_build_2d(const send_params_t &params) const {
+    send_plan_t try_build_2d(const send_params_t &params, const view_t &view,
+            prb_reqs_t reqs = prb_reqs_t()) const {
         send_plan_t plan(params.hw);
-        prb_reqs_t reqs;
-        send_2d_desc_t desc(view_, params, reqs.prover());
+        send_2d_desc_t desc(view, params, reqs.prover());
         if (!desc) return send_plan_t();
 
-        auto &plane = view_.plane();
+        auto &plane = view.plane();
         int grf_size = params.hw.grf_size();
-        auto reg_layout = desc.reg_layout(grf_size, view_.layout().desc());
+        auto reg_layout = desc.reg_layout(grf_size, view.layout().desc());
         int entry_reg_size = utils::rnd_up(reg_layout.size(), grf_size);
         ir_assert(entry_reg_size <= params.max_entry_reg_size);
         reg_layout.pad_bytes(grf_size);
@@ -801,7 +845,7 @@ private:
         plan_2d.base = desc.base;
         plan_2d.x_base = plane.x;
         plan_2d.y_base = plane.y;
-        plan_2d.mask = mask_t(view_.mask_desc());
+        plan_2d.mask = mask_t(view.mask_desc());
         plan_2d.mask.clear(plane.x_dim);
         plan_2d.mask.clear(plane.y_dim);
         for (auto &d : params.skip_mask)
@@ -826,8 +870,9 @@ private:
     }
 
     block_iterator_t find_inner_last(const send_params_t &params,
-            const mask_desc_t &mask_desc, prb_reqs_t &reqs) const {
-        auto &layout = view_.layout();
+            const view_t &view, const mask_desc_t &mask_desc,
+            prb_reqs_t &reqs) const {
+        auto &layout = view.layout();
         auto inner_last = begin(layout);
         int type_size = layout.type().size();
         auto ok_to_return = [&]() {
@@ -871,7 +916,7 @@ private:
     }
 
     send_params_t init_params_;
-    view_t view_;
+    view_t init_view_;
 };
 
 inline send_plan_t create_send_plan(const send_params_t &params,
