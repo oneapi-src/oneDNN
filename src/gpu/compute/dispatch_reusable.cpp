@@ -330,7 +330,7 @@ struct gws_mapped_block_t : public gpu::block_t {
 void reusable_dispatch_config_t::compute_terms(
         size_t buffer_idx, const gws_bin_mapping_t &mapper) {
 
-    for (size_t gws_idx = 0; gws_idx < nd_range_t::max_ndims; gws_idx++) {
+    for (size_t gws_idx = 0; gws_idx < range_t::max_ndims; gws_idx++) {
         const std::vector<block_bin_t> &bins = mapper.get_bins(gws_idx);
 
         std::vector<gws_mapped_block_t> gws_blocks;

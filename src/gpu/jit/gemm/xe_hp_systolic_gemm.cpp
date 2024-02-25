@@ -21,6 +21,7 @@
 #include "common/float16.hpp"
 #include "common/impl_registration.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/gemm/gemm_walk_orders.hpp"
 #include "gpu/jit/utils/ngen_type_bridge.hpp"
 #include "gpu/ocl/gemm/xe_systolic_gemm_copy_kernel.hpp"
@@ -722,8 +723,8 @@ status_t xe_hp_systolic_gemm_t::launch_copy(const gemm_exec_ctx_t &ctx,
     else
         c_lsz = c_threads;
 
-    size_t gws[3] = {r_threads * sg, c_threads, 1};
-    size_t lws[3] = {r_lsz * sg, c_lsz, 1};
+    compute::range_t gws(r_threads * sg, c_threads);
+    compute::range_t lws(r_lsz * sg, c_lsz);
 
     auto nd_range = compute::nd_range_t(gws, lws);
 
@@ -749,8 +750,8 @@ status_t xe_hp_systolic_gemm_t::launch_clear_sum(const gemm_exec_ctx_t &ctx,
     size_t sg = ocl::xe_systolic_gemm_copy_kernel_t::subgroup_size_clear_sum(
             arch_);
 
-    size_t gws[3] = {threads * sg, 1, 1};
-    size_t lws[3] = {sg, 1, 1};
+    compute::range_t gws(threads * sg);
+    compute::range_t lws(sg);
 
     auto nd_range = compute::nd_range_t(gws, lws);
 
@@ -767,6 +768,7 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
         const memory_storage_t **po_srcs, int32_t *offset_po_src,
         bool first_k_block, bool last_k_block, int32_t batch, int32_t stride_a,
         int32_t stride_b, int32_t stride_c) const {
+    if (batch == 0) return status::success;
 
     auto tg_m = compute_info_.wg[LoopM];
     auto tg_n = compute_info_.wg[LoopN];
@@ -840,8 +842,8 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
 
     if (walk_n_first_) std::swap(thread_m, thread_n);
 
-    size_t gws[3] = {size_t(thread_m), size_t(thread_n), 1};
-    size_t lws[3] = {size_t(tg_m), size_t(tg_n), 1};
+    compute::range_t gws(size_t(thread_m), size_t(thread_n), 1);
+    compute::range_t lws(size_t(tg_m), size_t(tg_n), 1);
     if (pd()->with_batch()) gws[2] = batch;
 
     lws[1] *= compute_info_.wgExpand;

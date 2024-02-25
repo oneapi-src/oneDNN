@@ -20,6 +20,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <unordered_map>
+
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "gpu/block_structure.hpp"
@@ -30,7 +32,6 @@
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/types_interop.h"
 #include "gpu/serialization.hpp"
-#include <unordered_map>
 
 namespace dnnl {
 namespace impl {
@@ -319,9 +320,8 @@ struct lws_strategy_t {
         : engine(engine), gpu_attr(gpu_attr) {};
     virtual ~lws_strategy_t() = default;
 
-    virtual nd_range_t::work_size_t create_lws(
-            const nd_range_t::work_size_t &gws,
-            const gws_bin_mapping_t &mapper) const = 0;
+    virtual range_t create_lws(
+            const range_t &gws, const gws_bin_mapping_t &mapper) const = 0;
 
     // Determine if a given block (mapped to each buffer) should be in the lws.
     // Gets called for each block dispatched to the GWS.
@@ -344,10 +344,10 @@ struct default_lws_strategy_t : public lws_strategy_t {
     default_lws_strategy_t(const compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr)
         : lws_strategy_t(engine, gpu_attr) {};
-    nd_range_t::work_size_t create_lws(const nd_range_t::work_size_t &gws,
+    range_t create_lws(const range_t &gws,
             const gws_bin_mapping_t &mapper) const override {
-        nd_range_t::work_size_t lws = get_optimal_lws(
-                gws.data(), gws.size(), -1, engine->device_info()->gpu_arch());
+        range_t lws
+                = get_optimal_lws(gws, -1, engine->device_info()->gpu_arch());
         return lws;
     }
 
@@ -375,8 +375,8 @@ constexpr size_t dim_not_found = std::numeric_limits<size_t>::max();
 
 struct named_buffer_t : public memory_desc_t {
     named_buffer_t(const char *name, const memory_desc_t &md,
-            std::vector<dim_id_t> dims)
-        : memory_desc_t(md), name(name), dim_ids(std::move(dims)) {
+            const std::vector<dim_id_t> &dims)
+        : memory_desc_t(md), name(name), dim_ids(dims) {
         gpu_assert(this->name.size() <= MAX_BUFFER_NAME_LENGTH);
         gpu_assert(format_kind == format_kind::blocked);
         gpu_assert(static_cast<size_t>(md.ndims) <= dim_ids.size());
@@ -584,7 +584,7 @@ private:
 // leads to performance degredation
 class gws_bin_mapping_t {
 public:
-    gws_bin_mapping_t(subgroup_data_t sg) : sg(sg) { gws_.fill(1); }
+    gws_bin_mapping_t(subgroup_data_t sg) : sg(sg) {}
     void add(const block_bin_t &bin) {
         // If this bin has the subgroup block, it has to be mapped to
         // the first bin in the 0th gws dim
@@ -625,15 +625,15 @@ public:
         }
 
         // Insert into the last dim
-        add_(bin, gws_.size() - 1);
+        add_(bin, gws_.ndims() - 1);
     }
 
     nd_range_t nd_range(const lws_strategy_t &lws_strategy) const {
-        nd_range_t::work_size_t lws = lws_strategy.create_lws(gws_, *this);
-        return compute::nd_range_t(gws_.data(), lws.data());
+        range_t lws = lws_strategy.create_lws(gws_, *this);
+        return compute::nd_range_t(gws_, lws);
     }
 
-    const nd_range_t::work_size_t &gws() const { return gws_; }
+    const range_t &gws() const { return gws_; }
 
     const std::vector<block_bin_t> &get_bins(size_t idx) const {
         return map[idx];
@@ -641,18 +641,16 @@ public:
 
 private:
     void add_(const block_bin_t &bin, size_t gws_dim) {
-        gpu_assert(gws_dim < gws_.size());
         map[gws_dim].emplace_back(bin);
         gws_[gws_dim] *= bin.size();
     }
     void clear_(size_t gws_idx) {
-        gpu_assert(gws_idx < nd_range_t::max_ndims);
         map[gws_idx].clear();
         gws_[gws_idx] = 1;
     }
     subgroup_data_t sg;
-    std::array<std::vector<block_bin_t>, nd_range_t::max_ndims> map;
-    nd_range_t::work_size_t gws_;
+    std::array<std::vector<block_bin_t>, range_t::max_ndims> map;
+    range_t gws_ = range_t::one();
 };
 
 class reusable_dispatch_config_t {

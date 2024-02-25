@@ -18,19 +18,17 @@
 #define GPU_GPU_PRIMITIVE_HPP
 
 #include <cassert>
-
-#ifndef DISABLE_VERBOSE
-#include <iostream>
-#include <sstream>
-#include "common/verbose.hpp"
-#endif
+#include "gpu/compute/utils.hpp"
 
 #include "common/cache_blob.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
+#include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/compute_stream.hpp"
+#include "gpu/compute/kernel.hpp"
 #include "gpu/gemm/gpu_gemm_exec_types.hpp"
 #include "gpu/gpu_resource.hpp"
+#include "gpu/jit/jit_generator_base.hpp"
 #include "gpu/kernel_cache.hpp"
 
 #define CTX_GPU_RES_STORAGE(arg) \
@@ -235,25 +233,38 @@ struct gpu_primitive_t : public primitive_t {
         auto global_range = nd_range.global_range();
         auto local_range = nd_range.local_range();
 
-        size_t off_inc[3] = {};
-        for (int i = 0; i < 3; i++)
-            off_inc[i] = local_range ? UINT32_MAX * local_range[i] : UINT32_MAX;
+        // Convert global_range to an equivalent 3D nd_range_t
+        constexpr size_t range_ndims = 3;
+        assert(global_range.ndims() <= range_ndims);
+        auto gws = compute::range_t::one(range_ndims);
+        for (size_t i = 0; i < global_range.ndims(); i++) {
+            gws[i] = global_range[i];
+        }
+
+        compute::range_t off_inc(UINT32_MAX, UINT32_MAX, UINT32_MAX);
+        if (local_range) {
+            for (size_t i = 0; i < local_range.ndims(); i++) {
+                off_inc[i] *= local_range[i];
+            }
+        }
 
         int64x3_t offset_arg = {};
         auto &offset = offset_arg.array;
-        for_(offset[2] = 0; static_cast<size_t>(offset[2]) < global_range[2];
+        static_assert(range_ndims == 3,
+                "Large parallel for loop doesn't match ndims.");
+        for_(offset[2] = 0; static_cast<size_t>(offset[2]) < gws[2];
                 offset[2] += off_inc[2])
-        for_(offset[1] = 0; static_cast<size_t>(offset[1]) < global_range[1];
+        for_(offset[1] = 0; static_cast<size_t>(offset[1]) < gws[1];
                 offset[1] += off_inc[1])
-        for_(offset[0] = 0; static_cast<size_t>(offset[0]) < global_range[0];
+        for_(offset[0] = 0; static_cast<size_t>(offset[0]) < gws[0];
                 offset[0] += off_inc[0])
         {
             arg_list.set(offset_idx, offset_arg);
-            size_t range[3];
-            for (int i = 0; i < 3; i++)
-                range[i] = std::min(off_inc[i], global_range[i] - offset[i]);
+            auto range = compute::range_t::empty(range_ndims);
+            for (size_t i = 0; i < range_ndims; i++)
+                range[i] = std::min(off_inc[i], gws[i] - offset[i]);
 
-            CHECK(parallel_for(ctx, compute::nd_range_t(3, range, local_range),
+            CHECK(parallel_for(ctx, compute::nd_range_t(range, local_range),
                     kernel, arg_list));
         }
         return status::success;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,8 +18,6 @@
 #define SYCL_SYCL_COMPAT_HPP
 
 #include "sycl/sycl_utils.hpp"
-
-#include "gpu/compute/compute.hpp"
 
 namespace dnnl {
 namespace impl {

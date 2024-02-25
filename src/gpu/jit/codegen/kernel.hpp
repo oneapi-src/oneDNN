@@ -19,6 +19,8 @@
 
 #include "common/cpp_compat.hpp"
 
+#include "common/impl_registration.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/codegen/operand.hpp"
 #include "gpu/jit/codegen/register_allocator.hpp"
 #include "gpu/jit/ir/ir.hpp"

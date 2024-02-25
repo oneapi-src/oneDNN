@@ -20,6 +20,7 @@
 #include "common/float16.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/gemm/gemm_walk_orders.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 
@@ -39,6 +40,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
         int32_t k0, float alpha, float beta, int32_t cmask, bool last_k_block,
         bool swapab, bool disable_hilbert) const {
+    if (pd()->desc()->batch() == 0) return status::success;
 
     uint32_t flags = 0;
     bool k_parallel_fixed
@@ -133,14 +135,14 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     auto lws_k = pd()->kernel_desc()->aux_params()->wgK;
 
-    size_t gws[3] = {0, 0, 1};
+    compute::range_t gws = compute::range_t::empty();
 
     gws[0] = utils::div_up(m, nocopy_info()->unroll[LoopM]);
     gws[1] = utils::div_up(n, nocopy_info()->unroll[LoopN]);
     gws[2] = nocopy_info()->kParallel() ? nstl::max(1, utils::div_up(k, k0))
                                         : lws_k;
 
-    size_t lws[3] = {size_t(nocopy_info()->wg[LoopM]),
+    compute::range_t lws = {size_t(nocopy_info()->wg[LoopM]),
             size_t(nocopy_info()->wg[LoopN]), size_t(lws_k)};
 
     if (nocopy_info()->isNMK()) {

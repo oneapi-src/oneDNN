@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 #include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
+#include "common/experimental.hpp"
+#include "common/utils.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/bnorm/bnorm_model.hpp"
 #include "gpu/ocl/bnorm/bnorm_utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -30,10 +33,10 @@ using namespace bn_model;
 using namespace dnnl::impl::utils;
 
 static size_t get_slm_buff_size(
-        int ic_block, nhwc_bnorm_params_t &conf, size_t *lws) {
+        int ic_block, nhwc_bnorm_params_t &conf, const compute::range_t &lws) {
     // Returns size of SLM buffer of nhwc stat calculation kernels.
     const size_t base_size
-            = div_up(ic_block, conf.sub_group_size) * lws[0] * lws[1] * lws[2];
+            = div_up(ic_block, conf.sub_group_size) * lws.nelems();
     if (conf.use_stats_one_pass) {
         return 2 * base_size * 2 * sizeof(float);
     } else {
@@ -54,13 +57,13 @@ static void adjust_lws_calc_kernel(int ic_block, nhwc_bnorm_params_t &conf,
     const int max_slm_size = compute::device_info_t::max_slm_size(gpu_arch);
 
     auto generated_nd = dispatch.nd_range();
-    const size_t *base_gws = generated_nd.global_range();
-    const size_t *base_lws = generated_nd.local_range();
+    const compute::range_t &base_gws = generated_nd.global_range();
+    const compute::range_t &base_lws = generated_nd.local_range();
+    gpu_assert(base_lws) << "lws is missing";
 
-    size_t tuned_lws[3], curr_lws[3];
-    curr_lws[0] = tuned_lws[0] = conf.sub_group_size; // Assuming IC is dim 0
-    curr_lws[1] = tuned_lws[1] = base_lws[1];
-    curr_lws[2] = tuned_lws[2] = base_lws[2];
+    compute::range_t tuned_lws = {gpu_utils::into<size_t>(conf.sub_group_size),
+            base_lws[1], base_lws[2]};
+    compute::range_t curr_lws = tuned_lws;
 
     // The search is based on subslice utilization which calculated as the ratio
     // used_subslices / max_available_subslices.

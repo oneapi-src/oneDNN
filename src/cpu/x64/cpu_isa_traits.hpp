@@ -164,7 +164,9 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
 dnnl_cpu_isa_t get_effective_cpu_isa();
 
 static inline uint32_t get_avx10_version(cpu_isa_t isa) {
-    return (isa & avx10_version_bits) >> avx10_version_bit_start;
+    return (static_cast<uint32_t>(isa)
+                   & static_cast<uint32_t>(avx10_version_bits))
+            >> avx10_version_bit_start;
 }
 
 static inline bool compare_isa(

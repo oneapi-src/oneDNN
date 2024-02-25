@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define GPU_BATCH_NORMALIZATION_UTILS_HPP
 
 #include "common/batch_normalization_pd.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/primitive_conf.hpp"
 #include "gpu/utils.hpp"
 
@@ -55,9 +56,10 @@ namespace gpu {
 namespace ocl {
 namespace bn_utils {
 
-float get_ss_utilization(int max_ss, const size_t *gws, const size_t *lws);
-float get_thr_utilization(
-        int eu_count, int threads_per_eu, int sg_size, const size_t *gws);
+float get_ss_utilization(
+        int max_ss, const compute::range_t &gws, const compute::range_t &lws);
+float get_thr_utilization(int eu_count, int threads_per_eu, int sg_size,
+        const compute::range_t &gws);
 void init_flags_lookup_table(
         std::string &flags, const batch_normalization_pd_t *pd);
 void init_conf_basic(bnorm_conf_t &conf, const batch_normalization_pd_t *pd);

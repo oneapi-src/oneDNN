@@ -31,8 +31,8 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
-nd_range_t::work_size_t get_optimal_lws(const size_t *gws, const size_t n,
-        const int mapped_vec_dim_idx, const gpu_arch_t gpu_arch);
+range_t get_optimal_lws(const range_t &gws, const int mapped_vec_dim_idx,
+        const gpu_arch_t gpu_arch);
 
 class compute_engine_t;
 
@@ -76,8 +76,8 @@ public:
     void generate(bool generate_lws = true);
 
     void generate_override(
-            const size_t *grange, const size_t *lrange = nullptr);
-    void set_lws(const size_t *lrange);
+            const range_t &grange, const range_t &lrange = range_t());
+    void set_lws(const range_t &lrange);
 
     // Dimension information necessary for mapping to global work IDs.
     struct dim_info_t {

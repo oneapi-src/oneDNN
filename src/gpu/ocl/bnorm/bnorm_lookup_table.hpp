@@ -21,7 +21,6 @@
 #include <vector>
 #include <unordered_map>
 
-#include "gpu/compute/compute.hpp"
 #include "gpu/config.hpp"
 #include "gpu/primitive_conf.hpp"
 

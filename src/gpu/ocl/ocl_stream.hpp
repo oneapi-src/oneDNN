@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,13 +21,11 @@
 
 #include "common/c_types_map.hpp"
 #include "common/thread_local_storage.hpp"
-#include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
+#include "gpu/compute/compute_stream.hpp"
+#include "gpu/compute/stream_profiler.hpp"
 #include "gpu/ocl/mdapi_utils.hpp"
 #include "gpu/ocl/ocl_context.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/stream_profiler.hpp"
 
 namespace dnnl {
 namespace impl {

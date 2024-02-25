@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/gen9_global_pooling.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {

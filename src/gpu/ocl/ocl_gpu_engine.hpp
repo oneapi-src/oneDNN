@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,16 +17,11 @@
 #ifndef GPU_OCL_OCL_GPU_ENGINE_HPP
 #define GPU_OCL_OCL_GPU_ENGINE_HPP
 
-#include "oneapi/dnnl/dnnl.h"
-
 #include "common/c_types_map.hpp"
-#include "common/engine.hpp"
-#include "common/stream.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
+#include "gpu/compute/compute_engine.hpp"
 #include "gpu/gpu_impl_list.hpp"
 #include "gpu/ocl/ocl_gpu_engine_id.hpp"
-#include "gpu/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {

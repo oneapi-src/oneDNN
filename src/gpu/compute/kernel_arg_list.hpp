@@ -26,7 +26,6 @@
 #include "common/float16.hpp"
 #include "common/memory_storage.hpp"
 #include "common/nstl.hpp"
-#include "common/verbose.hpp"
 #include "gpu/block_structure.hpp"
 #include "gpu/ocl/types_interop.h"
 

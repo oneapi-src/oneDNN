@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,7 +69,8 @@ status_t gemm_post_ops_inner_product_fwd_t::execute_forward(
         size_t mb = pd()->MB();
         size_t oc = pd()->OC();
 
-        auto nd_range = compute::nd_range_t({mb * oc});
+        compute::range_t gws(mb * oc);
+        compute::nd_range_t nd_range(gws);
 
         status_t status
                 = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);

@@ -18,19 +18,15 @@
 #define GPU_OCL_GEMM_INNER_PRODUCT_HPP
 
 #include <assert.h>
-#include <string>
 
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_desc_iterator.hpp"
-#include "gpu/compute/compute.hpp"
-#include "gpu/gemm/gpu_gemm.hpp"
+#include "common/reduction_pd.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
-#include "gpu/gpu_reduction_pd.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {

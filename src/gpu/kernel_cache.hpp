@@ -17,14 +17,13 @@
 #ifndef GPU_KERNEL_CACHE_HPP
 #define GPU_KERNEL_CACHE_HPP
 
-#include <functional>
 #include <memory>
 #include <type_traits>
 
-#include "common/engine.hpp"
+#include "common/engine_id.hpp"
 #include "common/kernel_cache.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
+#include "gpu/compute/compute_engine.hpp"
 #include "gpu/serialization.hpp"
 
 namespace dnnl {

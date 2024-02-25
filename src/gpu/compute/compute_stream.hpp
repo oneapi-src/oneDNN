@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,11 +17,8 @@
 #ifndef GPU_COMPUTE_COMPUTE_STREAM_HPP
 #define GPU_COMPUTE_COMPUTE_STREAM_HPP
 
-#include <memory>
-
 #include "common/stream.hpp"
 #include "gpu/compute/context.hpp"
-#include "gpu/compute/kernel.hpp"
 
 namespace dnnl {
 namespace impl {

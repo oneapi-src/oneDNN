@@ -23,11 +23,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/serialization_stream.hpp"
-#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
 
-#include "cpu/platform.hpp"
 #include "oneapi/dnnl/dnnl_config.h"
 
 namespace dnnl {
