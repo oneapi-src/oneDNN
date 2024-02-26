@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -162,8 +162,7 @@ struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
                     attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::scales_runtime),
                     VERBOSE_UNSUPPORTED_ATTR);
-            VDISPATCH_CONV(
-                    output_scales_mask_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
@@ -174,12 +173,6 @@ struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
         bool support_bias() const override { return true; }
 
         conv_gemm_conf_t jcp_;
-
-    protected:
-        bool output_scales_mask_ok() const {
-            const auto &mask = attr()->output_scales_.mask_;
-            return mask == 0 || mask == 1 << 1;
-        }
     };
 
     gemm_x8s8s32x_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
