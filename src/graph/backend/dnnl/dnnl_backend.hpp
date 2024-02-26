@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@
 #include "graph/backend/dnnl/common.hpp"
 #include "graph/backend/dnnl/internal_ops.hpp"
 #include "graph/backend/dnnl/layout_id_mgr.hpp"
+#include "graph/backend/dnnl/patterns/data_type_check_pass.hpp"
 #include "graph/backend/dnnl/utils.hpp"
 
 namespace dnnl {
