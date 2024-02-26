@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ partition_data_displacer_t::partition_data_displacer_t(
                 // the partition input found
                 if (dq_found
                         && out_lt_2_op_.find(lt.id_) == out_lt_2_op_.end()) {
-                    quantize_displace.emplace(
+                    quantize_displace_.emplace(
                             lt.id_, ::std::make_tuple(aop, i, dq_lt));
                 }
             }
@@ -99,13 +99,13 @@ partition_data_displacer_t::partition_data_displacer_t(
 int partition_data_displacer_t::displace_input_data(
         size_t lt_id, dnn_mem_t &mem, res_t *res) {
 
-    if (quantize_displace.find(lt_id) == quantize_displace.end()) {
+    if (quantize_displace_.find(lt_id) == quantize_displace_.end()) {
         // no need to displace the data of this tensor
         return OK;
     }
-    displace_t displace = quantize_displace.at(lt_id);
+    const displace_t &displace = quantize_displace_.at(lt_id);
 
-    auto main_op = ::std::get<0>(displace);
+    const auto &main_op = ::std::get<0>(displace);
     auto main_op_offset = ::std::get<1>(displace);
     auto tensor = ::std::get<2>(displace);
 

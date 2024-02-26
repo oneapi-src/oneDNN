@@ -73,8 +73,7 @@ private:
     // map of input logical tensor id to its consumer ops
     std::unordered_map<size_t, op_ref_list_t> in_lt_2_ops_;
     // map of output logical tensor id to its producer op
-    std::unordered_map<size_t, std::reference_wrapper<const deserialized_op>>
-            out_lt_2_op_;
+    std::unordered_map<size_t, op_ref_t> out_lt_2_op_;
     ::graph::partition_data_displacer_t data_displacer;
     // partition in logical tensors' ids
     std::vector<size_t> partition_in_ids_;

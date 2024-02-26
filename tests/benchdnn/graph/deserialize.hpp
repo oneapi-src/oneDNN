@@ -99,7 +99,8 @@ struct deserialized_op {
 };
 std::ostream &operator<<(std::ostream &s, const deserialized_op &dop);
 
-using op_ref_list_t = std::list<std::reference_wrapper<const deserialized_op>>;
+using op_ref_t = std::reference_wrapper<const deserialized_op>;
+using op_ref_list_t = std::list<op_ref_t>;
 
 struct deserialized_graph {
     void load(const std::string &pass_config_json);
