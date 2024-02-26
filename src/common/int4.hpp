@@ -25,14 +25,16 @@
 namespace dnnl {
 namespace impl {
 
-inline uint8_t extract_half_byte(uint8_t val, bool high_half) {
-    uint8_t shift = high_half ? 4 : 0;
+enum class int4_extract_t : uint8_t { low_half = 0, high_half = 4 };
+
+inline uint8_t extract_half_byte(uint8_t val, int4_extract_t half) {
+    uint8_t shift = static_cast<uint8_t>(half);
     return (val >> shift) & 0xF;
 }
 
-inline uint8_t insert_half_byte(uint8_t src, uint8_t val, bool high_half) {
-    uint8_t shift = high_half ? 4 : 0;
-    uint8_t mask = high_half ? 0x0F : 0xF0;
+inline uint8_t insert_half_byte(uint8_t src, uint8_t val, int4_extract_t half) {
+    uint8_t shift = static_cast<uint8_t>(half);
+    uint8_t mask = half == int4_extract_t::high_half ? 0x0F : 0xF0;
     return (src & mask) | (uint8_t)(val << shift);
 }
 
@@ -48,12 +50,12 @@ struct uint4_t {
 
     explicit operator float() const { return (float)raw_; }
 
-    uint8_t insert(uint8_t src, bool high_half) const {
-        return insert_half_byte(src, raw_, high_half);
+    uint8_t insert(uint8_t src, int4_extract_t half) const {
+        return insert_half_byte(src, raw_, half);
     }
 
-    static uint4_t extract(uint8_t val, bool high_half) {
-        return uint4_t(extract_half_byte(val, high_half));
+    static uint4_t extract(uint8_t val, int4_extract_t half) {
+        return uint4_t(extract_half_byte(val, half));
     }
 
 private:
@@ -80,12 +82,12 @@ struct int4_t {
         return sign * (float)(sign == -1 ? (~raw_ & 0xF) + 1 : raw_);
     }
 
-    uint8_t insert(uint8_t src, bool high_half) const {
-        return insert_half_byte(src, raw_, high_half);
+    uint8_t insert(uint8_t src, int4_extract_t half) const {
+        return insert_half_byte(src, raw_, half);
     }
 
-    static int4_t extract(uint8_t val, bool high_half) {
-        return int4_t(extract_half_byte(val, high_half));
+    static int4_t extract(uint8_t val, int4_extract_t half) {
+        return int4_t(extract_half_byte(val, half));
     }
 
 private:
