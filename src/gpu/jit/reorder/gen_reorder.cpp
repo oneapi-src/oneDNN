@@ -170,8 +170,15 @@ status_t gen_reorder_t::pd_t::init_kernel_info() {
             cfg->zp_cfg(), *attr(), *dst_md(), /*ic=*/1, /*oc=*/1, tensor_cfg);
 
     kernel_info = std::make_shared<kernel_info_t>();
-    kernel_info->set_nd_range(reorder_kernel_t<>::nd_range(cfg->exec_cfg(),
-            cfg->src_layout().user(), cfg->dst_layout().user()));
+    auto nd_range = reorder_kernel_t<>::nd_range(cfg->exec_cfg(),
+            cfg->src_layout().user(), cfg->dst_layout().user());
+    auto global_range = nd_range.global_range();
+    constexpr int max = std::numeric_limits<int>::max();
+    // This case *probably* overflowed in int32 precision.
+    // Skip until we have a proper fix.
+    if (global_range[0] > max || global_range[1] > max || global_range[2] > max)
+        return status::unimplemented;
+    kernel_info->set_nd_range(nd_range);
 
     // Initialize kernel arguments.
     for (auto &t : tensor_cfg.tensors()) {
