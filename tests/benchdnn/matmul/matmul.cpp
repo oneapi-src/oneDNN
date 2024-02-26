@@ -525,8 +525,17 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
 
-        // GPU supports f8_e4m3 on all platformas and f8_e5m2 pre XeHPC through
-        // ref only, with limited post-op support.
+        // Weights decompression is supported through ref on pre-XeHPG
+        // platforms with limited post-ops support.
+        if (prb->weights_decompression()
+                && (!prb->attr.zero_points.is_def()
+                        || !prb->attr.scales.is_def())) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+
+        // GPU supports fp8 through ref only for f8_e4m3 on all platformas and
+        // for f8_e5m2 pre-XeHPC with limited post-op support.
         if (((prb->src_dt() == dnnl_f8_e4m3 || prb->dst_dt() == dnnl_f8_e4m3)
                     || (prb->src_dt() == dnnl_f8_e5m2
                             || prb->dst_dt() == dnnl_f8_e5m2))
