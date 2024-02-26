@@ -47,8 +47,10 @@ void test_conversions() {
         // Convert int4 -> f32 and back again,
         // expecting bitwise identical values.
         uint8_t int4_pair = static_cast<uint8_t>(u16);
-        float num1 = static_cast<float>(T::extract(int4_pair, false));
-        float num2 = static_cast<float>(T::extract(int4_pair, true));
+        float num1 = static_cast<float>(
+                T::extract(int4_pair, impl::int4_extract_t::low_half));
+        float num2 = static_cast<float>(
+                T::extract(int4_pair, impl::int4_extract_t::high_half));
         // Check that the all numbers are in the range
         float int4_lowest
                 = static_cast<float>(impl::nstl::numeric_limits<T>::lowest());
@@ -67,8 +69,10 @@ void test_conversions() {
         uint8_t new_int4_pair = 0;
         // Down-convert
         T i4_num1(num1), i4_num2(num2);
-        new_int4_pair = i4_num1.insert(new_int4_pair, false);
-        new_int4_pair = i4_num2.insert(new_int4_pair, true);
+        new_int4_pair
+                = i4_num1.insert(new_int4_pair, impl::int4_extract_t::low_half);
+        new_int4_pair = i4_num2.insert(
+                new_int4_pair, impl::int4_extract_t::high_half);
         ASSERT_EQ(int4_pair, new_int4_pair);
     });
 }
