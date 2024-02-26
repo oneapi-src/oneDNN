@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ref_binary.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -25,8 +26,6 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));
     const memory_desc_wrapper dst_d(dst_md());
-
-    alg_kind_t alg = desc()->alg_kind;
 
     const int ndims = src0_d.ndims();
     conf.src0_md_info = memory_desc_info_t::create(src0_d);
@@ -46,18 +45,7 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
                 ? src1_d.dims()[i] == 1 && src0_d.dims()[i] != src1_d.dims()[i]
                 : 0;
     }
-    conf.is_add = (alg == alg_kind::binary_add);
-    conf.is_mul = (alg == alg_kind::binary_mul);
-    conf.is_max = (alg == alg_kind::binary_max);
-    conf.is_min = (alg == alg_kind::binary_min);
-    conf.is_div = (alg == alg_kind::binary_div);
-    conf.is_sub = (alg == alg_kind::binary_sub);
-    conf.is_ge = (alg == alg_kind::binary_ge);
-    conf.is_gt = (alg == alg_kind::binary_gt);
-    conf.is_le = (alg == alg_kind::binary_le);
-    conf.is_lt = (alg == alg_kind::binary_lt);
-    conf.is_eq = (alg == alg_kind::binary_eq);
-    conf.is_ne = (alg == alg_kind::binary_ne);
+    conf.alg = desc()->alg_kind;
     conf.is_tensor_op = is_tensor_op();
     conf.is_dense = dst_d.is_dense();
     conf.same_src_dt = (src0_d.data_type() == src1_d.data_type());
@@ -120,22 +108,13 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_binary_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
+    def_binary_alg_kinds(kernel_ctx);
+    kernel_ctx.define_int("BINARY_ALG", conf.alg);
+
     kernel_ctx.set_data_type(conf.src0_data_type);
     kernel_ctx.set_data_type(conf.src1_data_type);
     kernel_ctx.set_data_type(conf.dst_data_type);
     kernel_ctx.define_int("NDIMS", conf.ndims);
-    kernel_ctx.define_int("IS_MUL", conf.is_mul);
-    kernel_ctx.define_int("IS_ADD", conf.is_add);
-    kernel_ctx.define_int("IS_MAX", conf.is_max);
-    kernel_ctx.define_int("IS_MIN", conf.is_min);
-    kernel_ctx.define_int("IS_DIV", conf.is_div);
-    kernel_ctx.define_int("IS_SUB", conf.is_sub);
-    kernel_ctx.define_int("IS_GE", conf.is_ge);
-    kernel_ctx.define_int("IS_GT", conf.is_gt);
-    kernel_ctx.define_int("IS_LE", conf.is_le);
-    kernel_ctx.define_int("IS_LT", conf.is_lt);
-    kernel_ctx.define_int("IS_EQ", conf.is_eq);
-    kernel_ctx.define_int("IS_NE", conf.is_ne);
     kernel_ctx.define_int("IS_PLAIN_LAYOUT", true);
     kernel_ctx.define_int("IS_TENSOR_OP", conf.is_tensor_op);
     kernel_ctx.define_int("IS_DENSE", conf.is_dense);

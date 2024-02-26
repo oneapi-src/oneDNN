@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     tmp_src1 = tmp_src1 * (*src1_scale);
 #endif
 
-    d = get_eltwise_op(tmp_src0, tmp_src1);
+    d = binary_op(BINARY_ALG, tmp_src0, tmp_src1);
 
     float dst_data;
 #if WITH_SUM
@@ -107,7 +107,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #if WITH_SRC1_SCALE
             tmp_src1 = tmp_src1 * (*src1_scale);
 #endif
-            d = get_eltwise_op(tmp_src0, tmp_src1);
+            d = binary_op(BINARY_ALG, tmp_src0, tmp_src1);
 
             float dst_data;
 #if WITH_SUM
@@ -142,7 +142,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #if WITH_SRC1_SCALE
             tmp_src1 = tmp_src1 * (*src1_scale);
 #endif
-            d = get_eltwise_op(tmp_src0, tmp_src1);
+            d = binary_op(BINARY_ALG, tmp_src0, tmp_src1);
 
             float dst_data;
 #if WITH_SUM
