@@ -282,7 +282,9 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
         int dhc_tg = dev_getenv("dhc_tg", dhc_tg_best);
         int mb_tg = dev_getenv("mb_tg", mb_tg_best);
 
-        int mb_tail = dev_getenv("mb_tail", rnn.mb % (mb_tg * mb_thr) != 0);
+        int mb_tail = dev_getenv("mb_tail",
+                rnn.mb % (mb_tg * mb_thr) != 0
+                        || rnn.mb % ocl_conf.subgroup_size != 0);
         int dhc_tail
                 = dev_getenv("dhc_tail", rnn.dhc % (dhc_tg * dhc_thr) != 0);
         int k_block = ocl_conf.subgroup_size;
