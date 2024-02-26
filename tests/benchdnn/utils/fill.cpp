@@ -27,19 +27,26 @@ fill_cfg_t::fill_cfg_t(dnnl_data_type_t dt, float range_min_val,
         float range_max_val, bool only_integer, attr_t::post_ops_t::kind_t alg,
         const std::string &name)
     : dt_(dt)
-    , range_min_val_(dt_ == dnnl_u8 ? MAX2(0.f, range_min_val) : range_min_val)
-    , range_max_val_(range_max_val)
-    , only_integer_(is_integral_dt(dt_) ? true : only_integer)
+    , range_min_val_(MAX2(lowest_dt(dt_), range_min_val))
+    , range_max_val_(MIN2(max_dt(dt_), range_max_val))
+    , only_integer_(is_integral_dt(dt_) || only_integer)
     , name_(name) {
-    // Apply range inversion if `alg` is `sub`. This helps to keep output
-    // data positive if it was intended to be positive. In rest cases act
-    // like for binary `add` algorithm. If `attr` is unavailable in the
-    // code, use `attr_t::post_ops_t::kind_t::ADD` as a defulat value.
     if (alg == attr_t::post_ops_t::kind_t::SUB) {
+        // Apply range inversion if `alg` is `sub`. This helps to keep output
+        // data positive if it was intended to be positive. In rest cases act
+        // like for binary `add` algorithm. If `attr` is unavailable in the
+        // code, use `attr_t::post_ops_t::kind_t::ADD` as a defulat value.
         float sub_range_min_val_ = -range_min_val_;
         float sub_range_max_val_ = -range_max_val_;
         range_min_val_ = MIN2(sub_range_min_val_, sub_range_max_val_);
         range_max_val_ = MAX2(sub_range_min_val_, sub_range_max_val_);
+    } else if (alg == attr_t::post_ops_t::kind_t::MUL) {
+        // Reduce the range for multiplication to decrease a computational
+        // error magnitute which can lead to rounding to a different output
+        // value for low-precision data types.
+        // TODO: replace with using specific values instead.
+        range_min_val_ /= 8.f;
+        range_max_val_ /= 8.f;
     }
 }
 
