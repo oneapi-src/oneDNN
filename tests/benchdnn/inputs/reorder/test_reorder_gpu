@@ -255,3 +255,9 @@
 --batch=option_set_fwks_key_gpu
 --reset
 --batch=option_set_fwks_ext_gpu
+
+# Catch overflows
+--reset
+2147483648_n"int_overflow"
+4294967296_n"uint_overflow"
+2147483869_n"nd_range_overflow"
