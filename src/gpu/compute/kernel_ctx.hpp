@@ -137,6 +137,10 @@ private:
         if (gpu_utils::dev_getenv("enable_check_assumptions", 0)) {
             add_option("-DENABLE_CHECK_ASSUMPTIONS");
         }
+
+        if (gpu_utils::dev_getenv("ocl_debug", 0)) {
+            add_option("-DOCL_DEBUG");
+        }
     }
     void set_default_macros(const primitive_attr_t *attr) {
         if (attr) { define_int("DETERMINISTIC", attr->deterministic_); }
