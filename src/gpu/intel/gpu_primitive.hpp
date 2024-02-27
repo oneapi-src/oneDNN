@@ -138,7 +138,7 @@ struct gpu_primitive_t : public gpu::primitive_t {
                 std::move(key), engine, kernels, kernel_names,
                 kernel_cache_status));
         if (kernel_cache_status == cache_state_t::kernel_hit) {
-            created_with_cached_kernel_ = true;
+            creation_cached_state_ = cache_state_t::kernel_hit;
         }
 
         CHECK(register_kernels(kernels));
@@ -152,6 +152,18 @@ struct gpu_primitive_t : public gpu::primitive_t {
         std::vector<compute::kernel_t> kernels(1);
         CHECK(create_kernels(engine, kernels, {kernel_name}, params));
         kernel = kernels[0];
+        return status::success;
+    }
+
+    status_t create_nested_primitive(std::shared_ptr<primitive_t> &primitive,
+            const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine) {
+        std::pair<std::shared_ptr<primitive_t>, cache_state_t> p;
+        CHECK(pd->create_primitive_nested(p, engine, cache_blob()));
+        if (p.second == cache_state_t::kernel_hit) {
+            creation_cached_state_ = cache_state_t::nested_primitive_hit;
+        }
+        primitive = p.first;
+        register_primitive(primitive.get());
         return status::success;
     }
 

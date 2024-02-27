@@ -80,8 +80,8 @@ struct primitive_t : public c_compatible {
 
     bool use_global_scratchpad() const { return use_global_scratchpad_; }
     cache_blob_t cache_blob() const { return cache_blob_; }
-    bool created_with_cached_kernel() const {
-        return created_with_cached_kernel_;
+    cache_state_t creation_cache_state() const {
+        return creation_cached_state_;
     }
 
 protected:
@@ -112,9 +112,7 @@ protected:
             std::shared_ptr<primitive_t> p = std::make_shared<impl_type>(c.pd);
             status_t status
                     = p->init(c.engine, c.use_global_scratchpad, c.cache_blob);
-            c.cache_status = (p->created_with_cached_kernel())
-                    ? cache_state_t::kernel_hit
-                    : cache_state_t::miss;
+            c.cache_status = p->creation_cache_state();
             return primitive_cache_iface_t::result_t {std::move(p), status};
         };
         auto result
@@ -126,7 +124,7 @@ protected:
     std::shared_ptr<primitive_desc_t> pd_;
     bool use_global_scratchpad_ = false;
     cache_blob_t cache_blob_;
-    bool created_with_cached_kernel_ = false;
+    cache_state_t creation_cached_state_ = cache_state_t::miss;
 
 private:
     primitive_t() = delete;
