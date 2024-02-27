@@ -45,7 +45,9 @@ struct ref_gemm_t : public gpu_gemm_t {
             const auto c_dt = desc()->c_type();
             const auto acc_dt = desc()->acc_type;
             const auto bia_dt = desc()->bias_type();
-            const bool wei_decompress = utils::one_of(a_dt, u8, s8);
+            const bool wei_decompress = utils::one_of(b_dt, f32, f16, bf16)
+                    && utils::one_of(c_dt, f32, f16, bf16)
+                    && utils::one_of(a_dt, u8, s8);
 
             const auto ndims = desc()->c_desc.ndims;
             const auto a_strides = desc()->a_desc.format_desc.blocking.strides;
@@ -89,6 +91,13 @@ struct ref_gemm_t : public gpu_gemm_t {
                              && utils::one_of(c_dt, f32, s8, u8, s32)
                              && IMPLICATION(with_bias(),
                                      utils::one_of(bia_dt, f32, u8, s8, s32)))
+                            || (utils::one_of(a_dt, f8_e5m2, f8_e4m3)
+                                    && utils::one_of(b_dt, f8_e5m2, f8_e4m3)
+                                    && utils::one_of(c_dt, f32, f16, bf16,
+                                            f8_e5m2, f8_e4m3)
+                                    && IMPLICATION(with_bias(),
+                                            utils::one_of(bia_dt, f32, f8_e5m2,
+                                                    f8_e4m3)))
                             || (utils::everyone_is(f32, a_dt, b_dt, c_dt)
                                     && IMPLICATION(with_bias(), bia_dt == f32))
                             || (utils::one_of(a_dt, u8, s8)
@@ -101,9 +110,7 @@ struct ref_gemm_t : public gpu_gemm_t {
                             || (utils::everyone_is(f16, a_dt, b_dt)
                                     && utils::one_of(c_dt, u8, s8, f16)
                                     && IMPLICATION(with_bias(), bia_dt == f16))
-                            || (utils::everyone_is(f32, b_dt, c_dt)
-                                    && wei_decompress
-                                    && IMPLICATION(with_bias(), bia_dt == f32))
+                            || wei_decompress
                             || (utils::everyone_is(bf16, a_dt, b_dt)
                                     && utils::one_of(c_dt, bf16, f32)
                                     && IMPLICATION(with_bias(),

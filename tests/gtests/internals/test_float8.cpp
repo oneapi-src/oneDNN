@@ -33,7 +33,7 @@ TEST(test_ref_float8_conversions, f8_e5m2_to_f32) {
                     impl::data_type::f8_e5m2),
             "Engine does not support this data type.");
     // check all 256 f8_e5m2 values
-    for (uint16_t u16 = 0; u16 <= 0xff; ++u16) {
+    impl::parallel_nd(0xff, [&](uint16_t u16) {
         // convert f8_e5m2 to f32 and back again,
         // expecting bitwise idendical values except for sNaN,
         // where the convention is to set the quiet bit:
@@ -54,7 +54,7 @@ TEST(test_ref_float8_conversions, f8_e5m2_to_f32) {
         const uint8_t y8_expect = is_x8_snan ? u8 | 0x02 : u8;
 
         ASSERT_EQ(y8_expect, bit_cast<uint8_t>(y8));
-    }
+    });
 }
 
 TEST(test_ref_float8_conversions, f8_e4m3_to_f32) {
@@ -62,7 +62,7 @@ TEST(test_ref_float8_conversions, f8_e4m3_to_f32) {
                     impl::data_type::f8_e4m3),
             "Engine does not support this data type.");
     // check all 256 f8_e4m3 values
-    for (uint16_t u16 = 0; u16 <= 0xff; ++u16) {
+    impl::parallel_nd(0xff, [&](uint16_t u16) {
         uint8_t u8 = static_cast<uint8_t>(u16);
         constexpr bool is_bitcast = true;
         float8_e4m3_t x8(u8, is_bitcast);
@@ -85,7 +85,7 @@ TEST(test_ref_float8_conversions, f8_e4m3_to_f32) {
                 << "y8_expect = " << static_cast<uint32_t>(y8_expect)
                 << std::endl
                 << std::dec;
-    }
+    });
 }
 
 TEST(test_ref_float8_conversions, f32_to_f8_e4m3) {

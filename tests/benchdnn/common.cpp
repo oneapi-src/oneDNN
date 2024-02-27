@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,6 +78,21 @@ const char *skip_reason2str(skip_reason_t skip_reason) {
     CASE(SKIP_START);
 #undef CASE
     return "SKIP_UNKNOWN";
+}
+
+dir_t str2dir(const char *str) {
+#define CASE(x) \
+    if (!strcasecmp(STRINGIFY(x), str)) return x
+    CASE(FWD_D);
+    CASE(FWD_I);
+    CASE(FWD_B);
+    CASE(BWD_D);
+    CASE(BWD_W);
+    CASE(BWD_WB);
+    CASE(BWD_DW);
+#undef CASE
+    assert(!"unknown dir");
+    return DIR_UNDEF;
 }
 
 void parse_result(res_t &res, const char *pstr) {

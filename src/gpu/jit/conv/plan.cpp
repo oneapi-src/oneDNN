@@ -1164,6 +1164,9 @@ struct fma_context_t {
         // mad with f16 requires aligned regioning for src1/src2.
         if (a_type.is_f16()) return layout.make_dense();
 
+        if (layout.type().is_bf16() && !hw.systolic_support())
+            return layout.retype(type_t::f32()).make_dense();
+
         if (a_type.is_bf16()) {
             // bf16 mixed mode requires src1 to be converted to f32 when it's
             // broadcasted.
@@ -1249,7 +1252,7 @@ struct fma_context_t {
             auto bmnks = get_bmnk_kinds(abc, /*with_batch=*/true);
             auto bmnk_layout = mapper.map_to_bmnk(abc, bmnks, ret);
             auto fma_layout = bmnk_layout.make_with_block(
-                    layout_t(type, 0, (int)bmnks.size(), blocks));
+                    layout_t(ret.type(), 0, (int)bmnks.size(), blocks));
             auto abc_layout = mapper.map_from_bmnk(abc, bmnks, fma_layout, ret);
             return abc_layout;
         }

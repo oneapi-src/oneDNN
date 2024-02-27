@@ -41,24 +41,6 @@ extern const char *any;
 extern const char *undef;
 } // namespace tag
 
-enum dir_t {
-    DIR_UNDEF = 0,
-    FLAG_DAT = 1,
-    FLAG_WEI = 2,
-    FLAG_BIA = 4,
-    FLAG_FWD = 32,
-    FLAG_BWD = 64,
-    FLAG_INF = 128,
-    FWD_D = FLAG_FWD + FLAG_DAT,
-    FWD_I = FLAG_FWD + FLAG_DAT + FLAG_INF,
-    FWD_B = FLAG_FWD + FLAG_DAT + FLAG_BIA,
-    BWD_D = FLAG_BWD + FLAG_DAT,
-    BWD_DW = FLAG_BWD + FLAG_DAT + FLAG_WEI,
-    BWD_W = FLAG_BWD + FLAG_WEI,
-    BWD_WB = FLAG_BWD + FLAG_WEI + FLAG_BIA,
-};
-dir_t str2dir(const char *str);
-
 /* TODO: merge prop and dir_t (in favor of prop) */
 const char *prop2str(dnnl_prop_kind_t prop);
 dnnl_prop_kind_t prop2prop_kind(dir_t dir);
@@ -103,6 +85,8 @@ struct attr_t {
                     dnnl_data_type_t adt = dnnl_s32,
                     const std::vector<dnnl_dim_t> &agroups = {})
                 : policy(apolicy), value(avalue), dt(adt), groups(agroups) {}
+
+            int from_str(const std::string &s);
 
             bool is_def() const {
                 return policy == COMMON && value == 0 && dt == dnnl_s32

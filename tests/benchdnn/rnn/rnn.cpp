@@ -1022,7 +1022,7 @@ std::vector<int> supported_exec_args(dir_t dir) {
 };
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb_, res_t *res, dir_t dir,
+        dnnl_primitive_t prim, const prb_t *prb_, res_t *res,
         dnnl_primitive_t prim_ref) {
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
@@ -1033,6 +1033,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     auto const_pd = query_pd(prim);
     // for int8 RNN we need pass attributes for data q10n
     auto rnn_attr = query_attr(const_pd);
+    const bool is_fwd_prim = is_fwd_prop_kind(query_prop_kind(const_pd));
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
@@ -1069,7 +1070,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 SAFE(fill_src_iter_c(prb, mem, ref_mem, rnn_attr), WARN);
                 break;
             case DNNL_ARG_WEIGHTS_LAYER:
-                if (dir & FLAG_FWD) {
+                if (is_fwd_prim) {
                     SAFE(fill_weights(
                                  prb, WEIGHTS_LAYER, mem, ref_mem, rnn_attr),
                             WARN);
@@ -1083,7 +1084,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 }
                 break;
             case DNNL_ARG_WEIGHTS_ITER:
-                if (dir & FLAG_FWD) {
+                if (is_fwd_prim) {
                     SAFE(fill_weights(
                                  prb, WEIGHTS_ITER, mem, ref_mem, rnn_attr),
                             WARN);
@@ -1097,12 +1098,12 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 }
                 break;
             case DNNL_ARG_WEIGHTS_PEEPHOLE:
-                if (dir & FLAG_FWD)
+                if (is_fwd_prim)
                     SAFE(fill_memory(prb, WEIGHTS_PEEPHOLE, mem, ref_mem),
                             WARN);
                 break;
             case DNNL_ARG_WEIGHTS_PROJECTION:
-                if (dir & FLAG_FWD) {
+                if (is_fwd_prim) {
                     SAFE(fill_weights(prb, WEIGHTS_PROJECTION, mem, ref_mem,
                                  rnn_attr),
                             WARN);
@@ -1116,19 +1117,19 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 }
                 break;
             case DNNL_ARG_BIAS:
-                if (dir & FLAG_FWD)
+                if (is_fwd_prim)
                     SAFE(fill_memory(prb, BIAS, mem, ref_mem), WARN);
                 break;
             case DNNL_ARG_DST_LAYER:
-                if (dir & FLAG_FWD)
+                if (is_fwd_prim)
                     SAFE(fill_activation(prb, DST_LAYER, mem, ref_mem), WARN);
                 break;
             case DNNL_ARG_DST_ITER:
-                if (dir & FLAG_FWD)
+                if (is_fwd_prim)
                     SAFE(fill_activation(prb, DST_ITER, mem, ref_mem), WARN);
                 break;
             case DNNL_ARG_DST_ITER_C:
-                if (dir & FLAG_FWD)
+                if (is_fwd_prim)
                     SAFE(fill_memory(prb, DST_ITER_C, mem, ref_mem), WARN);
                 break;
             case DNNL_ARG_SCRATCHPAD: /* Put internal allocations here */ break;
@@ -1236,8 +1237,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(
             mem_map, &prb, v_prim[0], supported_exec_args(FLAG_FWD));
-    TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, v_prim[0], &prb,
-                           res, FLAG_FWD),
+    TIME_FILL(SAFE(
+            init_ref_memory_args(ref_mem_map, mem_map, v_prim[0], &prb, res),
             WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
@@ -1254,8 +1255,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         // Pass same memory map as we need data from forward on backward.
         init_memory_args<prb_t>(
                 mem_map, &prb, v_prim[1], supported_exec_args(FLAG_BWD));
-        TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, v_prim[1],
-                               &prb, res, FLAG_BWD),
+        TIME_FILL(SAFE(init_ref_memory_args(
+                               ref_mem_map, mem_map, v_prim[1], &prb, res),
                 WARN));
 
         args = args_t(mem_map);

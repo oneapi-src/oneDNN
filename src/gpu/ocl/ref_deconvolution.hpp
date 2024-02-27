@@ -93,7 +93,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_fwd_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_fwd_t);
         status_t init_convolution(engine_t *engine) {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
@@ -178,6 +178,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                 VDISPATCH_DECONVOLUTION_SC(memory_desc_init_by_tag(bias_md_, x),
                         VERBOSE_UNSUPPORTED_TAG);
             }
+            init_name();
             init_scratchpad();
             VDISPATCH_DECONVOLUTION_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_ATTR);
@@ -188,6 +189,13 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
+        std::string name_ = "ocl:ref:any";
+
+        void init_name() {
+            name_.append("+");
+            name_.append(conv_pd_->name());
+        }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
@@ -256,7 +264,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_data_t);
 
         status_t init_convolution(engine_t *engine) {
             convolution_desc_t cd;
@@ -314,6 +322,8 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
                 diff_src_md_ = *conv_pd_->dst_md();
             if (diff_dst_md_.format_kind == format_kind::any)
                 diff_dst_md_ = *conv_pd_->src_md();
+
+            init_name();
             init_scratchpad();
 
             return status::success;
@@ -322,6 +332,13 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
+        std::string name_ = "ocl:ref:any";
+
+        void init_name() {
+            name_.append("+");
+            name_.append(conv_pd_->name());
+        }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
@@ -366,7 +383,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_weights_t);
 
         status_t init_convolution(engine_t *engine) {
             convolution_desc_t cd;
@@ -429,6 +446,8 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                         memory_desc_init_by_tag(diff_bias_md_, x),
                         VERBOSE_UNSUPPORTED_TAG);
             }
+
+            init_name();
             init_scratchpad();
 
             return status::success;
@@ -437,6 +456,13 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
+        std::string name_ = "ocl:ref:any";
+
+        void init_name() {
+            name_.append("+");
+            name_.append(conv_pd_->name());
+        }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,

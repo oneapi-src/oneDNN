@@ -122,7 +122,7 @@ value which is passed for execution at runtime. Specifying a value for any other
 policies will trigger an error.
 
 `DATA_TYPE` specifies data type for zero points. Supported values are
-`s32` (the default), `s8`, `u8`.
+`s32` (the default), `s8`, `u8`, `s4`, `u4`.
 
 `GROUPS` specifies how zero points are grouped along dimensions where multiple
 zero points factors are used.

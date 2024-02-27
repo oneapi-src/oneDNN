@@ -378,9 +378,8 @@ std::vector<int> supported_exec_args(dir_t dir) {
 };
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res,
         dnnl_primitive_t prim_ref) {
-    update_inplace_memory_args(mem_map, prb, dir);
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
     const auto &ref_engine = get_cpu_engine();
@@ -486,8 +485,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(
             mem_map, prb, v_prim[0], supported_exec_args(FLAG_FWD));
-    TIME_FILL(SAFE(init_ref_memory_args(
-                           ref_mem_map, mem_map, v_prim[0], prb, res, FLAG_FWD),
+    TIME_FILL(SAFE(
+            init_ref_memory_args(ref_mem_map, mem_map, v_prim[0], prb, res),
             WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
@@ -504,8 +503,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         // Pass same memory map as we need data from forward on backward.
         init_memory_args<prb_t>(
                 mem_map, prb, v_prim[1], supported_exec_args(FLAG_BWD));
-        TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, v_prim[1],
-                               prb, res, FLAG_BWD),
+        TIME_FILL(SAFE(
+                init_ref_memory_args(ref_mem_map, mem_map, v_prim[1], prb, res),
                 WARN));
 
         args = args_t(mem_map);

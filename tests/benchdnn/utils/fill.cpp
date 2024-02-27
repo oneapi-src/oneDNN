@@ -124,6 +124,7 @@ int fill_zero_points(
         /* Do fixed partitioning to have same filling for any number of threads */
         static constexpr int64_t chunk_size = 64;
         const int64_t n_chunks = div_up(nelems, chunk_size);
+        const int min_val = MAX2(-2, static_cast<int>(lowest_dt(mem_dt.dt())));
         benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
             int64_t idx_start = idx_chunk * chunk_size;
             int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
@@ -134,8 +135,7 @@ int fill_zero_points(
             std::minstd_rand int_seed(idx_start + 1);
             int_seed.discard(1);
 
-            std::uniform_int_distribution<> gen(
-                    mem_dt.dt() == dnnl_u8 ? 0 : -2, 2);
+            std::uniform_int_distribution<> gen(min_val, 2);
 
             for (int64_t idx = idx_start; idx < idx_end; ++idx) {
                 const float zp_val = gen(int_seed);

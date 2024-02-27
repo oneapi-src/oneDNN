@@ -832,18 +832,18 @@ bool data_types_ok(const conv_problem_t &prb, const hw_t &hw) {
     auto wei = prb.wei_data_type;
     auto dst = prb.dst_data_type;
     auto bia = prb.bia_data_type;
-    bool is_bf16 = utils::one_of(data_type::bf16, src, wei, dst, bia);
     bool is_bf8 = utils::one_of(data_type::f8_e5m2, src, wei, dst, bia);
     bool is_hf8 = utils::one_of(data_type::f8_e4m3, src, wei, dst, bia);
     if (!prb.is_f64_conv() && utils::one_of(data_type::f64, src, wei, dst, bia))
         return false;
     bool is_xelpg = hw == ngen::HW::XeHPG && !hw.systolic_support();
-    if (is_bf16 && (hw <= ngen::HW::XeLP || is_xelpg)) return false;
     if (prb.is_f64_conv()
             && (utils::one_of(hw.to_ngen(), ngen::HW::XeLP, ngen::HW::XeHPG)
                     && !is_xelpg))
         return false;
-    if (is_bf8 && !(utils::one_of(hw, ngen::HW::XeHPC))) return false;
+    if (is_bf8
+            && !(utils::one_of(hw, ngen::HW::XeHPC) && hw.systolic_support()))
+        return false;
     if (is_hf8) return false;
     if (prb.is_fwd) return true;
     if (prb.is_bwd_d) return true;

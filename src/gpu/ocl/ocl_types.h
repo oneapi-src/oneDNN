@@ -786,6 +786,14 @@
 #define A_TO_REF(x) cvt_bf16_to_f32(x)
 #define A_TO_REF8(x) cvt_bf16_to_f32(x)
 #define REF_TO_A(x) cvt_f32_to_bf16(x)
+#elif A_DT_BF8
+#define A_TO_REF(x) cvt_f8_e5m2_to_hf(x)
+#define A_TO_REF8(x) cvt_f8_e5m2_to_hf(x)
+#define REF_TO_A(x) cvt_hf_to_f8_e5m2(convert_half(x))
+#elif A_DT_HF8
+#define A_TO_REF(x) cvt_f8_e4m3_to_hf(x)
+#define A_TO_REF8(x) cvt_f8_e4m3_to_hf(x)
+#define REF_TO_A(x) cvt_hf_to_f8_e4m3(convert_half(x))
 #else
 #define A_TO_REF(x) (x)
 #define A_TO_REF8(x) (x)
@@ -793,6 +801,10 @@
 #endif
 #if A_DT_BF16
 #define TO_A(x) cvt_f32_to_bf16(x)
+#elif A_DT_BF8
+#define TO_A(x) cvt_hf_to_f8_e5m2(convert_half(x))
+#elif A_DT_HF8
+#define TO_A(x) cvt_hf_to_f8_e4m3(convert_half(x))
 #elif A_DT_U8
 #define TO_A(x) convert_uchar_sat_rte(x)
 #elif A_DT_S8
@@ -915,12 +927,22 @@
 #if B_DT_BF16
 #define B_TO_REF(x) cvt_bf16_to_f32(x)
 #define REF_TO_B(x) cvt_f32_to_bf16(x)
+#elif B_DT_BF8
+#define B_TO_REF(x) cvt_f8_e5m2_to_hf(x)
+#define REF_TO_B(x) cvt_hf_to_f8_e5m2(convert_half(x))
+#elif B_DT_HF8
+#define B_TO_REF(x) cvt_f8_e4m3_to_hf(x)
+#define REF_TO_B(x) cvt_hf_to_f8_e4m3(convert_half(x))
 #else
 #define B_TO_REF(x) (x)
 #define REF_TO_B(x) (x)
 #endif
 #if B_DT_BF16
 #define TO_B(x) cvt_f32_to_bf16(x)
+#elif B_DT_BF8
+#define TO_B(x) cvt_hf_to_f8_e5m2(convert_half(x))
+#elif B_DT_HF8
+#define TO_B(x) cvt_hf_to_f8_e4m3(convert_half(x))
 #elif B_DT_U8
 #define TO_B(x) convert_uchar_sat_rte(x)
 #elif B_DT_S8
@@ -1225,6 +1247,16 @@
 #define C_TO_REF8(x) cvt_bf16_to_f32(x)
 #define REF_TO_C(x) cvt_f32_to_bf16(x)
 #define REF_TO_C8(x) cvt_f32_to_bf16(convert_float8(x))
+#elif C_DT_BF8
+#define C_TO_REF(x) cvt_f8_e5m2_to_hf(convert_half(x))
+#define C_TO_REF8(x) cvt_f8_e5m2_to_hf(convert_half8(x))
+#define REF_TO_C(x) cvt_hf_to_f8_e5m2(convert_half(x))
+#define REF_TO_C8(x) cvt_hf_to_f8_e5m2(convert_half8(x))
+#elif C_DT_HF8
+#define C_TO_REF(x) cvt_f8_e4m3_to_hf(convert_half(x))
+#define C_TO_REF8(x) cvt_f8_e4m3_to_hf(convert_half8(x))
+#define REF_TO_C(x) cvt_hf_to_f8_e4m3(convert_half(x))
+#define REF_TO_C8(x) cvt_hf_to_f8_e4m3(convert_half8(x))
 #else
 #define C_TO_REF(x) (x)
 #define C_TO_REF8(x) (x)
@@ -1234,6 +1266,12 @@
 #if C_DT_BF16
 #define TO_C(x) cvt_f32_to_bf16(x)
 #define TO_C8(x) cvt_f32_to_bf16(convert_float8(x))
+#elif C_DT_BF8
+#define TO_C(x) cvt_hf_to_f8_e5m2(convert_half(x))
+#define TO_C8(x) cvt_hf_to_f8_e5m2(convert_half8(x))
+#elif C_DT_HF8
+#define TO_C(x) cvt_hf_to_f8_e4m3(convert_half(x))
+#define TO_C8(x) cvt_hf_to_f8_e4m3(convert_half8(x))
 #elif C_DT_F16
 #define TO_C(x) convert_half(x)
 #define TO_C8(x) convert_half8(x)

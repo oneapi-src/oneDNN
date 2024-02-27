@@ -118,7 +118,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 CHECK(attr()->zero_points_.get(DNNL_ARG_A, &cmask_a));
                 CHECK(attr()->zero_points_.get(DNNL_ARG_B, &cmask_b));
                 CHECK(attr()->zero_points_.get(DNNL_ARG_C, &cmask_c));
-                ok &= utils::one_of(cmask_a, 0, 1 << 1)
+                ok &= utils::one_of(cmask_a, 0, 1 << 1, 1 << 2)
                         && utils::one_of(cmask_b, 0, 1 << 0)
                         && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
 
@@ -136,7 +136,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 ok = ok && d->b_type() == bf16
                         && utils::one_of(d->c_type(), bf16, f32)
                         && utils::one_of(d->acc_type, bf16, f32);
-            } else {
+            } else if (!wei_decomp) {
                 ok = ok && utils::one_of(d->a_type(), f32, f16, f8_e5m2)
                         && d->b_type() == d->a_type()
                         && utils::one_of(d->acc_type, d->a_type(), f32)
@@ -164,8 +164,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                             d->c_type(), utils::one_of(d->a_type(), s8, u8));
             for (const auto &s :
                     {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-                ok &= utils::one_of(
-                        attr()->scales_.get(s).mask_, 0, 1 << 0, 1 << 1);
+                ok &= utils::one_of(attr()->scales_.get(s).mask_, 0, 1 << 0,
+                        1 << 1, 1 << 2);
             }
 
             status = init_post_ops();
