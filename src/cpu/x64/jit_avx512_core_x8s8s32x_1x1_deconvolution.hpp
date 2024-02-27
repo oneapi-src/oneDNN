@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(),
+        DECLARE_COMMON_PD_T(name_.c_str(),
                 jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t);
 
         status_t init_convolution(engine_t *engine) {
@@ -99,6 +99,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
 
             CHECK(init_convolution(engine));
             CHECK(attr_.set_default_formats(dst_md(0)));
+            init_name();
             init_scratchpad();
 
             return status::success;
@@ -121,6 +122,14 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
+        std::string name_
+                = JIT_IMPL_NAME_HELPER("jit_deconvolution:", avx512_core, "");
+
+        void init_name() {
+            name_.append("+");
+            name_.append(conv_pd_->name());
+        }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
