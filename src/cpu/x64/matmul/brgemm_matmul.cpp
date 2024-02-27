@@ -1730,13 +1730,7 @@ private:
     int get_M_tail_block_idx(int m_block_idx) const {
         const int tail_idx = m_block_idx - M_tail_block_start_;
         if (!bgmmc_.is_runtime_M) return tail_idx;
-        const bool is_index_within_range
-                = tail_idx < (int)m_tail_processing_.size();
-        if (!is_index_within_range) {
-            assert(!"Error in M_tail_block index, not within range.");
-            return 0;
-        }
-        return tail_idx;
+        return tail_idx < (int)m_tail_processing_.size() ? tail_idx : -1;
     }
     bool is_M_tail_processing(int m_block_idx) const {
         return get_M_tail_block_idx(m_block_idx) >= 0;
@@ -1756,13 +1750,7 @@ private:
     int get_N_tail_block_idx(int n_block_idx) const {
         const int tail_idx = n_block_idx - N_tail_block_start_;
         if (!bgmmc_.is_runtime_N) return tail_idx;
-        const bool is_index_within_range
-                = tail_idx < (int)n_tail_processing_.size();
-        if (!is_index_within_range) {
-            assert(!"Error in N_tail_block index, not within range.");
-            return 0;
-        }
-        return tail_idx;
+        return tail_idx < (int)n_tail_processing_.size() ? tail_idx : -1;
     }
     bool is_N_tail_processing(int n_block_idx) const {
         return get_N_tail_block_idx(n_block_idx) >= 0;
