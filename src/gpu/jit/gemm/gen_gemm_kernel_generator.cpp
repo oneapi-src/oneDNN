@@ -15707,7 +15707,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
             if (!strategy.slmA && remM_A) {
                 state.remainders[LoopM] = state.ra.alloc_sub<int16_t>();
                 mov(1, state.remainders[LoopM], saveRemM);
-                add(1 | state.flagAP, state.remainders[LoopM], saveRemN, -t);
+                add(1 | state.flagAP, state.remainders[LoopM], saveRemM, -t);
             }
         }
     }
