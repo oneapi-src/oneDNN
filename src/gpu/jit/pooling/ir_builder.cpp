@@ -178,9 +178,12 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     const auto &kg = cfg.kernel_grid();
     const auto &tg = cfg.thread_group_grid();
     const auto &dims_grid = cfg.dims_padded();
-    std::vector<int> dims(dims_grid.ndims());
-    for (int i = 0; i < int(dims.size()); i++)
-        dims[i] = dims_grid[i];
+    std::vector<int> padded_dims(dims_grid.ndims());
+    for (int i = 0; i < int(padded_dims.size()); i++)
+        padded_dims[i] = dims_grid[i];
+    ir_assert(padded_dims.size() == 5);
+    std::vector<int> dims {int(src_layout.dim(0)), int(src_layout.dim(1)),
+            padded_dims[2], padded_dims[3], padded_dims[4]};
 
     // Source.
     auto src_view = view_t({mb, oc, od, oh, ow, kd, kh, kw}, 5);
@@ -201,7 +204,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     src_view.set_tdim(
             4, ow * prb.stride_w - prb.l_pad + kw * (1 + prb.dw), iw_mask);
     src_view.set_tlayout(src_layout);
-    src_view.set_tmasks(dims);
+    src_view.set_tmasks(padded_dims);
 
     // Destination.
     auto dst_view = view_t({mb, oc, od, oh, ow}, 5);
@@ -216,7 +219,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     dst_view.set_tdim(3, oh);
     dst_view.set_tdim(4, ow);
     dst_view.set_tlayout(dst_layout);
-    dst_view.set_tmasks(dims);
+    dst_view.set_tmasks(padded_dims);
 
     constraint_set_t init_cset;
     std::vector<stmt_t> init_stmts;
