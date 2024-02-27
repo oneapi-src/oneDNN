@@ -354,12 +354,13 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
                 const auto &source
                         = ((prb->dir & FLAG_BWD) && prb->use_dst()) ? dst : src;
                 const float s = source.get_elem(args.idx);
-                if (check_abs_err(prb, s, args.trh))
-                    return args.diff <= args.trh;
-                if ((prb->alg == alg_t::ELU || prb->alg == alg_t::LOGISTIC
-                            || prb->alg == alg_t::SRELU)
-                        && ((prb->dir & FLAG_FWD) && (prb->dt == dnnl_f16)
-                                && (is_amd_gpu())))
+                if (check_abs_err(prb, s, args.trh)
+                        || (prb->alg == alg_t::ELU
+                                   || prb->alg == alg_t::LOGISTIC
+                                   || prb->alg == alg_t::SRELU)
+                                && ((prb->dir & FLAG_FWD)
+                                        && (prb->dt == dnnl_f16)
+                                        && (is_amd_gpu())))
                     return args.diff <= args.trh;
                 if (prb->attr.post_ops.binary_index() != -1)
                     return args.diff <= args.trh;
