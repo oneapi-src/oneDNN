@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -757,6 +757,13 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     n_block1 = n_block1_num_steps * simd_w;
     nb_n_block1 = div_up(N, n_block1);
     n_block1_tail = N % n_block1;
+
+    const auto min_possible_m_block2 = brg->brgattr.bs_group > 1
+            ? (max_acc_vmms / (2 * n_block1_num_steps) - brg->brgattr.bs_group
+                    + 1)
+            : 1;
+
+    if (min_possible_m_block2 < 1) brg->brgattr.bs_group = 1;
 
     if (brg->brgattr.bs_group > 1) {
         n_block2 = 1;
