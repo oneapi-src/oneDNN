@@ -376,7 +376,7 @@ struct primitive_desc_t : public c_compatible {
             engine_t *engine, const cache_blob_t &cache_blob) const = 0;
 
     // This is a proxy interface that is used for creating nested primitives.
-    // It ignores the bool value that indicates whether the requested primitive
+    // It ignores the cache_state_t value that indicates whether the requested primitive
     // was taken from cache.
     status_t create_primitive(std::shared_ptr<primitive_t> &primitive,
             engine_t *engine,
@@ -386,8 +386,8 @@ struct primitive_desc_t : public c_compatible {
             double start_ms = get_msec();
             CHECK(create_primitive(p, engine, cache_blob));
             double duration_ms = get_msec() - start_ms;
-            if (cache_blob) p.second = cache_state_t::persistent_hit;
-            const char *str = cache_hit_string(p.second);
+            if (cache_blob) primitive.second = cache_state_t::persistent_hit;
+            const char *str = cache_state2str(primitive.second);
 
             VPROF(start_ms, primitive, create_nested, str, info(engine),
                     duration_ms);

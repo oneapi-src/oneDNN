@@ -73,7 +73,7 @@ status_t primitive_create(primitive_iface_t **primitive_iface,
         double duration_ms = get_msec() - start_ms;
 
         if (cache_blob) p_iface.second = cache_state_t::persistent_hit;
-        const char *str = cache_hit_string(p_iface.second);
+        const char *str = cache_state2str(p_iface.second);
 
         VPROF(start_ms, primitive, create, str, p_iface.first->pd()->info(),
                 duration_ms);

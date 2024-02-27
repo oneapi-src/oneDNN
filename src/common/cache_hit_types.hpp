@@ -31,7 +31,7 @@ enum class cache_state_t {
     compiled_partition_hit //< graph partition cache hit, already compiled
 };
 
-inline const char *cache_hit_string(const cache_state_t cache_hit) {
+inline const char *cache_state2str(const cache_state_t cache_hit) {
     switch (cache_hit) {
         case cache_state_t::miss: return ":cache_miss";
         case cache_state_t::primitive_hit: return ":cache_hit";
