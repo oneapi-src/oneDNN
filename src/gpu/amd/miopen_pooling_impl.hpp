@@ -86,9 +86,13 @@ protected:
             // [n, c, w, 1]
             dims_[src][3] = dims_[src][2];
             dims_[src][2] = 1;
+            strides_[src][2] = dims_[src][3];
+            strides_[src][3] = 1;
 
             dims_[dst][3] = dims_[dst][2];
             dims_[dst][2] = 1;
+            strides_[dst][2] = dims_[dst][3];
+            strides_[dst][3] = 1;
 
             // Set kernel dimensions to [1, kw]
             kernel_dims_[1] = kernel_dims_[0];
