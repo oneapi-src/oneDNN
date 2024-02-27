@@ -19,6 +19,7 @@
 #include "gpu/block_structure.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/reduction/reduction_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -364,6 +365,14 @@ void def_zero_pad(compute::kernel_ctx_t &kernel_ctx, const char *prefix,
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const reduction_conf_t &conf, const reduction_phase_conf_t &phase) {
     using namespace alg_kind;
+
+    def_reduction_alg_kinds(kernel_ctx);
+    reduction_alg_kind_t alg
+            = from_alg(conf.alg, phase.is_first, phase.is_final);
+    reduction_alg_kind_t secondary_alg
+            = from_alg(conf.alg, false, phase.is_final);
+    kernel_ctx.define_int("REDUCTION_ALG", to_int(alg));
+    kernel_ctx.define_int("SECONDARY_REDUCTION_ALG", to_int(secondary_alg));
 
     kernel_ctx.set_data_type(phase.src_type);
 
