@@ -21,9 +21,10 @@
 namespace graph {
 
 partition_data_displacer_t::partition_data_displacer_t(
-        const deserialized_graph &dg, const dnnl::graph::partition &par) {
+        const deserialized_graph &dg, const dnnl::graph::partition &par)
+    : dg_(&dg) {
     const auto &op_ids = par.get_ops();
-    const std::unordered_set<size_t> op_ids_set(op_ids.begin(), op_ids.end());
+    op_ids_set_ = std::unordered_set<size_t>(op_ids.begin(), op_ids.end());
 
     static const std::unordered_set<std::string> main_op_kind {"Convolution",
             "ConvTranspose", "AvgPool", "MaxPool", "MatMul", "Add", "Divide",
@@ -33,63 +34,60 @@ partition_data_displacer_t::partition_data_displacer_t(
             "StaticTranspose", "StaticReshape", "TypeCast", "Quantize",
             "Dequantize"};
 
-    // dg.ops_ needs make sure its Topo order to first idx, first executed.
-    for (const auto &aop : dg.ops_) {
-        // Check whether current op is in the partition
-        if (op_ids_set.find(aop.id_) == op_ids_set.end()) continue;
-
-        // maintain a map between output tensor id and op
-        auto aop_ref = std::ref(aop);
-        ops_ref_.emplace_back(aop_ref);
-        for (const auto &out_lt : aop.out_lts_) {
-            out_lt_2_op_.emplace(out_lt.id_, aop_ref);
-        }
-
-        // Try to address which the tensor need displaced and how it will be displaced.
+    // The logic below relies on the assumption that deserialized_graph is
+    // sorted in the chronological order.
+    for (const auto &aop : dg_->ops_) {
+        // Skip the check if op is not in the partition.
+        if (op_ids_set_.find(aop.id_) == op_ids_set_.end()) continue;
 
         // Here is how quantize filling work
         //
-        //         partition input (lt)    /|
-        //                |                 | reverse op filling
-        //         [go through op]*         |
-        //                |
-        //                | <- quantize filling on this tensor (dq_lt)
-        //                |
-        //           dequantize <- The first dq we met (dq_found)
-        //                |
-        // [go through op except dq]*  (same as the first input)
-        //                 \          /
-        //                    main op
+        // partition input (lt)
+        // |
+        // [go through op]*
+        // |
+        // x<- quantize filling on this tensor (dq_lt)
+        // |
+        // dequantize <- The first dq met
+        // |
+        // [go through op except dq]*
+        // |
+        // main op (applied for all inputs the op has)
 
-        if (main_op_kind.find(aop.kind_) != main_op_kind.end()) {
-            // main op found
+        if (main_op_kind.find(aop.kind_) == main_op_kind.end()) continue;
 
-            // search along the branch for each input of main op
-            for (size_t i = 0; i < aop.in_lts_.size(); i++) {
-                ::graph::deserialized_lt lt, dq_lt;
-                bool dq_found = false;
+        // search along the branch for each input of main op
+        for (size_t i = 0; i < aop.in_lts_.size(); i++) {
+            // Traversing over a chain of allowed ops from the bottom to the
+            // top searching for a first dequantize op in the chain.
+            // Note: traversing can't be done on non-const references as
+            // they will replace the starting point, but const references
+            // can't be done because of assignment. So, pointers only.
+            auto *parent_op = &aop;
+            for (auto *lt = &aop.in_lts_[i]; true;
+                    lt = &parent_op->in_lts_[0]) {
+                parent_op = &dg_->get_op_by_out_lt(lt->id_);
+                if (parent_op->empty()) break;
 
-                for (lt = aop.in_lts_[i];
-                        out_lt_2_op_.find(lt.id_) != out_lt_2_op_.end();
-                        lt = out_lt_2_op_.at(lt.id_).get().in_lts_[0]) {
-                    auto &op = out_lt_2_op_.at(lt.id_);
-                    if (op.get().kind_ == "Dequantize" && !dq_found) {
-                        // found the first dq
-                        dq_lt = op.get().in_lts_[0];
-                        dq_found = true;
-                    }
-                    if (go_through_op_kind.find(op.get().kind_)
-                            == go_through_op_kind.end()) {
-                        // blocked by other op and fail to continue the search work
+                if (parent_op->kind_ == "Dequantize") {
+                    // Dequantize is accepted when it doesn't have any
+                    // predecessors in the partition (though it may have it in
+                    // the graph).
+                    const auto &parent_op_in_lt = parent_op->in_lts_[0];
+                    const auto &prev_parent_op
+                            = dg_->get_op_by_out_lt(parent_op_in_lt.id_);
+                    if (prev_parent_op.empty()
+                            || op_ids_set_.find(prev_parent_op.id_)
+                                    == op_ids_set_.end()) {
+                        quantize_displace_.emplace(parent_op_in_lt.id_,
+                                std::make_tuple(aop, i, parent_op_in_lt));
                         break;
                     }
                 }
-
-                // the partition input found
-                if (dq_found
-                        && out_lt_2_op_.find(lt.id_) == out_lt_2_op_.end()) {
-                    quantize_displace_.emplace(
-                            lt.id_, ::std::make_tuple(aop, i, dq_lt));
+                // Continue only on allowed ops.
+                if (go_through_op_kind.find(parent_op->kind_)
+                        == go_through_op_kind.end()) {
+                    break;
                 }
             }
         }
@@ -98,6 +96,10 @@ partition_data_displacer_t::partition_data_displacer_t(
 
 int partition_data_displacer_t::displace_input_data(
         size_t lt_id, dnn_mem_t &mem, res_t *res) {
+    if (!dg_) {
+        res->state = FAILED;
+        return FAIL;
+    }
 
     if (quantize_displace_.find(lt_id) == quantize_displace_.end()) {
         // no need to displace the data of this tensor
@@ -121,7 +123,9 @@ int partition_data_displacer_t::displace_input_data(
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     // do the reverse job
-    while (out_lt_2_op_.find(tensor.id_) != out_lt_2_op_.end()) {
+    auto *parent_op = &dg_->get_op_by_out_lt(tensor.id_);
+    while (!parent_op->empty()
+            && op_ids_set_.find(parent_op->id_) != op_ids_set_.end()) {
         // generate the reverse op based on OP kind
         // make a copy of deserialized_op to avoid impact on graph execution
         // Currently, we support the following OPs' reverse execution:
@@ -133,7 +137,7 @@ int partition_data_displacer_t::displace_input_data(
         // 4. Quantize: change opkind to Dequantize and keep scales and zps
         // 5. Dequantize: change opkind to Quantize and keep scales and zps
 
-        ::graph::deserialized_op op = out_lt_2_op_.at(tensor.id_);
+        auto op = dg_->get_op_by_out_lt(tensor.id_);
         ::std::swap(op.in_lts_, op.out_lts_);
 
         auto opkind = opstr2kind(op.kind_);
@@ -167,23 +171,23 @@ int partition_data_displacer_t::displace_input_data(
         ref_primitive_t ref_prim(op);
         ref_prim.init_prb(empty_set, &res);
         SAFE_V(ref_prim.init_prim(get_cpu_engine(), &res));
+
         ref_prim.init_memory_args(get_cpu_engine());
         SAFE_V(ref_prim.init_ref_memory_args(get_cpu_engine(), &res));
 
-        // always use the md generated by current reversed op
-        // for example
-        // matmul op will unsqeeze 1 to fit the dimension
-        // so the md generated by matmul prb_t will not be the same as defined in graph
-
+        // Always use the md generated by current reversed op. E.g., a matmul op
+        // will unsqeeze 1 to fit the dimension so the md generated by matmul
+        // prb_t will not be the same as defined in graph.
         dnnl_memory_desc_destroy(mem_replace.md_);
         dnnl_memory_desc_clone(
                 &mem_replace.md_, ref_prim.get_arg(DNNL_ARG_SRC).md_);
         ref_prim.replace_arg(DNNL_ARG_SRC, mem_replace);
         SAFE_V(ref_prim.execute_prim(&res));
+
         mem_replace = ::std::move(
                 const_cast<dnn_mem_t &>(ref_prim.get_arg(DNNL_ARG_DST)));
-
         tensor = op.out_lts_[0];
+        parent_op = &dg_->get_op_by_out_lt(tensor.id_);
     }
 
     dnnl_memory_desc_destroy(mem_replace.md_);

@@ -96,6 +96,9 @@ struct deserialized_op {
     bool has_NXC_format() const;
 
     logical_tensor::dims get_NCX_shape(size_t idx, bool input) const;
+
+    // Returns `true` if `deserialized_op` wasn't created.
+    bool empty() const { return kind_.empty(); }
 };
 std::ostream &operator<<(std::ostream &s, const deserialized_op &dop);
 
@@ -117,8 +120,10 @@ struct deserialized_graph {
     std::map<size_t, std::string> lt_2_mtag_;
     std::vector<size_t> graph_inputs_with_mb_;
 
-    // Returns a correspondent element from `ops_` based on a given ID.
+    // Returns an op based on its ID.
     const deserialized_op &get_op(size_t id) const;
+    // Returns an op based on its output logical tensor ID.
+    const deserialized_op &get_op_by_out_lt(size_t id) const;
 
     // Outputs the information about graph from operator<< into a string.
     std::string get_string() const;

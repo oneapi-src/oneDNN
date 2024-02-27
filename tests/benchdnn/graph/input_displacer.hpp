@@ -33,10 +33,10 @@ public:
     int displace_input_data(size_t lt_id, dnn_mem_t &mem, res_t *res);
 
 private:
-    op_ref_list_t ops_ref_;
-    std::unordered_map<size_t, std::reference_wrapper<const deserialized_op>>
-            out_lt_2_op_;
-
+    const deserialized_graph *dg_ = nullptr;
+    // A set of op_id values from a partition came to a displacer. Used to
+    // identify at displacement stage if Deq is the starting point or not.
+    std::unordered_set<size_t> op_ids_set_;
     ::std::unordered_map<size_t, displace_t> quantize_displace_;
 
     int gen_quantize_filling(const ::graph::deserialized_op &main_op, int arg,
