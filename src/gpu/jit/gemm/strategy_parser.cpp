@@ -303,6 +303,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.fmaBoustrophedon = true;
         else if (mod == "ch")
             strategy.checkAdd32 = true;
+        else if (mod == "nch")
+            strategy.checkAdd32 = false;
         else if (mod == "ws")
             strategy.wgInSS = true;
         else if (mod == "wc")
@@ -358,10 +360,12 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.kParallelLocal = strategy.kInterleave = true;
         else if (mod == "fb")
             strategy.fuseBeta = true;
-        else if (mod == "fp")
-            strategy.fusePostOps = true;
         else if (mod == "afb")
             strategy.fuseBeta = strategy.altFusedBeta = true;
+        else if (mod == "fp")
+            strategy.fusePostOps = true;
+        else if (mod == "zt")
+            strategy.zeroTempC = true;
         else if (mod == "fg") {
             float fillGoal;
             s >> fillGoal;
