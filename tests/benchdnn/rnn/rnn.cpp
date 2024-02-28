@@ -617,10 +617,13 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             query_md_dims(src_iter_c_d), query_md_data_type(src_iter_c_d), "",
             src_iter_c_strides);
 
-    auto weights_layer_d = dnn_mem_t::init_md(
-            5, weights_layer_dims, prb.cfg[WEIGHTS_LAYER].dt, prb.tag[1]);
-    auto weights_iter_d = dnn_mem_t::init_md(
-            5, weights_iter_dims, prb.cfg[WEIGHTS_ITER].dt, prb.tag[1]);
+    // Forward and backward support different layouts for weights. When
+    // testing backward, we cannot reliably use the supplied weights tag.
+    bool has_service_prim = prb.prop == dnnl_backward;
+    auto weights_layer_d = dnn_mem_t::init_md(5, weights_layer_dims,
+            prb.cfg[WEIGHTS_LAYER].dt, has_service_prim ? "any" : prb.tag[1]);
+    auto weights_iter_d = dnn_mem_t::init_md(5, weights_iter_dims,
+            prb.cfg[WEIGHTS_ITER].dt, has_service_prim ? "any" : prb.tag[1]);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> attention_d {};
     if (prb.is_augru())
