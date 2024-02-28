@@ -65,10 +65,13 @@ _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::_jit_avx512_core_x8s8s32x_fwd_kernel(
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
         static constexpr size_t helper_vmm_idx = 31;
-        const size_t oc_block_tail = jcp.oc_block % isa_simd_width_;
-        const size_t tail_size = oc_block_tail
-                ? oc_block_tail
-                : jcp.oc_without_padding % isa_simd_width_;
+        const size_t block_tail
+                = (jcp.is_depthwise ? jcp.ch_block : jcp.oc_block)
+                % isa_simd_width_;
+        const size_t tail_size = block_tail
+                ? block_tail
+                : (jcp.is_depthwise ? jcp.ngroups : jcp.oc_without_padding)
+                        % isa_simd_width_;
         static constexpr bool use_exact_tail_scalar_bcast = false;
 
         const rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx,
