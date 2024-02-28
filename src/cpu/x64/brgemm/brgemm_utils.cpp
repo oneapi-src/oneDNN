@@ -765,14 +765,16 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     const int max_acc_vmms
             = max_vregs - nstl::max(compute_vregs + aux_vregs, bf16_emu_vregs);
 
-    const auto min_possible_m_block2 = brg->brgattr.bs_group > 1
-            ? (max_acc_vmms / (2 * n_block1_num_steps) - brg->brgattr.bs_group
-                      + 1)
-                    / 2
-            : 1;
-    if (min_possible_m_block2 < 1) brg->brgattr.bs_group = 1;
+    if (brg->brgattr.hint_bs_group > 1) {
+        // Check if we can actually apply bs grouping
+        const auto min_possible_m_block2
+                = (max_acc_vmms / (2 * n_block1_num_steps)
+                          - brg->brgattr.hint_bs_group + 1)
+                / 2;
+        if (min_possible_m_block2 < 1) brg->bs_group = 1;
+    }
 
-    if (brg->brgattr.bs_group > 1) n_block2 = n_block2 % 2 == 0 ? 2 : 1;
+    if (brg->bs_group > 1) n_block2 = n_block2 % 2 == 0 ? 2 : 1;
 
     nb_n_block2 = div_up(nb_n_block1, n_block2);
     n_block2_tail = nb_n_block1 % n_block2;
@@ -782,11 +784,11 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     m_block1_tail = M % m_block1;
 
     m_block2 = nstl::min(nb_m_block1,
-            brg->brgattr.bs_group > 1
-                    ? (max_acc_vmms / (n_block2 * n_block1_num_steps)
-                              - brg->brgattr.bs_group + 1)
+            brg->bs_group > 1 ? (max_acc_vmms / (n_block2 * n_block1_num_steps)
+                                        - brg->bs_group + 1)
                             / 2
-                    : max_acc_vmms / (n_block2 * n_block1_num_steps));
+                              : max_acc_vmms / (n_block2 * n_block1_num_steps));
+    assert(m_block2 > 0);
     nb_m_block2 = div_up(nb_m_block1, m_block2);
     m_block2_tail = nb_m_block1 % m_block2;
 

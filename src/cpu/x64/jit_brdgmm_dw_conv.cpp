@@ -412,7 +412,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init_brdgmm_conf() {
         brg_attr.max_top_bpad = nstl::max(0, nstl::max(jcp.t_pad, jcp.f_pad));
         brg_attr.max_bottom_bpad
                 = nstl::max(0, nstl::max(jcp.b_pad, jcp.back_pad));
-        brg_attr.bs_group
+        brg_attr.hint_bs_group
                 = is_superset(jcp.isa, avx512_core) && jcp.stride_w == 1
                 ? jcp.kw
                 : 1;

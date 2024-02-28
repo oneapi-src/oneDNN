@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
 
             // assign compute vmms
             idx_vmm_a_ = compute_vmm_base_idx_;
-            const int max_m = brg.bd_block2 + brg.brgattr.bs_group - 1;
+            const int max_m = brg.bd_block2 + brg.bs_group - 1;
             const int max_n = brg.ld_block2;
             idx_vmm_b_
                     = vmm_a_idx(brg, max_m - 1, max_n - 1) + !is_fma_embd(brg);
@@ -269,10 +269,8 @@ private:
     inline int n_block2_tail() { return brg.ldb2_tail; }
     int tail_length() { return n_block1_tail() % simd_w_; }
 
-    inline int bs_group() const { return brg.brgattr.bs_group; }
-    static bool grouped_bs(const brgemm_t &brg) {
-        return brg.brgattr.bs_group > 1;
-    }
+    inline int bs_group() const { return brg.bs_group; }
+    static bool grouped_bs(const brgemm_t &brg) { return brg.bs_group > 1; }
     inline bool grouped_bs() const { return grouped_bs(brg); }
     static bool is_fma_embd(const brgemm_t &brg) {
         return grouped_bs(brg)

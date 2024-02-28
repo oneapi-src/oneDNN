@@ -160,8 +160,8 @@ struct DNNL_API brgemm_attr_t {
     // and there is no unrolling by batchsize in kernel
     bool var_bs {false};
     bool postops_only {false};
-    // Grouping in batch. Used by brdgmm
-    int bs_group {0};
+    // Hint for bs_group value in brgemm_t
+    int hint_bs_group {0};
 
     int hint_bd_block {0};
     int hint_ld_block {0};
@@ -238,6 +238,8 @@ struct brgemm_t {
 
     int is_oc_scale = 0;
     bool with_dst_scales = false;
+    // Grouping in batch used by brdgmm kernel
+    int bs_group {0};
 
     brgemm_attr_t brgattr;
 
