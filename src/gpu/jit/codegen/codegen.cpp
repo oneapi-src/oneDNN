@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,8 @@ public:
         : host_(host)
         , expr_binding_(expr_binding)
         , simd_size_(host->getSIMD())
-        , eu_count_(host->exec_cfg_.hw().eu_count()) {}
+        , eu_count_(host->exec_cfg_.hw().eu_count())
+        , is_xelpg_(host->exec_cfg_.hw().is_xelpg()) {}
 
     ~ir_to_ngen_t() {
 #ifdef DNNL_DEV_MODE
@@ -674,7 +675,8 @@ private:
         }
         if ((hw <= ngen::HW::XeLP && send_func.is_atomic())
                 || (hw == ngen::HW::XeHPG && send_func.is_atomic()
-                        && send_func.type.kind() == type_kind_t::qword)) {
+                        && send_func.type.kind() == type_kind_t::qword
+                        && !is_xelpg_)) {
             send_atomic_add_emu(scope, send_func, mask_op, mod, mem_buf_rd,
                     surf_bti, mem_off_op.reg_data(), rd);
         } else {
@@ -764,6 +766,7 @@ private:
     expr_binding_t expr_binding_;
     int simd_size_;
     int eu_count_;
+    bool is_xelpg_;
 
 #ifdef DNNL_DEV_MODE
     int bank_conflicts_ = 0;

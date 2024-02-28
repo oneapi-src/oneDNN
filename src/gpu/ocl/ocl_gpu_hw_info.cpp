@@ -28,11 +28,13 @@ namespace ocl {
 
 void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
         compute::gpu_arch_t &gpu_arch, int &stepping_id, bool &mayiuse_systolic,
-        bool &mayiuse_ngen_kernels) {
+        bool &mayiuse_ngen_kernels, bool &is_xelpg) {
     using namespace ngen;
     HW hw = HW::Unknown;
     Product product = {ProductFamily::Unknown, 0};
     jit::jit_generator<HW::Unknown>::detectHWInfo(context, device, hw, product);
+    is_xelpg = (product.family == ngen::ProductFamily::ARL
+            || product.family == ngen::ProductFamily::MTL);
 
     gpu_arch = jit::convert_ngen_arch_to_dnnl(hw);
     stepping_id = product.stepping;
