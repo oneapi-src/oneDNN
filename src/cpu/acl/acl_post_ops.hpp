@@ -139,10 +139,8 @@ struct acl_post_ops_t {
 
         CHECK(base_post_ops.set_default_formats(&dst_md));
         dst_data_type = dst_md.data_type;
-        // If the first entry is eltwise, we fuse it, except when the datatype
-        // is fp16 because in this case we want to execute the eltwise in fp32.
-        if (base_post_ops.len() >= 1 && base_post_ops.entry_[0].is_eltwise()
-                && dst_data_type != data_type::f16) {
+        // If the first entry is eltwise, we fuse it
+        if (base_post_ops.len() >= 1 && base_post_ops.entry_[0].is_eltwise()) {
 
             const auto &first_po = base_post_ops.entry_[0].eltwise;
             ACL_CHECK_SUPPORT(first_po.scale != 1.0f,
