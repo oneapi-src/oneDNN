@@ -397,3 +397,9 @@ ic64ih14oc24oh14kh5ph2_n"zp_with_top_and_bottom_vpad"
 --reset
 --skip-impl=ref,x64:gemm
 --dir=FWD_D g3mb2_ic3oc3_id8kd1pd0_ih9kh1ph0_iw26kw17pw0
+
+# depthwise failure due to tail processing in post-ops for jit_uni kernel
+--reset
+--skip-impl=ref,x64:gemm
+--dir=FWD_I --dt=u8:s8:s8 --attr-post-ops=add:f32:2:abx
+mb1_g50ic50oc50_ih28oh26_kh3sh1ph0_n"dw_post-op_ngroups-tail"
