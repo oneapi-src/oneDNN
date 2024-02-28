@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -255,6 +255,8 @@ public:
 
     bool mayiuse_systolic() const { return mayiuse_systolic_; }
 
+    bool is_xelpg() const { return is_xelpg_; }
+
     bool mayiuse_non_uniform_work_groups() const {
         return mayiuse_non_uniform_work_groups_;
     }
@@ -290,6 +292,7 @@ protected:
     int stepping_id_ = 0;
     bool mayiuse_systolic_ = false;
     bool mayiuse_ngen_kernels_ = false;
+    bool is_xelpg_ = false;
 
     std::string name_;
     runtime_version_t runtime_version_;
