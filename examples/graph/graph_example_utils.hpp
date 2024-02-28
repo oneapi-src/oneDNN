@@ -238,4 +238,84 @@ void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
 }
 #endif
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#define OCL_CHECK(x) \
+    do { \
+        cl_int s = (x); \
+        if (s != CL_SUCCESS) { \
+            std::cout << "[" << __FILE__ << ":" << __LINE__ << "] '" << #x \
+                      << "' failed (status code: " << s << ")." << std::endl; \
+            exit(1); \
+        } \
+    } while (0)
+
+static void *ocl_malloc_shared(
+        size_t size, size_t alignment, cl_device_id dev, cl_context ctx) {
+    using F = void *(*)(cl_context, cl_device_id, cl_ulong *, size_t, cl_uint,
+            cl_int *);
+    if (size == 0) return nullptr;
+
+    cl_platform_id platform;
+    OCL_CHECK(clGetDeviceInfo(
+            dev, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr));
+    const char *f_name = "clSharedMemAllocINTEL";
+    auto f = reinterpret_cast<F>(
+            clGetExtensionFunctionAddressForPlatform(platform, f_name));
+    cl_int err;
+    void *p = f(ctx, dev, nullptr, size, static_cast<cl_uint>(alignment), &err);
+    OCL_CHECK(err);
+    return p;
+}
+
+static void ocl_free(
+        void *ptr, cl_device_id dev, const cl_context ctx, cl_event event) {
+    if (nullptr == ptr) return;
+    using F = cl_int (*)(cl_context, void *);
+    if (event) { OCL_CHECK(clWaitForEvents(1, &event)); }
+    cl_platform_id platform;
+    OCL_CHECK(clGetDeviceInfo(
+            dev, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr));
+    const char *f_name = "clMemBlockingFreeINTEL";
+    auto f = reinterpret_cast<F>(
+            clGetExtensionFunctionAddressForPlatform(platform, f_name));
+    OCL_CHECK(f(ctx, ptr));
+}
+
+void allocate_ocl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
+        const std::vector<dnnl::graph::logical_tensor> &lts,
+        std::vector<std::shared_ptr<void>> &data_buffer,
+        std::unordered_map<size_t, dnnl::graph::tensor> &global_outputs_ts_map,
+        const dnnl::engine &eng, bool is_input) {
+    tensors.reserve(lts.size());
+    cl_context ctx = dnnl::ocl_interop::get_context(eng);
+    cl_device_id dev = dnnl::ocl_interop::get_device(eng);
+
+    for (const auto &lt : lts) {
+        const auto lt_id = lt.get_id();
+        const auto mem_size = lt.get_mem_size();
+
+        // check if the input is an output of another partition
+        if (is_input) {
+            auto pos = global_outputs_ts_map.find(lt_id);
+            if (pos != global_outputs_ts_map.end()) {
+                tensors.push_back(pos->second);
+                continue;
+            }
+        }
+
+        // memory allocation
+        data_buffer.push_back({});
+        void *p = ocl_malloc_shared(
+                mem_size, 0, dnnl::ocl_interop::get_device(eng), ctx);
+        data_buffer.back().reset(
+                p, [ctx, dev](void *p) { ocl_free(p, dev, ctx, {}); });
+        dnnl::graph::tensor new_ts {lt, eng, data_buffer.back().get()};
+        tensors.push_back(new_ts);
+
+        // record the connection relationship between partitions
+        if (!is_input) global_outputs_ts_map[lt_id] = tensors.back();
+    }
+}
+#endif
+
 #endif

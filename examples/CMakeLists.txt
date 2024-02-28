@@ -69,7 +69,9 @@ if(NOT ONEDNN_BUILD_GRAPH)
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/sycl_getting_started.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_inference_int8.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_single_op_partition.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/graph/gpu_single_op_partition.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/gpu_single_op_partition.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/gpu_opencl_getting_started.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/gpu_opencl_sdpa.cpp)
 endif()
 
 if(DNNL_SYCL_HIP)
