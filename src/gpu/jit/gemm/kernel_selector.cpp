@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -296,7 +296,8 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, const GEMMProblem &problem) {
         if (problem.batchDims > 1) *tagPtr++ = ReqBatchMultiDim;
     }
 
-    if (problem.abOffset != ABOffset::None) *tagPtr++ = ReqABOffset;
+    if (problem.aOffset != ABOffset::None) *tagPtr++ = ReqSumB;
+    if (problem.bOffset != ABOffset::None) *tagPtr++ = ReqSumA;
 
     sizes.batch = sizes.m = sizes.n = sizes.k = 0;
 }
