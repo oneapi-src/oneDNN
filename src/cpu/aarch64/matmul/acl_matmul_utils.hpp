@@ -45,7 +45,7 @@ struct acl_matmul_conf_t {
     bool do_transC;
     // If this is true, the result of the matmul goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
-    bool use_dst_acc;
+    bool use_dst_acc_for_sum;
     arm_compute::TensorInfo src_tensor_info;
     arm_compute::TensorInfo wei_tensor_info;
     arm_compute::TensorInfo dst_tensor_info;
@@ -53,7 +53,6 @@ struct acl_matmul_conf_t {
     arm_compute::TensorInfo wei_acc_info;
     arm_compute::TensorInfo dst_acc_info;
     arm_compute::GEMMInfo gemm_info;
-    float alpha;
 };
 
 namespace acl_matmul_utils {
