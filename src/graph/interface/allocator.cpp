@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,12 @@
 
 #ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.h"
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "oneapi/dnnl/dnnl_graph_ocl.h"
+#include "oneapi/dnnl/dnnl_ocl.h"
+
 #endif
 
 using namespace dnnl::impl::graph;
@@ -98,6 +104,29 @@ status_t DNNL_API dnnl_graph_sycl_interop_make_engine_with_allocator(
     return status::unimplemented;
 #endif
 }
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+status_t DNNL_API dnnl_graph_ocl_interop_allocator_create(
+        allocator_t **allocator, ocl_allocate_f ocl_malloc,
+        ocl_deallocate_f ocl_free) {
+    if (utils::any_null(ocl_malloc, ocl_free)) {
+        *allocator = new dnnl_graph_allocator();
+    } else {
+        *allocator = new dnnl_graph_allocator(ocl_malloc, ocl_free);
+    }
+    return status::success;
+}
+
+status_t DNNL_API dnnl_graph_ocl_interop_make_engine_with_allocator(
+        engine_t **engine, cl_device_id device, cl_context context,
+        const allocator_t *alloc) {
+    auto ret = dnnl_ocl_interop_engine_create(engine, device, context);
+    if (ret != status::success) return ret;
+
+    (*engine)->set_allocator(const_cast<allocator_t *>(alloc));
+    return status::success;
+}
+#endif
 
 void dnnl_graph_allocator::monitor_t::record_allocate(
         const void *buf, size_t size, dnnl_graph_allocator::mem_type_t type) {

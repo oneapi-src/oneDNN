@@ -24,6 +24,10 @@
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
 #include "oneapi/dnnl/dnnl_graph_types.h"
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "oneapi/dnnl/dnnl_graph_ocl.h"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -303,6 +307,10 @@ using host_allocate_f = dnnl_graph_host_allocate_f;
 using host_deallocate_f = dnnl_graph_host_deallocate_f;
 using sycl_allocate_f = dnnl_graph_sycl_allocate_f;
 using sycl_deallocate_f = dnnl_graph_sycl_deallocate_f;
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+using ocl_allocate_f = dnnl_graph_ocl_allocate_f;
+using ocl_deallocate_f = dnnl_graph_ocl_deallocate_f;
+#endif
 using inplace_pair_t = dnnl_graph_inplace_pair_t;
 
 using graph_t = dnnl_graph_graph;

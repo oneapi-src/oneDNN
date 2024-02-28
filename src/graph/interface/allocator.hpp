@@ -38,12 +38,7 @@
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "graph/utils/ocl_check.hpp"
-
-// Will move these signatures to dnnl_graph_ocl.h once the API header is added.
-typedef void *(*dnnl_graph_ocl_allocate_f)(
-        size_t size, size_t alignment, cl_device_id device, cl_context context);
-typedef void (*dnnl_graph_ocl_deallocate_f)(
-        void *buf, cl_device_id device, cl_context context, cl_event *event);
+#include "oneapi/dnnl/dnnl_graph_ocl.h"
 #endif
 
 struct dnnl_graph_allocator final : public dnnl::impl::graph::utils::id_t {
