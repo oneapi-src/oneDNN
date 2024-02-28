@@ -14,6 +14,76 @@
 * limitations under the License.
 *******************************************************************************/
 
+// DATATYPE SPECIALIZATION MECHANISM
+// ===
+//
+// NOTE: This block describes the general function of this header driven by
+// host-configured macros prefixed with DT_, SRC_DT, and DST_DT_. See their
+// logic, below. The header provides other miscellaneous functions whose
+// documentation and generalization is an open task.
+// ---
+//
+// This header enables individual OpenCL kernels to generalize across datatypes
+// by defining macros as stand-ins for types, conversions, and constants. Based
+// on a given configuration macro (one of DT_F32, DT_F64, etc - see
+// kernel_ctx_t::set_data_type), this section defines families of macros that
+// each correspond to an abstract type and whose members define their associated
+// properties. These abstract types (and base names of macro families) are:
+//
+//   - DATA: A data type corresponding to the configuration macro (DT_F32,
+//       DT_F64, etc). In practice, DATA is made to represent the source data
+//       type of the kernel.
+//
+//   - DEF_ACC: A data type suitable for accumulation over types of DATA.
+//
+//   - FLT_ACC: A strictly floating point version of DEF_ACC.
+//
+//   - POST_OP: A data type by convention for performing internal operations on
+//       outputs after the main function of kernels.
+//
+//   - REF: A data type suitable for strictly kernel-internal storage.
+//
+// Individual macros derive from these base names and define elements of the
+// corresponding types per the given configuration macro (DT_F32, etc). The
+// macros are loosely standardized, but the following table of common
+// definitions illustrates their "spirit":
+//
+//   MACRO DEFS VS CONFIG MACRO
+//   ===
+//            OpenCL    DATA_T  DEF_ACC_DATA_T  TO_DATA_T                           DATA_TO_REF
+//   DT_F32   float     float   float           (float)(v)                          convert_float
+//   DT_F64   double    double  double          (double)(v)                         convert_float
+//   DT_F16   half      half    float           convert_half                        convert_half
+//   DT_BF16  bfloat16  ushort  float           cvt_f32_to_bf16                     cvt_bf16_to_f32
+//   DT_BF8   bf8       uchar   float           cvt_hf_to_f8_e5m2(convert_half(v))  convert_float(cvt_f8_e5m2_to_hf(v))
+//   DT_HF8   hf8       uchar   float           cvt_hf_to_f8_e4m3(convert_half(v))  convert_float(cvt_f8_e4m3_to_hf(v))
+//   DT_S8    char      char    int             convert_char_sat_rte(v)             convert_float
+//   DT_U8    uchar     uchar   int             convert_uchar_sat_rte(v)            convert_float
+//   DT_S32   int       int     int             convert_int_sat_rte                 convert_float
+//
+// Similar mechanisms for source and destination data types are controlled by
+// SRC_DT_ and DST_DT_ prefixed macros. Critically, these mechanisms define
+// SRC_DATA_T and DST_DATA_T types along with the conversion macros TO_DST and
+// TO_SRC. These are crucial macros utilized throughout oneDNN's OpenCL.
+//
+// Example: See reusable_softmax.cl concisely demonstrate device-side use of
+//          these mechanisms.
+//
+// HOST-SIDE IMPLEMENTATION
+//
+// oneDNN builds kernels after configuring the above mechanisms with host-side
+// functions:
+//
+//   - kernel_ctx_t::set_data_type() (see src/gpu/compute/kernel_ctx.hpp)
+//     - sets one of macro DT_F32, DT_F64, etc
+//     - typically set to kernel input type (matching def_data_type(.., "SRC))
+//
+//   - def_data_type(.., "SRC" or "DST")
+//     - sets one of SRC_DT_U8, SRC_DT_S8, etc (same for DST)
+//     - header sets SRC_DATA_T and DST_DATA_T
+//     - header sets TO_SRC(), TO_DST() conversions
+//     - TO_DST() is very often utilized for final output to global memory
+
 #ifndef GPU_OCL_OCL_TYPES_H
 #define GPU_OCL_OCL_TYPES_H
 
