@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,9 @@ public:
 #ifdef DNNL_WITH_SYCL
         , e_(::sycl::event())
 #endif
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        , ocl_e_(nullptr)
+#endif
     {
         buffer_ = reinterpret_cast<char *>(dnnl_allocator_t::malloc(
                 size, eng, &alloc, allocator_t::mem_type_t::temp));
@@ -62,11 +65,21 @@ public:
     }
 
     ~temporary_scratchpad_t() override {
-#ifdef DNNL_WITH_SYCL
-        dnnl_allocator_t::free(buffer_, *eng_, alloc_, e_);
+        if (eng_->get_kind() == dnnl::engine::kind::cpu) {
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+            dnnl_allocator_t::free(buffer_, *eng_, alloc_, e_);
 #else
-        dnnl_allocator_t::free(buffer_, *eng_, alloc_);
+            dnnl_allocator_t::free(buffer_, *eng_, alloc_);
 #endif
+        } else if (eng_->get_kind() == dnnl::engine::kind::gpu) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+            dnnl_allocator_t::free(buffer_, *eng_, alloc_, ocl_e_);
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+            dnnl_allocator_t::free(buffer_, *eng_, alloc_, e_);
+#else
+            assert(!"unsupport gpu runtime");
+#endif
+        }
         size_ = 0;
     }
 
@@ -88,6 +101,10 @@ public:
     void set_deps(::sycl::event event) { e_ = event; }
 #endif
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    void set_deps(cl_event event) { ocl_e_ = event; }
+#endif
+
 private:
     char *buffer_;
     size_t size_;
@@ -95,6 +112,10 @@ private:
     const allocator_t *alloc_;
 #ifdef DNNL_WITH_SYCL
     ::sycl::event e_;
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    cl_event ocl_e_;
 #endif
 };
 

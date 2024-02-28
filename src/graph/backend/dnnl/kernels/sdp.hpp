@@ -1051,6 +1051,21 @@ public:
         return status::unimplemented;
     }
 #endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    status_t ocl_execute_impl(const stream_t *g_stream,
+            const std::vector<tensor_t> &inputs,
+            const std::vector<tensor_t> &outputs,
+            const std::vector<cl_event> &cl_deps,
+            cl_event *ret_event) override {
+        UNUSED(g_stream);
+        UNUSED(inputs);
+        UNUSED(outputs);
+        UNUSED(cl_deps);
+        UNUSED(ret_event);
+        return status::unimplemented;
+    }
+#endif
 };
 
 } // namespace dnnl_impl

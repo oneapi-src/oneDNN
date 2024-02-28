@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -229,6 +229,43 @@ public:
 
         scratchpad.set_deps(returned_event);
         if (sycl_event) *sycl_event = returned_event;
+
+        return status::success;
+    }
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    status_t ocl_execute_impl(const stream_t *g_stream,
+            const std::vector<tensor_t> &inputs,
+            const std::vector<tensor_t> &outputs,
+            const std::vector<cl_event> &ocl_deps,
+            cl_event *ocl_event) override {
+
+        auto deps = ocl_deps;
+        cl_event returned_event;
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
+
+        // each thread's own local resource
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
+
+        temporary_scratchpad_t scratchpad(
+                memory_planner_.total_internal_temporary_size(), p_engine_,
+                *g_alloc_);
+        assertm(scratchpad.size()
+                        >= memory_planner_.total_internal_temporary_size(),
+                "no enough scratchpad memory");
+        prepare_args_set(res, inputs, outputs, scratchpad);
+
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            returned_event = subgraph_->execs_[i]->execute_ocl(
+                    p_stream, res->get_exec_args()[i], deps);
+            deps = {returned_event};
+        }
+
+        scratchpad.set_deps(returned_event);
+        if (ocl_event) *ocl_event = returned_event;
 
         return status::success;
     }

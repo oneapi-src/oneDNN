@@ -360,10 +360,8 @@ public:
     virtual status_t execute_ocl(const stream_t *astream,
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs,
-            const std::vector<cl_event> &ocl_deps, cl_event *ocl_event) {
-        // change this to pure virtual function once backend implements it.
-        return status::unimplemented;
-    }
+            const std::vector<cl_event> &ocl_deps, cl_event *ocl_event)
+            = 0;
 #endif
 
 protected:
