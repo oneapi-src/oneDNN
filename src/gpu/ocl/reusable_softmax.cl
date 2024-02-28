@@ -18,12 +18,6 @@
 #include "gpu/ocl/ocl_types.h"
 #include "gpu/ocl/types_interop.h"
 
-#if defined(SRC_DT_F64) || defined(DST_DT_F64)
-#define ACC_DT double
-#else
-#define ACC_DT float
-#endif
-
 __kernel void reusable_softmax_fwd_generic(__global SRC_DATA_T *src,
         __global DST_DATA_T *dst, __global float *src_scale,
         __global float *dst_scale, dim_t softmax_axis_size,
@@ -31,25 +25,24 @@ __kernel void reusable_softmax_fwd_generic(__global SRC_DATA_T *src,
     src = GWS_GET_BUFFER_POS(SRC, gws_params, src);
     dst = GWS_GET_BUFFER_POS(DST, gws_params, dst);
 
-    ACC_DT max_ = TO_DEF_ACC_DATA_T(DATA_MIN);
-    ACC_DT denom_ = TO_DEF_ACC_DATA_T(DATA_ZERO);
+    FLT_ACC_DATA_T max_ = TO_FLT_ACC_DATA_T(DATA_MIN);
+    FLT_ACC_DATA_T denom_ = TO_FLT_ACC_DATA_T(DATA_ZERO);
 
     unroll_16_for(int c = 0; c < softmax_axis_size; c++) {
-        max_ = max(
-                max_, (ACC_DT)TO_DEF_ACC_DATA_T(src[c * softmax_axis_stride]));
+        max_ = max(max_, TO_FLT_ACC_DATA_T(src[c * softmax_axis_stride]));
     }
 
     unroll_16_for(int c = 0; c < softmax_axis_size; c++) {
-        denom_ += exp(TO_DEF_ACC_DATA_T(src[c * softmax_axis_stride]) - max_);
+        denom_ += exp(TO_FLT_ACC_DATA_T(src[c * softmax_axis_stride]) - max_);
     }
 
     denom_ = LOGSOFTMAX ? log(denom_) : 1.0f / denom_;
 
     for (int c = 0; c < softmax_axis_size; c++) {
         size_t data_off = c * softmax_axis_stride;
-        float unscaled = LOGSOFTMAX
-                ? TO_DEF_ACC_DATA_T(src[data_off]) - max_ - denom_
-                : exp(TO_DEF_ACC_DATA_T(src[data_off]) - max_) * denom_;
+        FLT_ACC_DATA_T unscaled = LOGSOFTMAX
+                ? TO_FLT_ACC_DATA_T(src[data_off]) - max_ - denom_
+                : exp(TO_FLT_ACC_DATA_T(src[data_off]) - max_) * denom_;
 
         float scale = 1.0f;
         if (src_scale) { scale = *src_scale; }

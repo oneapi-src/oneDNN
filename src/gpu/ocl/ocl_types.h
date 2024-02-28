@@ -202,6 +202,9 @@
 #define AS_BLOCK_DATA4_T as_uint4
 #define AS_BLOCK_DATA8_T as_uint8
 
+#define FLT_ACC_DATA_T float
+#define TO_FLT_ACC_DATA_T convert_float
+
 #elif DT_F64 == 1
 #define DATA_T double
 #define DATA2_T double2
@@ -256,6 +259,9 @@
 #define AS_ULONG2 as_ulong2
 #define AS_ULONG4 as_ulong4
 #define AS_ULONG8 as_ulong8
+
+#define FLT_ACC_DATA_T double
+#define TO_FLT_ACC_DATA_T(v) (double)(v)
 
 #elif DT_F16 == 1
 
@@ -316,6 +322,9 @@
 #define AS_BLOCK_DATA4_T as_ushort4
 #define AS_BLOCK_DATA8_T as_ushort8
 
+#define FLT_ACC_DATA_T float
+#define TO_FLT_ACC_DATA_T convert_float
+
 #elif DT_BF16 == 1
 #define DATA_T ushort
 #define DATA2_T ushort2
@@ -373,6 +382,9 @@
 #define AS_BLOCK_DATA2_T as_ushort2
 #define AS_BLOCK_DATA4_T as_ushort4
 #define AS_BLOCK_DATA8_T as_ushort8
+
+#define FLT_ACC_DATA_T float
+#define TO_FLT_ACC_DATA_T cvt_bf16_to_f32
 
 #elif DT_BF8 == 1
 #define DATA_T uchar
@@ -438,6 +450,10 @@
 #define MMAD_DATA8_T half8
 #define MMAD_ACC_DATA4_T half4
 #define MMAD_ACC_DATA8_T half8
+
+#define FLT_ACC_DATA_T float
+#define TO_FLT_ACC_DATA_T convert_float(cvt_f8_e5m2_to_hf(v))
+
 #elif DT_HF8 == 1
 #define DATA_T uchar
 #define DATA2_T uchar2
@@ -502,6 +518,10 @@
 #define MMAD_DATA8_T half8
 #define MMAD_ACC_DATA4_T half4
 #define MMAD_ACC_DATA8_T half8
+
+#define FLT_ACC_DATA_T float
+#define TO_FLT_ACC_DATA_T(v) convert_float(cvt_f8_e4m3_to_hf(v))
+
 #elif DT_S8 == 1
 #define DATA_T char
 #define DATA2_T char2
@@ -562,6 +582,9 @@
 #define AS_BLOCK_DATA4_T as_uchar4
 #define AS_BLOCK_DATA8_T as_uchar8
 
+#define FLT_ACC_DATA_T float
+#define TO_FLT_ACC_DATA_T convert_float
+
 #elif DT_U8 == 1
 #define DATA_T uchar
 #define DATA2_T uchar2
@@ -621,6 +644,9 @@
 #define AS_BLOCK_DATA2_T as_uchar2
 #define AS_BLOCK_DATA4_T as_uchar4
 #define AS_BLOCK_DATA8_T as_uchar8
+
+#define FLT_ACC_DATA_T float
+#define TO_FLT_ACC_DATA_T convert_float
 
 #elif DT_S32 == 1
 #define DATA_T int
@@ -683,6 +709,10 @@
 #define AS_BLOCK_DATA2_T as_uint2
 #define AS_BLOCK_DATA4_T as_uint4
 #define AS_BLOCK_DATA8_T as_uint8
+
+#define FLT_ACC_DATA_T float
+#define TO_FLT_ACC_DATA_T convert_float
+
 #elif !defined(DT_UNDEF)
 #error "Unexpected data type"
 #endif
