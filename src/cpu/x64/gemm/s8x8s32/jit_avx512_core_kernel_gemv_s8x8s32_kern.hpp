@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,7 +79,9 @@ class jit_avx512_core_gemv_s8x8s32_kern : public jit_generator {
 
 public:
     jit_avx512_core_gemv_s8x8s32_kern(ver_t ver)
-        : jit_generator(jit_name(), nullptr, 32 * 1024), ver(ver) {}
+        : jit_generator(jit_name(), nullptr, 32 * 1024, true,
+                mayiuse(avx512_core_vnni) ? avx512_core_vnni : avx512_core)
+        , ver(ver) {}
 };
 
 } // namespace x64
