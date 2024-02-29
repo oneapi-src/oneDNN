@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2061,6 +2061,17 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
         // TODO: remove this restriction
         const auto iw_block = (jcp.ow_block - 1) * jcp.stride_w + 1;
         if (!must_exec_vpad && (iw_block > jcp.iw)) try_exec_type_res = false;
+        const dim_t work_amount = static_cast<dim_t>(jcp.mb) * jcp.ngroups
+                * jcp.nb_oc * jcp.nb_od * jcp.nb_oh * jcp.nb_ow;
+        const dim_t thr_work_amount = static_cast<dim_t>(jcp.oc_block) * jcp.ic
+                * jcp.od_block * jcp.oh_block * jcp.ow_block;
+        // Disable exec_vpad for large shapes on avx2 for better performance
+        // the threshold is approximate and empiric
+        if (!must_exec_vpad && jcp.isa == avx2 && work_amount >= jcp.nthr * 8
+                && jcp.ic >= 512 && jcp.oc >= 256
+                && thr_work_amount > 2 * brg_blocking_t::L1
+                && jcp.prop_kind == prop_kind::forward)
+            try_exec_type_res = false;
     }
     if (try_exec_base && try_exec_type_res == false) {
         jcp.exec_type = exec_base;
