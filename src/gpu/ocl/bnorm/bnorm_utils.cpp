@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 #include "gpu/ocl/bnorm/bnorm_utils.hpp"
+#include "common/utils.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/bnorm/bnorm_lookup_table.hpp"
 
 namespace dnnl {
@@ -23,15 +25,16 @@ namespace ocl {
 namespace bn_utils {
 using namespace dnnl::impl::utils;
 
-float get_ss_utilization(int max_ss, const size_t *gws, const size_t *lws) {
-    const size_t gws_size = gws[0] * gws[1] * gws[2];
-    const size_t lws_size = lws[0] * lws[1] * lws[2];
+float get_ss_utilization(
+        int max_ss, const compute::range_t &gws, const compute::range_t &lws) {
+    const size_t gws_size = gws.nelems();
+    const size_t lws_size = lws.nelems();
     const size_t used_ss = utils::div_up(gws_size, lws_size);
     return (float)used_ss / max_ss;
 }
-float get_thr_utilization(
-        int eu_count, int threads_per_eu, int sg_size, const size_t *gws) {
-    const size_t gws_size = gws[0] * gws[1] * gws[2];
+float get_thr_utilization(int eu_count, int threads_per_eu, int sg_size,
+        const compute::range_t &gws) {
+    const size_t gws_size = gws.nelems();
     return ((float)gws_size / sg_size) / (eu_count * threads_per_eu);
 }
 

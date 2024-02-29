@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,8 +25,9 @@
 
 #include "oneapi/dnnl/dnnl.hpp"
 
-// Note: use one non-default value to validate functionality. Rest values, if
-// check in loop will not take effect.
+#include "tests/test_isa_common.hpp"
+
+// Note: use one non-default value to validate functionality.
 
 namespace {
 
@@ -54,41 +55,64 @@ namespace dnnl {
 
 #if DNNL_X64
 TEST(dnnl_max_cpu_isa_env_var_test, TestEnvVars) {
+    const bool has_cpu = DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE;
+
     custom_setenv("DNNL_MAX_CPU_ISA", "SSE41", 1);
     auto got = dnnl_get_effective_cpu_isa();
+    (void)got;
 
-#if (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE) && defined(DNNL_ENABLE_MAX_CPU_ISA)
-    // Expect set values only for X64...
-    EXPECT_EQ(got, dnnl_cpu_isa_sse41);
+#if defined(DNNL_ENABLE_MAX_CPU_ISA)
+    // Expect env var value to be set when env variable feature is enabled.
+    EXPECT_EQ(got, has_cpu ? dnnl_cpu_isa_sse41 : dnnl_cpu_isa_default);
+#elif DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    // Native SSE41 will issue an error. Don't check for it.
+    if (mayiuse(impl::cpu::x64::avx)) {
+        // Otherwise, don't expect it to be set.
+        EXPECT_NE(got, dnnl_cpu_isa_sse41);
+    }
+#endif
 
-    auto st = dnnl_set_max_cpu_isa(dnnl_cpu_isa_default);
-    EXPECT_EQ(st, dnnl_invalid_arguments);
-    auto func_got = dnnl_get_effective_cpu_isa();
-    EXPECT_EQ(func_got, dnnl_cpu_isa_sse41);
-#else
-    // ... while rest should return isa_all
-    EXPECT_EQ(got, dnnl_cpu_isa_default);
+    if (has_cpu) {
+        // `dnnl_get_effective_cpu_isa` freezes the isa value, any call to set
+        // it again results in invalid_arguments.
+        auto st = dnnl_set_max_cpu_isa(dnnl_cpu_isa_sse41);
+        EXPECT_EQ(st, dnnl_invalid_arguments);
+    }
+    // Check that second pass of env var doesn't take any effect.
+    custom_setenv("DNNL_MAX_CPU_ISA", "AVX", 1);
+    got = dnnl_get_effective_cpu_isa();
+#if defined(DNNL_ENABLE_MAX_CPU_ISA)
+    EXPECT_EQ(got, has_cpu ? dnnl_cpu_isa_sse41 : dnnl_cpu_isa_default);
+#elif DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+    if (mayiuse(impl::cpu::x64::avx2)) {
+        EXPECT_NE(got, dnnl_cpu_isa_sse41);
+        EXPECT_NE(got, dnnl_cpu_isa_avx);
+    }
 #endif
 }
 #endif // DNNL_X64
 
 #if DNNL_X64
 TEST(dnnl_cpu_isa_hints_var_test, TestEnvVars) {
+    const bool has_cpu = DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE;
+    (void)has_cpu;
+
     custom_setenv("DNNL_CPU_ISA_HINTS", "PREFER_YMM", 1);
     auto got = dnnl_get_cpu_isa_hints();
 
-#if (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE) \
-        && defined(DNNL_ENABLE_CPU_ISA_HINTS)
-    // Expect set values only for X64...
-    EXPECT_EQ(got, dnnl_cpu_isa_prefer_ymm);
+#if defined(DNNL_ENABLE_CPU_ISA_HINTS)
+    // Expect env var value to be set when env variable feature is enabled.
+    EXPECT_EQ(got, has_cpu ? dnnl_cpu_isa_prefer_ymm : dnnl_cpu_isa_no_hints);
+#else
+    // Otherwise, don't expect it to be set.
+    EXPECT_NE(got, dnnl_cpu_isa_prefer_ymm);
+#endif
 
+#if (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
+    // `dnnl_get_cpu_isa_hints` freezes the hints value, any call to set it
+    // again results in runtime_error.
     auto st = dnnl_set_cpu_isa_hints(dnnl_cpu_isa_no_hints);
     EXPECT_EQ(st, dnnl_runtime_error);
-    auto func_got = dnnl_get_cpu_isa_hints();
-    EXPECT_EQ(func_got, dnnl_cpu_isa_prefer_ymm);
-#else
-    // ... while rest should return isa_all
-    EXPECT_EQ(got, dnnl_cpu_isa_no_hints);
 #endif
 }
 #endif // DNNL_X64
@@ -125,5 +149,9 @@ TEST(dnnl_default_fpmath_mode_env_var_test, TestEnvVars) {
     EXPECT_EQ(st, dnnl_success);
     EXPECT_EQ(func_got_val, dnnl_fpmath_mode_strict);
 }
+
+// There's no a separate test for VERBOSE variable as there's no programmable
+// public API to identify if it was set through env var or not.
+// Same situation with the rest of variables.
 
 } // namespace dnnl

@@ -22,12 +22,20 @@ namespace gpu {
 namespace ocl {
 
 status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
+    using namespace data_type;
 
     const auto &d = desc();
     const auto attr_skip_mask = primitive_attr_t::skip_mask_t::scales_runtime
+            | primitive_attr_t::skip_mask_t::scales_runtime_data_type
             | primitive_attr_t::skip_mask_t::post_ops
-            | primitive_attr_t::skip_mask_t::zero_points_runtime;
+            | primitive_attr_t::skip_mask_t::fpmath_mode
+            | primitive_attr_t::skip_mask_t::zero_points_runtime
+            | primitive_attr_t::skip_mask_t::zero_points_runtime_data_type;
 
+    bool wei_decomp = (utils::one_of(d->c_type(), f32, f16, bf16)
+                              && utils::one_of(d->a_type(), u8, s8)
+                              && utils::one_of(d->b_type(), f16, f32, bf16))
+            && attr()->mayiconvert(d->a_type(), f32);
     bool ok = d->c_desc.ndims <= 4
             && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k())
             && attr()->has_default_values(attr_skip_mask);
@@ -36,7 +44,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     const primitive_attr_t *attributes_with_po = attr();
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
         const auto &mask = attr()->scales_.get(arg).mask_;
-        if (arg == DNNL_ARG_WEIGHTS)
+        if (arg == DNNL_ARG_WEIGHTS && !wei_decomp)
             ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
         else
             ok = ok && (mask == 0);
@@ -85,7 +93,8 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     if (!zp.has_default_values(DNNL_ARG_SRC))
         attributes_without_po.zero_points_.set(DNNL_ARG_SRC, src_mask);
     if (!zp.has_default_values(DNNL_ARG_WEIGHTS))
-        attributes_without_po.zero_points_.set(DNNL_ARG_WEIGHTS, wei_mask);
+        attributes_without_po.zero_points_.set(DNNL_ARG_WEIGHTS, wei_mask, 0,
+                nullptr, attr()->zero_points_.get_data_type(DNNL_ARG_WEIGHTS));
 
     primitive_desc_iterator_t it_gemm_without_po(engine,
             reinterpret_cast<const op_desc_t *>(&gemm_desc),
@@ -155,8 +164,8 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
             "D3_WO_PADDING", ndims > 3 ? gemm_pd_->dst_md()->dims[3] : 1);
     kernel_ctx.define_int(
             "D2_WO_PADDING", ndims > 2 ? gemm_pd_->dst_md()->dims[2] : 1);
-    CHECK(def_attr_info(kernel_ctx, attr_info_, attr()->post_ops_,
-            gemm_pd_->dst_md()->dims));
+    CHECK(def_attr_info(
+            kernel_ctx, attr_info_, attr()->post_ops_, *gemm_pd_->dst_md()));
     const auto &attr_scales = attr()->scales_;
     const bool with_src_scales
             = !attr_scales.get(DNNL_ARG_SRC).has_default_values();

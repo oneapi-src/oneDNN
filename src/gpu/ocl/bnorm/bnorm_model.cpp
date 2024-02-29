@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 #include "gpu/ocl/bnorm/bnorm_model.hpp"
+#include <climits>
+#include "common/utils.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/bnorm/bnorm_utils.hpp"
 #include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
 
@@ -58,17 +61,18 @@ void init_hw_params(hw_params_t &hw_params, engine_t *engine) {
 }
 
 float get_used_ss_thr_utilization(hw_params_t &hw_params, int sg_size,
-        const size_t *gws, const size_t *lws) {
-    const int gws_size = into<int>(gws[0] * gws[1] * gws[2]);
-    const int lws_size = into<int>(lws[0] * lws[1] * lws[2]);
-    const int num_thrs_generated = gws_size / sg_size;
-    const int num_wgs = gws_size / lws_size; // == ss used
+        const compute::range_t &gws, const compute::range_t &lws) {
+    const size_t gws_size = gws.nelems();
+    const size_t lws_size = lws.nelems();
+    const size_t num_thrs_generated = gws_size / sg_size;
+    const size_t num_wgs = gws_size / lws_size; // == ss used
     // TODO: considering case when several work groups are running
     // on the same [sub-]slice
     return (float)num_thrs_generated
             / std::min(
                     num_wgs * hw_params.eus_per_ss * hw_params.threads_per_eu,
-                    hw_params.eu_count * hw_params.threads_per_eu);
+                    gpu_utils::into<size_t>(
+                            hw_params.eu_count * hw_params.threads_per_eu));
 }
 
 std::string to_string(const kernel_kind_t &kernel) {
@@ -526,9 +530,10 @@ status_t get_estimated_hw_utilization(model_params_t &p,
             desc.kernel, conf_dry_run, hw_params.engine, dry_run_dispatch));
 
     auto nd_range = dry_run_dispatch.nd_range();
-    const size_t *gws = nd_range.global_range();
-    const size_t *lws = nd_range.local_range();
-    desc.num_wgs = gws[0] * gws[1] * gws[2] / (lws[0] * lws[1] * lws[2]);
+    const compute::range_t gws = nd_range.global_range();
+    const compute::range_t lws = nd_range.local_range();
+    if (lws.nelems() == 0) return status::runtime_error;
+    desc.num_wgs = gws.nelems() / lws.nelems();
     desc.used_ss_thr_util = get_used_ss_thr_utilization(
             hw_params, conf.sub_group_size, gws, lws);
     desc.ss_util = get_ss_utilization(hw_params.max_ss, gws, lws);

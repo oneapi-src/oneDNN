@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include <vector>
 #include <unordered_map>
 
-#include "gpu/compute/compute.hpp"
+#include "gpu/compute/kernel_list.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 
 namespace dnnl {

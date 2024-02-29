@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,12 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_sum_pd.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -42,18 +39,18 @@ struct many_inputs_sum_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             const int n = n_inputs();
 
-            bool ok = gpu_sum_pd_t::init(engine) == status::success;
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM_SC(
+                    gpu_sum_pd_t::init(engine), VERBOSE_BAD_ENGINE_KIND);
 
             const memory_desc_wrapper o_d(dst_md());
 
             for (int i = 0; i < n; ++i) {
                 const memory_desc_wrapper i_d(src_md(i));
-                if (i_d != o_d) return status::unimplemented;
+                VDISPATCH_SUM(i_d == o_d, VERBOSE_INCONSISTENT_DIM, "i_d", i,
+                        "o_d", i);
             }
 
-            if (scales()[0] != 1.0f) return status::unimplemented;
+            VDISPATCH_SUM(scales()[0] == 1.0f, VERBOSE_UNSUPPORTED_SCALES_CFG);
             return status::success;
         }
     };

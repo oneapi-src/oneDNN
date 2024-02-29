@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,15 @@
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
+
+#define VDISPATCH_SHUFFLE(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, shuffle, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
+#define VDISPATCH_SHUFFLE_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, shuffle, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

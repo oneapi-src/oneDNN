@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,11 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+#define VDISPATCH_ZERO_PAD(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, zero_pad, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
 struct ref_zero_pad_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_zero_pad_pd_t {
@@ -36,8 +41,8 @@ struct ref_zero_pad_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            if (!compute_engine->mayiuse_sub_group(16))
-                return status::unimplemented;
+            VDISPATCH_ZERO_PAD(compute_engine->mayiuse_sub_group(16),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroup(16)");
             return status::success;
         }
     };

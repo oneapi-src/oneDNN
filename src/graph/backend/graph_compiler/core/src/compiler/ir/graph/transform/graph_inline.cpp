@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -93,8 +93,8 @@ static void do_inline_graph(const context_ptr &ctx, sc_graph_t &full_graph,
                 }
             }
             for (size_t i = 0; i < cur_op_ori_outs.size(); ++i) {
-                for (auto &use = cur_op_ori_outs[i]->uses_.front();
-                        !cur_op_ori_outs[i]->uses_.empty();) {
+                while (!cur_op_ori_outs[i]->uses_.empty()) {
+                    auto &use = cur_op_ori_outs[i]->uses_.front();
                     use.second->replace_input(use.first, op->get_inputs()[i]);
                 }
             }

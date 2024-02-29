@@ -25,6 +25,7 @@
 #include "reduce.hpp"
 #include "util/bf16.hpp"
 #include <compiler/ir/graph/fusible_op_utils.hpp>
+#include <compiler/ir/graph/mixed_partition.hpp>
 #include <compiler/ir/transform/tensor2var.hpp>
 #include <runtime/config.hpp>
 #include <unordered_map>
@@ -407,6 +408,12 @@ void pre_reduce_binding_axis(fusible_op_t *cur, binding_axis_map &bdax_map,
     auto &output = cur->get_outputs()[0];
     // query real input which needs to infer
     auto input = cur->get_inputs()[0];
+    // once `reduce` op is split, its plain dims will be lost and reset to
+    // blocking dims, so we need to penetrate input. However, if its producer
+    // owner is not expected, auto skip it.
+    if (!input->producer_owner_->isa<op_traits::mixed_partition_acceptable>()
+            || is_single_op_graph(cur->get_owner_graph()))
+        return;
     // penetrate input gt if necessary
     if (cur->isa<reduce_impl_op_t>()) {
         if (cur->isa<reduce_collect_op_t>()) {
@@ -863,6 +870,10 @@ graph_tensor_ptr reduce_op_t::split_op(
 
     auto first = graph.make<reduce_compute_op_t>(get_inputs()[0], first_out,
             rd_ax, rd_op_, keep_dims_, /*local_mode*/ false);
+    if (this->attrs_.has_key(mixed_partition_hint::trial_break)) {
+        first->attrs_[mixed_partition_hint::trial_break]
+                = this->attrs_[mixed_partition_hint::trial_break];
+    }
 
     sc_op_ptr second;
     if (num_threads > 1) {
@@ -963,6 +974,10 @@ graph_tensor_ptr reduce_compute_op_t::split_op(
 
     auto first = graph.make<reduce_compute_op_t>(get_inputs()[0], first_out,
             real_rd_axis_, rd_op_, keep_dims_, /*local_mode*/ true);
+    if (this->attrs_.has_key(mixed_partition_hint::trial_break)) {
+        first->attrs_[mixed_partition_hint::trial_break]
+                = this->attrs_[mixed_partition_hint::trial_break];
+    }
     auto second = graph.make<reduce_collect_op_t>(first_out, second_out,
             real_rd_axis_, rd_op_, keep_dims_, reduce_collect_op_t::COPY);
     get_outputs()[0]->replace_with(second_out);

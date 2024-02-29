@@ -39,7 +39,12 @@ size_t get_arg_size(const std::vector<dnnl_exec_arg_t> &dnnl_args, int arg) {
 }
 } // namespace cold_cache_utils
 
-cold_cache_t::cold_cache_t() : enabled_(false) {}
+cold_cache_t::cold_cache_t()
+    : enabled_(false)
+    , n_buffers_top_limit_(0)
+    , n_buffers_bottom_limit_(0)
+    , n_buffers_(0)
+    , override_n_buffers_(false) {}
 
 cold_cache_t::cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args)
     : enabled_(use_cold_cache(dnnl_args))

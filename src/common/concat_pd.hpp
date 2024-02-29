@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,15 @@
 #include "type_helpers.hpp"
 
 #include "utils.hpp"
+
+#define VDISPATCH_CONCAT(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, concat, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
+#define VDISPATCH_CONCAT_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, concat, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

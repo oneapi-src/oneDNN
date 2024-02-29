@@ -38,57 +38,84 @@ struct ref_gemm_t : public gpu_gemm_t {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
-            bool ok = set_default_formats();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_GEMM(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
 
             const auto a_dt = desc()->a_type();
             const auto b_dt = desc()->b_type();
             const auto c_dt = desc()->c_type();
             const auto acc_dt = desc()->acc_type;
             const auto bia_dt = desc()->bias_type();
-            const bool wei_decompress = utils::one_of(a_dt, u8, s8);
+            const bool wei_decompress = utils::one_of(b_dt, f32, f16, bf16)
+                    && utils::one_of(c_dt, f32, f16, bf16)
+                    && utils::one_of(a_dt, u8, s8);
 
             const auto ndims = desc()->c_desc.ndims;
             const auto a_strides = desc()->a_desc.format_desc.blocking.strides;
             const auto b_strides = desc()->b_desc.format_desc.blocking.strides;
             const auto c_strides = desc()->c_desc.format_desc.blocking.strides;
-            ok = IMPLICATION(acc_dt == s32, attr()->zero_points_.common())
-                    && !has_blocks() && desc()->c_desc.ndims <= 3
-                    && (a_strides[ndims - 1] == 1 || a_strides[ndims - 2] == 1)
-                    && (b_strides[ndims - 1] == 1 || b_strides[ndims - 2] == 1)
-                    && (c_strides[ndims - 1] == 1)
-                    && IMPLICATION(desc()->is_batched(),
-                            desc()->a_desc.dims[0] == desc()->b_desc.dims[0])
-                    && IMPLICATION(acc_dt != s32 && !wei_decompress,
-                            attr()->zero_points_.has_default_values())
-                    && attr()->has_default_values(smask_t::zero_points_runtime
-                            | smask_t::post_ops | smask_t::fpmath_mode)
-                    && attr_oscale_ok() && attr_zp_ok() && attr_post_ops_ok()
-                    && desc()->sum_ab == sum_ab::sum_none;
 
-            ok &= ((utils::one_of(a_dt, u8, s8) && utils::one_of(b_dt, u8, s8)
-                           && utils::one_of(c_dt, f32, s8, u8, s32)
-                           && IMPLICATION(with_bias(),
-                                   utils::one_of(bia_dt, f32, u8, s8, s32)))
-                    || (utils::everyone_is(f32, a_dt, b_dt, c_dt)
-                            && IMPLICATION(with_bias(), bia_dt == f32))
-                    || (utils::one_of(a_dt, u8, s8)
-                            && (utils::everyone_is(f32, b_dt, c_dt)
-                                    || utils::everyone_is(f16, b_dt, c_dt))
-                            && IMPLICATION(with_bias(),
-                                    utils::one_of(bia_dt, f32, u8, s8, s32)))
-                    || (utils::everyone_is(f16, a_dt, b_dt)
-                            && utils::one_of(c_dt, u8, s8, f16)
-                            && IMPLICATION(with_bias(), bia_dt == f16))
-                    || (utils::everyone_is(f32, b_dt, c_dt) && wei_decompress
-                            && IMPLICATION(with_bias(), bia_dt == f32))
-                    || (utils::everyone_is(bf16, a_dt, b_dt)
-                            && utils::one_of(c_dt, bf16, f32)
-                            && IMPLICATION(with_bias(),
-                                    utils::one_of(bia_dt, bf16, f32))));
-
-            if (!ok) return status::unimplemented;
-
+            VDISPATCH_GEMM(
+                    IMPLICATION(acc_dt == s32, attr()->zero_points_.common()),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_GEMM(!has_blocks(), VERBOSE_UNSUPPORTED_FEATURE,
+                    "blocked format");
+            VDISPATCH_GEMM(desc()->c_desc.ndims <= 3, VERBOSE_BAD_NDIMS,
+                    "desc()->c_desc.ndims", desc()->c_desc.ndims);
+            VDISPATCH_GEMM(
+                    (a_strides[ndims - 1] == 1 || a_strides[ndims - 2] == 1),
+                    VERBOSE_UNSUPPORTED_MEM_STRIDE);
+            VDISPATCH_GEMM(
+                    (b_strides[ndims - 1] == 1 || b_strides[ndims - 2] == 1),
+                    VERBOSE_UNSUPPORTED_MEM_STRIDE);
+            VDISPATCH_GEMM((c_strides[ndims - 1] == 1),
+                    VERBOSE_UNSUPPORTED_MEM_STRIDE);
+            VDISPATCH_GEMM(
+                    IMPLICATION(desc()->is_batched(),
+                            desc()->a_desc.dims[0] == desc()->b_desc.dims[0]),
+                    VERBOSE_INCONSISTENT_NDIMS, "desc()->a_desc.dims[0]",
+                    "desc()->b_desc.dims[0]");
+            VDISPATCH_GEMM(IMPLICATION(acc_dt != s32 && !wei_decompress,
+                                   attr()->zero_points_.has_default_values()),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+            VDISPATCH_GEMM(
+                    attr()->has_default_values(smask_t::zero_points_runtime
+                            | smask_t::post_ops | smask_t::fpmath_mode),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_GEMM(attr_oscale_ok(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_GEMM(attr_zp_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
+            VDISPATCH_GEMM(attr_post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_GEMM(desc()->sum_ab == sum_ab::sum_none,
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_GEMM(
+                    ((utils::one_of(a_dt, u8, s8) && utils::one_of(b_dt, u8, s8)
+                             && utils::one_of(c_dt, f32, s8, u8, s32)
+                             && IMPLICATION(with_bias(),
+                                     utils::one_of(bia_dt, f32, u8, s8, s32)))
+                            || (utils::one_of(a_dt, f8_e5m2, f8_e4m3)
+                                    && utils::one_of(b_dt, f8_e5m2, f8_e4m3)
+                                    && utils::one_of(c_dt, f32, f16, bf16,
+                                            f8_e5m2, f8_e4m3)
+                                    && IMPLICATION(with_bias(),
+                                            utils::one_of(bia_dt, f32, f8_e5m2,
+                                                    f8_e4m3)))
+                            || (utils::everyone_is(f32, a_dt, b_dt, c_dt)
+                                    && IMPLICATION(with_bias(), bia_dt == f32))
+                            || (utils::one_of(a_dt, u8, s8)
+                                    && (utils::everyone_is(f32, b_dt, c_dt)
+                                            || utils::everyone_is(
+                                                    f16, b_dt, c_dt))
+                                    && IMPLICATION(with_bias(),
+                                            utils::one_of(
+                                                    bia_dt, f32, u8, s8, s32)))
+                            || (utils::everyone_is(f16, a_dt, b_dt)
+                                    && utils::one_of(c_dt, u8, s8, f16)
+                                    && IMPLICATION(with_bias(), bia_dt == f16))
+                            || wei_decompress
+                            || (utils::everyone_is(bf16, a_dt, b_dt)
+                                    && utils::one_of(c_dt, bf16, f32)
+                                    && IMPLICATION(with_bias(),
+                                            utils::one_of(bia_dt, bf16, f32)))),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
             attr_info = attr_info_t::create(attr());
 
             return status::success;
@@ -140,7 +167,7 @@ struct ref_gemm_t : public gpu_gemm_t {
         const auto d = pd()->desc();
         kernel_ctx.set_data_type(d->c_type());
         CHECK(def_attr_info(kernel_ctx, pd()->attr_info,
-                pd()->attr()->post_ops_, pd()->dst_md()->dims));
+                pd()->attr()->post_ops_, *pd()->dst_md()));
 
         const auto bias_type = d->bias_type() != data_type::undef
                 ? d->bias_type()

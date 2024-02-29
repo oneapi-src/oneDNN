@@ -33,20 +33,21 @@ namespace concat {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
     std::vector<benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>> src_d_wrappers(
             prb->n_inputs());
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const dims_t &i_vdims = prb->vdims[i_input];
-        src_d_wrappers[i_input] = dnn_mem_t::init_md(
-                prb->ndims, i_vdims.data(), prb->sdt, prb->stag[i_input]);
+        src_d_wrappers[i_input] = dnn_mem_t::init_md(prb->ndims, i_vdims.data(),
+                force_f32_dt ? dnnl_f32 : prb->sdt, prb->stag[i_input]);
     }
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dst_d {};
     if (prb->dtag != tag::undef) {
-        dst_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dst_dims.data(), prb->ddt, prb->dtag);
+        dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->ddt, prb->dtag);
     }
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
@@ -143,7 +144,7 @@ std::vector<int> supported_exec_args(dir_t dir) {
 };
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res,
         dnnl_primitive_t prim_ref) {
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
@@ -213,16 +214,15 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    TIME_FILL(SAFE(init_ref_memory_args(
-                           ref_mem_map, mem_map, prim, prb, res, prb->dir),
-            WARN));
+    TIME_FILL(SAFE(
+            init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res), WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
-    SAFE(check_bitwise(prim, {DST}, args, prb->inplace, res), WARN);
+    SAFE(check_bitwise(prim, {DST}, args, prb->attr, prb->inplace, res), WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

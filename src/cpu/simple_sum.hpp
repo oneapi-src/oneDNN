@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,22 +45,28 @@ struct simple_sum_t : public primitive_t {
         status_t init(engine_t *engine) {
             const int n = n_inputs();
 
-            bool ok = platform::has_data_type_support(src_data_type)
-                    && platform::has_data_type_support(dst_data_type)
-                    && cpu_sum_pd_t::init(engine) == status::success
-                    && n <= max_num_arrs;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM(platform::has_data_type_support(src_data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SUM(platform::has_data_type_support(dst_data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SUM(cpu_sum_pd_t::init(engine) == status::success,
+                    VERBOSE_BAD_ENGINE_KIND);
+            VDISPATCH_SUM(n <= max_num_arrs,
+                    "number of inputs exceed max number of arrays");
 
             const memory_desc_wrapper o_d(dst_md());
-            ok = ok && o_d.data_type() == dst_data_type && o_d.is_dense();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM(o_d.data_type() == dst_data_type,
+                    VERBOSE_INCONSISTENT_DT, "o_d", "dst");
+            VDISPATCH_SUM(o_d.is_dense(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
 
             for (int i = 0; i < n; ++i) {
                 const memory_desc_wrapper i_d(src_md(i));
-                ok = true && utils::everyone_is(src_data_type, i_d.data_type())
-                        && o_d.similar_to(i_d, true, false, 0)
-                        && i_d.is_dense();
-                if (!ok) return status::unimplemented;
+                VDISPATCH_SUM(
+                        utils::everyone_is(src_data_type, i_d.data_type()),
+                        VERBOSE_UNSUPPORTED_DT);
+                VDISPATCH_SUM(o_d.similar_to(i_d, true, false, 0),
+                        VERBOSE_INCONSISTENT_MDS, "o_d", "i_d");
+                VDISPATCH_SUM(i_d.is_dense(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
             }
             nthr_ = dnnl_get_max_threads();
             compute_blocking();

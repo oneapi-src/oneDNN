@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <vector>
 #include <unordered_map>
 
-#include "gpu/compute/compute.hpp"
 #include "gpu/config.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -160,8 +159,8 @@ public:
         }
     }
 
-    normalization_flags_t flags;
-    bool bn_tuning;
+    normalization_flags_t flags = normalization_flags::none;
+    bool bn_tuning = false;
     bool found_in_table = false;
     bool is_blocked_16c = false;
     bool is_blocked_16n16c = false;

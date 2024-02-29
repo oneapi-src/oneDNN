@@ -148,7 +148,8 @@ static void get_inplace_args_from_called_funcs(const func_c &f, // caller
                         }
                         if (ticks.find(in_arg) != ticks.end()
                                 && ticks.at(in_arg).is_arg_ && in_arg->attr_
-                                && in_arg->attr_->has_key("read_buffer")) {
+                                && in_arg->attr_->has_key("read_buffer")
+                                && !(in_arg->attr_->has_key("write_buffer"))) {
                             // this func in arg is also graph's in arg
                             if (inplaced_in_args.count(in_arg)) { continue; }
                             inplaced_in_args.insert(in_arg);
@@ -234,6 +235,7 @@ void schedule_func_args(const func_c &f,
         const auto &out_arg = tsr_tick.first;
         // only care about output args
         if (!(out_arg->attr_ && out_arg->attr_->has_key("write_buffer")
+                    && !(out_arg->attr_->has_key("read_buffer"))
                     && tsr_tick.second.is_arg_)) {
             continue;
         }
@@ -257,7 +259,8 @@ void schedule_func_args(const func_c &f,
         auto titr = last_read_tensor.lower_bound(out_tsr_tick.first_access_);
         while (titr != last_read_tensor.end()) {
             if (!(titr->second->attr_
-                        && titr->second->attr_->has_key("read_buffer"))) {
+                        && titr->second->attr_->has_key("read_buffer")
+                        && !(titr->second->attr_->has_key("write_buffer")))) {
                 ++titr;
                 continue;
             }
@@ -274,7 +277,8 @@ void schedule_func_args(const func_c &f,
             SC_MODULE_INFO << "Candidate input arg: " << in_arg;
             if (in_tsr_tick.create_ <= out_tsr_tick.first_access_
                     && in_tsr_tick.delete_ >= out_tsr_tick.delete_
-                    && in_tsr->elem_dtype_ == out_tsr->elem_dtype_) {
+                    && utils::get_sizeof_type(in_tsr->elem_dtype_)
+                            == utils::get_sizeof_type(out_tsr->elem_dtype_)) {
                 // check that the candidate has no writes during the time range
                 // when out_tsr is in use: [out_tsr_tick.first_access_,
                 // out_tsr_tick.last_read_]
@@ -299,7 +303,7 @@ void schedule_func_args(const func_c &f,
                 assert(in_tsr->dims_.size() == 1);
                 int64_t in_tsr_size = get_const_as_int(
                         in_tsr->dims_[0].static_as<constant_c>());
-                if (out_tsr_size > in_tsr_size) {
+                if (out_tsr_size != in_tsr_size) {
                     ++titr;
                     continue;
                 }
@@ -368,9 +372,9 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
             std::vector<std::pair<size_t, size_t>> inplace_pairs;
             if (!inplace_map.empty()) {
                 for (const auto &out_in : inplace_map) {
-                    size_t out_idx = 0;
-                    size_t in_idx = 0;
-                    for (size_t i = 0; i < entry_f->params_.size(); ++i) {
+                    int out_idx = -1;
+                    int in_idx = -1;
+                    for (int i = 0; i < int(entry_f->params_.size()); ++i) {
                         if (out_in.first.ptr_same(entry_f->params_[i])) {
                             out_idx = i;
                         }
@@ -378,9 +382,13 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
                             in_idx = i;
                         }
                     }
-                    inplace_pairs.emplace_back(std::make_pair(in_idx, out_idx));
+                    if (out_idx >= 0 && in_idx >= 0) {
+                        inplace_pairs.emplace_back(
+                                std::make_pair(in_idx, out_idx));
+                    }
                 }
-                entry_f->attr()[function_attrs::inplace_hint] = inplace_pairs;
+                // entry_f->attr()[function_attrs::inplace_hint] =
+                // inplace_pairs;
             }
         }
 

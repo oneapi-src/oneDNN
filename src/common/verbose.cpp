@@ -78,7 +78,7 @@ namespace impl {
 
 static setting_t<uint32_t> verbose {0};
 
-void print_header(const filter_status_t &filter_status) {
+void print_header(const filter_status_t &filter_status) noexcept {
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (!version_printed.test_and_set()) {
         printf("onednn_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
@@ -93,15 +93,23 @@ void print_header(const filter_status_t &filter_status) {
 #endif
         printf("onednn_verbose,info,gpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
+        // Printing the header generally requires iterating over devices/backends,
+        // which may involve an allocation. Use a try/catch block in case
+        // these fail (not printing a header is reasonable in this case)
+        try {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        gpu::ocl::print_verbose_header();
+            gpu::ocl::print_verbose_header();
 #endif
 #ifdef DNNL_WITH_SYCL
-        sycl::print_verbose_header();
+            sycl::print_verbose_header();
 #endif
 #ifdef ONEDNN_BUILD_GRAPH
-        graph::utils::print_verbose_header();
+            graph::utils::print_verbose_header();
 #endif
+        } catch (...) {
+            printf("onednn_verbose,info,exception while printing verbose "
+                   "header\n");
+        }
 #ifdef DNNL_EXPERIMENTAL
         printf("onednn_verbose,info,experimental features are enabled\n");
         printf("onednn_verbose,info,use batch_normalization stats one pass is "
@@ -141,7 +149,7 @@ void print_header(const filter_status_t &filter_status) {
 
 // hint parameter is the kind of verbose we are querying for
 uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
-        component_t::flag_kind filter_kind) {
+        component_t::flag_kind filter_kind) noexcept {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #else
@@ -179,44 +187,44 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
 
         auto update_filter = [&](const std::string &s,
                                      filter_status_t &filter_status) -> int {
+            int k = component_t::none;
+            try {
+                std::regex regexp = std::regex(s);
 
 #define REGEX_SEARCH(k, component, regexp, filter_status) \
     if (std::regex_search("" #component "", regexp)) { \
         (k) |= component_t::component; \
         (filter_status).components += "" #component ","; \
     }
-            int k = component_t::none;
-            std::regex regexp;
-            try {
-                regexp = std::regex(s);
-            } catch (const std::regex_error &e) {
+                REGEX_SEARCH(k, primitive, regexp, filter_status);
+                REGEX_SEARCH(k, reorder, regexp, filter_status);
+                REGEX_SEARCH(k, shuffle, regexp, filter_status);
+                REGEX_SEARCH(k, concat, regexp, filter_status);
+                REGEX_SEARCH(k, sum, regexp, filter_status);
+                REGEX_SEARCH(k, convolution, regexp, filter_status);
+                REGEX_SEARCH(k, deconvolution, regexp, filter_status);
+                REGEX_SEARCH(k, eltwise, regexp, filter_status);
+                REGEX_SEARCH(k, lrn, regexp, filter_status);
+                REGEX_SEARCH(k, batch_normalization, regexp, filter_status);
+                REGEX_SEARCH(k, inner_product, regexp, filter_status);
+                REGEX_SEARCH(k, rnn, regexp, filter_status);
+                REGEX_SEARCH(k, binary, regexp, filter_status);
+                REGEX_SEARCH(k, matmul, regexp, filter_status);
+                REGEX_SEARCH(k, resampling, regexp, filter_status);
+                REGEX_SEARCH(k, pooling, regexp, filter_status);
+                REGEX_SEARCH(k, reduction, regexp, filter_status);
+                REGEX_SEARCH(k, prelu, regexp, filter_status);
+                REGEX_SEARCH(k, softmax, regexp, filter_status);
+                REGEX_SEARCH(k, layer_normalization, regexp, filter_status);
+                REGEX_SEARCH(k, group_normalization, regexp, filter_status);
+                REGEX_SEARCH(k, graph, regexp, filter_status);
+                REGEX_SEARCH(k, gemm_api, regexp, filter_status);
+#undef REGEX_SEARCH
+            } catch (const std::exception &e) {
                 filter_status.status = filter_status_t::flags::invalid;
                 filter_status.err_msg = e.what();
                 return component_t::all;
             }
-            REGEX_SEARCH(k, primitive, regexp, filter_status);
-            REGEX_SEARCH(k, reorder, regexp, filter_status);
-            REGEX_SEARCH(k, shuffle, regexp, filter_status);
-            REGEX_SEARCH(k, concat, regexp, filter_status);
-            REGEX_SEARCH(k, sum, regexp, filter_status);
-            REGEX_SEARCH(k, convolution, regexp, filter_status);
-            REGEX_SEARCH(k, deconvolution, regexp, filter_status);
-            REGEX_SEARCH(k, eltwise, regexp, filter_status);
-            REGEX_SEARCH(k, lrn, regexp, filter_status);
-            REGEX_SEARCH(k, batch_normalization, regexp, filter_status);
-            REGEX_SEARCH(k, inner_product, regexp, filter_status);
-            REGEX_SEARCH(k, rnn, regexp, filter_status);
-            REGEX_SEARCH(k, binary, regexp, filter_status);
-            REGEX_SEARCH(k, matmul, regexp, filter_status);
-            REGEX_SEARCH(k, resampling, regexp, filter_status);
-            REGEX_SEARCH(k, pooling, regexp, filter_status);
-            REGEX_SEARCH(k, reduction, regexp, filter_status);
-            REGEX_SEARCH(k, prelu, regexp, filter_status);
-            REGEX_SEARCH(k, softmax, regexp, filter_status);
-            REGEX_SEARCH(k, layer_normalization, regexp, filter_status);
-            REGEX_SEARCH(k, group_normalization, regexp, filter_status);
-            REGEX_SEARCH(k, graph, regexp, filter_status);
-            REGEX_SEARCH(k, gemm_api, regexp, filter_status);
 
             // filter enabled and at least one component is hit
             if (filter_status.components.length() != 0) {
@@ -282,6 +290,18 @@ bool get_verbose_timestamp() {
 #if defined(DISABLE_VERBOSE)
 void pd_info_t::init(
         dnnl::impl::engine_t *, const dnnl::impl::primitive_desc_t *) {}
+
+std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
+        const memory_desc_t *wei_md, const memory_desc_t *bia_md,
+        const memory_desc_t *dst_md) {
+    return std::string();
+}
+
+std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
+        const memory_desc_t *src_md, const memory_desc_t *wei_md,
+        const memory_desc_t *dst_md) {
+    return std::string();
+}
 
 #else
 
@@ -439,6 +459,8 @@ std::string md2fmt_strides_str(const memory_desc_t *md) {
 // from `pd` since those are initialized by implementations. The knowledge about
 // original user format specified is kept in pd->desc()->xxx_desc and this is
 // the info provided to this call.
+// On the other hand, just a user memory descriptor can't be passed because it
+// is not initialized b the library, and format information will be missed.
 std::string md2fmt_str(const memory_desc_t *md, format_kind_t user_format) {
     std::stringstream ss;
     if (!md || types::is_zero_md(md)) {
@@ -606,38 +628,55 @@ std::string arg2str(int arg) {
 }
 
 std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
+    struct {
+        const char *operator()() {
+            current[0] = next;
+            next = ' ';
+            return current;
+        }
+
+    private:
+        char current[2] = {};
+        char next = 0;
+    } field_delim;
+
     // scratchpad and fpmath mode are not a part of
     // has_default_values(). Check them first.
     const scratchpad_mode_t &spm = attr->scratchpad_mode_;
     if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
-        ss << "attr-scratchpad:" << dnnl_scratchpad_mode2str(spm) << " ";
+        ss << field_delim()
+           << "attr-scratchpad:" << dnnl_scratchpad_mode2str(spm);
     }
     const fpmath_t &fpm = attr->fpmath_;
     if (fpm.mode_ != fpmath_mode_t::dnnl_fpmath_mode_strict
             || fpm.apply_to_int_) {
-        ss << "attr-fpmath:" << dnnl_fpmath_mode2str(fpm.mode_);
+        ss << field_delim()
+           << "attr-fpmath:" << dnnl_fpmath_mode2str(fpm.mode_);
         if (fpm.apply_to_int_) ss << ":true";
-        ss << " ";
     }
 
     const accumulation_mode_t &am = attr->acc_mode_;
     if (am != accumulation_mode::strict) {
-        ss << "attr-acc:" << dnnl_accumulation_mode2str(am) << " ";
+        ss << field_delim() << "attr-acc:" << dnnl_accumulation_mode2str(am);
     }
 
     const bool deterministic = attr->deterministic_;
-    if (deterministic) { ss << "attr-deterministic:" << deterministic << " "; }
+    if (deterministic) {
+        ss << field_delim() << "attr-deterministic:" << deterministic;
+    }
     if (attr->has_default_values()) return ss;
 
     const runtime_scales_t &os = attr->output_scales_;
-    if (!os.has_default_values()) { ss << "attr-oscale:" << os << " "; }
+    if (!os.has_default_values()) {
+        ss << field_delim() << "attr-oscale:" << os;
+    }
 
     std::string empty_delim, attr_delim = "+";
 
     const arg_scales_t &as = attr->scales_;
     if (!as.has_default_values()) {
         std::string delim = empty_delim;
-        ss << "attr-scales:";
+        ss << field_delim() << "attr-scales:";
         for (const auto &map_entry : as.scales_) {
             const auto &val = map_entry.second;
             if (val.has_default_values()) continue;
@@ -646,13 +685,12 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             ss << delim << arg2str(arg) << ":" << val;
             delim = attr_delim;
         }
-        ss << " ";
     }
 
     const zero_points_t &zp = attr->zero_points_;
     if (!zp.has_default_values()) {
         std::string delim = empty_delim;
-        ss << "attr-zero-points:";
+        ss << field_delim() << "attr-zero-points:";
         for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
             if (zp.has_default_values(arg)) continue;
 
@@ -673,13 +711,12 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
 
             delim = attr_delim;
         }
-        ss << " ";
     }
 
     const post_ops_t &po = attr->post_ops_;
     if (!po.has_default_values()) {
         std::string delim = empty_delim;
-        ss << "attr-post-ops:";
+        ss << field_delim() << "attr-post-ops:";
         for (int i = 0; i < po.len(); ++i) {
             const post_ops_t::entry_t &e = po.entry_[i];
             switch (e.kind) {
@@ -735,13 +772,12 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
             }
             delim = attr_delim;
         }
-        ss << " ";
     }
 
     const rnn_data_qparams_t &rnn_qp = attr->rnn_data_qparams_;
     if (!rnn_qp.has_default_values()) {
-        ss << "rnn_data_qparams:" << rnn_qp.scale_ << ":" << rnn_qp.shift_
-           << ";";
+        ss << field_delim() << "rnn_data_qparams:" << rnn_qp.scale_ << ":"
+           << rnn_qp.shift_ << ";";
     }
 
     return ss;
@@ -1260,43 +1296,77 @@ std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto tensor_sep = "";
-    auto print_tensor = [&](bool cond, int arg_idx, const char *arg_str) {
-        if (cond) {
-            auto md = pd->arg_md(arg_idx);
-            ss << tensor_sep << arg_str << "_" << md;
-        }
-        tensor_sep = " ";
-    };
-
-    // TODO: shorten the names to consume fewer characters on verbose
-    // output
-    print_tensor(true, DNNL_ARG_SRC_LAYER, "src_layer");
-    print_tensor(pd->with_src_iter(), DNNL_ARG_SRC_ITER, "src_iter");
-    print_tensor(true, DNNL_ARG_WEIGHTS_LAYER, "wei_layer");
-    print_tensor(true, DNNL_ARG_WEIGHTS_ITER, "wei_iter");
-    print_tensor(
-            pd->is_lstm_peephole(), DNNL_ARG_WEIGHTS_PEEPHOLE, "wei_peephole");
-    print_tensor(
-            pd->is_lstm_projection(), DNNL_ARG_WEIGHTS_PROJECTION, "wei_proj");
-    print_tensor(pd->with_bias(), DNNL_ARG_BIAS, "bias");
-    print_tensor(true, DNNL_ARG_DST_LAYER, "dst_layer");
-    print_tensor(pd->with_dst_iter(), DNNL_ARG_DST_ITER, "dst_iter");
+    // TODO: shorten the names to consume fewer characters on verbose output.
+    ss << "src_layer_"
+       << md2fmt_str(pd->src_md(0), pd->src_md(0, true)->format_kind);
+    if (pd->with_src_iter())
+        ss << " src_iter_"
+           << md2fmt_str(pd->src_md(1), pd->src_md(1, true)->format_kind);
+    ss << " wei_layer_"
+       << md2fmt_str(pd->weights_md(0), pd->weights_md(0, true)->format_kind);
+    ss << " wei_iter_"
+       << md2fmt_str(pd->weights_md(1), pd->weights_md(1, true)->format_kind);
+    if (pd->is_lstm_peephole())
+        ss << " wei_peephole_"
+           << md2fmt_str(
+                      pd->weights_md(2), pd->weights_md(2, true)->format_kind);
+    // TODO: separate methods for aux weights?
+    if (pd->is_lstm_projection()) {
+        auto proj_idx = 2 + pd->is_lstm_peephole();
+        ss << " wei_proj_"
+           << md2fmt_str(pd->weights_md(proj_idx),
+                      pd->weights_md(proj_idx, true)->format_kind);
+    }
+    if (pd->with_bias()) {
+        auto bias_idx = 2 + pd->is_lstm_peephole() + pd->is_lstm_projection();
+        ss << " bias_"
+           << md2fmt_str(pd->weights_md(bias_idx),
+                      pd->weights_md(bias_idx, true)->format_kind);
+    }
+    ss << " dst_layer_"
+       << md2fmt_str(pd->dst_md(0), pd->dst_md(0, true)->format_kind);
+    if (pd->with_dst_iter())
+        ss << " dst_iter_"
+           << md2fmt_str(pd->dst_md(1), pd->dst_md(1, true)->format_kind);
 
     if (!pd->is_fwd()) {
-        print_tensor(true, DNNL_ARG_DIFF_SRC_LAYER, "diff_src_layer");
-        print_tensor(
-                pd->with_src_iter(), DNNL_ARG_DIFF_SRC_ITER, "diff_src_iter");
-        print_tensor(true, DNNL_ARG_DIFF_WEIGHTS_LAYER, "diff_wei_layer");
-        print_tensor(true, DNNL_ARG_DIFF_WEIGHTS_ITER, "diff_wei_iter");
-        print_tensor(pd->is_lstm_peephole(), DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE,
-                "diff_wei_peephole");
-        print_tensor(pd->is_lstm_projection(), DNNL_ARG_DIFF_WEIGHTS_PROJECTION,
-                "diff_wei_proj");
-        print_tensor(pd->with_bias(), DNNL_ARG_DIFF_BIAS, "diff_bias");
-        print_tensor(true, DNNL_ARG_DIFF_DST_LAYER, "diff_dst_layer");
-        print_tensor(
-                pd->with_dst_iter(), DNNL_ARG_DIFF_DST_ITER, "diff_dst_iter");
+        ss << " diff_src_layer_"
+           << md2fmt_str(pd->diff_src_md(0),
+                      pd->invariant_src_user_format_kind(0));
+        if (pd->with_src_iter())
+            ss << " diff_src_iter_"
+               << md2fmt_str(pd->diff_src_md(1),
+                          pd->invariant_src_user_format_kind(1));
+        ss << " diff_wei_layer_"
+           << md2fmt_str(pd->diff_weights_md(0),
+                      pd->invariant_wei_user_format_kind(0));
+        ss << " diff_wei_iter_"
+           << md2fmt_str(pd->diff_weights_md(1),
+                      pd->invariant_wei_user_format_kind(1));
+        if (pd->is_lstm_peephole())
+            ss << " diff_wei_peephole_"
+               << md2fmt_str(pd->diff_weights_md(2),
+                          pd->invariant_wei_user_format_kind(2));
+        if (pd->is_lstm_projection()) {
+            auto proj_idx = 2 + pd->is_lstm_peephole();
+            ss << " diff_wei_proj_"
+               << md2fmt_str(pd->weights_md(proj_idx),
+                          pd->invariant_wei_user_format_kind(proj_idx));
+        }
+        if (pd->with_bias()) {
+            auto bias_idx
+                    = 2 + pd->is_lstm_peephole() + pd->is_lstm_projection();
+            ss << " diff_bias_"
+               << md2fmt_str(pd->weights_md(bias_idx),
+                          pd->invariant_wei_user_format_kind(bias_idx));
+        }
+        ss << " diff_dst_layer_"
+           << md2fmt_str(pd->diff_dst_md(0),
+                      pd->invariant_dst_user_format_kind(0));
+        if (pd->with_dst_iter())
+            ss << " diff_dst_iter_"
+               << md2fmt_str(pd->diff_dst_md(1),
+                          pd->invariant_dst_user_format_kind(1));
     }
 
     ss << "," << pd->attr() << ",";

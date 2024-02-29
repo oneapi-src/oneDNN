@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,12 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -43,14 +40,20 @@ struct ref_reduction_t : public gpu_primitive_t {
             using sm = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm::post_ops | sm::gpu_attr;
 
-            const bool ok = set_default_params() == status::success
-                    && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_REDUCTION_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_REDUCTION(!memory_desc_ndims_ok(src_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
+            VDISPATCH_REDUCTION(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_REDUCTION(
+                    post_ops_with_binary_ok(attr(), dst_md()->data_type, 5),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_REDUCTION_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_TAG);
 
-            return init_conf(engine);
+            VDISPATCH_REDUCTION_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

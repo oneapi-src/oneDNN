@@ -27,19 +27,26 @@ fill_cfg_t::fill_cfg_t(dnnl_data_type_t dt, float range_min_val,
         float range_max_val, bool only_integer, attr_t::post_ops_t::kind_t alg,
         const std::string &name)
     : dt_(dt)
-    , range_min_val_(dt_ == dnnl_u8 ? MAX2(0.f, range_min_val) : range_min_val)
-    , range_max_val_(range_max_val)
-    , only_integer_(is_integral_dt(dt_) ? true : only_integer)
+    , range_min_val_(MAX2(lowest_dt(dt_), range_min_val))
+    , range_max_val_(MIN2(max_dt(dt_), range_max_val))
+    , only_integer_(is_integral_dt(dt_) || only_integer)
     , name_(name) {
-    // Apply range inversion if `alg` is `sub`. This helps to keep output
-    // data positive if it was intended to be positive. In rest cases act
-    // like for binary `add` algorithm. If `attr` is unavailable in the
-    // code, use `attr_t::post_ops_t::kind_t::ADD` as a defulat value.
     if (alg == attr_t::post_ops_t::kind_t::SUB) {
+        // Apply range inversion if `alg` is `sub`. This helps to keep output
+        // data positive if it was intended to be positive. In rest cases act
+        // like for binary `add` algorithm. If `attr` is unavailable in the
+        // code, use `attr_t::post_ops_t::kind_t::ADD` as a defulat value.
         float sub_range_min_val_ = -range_min_val_;
         float sub_range_max_val_ = -range_max_val_;
         range_min_val_ = MIN2(sub_range_min_val_, sub_range_max_val_);
         range_max_val_ = MAX2(sub_range_min_val_, sub_range_max_val_);
+    } else if (alg == attr_t::post_ops_t::kind_t::MUL) {
+        // Reduce the range for multiplication to decrease a computational
+        // error magnitute which can lead to rounding to a different output
+        // value for low-precision data types.
+        // TODO: replace with using specific values instead.
+        range_min_val_ /= 8.f;
+        range_max_val_ /= 8.f;
     }
 }
 
@@ -124,6 +131,7 @@ int fill_zero_points(
         /* Do fixed partitioning to have same filling for any number of threads */
         static constexpr int64_t chunk_size = 64;
         const int64_t n_chunks = div_up(nelems, chunk_size);
+        const int min_val = MAX2(-2, static_cast<int>(lowest_dt(mem_dt.dt())));
         benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
             int64_t idx_start = idx_chunk * chunk_size;
             int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
@@ -134,8 +142,7 @@ int fill_zero_points(
             std::minstd_rand int_seed(idx_start + 1);
             int_seed.discard(1);
 
-            std::uniform_int_distribution<> gen(
-                    mem_dt.dt() == dnnl_u8 ? 0 : -2, 2);
+            std::uniform_int_distribution<> gen(min_val, 2);
 
             for (int64_t idx = idx_start; idx < idx_end; ++idx) {
                 const float zp_val = gen(int_seed);

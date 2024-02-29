@@ -169,7 +169,8 @@ void brgemm_dst_layer_iter_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
         const auto *const Bi_n = Bi_ + nb * Bi_n_offset_;
         auto *const C_n = C_gates_ + m * rnn_.LDC + n;
         const auto cell_stride = rnn_.LDC;
-        auto *const C_cell_i = C_cell_ + m * cell_stride + n;
+        auto *const C_cell_i
+                = C_cell_ ? C_cell_ + m * cell_stride + n : C_cell_;
         assert(rnn_.LDC == rnn_.scratch_gates_ld);
 
         const brgemm_kernel_t *brgemm_kernel_layer_b0

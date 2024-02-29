@@ -90,12 +90,15 @@ argument index as specified by the following table.
 The MatMul primitive supports the following combinations of data
 types for source, destination, weights, and bias tensors:
 
-| Source | Weights | Destination                 | Bias                        |
-|:-------|:--------|:----------------------------|:----------------------------|
-| f32    | f32     | f32                         | f32                         |
-| f16    | f16     | f16, u8, s8                 | f16, f32                    |
-| bf16   | bf16    | f32, bf16                   | bf16, f32                   |
-| u8, s8 | s8      | u8, s8, s32, f32, f16, bf16 | u8, s8, s32, f32, f16, bf16 |
+
+| Source         | Weights   | Destination                 | Bias                        |
+|:---------------|:----------|:----------------------------|:----------------------------|
+| f32            | f32       | f32                         | f32                         |
+| f16            | f16       | f16, u8, s8                 | f16, f32                    |
+| bf16           | bf16      | f32, bf16                   | bf16, f32                   |
+| f32, bf16, f16 | u8, s8    | f32, bf16, f16              | f32, bf16, f16              |
+| u8, s8         | s8        | u8, s8, s32, f32, f16, bf16 | u8, s8, s32, f32, f16, bf16 |
+| f8_e5m2        | f8_e5m2   | f32, f16, bf16, f8_e5m2     | f32, bf16, f16              |
 
 
 ### Data Representation
@@ -165,6 +168,8 @@ source tensor zero points memory argument would be passed with index
    - Sum post-op doesn't support data type other than destination data type.
    - Bias of bf16 data type is supported for configuration with bf16 source data
      type and weights bf16 data type, and up to three dimensional matrices.
+   - Only reference support is available for f8_e4m3. Optimized implementation
+     for f8_e5m2 is available only on Intel(R) Data Center GPU Max Series.
    - Configuration with int8 source data type, s8 weight data type and bf16
      destination data type don't support:
      * Destination zero point.
@@ -174,7 +179,11 @@ source tensor zero points memory argument would be passed with index
 3. **CPU**
    - Configuration with int8 source data type, s8 weight data type and f16
      destination data type isn't supported.
-
+   - Configuration with floating point source data type, integer weights data
+     type and floating point destination data type is not optimized.
+   - Only reference support for fp8 data types (f8_e5m2, f8_e4m3) is
+     is available on CPU.
+ 
 ## Performance Tips
 
 - Use #dnnl::memory::format_tag::any for either of the input tensors if and
@@ -211,3 +220,7 @@ The following examples are available:
 [MatMul Tutorial: Quantization](@ref cpu_matmul_quantization_cpp) (CPU only)
 
 @copydetails cpu_matmul_quantization_cpp_short
+
+[MatMul Tutorial: Weights decompression](@ref weights_decompression_matmul_cpp) (CPU only)
+
+@copydetails weights_decompression_matmul_cpp_short

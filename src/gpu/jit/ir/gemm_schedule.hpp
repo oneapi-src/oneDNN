@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -546,7 +546,7 @@ public:
         auto &loop = find_loop(var);
         ir_assert(loop.is_leaf()) << "Can't split, non-leaf loop.";
 
-        int bound = to_cpp<int>(loop.bound());
+        auto bound = to_cpp<int64_t>(loop.bound());
         if (loop.is_root() && (bound % factor != 0)) {
             // Auto round-up bounds for the root loops.
             bound = utils::rnd_up(bound, factor);

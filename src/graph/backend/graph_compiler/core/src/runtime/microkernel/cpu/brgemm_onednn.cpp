@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@
 #include <runtime/os.hpp>
 #include <runtime/thread_locals.hpp>
 #include <unordered_map>
+#include <util/compiler_macros.hpp>
 #include <util/hash_utils.hpp>
 #include <util/null_check.hpp>
 #include <util/os.hpp>
@@ -819,24 +820,39 @@ SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
+    if (top_pad || bottom_pad) {
 #ifdef _MSC_VER
-    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
-            num * sizeof(brgemm_batch_element_t));
+        brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+                num * sizeof(brgemm_batch_element_t));
 #else
-#if CLANGVERSION <= 3
-    std::unique_ptr<brgemm_batch_element_t[]> batch_v(
-            new brgemm_batch_element_t[num]);
-    brgemm_batch_element_t *batch = batch_v.get();
+#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+        std::unique_ptr<brgemm_batch_element_t[]> batch_v(
+                new brgemm_batch_element_t[num]);
+        brgemm_batch_element_t *batch = batch_v.get();
 #else
-    brgemm_batch_element_t batch[num]; // NOLINT
+        brgemm_batch_element_t batch[num]; // NOLINT
 #endif
 #endif
-    for (int i = 0; i < num; ++i) {
-        if (top_pad) batch[i].vvpad.top = ((int *)top_pad)[i];
-        if (bottom_pad) batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+        if (top_pad) {
+            for (int i = 0; i < num; ++i) {
+                batch[i].vvpad.top = ((int *)top_pad)[i];
+            }
+        }
+        if (bottom_pad) {
+            for (int i = 0; i < num; ++i) {
+                batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+            }
+        }
+        brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
+                (void **)B, batch, (void *)C, tmp_amx_tile_buf);
+#ifdef _MSC_VER
+        _freea(batch);
+#endif
+    } else {
+        brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
+                (void **)B, nullptr, (void *)C, tmp_amx_tile_buf);
     }
-    brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A, (void **)B,
-            batch, (void *)C, tmp_amx_tile_buf);
+
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 }
 
@@ -855,26 +871,43 @@ SC_API void dnnl_brgemm_call_postops(brgemm_kernel_info *brg_desc,
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
+    if (top_pad || bottom_pad) {
 #ifdef _MSC_VER
-    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
-            num * sizeof(brgemm_batch_element_t));
+        brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+                num * sizeof(brgemm_batch_element_t));
 #else
-#if CLANGVERSION <= 3
-    std::unique_ptr<brgemm_batch_element_t[]> batch_v(
-            new brgemm_batch_element_t[num]);
-    brgemm_batch_element_t *batch = batch_v.get();
+#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+        std::unique_ptr<brgemm_batch_element_t[]> batch_v(
+                new brgemm_batch_element_t[num]);
+        brgemm_batch_element_t *batch = batch_v.get();
 #else
-    brgemm_batch_element_t batch[num]; // NOLINT
+        brgemm_batch_element_t batch[num]; // NOLINT
 #endif
 #endif
-    for (int i = 0; i < num; ++i) {
-        if (top_pad) batch[i].vvpad.top = ((int *)top_pad)[i];
-        if (bottom_pad) batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+        if (top_pad) {
+            for (int i = 0; i < num; ++i) {
+                batch[i].vvpad.top = ((int *)top_pad)[i];
+            }
+        }
+        if (bottom_pad) {
+            for (int i = 0; i < num; ++i) {
+                batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+            }
+        }
+
+        brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
+                (void **)B, batch, (void *)c_buf, (void *)C,
+                *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
+                tmp_amx_tile_buf);
+#ifdef _MSC_VER
+        _freea(batch);
+#endif
+    } else {
+        brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
+                (void **)B, nullptr, (void *)c_buf, (void *)C,
+                *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
+                tmp_amx_tile_buf);
     }
-    brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
-            (void **)B, batch, (void *)c_buf, (void *)C,
-            *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
-            tmp_amx_tile_buf);
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
 }
 
@@ -897,7 +930,7 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
             batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if CLANGVERSION <= 3
+#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
     std::unique_ptr<brgemm_batch_element_t[]> batch_v(
             new brgemm_batch_element_t[batch_num]);
     brgemm_batch_element_t *batch = batch_v.get();
@@ -914,12 +947,21 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
                     = (((char **)A_list)[i] + (j * stride_a * sizeofA));
             batch[i * num + j].ptr.B
                     = (((char **)B_list)[i] + (j * stride_b * sizeofB));
-            if (top_pad) {
+        }
+    }
+    if (top_pad) {
+        for (int i = 0; i < len; ++i) {
+            for (int j = 0; j < num; ++j) {
                 batch[i * num + j].vvpad.top = ((int *)top_pad)[i * num + j];
             }
-            if (bottom_pad)
+        }
+    }
+    if (bottom_pad) {
+        for (int i = 0; i < len; ++i) {
+            for (int j = 0; j < num; ++j) {
                 batch[i * num + j].vvpad.bottom
                         = ((int *)bottom_pad)[i * num + j];
+            }
         }
     }
     bool amx_exclusive = false;
@@ -953,7 +995,7 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
             batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if CLANGVERSION <= 3
+#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
     std::unique_ptr<brgemm_batch_element_t[]> batch_v(
             new brgemm_batch_element_t[batch_num]);
     brgemm_batch_element_t *batch = batch_v.get();
@@ -970,14 +1012,24 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
                     = (((char **)A_list)[i] + (j * stride_a * sizeofA));
             batch[i * num + j].ptr.B
                     = (((char **)B_list)[i] + (j * stride_b * sizeofB));
-            if (top_pad)
-                batch[i * num + j].vvpad.top = ((int *)top_pad)[i * num + j];
-            if (bottom_pad)
-                batch[i * num + j].vvpad.bottom
-                        = ((int *)bottom_pad)[i * num + j];
         }
     }
-    for (int i = 0; i < num; ++i) {}
+    if (top_pad) {
+        for (int i = 0; i < len; ++i) {
+            for (int j = 0; j < num; ++j) {
+                batch[i * num + j].vvpad.top = ((int *)top_pad)[i * num + j];
+            }
+        }
+    }
+    if (bottom_pad) {
+        for (int i = 0; i < len; ++i) {
+            for (int j = 0; j < num; ++j) {
+                batch[i * num + j].vvpad.bottom
+                        = ((int *)bottom_pad)[i * num + j];
+            }
+        }
+    }
+
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, batch_num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
@@ -1029,31 +1081,54 @@ SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
-    const int batch_num = num;
+    if (top_pad || bottom_pad) {
+        const int batch_num = num;
 #ifdef _MSC_VER
-    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
-            batch_num * sizeof(brgemm_batch_element_t));
+        brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+                batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if CLANGVERSION <= 3
-    std::unique_ptr<brgemm_batch_element_t[]> batch_v(
-            new brgemm_batch_element_t[batch_num]);
-    brgemm_batch_element_t *batch = batch_v.get();
+#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+        std::unique_ptr<brgemm_batch_element_t[]> batch_v(
+                new brgemm_batch_element_t[batch_num]);
+        brgemm_batch_element_t *batch = batch_v.get();
 #else
-    brgemm_batch_element_t batch[batch_num]; // NOLINT
+        brgemm_batch_element_t batch[batch_num]; // NOLINT
 #endif
 #endif
-    for (int i = 0; i < num; ++i) {
-        if (top_pad) batch[i].vvpad.top = ((int *)top_pad)[i];
-        if (bottom_pad) batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
-    }
-    if (postops_setting == nullptr) {
-        brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
-                (void **)B, batch, (void *)C, tmp_amx_tile_buf);
+        if (top_pad) {
+            for (int i = 0; i < num; ++i) {
+                batch[i].vvpad.top = ((int *)top_pad)[i];
+            }
+        }
+        if (bottom_pad) {
+            for (int i = 0; i < num; ++i) {
+                batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+            }
+        }
+        if (postops_setting == nullptr) {
+            brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
+                    (void **)B, batch, (void *)C, tmp_amx_tile_buf);
+        } else {
+            brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num,
+                    (void **)A, (void **)B, batch, (void *)c_buf, (void *)C,
+                    *reinterpret_cast<const brgemm_post_ops_data_t *>(
+                            postops_data),
+                    tmp_amx_tile_buf);
+        }
+#ifdef _MSC_VER
+        _freea(batch);
+#endif
     } else {
-        brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
-                (void **)B, batch, (void *)c_buf, (void *)C,
-                *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
-                tmp_amx_tile_buf);
+        if (postops_setting == nullptr) {
+            brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
+                    (void **)B, nullptr, (void *)C, tmp_amx_tile_buf);
+        } else {
+            brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num,
+                    (void **)A, (void **)B, nullptr, (void *)c_buf, (void *)C,
+                    *reinterpret_cast<const brgemm_post_ops_data_t *>(
+                            postops_data),
+                    tmp_amx_tile_buf);
+        }
     }
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
     return 0;
@@ -1073,31 +1148,54 @@ SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
     bool amx_exclusive = false;
     sc_make_timer(brg_desc, num);
     void *tmp_amx_tile_buf = get_amx_tile_buf(brg_desc, stream, amx_exclusive);
-    const int batch_num = num;
+    if (top_pad || bottom_pad) {
+        const int batch_num = num;
 #ifdef _MSC_VER
-    brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
-            batch_num * sizeof(brgemm_batch_element_t));
+        brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
+                batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if CLANGVERSION <= 3
-    std::unique_ptr<brgemm_batch_element_t[]> batch_v(
-            new brgemm_batch_element_t[batch_num]);
-    brgemm_batch_element_t *batch = batch_v.get();
+#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+        std::unique_ptr<brgemm_batch_element_t[]> batch_v(
+                new brgemm_batch_element_t[batch_num]);
+        brgemm_batch_element_t *batch = batch_v.get();
 #else
-    brgemm_batch_element_t batch[batch_num]; // NOLINT
+        brgemm_batch_element_t batch[batch_num]; // NOLINT
 #endif
 #endif
-    for (int i = 0; i < num; ++i) {
-        if (top_pad) batch[i].vvpad.top = ((int *)top_pad)[i];
-        if (bottom_pad) batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
-    }
-    if (postops_setting == nullptr) {
-        brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
-                (void **)B, batch, (void *)C, tmp_amx_tile_buf);
+        if (top_pad) {
+            for (int i = 0; i < num; ++i) {
+                batch[i].vvpad.top = ((int *)top_pad)[i];
+            }
+        }
+        if (bottom_pad) {
+            for (int i = 0; i < num; ++i) {
+                batch[i].vvpad.bottom = ((int *)bottom_pad)[i];
+            }
+        }
+        if (postops_setting == nullptr) {
+            brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
+                    (void **)B, batch, (void *)C, tmp_amx_tile_buf);
+        } else {
+            brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num,
+                    (void **)A, (void **)B, batch, (void *)c_buf, (void *)C,
+                    *reinterpret_cast<const brgemm_post_ops_data_t *>(
+                            postops_data),
+                    tmp_amx_tile_buf);
+        }
+#ifdef _MSC_VER
+        _freea(batch);
+#endif
     } else {
-        brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num, (void **)A,
-                (void **)B, batch, (void *)c_buf, (void *)C,
-                *reinterpret_cast<const brgemm_post_ops_data_t *>(postops_data),
-                tmp_amx_tile_buf);
+        if (postops_setting == nullptr) {
+            brgemm_kernel_execute(brg_desc->brg_kernel_, num, (void **)A,
+                    (void **)B, nullptr, (void *)C, tmp_amx_tile_buf);
+        } else {
+            brgemm_kernel_execute_postops(brg_desc->brg_kernel_, num,
+                    (void **)A, (void **)B, nullptr, (void *)c_buf, (void *)C,
+                    *reinterpret_cast<const brgemm_post_ops_data_t *>(
+                            postops_data),
+                    tmp_amx_tile_buf);
+        }
     }
     if (!amx_exclusive && brg_desc->is_amx_) { amx_tile_release(); }
     return 0;
@@ -1116,7 +1214,7 @@ static int dnnl_brgemm_list_update_func(const void **A_list,
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
             batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if CLANGVERSION <= 3
+#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
     std::unique_ptr<brgemm_batch_element_t[]> batch_v(
             new brgemm_batch_element_t[batch_num]);
     brgemm_batch_element_t *batch = batch_v.get();
@@ -1132,11 +1230,21 @@ static int dnnl_brgemm_list_update_func(const void **A_list,
                     = (((char **)A_list)[i] + (j * stride_a * sizeofA));
             batch[i * num + j].ptr.B
                     = (((char **)B_list)[i] + (j * stride_b * sizeofB));
-            if (top_pad)
+        }
+    }
+    if (top_pad) {
+        for (int i = 0; i < len; ++i) {
+            for (int j = 0; j < num; ++j) {
                 batch[i * num + j].vvpad.top = ((int *)top_pad)[i * num + j];
-            if (bottom_pad)
+            }
+        }
+    }
+    if (bottom_pad) {
+        for (int i = 0; i < len; ++i) {
+            for (int j = 0; j < num; ++j) {
                 batch[i * num + j].vvpad.bottom
                         = ((int *)bottom_pad)[i * num + j];
+            }
         }
     }
     auto brg_desc = g_brg_desc_s.getInstance(alpha, beta, LDA, LDB, LDC, M, N,

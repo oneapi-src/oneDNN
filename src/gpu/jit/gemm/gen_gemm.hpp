@@ -23,14 +23,11 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/compute/kernel.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
 #include "gpu/jit/gemm/jit_gemm_pd.hpp"
 #include "gpu/jit/gemm/zero_pool.hpp"
-#include "gpu/jit/jit_post_op_injector.hpp"
-#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -97,25 +94,37 @@ struct gen_gemm_t : public gpu_gemm_t {
                 eff_ldb_ = utils::rnd_up(eff_ldb_, 16);
             }
 
-            bool wei_decomp = (utils::one_of(d->c_type(), f32, f16, bf16)
-                    && utils::one_of(d->a_type(), u8, s8)
-                    && utils::one_of(d->b_type(), f16, f32, bf16));
+            bool wei_decomp
+                    = (utils::one_of(d->c_type(), f32, f16, bf16)
+                              && utils::one_of(d->a_type(), u8, s8)
+                              && utils::one_of(d->b_type(), f16, f32, bf16))
+                    && attr()->mayiconvert(d->a_type(), f32);
+            if (wei_decomp) {
+                attr_skip_mask |= smask_t::fpmath_mode;
+                attr_skip_mask |= smask_t::scales_runtime_data_type;
+                attr_skip_mask |= smask_t::zero_points_runtime_data_type;
+            }
+
             // Check parameters.
-            if (utils::one_of(d->c_type(), s32, f16, bf16, f32, u8, s8)
+            if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8)) {
                 ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp);
-                if (wei_decomp) attr_skip_mask |= smask_t::fpmath_mode;
-                a_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC);
-                b_zp_ = !attr()->zero_points_.has_default_values(
-                        DNNL_ARG_WEIGHTS);
-                if (swap_ab_) std::swap(a_zp_, b_zp_);
+                bool a_zp
+                        = !attr()->zero_points_.has_default_values(DNNL_ARG_A);
+                bool b_zp
+                        = !attr()->zero_points_.has_default_values(DNNL_ARG_B);
 
                 int cmask_a = 0, cmask_b = 0, cmask_c = 0;
-                CHECK(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b));
-                CHECK(attr()->zero_points_.get(DNNL_ARG_SRC, &cmask_a));
-                CHECK(attr()->zero_points_.get(DNNL_ARG_DST, &cmask_c));
-                ok &= (cmask_a == 0) && (cmask_b == 0)
+                CHECK(attr()->zero_points_.get(DNNL_ARG_A, &cmask_a));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_B, &cmask_b));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_C, &cmask_c));
+                ok &= utils::one_of(cmask_a, 0, 1 << 1, 1 << 2)
+                        && utils::one_of(cmask_b, 0, 1 << 0)
                         && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
+
+                ao_dims_ = a_zp ? (cmask_a != 0 ? 1 : 0) : -1;
+                bo_dims_ = b_zp ? (cmask_b != 0 ? 1 : 0) : -1;
+                if (swap_ab_) std::swap(ao_dims_, bo_dims_);
 
                 attr_skip_mask |= smask_t::zero_points_runtime;
 
@@ -127,7 +136,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 ok = ok && d->b_type() == bf16
                         && utils::one_of(d->c_type(), bf16, f32)
                         && utils::one_of(d->acc_type, bf16, f32);
-            } else {
+            } else if (!wei_decomp) {
                 ok = ok && utils::one_of(d->a_type(), f32, f16, f8_e5m2)
                         && d->b_type() == d->a_type()
                         && utils::one_of(d->acc_type, d->a_type(), f32)
@@ -153,6 +162,11 @@ struct gen_gemm_t : public gpu_gemm_t {
                                             DNNL_ARG_DST)))
                     && attr()->post_ops_.check_sum_consistency(
                             d->c_type(), utils::one_of(d->a_type(), s8, u8));
+            for (const auto &s :
+                    {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+                ok &= utils::one_of(attr()->scales_.get(s).mask_, 0, 1 << 0,
+                        1 << 1, 1 << 2);
+            }
 
             status = init_post_ops();
             if (status != status::success) return status;
@@ -186,6 +200,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
 
             // choose kernel
+            auto ao_type = with_a_zero_points()
+                    ? attr()->zero_points_.get_data_type(DNNL_ARG_A)
+                    : data_type::s32;
+            auto bo_type = data_type::s32;
             auto co_type = with_bias() ? d->bias_type()
                     : with_sum_ab()
                     ? d->sum_ab_type
@@ -193,6 +211,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             auto acc_type = utils::one_of(eff_a_type(), s8, u8) ? s32 : f32;
 
+            if (swap_ab_) std::swap(ao_type, bo_type);
             if (d->c_type() == f16 && !has_systolic) acc_type = data_type::f16;
 
             if (types::data_type_size(acc_type) < 4) {
@@ -209,12 +228,11 @@ struct gen_gemm_t : public gpu_gemm_t {
             if (attr()->deterministic_)
                 set_mode(mode, kernel_desc_t::mode_deterministic);
 
-            if (attr()->mayiconvert(d->a_type(), f32)) {
+            if (wei_decomp) {
+                acc_type = data_type::f32;
                 mode = static_cast<decltype(mode)>(
                         mode | kernel_desc_t::mode_w_decomp);
-                acc_type = f32;
             }
-            if (wei_decomp) acc_type = data_type::f32;
 
             gpu_post_ops_t gpu_post_ops;
             CHECK(gpu_post_ops_t::make(gpu_post_ops, post_ops_, dst_md(),
@@ -223,12 +241,12 @@ struct gen_gemm_t : public gpu_gemm_t {
             status = kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
                     eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
-                    with_a_zero_points(), with_b_zero_points(),
-                    with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
-                    beta(), eff_a_type(), eff_b_type(), desc()->c_type(),
-                    co_type, acc_type, eff_align_a(), eff_align_b(), align_c(),
-                    eff_m(), eff_n(), d->k(), eff_lda(), eff_ldb(), d->ldc(),
-                    d->batch(), std::move(gpu_post_ops));
+                    ao_dims_, bo_dims_, with_c_zero_points(), with_bias(),
+                    eff_sum_ab(), alpha(), beta(), eff_a_type(), eff_b_type(),
+                    desc()->c_type(), ao_type, bo_type, co_type, acc_type,
+                    eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
+                    d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch(),
+                    std::move(gpu_post_ops));
 
             if (status != status::success) return status;
 
@@ -398,9 +416,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
         }
 
-        bool with_a_zero_points() const { return a_zp_; }
-        bool with_b_zero_points() const { return b_zp_; }
-
+        bool with_a_zero_points() const { return (ao_dims_ >= 0); }
+        bool with_b_zero_points() const { return (bo_dims_ >= 0); }
         bool with_c_zero_points() const {
             return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
         }
@@ -483,7 +500,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         size_t dyn_offset_co = 0;
 
         bool swap_ab_ = false;
-        bool a_zp_ = false, b_zp_ = false;
+        int ao_dims_ = -1, bo_dims_ = -1;
         dim_t eff_lda_ = 0, eff_ldb_ = 0;
 
         const compute::device_info_t *dev_info_ = nullptr;
@@ -543,11 +560,11 @@ private:
             const memory_storage_t *ao, const memory_storage_t *bo,
             const memory_storage_t &co, const memory_storage_t *c_temp,
             int po_count, const memory_storage_t **po_src, int64_t offset_a,
-            int64_t offset_b, int64_t offset_c, int32_t offset_co,
-            int32_t *offset_po_src, int32_t lda, int32_t ldb, int32_t ldc,
-            int32_t m, int32_t n, int32_t k, int32_t k0, float alpha,
-            float beta, int32_t cmask, bool last_k_block, bool swapab,
-            bool disable_hilbert) const;
+            int64_t offset_b, int64_t offset_c, int32_t offset_ao,
+            int32_t offset_bo, int32_t offset_co, int32_t *offset_po_src,
+            int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n,
+            int32_t k, int32_t k0, float alpha, float beta, int32_t cmask,
+            bool last_k_block, bool swapab, bool disable_hilbert) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const CommonDriverInfo *nocopy_info() const {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,17 +14,27 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_COMPUTE_HPP
-#define GPU_COMPUTE_COMPUTE_HPP
+#include "cpu/reorder/cpu_reorder.hpp"
 
-#include "gpu/compute/compute_engine.hpp"
-#include "gpu/compute/compute_stream.hpp"
-#include "gpu/compute/device_info.hpp"
-#include "gpu/compute/dispatch.hpp"
-#include "gpu/compute/kernel.hpp"
-#include "gpu/compute/kernel_arg_list.hpp"
-#include "gpu/compute/kernel_ctx.hpp"
-#include "gpu/compute/kernel_list.hpp"
-#include "gpu/compute/utils.hpp"
+namespace dnnl {
+namespace impl {
+namespace cpu {
 
-#endif // GPU_COMPUTE_COMPUTE_HPP
+// clang-format off
+
+const impl_list_map_t &regular_f32_s4_impl_list_map() {
+    static const impl_list_map_t the_map = REG_REORDER_P({
+        // f32 -> s4
+        {{f32, s4, 0}, {
+            REG_SR(f32, any, s4, any, fmt_order::any, spec::reference)
+            nullptr,
+        }},
+    });
+    return the_map;
+}
+
+// clang-format on
+
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl

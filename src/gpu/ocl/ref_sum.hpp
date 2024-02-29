@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,29 +44,37 @@ struct ref_sum_t : public gpu_primitive_t {
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
 
         status_t init(engine_t *engine) {
-            bool ok = gpu_sum_pd_t::init(engine) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM_SC(
+                    gpu_sum_pd_t::init(engine), VERBOSE_BAD_ENGINE_KIND);
 
             if (has_zero_dim_memory()) return status::success;
             reorder_pds_.resize(n_ + need_output_reorder());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                CHECK(r_attr.scales_.set(DNNL_ARG_SRC, 0));
-                if (i != 0) CHECK(r_attr.post_ops_.append_sum(1.0));
+                VDISPATCH_SUM_SC(r_attr.scales_.set(DNNL_ARG_SRC, 0),
+                        VERBOSE_UNSUPPORTED_ATTR);
+                if (i != 0) {
+                    VDISPATCH_SUM_SC(r_attr.post_ops_.append_sum(1.0),
+                            VERBOSE_UNSUPPORTED_POSTOP);
+                }
 
-                CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
-                        src_md(i), dst_acc_md(), &r_attr));
+                VDISPATCH_SUM_SC(
+                        reorder_primitive_desc_create(reorder_pds_[i], engine,
+                                src_md(i), dst_acc_md(), &r_attr),
+                        "reorder_primitive_desc_create()");
             }
 
             if (need_output_reorder()) {
-                CHECK(reorder_primitive_desc_create(
-                        reorder_pds_[n_], engine, dst_acc_md(), dst_md()));
+                VDISPATCH_SUM_SC(reorder_primitive_desc_create(reorder_pds_[n_],
+                                         engine, dst_acc_md(), dst_md()),
+                        "reorder_primitive_desc_create()");
             }
 
             scale_md_.ndims = 1;
             scale_md_.dims[0] = 1;
             scale_md_.data_type = data_type::f32;
-            CHECK(memory_desc_init_by_tag(scale_md_, format_tag::x));
+            VDISPATCH_SUM_SC(memory_desc_init_by_tag(scale_md_, format_tag::x),
+                    VERBOSE_UNSUPPORTED_TAG);
 
             init_scratchpad();
             return status::success;

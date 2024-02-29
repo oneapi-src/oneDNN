@@ -60,7 +60,7 @@ expr_t simplify_expr(const expr_t &_e) {
     expr_t a;
     int b;
     if (is_a_mod_b_eq_0(_e, a, b)) {
-        return linear_mod(simplify_expr(a), b) == 0;
+        return simplify_linear_mod(simplify_expr(a), b) == 0;
     }
     auto e = _e;
     for (int i = 0; i < 2; i++) {
@@ -314,6 +314,22 @@ bool prb_reqs_t::req_t::fits(const prb_tile_t &sizes) const {
     return false;
 }
 
+bool prb_reqs_t::req_t::can_prove(const expr_t &expr_to_prove) const {
+    expr_t lhs_a, rhs_a;
+    int lhs_b, rhs_b;
+    auto lhs = expr.to_ir();
+    auto rhs = expr_to_prove;
+    if (lhs.is_equal(rhs)) return true;
+    if (!is_a_mod_b_eq_0(lhs, lhs_a, lhs_b)) return false;
+    if (!is_a_mod_b_eq_0(rhs, rhs_a, rhs_b)) return false;
+    auto lhs_dim = size_to_prb_dim(lhs_a);
+    auto rhs_dim = size_to_prb_dim(rhs_a);
+    if (lhs_dim.is_undef() || rhs_dim.is_undef() || lhs_dim != rhs_dim)
+        return false;
+    if (lhs_b % rhs_b == 0) return true;
+    return false;
+}
+
 bool to_dims_mod_c(const req_expr_t &re, std::vector<prb_dim_t> &dims, int &c) {
     expr_t e = re.to_ir();
     expr_t a;
@@ -360,6 +376,22 @@ void prb_reqs_t::simplify() {
     reqs_ = new_reqs;
 }
 
+bool prb_reqs_t::can_prove(const expr_t &_e) const {
+    auto e = simplify_expr(_e);
+    if (auto *imm = e.as_ptr<bool_imm_t>()) { return imm->value; }
+    for (auto &r : reqs_) {
+        if (r.can_prove(e)) return true;
+    }
+    return false;
+}
+
+bool prb_reqs_t::implies(const prb_reqs_t &other) const {
+    for (auto &req : other.reqs_) {
+        if (!can_prove(req.expr.to_ir())) return false;
+    }
+    return true;
+}
+
 void prb_reqs_t::req_t::serialize(std::ostream &out) const {
     expr.serialize(out);
 }
@@ -368,12 +400,16 @@ void prb_reqs_t::req_t::deserialize(std::istream &in) {
     expr.deserialize(in);
 }
 
+std::string prb_reqs_t::req_t::str() const {
+    return expr.to_ir().str();
+}
+
 const prover_t &prover_t::instance() {
     static prover_t _instance;
     return _instance;
 }
 
-bool prover_t::prove(const expr_t &_e) const {
+bool prover_t::require(const expr_t &_e) const {
     auto e = simplify_expr(_e);
     if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
 

@@ -74,12 +74,12 @@ static int check_attr2str() {
     attr = attr_t();
     attr.scales.set(DNNL_ARG_SRC_0,
             attr_t::arg_scales_t::entry_t(
-                    policy_t::COMMON, 2.3f, dnnl_bf16, {1}));
+                    policy_t::PER_OCIC, 2.3f, dnnl_bf16, {2, 1}));
     attr.zero_points.set(
-            DNNL_ARG_WEIGHTS, {policy_t::PER_DIM_1, 2, dnnl_s8, {2}});
+            DNNL_ARG_WEIGHTS, {policy_t::PER_DIM_1, 2, dnnl_s8, {}});
     SELF_CHECK_PRINT_EQ(attr,
-            "--attr-scales=src:common:2.3:bf16:1 "
-            "--attr-zero-points=wei:per_dim_1:s8:2 ");
+            "--attr-scales=src:per_ocic:bf16:2x1 "
+            "--attr-zero-points=wei:per_dim_1:s8 ");
 
     attr = attr_t();
     attr.fpmath_mode.set(dnnl_fpmath_mode_strict, true);

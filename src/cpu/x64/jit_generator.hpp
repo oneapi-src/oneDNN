@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2118,6 +2118,13 @@ public:
             minps(vmm, vmm_ubound);
     }
 
+    template <typename Vmm>
+    void saturate_cvt_f32(const Vmm &vmm, const Vmm &vmm_lbound,
+            const Vmm &vmm_ubound, data_type_t odt, bool force_lbound = false) {
+        saturate_f32(vmm, vmm_lbound, vmm_ubound, odt, force_lbound);
+        uni_vcvtps2dq(vmm, vmm);
+    }
+
     /**
     * load_bytes is the utility function to facilitate loading of
     * load_size (0 <= load_size <= 32) many contiguous bytes into the Xmm/Ymm
@@ -2643,7 +2650,7 @@ public:
         Xbyak::Label label_tbl, label_tbl_end;
         std::vector<Xbyak::Label> l_case(simd_w);
 
-        mov(reg_tmp, label_tbl);
+        lea(reg_tmp, ptr[rip + label_tbl]);
         const Xbyak::Address label_address
                 = ptr[reg_tmp + reg_tail * sizeof(void *)];
         jmp(label_address, T_NEAR);

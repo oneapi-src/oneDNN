@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,12 +21,9 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
-#include "gpu/gpu_convolution_pd.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/gpu_deconvolution_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -96,7 +93,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_fwd_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_fwd_t);
         status_t init_convolution(engine_t *engine) {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
@@ -117,15 +114,21 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             const auto attr_skip_mask = sm::post_ops | sm::zero_points_runtime
                     | sm::scales_runtime;
 
-            bool ok = is_fwd()
-                    && desc()->alg_kind == alg_kind::deconvolution_direct
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(
-                            attr(), desc()->dst_desc.data_type, ndims())
-                    && (utils::everyone_is(data_type::f32,
-                                desc()->src_desc.data_type,
-                                desc()->weights_desc.data_type,
-                                desc()->dst_desc.data_type)
+            VDISPATCH_DECONVOLUTION(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_DECONVOLUTION(
+                    desc()->alg_kind == alg_kind::deconvolution_direct,
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_DECONVOLUTION(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_DECONVOLUTION(
+                    post_ops_with_binary_ok(
+                            attr(), desc()->dst_desc.data_type, ndims()),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_DECONVOLUTION(
+                    (utils::everyone_is(data_type::f32,
+                             desc()->src_desc.data_type,
+                             desc()->weights_desc.data_type,
+                             desc()->dst_desc.data_type)
                             || (utils::everyone_is(data_type::f64,
                                     desc()->src_desc.data_type,
                                     desc()->weights_desc.data_type,
@@ -156,30 +159,43 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                                     && utils::one_of(desc()->src_desc.data_type,
                                             data_type::u8, data_type::s8)
                                     && desc()->dst_desc.data_type
-                                            != data_type::f64));
-            if (ok) {
-                CHECK(init_convolution(engine));
-                if (weights_md_.format_kind == format_kind::any)
-                    CHECK(weights_axes_permutation(&weights_md_,
-                            conv_pd_->weights_md(), with_groups()));
-                if (src_md_.format_kind == format_kind::any)
-                    src_md_ = *conv_pd_->diff_dst_md();
-                if (dst_md_.format_kind == format_kind::any)
-                    dst_md_ = *conv_pd_->diff_src_md();
-                if (bias_md_.format_kind == format_kind::any)
-                    CHECK(memory_desc_init_by_tag(bias_md_, x));
-                init_scratchpad();
-                CHECK(attr_.set_default_formats(dst_md(0)));
+                                            != data_type::f64)),
+                    VERBOSE_UNSUPPORTED_DT);
 
-                return status::success;
+            VDISPATCH_DECONVOLUTION_SC(
+                    init_convolution(engine), "init_convolution()");
+            if (weights_md_.format_kind == format_kind::any) {
+                VDISPATCH_DECONVOLUTION_SC(
+                        weights_axes_permutation(&weights_md_,
+                                conv_pd_->weights_md(), with_groups()),
+                        "weights_axes_permutation()");
             }
+            if (src_md_.format_kind == format_kind::any)
+                src_md_ = *conv_pd_->diff_dst_md();
+            if (dst_md_.format_kind == format_kind::any)
+                dst_md_ = *conv_pd_->diff_src_md();
+            if (bias_md_.format_kind == format_kind::any) {
+                VDISPATCH_DECONVOLUTION_SC(memory_desc_init_by_tag(bias_md_, x),
+                        VERBOSE_UNSUPPORTED_TAG);
+            }
+            init_name();
+            init_scratchpad();
+            VDISPATCH_DECONVOLUTION_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_ATTR);
 
-            return status::unimplemented;
+            return status::success;
         }
 
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
+        std::string name_ = "ocl:ref:any";
+
+        void init_name() {
+            name_.append("+");
+            name_.append(conv_pd_->name());
+        }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
@@ -248,7 +264,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_data_t);
 
         status_t init_convolution(engine_t *engine) {
             convolution_desc_t cd;
@@ -263,11 +279,15 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         }
 
         status_t init(engine_t *engine) {
-            bool ok = desc()->prop_kind == prop_kind::backward_data
-                    && (utils::everyone_is(data_type::f32,
-                                desc()->diff_src_desc.data_type,
-                                desc()->weights_desc.data_type,
-                                desc()->diff_dst_desc.data_type)
+            VDISPATCH_DECONVOLUTION(
+                    desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+
+            VDISPATCH_DECONVOLUTION(
+                    (utils::everyone_is(data_type::f32,
+                             desc()->diff_src_desc.data_type,
+                             desc()->weights_desc.data_type,
+                             desc()->diff_dst_desc.data_type)
                             || (utils::everyone_is(data_type::f64,
                                     desc()->diff_src_desc.data_type,
                                     desc()->weights_desc.data_type,
@@ -277,33 +297,48 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
                                     desc()->diff_dst_desc.data_type)
                             || utils::everyone_is(data_type::bf16,
                                     desc()->weights_desc.data_type,
-                                    desc()->diff_dst_desc.data_type))
-                    && utils::one_of(desc()->diff_src_desc.data_type,
+                                    desc()->diff_dst_desc.data_type)),
+                    VERBOSE_UNSUPPORTED_DT);
+
+            VDISPATCH_DECONVOLUTION(
+                    utils::one_of(desc()->diff_src_desc.data_type,
                             data_type::bf16, data_type::f16, data_type::f32,
-                            data_type::f64)
-                    && desc()->alg_kind == alg_kind::deconvolution_direct
-                    && attr()->has_default_values();
+                            data_type::f64),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    desc()->alg_kind == alg_kind::deconvolution_direct,
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_DECONVOLUTION(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-            if (ok) {
-                CHECK(init_convolution(engine));
-                if (weights_md_.format_kind == format_kind::any)
-                    CHECK(weights_axes_permutation(&weights_md_,
-                            conv_pd_->weights_md(), with_groups()));
-                if (diff_src_md_.format_kind == format_kind::any)
-                    diff_src_md_ = *conv_pd_->dst_md();
-                if (diff_dst_md_.format_kind == format_kind::any)
-                    diff_dst_md_ = *conv_pd_->src_md();
-                init_scratchpad();
+            VDISPATCH_DECONVOLUTION_SC(
+                    init_convolution(engine), "init_convolution()");
+            if (weights_md_.format_kind == format_kind::any)
+                VDISPATCH_DECONVOLUTION_SC(
+                        weights_axes_permutation(&weights_md_,
+                                conv_pd_->weights_md(), with_groups()),
+                        "weights_axes_permutation()");
+            if (diff_src_md_.format_kind == format_kind::any)
+                diff_src_md_ = *conv_pd_->dst_md();
+            if (diff_dst_md_.format_kind == format_kind::any)
+                diff_dst_md_ = *conv_pd_->src_md();
 
-                return status::success;
-            }
+            init_name();
+            init_scratchpad();
 
-            return status::unimplemented;
+            return status::success;
         }
 
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
+        std::string name_ = "ocl:ref:any";
+
+        void init_name() {
+            name_.append("+");
+            name_.append(conv_pd_->name());
+        }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
@@ -348,7 +383,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_weights_t);
 
         status_t init_convolution(engine_t *engine) {
             convolution_desc_t cd;
@@ -364,11 +399,14 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace format_tag;
-            bool ok = desc()->prop_kind == prop_kind::backward_weights
-                    && (utils::everyone_is(data_type::f32,
-                                desc()->src_desc.data_type,
-                                desc()->diff_weights_desc.data_type,
-                                desc()->diff_dst_desc.data_type)
+            VDISPATCH_DECONVOLUTION(
+                    desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_DECONVOLUTION(
+                    (utils::everyone_is(data_type::f32,
+                             desc()->src_desc.data_type,
+                             desc()->diff_weights_desc.data_type,
+                             desc()->diff_dst_desc.data_type)
                             || utils::everyone_is(data_type::f64,
                                     desc()->src_desc.data_type,
                                     desc()->diff_weights_desc.data_type,
@@ -378,35 +416,53 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                                     desc()->src_desc.data_type)
                             || utils::everyone_is(data_type::bf16,
                                     desc()->diff_dst_desc.data_type,
-                                    desc()->src_desc.data_type))
-                    && utils::one_of(
-                            desc()->alg_kind, alg_kind::deconvolution_direct)
-                    && attr()->has_default_values()
-                    && utils::one_of(desc()->diff_weights_desc.data_type,
+                                    desc()->src_desc.data_type)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(utils::one_of(desc()->alg_kind,
+                                            alg_kind::deconvolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_DECONVOLUTION(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_DECONVOLUTION(
+                    utils::one_of(desc()->diff_weights_desc.data_type,
                             data_type::bf16, data_type::f16, data_type::f32,
-                            data_type::f64);
-            if (ok) {
-                CHECK(init_convolution(engine));
-                if (diff_weights_md_.format_kind == format_kind::any)
-                    CHECK(weights_axes_permutation(&diff_weights_md_,
-                            conv_pd_->diff_weights_md(), with_groups()));
-                if (src_md_.format_kind == format_kind::any)
-                    src_md_ = *conv_pd_->diff_dst_md();
-                if (diff_dst_md_.format_kind == format_kind::any)
-                    diff_dst_md_ = *conv_pd_->src_md();
-                if (diff_bias_md_.format_kind == format_kind::any)
-                    CHECK(memory_desc_init_by_tag(diff_bias_md_, x));
-                init_scratchpad();
+                            data_type::f64),
+                    VERBOSE_UNSUPPORTED_DT);
 
-                return status::success;
+            VDISPATCH_DECONVOLUTION_SC(
+                    init_convolution(engine), "init_convolution()");
+            if (diff_weights_md_.format_kind == format_kind::any) {
+                VDISPATCH_DECONVOLUTION_SC(
+                        weights_axes_permutation(&diff_weights_md_,
+                                conv_pd_->diff_weights_md(), with_groups()),
+                        "weights_axes_permutation()");
+            }
+            if (src_md_.format_kind == format_kind::any)
+                src_md_ = *conv_pd_->diff_dst_md();
+            if (diff_dst_md_.format_kind == format_kind::any)
+                diff_dst_md_ = *conv_pd_->src_md();
+            if (diff_bias_md_.format_kind == format_kind::any) {
+                VDISPATCH_DECONVOLUTION_SC(
+                        memory_desc_init_by_tag(diff_bias_md_, x),
+                        VERBOSE_UNSUPPORTED_TAG);
             }
 
-            return status::unimplemented;
+            init_name();
+            init_scratchpad();
+
+            return status::success;
         }
 
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
+        std::string name_ = "ocl:ref:any";
+
+        void init_name() {
+            name_.append("+");
+            name_.append(conv_pd_->name());
+        }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
@@ -437,8 +493,6 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         kernel_ctx.define_int("NDIMS", pd()->desc()->src_desc.ndims);
 
         gws[0] = pd()->OC();
-        gws[1] = 1;
-        gws[2] = 1;
 
         dst_data_type = pd()->diff_dst_md()->data_type;
         bias_data_type = pd()->diff_weights_md(1)->data_type;
@@ -483,7 +537,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
             arg_list.set(1, diff_bias);
 
             // Setting up global work-space to {OC*G, 1, 1}
-            auto nd_range = compute::nd_range_t({gws[0], gws[1], gws[2]});
+            auto nd_range = compute::nd_range_t(gws);
             status = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
         }
         return status::success;
@@ -493,7 +547,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> conv_p_;
     compute::kernel_t bias_kernel_;
-    size_t gws[3];
+    compute::range_t gws = compute::range_t::empty(1);
     data_type_t dst_data_type = data_type::undef;
     data_type_t bias_data_type = data_type::undef;
     data_type_t accum_data_type = data_type::undef;

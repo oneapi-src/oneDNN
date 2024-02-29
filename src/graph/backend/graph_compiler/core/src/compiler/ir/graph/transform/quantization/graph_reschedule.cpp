@@ -36,8 +36,12 @@ namespace gc {
 namespace quantize {
 bool reschedule_forbid_op(const sc_op_ptr &node) {
     // transpose could be processed as it only changes the order of dim.
+    // tensor_view without changing the non-broadcast(non-one) axis could also
+    // be processed.
     return ((node->isa<ops::dynamic_reshape_op>()
-                    || node->isa<tensor_view_op_t>()
+                    || (node->isa<tensor_view_op_t>()
+                            && !dynamic_cast<tensor_view_op_t *>(node.get())
+                                        ->is_only_expand_or_penetrate())
                     || node->isa<reshape_op_t>() || node->isa<concat_op_t>()
                     || node->isa<split_op_t>())
                    && node->attrs_.get_or_else(attr_keys::per_channel, false)

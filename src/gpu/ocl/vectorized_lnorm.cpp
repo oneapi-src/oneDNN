@@ -19,6 +19,7 @@
 
 #include "common/primitive_exec_types.hpp"
 #include "common/scratchpad.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -168,7 +169,7 @@ bool is_fused_kernel_applicable(lnorm_conf_t &conf,
     conf.dispatch_fused.define_dim("N_fused", gws1);
     conf.dispatch_fused.set_kernel_attr_suffix("FUSED");
     conf.dispatch_fused.generate();
-    const size_t tuned_lws[3] = {lws0, lws1, lws2};
+    const compute::range_t tuned_lws = {lws0, lws1, lws2};
     conf.dispatch_fused.set_lws(tuned_lws);
     return true;
 }
@@ -191,7 +192,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
     int ndims = src_mdw.ndims();
 
-    conf.data_type = src_mdw.data_type();
+    conf.src_dt = src_mdw.data_type();
     conf.ndims = ndims;
     conf.norm_axis = pd->norm_axis();
     conf.across_axis = pd->across_axis();
@@ -268,8 +269,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             const int src_buff_KB
                     = nthr_on_ss * conf.norm_axis * sizeof(float) / 1024;
             int buff_size_limit = 128;
-            if (conf.data_type == data_type::f16
-                    || conf.data_type == data_type::bf16) {
+            if (conf.src_dt == data_type::f16
+                    || conf.src_dt == data_type::bf16) {
                 buff_size_limit *= 2;
             }
             if (src_buff_KB > buff_size_limit) return status::unimplemented;
@@ -354,7 +355,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                         utils::format("X%d", i), md_hint_idx, dim);
         }
         conf.dispatch.generate();
-        const size_t tuned_lws[3] = {norm_gws, 1, 1};
+        const compute::range_t tuned_lws = {norm_gws, 1, 1};
         conf.dispatch.set_lws(tuned_lws);
 
     } else { // bwd
@@ -457,7 +458,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         conf.dispatch_scaleshift_finalize.set_kernel_attr_suffix(
                 "SCALESHIFT_FINALIZE");
         conf.dispatch_scaleshift_finalize.generate();
-        const size_t tuned_lws[3] = {(size_t)conf.finalize_n_chunks, 1, 1};
+        const compute::range_t tuned_lws
+                = {(size_t)conf.finalize_n_chunks, 1, 1};
         conf.dispatch_scaleshift_finalize.set_lws(tuned_lws);
     } // bwd
 
@@ -466,7 +468,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
 static status_t init_kernel_ctx_common(
         kernel_ctx_t &kernel_ctx, const lnorm_conf_t &conf) {
-    kernel_ctx.set_data_type(conf.data_type);
+    kernel_ctx.set_data_type(conf.src_dt);
     def_data_type(kernel_ctx, conf.weights_data_type, "WEI");
 
     // Since FWD kernel aggressively uses GRF (allocates a private buffer for

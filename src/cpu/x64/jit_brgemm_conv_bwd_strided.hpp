@@ -110,7 +110,24 @@ private:
             , brg_batch(brg_batch_)
             , c_buffer(c_buffer_)
             , out_buffer(out_buffer_)
-            , wsp_tile(wsp_tile_) {}
+            , wsp_tile(wsp_tile_)
+            , cur_brg_idx(-1)
+            , g(0)
+            , n(0)
+            , icb(0)
+            , id(0)
+            , idb(0)
+            , ih(0)
+            , ihb(0)
+            , iwb(0)
+            , occ(0)
+            , sw(0)
+            , oscales(nullptr)
+            , dst_scales(nullptr)
+            , src_zp_vals(0)
+            , src_zp_comp_ptr(nullptr)
+            , dst_zp_vals(nullptr)
+            , s8s8_comp_ptr(nullptr) {}
 
         brgemm_bwd_exec_ctx_t &brgemm_ctx;
         int ithr;
@@ -118,13 +135,13 @@ private:
         char *c_buffer;
         char *out_buffer;
         char *wsp_tile;
-        int cur_brg_idx = -1;
+        int cur_brg_idx;
         int g, n, icb;
         int id, idb, ih, ihb, iwb;
         int occ;
         int sw;
-        const float *oscales {nullptr};
-        const float *dst_scales {nullptr};
+        const float *oscales;
+        const float *dst_scales;
         int32_t src_zp_vals;
         int32_t *src_zp_comp_ptr;
         int32_t *dst_zp_vals;

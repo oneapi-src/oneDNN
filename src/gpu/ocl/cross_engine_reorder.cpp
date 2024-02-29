@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,17 +43,18 @@ void cross_engine_reorder_t::pd_t::init_scratchpad() {
 
 status_t cross_engine_reorder_t::pd_t::init(
         engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-    bool args_ok = src_engine != dst_engine
-            && utils::one_of(
-                    engine_kind::gpu, src_engine->kind(), dst_engine->kind())
-            && attr_ok() && extra_ok();
-
-    if (!args_ok) return status::unimplemented;
+    VDISPATCH_REORDER(src_engine != dst_engine, VERBOSE_BAD_ENGINE_KIND);
+    VDISPATCH_REORDER(utils::one_of(engine_kind::gpu, src_engine->kind(),
+                              dst_engine->kind()),
+            VERBOSE_BAD_ENGINE_KIND);
+    VDISPATCH_REORDER(attr_ok(), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_REORDER(extra_ok(), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");
 
     memory_desc_wrapper src_mdw(src_md());
     memory_desc_wrapper dst_mdw(dst_md());
 
-    if (src_mdw.has_runtime_dims_or_strides()) return status::unimplemented;
+    VDISPATCH_REORDER(!src_mdw.has_runtime_dims_or_strides(),
+            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
     quantization_t src_quant {attr(), src_mdw, DNNL_ARG_SRC};
     quantization_t dst_quant {attr(), dst_mdw, DNNL_ARG_DST};
@@ -69,8 +70,9 @@ status_t cross_engine_reorder_t::pd_t::init(
     primitive_attr_t r_attr(*attr());
     if (!r_attr.is_initialized()) return status::out_of_memory;
 
-    CHECK(reorder_primitive_desc_create(
-            reorder_pd_, reorder_engine, src_md(), dst_md(), &r_attr));
+    VDISPATCH_REORDER_SC(reorder_primitive_desc_create(reorder_pd_,
+                                 reorder_engine, src_md(), dst_md(), &r_attr),
+            VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
     init_scratchpad();
 
     reorder_pd_t::init_desc(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -103,7 +103,7 @@ struct prb_t : public prb_vdims_t {
 
         const auto nelems = std::accumulate(dst_dims.begin(), dst_dims.end(),
                 (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
-        ops = 2. * nelems * k;
+        ops = 2. * nelems * k * batch_size;
 
         generate_oscales();
         generate_dst_scales();

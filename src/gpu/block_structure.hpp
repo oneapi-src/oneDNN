@@ -155,9 +155,14 @@ assert_trivially_serializable(block_t);
 
 // Static-sized layout of blocks
 struct block_layout_t {
-#if __cplusplus >= 202002L
-    bool operator==(const block_layout_t &) const = default;
-#endif
+    bool operator==(const block_layout_t &other) const {
+        if (num_blocks != other.num_blocks) return false;
+        return blocks == other.blocks;
+    }
+    bool operator!=(const block_layout_t &other) const {
+        return !operator==(other);
+    }
+
     using value_type = std::array<block_t, DNNL_MAX_NDIMS>;
     using iterator = value_type::iterator;
     using reverse_iterator = value_type::reverse_iterator;

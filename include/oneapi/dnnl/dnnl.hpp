@@ -856,6 +856,10 @@ struct memory : public handle<dnnl_memory_t> {
         s8 = dnnl_s8,
         /// 8-bit unsigned integer.
         u8 = dnnl_u8,
+        /// 4-bit signed integer.
+        s4 = dnnl_s4,
+        /// 4-bit unsigned integer.
+        u4 = dnnl_u4,
     };
 
     /// Returns size of data type in bytes.
@@ -13537,10 +13541,16 @@ enum class cpu_isa {
     avx512_core_vnni = dnnl_cpu_isa_avx512_core_vnni,
     /// @copydoc dnnl_cpu_isa_avx512_core_bf16
     avx512_core_bf16 = dnnl_cpu_isa_avx512_core_bf16,
+    /// @copydoc dnnl_cpu_isa_avx10_1_512
+    avx10_1_512 = dnnl_cpu_isa_avx10_1_512,
     /// @copydoc dnnl_cpu_isa_avx512_core_fp16
     avx512_core_fp16 = dnnl_cpu_isa_avx512_core_fp16,
+    /// @copydoc dnnl_cpu_isa_avx10_1_512_amx
+    avx10_1_512_amx = dnnl_cpu_isa_avx10_1_512_amx,
     /// @copydoc dnnl_cpu_isa_avx512_core_amx
     avx512_core_amx = dnnl_cpu_isa_avx512_core_amx,
+    /// @copydoc dnnl_cpu_isa_avx10_1_512_amx_fp16
+    avx10_1_512_amx_fp16 = dnnl_cpu_isa_avx10_1_512_amx_fp16,
     /// @copydoc dnnl_cpu_isa_avx512_core_amx_fp16
     avx512_core_amx_fp16 = dnnl_cpu_isa_avx512_core_amx_fp16,
 };

@@ -17,9 +17,14 @@
 #ifndef GPU_COMPUTE_UTILS_HPP
 #define GPU_COMPUTE_UTILS_HPP
 
+#include <array>
 #include <cassert>
 #include <sstream>
+#include <tuple>
 #include <vector>
+
+#include "common/utils.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,84 +41,111 @@ struct device_uuid_hasher_t {
     }
 };
 
+class range_t {
+public:
+    static constexpr size_t max_ndims = 3;
+    constexpr range_t() = default;
+    range_t(size_t dim0) : ndims_(1), dims_ {dim0, 0, 0} {}
+    range_t(size_t dim0, size_t dim1) : ndims_(2), dims_ {dim0, dim1, 0} {}
+    range_t(size_t dim0, size_t dim1, size_t dim2)
+        : ndims_(3), dims_ {dim0, dim1, dim2} {}
+
+    template <typename int_type>
+    range_t(const std::vector<int_type> &dims) {
+        gpu_assert(dims.size() <= max_ndims)
+                << "Too many dimensions for range_t";
+        ndims_ = dims.size();
+        for (size_t i = 0; i < dims.size(); i++) {
+            dims_[i] = gpu_utils::into<size_t>(dims[i]);
+        }
+    }
+
+    // Initialize a valid nd-range with one element, to be mutated
+    static range_t one(size_t ndims = max_ndims) {
+        range_t ret;
+        ret.ndims_ = ndims;
+        for (size_t i = 0; i < ndims; i++) {
+            ret.dims_[i] = 1;
+        }
+        return ret;
+    }
+
+    // Initialize a valid nd-range with zero elements, to have dimensions set individually
+    static range_t empty(size_t ndims = max_ndims) {
+        range_t ret;
+        ret.ndims_ = ndims;
+        return ret;
+    }
+
+    size_t &operator[](size_t idx) {
+        assert(idx < ndims_);
+        return dims_[idx];
+    }
+    size_t operator[](size_t idx) const {
+        assert(idx < ndims_);
+        return dims_[idx];
+    }
+    size_t ndims() const { return ndims_; }
+    size_t nelems() const {
+        if (ndims_ == 0) return 0;
+        return utils::array_product(dims_.data(), ndims_);
+    };
+    const size_t *data() const { return dims_.data(); }
+
+    bool operator==(const range_t &rhs) const {
+        if (ndims_ != rhs.ndims_) return false;
+        for (size_t i = 0; i < ndims_; i++) {
+            if (dims_[i] != rhs.dims_[i]) return false;
+        }
+        return true;
+    }
+    bool operator!=(const range_t &rhs) const { return !operator==(rhs); }
+
+    operator bool() const { return ndims_ > 0; }
+
+private:
+    size_t ndims_ = 0;
+    std::array<size_t, max_ndims> dims_ = {0, 0, 0};
+};
+
 // Stores global/local ranges to use for kernel enqueueing
 class nd_range_t {
 public:
-    nd_range_t() {
-        global_range_[0] = 1;
-        global_range_[1] = 1;
-        global_range_[2] = 1;
-        with_local_range_ = false;
-    }
-
-    nd_range_t(size_t n, const size_t *global_range,
-            const size_t *local_range = nullptr) {
-
-        assert(n <= 3);
-        with_local_range_ = bool(local_range);
-
-        for (size_t i = 0; i < 3; ++i) {
-            global_range_[i] = (i < n) ? global_range[i] : 1;
-            if (with_local_range_) {
-                local_range_[i] = (i < n) ? local_range[i] : 1;
+    nd_range_t() = default;
+    nd_range_t(
+            const range_t &global_range, const range_t &local_range = range_t())
+        : global_range_(global_range), local_range_(local_range) {
+        if (local_range_) {
+            gpu_assert(local_range_.ndims() == global_range_.ndims())
+                    << "Incompatible gws/lws dimensions";
+            for (size_t i = 0; i < local_range_.ndims(); i++) {
+                gpu_assert(local_range_[i] != 0) << "Invalid local work size";
             }
         }
     }
 
-    nd_range_t(const size_t *global_range, const size_t *local_range = nullptr)
-        : nd_range_t(3, global_range, local_range) {}
+    size_t ndims() const { return global_range_.ndims(); }
+    const range_t &global_range() const { return global_range_; }
 
-    template <typename int_type>
-    nd_range_t(std::initializer_list<int_type> global_range,
-            std::initializer_list<int_type> local_range = {}) {
-        with_local_range_ = (local_range.size() > 0);
-        if (with_local_range_) {
-            assert(global_range.size() == local_range.size());
-        }
-        size_t n = global_range.size();
-        for (size_t i = 0; i < 3; i++) {
-            global_range_[i] = (i < n) ? *(global_range.begin() + i) : 1;
-            if (with_local_range_) {
-                local_range_[i] = (i < n) ? *(local_range.begin() + i) : 1;
-            }
-        }
-    }
+    const range_t &local_range() const { return local_range_; }
 
-    template <typename int_type>
-    nd_range_t(const std::vector<int_type> &global_range,
-            const std::vector<int_type> &local_range = {}) {
-        with_local_range_ = (local_range.size() > 0);
-        if (with_local_range_) {
-            assert(global_range.size() == local_range.size());
-        }
-        size_t n = global_range.size();
-        for (size_t i = 0; i < 3; i++) {
-            global_range_[i] = (i < n) ? global_range[i] : 1;
-            if (with_local_range_) {
-                local_range_[i] = (i < n) ? local_range[i] : 1;
-            }
-        }
-    }
-
-    size_t ndims() const { return 3; }
-    const size_t *global_range() const { return global_range_; }
-
-    const size_t *local_range() const {
-        return with_local_range_ ? local_range_ : nullptr;
-    }
-
-    bool is_zero() const {
-        return global_range_[0] == 0 || global_range_[1] == 0
-                || global_range_[2] == 0;
-    }
+    bool is_zero() const { return (global_range_.nelems() == 0); }
 
     std::string str() const {
         std::stringstream oss;
-        oss << "gws = [" << global_range_[0] << ", " << global_range_[1] << ", "
-            << global_range_[2] << "] lws = ";
-        if (local_range()) {
-            oss << "[" << local_range_[0] << ", " << local_range_[1] << ", "
-                << local_range_[2] << "]";
+        oss << "gws = [";
+        for (size_t i = 0; i < ndims(); i++) {
+            if (i > 0) oss << ", ";
+            oss << global_range_[i];
+        }
+        oss << "] lws = ";
+        if (local_range_) {
+            oss << "[";
+            for (size_t i = 0; i < ndims(); i++) {
+                if (i > 0) oss << ", ";
+                oss << local_range_[i];
+            }
+            oss << "]";
         } else {
             oss << "(nil)";
         }
@@ -121,9 +153,8 @@ public:
     }
 
 private:
-    size_t global_range_[3];
-    size_t local_range_[3];
-    bool with_local_range_;
+    range_t global_range_;
+    range_t local_range_;
 };
 
 } // namespace compute

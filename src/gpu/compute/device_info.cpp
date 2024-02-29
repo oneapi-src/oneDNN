@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <mutex>
 #include <thread>
 #include <type_traits>
 
+#include "common/type_helpers.hpp"
 #include "gpu/compute/device_info.hpp"
 
 #ifdef DNNL_WITH_SYCL
@@ -114,8 +114,8 @@ int device_info_t::max_subgroup_size(gpu_arch_t gpu_arch) {
 }
 
 int device_info_t::max_exec_size(gpu_arch_t gpu_arch) {
-
     switch (gpu_arch) {
+        case gpu::compute::gpu_arch_t::xe2:
         case gpu::compute::gpu_arch_t::xe_hpc: return 128;
         default: return 64;
     }

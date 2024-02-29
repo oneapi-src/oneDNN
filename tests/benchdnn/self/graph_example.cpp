@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -132,7 +132,8 @@ int init_op(std::unordered_map<int, graph_link_t> &op_graph,
     }
     SAFE(create_primitive(prim, get_test_engine(), init_pd, prb, res, prb->dir,
                  /* hint = */ nullptr,
-                 /* is_service_prim = */ false, src_md_hint),
+                 /* is_service_prim = */ false, src_md_hint,
+                 /* force_f32_dt = */ false),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
@@ -143,9 +144,7 @@ int init_op(std::unordered_map<int, graph_link_t> &op_graph,
     init_memory_args<prb_t>(mems, prb, prim, supported_exec_args(prb->dir));
 
     // Initialize reference memories and fill the library memories.
-    TIME_FILL(
-            SAFE(init_ref_memory_args(ref_mems, mems, prim, prb, res, prb->dir),
-                    WARN));
+    TIME_FILL(SAFE(init_ref_memory_args(ref_mems, mems, prim, prb, res), WARN));
 
     // Replace empty arguments in op_graph with one that have all memories.
     auto &args = std::get<3>(op_graph[op_idx]) = args_t(mems);

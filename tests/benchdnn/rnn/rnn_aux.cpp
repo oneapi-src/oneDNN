@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -273,6 +273,8 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 }
 
 std::string prb_t::set_repro_line() {
+    using ::operator<<;
+
     std::stringstream s;
     dump_global_params(s);
     settings_t def;
@@ -280,6 +282,7 @@ std::string prb_t::set_repro_line() {
     if (canonical || prop != prop2prop_kind(def.prop[0]))
         s << "--prop=" << prop2str(prop) << " ";
     if (canonical || cfg.str() != def.cfg[0]) s << "--cfg=" << cfg.str() << " ";
+    if (canonical || tag != def.tag[0]) s << "--tag=" << tag << " ";
     if (canonical || alg != def.alg[0]) s << "--alg=" << alg2str(alg) << " ";
     if (canonical || direction != def.direction[0])
         s << "--direction=" << direction2str(direction) << " ";

@@ -324,16 +324,19 @@ private:
     void build_prefetch() {
         auto &prefetch = plan_.prefetch;
         if (prefetch.has_a()) {
-            build_prefetch_x(ap_buf_, prefetch.a_prefetch);
+            build_prefetch_x(ap_buf_, prefetch.a_prefetch, prefetch.a_grid);
         }
         if (prefetch.has_b()) {
-            build_prefetch_x(bp_buf_, prefetch.b_prefetch);
+            build_prefetch_x(bp_buf_, prefetch.b_prefetch, prefetch.b_grid);
         }
     }
 
-    void build_prefetch_x(const expr_t &mem_buf, const send_plan_t &prefetch) {
+    void build_prefetch_x(const expr_t &mem_buf, const send_plan_t &prefetch,
+            const grid_info_t &grid) {
         prefetch_stmt_ = prefetch_stmt_.append(
                 prefetch.create_stmt(mem_buf, expr_t()));
+        prefetch_stmt_ = add_grid_guard(
+                prefetch_stmt_, cfg_.thread_group_grid(), grid);
     }
 
     void build_x2r_mul() {

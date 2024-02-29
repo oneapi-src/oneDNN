@@ -91,6 +91,7 @@ private:
     int max_batch_size();
     int phase_count(alg_kind_t alg);
 
+    void relu_zero_ns_prepare_fwd();
     void relu_prepare_bwd();
     void abs_prepare_bwd();
     void clip_prepare_bwd();

@@ -19,12 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_layer_normalization_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -48,23 +45,34 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
             auto src_data_t = src_md()->data_type;
             auto dst_data_t = dst_md()->data_type;
 
-            bool ok = is_fwd() && !has_zero_dim_memory()
-                    && (utils::everyone_is(u8, src_data_t, dst_data_t)
+            VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_LNORM(
+                    (utils::everyone_is(u8, src_data_t, dst_data_t)
                             || utils::everyone_is(s8, src_data_t, dst_data_t)
                             || utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
-                            || utils::everyone_is(f32, src_data_t, dst_data_t))
-                    && IMPLICATION(f16 == src_data_t,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && !memory_desc_ndims_ok(src_md(), dst_md(), stat_md())
-                    && stat_md()->data_type == f32
-                    && check_scale_shift_data_type({f32, bf16, f16})
-                    && attr()->has_default_values(skip_mask_t::scales_runtime)
-                    && set_default_formats_common();
-            if (!ok) return status::unimplemented;
+                            || utils::everyone_is(f32, src_data_t, dst_data_t)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LNORM(IMPLICATION(f16 == src_data_t,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    !memory_desc_ndims_ok(src_md(), dst_md(), stat_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst stat");
+            VDISPATCH_LNORM(
+                    stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    attr()->has_default_values(skip_mask_t::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
-            return init_conf(engine);
+            VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
@@ -119,23 +127,28 @@ struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
             auto diff_dst_dt = diff_dst_md()->data_type;
             auto diff_src_dt = diff_src_md()->data_type;
 
-            bool ok = !is_fwd() && !has_zero_dim_memory()
-                    && (utils::everyone_is(
-                                f32, src_dt, diff_dst_dt, diff_src_dt)
+            VDISPATCH_LNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_LNORM(
+                    (utils::everyone_is(f32, src_dt, diff_dst_dt, diff_src_dt)
                             || utils::everyone_is(
                                     bf16, src_dt, diff_dst_dt, diff_src_dt)
                             || utils::everyone_is(
-                                    f16, src_dt, diff_dst_dt, diff_src_dt))
-                    && IMPLICATION(f16 == src_dt,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && stat_md()->data_type == f32
-                    && check_scale_shift_data_type({f32, bf16, f16})
-                    && attr()->has_default_values()
-                    && set_default_formats_common();
-            if (!ok) return status::unimplemented;
-
-            CHECK(init_conf(engine));
+                                    f16, src_dt, diff_dst_dt, diff_src_dt)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LNORM(IMPLICATION(f16 == src_dt,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
             init_scratchpad();
             return status::success;
         }

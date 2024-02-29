@@ -20,7 +20,10 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <unordered_map>
+
 #include "common/c_types_map.hpp"
+#include "common/memory_desc_wrapper.hpp"
 #include "gpu/block_structure.hpp"
 #include "gpu/compute/block_manipulation.hpp"
 #include "gpu/compute/compute_engine.hpp"
@@ -29,15 +32,12 @@
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/types_interop.h"
 #include "gpu/serialization.hpp"
-#include <unordered_map>
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace compute {
 
-// How many dims the ndrange can assign to
-#define GWS_MAX_NDIMS 3
 // How many buffers can be registered simultaneously
 #define MAX_REGISTERED_BUFFERS 4
 // Maximum length of each indexed dim's name
@@ -300,7 +300,7 @@ public:
     nd_range_t nd_range;
 
 private:
-    size_t num_terms;
+    size_t num_terms = 0;
     dispatch_gws_rt_params_t rt_params;
 };
 
@@ -312,8 +312,6 @@ public:
     size_t idx;
 };
 
-using work_size = std::array<size_t, GWS_MAX_NDIMS>;
-
 class gws_bin_mapping_t;
 
 struct lws_strategy_t {
@@ -322,8 +320,8 @@ struct lws_strategy_t {
         : engine(engine), gpu_attr(gpu_attr) {};
     virtual ~lws_strategy_t() = default;
 
-    virtual work_size create_lws(
-            const work_size &gws, const gws_bin_mapping_t &mapper) const = 0;
+    virtual range_t create_lws(
+            const range_t &gws, const gws_bin_mapping_t &mapper) const = 0;
 
     // Determine if a given block (mapped to each buffer) should be in the lws.
     // Gets called for each block dispatched to the GWS.
@@ -346,11 +344,10 @@ struct default_lws_strategy_t : public lws_strategy_t {
     default_lws_strategy_t(const compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr)
         : lws_strategy_t(engine, gpu_attr) {};
-    work_size create_lws(const work_size &gws,
+    range_t create_lws(const range_t &gws,
             const gws_bin_mapping_t &mapper) const override {
-        work_size lws;
-        get_optimal_lws(gws.data(), lws.data(), gws.size(), -1,
-                engine->device_info()->gpu_arch());
+        range_t lws
+                = get_optimal_lws(gws, -1, engine->device_info()->gpu_arch());
         return lws;
     }
 
@@ -378,8 +375,8 @@ constexpr size_t dim_not_found = std::numeric_limits<size_t>::max();
 
 struct named_buffer_t : public memory_desc_t {
     named_buffer_t(const char *name, const memory_desc_t &md,
-            std::vector<dim_id_t> dims)
-        : memory_desc_t(md), name(name), dim_ids(std::move(dims)) {
+            const std::vector<dim_id_t> &dims)
+        : memory_desc_t(md), name(name), dim_ids(dims) {
         gpu_assert(this->name.size() <= MAX_BUFFER_NAME_LENGTH);
         gpu_assert(format_kind == format_kind::blocked);
         gpu_assert(static_cast<size_t>(md.ndims) <= dim_ids.size());
@@ -391,6 +388,11 @@ struct named_buffer_t : public memory_desc_t {
     // Copy the named_buffer_t, while changing the name
     named_buffer_t(const char *name, const named_buffer_t &buf)
         : memory_desc_t(buf), name(name), dim_ids(buf.get_dim_ids()) {};
+
+    dim_t nelems(bool with_padding = false) const {
+        return memory_desc_wrapper(static_cast<memory_desc_t>(*this))
+                .nelems(with_padding);
+    }
 
     const std::string &get_name() const { return name; }
     const std::vector<dim_id_t> &get_dim_ids() const { return dim_ids; }
@@ -465,14 +467,14 @@ struct named_buffer_t : public memory_desc_t {
         padded_dims[dim_idx] *= size;
     }
 
-    size_t get_dim_idx(dim_id_t dim) {
+    size_t get_dim_idx(dim_id_t dim) const {
         for (size_t i = 0; i < dim_ids.size(); i++) {
             if (dim_ids[i] == dim) { return i; }
         }
         return dim_not_found;
     }
 
-    block_layout_t layout() {
+    block_layout_t layout() const {
         // Create the block layout and reindex to the canonical dimension indexing
         block_layout_t layout(*this);
         for (auto &block : layout) {
@@ -582,7 +584,7 @@ private:
 // leads to performance degredation
 class gws_bin_mapping_t {
 public:
-    gws_bin_mapping_t(subgroup_data_t sg) : sg(sg) { gws_.fill(1); }
+    gws_bin_mapping_t(subgroup_data_t sg) : sg(sg) {}
     void add(const block_bin_t &bin) {
         // If this bin has the subgroup block, it has to be mapped to
         // the first bin in the 0th gws dim
@@ -623,15 +625,15 @@ public:
         }
 
         // Insert into the last dim
-        add_(bin, gws_.size() - 1);
+        add_(bin, gws_.ndims() - 1);
     }
 
     nd_range_t nd_range(const lws_strategy_t &lws_strategy) const {
-        work_size lws = lws_strategy.create_lws(gws_, *this);
-        return compute::nd_range_t(gws_.data(), lws.data());
+        range_t lws = lws_strategy.create_lws(gws_, *this);
+        return compute::nd_range_t(gws_, lws);
     }
 
-    const work_size &gws() const { return gws_; }
+    const range_t &gws() const { return gws_; }
 
     const std::vector<block_bin_t> &get_bins(size_t idx) const {
         return map[idx];
@@ -639,18 +641,16 @@ public:
 
 private:
     void add_(const block_bin_t &bin, size_t gws_dim) {
-        gpu_assert(gws_dim < gws_.size());
         map[gws_dim].emplace_back(bin);
         gws_[gws_dim] *= bin.size();
     }
     void clear_(size_t gws_idx) {
-        gpu_assert(gws_idx < GWS_MAX_NDIMS);
         map[gws_idx].clear();
         gws_[gws_idx] = 1;
     }
     subgroup_data_t sg;
-    std::array<std::vector<block_bin_t>, GWS_MAX_NDIMS> map;
-    work_size gws_;
+    std::array<std::vector<block_bin_t>, range_t::max_ndims> map;
+    range_t gws_ = range_t::one();
 };
 
 class reusable_dispatch_config_t {
@@ -660,7 +660,7 @@ public:
         : dispatched_dims(std::move(dims)), engine(engine) {};
     status_t generate(
             reusable_dispatch_t &dispatch, const lws_strategy_t &lws_strategy);
-    status_t register_buffer(named_buffer_t &buffer);
+    status_t register_buffer(const named_buffer_t &buffer);
     status_t define_dim_index(
             const char *dim_name, dim_id_t dim_id, dim_t size);
     status_t use_subgroup(const std::string &buf_name, size_t size);

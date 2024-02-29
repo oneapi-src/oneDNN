@@ -371,9 +371,10 @@ int prepare_bwd(const prb_t *prb, dnn_mem_map_t &mem_map,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+            force_f32_dt ? dnnl_f32 : prb->dt[0], prb->tag[0]);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> stat_d {};
     if (prb->stat_tag != tag::undef) {
@@ -386,8 +387,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (prb->dir & FLAG_FWD) {
-        auto dst_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
+        auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
                                         : dnnl_forward_training;
         TIME_C_PD(DNN_SAFE_STATUS(
@@ -397,10 +398,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                         dst_d, stat_d, prb->ss_dt, prb->eps, flags,
                         dnnl_attr)));
     } else {
-        auto diff_src_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt[0], prb->tag[0]);
-        auto diff_dst_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt[1], prb->tag[1]);
+        auto diff_src_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->dt[0], prb->tag[0]);
+        auto diff_dst_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->dt[1], prb->tag[1]);
         auto prop = prb->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
         TIME_C_PD(DNN_SAFE_STATUS(
                 dnnl_layer_normalization_backward_primitive_desc_create_v2(
@@ -413,22 +414,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
-    skip_unimplemented_data_type({prb->dt[0], prb->dt[1]}, prb->dir, res);
+    skip_unimplemented_data_type(
+            {prb->dt[0], prb->dt[1], prb->ss_dt}, prb->dir, res);
     skip_unimplemented_sum_po(
             prb->attr, res, dnnl_layer_normalization, prb->dt[0]);
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_layer_normalization);
-
-    if (is_gpu()) {
-        const bool dt_ok = prb->dt[0] == prb->dt[1];
-        if (!dt_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-        if (!is_nvidia_gpu(get_test_engine()) && prb->ss_dt != dnnl_f32) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -519,15 +509,15 @@ std::vector<int> supported_exec_args(dir_t dir) {
 };
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res,
         dnnl_primitive_t prim_ref) {
-    update_inplace_memory_args(mem_map, prb, dir);
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
     // TODO: this function still allocates the full memory print needed to fill
     // the data and each argument can't be destroyed right away since filling
     // requires all of them at a time.
     const auto &ref_engine = get_cpu_engine();
+    const bool is_fwd_prim = is_fwd_prop_kind(query_prop_kind(query_pd(prim)));
 
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
@@ -564,7 +554,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         }
     }
 
-    if (dir & FLAG_FWD) {
+    if (is_fwd_prim) {
         SAFE(prepare_fwd(prb, mem_map, ref_mem_map, res), WARN);
     } else {
         SAFE(prepare_bwd(prb, mem_map, ref_mem_map, res), WARN);
@@ -614,9 +604,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    TIME_FILL(SAFE(init_ref_memory_args(
-                           ref_mem_map, mem_map, prim, prb, res, prb->dir),
-            WARN));
+    TIME_FILL(SAFE(
+            init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res), WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
 
@@ -624,7 +613,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(
             prb, get_kinds_to_check(prb), args, ref_args, setup_cmp, res);
-    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->inplace, res),
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->attr,
+                 prb->inplace, res),
             WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);

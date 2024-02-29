@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,15 +22,13 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/memory_storage.hpp"
-#include "common/stream.hpp"
-#include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "gpu/compute/compute_engine.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
 #include "sycl/sycl_compat.hpp"
-#include "sycl/sycl_engine_id.hpp"
 #include "sycl/sycl_utils.hpp"
+#include "sycl_engine_id.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,31 +17,36 @@
 #ifndef COMMON_OPTIONAL_HPP
 #define COMMON_OPTIONAL_HPP
 
+#if __cplusplus >= 201606L
+#include <optional>
+#else
 #include <cassert>
 #include <memory>
-#include <new>
 #include <type_traits>
+#endif
 
 namespace dnnl {
 namespace impl {
 namespace utils {
 
-// This is a simple version of the std::optional class
-// When C++17 will be supported it is highly recommended
-// to remove this class and start using std::optional instead.
+// Use C++17 std::optional if available
+#if __cplusplus >= 201606L
 
+using nullopt_t = std::nullopt_t;
+static constexpr nullopt_t nullopt = std::nullopt;
+
+template <typename T>
+using optional_t = std::optional<T>;
+
+#else
+
+// This is a simple version of the std::optional package
+// When C++17 will be supported it is highly recommended
+// to remove this and start using std::optional instead.
 struct nullopt_t {
     nullopt_t() = default;
 };
 static constexpr nullopt_t nullopt {};
-
-template <typename T>
-class optional_t;
-
-template <typename T>
-struct is_optional_t : public std::false_type {};
-template <typename T>
-struct is_optional_t<optional_t<T>> : public std::true_type {};
 
 template <class T>
 class optional_t {
@@ -50,9 +55,9 @@ public:
     static_assert(!std::is_rvalue_reference<T>::value, "");
     static_assert(!std::is_const<T>::value, "");
     static_assert(!std::is_volatile<T>::value, "");
-    static_assert(!is_optional_t<T>::value, "");
 
-    optional_t(const nullopt_t nullopt) : has_value_(false), dummy {} {}
+    optional_t(const nullopt_t nullopt_) : has_value_(false), dummy {} {}
+    optional_t() : optional_t(nullopt) {}
     optional_t(T object) : has_value_(true), value_(object) {}
     optional_t(const optional_t &other)
         : has_value_(other.has_value_), dummy {} {
@@ -66,7 +71,7 @@ public:
         if (has_value_) value_.~T();
     }
 
-    optional_t &operator=(const nullopt_t nullopt) {
+    optional_t &operator=(const nullopt_t nullopt_) {
         if (has_value_) value_.~T();
         has_value_ = false;
     }
@@ -131,6 +136,8 @@ private:
         T value_;
     };
 };
+
+#endif // __cplusplus >= 201606L
 
 } // namespace utils
 } // namespace impl

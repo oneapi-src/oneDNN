@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1533,8 +1533,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
     if (one_of(jcp.dst_dt, u8, s8, s32)) {
         init_saturate_f32(
                 zmm_zero, zmm_saturation, reg_aux_saturation, f32, jcp.dst_dt);
-        saturate_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dst_dt);
-        vcvtps2dq(zmm_out, zmm_out);
+        saturate_cvt_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dst_dt);
     }
 
     const Zmm zmm_out_store = zmm_mask(zmm_out, mask_flag, true);
@@ -3310,8 +3309,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_int8(
     if (one_of(jcp.dsrc_dt, u8, s8, s32)) {
         init_saturate_f32(
                 zmm_zero, zmm_saturation, reg_aux_saturation, f32, jcp.dsrc_dt);
-        saturate_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dsrc_dt);
-        vcvtps2dq(zmm_out, zmm_out);
+        saturate_cvt_f32(zmm_out, zmm_zero, zmm_saturation, jcp.dsrc_dt);
     }
 
     const Zmm zmm_out_store = zmm_mask(zmm_out, mask_flag, true);
@@ -5488,7 +5486,7 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
     nthr_g_ = j.ngroups;
     const int nthr = max_threads / nthr_g_;
 
-    auto calc_mem_cost = [j, nthr_g_](
+    auto calc_mem_cost = [&j, nthr_g_](
                                  int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level optimizer
          * tries to minimize memory consumption. few notes:

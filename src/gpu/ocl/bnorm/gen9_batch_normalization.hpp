@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,12 +17,9 @@
 #ifndef GPU_OCL_GEN9_BATCH_NORMALIZATION_HPP
 #define GPU_OCL_GEN9_BATCH_NORMALIZATION_HPP
 
-#include "common/experimental.hpp"
 #include "common/primitive.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_batch_normalization_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/bnorm/bnorm_lookup_table.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -51,28 +48,42 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(src_md()->data_type, f32, bf16, f16, s8)
-                    && IMPLICATION(f16 == src_md()->data_type,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && src_md()->data_type == dst_md()->data_type
-                    && IMPLICATION(src_md()->data_type == s8,
-                            !is_training() && stats_is_src())
-                    && check_scale_shift_data_type()
-                    && attr()->has_default_values(attr_skip_mask)
-                    && IMPLICATION(!attr()->has_default_values(),
+            VDISPATCH_BNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_BNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_BNORM(
+                    utils::one_of(src_md()->data_type, f32, bf16, f16, s8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BNORM(IMPLICATION(f16 == src_md()->data_type,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_BNORM(src_md()->data_type == dst_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
+            VDISPATCH_BNORM(IMPLICATION(src_md()->data_type == s8,
+                                    !is_training() && stats_is_src()),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BNORM(check_scale_shift_data_type(),
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "unsupported scale, shift or datatype configuration");
+            VDISPATCH_BNORM(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_BNORM(
+                    IMPLICATION(!attr()->has_default_values(),
                             attr()->post_ops_.len() == 1
-                                    && with_relu_post_op(is_training()))
-                    && set_default_formats_common()
-                    && memory_desc_wrapper(src_md())
-                            == memory_desc_wrapper(dst_md())
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups);
-            if (!ok) return status::unimplemented;
+                                    && with_relu_post_op(is_training())),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_BNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_BNORM(memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
+            VDISPATCH_BNORM(compute_engine->mayiuse(
+                                    compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
 
-            if (is_training() && (fuse_norm_relu() || fuse_norm_add_relu()))
-                CHECK(init_default_ws(8));
+            if (is_training() && (fuse_norm_relu() || fuse_norm_add_relu())) {
+                VDISPATCH_BNORM_SC(init_default_ws(8), VERBOSE_WS_INIT);
+            }
 
             status_t status = init_conf(engine);
             if (status != status::success) return status;
@@ -189,29 +200,39 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
             using namespace data_type;
 
-            bool ok = !is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(src_md()->data_type, f32, bf16, f16)
-                    && IMPLICATION(f16 == src_md()->data_type,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && src_md()->data_type == diff_src_md()->data_type
-                    && diff_src_md()->data_type == diff_dst_md()->data_type
-                    && check_scale_shift_data_type()
-                    && attr()->has_default_values()
-                    && set_default_formats_common()
-                    && memory_desc_wrapper(diff_src_md())
-                            == memory_desc_wrapper(diff_dst_md())
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups);
-            if (!ok) return status::unimplemented;
+            VDISPATCH_BNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_BNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_BNORM(utils::one_of(src_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BNORM(IMPLICATION(f16 == src_md()->data_type,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_BNORM(src_md()->data_type == diff_src_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "diff_src");
+            VDISPATCH_BNORM(
+                    diff_src_md()->data_type == diff_dst_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "diff_src", "diff_dst");
+            VDISPATCH_BNORM(check_scale_shift_data_type(),
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "unsupported scale, shift or datatype configuration");
+            VDISPATCH_BNORM(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_BNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_BNORM(memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
+            VDISPATCH_BNORM(compute_engine->mayiuse(
+                                    compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
 
             if (fuse_norm_relu() || fuse_norm_add_relu()) {
-                CHECK(init_default_ws(8));
-                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+                VDISPATCH_BNORM_SC(init_default_ws(8), VERBOSE_WS_INIT);
+                VDISPATCH_BNORM(compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
-            status_t status = init_conf(engine);
-            if (status != status::success) return status;
+            VDISPATCH_BNORM_SC(init_conf(engine), "init_conf()");
             init_scratchpad();
 
             return status::success;

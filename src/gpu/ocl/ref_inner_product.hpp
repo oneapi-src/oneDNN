@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,12 +21,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -55,11 +51,16 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
                     = primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = true
-                    && utils::one_of(desc()->prop_kind, forward_training,
-                            forward_inference)
-                    && set_default_params() == status::success
-                    && utils::one_of(true,
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(desc()->prop_kind, forward_training,
+                            forward_inference),
+                    VERBOSE_BAD_PROPKIND);
+
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(true,
                             expect_data_types(
                                     u8, s8, data_type::undef, s8, s32),
                             expect_data_types(
@@ -77,23 +78,34 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
                             expect_data_types(
                                     bf16, bf16, data_type::undef, f32, f32),
                             expect_data_types(f32, f32, f32, f32, f32),
-                            expect_data_types(f16, f16, f16, f16, f32))
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(desc()->bias_desc.data_type, u8, s8,
-                                    bf16, f16, f32))
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(
-                            attr(), desc()->dst_desc.data_type)
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
-                            utils::one_of(src_md_.data_type, s8, u8)
-                                    && attr_scales_ok())
-                    && IMPLICATION(desc()->src_desc.data_type == f16,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16));
-            if (!ok) return status::unimplemented;
+                            expect_data_types(f16, f16, f16, f16, f32)),
+                    VERBOSE_UNSUPPORTED_DT);
 
-            return init_conf(engine);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(with_bias(),
+                            utils::one_of(desc()->bias_desc.data_type, u8, s8,
+                                    bf16, f16, f32)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    post_ops_with_binary_ok(attr(), desc()->dst_desc.data_type),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(!attr()->scales_.has_default_values(),
+                            utils::one_of(src_md_.data_type, s8, u8)
+                                    && attr_scales_ok()),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(desc()->src_desc.data_type == f16,
+                            compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
+            VDISPATCH_INNER_PRODUCT_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
@@ -139,11 +151,13 @@ struct ref_inner_product_bwd_data_t : public gpu_primitive_t {
             using namespace prop_kind;
             assert(engine->kind() == engine_kind::gpu);
 
-            bool ok = true
-                    && utils::one_of(
-                            this->desc()->prop_kind, backward, backward_data)
-                    && this->set_default_params() == status::success
-                    && utils::one_of(true,
+            VDISPATCH_INNER_PRODUCT(utils::one_of(this->desc()->prop_kind,
+                                            backward, backward_data),
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    this->set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(true,
                             expect_data_types(
                                     f16, f16, data_type::undef, f16, f32),
                             expect_data_types(
@@ -153,11 +167,13 @@ struct ref_inner_product_bwd_data_t : public gpu_primitive_t {
                             expect_data_types(
                                     f32, bf16, data_type::undef, bf16, f32),
                             expect_data_types(
-                                    f32, f32, data_type::undef, f32, f32))
-                    && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+                                    f32, f32, data_type::undef, f32, f32)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-            return init_conf(engine);
+            VDISPATCH_INNER_PRODUCT_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
@@ -202,20 +218,25 @@ struct ref_inner_product_bwd_weights_t : public gpu_primitive_t {
             using namespace data_type;
             using namespace prop_kind;
             assert(engine->kind() == engine_kind::gpu);
-            bool ok = true
-                    && utils::one_of(
-                            this->desc()->prop_kind, backward, backward_weights)
-                    && this->set_default_params() == status::success
-                    && utils::one_of(true,
+
+            VDISPATCH_INNER_PRODUCT(utils::one_of(this->desc()->prop_kind,
+                                            backward, backward_weights),
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    this->set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(true,
                             expect_data_types(f16, f16, f16, f16, f32),
                             expect_data_types(f16, f32, f32, f16, f32),
                             expect_data_types(bf16, bf16, bf16, bf16, f32),
                             expect_data_types(bf16, f32, f32, bf16, f32),
-                            expect_data_types(f32, f32, f32, f32, f32))
-                    && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+                            expect_data_types(f32, f32, f32, f32, f32)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-            return init_conf(engine);
+            VDISPATCH_INNER_PRODUCT_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

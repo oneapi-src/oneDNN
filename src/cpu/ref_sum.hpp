@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ struct ref_sum_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             bool ok = cpu_sum_pd_t::init(engine) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM(ok, VERBOSE_BAD_ENGINE_KIND);
 
             if (has_zero_dim_memory()) return status::success;
 

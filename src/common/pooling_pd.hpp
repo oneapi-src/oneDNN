@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,19 @@
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#define VDISPATCH_POOLING(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, pooling, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
+#define VDISPATCH_POOLING_IC(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, pooling, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
+
+#define VDISPATCH_POOLING_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, pooling, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

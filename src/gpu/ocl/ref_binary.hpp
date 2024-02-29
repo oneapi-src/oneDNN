@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,12 +19,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_binary_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -45,11 +41,12 @@ struct ref_binary_t : public gpu_primitive_t {
 
             const auto attr_skip_mask = sm::post_ops | sm::scales_runtime;
 
-            bool ok = set_default_params() == status::success
-                    && ((utils::everyone_is(bf16, src_md(0)->data_type,
-                                 src_md(1)->data_type)
-                                && utils::one_of(
-                                        dst_md()->data_type, bf16, u8, f32))
+            VDISPATCH_BINARY_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_BINARY(
+                    ((utils::everyone_is(
+                              bf16, src_md(0)->data_type, src_md(1)->data_type)
+                             && utils::one_of(
+                                     dst_md()->data_type, bf16, u8, f32))
                             || (utils::one_of(
                                         src_md(0)->data_type, f16, f32, s8, u8)
                                     && utils::one_of(src_md(1)->data_type, f16,
@@ -62,22 +59,35 @@ struct ref_binary_t : public gpu_primitive_t {
                                             dst_md()->data_type, bf16, f32))
                             || (src_md(0)->data_type == bf16
                                     && src_md(1)->data_type == f32
-                                    && dst_md()->data_type == bf16))
-                    && !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md())
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask())
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(
-                            attr(), dst_md()->data_type, MAX_NDIMS)
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && !(attr()->post_ops_.len() > 0
-                            && src_md(0)->data_type == bf16
-                            && src_md(1)->data_type == bf16
-                            && dst_md()->data_type == u8);
+                                    && dst_md()->data_type == bf16)),
+                    VERBOSE_UNSUPPORTED_DT);
 
-            if (!ok) return status::unimplemented;
+            VDISPATCH_BINARY(
+                    !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
 
-            return init_conf(engine);
+            VDISPATCH_BINARY(IMPLICATION(!attr()->scales_.has_default_values(),
+                                     check_scales_mask()),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+            VDISPATCH_BINARY(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+
+            VDISPATCH_BINARY(post_ops_with_binary_ok(
+                                     attr(), dst_md()->data_type, MAX_NDIMS),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            VDISPATCH_BINARY_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            VDISPATCH_BINARY(!(attr()->post_ops_.len() > 0
+                                     && src_md(0)->data_type == bf16
+                                     && src_md(1)->data_type == bf16
+                                     && dst_md()->data_type == u8),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+
+            VDISPATCH_BINARY_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

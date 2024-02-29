@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,12 +19,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_shuffle_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -49,16 +45,23 @@ struct ref_shuffle_t : public gpu_primitive_t {
             const memory_desc_wrapper src_d(md_src);
             const memory_desc_wrapper dst_d(md_dst);
 
-            bool ok = src_d.data_type() == dst_d.data_type()
-                    && attr()->has_default_values()
-                    && !memory_desc_ndims_ok(src_d.md_, dst_d.md_)
-                    && set_default_formats_common() && src_d == dst_d
-                    && IMPLICATION(src_md()->data_type == data_type::f16,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16));
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SHUFFLE(src_d.data_type() == dst_d.data_type(),
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
+            VDISPATCH_SHUFFLE(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_SHUFFLE(!memory_desc_ndims_ok(src_d.md_, dst_d.md_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_SHUFFLE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SHUFFLE(
+                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
+            VDISPATCH_SHUFFLE(IMPLICATION(src_md()->data_type == data_type::f16,
+                                      compute_engine->mayiuse(
+                                              compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
 
-            return init_conf(engine);
+            VDISPATCH_SHUFFLE_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,8 +137,8 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::create(
         const memory_desc_t *dst_md) {
     using namespace status;
 
-    if (!impl::is_dense_format_kind({src_md, dst_md}))
-        return status::unimplemented;
+    VDISPATCH_REORDER_IC(impl::is_dense_format_kind({src_md, dst_md}),
+            VERBOSE_UNSUPPORTED_SPARSE_CFG);
     auto _pd = make_unique_pd<pd_t>(
             attr, src_engine->kind(), src_md, dst_engine->kind(), dst_md);
     if (_pd == nullptr) return out_of_memory;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/gemm/ref_gemm.hpp"
+#include "gpu/compute/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,7 +28,12 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const auto &bias = GEMM_CTX_ARG_STORAGE(bias);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
-    const auto exec_d = ctx.desc() ? ctx.desc() : pd()->desc();
+    auto pd_desc = pd()->desc();
+    bool runtime_dims = utils::one_of(
+            DNNL_RUNTIME_DIM_VAL, pd_desc->m(), pd_desc->n(), pd_desc->k());
+    const auto exec_d = runtime_dims ? ctx.desc() : pd()->desc();
+
+    if (exec_d->batch() == 0 || exec_d->n() == 0) return status::success;
 
     dim_t off_a0 = a.offset() / types::data_type_size(exec_d->a_type());
     dim_t off_b0 = b.offset() / types::data_type_size(exec_d->b_type());
@@ -98,7 +104,7 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(29, scale_stride);
     arg_list.set(30, beta);
 
-    const size_t gws[3] = {1, (size_t)N, (size_t)MB};
+    const compute::range_t gws = {1, (size_t)N, (size_t)MB};
     const auto nd_range = compute::nd_range_t(gws);
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);

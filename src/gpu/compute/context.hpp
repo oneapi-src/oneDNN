@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,8 +18,6 @@
 #define GPU_COMPUTE_CONTEXT_HPP
 
 #include <memory>
-
-#include "common/primitive_exec_types.hpp"
 
 namespace dnnl {
 namespace impl {

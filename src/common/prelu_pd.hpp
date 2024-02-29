@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,15 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive_desc.hpp"
+
+#define VDISPATCH_PRELU(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, prelu, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
+#define VDISPATCH_PRELU_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, prelu, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

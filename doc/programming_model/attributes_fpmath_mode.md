@@ -31,16 +31,19 @@ integral.
 
 ## Enforcing the floating-point math mode to an integral primitive.
 
-A user can enforce an integral primitive to comply with the floating-point math mode by
-setting the second argument of @ref dnnl_set_default_fpmath_mode_v2 (C API) or
-the @ref dnnl::set_default_fpmath_mode_v2 (C++ API) functions to `1` or `true`.
+A user can enforce an integral primitive to comply with the floating-point math
+mode by setting the second argument of
+@ref dnnl_primitive_attr_set_fpmath_mode_v2 (C API) or
+@ref dnnl::primitive_attr::set_fpmath_mode (C++ API) functions to `1` or `true`.
 
 In this case, an integral primitive will be forced to add an implicit weights
-up-conversion to the data type specified in the @ref dnnl::fpmath_mode in addition
-to down-conversions described for the primitives with floating-point computation
-data-types. The de-quantization parameters of this up-conversion can be specified using
-[quantization attributes](@ref dev_guide_attributes_quantization). For more details,
-refer to [Matmul Tutorial: weights decompression](@ref weights_decompression_matmul_cpp).
+up-conversion to the data type specified in the @ref dnnl::fpmath_mode in
+addition to down-conversions described for the primitives with floating-point
+computation data-types. The de-quantization parameters of this up-conversion can
+be specified using
+[quantization attributes](@ref dev_guide_attributes_quantization).
+For more details, refer to
+[Matmul Tutorial: weights decompression](@ref weights_decompression_matmul_cpp).
 
 ## A note on the default floating-point math mode.
 

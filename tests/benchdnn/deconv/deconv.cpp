@@ -215,15 +215,17 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->src_dims().data(), prb->get_dt(SRC), prb->stag);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->get_dt(SRC), prb->stag);
     auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups,
-            prb->wei_dims().data(), prb->get_dt(WEI), prb->wtag);
-    auto bia_d = dnn_mem_t::init_md(
-            1, prb->bia_dims().data(), prb->get_dt(BIA), tag::any);
-    auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dst_dims().data(), prb->get_dt(DST), prb->dtag);
+            prb->wei_dims().data(), force_f32_dt ? dnnl_f32 : prb->get_dt(WEI),
+            prb->wtag);
+    auto bia_d = dnn_mem_t::init_md(1, prb->bia_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->get_dt(BIA), tag::any);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->get_dt(DST), prb->dtag);
 
     dnnl_alg_kind_t alg = dnnl_deconvolution_direct;
     if (prb->alg == WINO) alg = dnnl_deconvolution_winograd;
@@ -323,17 +325,20 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
         fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
                 /* is_service_prim = */ true);
 
-        if (pdw) {
-            if (query_impl_info(pdw) == "ref:any") return OK;
+        // Prim desc wasn't created - try the next set...
+        if (!pdw) continue;
+        // Reference impl was fetched - try the next set...
+        if (query_impl_info(pdw) == "ref:any") continue;
 
-            auto st = dnnl_primitive_create(&prim_ref_, pdw);
-            if (st != dnnl_success) continue;
+        auto st = dnnl_primitive_create(&prim_ref_, pdw);
+        // Primitive wan't created - try the next set...
+        if (st != dnnl_success) continue;
 
-            BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
-                    query_impl_info(pdw).c_str());
-            res->prim_ref_repro = prb_cpu.str();
-            break;
-        }
+        BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
+                query_impl_info(pdw).c_str());
+        res->prim_ref_repro = prb_cpu.str();
+        prim_ref.reset(prim_ref_);
+        return OK;
     }
 
     prim_ref.reset(prim_ref_);
@@ -408,7 +413,7 @@ std::vector<int> supported_exec_args(dir_t dir) {
 };
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res,
         dnnl_primitive_t prim_ref) {
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
@@ -546,8 +551,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res,
-                           prb->dir, prim_ref),
+    TIME_FILL(SAFE(init_ref_memory_args(
+                           ref_mem_map, mem_map, prim, prb, res, prim_ref),
             WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
@@ -556,7 +561,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(prb, get_kinds_to_check(prb), args, ref_args, setup_cmp,
             res, prim_ref);
-    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->inplace, res),
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->attr,
+                 prb->inplace, res),
             WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);

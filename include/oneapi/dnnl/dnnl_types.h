@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -227,8 +227,7 @@ typedef enum {
     dnnl_abcdefghijlk, ///< permuted 12D tensor
 
     // Opaque blocked formats
-    dnnl_Ab4a,
-    dnnl_Ab8a,
+
     dnnl_Abc16a,
     dnnl_ABc16a16b,
     dnnl_ABc32a32b,
@@ -709,8 +708,6 @@ typedef enum {
     dnnl_aCB16c4b,
     dnnl_BA16b2a,
     dnnl_BA16b4a,
-    dnnl_BA4b4a,
-    dnnl_BA8b4a,
     dnnl_aBC16b16c,
     dnnl_aBC16b32c,
     dnnl_AB16a16b,
@@ -1021,6 +1018,10 @@ typedef enum {
     dnnl_AcB4b8a4b,
     dnnl_AcdB4b8a4b,
     dnnl_AcdeB4b8a4b,
+    dnnl_Ab4a,
+    dnnl_Ab8a,
+    dnnl_BA4b4a,
+    dnnl_BA8b4a,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.
@@ -2817,7 +2818,6 @@ typedef enum {
 
     /// Intel AVX2 and Intel Deep Learning Boost (Intel DL Boost)
     /// with 8-bit integer, float16 and bfloat16 support
-    /// (preview support)
     dnnl_cpu_isa_avx2_vnni_2 = 0x1f,
 
     /// Intel AVX-512 subset for Intel Xeon Scalable processor family
@@ -2837,16 +2837,21 @@ typedef enum {
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support
     /// for Intel Xeon Scalable processor family
     /// and Intel Core processor family.
-    dnnl_cpu_isa_avx512_core_fp16 = 0x1ef,
+    // TODO: Align avx10_1 values to internal representation.
+    dnnl_cpu_isa_avx10_1_512 = 0x1ef,
+    dnnl_cpu_isa_avx512_core_fp16 = dnnl_cpu_isa_avx10_1_512,
 
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer and bfloat16 support
-    dnnl_cpu_isa_avx512_core_amx = 0xfef,
+    // TODO: Align avx10_1 values to internal representation.
+    dnnl_cpu_isa_avx10_1_512_amx = 0xfef,
+    dnnl_cpu_isa_avx512_core_amx = dnnl_cpu_isa_avx10_1_512_amx,
 
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer, bfloat16 and float16 support
-    /// (preview support)
-    dnnl_cpu_isa_avx512_core_amx_fp16 = 0x1fef,
+    // TODO: Align avx10_1 values to internal representation.
+    dnnl_cpu_isa_avx10_1_512_amx_fp16 = 0x1fef,
+    dnnl_cpu_isa_avx512_core_amx_fp16 = dnnl_cpu_isa_avx10_1_512_amx_fp16,
 } dnnl_cpu_isa_t;
 
 /// CPU ISA hints flags

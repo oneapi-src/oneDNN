@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,13 +42,19 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
             using sm = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm::post_ops;
 
-            bool ok = is_fwd() && set_default_params() == status::success
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_RESAMPLING(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_RESAMPLING_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_RESAMPLING(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_RESAMPLING(
+                    post_ops_with_binary_ok(attr(), dst_md()->data_type, 5),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_RESAMPLING_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_TAG);
 
-            return init_conf(engine);
+            VDISPATCH_RESAMPLING_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
         compute::dispatch_t dispatch;
         resampling_conf_t conf;
@@ -94,11 +100,15 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
-            bool ok = !is_fwd() && set_default_params() == status::success
-                    && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
 
-            return init_conf(engine);
+            VDISPATCH_RESAMPLING(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_RESAMPLING_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_RESAMPLING(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+
+            VDISPATCH_RESAMPLING_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
         resampling_conf_t conf;
 

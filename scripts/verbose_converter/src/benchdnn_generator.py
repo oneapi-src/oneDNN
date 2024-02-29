@@ -487,16 +487,27 @@ def convert_tags(mds, prim_kind):
         return f" --stag={data_tag}:{weights_tag}"
 
     def convert_tags_rnn(mds):
-        tags = ""
+        tags = "--tag="
+        with_proj = ""
+        with_peep = ""
+        skip_colon = True
         for md in mds:
             md_arg = md["arg"]
             md_tag = md["tag"]
+            if md_arg == "src_layer" or md_arg == "wei_layer" or md_arg == "dst_layer":
+                if not skip_colon:
+                    tags += f":"
+                if "a" in md["properties"]:
+                    tags += f"any"
+                else:
+                    tags += f"{md_tag}"
+                skip_colon = False
             if md_arg == "wei_proj" and md_tag != "undef":
-                tags += " --with-projection=true"
+                with_proj = " --with-projection=true"
             if md_arg == "wei_peephole" and md_tag != "undef":
-                tags += " --with-peephole=true"
+                with_peep = " --with-peephole=true"
 
-        return tags
+        return tags + with_proj + with_peep
 
     def convert_tags_lnorm(mds):
         tag = convert_tags_multiple(mds)

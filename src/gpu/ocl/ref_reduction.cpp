@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,7 +80,8 @@ status_t ref_reduction_t::pd_t::init_conf(engine_t *engine) {
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const reduction_conf_t &conf, const post_ops_t &post_ops) {
+        const reduction_conf_t &conf, const post_ops_t &post_ops,
+        const memory_desc_t *dst_md) {
     using namespace alg_kind;
 
     kernel_ctx.set_data_type(conf.src_type);
@@ -126,8 +127,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    CHECK(def_attr_info(
-            kernel_ctx, conf.attr_info, post_ops, conf.dst_md_info.dims));
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops, *dst_md));
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -136,7 +136,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
 status_t ref_reduction_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, attr()->post_ops_);
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, attr()->post_ops_, invariant_dst_md());
 }
 
 status_t ref_reduction_t::execute_ref(const exec_ctx_t &ctx) const {

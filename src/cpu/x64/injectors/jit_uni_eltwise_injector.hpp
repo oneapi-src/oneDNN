@@ -136,7 +136,7 @@ struct jit_uni_eltwise_injector_f32 {
         compute_vector_range({compute_idx}, vmm_aux_indices);
     }
     void prepare_table(bool gen_table = true);
-    void load_table_addr() { h->mov(p_table_, l_table_); }
+    void load_table_addr() { h->lea(p_table_, h->ptr[h->rip + l_table_]); }
 
     // This call is `static` and `public` to make a decision on the injector's
     // saving state if the caller can supply the necessary number of vmms. The

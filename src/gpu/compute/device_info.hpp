@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,11 +23,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/serialization_stream.hpp"
-#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
 
-#include "cpu/platform.hpp"
 #include "oneapi/dnnl/dnnl_config.h"
 
 namespace dnnl {
@@ -88,6 +86,7 @@ enum class device_ext_t : uint64_t {
     intel_subgroup_matrix_multiply_accumulate       = 1ull << 24,
     intel_subgroup_split_matrix_multiply_accumulate = 1ull << 25,
     intel_variable_eu_thread_count                  = 1ull << 26,
+    intel_unified_shared_memory                     = 1ull << 27,
     // Future extensions
     future_bf16_cvt                                 = 1ull << 31,
     last
@@ -122,6 +121,7 @@ static inline const char *ext2cl_str(device_ext_t ext) {
         CASE(intel_subgroup_matrix_multiply_accumulate)
         CASE(intel_subgroup_split_matrix_multiply_accumulate)
         CASE(intel_variable_eu_thread_count)
+        CASE(intel_unified_shared_memory)
         CASE(future_bf16_cvt)
         default: return nullptr;
     }
@@ -259,6 +259,11 @@ public:
         return mayiuse_non_uniform_work_groups_;
     }
 
+    /// Returns true if the engine can directly access pointers from system allocators
+    bool mayiuse_system_memory_allocators() const {
+        return mayiuse_system_memory_allocators_;
+    }
+
     bool mayiuse_sub_group(int size) const;
 
     bool has_native(data_type_t type) const;
@@ -290,6 +295,7 @@ protected:
     int stepping_id_ = 0;
     bool mayiuse_systolic_ = false;
     bool mayiuse_ngen_kernels_ = false;
+    bool mayiuse_system_memory_allocators_ = false;
 
     std::string name_;
     runtime_version_t runtime_version_;

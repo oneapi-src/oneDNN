@@ -23,7 +23,7 @@
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
-#include "gpu/ocl/reduction_utils.h"
+#include "gpu/ocl/reduction_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 #include "gpu/serialization.hpp"
 
@@ -105,14 +105,18 @@ struct atomic_reduction_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             using smask_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = smask_t::gpu_attr;
-            bool ok = set_default_params() == status::success
-                    && attr()->has_default_values(attr_skip_mask)
-                    && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && !attr()->deterministic_;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_REDUCTION_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_REDUCTION(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_REDUCTION(!memory_desc_ndims_ok(src_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
+            VDISPATCH_REDUCTION_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_REDUCTION(
+                    !attr()->deterministic_, VERBOSE_UNSUPPORTED_ATTR);
 
-            CHECK(init_conf(engine));
+            VDISPATCH_REDUCTION_SC(init_conf(engine), "init_conf");
             init_scratchpad();
 
             return status::success;
@@ -122,8 +126,8 @@ struct atomic_reduction_t : public gpu_primitive_t {
         status_t init_finalization_pd(engine_t *engine);
         void init_scratchpad();
 
-        int div;
-        float eps, power;
+        int div = 0;
+        float eps = 1, power = 1;
         std::vector<atomic_reduction_conf_t> phases;
         bool needs_finalization = false;
         std::shared_ptr<primitive_desc_t> eltwise_pd_;

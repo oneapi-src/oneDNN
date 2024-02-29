@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,15 +46,14 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    float *scratchpad_int8 = ctx.get_scratchpad_grantor().template get<float>(
-            key_softmax_interim_store);
+    float *interim_scratchpad
+            = ctx.get_scratchpad_grantor().template get<float>(
+                    key_softmax_interim_store);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
-    const auto interim_dt
-            = pd()->need_int8_scratchpad() ? data_type::f32 : dst_d.data_type();
-
+    const auto interim_dt = data_type::f32;
     const dim_t ou_stride = pd()->outer_stride();
     const auto is_inplace = (src == dst);
     const auto has_padding = is_padding(dst_d);
@@ -72,8 +71,8 @@ status_t ref_softmax_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
                 + ou * ou_stride * src_dt_size;
         void *dst_data
                 = reinterpret_cast<char *>(dst) + ou * ou_stride * dst_dt_size;
-        void *interim_ptr = pd()->need_int8_scratchpad()
-                ? (scratchpad_int8 + ithr * axis_size)
+        void *interim_ptr = pd()->need_intermediate_scratchpad()
+                ? (interim_scratchpad + ithr * axis_size)
                 : dst_data;
 
         float space_max = -FLT_MAX;
@@ -198,16 +197,16 @@ status_t ref_softmax_fwd_t::execute_forward_generic(
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    float *scratchpad_int8 = ctx.get_scratchpad_grantor().template get<float>(
-            key_softmax_interim_store);
+    float *interim_scratchpad
+            = ctx.get_scratchpad_grantor().template get<float>(
+                    key_softmax_interim_store);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
-    void *interim_ptr = pd()->need_int8_scratchpad() ? scratchpad_int8 : dst;
-    const auto interim_dt
-            = pd()->need_int8_scratchpad() ? data_type::f32 : dst_d.data_type();
-
+    void *interim_ptr
+            = pd()->need_intermediate_scratchpad() ? interim_scratchpad : dst;
+    const auto interim_dt = data_type::f32;
     const auto is_inplace = (src == dst);
     const auto has_padding = is_padding(dst_d);
     if (has_padding && !is_inplace) {
@@ -265,7 +264,7 @@ status_t ref_softmax_fwd_t::execute_forward_generic(
                     space_denom[in] += expf(d);
                 }
                 size_t dst_off = dst_d.off_l(ou_in_offset + c * inner_size_);
-                size_t interim_off = pd()->need_int8_scratchpad()
+                size_t interim_off = pd()->need_intermediate_scratchpad()
                         ? thr_shift + c
                         : dst_off;
                 io::store_float_value(interim_dt, d, interim_ptr, interim_off);
@@ -277,7 +276,7 @@ status_t ref_softmax_fwd_t::execute_forward_generic(
 
             for (int c = 0; c < channels_; c++) {
                 size_t dst_off = dst_d.off_l(ou_in_offset + c * inner_size_);
-                size_t interim_off = pd()->need_int8_scratchpad()
+                size_t interim_off = pd()->need_intermediate_scratchpad()
                         ? thr_shift + c
                         : dst_off;
                 float d = io::load_float_value(

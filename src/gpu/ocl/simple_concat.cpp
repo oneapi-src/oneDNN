@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -514,8 +514,8 @@ static status_t init_conf_common(
             && dst_md.dims[axis::concat] < 8)
         return status::unimplemented;
 
-    compute::get_optimal_lws(
-            conf.gws_d, conf.lws_d, 3, 0, device_info->gpu_arch());
+    conf.lws_d
+            = compute::get_optimal_lws(conf.gws_d, 0, device_info->gpu_arch());
     return status::success;
 }
 

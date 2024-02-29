@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -700,17 +700,29 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::pd_t::init(
         engine_t *engine) {
     auto desired_fmt_tag = (ndims() == 4) ? nhwc : ndhwc;
 
-    bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-            && one_of(ndims(), 4, 5) && stats_is_src()
-            && src_md()->data_type == s8 && check_scale_shift_data_type()
-            && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-            && (attr()->has_default_values() || this->with_relu_post_op(false))
-            && set_default_formats_common()
-            && memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md());
-    if (!ok) return status::unimplemented;
+    // disabling verbose dispatch checks for unsupported isa for better readability
+    if (!mayiuse(isa)) return status::unimplemented;
+
+    VDISPATCH_BNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_BNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_BNORM(one_of(ndims(), 4, 5), VERBOSE_BAD_NDIMS, "src", ndims());
+    VDISPATCH_BNORM(stats_is_src(), VERBOSE_BAD_PARAM, "stats");
+    VDISPATCH_BNORM(src_md()->data_type == s8, VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_BNORM(check_scale_shift_data_type(), VERBOSE_UNSUPPORTED_FEATURE,
+            "unsupported scale or shift data type");
+    VDISPATCH_BNORM(memory_desc_matches_tag(*src_md(), desired_fmt_tag),
+            VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_BNORM(
+            (attr()->has_default_values() || this->with_relu_post_op(false)),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_BNORM(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_BNORM(
+            memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md()),
+            VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
     // BN+Add+Relu fusion is not currently implemented
-    if (fuse_norm_add_relu()) return status::unimplemented;
+    VDISPATCH_BNORM(!fuse_norm_add_relu(), VERBOSE_UNSUPPORTED_FEATURE,
+            "sum+relu post-ops configuration is not supported");
 
     return status::success;
 }

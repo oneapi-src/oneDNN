@@ -1164,6 +1164,9 @@ struct fma_context_t {
         // mad with f16 requires aligned regioning for src1/src2.
         if (a_type.is_f16()) return layout.make_dense();
 
+        if (layout.type().is_bf16() && !hw.systolic_support())
+            return layout.retype(type_t::f32()).make_dense();
+
         if (a_type.is_bf16()) {
             // bf16 mixed mode requires src1 to be converted to f32 when it's
             // broadcasted.
@@ -1220,9 +1223,10 @@ struct fma_context_t {
                     std::vector<block_t> blocks;
                     int new_inner_stride = 1;
                     int nblocks = (int)layout.blocks().size();
+                    auto inner_most_block = layout.blocks()[0];
                     for (int i = nblocks - 1; i >= 0; --i) {
                         auto &b = layout.blocks()[i];
-                        if (i == nblocks - 1) {
+                        if (b.dim_idx != inner_most_block.dim_idx) {
                             new_inner_stride = b.block;
                             blocks.insert(blocks.begin(),
                                     block_t(b.dim_idx, b.block, stride_t(1)));
@@ -1233,7 +1237,8 @@ struct fma_context_t {
                     }
                     return maybe_retype_layout_for_mad(is_a,
                             layout_t(layout.type(), layout.ndims(),
-                                    layout.offset(), blocks));
+                                    layout.offset(), blocks)
+                                    .make_dense());
                 }
             }
             // XXX: type and layout.type() may be different here when using mad
@@ -1247,7 +1252,7 @@ struct fma_context_t {
             auto bmnks = get_bmnk_kinds(abc, /*with_batch=*/true);
             auto bmnk_layout = mapper.map_to_bmnk(abc, bmnks, ret);
             auto fma_layout = bmnk_layout.make_with_block(
-                    layout_t(type, 0, (int)bmnks.size(), blocks));
+                    layout_t(ret.type(), 0, (int)bmnks.size(), blocks));
             auto abc_layout = mapper.map_from_bmnk(abc, bmnks, fma_layout, ret);
             return abc_layout;
         }
@@ -1957,7 +1962,7 @@ private:
         auto &src = g2s_load.reg_layout();
         auto &dst = g2s_store.reg_layout();
         reorder = create_reorder_plan(cfg_.hw(), src, dst);
-        if (reduce_mask && !cfg_.prb().attr->deterministic_) {
+        if (reduce_mask && !cfg_.prb().deterministic) {
             *reduce_tile = to_reduce_tensor(abs_thr_tile, reduce_mask.mask);
             auto reduce_layout = to_reduce_layout(src, reduce_mask.mask);
             *reduce = create_reduce_plan(
@@ -2022,7 +2027,7 @@ private:
                 send_address_t::slm, abc, thr_view);
         load = create_send_plan(cfg_.exec_cfg(), thr_view, params);
         layout = load.reg_layout();
-        if (reduce_mask && cfg_.prb().attr->deterministic_) {
+        if (reduce_mask && cfg_.prb().deterministic) {
             *reduce_tile = to_reduce_tensor(abs_thr_tile, reduce_mask.mask);
             auto reduce_layout = to_reduce_layout(layout, reduce_mask.mask);
             *reduce = create_reduce_plan(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,15 +47,24 @@ struct ref_eltwise_fwd_t : public primitive_t {
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper dst_d(dst_md());
 
-            bool ok = is_fwd()
-                    && utils::everyone_is(
-                            data_type, src_md()->data_type, dst_md()->data_type)
-                    && platform::has_data_type_support(data_type)
-                    && attr()->has_default_values(sm::post_ops)
-                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
-                    && set_default_formats_common() && src_d == dst_d
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_ELTWISE(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_ELTWISE(utils::everyone_is(data_type, src_md()->data_type,
+                                      dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_ELTWISE(platform::has_data_type_support(data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_ELTWISE(attr()->has_default_values(sm::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_ELTWISE(
+                    ref_post_ops_t::primitive_kind_ok(attr()->post_ops_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_ELTWISE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_ELTWISE(
+                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
+            VDISPATCH_ELTWISE(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             use_dense_ = src_d.is_dense(true) && dst_d.is_dense(true)
                     && IMPLICATION(!src_d.is_dense() || !dst_d.is_dense(),
@@ -120,13 +129,19 @@ struct ref_eltwise_bwd_t : public primitive_t {
             const memory_desc_wrapper diff_src_d(diff_src_md());
             const memory_desc_wrapper diff_dst_d(diff_dst_md());
 
-            bool ok = !is_fwd()
-                    && utils::everyone_is(data_type, data_md()->data_type,
-                            diff_src_md()->data_type, diff_dst_md()->data_type)
-                    && platform::has_data_type_support(data_type)
-                    && attr()->has_default_values()
-                    && set_default_formats_common() && diff_dst_d == diff_src_d;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_ELTWISE(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_ELTWISE(
+                    utils::everyone_is(data_type, data_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_ELTWISE(platform::has_data_type_support(data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_ELTWISE(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_ELTWISE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_ELTWISE(diff_dst_d == diff_src_d,
+                    VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
 
             use_dense_ = diff_dst_d.is_dense()
                     || (diff_dst_d.is_dense(true) && is_zero_preserved());

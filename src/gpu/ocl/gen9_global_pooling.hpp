@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,12 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "common/reduction_pd.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_pooling_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -49,22 +45,25 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
             auto src_data_t = src_md()->data_type;
             auto dst_data_t = dst_md()->data_type;
 
-            bool ok = set_default_params() == status::success
-                    && utils::one_of(desc()->prop_kind, forward_training,
-                            forward_inference)
-                    && utils::one_of(desc()->alg_kind, pooling_max,
-                            pooling_avg_include_padding,
-                            pooling_avg_exclude_padding)
-                    && !utils::one_of(f64, src_data_t, dst_data_t)
-                    && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_POOLING_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(utils::one_of(desc()->prop_kind, forward_training,
+                                      forward_inference),
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(utils::one_of(desc()->alg_kind, pooling_max,
+                                      pooling_avg_include_padding,
+                                      pooling_avg_exclude_padding),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_POOLING(!utils::one_of(f64, src_data_t, dst_data_t),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             bool is_training = desc_.prop_kind == forward_training;
             if (desc()->alg_kind == pooling_max && is_training)
                 init_default_ws(s32);
 
-            CHECK(init_conf(engine));
-            CHECK(init_reduction(engine));
+            VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
+            VDISPATCH_POOLING_SC(init_reduction(engine), "init_reduction()");
             init_scratchpad();
             return status::success;
         }
@@ -155,36 +154,45 @@ struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
             auto diff_dst_dt = diff_dst_md()->data_type;
             auto diff_src_dt = diff_src_md()->data_type;
 
-            bool ok = set_default_params() == status::success
-                    && utils::one_of(desc()->prop_kind, backward_data)
-                    && utils::one_of(desc()->alg_kind, pooling_max,
-                            pooling_avg_include_padding,
-                            pooling_avg_exclude_padding)
-                    && (utils::everyone_is(data_type::f32,
-                                diff_dst_md()->data_type,
-                                diff_src_md()->data_type)
+            VDISPATCH_POOLING_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(utils::one_of(desc()->prop_kind, backward_data),
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(utils::one_of(desc()->alg_kind, pooling_max,
+                                      pooling_avg_include_padding,
+                                      pooling_avg_exclude_padding),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_POOLING(
+                    (utils::everyone_is(data_type::f32,
+                             diff_dst_md()->data_type, diff_src_md()->data_type)
                             || utils::everyone_is(data_type::f16,
                                     diff_dst_md()->data_type,
                                     diff_src_md()->data_type)
                             || utils::everyone_is(data_type::bf16,
                                     diff_dst_md()->data_type,
-                                    diff_src_md()->data_type))
-                    && !utils::one_of(data_type::f64, diff_src_dt, diff_dst_dt)
-                    && IMPLICATION(diff_src_md()->data_type == data_type::f16,
+                                    diff_src_md()->data_type)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(
+                    !utils::one_of(data_type::f64, diff_src_dt, diff_dst_dt),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(
+                    IMPLICATION(diff_src_md()->data_type == data_type::f16,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short))
-                    && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+                                                    intel_subgroups_short)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_POOLING(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             if (desc()->alg_kind == pooling_max) {
                 init_default_ws(data_type::s32);
-                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+                VDISPATCH_POOLING(
+                        compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
-            return init_conf(engine);
+            VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

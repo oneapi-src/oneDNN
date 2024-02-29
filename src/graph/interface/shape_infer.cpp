@@ -776,10 +776,6 @@ status_t infer_pool_output_shape(op_t *n,
     dims dilations(kernel.size(), 1);
     if (n->has_attr(op_attr::dilations)) {
         dilations = n->get_attr<dims>(op_attr::dilations);
-        if (dilations.size() != kernel.size()) {
-            // TODO: why is resize needed here?
-            dilations.resize(kernel.size());
-        }
     }
 
     const dims src_dims = in0.vdims();
@@ -888,9 +884,6 @@ status_t infer_pool_bwd_output_shape(op_t *n,
     dims dilations(kernel.size(), 1);
     if (n->has_attr(op_attr::dilations)) {
         dilations = n->get_attr<dims>(op_attr::dilations);
-        if (dilations.size() != kernel.size()) {
-            return status::invalid_arguments;
-        }
     }
 
     // out0 is the diff_src, has same shape with src

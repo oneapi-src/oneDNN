@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
 #include "common/reorder.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 using namespace dnnl::impl::memory_tracking;
 

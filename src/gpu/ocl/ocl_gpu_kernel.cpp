@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
 
     kernel_wrapper_t *kernel = nullptr;
     CHECK(cache_->get(&kernel));
-    CHECK(gpu::compute::check_scalar_arguments(arg_list, arg_types_));
+    CHECK(check_scalar_arguments(arg_list));
     for (int i = 0; i < arg_list.nargs(); ++i) {
         auto &arg = arg_list.get(i);
         if (arg.is_global()) {
@@ -213,15 +213,17 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         cl_uint num_events = (cl_uint)events.size();
         const cl_event *events_data = num_events ? events.data() : nullptr;
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
-                range.global_range(), range.local_range(), num_events,
-                events_data, &event.unwrap());
+                range.global_range().data(),
+                range.local_range() ? range.local_range().data() : nullptr,
+                num_events, events_data, &event.unwrap());
         OCL_CHECK(err);
         ocl_event_t::from(out_dep).events = {event};
     } else {
         bool save_event = save_events_ || stream.is_profiling_enabled();
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
-                range.global_range(), range.local_range(), 0, nullptr,
-                save_event ? &event.unwrap() : nullptr);
+                range.global_range().data(),
+                range.local_range() ? range.local_range().data() : nullptr, 0,
+                nullptr, save_event ? &event.unwrap() : nullptr);
         OCL_CHECK(err);
     }
 
@@ -233,16 +235,6 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     return status::success;
 }
 
-bool ocl_gpu_kernel_t::is_on(
-        const gpu::compute::compute_engine_t &engine) const {
-    if (engine.runtime_kind() != runtime_kind::ocl) return false;
-    auto &ocl_engine = *utils::downcast<const ocl_gpu_engine_t *>(&engine);
-    cl_context ctx = {};
-    UNUSED_OCL_RESULT(clGetKernelInfo(
-            ocl_kernel(), CL_KERNEL_CONTEXT, sizeof(ctx), &ctx, nullptr));
-    return ctx == ocl_engine.context();
-}
-
 status_t ocl_gpu_kernel_t::dump() const {
     compute::binary_t binary;
     CHECK(get_ocl_kernel_binary(ocl_kernel(), binary));
@@ -251,10 +243,7 @@ status_t ocl_gpu_kernel_t::dump() const {
 }
 
 std::string ocl_gpu_kernel_t::name() const {
-    char name_data[32] = {};
-    UNUSED_OCL_RESULT(clGetKernelInfo(ocl_kernel(), CL_KERNEL_FUNCTION_NAME,
-            sizeof(name_data) - 1, name_data, nullptr));
-    return std::string(name_data);
+    return get_kernel_name(ocl_kernel());
 }
 
 } // namespace ocl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,9 +59,18 @@ float8_e5m2_t &float8_e5m2_t::operator=(float f) {
 }
 
 float8_e5m2_t::operator float() const {
-    std::array<uint8_t, 2> iraw = {{0, raw_bits_}};
-    auto f16 = utils::bit_cast<float16_t>(iraw);
+    float16_t f16 = *this;
     return static_cast<float>(f16);
+}
+
+float8_e5m2_t::operator float16_t() const {
+    uint16_t snan_mask = 0x7d;
+    uint16_t qnan_qbit = 0x02;
+    const bool is_snan = (raw_bits_ & snan_mask) == snan_mask;
+    const uint8_t raw = is_snan ? raw_bits_ | qnan_qbit : raw_bits_;
+    std::array<uint8_t, 2> iraw = {{0, raw}};
+    auto f16 = utils::bit_cast<float16_t>(iraw);
+    return f16;
 }
 
 float8_e4m3_t &float8_e4m3_t::operator=(float16_t f) {

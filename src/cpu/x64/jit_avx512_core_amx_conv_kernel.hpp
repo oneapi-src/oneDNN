@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -429,7 +429,7 @@ struct jit_avx512_core_amx_bwd_data_copy_kernel_t : public jit_generator {
 
     using reg64_t = Xbyak::Reg64;
 
-    jit_avx512_core_amx_bwd_data_copy_kernel_t(jit_conv_conf_t ajcp)
+    jit_avx512_core_amx_bwd_data_copy_kernel_t(jit_conv_conf_t &ajcp)
         : jit_generator(
                 jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
         , jcp(ajcp) {}
@@ -476,7 +476,7 @@ struct jit_avx512_core_amx_bwd_data_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_bwd_data_kernel_t)
 
     jit_avx512_core_amx_bwd_data_kernel_t(
-            const jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jit_generator(
                 jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
         , jcp(ajcp)

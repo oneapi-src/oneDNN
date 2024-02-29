@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,12 +19,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_eltwise_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -63,25 +59,34 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
             using namespace alg_kind;
-            const bool ok = is_fwd()
-                    && src_md()->data_type == dst_md()->data_type
-                    && !memory_desc_ndims_ok(dst_md())
-                    && attr()->has_default_values(attr_skip_mask)
-                    && set_default_formats_common()
-                    && memory_desc_wrapper(src_md())
-                            == memory_desc_wrapper(dst_md())
-                    && post_ops_with_binary_ok(
-                            attr(), dst_md()->data_type, MAX_NDIMS)
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && IMPLICATION(src_md()->data_type == data_type::f64,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp64))
-                    && IMPLICATION(src_md()->data_type == data_type::f16,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16));
-            if (!ok) return status::unimplemented;
+            VDISPATCH_ELTWISE(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_ELTWISE(src_md()->data_type == dst_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
 
-            CHECK(init_conf(engine));
+            VDISPATCH_ELTWISE(!memory_desc_ndims_ok(dst_md()),
+                    VERBOSE_BAD_NDIMS, "dst_md", dst_md()->ndims);
+            VDISPATCH_ELTWISE(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_ELTWISE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_ELTWISE(memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
+            VDISPATCH_ELTWISE(post_ops_with_binary_ok(
+                                      attr(), dst_md()->data_type, MAX_NDIMS),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_ELTWISE_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_ELTWISE(IMPLICATION(src_md()->data_type == data_type::f64,
+                                      compute_engine->mayiuse(
+                                              compute::device_ext_t::khr_fp64)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_ELTWISE(IMPLICATION(src_md()->data_type == data_type::f16,
+                                      compute_engine->mayiuse(
+                                              compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
+            VDISPATCH_ELTWISE_SC(init_conf(engine), "init_conf()");
             return status::success;
         }
 
@@ -130,25 +135,36 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
             using namespace alg_kind;
-            const bool ok = !is_fwd()
-                    && !memory_desc_ndims_ok(data_md(), diff_dst_md())
-                    && utils::one_of(data_md()->data_type, data_type::f32,
-                            data_type::f16, data_type::bf16, data_type::f64)
-                    && utils::everyone_is(data_md()->data_type,
-                            diff_src_md()->data_type, diff_dst_md()->data_type)
-                    && set_default_formats_common()
-                    && IMPLICATION(data_md()->data_type == data_type::f64,
+            VDISPATCH_ELTWISE(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_ELTWISE(!memory_desc_ndims_ok(data_md(), diff_dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "data_md", "diff_dst_md");
+            VDISPATCH_ELTWISE(
+                    utils::one_of(data_md()->data_type, data_type::f32,
+                            data_type::f16, data_type::bf16, data_type::f64),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_ELTWISE(
+                    utils::everyone_is(data_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_ELTWISE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_ELTWISE(
+                    IMPLICATION(data_md()->data_type == data_type::f64,
                             compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp64))
-                    && attr()->has_default_values()
-                    && IMPLICATION(data_md()->data_type == data_type::f16,
+                                    compute::device_ext_t::khr_fp64)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_ELTWISE(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_ELTWISE(
+                    IMPLICATION(data_md()->data_type == data_type::f16,
                             compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && memory_desc_wrapper(diff_dst_md())
-                            == memory_desc_wrapper(diff_src_md());
-            if (!ok) return status::unimplemented;
+                                    compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_ELTWISE(memory_desc_wrapper(diff_dst_md())
+                            == memory_desc_wrapper(diff_src_md()),
+                    VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
 
-            CHECK(init_conf(engine));
+            VDISPATCH_ELTWISE_SC(init_conf(engine), "init_conf()");
             return status::success;
         }
 

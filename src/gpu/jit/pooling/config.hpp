@@ -21,6 +21,7 @@
 #include <sstream>
 
 #include "common/utils.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/ir/config.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -226,7 +227,7 @@ public:
 
         std::vector<int> padded {
                 int(src.dim(0)), int(src.dim(1)), prb.od, prb.oh, prb.ow};
-        const auto &mb = padded[0], &oc = padded[1];
+        auto &mb = padded[0], &oc = padded[1];
         auto &od = padded[2], &oh = padded[3], &ow = padded[4];
 
         const bool is_scalar = (prb.kd * prb.kh * prb.kw == 1);
@@ -478,6 +479,7 @@ public:
             }
         }
         lg[1] *= simd;
+        oc = utils::rnd_up(oc, lg[1]);
         kg[0] *= utils::div_up(oc, lg[1]);
         kg[1] *= utils::div_up(mb, lg[0]);
 
@@ -490,12 +492,12 @@ public:
     compute::nd_range_t nd_range() const {
         const auto &kg = kernel_grid();
         const auto &tg = thread_group_grid();
-        std::array<size_t, 3> local {size_t(tg[0] * exec_cfg().simd()),
-                size_t(tg[1]), size_t(tg[2])};
-        std::array<size_t, 3> global {size_t(kg[0]) * local[0],
-                size_t(kg[1]) * local[1], size_t(kg[2]) * local[2]};
+        compute::range_t local(size_t(tg[0] * exec_cfg().simd()), size_t(tg[1]),
+                size_t(tg[2]));
+        compute::range_t global(size_t(kg[0]) * local[0],
+                size_t(kg[1]) * local[1], size_t(kg[2]) * local[2]);
 
-        return compute::nd_range_t(global.data(), local.data());
+        return compute::nd_range_t(global, local);
     }
 
     std::string str() const override {

@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -159,57 +160,65 @@ struct _ref_rnn_common_t : public primitive_t {
             const data_type_t weights_layer_dt
                     = this->desc()->weights_layer_desc.data_type;
 
-            bool ok = true
-                    && one_of(cell_kind, alg_kind::vanilla_rnn,
-                            alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
-                            alg_kind::lbr_gru, alg_kind::vanilla_augru,
-                            alg_kind::lbr_augru)
-                    && IMPLICATION(aprop == prop_kind::forward,
-                            one_of(this->desc()->prop_kind, forward_training,
-                                    forward_inference))
-                    && IMPLICATION(aprop == backward,
-                            one_of(this->desc()->prop_kind, backward))
-                    && src_layer_dt == src_type
-                    && everyone_is(
-                            weights_type, weights_iter_dt, weights_layer_dt)
-                    && this->set_default_params() == status::success
-                    && this->with_bias();
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_RNN(one_of(cell_kind, alg_kind::vanilla_rnn,
+                                  alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
+                                  alg_kind::lbr_gru, alg_kind::vanilla_augru,
+                                  alg_kind::lbr_augru),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_RNN(IMPLICATION(aprop == prop_kind::forward,
+                                  one_of(this->desc()->prop_kind,
+                                          forward_training, forward_inference)),
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_RNN(IMPLICATION(aprop == backward,
+                                  one_of(this->desc()->prop_kind, backward)),
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_RNN(src_layer_dt == src_type, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_RNN(everyone_is(weights_type, weights_iter_dt,
+                                  weights_layer_dt),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_RNN(this->set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_RNN(this->with_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
 
             rnn_ = zero<decltype(rnn_)>();
             rnn_.is_brgemm = false;
-            ok = init_conf<class_name>(rnn_, *this->desc(), *this->attr(),
-                    this->src_md(0), this->src_md(1), this->src_md(2),
-                    this->weights_md(0), this->weights_md(1),
+            const bool ok = init_conf<class_name>(rnn_, *this->desc(),
+                    *this->attr(), this->src_md(0), this->src_md(1),
+                    this->src_md(2), this->weights_md(0), this->weights_md(1),
                     this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION), this->dst_md(0),
                     this->dst_md(1), this->dst_md(2),
                     this->arg_md(DNNL_ARG_BIAS));
             if (!ok) return status::unimplemented;
 
             if (rnn_.is_bf16_conf()) {
-                if (!utils::one_of(
-                            rnn_.bias_dt, data_type::bf16, data_type::f32)
-                        || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt
-                        || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
-                                data_type::bf16, data_type::f32))
-                    return status::unimplemented;
-            } else if (rnn_.bias_dt != data_type::f32
-                    || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
-                            data_type::f32)
-                    || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt)
-                return status::unimplemented;
+                VDISPATCH_RNN(
+                        !(!utils::one_of(
+                                  rnn_.bias_dt, data_type::bf16, data_type::f32)
+                                || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt
+                                || !utils::one_of(rnn_.src_iter_c_dt,
+                                        data_type::undef, data_type::bf16,
+                                        data_type::f32)),
+                        VERBOSE_UNSUPPORTED_DT_CFG);
+            } else {
+                VDISPATCH_RNN(
+                        !(rnn_.bias_dt != data_type::f32
+                                || !utils::one_of(rnn_.src_iter_c_dt,
+                                        data_type::undef, data_type::f32)
+                                || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt),
+                        VERBOSE_UNSUPPORTED_DT_CFG);
+            }
 
             /* check that no data shift have been passed to s8s8 lstm */
-            if (!IMPLICATION(rnn_.is_signed_int8_conf(),
-                        this->attr()->rnn_data_qparams_.shift_ == 0.f))
-                return status::unimplemented;
+            VDISPATCH_RNN(
+                    IMPLICATION(rnn_.is_signed_int8_conf(),
+                            this->attr()->rnn_data_qparams_.shift_ == 0.f),
+                    "s8s8 lstm implementation does not support data shift");
 
             /* INT8 cases with non-trivial strides are not supported */
-            if (rnn_.is_int8_conf()
-                    && !(rnn_.src_layer_is_trivial_stride
-                            && rnn_.dst_layer_is_trivial_stride))
-                return status::unimplemented;
+            VDISPATCH_RNN(!(rnn_.is_int8_conf()
+                                  && !(rnn_.src_layer_is_trivial_stride
+                                          && rnn_.dst_layer_is_trivial_stride)),
+                    VERBOSE_NONTRIVIAL_STRIDE);
 
             /* check that only supported attr have been passed */
             primitive_attr_t::skip_mask_t attr_mask
@@ -220,8 +229,9 @@ struct _ref_rnn_common_t : public primitive_t {
                         | primitive_attr_t::skip_mask_t::rnn_weights_qparams
                         | primitive_attr_t::skip_mask_t::
                                 rnn_weights_projection_qparams;
-            ok = ok && this->attr()->has_default_values(attr_mask);
-            if (!ok) return status::unimplemented;
+
+            VDISPATCH_RNN(this->attr()->has_default_values(attr_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
 
             // Set weights descriptors to desired format
             memory_desc_t new_weights_layer_md = *this->weights_md(0);
@@ -231,8 +241,9 @@ struct _ref_rnn_common_t : public primitive_t {
                 this->weights_layer_md_ = new_weights_layer_md;
             } else if (this->weights_layer_md_.format_kind
                     == format_kind::rnn_packed) {
-                if (this->weights_layer_md_ != new_weights_layer_md)
-                    return status::unimplemented;
+                VDISPATCH_RNN(this->weights_layer_md_ == new_weights_layer_md,
+                        VERBOSE_INCONSISTENT_MDS, "weights_layer",
+                        "new_weights_layer");
             }
 
             memory_desc_t new_weights_iter_md = *this->weights_md(1);
@@ -242,8 +253,9 @@ struct _ref_rnn_common_t : public primitive_t {
                 this->weights_iter_md_ = new_weights_iter_md;
             } else if (this->weights_iter_md_.format_kind
                     == format_kind::rnn_packed) {
-                if (this->weights_iter_md_ != new_weights_iter_md)
-                    return status::unimplemented;
+                VDISPATCH_RNN(this->weights_iter_md_ == new_weights_iter_md,
+                        VERBOSE_INCONSISTENT_MDS, "weights_iter",
+                        "new_weights_iter");
             }
 
             if (rnn_.is_lstm_projection) {
@@ -256,9 +268,10 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->weights_projection_md_ = new_weights_projection_md;
                 } else if (this->weights_projection_md_.format_kind
                         == format_kind::rnn_packed) {
-                    if (this->weights_projection_md_
-                            != new_weights_projection_md)
-                        return status::unimplemented;
+                    VDISPATCH_RNN(this->weights_projection_md_
+                                    == new_weights_projection_md,
+                            VERBOSE_INCONSISTENT_MDS, "weights_projection",
+                            "new_weights_projection");
                 }
             }
 
@@ -298,108 +311,122 @@ struct _ref_rnn_common_t : public primitive_t {
             bool allow_down_conversion_to_bf16
                     = is_f32 && is_fpmath_bf16 && is_impl_bf16;
 
-            bool ok = one_of(cell_kind, alg_kind::vanilla_rnn,
-                              alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
-                              alg_kind::lbr_gru, alg_kind::vanilla_augru,
-                              alg_kind::lbr_augru)
-                    && IMPLICATION(aprop == prop_kind::forward,
-                            one_of(this->desc()->prop_kind, forward_training,
-                                    forward_inference))
-                    // LBR is not supported for training in brgemm
-                    && IMPLICATION(one_of(cell_kind, alg_kind::lbr_gru,
-                                           alg_kind::lbr_augru),
-                            this->desc()->prop_kind == forward_inference)
-                    && IMPLICATION(aprop == backward,
-                            one_of(this->desc()->prop_kind, backward))
-                    // TODO: Enable diff_weights_overwrite support
-                    && IMPLICATION(aprop == backward,
-                            this->diff_weights_overwrite() == false)
-                    // cell_type (or src_type) and primitive data type should
-                    // match, except for the bf32 case.
-                    && IMPLICATION(!allow_down_conversion_to_bf16,
+            VDISPATCH_RNN(one_of(cell_kind, alg_kind::vanilla_rnn,
+                                  alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
+                                  alg_kind::lbr_gru, alg_kind::vanilla_augru,
+                                  alg_kind::lbr_augru),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_RNN(IMPLICATION(aprop == prop_kind::forward,
+                                  one_of(this->desc()->prop_kind,
+                                          forward_training, forward_inference)),
+                    VERBOSE_BAD_PROPKIND);
+            // LBR is not supported for training in brgemm
+            VDISPATCH_RNN(IMPLICATION(one_of(cell_kind, alg_kind::lbr_gru,
+                                              alg_kind::lbr_augru),
+                                  this->desc()->prop_kind == forward_inference),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_RNN(IMPLICATION(aprop == backward,
+                                  one_of(this->desc()->prop_kind, backward)),
+                    VERBOSE_BAD_PROPKIND);
+            // TODO: Enable diff_weights_overwrite support
+            VDISPATCH_RNN(IMPLICATION(aprop == backward,
+                                  this->diff_weights_overwrite() == false),
+                    VERBOSE_BAD_PROPKIND);
+            // cell_type (or src_type) and primitive data type should
+            // match, except for the bf32 case.
+            VDISPATCH_RNN(
+                    IMPLICATION(!allow_down_conversion_to_bf16,
                             src_layer_dt == src_type
                                     && everyone_is(weights_type,
-                                            weights_iter_dt, weights_layer_dt))
-                    && this->set_default_params() == status::success
-                    && this->with_bias();
-
-            if (!ok) return status::unimplemented;
+                                            weights_iter_dt, weights_layer_dt)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_RNN(this->set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_RNN(this->with_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
 
             rnn_ = zero<decltype(rnn_)>();
             rnn_.is_brgemm = true;
-            ok = init_conf<class_name>(rnn_, *this->desc(), *this->attr(),
-                    this->src_md(0), this->src_md(1), this->src_md(2),
-                    this->weights_md(0), this->weights_md(1),
+            const bool ok = init_conf<class_name>(rnn_, *this->desc(),
+                    *this->attr(), this->src_md(0), this->src_md(1),
+                    this->src_md(2), this->weights_md(0), this->weights_md(1),
                     this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION), this->dst_md(0),
                     this->dst_md(1), this->dst_md(2),
                     this->arg_md(DNNL_ARG_BIAS));
 
-            ok = ok
-                    && IMPLICATION(one_of(this->desc()->prop_kind,
-                                           forward_training, backward),
-                            (rnn_.is_xf16_conf() || rnn_.is_f32_conf()));
-
             if (!ok) return status::unimplemented;
+
+            VDISPATCH_RNN(IMPLICATION(one_of(this->desc()->prop_kind,
+                                              forward_training, backward),
+                                  (rnn_.is_xf16_conf() || rnn_.is_f32_conf())),
+                    "data type and propagation kind mismatch");
 
             // Support for GRU / AUGRU cell in BRGEMM-based implementation is
             // limited by forward_inference pass for now, all_f32 is disabled
             // due to performance degradation.
             // TODO: Improve GRU / AUGRU coverage in BRGEMM-based implementation
-            ok = IMPLICATION(rnn_.is_orig_gru,
-                    this->desc()->prop_kind == forward_inference
-                            && !rnn_.is_cell_dt_f32());
-            if (!ok) return status::unimplemented;
+            VDISPATCH_RNN(IMPLICATION(rnn_.is_orig_gru,
+                                  this->desc()->prop_kind == forward_inference
+                                          && !rnn_.is_cell_dt_f32()),
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "gru/augru cell in brgemm-based implementation for forward "
+                    "inference");
 
-            if (rnn_.is_cell_dt_f32()
-                    && utils::one_of(this->desc()->prop_kind, backward,
-                            forward_training))
-                return status::unimplemented;
+            VDISPATCH_RNN(!(rnn_.is_cell_dt_f32()
+                                  && utils::one_of(this->desc()->prop_kind,
+                                          backward, forward_training)),
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "f32 datatype in brgemm-based implementation");
 
-            if (!(IMPLICATION((cell_kind == alg_kind::vanilla_lstm
-                                      && rnn_.is_lstm_projection),
-                        this->desc()->prop_kind == forward_inference)))
-                return status::unimplemented;
+            VDISPATCH_RNN(
+                    (IMPLICATION((cell_kind == alg_kind::vanilla_lstm
+                                         && rnn_.is_lstm_projection),
+                            this->desc()->prop_kind == forward_inference)),
+                    "bad algorithm for lstm projection for forward inference");
 
             if (rnn_.is_bf16_conf()) {
-                if (!mayiuse(avx512_core_bf16)
+                const bool isa_dt_not_ok = (!mayiuse(avx512_core_bf16)
                         || !utils::one_of(
                                 rnn_.bias_dt, data_type::bf16, data_type::f32)
                         || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt
                         || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
-                                data_type::bf16, data_type::f32))
-                    return status::unimplemented;
+                                data_type::bf16, data_type::f32));
+                VDISPATCH_RNN(!isa_dt_not_ok, VERBOSE_ISA_DT_MISMATCH);
             } else if (rnn_.is_f16_conf()) {
-                if (!mayiuse(avx512_core_amx_fp16)
+                const bool isa_dt_not_ok = (!mayiuse(avx512_core_amx_fp16)
                         || !utils::one_of(
                                 rnn_.bias_dt, data_type::f16, data_type::f32)
                         || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt
                         || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
-                                data_type::f16, data_type::f32))
-                    return status::unimplemented;
-            } else if (rnn_.bias_dt != data_type::f32
-                    || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
-                            data_type::f32)
-                    || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt)
-                return status::unimplemented;
+                                data_type::f16, data_type::f32));
+                VDISPATCH_RNN(!isa_dt_not_ok, VERBOSE_ISA_DT_MISMATCH);
+            } else {
+                const bool dt_not_ok = (rnn_.bias_dt != data_type::f32
+                        || !utils::one_of(rnn_.src_iter_c_dt, data_type::undef,
+                                data_type::f32)
+                        || rnn_.src_iter_c_dt != rnn_.dst_iter_c_dt);
+                VDISPATCH_RNN(!dt_not_ok, VERBOSE_UNSUPPORTED_DT_CFG);
+            }
             const auto isa = get_max_cpu_isa();
-            if (rnn_.is_signed_int8_conf()
-                    && !is_superset(isa, avx512_core_amx))
-                return status::unimplemented;
-            if (rnn_.is_int8_conf() && !is_superset(isa, avx512_core_vnni))
-                return status::unimplemented;
-            if (rnn_.is_f32_conf() && !is_superset(isa, avx2))
-                return status::unimplemented;
+            VDISPATCH_RNN(!(rnn_.is_signed_int8_conf()
+                                  && !is_superset(isa, avx512_core_amx)),
+                    VERBOSE_ISA_DT_MISMATCH);
+            VDISPATCH_RNN(!(rnn_.is_int8_conf()
+                                  && !is_superset(isa, avx512_core_vnni)),
+                    VERBOSE_ISA_DT_MISMATCH);
+            VDISPATCH_RNN(!(rnn_.is_f32_conf() && !is_superset(isa, avx2)),
+                    VERBOSE_ISA_DT_MISMATCH);
 
             /* check that no shift have been passed to s8s8 amx lstm */
-            if (!IMPLICATION(rnn_.is_signed_int8_conf(),
-                        this->attr()->rnn_data_qparams_.shift_ == 0))
-                return status::unimplemented;
+            VDISPATCH_RNN(IMPLICATION(rnn_.is_signed_int8_conf(),
+                                  this->attr()->rnn_data_qparams_.shift_ == 0),
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "no support for shift in s8s8 amx lstm implementation");
 
             /* INT8 cases with non-trivial strides are not supported */
-            if (rnn_.is_int8_conf()
-                    && !(rnn_.src_layer_is_trivial_stride
-                            && rnn_.dst_layer_is_trivial_stride))
-                return status::unimplemented;
+            VDISPATCH_RNN(!(rnn_.is_int8_conf()
+                                  && !(rnn_.src_layer_is_trivial_stride
+                                          && rnn_.dst_layer_is_trivial_stride)),
+                    VERBOSE_NONTRIVIAL_STRIDE);
 
             /* check that only supported attr have been passed */
             primitive_attr_t::skip_mask_t attr_mask
@@ -411,8 +438,8 @@ struct _ref_rnn_common_t : public primitive_t {
                         | primitive_attr_t::skip_mask_t::
                                 rnn_weights_projection_qparams
                         | primitive_attr_t::skip_mask_t::fpmath_mode;
-            ok = ok && this->attr()->has_default_values(attr_mask);
-            if (!ok) return status::unimplemented;
+            VDISPATCH_RNN(this->attr()->has_default_values(attr_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
 
             set_conf<class_name>(rnn_, *this->desc(), this->weights_md(0),
                     this->weights_md(1),
@@ -428,8 +455,9 @@ struct _ref_rnn_common_t : public primitive_t {
             set_workspace_sizes<class_name>(rnn_, *this->desc());
 
             // Only AMX LSTM supports s8s8 now
-            if (rnn_.is_signed_int8_conf() && !rnn_.is_cell_int8_amx())
-                return status::unimplemented;
+            VDISPATCH_RNN(
+                    !(rnn_.is_signed_int8_conf() && !rnn_.is_cell_int8_amx()),
+                    VERBOSE_UNSUPPORTED_DT);
 
             // Set weights descriptors to desired format
             memory_desc_t new_weights_layer_md = *this->weights_md(0);
@@ -437,8 +465,10 @@ struct _ref_rnn_common_t : public primitive_t {
                     rnn_utils::weights_type_t::layer));
             if (this->weights_layer_md_.format_kind == format_kind::any) {
                 this->weights_layer_md_ = new_weights_layer_md;
-            } else if (this->weights_layer_md_ != new_weights_layer_md) {
-                return status::unimplemented;
+            } else {
+                VDISPATCH_RNN(this->weights_layer_md_ == new_weights_layer_md,
+                        VERBOSE_INCONSISTENT_MDS, "weights_layer",
+                        "new_weights_layer");
             }
 
             memory_desc_t new_weights_iter_md = *this->weights_md(1);
@@ -446,8 +476,10 @@ struct _ref_rnn_common_t : public primitive_t {
                     rnn_utils::weights_type_t::iter));
             if (this->weights_iter_md_.format_kind == format_kind::any) {
                 this->weights_iter_md_ = new_weights_iter_md;
-            } else if (this->weights_iter_md_ != new_weights_iter_md) {
-                return status::unimplemented;
+            } else {
+                VDISPATCH_RNN(this->weights_iter_md_ == new_weights_iter_md,
+                        VERBOSE_INCONSISTENT_MDS, "weights_iter",
+                        "new_weights_iter");
             }
             if (rnn_.is_lstm_projection) {
                 memory_desc_t new_weights_projection_md
@@ -457,9 +489,11 @@ struct _ref_rnn_common_t : public primitive_t {
                 if (this->weights_projection_md_.format_kind
                         == format_kind::any) {
                     this->weights_projection_md_ = new_weights_projection_md;
-                } else if (this->weights_projection_md_
-                        != new_weights_projection_md) {
-                    return status::unimplemented;
+                } else {
+                    VDISPATCH_RNN(this->weights_projection_md_
+                                    == new_weights_projection_md,
+                            VERBOSE_INCONSISTENT_MDS, "weights_projection",
+                            "new_weights_projection");
                 }
             }
             if (rnn_.is_unsigned_int8_conf()) {

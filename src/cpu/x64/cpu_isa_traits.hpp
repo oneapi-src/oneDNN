@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,21 +58,35 @@ static constexpr int cpu_isa_total_bits = sizeof(unsigned) * 8;
 
 enum cpu_isa_bit_t : unsigned {
     // Fill in features from least significant bit to most significant bit
-    sse41_bit = 1u << 0,
-    avx_bit = 1u << 1,
-    avx2_bit = 1u << 2,
-    avx_vnni_bit = 1u << 3,
-    avx_vnni_2_bit = 1u << 4,
-    avx512_core_bit = 1u << 5,
-    avx512_core_vnni_bit = 1u << 6,
-    avx512_core_bf16_bit = 1u << 7,
-    avx512_core_fp16_bit = 1u << 8,
-    amx_tile_bit = 1u << 9,
-    amx_int8_bit = 1u << 10,
-    amx_bf16_bit = 1u << 11,
-    amx_fp16_bit = 1u << 12,
+    avx10_version_bit_start = 0,
+    avx10_version_bit_end = 3,
+    xmm_bit = 1u << 4,
+    ymm_bit = 1u << 5,
+    zmm_bit = 1u << 6,
+    amx_tile_bit = 1u << 7,
+
+    sse41_bit = xmm_bit, // re-using xmm, ymm and zmm bits for sse, avx, avx512.
+    avx_bit = ymm_bit,
+    evex_core_bit = 1u << 8,
+    avx2_bit = 1u << 9,
+    vex_vnni_bit = 1u << 10,
+    vex_vnni_2_bit = 1u << 11,
+    evex_core_vnni_bit = 1u << 12,
+    evex_core_bf16_bit = 1u << 13,
+    evex_core_fp16_bit = 1u << 14,
+    amx_int8_bit = 1u << 15,
+    amx_bf16_bit = 1u << 16,
+    amx_fp16_bit = 1u << 17,
+
     // Fill in hints from most significant bit to least significant bit
     prefer_ymm_bit = 1u << (cpu_isa_total_bits - 1),
+
+    avx10_version_bits
+    = ((1 << (avx10_version_bit_end - avx10_version_bit_start + 1)) - 1)
+            << avx10_version_bit_start,
+    avx10 = avx2_bit | vex_vnni_bit | evex_core_bit | evex_core_vnni_bit
+            | evex_core_bf16_bit | evex_core_fp16_bit,
+    avx10_1 = (1 << avx10_version_bit_start) | avx10,
 };
 
 dnnl_cpu_isa_hints_t DNNL_API get_cpu_isa_hints(bool soft = false);
@@ -84,19 +98,13 @@ namespace cpu_isa_hints_utils {
 static constexpr unsigned hints_mask = prefer_ymm_bit;
 
 static unsigned cvt2mask(dnnl_cpu_isa_hints_t hints) {
-    static const std::unordered_map<dnnl_cpu_isa_hints_t, unsigned,
-            std::hash<int>>
-            hints_map = {{dnnl_cpu_isa_no_hints, 0},
-                    {dnnl_cpu_isa_prefer_ymm, prefer_ymm_bit}};
-
-    auto iter = hints_map.find(hints);
-    if (iter != hints_map.end())
-        return iter->second;
-    else {
-        assert(!"unexpected CPU ISA hint");
-        return 0;
+    switch (hints) {
+        case dnnl_cpu_isa_no_hints: return 0;
+        case dnnl_cpu_isa_prefer_ymm: return prefer_ymm_bit;
     }
-}
+    assert(!"Unexpected CPU ISA hint");
+    return 0;
+};
 
 static bool is_hints_bit_set(cpu_isa_bit_t hint_bit, bool soft) {
     const dnnl_cpu_isa_hints_t hints = get_cpu_isa_hints(soft);
@@ -110,25 +118,24 @@ enum cpu_isa_t : unsigned {
     sse41 = sse41_bit,
     avx = avx_bit | sse41,
     avx2 = avx2_bit | avx,
-    avx2_vnni = avx_vnni_bit | avx2,
-    avx2_vnni_2 = avx2_vnni | avx_vnni_2_bit,
-    avx512_core = avx512_core_bit | avx2,
-    avx512_core_vnni = avx512_core_vnni_bit | avx512_core,
-    avx512_core_bf16 = avx512_core_bf16_bit | avx512_core_vnni,
+    avx2_vnni = vex_vnni_bit | avx2,
+    avx2_vnni_2 = avx2_vnni | vex_vnni_2_bit,
+    avx512_core = evex_core_bit | zmm_bit | avx2,
+    avx512_core_vnni = evex_core_vnni_bit | avx512_core,
+    avx512_core_bf16 = evex_core_bf16_bit | avx512_core_vnni,
     avx512_core_bf16_ymm = prefer_ymm_bit | avx512_core_bf16,
     amx_tile = amx_tile_bit,
     amx_int8 = amx_int8_bit | amx_tile,
     amx_bf16 = amx_bf16_bit | amx_tile,
     amx_fp16 = amx_fp16_bit | amx_tile,
-    avx512_core_fp16 = avx512_core_fp16_bit | avx512_core_bf16 | avx_vnni_bit,
-    avx512_core_amx = avx512_core_fp16 | amx_int8 | amx_bf16,
-    avx512_core_amx_fp16 = avx512_core_amx | amx_fp16,
+    avx10_1_512 = avx10_1 | zmm_bit | ymm_bit | xmm_bit,
+    avx512_core_fp16 = avx10_1_512,
+    avx10_1_512_amx = avx10_1_512 | amx_int8 | amx_bf16,
+    avx512_core_amx = avx10_1_512_amx,
+    avx10_1_512_amx_fp16 = avx10_1_512_amx | amx_fp16,
+    avx512_core_amx_fp16 = avx10_1_512_amx_fp16,
     // NOTES: 1. isa_all by default has no isa specific hints
-    //        2. avx2_vnni_2 is under preview support and turned off by default
-    //        3. avx512_core_amx_fp16 is under preview support and turned off
-    //          by default
-    isa_all
-    = ~0u & ~avx_vnni_2_bit & ~amx_fp16_bit & ~cpu_isa_hints_utils::hints_mask,
+    isa_all = ~0u & ~cpu_isa_hints_utils::hints_mask,
 };
 
 enum class cpu_isa_cmp_t {
@@ -156,6 +163,12 @@ cpu_isa_t DNNL_API get_max_cpu_isa_mask(bool soft = false);
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
 dnnl_cpu_isa_t get_effective_cpu_isa();
 
+static inline uint32_t get_avx10_version(cpu_isa_t isa) {
+    return (static_cast<uint32_t>(isa)
+                   & static_cast<uint32_t>(avx10_version_bits))
+            >> avx10_version_bit_start;
+}
+
 static inline bool compare_isa(
         cpu_isa_t isa_1, cpu_isa_cmp_t cmp, cpu_isa_t isa_2) {
     assert(isa_1 != isa_all);
@@ -163,16 +176,22 @@ static inline bool compare_isa(
     // Comparison with `isa_all` is illegal.
     if (utils::one_of(isa_all, isa_1, isa_2)) return false;
 
+    const unsigned isa1_avx10_v = get_avx10_version(isa_1);
+    const unsigned isa2_avx10_v = get_avx10_version(isa_2);
     // By default, comparison between ISA ignores ISA specific hints
-    unsigned mask_1
-            = static_cast<unsigned>(isa_1) & ~cpu_isa_hints_utils::hints_mask;
-    unsigned mask_2
-            = static_cast<unsigned>(isa_2) & ~cpu_isa_hints_utils::hints_mask;
-    unsigned mask_common = mask_1 & mask_2;
-
+    const unsigned isa1_non_converged_avx10
+            = isa_1 & ~cpu_isa_hints_utils::hints_mask & ~avx10_version_bits;
+    const unsigned isa2_non_converged_avx10
+            = isa_2 & ~cpu_isa_hints_utils::hints_mask & ~avx10_version_bits;
+    const unsigned common_non_converged_avx10
+            = isa1_non_converged_avx10 & isa2_non_converged_avx10;
     switch (cmp) {
-        case cpu_isa_cmp_t::SUBSET: return mask_1 == mask_common;
-        case cpu_isa_cmp_t::SUPERSET: return mask_2 == mask_common;
+        case cpu_isa_cmp_t::SUBSET:
+            return isa1_avx10_v <= isa2_avx10_v
+                    && (isa1_non_converged_avx10 == common_non_converged_avx10);
+        case cpu_isa_cmp_t::SUPERSET:
+            return isa1_avx10_v >= isa2_avx10_v
+                    && (isa2_non_converged_avx10 == common_non_converged_avx10);
         default: assert(!"unsupported comparison of isa"); return false;
     }
 }
@@ -289,26 +308,25 @@ struct cpu_isa_traits<avx512_core_bf16> : public cpu_isa_traits<avx512_core> {
 };
 
 template <>
-struct cpu_isa_traits<avx512_core_amx> {
+struct cpu_isa_traits<avx10_1_512_amx> {
     typedef Xbyak::Zmm Vmm;
     static constexpr dnnl_cpu_isa_t user_option_val
-            = dnnl_cpu_isa_avx512_core_amx;
-    static constexpr const char *user_option_env = "avx512_core_amx";
+            = dnnl_cpu_isa_avx10_1_512_amx;
+    static constexpr const char *user_option_env = "avx10_1_512_amx";
 };
 
 template <>
-struct cpu_isa_traits<avx512_core_fp16> : public cpu_isa_traits<avx512_core> {
-    static constexpr dnnl_cpu_isa_t user_option_val
-            = dnnl_cpu_isa_avx512_core_fp16;
-    static constexpr const char *user_option_env = "avx512_core_fp16";
+struct cpu_isa_traits<avx10_1_512> : public cpu_isa_traits<avx512_core> {
+    static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx10_1_512;
+    static constexpr const char *user_option_env = "avx10_1_512";
 };
 
 template <>
-struct cpu_isa_traits<avx512_core_amx_fp16> {
+struct cpu_isa_traits<avx10_1_512_amx_fp16> {
     typedef Xbyak::Zmm Vmm;
     static constexpr dnnl_cpu_isa_t user_option_val
-            = dnnl_cpu_isa_avx512_core_amx_fp16;
-    static constexpr const char *user_option_env = "avx512_core_amx_fp16";
+            = dnnl_cpu_isa_avx10_1_512_amx_fp16;
+    static constexpr const char *user_option_env = "avx10_1_512_amx_fp16";
 };
 
 inline const Xbyak::util::Cpu &cpu() {
@@ -437,9 +455,9 @@ static inline int isa_num_vregs(cpu_isa_t isa) {
     (isa) == avx512_core ? prefix STRINGIFY(avx512_core) : \
     (isa) == avx512_core_vnni ? prefix STRINGIFY(avx512_core_vnni) : \
     (isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
-    (isa) == avx512_core_fp16 ? prefix STRINGIFY(avx512_core_fp16) : \
-    (isa) == avx512_core_amx ? prefix STRINGIFY(avx512_core_amx) : \
-    (isa) == avx512_core_amx_fp16 ? prefix STRINGIFY(avx512_core_amx_fp16) : \
+    (isa) == avx10_1_512 ? prefix STRINGIFY(avx10_1_512) : \
+    (isa) == avx10_1_512_amx ? prefix STRINGIFY(avx10_1_512_amx) : \
+    (isa) == avx10_1_512_amx_fp16 ? prefix STRINGIFY(avx10_1_512_amx_fp16) : \
     prefix suffix_if_any)
 /* clang-format on */
 

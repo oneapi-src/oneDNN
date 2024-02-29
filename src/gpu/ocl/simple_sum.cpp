@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,16 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
-#include <math.h>
-
 #include "gpu/ocl/simple_sum.hpp"
-
 #include "common/c_types_map.hpp"
-#include "common/math_utils.hpp"
-#include "common/nstl.hpp"
-#include "common/type_helpers.hpp"
-#include "gpu/compute/compute.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -50,7 +42,8 @@ status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
         arg_list.set(2, scale);
         arg_list.set(3, a);
 
-        auto nd_range = compute::nd_range_t({nelems});
+        compute::range_t gws(nelems);
+        auto nd_range = compute::nd_range_t(gws);
 
         status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
         if (status != status::success) return status;

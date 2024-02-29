@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,7 @@
  *******************************************************************************/
 
 #include "gpu/ocl/ref_zero_pad.hpp"
-#include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_memory_storage.hpp"
+#include "gpu/compute/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -145,9 +144,9 @@ status_t ref_zero_pad_t::execute_ref(const exec_ctx_t &ctx) const {
         arg_list.set(7, *mask_in);
         arg_list.set(8, mode);
 
-        const size_t gws[3]
+        const compute::range_t gws
                 = {gws0, step_count / step_block, npsteps / step_count};
-        const compute::nd_range_t nd_range = compute::nd_range_t(3, gws);
+        const compute::nd_range_t nd_range(gws);
         status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
         if (status != status::success) return status;
     }
@@ -180,7 +179,7 @@ status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
 
     int arg_idx = 0;
     size_t gws2 = 1;
-    const size_t lws[3] = {16, 1, 1};
+    const compute::range_t lws = {16, 1, 1};
 
     for (int j = 0; j < MAX_NDIMS; ++j) {
         if (j != blocking_desc.inner_idxs[most_inner_nblk]
@@ -231,9 +230,8 @@ status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
                 dims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
                         / blocking_desc.inner_blks[most_inner_nblk - 1],
                 1);
-        const size_t gws[3] = {gws0, gws1, gws2};
-        const compute::nd_range_t zp_nd_range
-                = compute::nd_range_t(3, gws, lws);
+        const compute::range_t gws = {gws0, gws1, gws2};
+        const compute::nd_range_t zp_nd_range(gws, lws);
 
         status = parallel_for(ctx, zp_nd_range, kernel_subg16_, arg_list);
         CHECK(status);
@@ -248,9 +246,8 @@ status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
             const size_t gws_10 = 16
                     * (dims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
                             % blocking_desc.inner_blks[most_inner_nblk - 1]);
-            const size_t gws_1[3] = {gws_10, 1, gws2};
-            const compute::nd_range_t zp_nd_range1
-                    = compute::nd_range_t(3, gws_1, lws);
+            const compute::range_t gws_1 = {gws_10, 1, gws2};
+            const compute::nd_range_t zp_nd_range1(gws_1, lws);
             status = parallel_for(ctx, zp_nd_range1, kernel_subg16_, arg_list);
             CHECK(status);
         }
@@ -283,9 +280,9 @@ status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
             pdims[blocking_desc.inner_idxs[most_inner_nblk]]
                     / blocking_desc.inner_blks[most_inner_nblk],
             1);
-    const size_t gws[3] = {gws0, gws1, gws2};
+    const compute::range_t gws = {gws0, gws1, gws2};
 
-    const compute::nd_range_t zp_nd_range = compute::nd_range_t(3, gws, lws);
+    const compute::nd_range_t zp_nd_range(gws, lws);
     status = parallel_for(ctx, zp_nd_range, kernel_subg16_, arg_list);
 
     return status;
@@ -319,10 +316,10 @@ status_t ref_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
     arg_list.set(1, mask);
 
     const unsigned block_size = 16 * 8; // SIMD * block_size
-    const size_t gws[3] = {static_cast<size_t>(16 * nelems / block_size), 1, 1};
-    const size_t lws[3] = {max_local_ws, 1, 1};
+    const compute::range_t gws(static_cast<size_t>(16 * nelems / block_size));
+    const compute::range_t lws(max_local_ws);
 
-    const compute::nd_range_t zp_nd_range = compute::nd_range_t(3, gws, lws);
+    const compute::nd_range_t zp_nd_range(gws, lws);
 
     return parallel_for(
             ctx, zp_nd_range, kernel_subg16_mask_and_clear_dt_1b_, arg_list);

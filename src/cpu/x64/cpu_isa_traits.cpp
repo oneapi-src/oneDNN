@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,10 +28,21 @@ namespace cpu {
 namespace x64 {
 
 namespace {
-#ifdef DNNL_ENABLE_MAX_CPU_ISA
 cpu_isa_t init_max_cpu_isa() {
     cpu_isa_t max_cpu_isa_val = isa_all;
+    // A macro applies only to env variable enabling/disabling.
+#ifdef DNNL_ENABLE_MAX_CPU_ISA
     static std::string isa_val = getenv_string_user("MAX_CPU_ISA");
+    // handle aliases
+    if (isa_val == "avx512_core_fp16")
+        isa_val = "avx10_1_512";
+    else if (isa_val == "avx512_core_amx")
+        isa_val = "avx10_1_512_amx";
+    else if (isa_val == "avx512_core_amx_fp16")
+        isa_val = "avx10_1_512_amx_fp16";
+#else
+    static std::string isa_val;
+#endif
     if (!isa_val.empty()) {
 
 #define IF_HANDLE_CASE(cpu_isa) \
@@ -63,12 +74,15 @@ set_once_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
             init_max_cpu_isa());
     return max_cpu_isa_setting;
 }
-#endif
 
-#ifdef DNNL_ENABLE_CPU_ISA_HINTS
 dnnl_cpu_isa_hints_t init_cpu_isa_hints() {
     dnnl_cpu_isa_hints_t cpu_isa_hints_val = dnnl_cpu_isa_no_hints;
+    // A macro applies only to env variable enabling/disabling.
+#ifdef DNNL_ENABLE_CPU_ISA_HINTS
     static std::string hints_val = getenv_string_user("CPU_ISA_HINTS");
+#else
+    static std::string hints_val;
+#endif
     if (!hints_val.empty()) {
         if (hints_val.compare("prefer_ymm") == 0)
             cpu_isa_hints_val = dnnl_cpu_isa_prefer_ymm;
@@ -81,7 +95,6 @@ set_once_before_first_get_setting_t<dnnl_cpu_isa_hints_t> &cpu_isa_hints() {
             cpu_isa_hints_setting(init_cpu_isa_hints());
     return cpu_isa_hints_setting;
 }
-#endif
 } // namespace
 
 struct isa_info_t {
@@ -113,7 +126,7 @@ struct isa_info_t {
             case avx512_core_amx_fp16:
                 return "Intel AVX-512 with float16, Intel DL Boost and "
                        "bfloat16 support and Intel AMX with bfloat16, float16 "
-                       "and 8-bit integer support (preview support)";
+                       "and 8-bit integer support";
             case avx512_core_amx:
                 return "Intel AVX-512 with float16, Intel DL Boost and "
                        "bfloat16 support and Intel AMX with bfloat16 and 8-bit "
@@ -132,7 +145,7 @@ struct isa_info_t {
                        "extensions";
             case avx2_vnni_2:
                 return "Intel AVX2 with Intel DL Boost, float16 and bfloat16 "
-                       "support (preview support)";
+                       "support";
             case avx2_vnni: return "Intel AVX2 with Intel DL Boost";
             case avx2: return "Intel AVX2";
             case avx: return "Intel AVX";
@@ -145,7 +158,6 @@ struct isa_info_t {
 };
 
 static isa_info_t get_isa_info_t(void) {
-#ifdef DNNL_ENABLE_MAX_CPU_ISA
     // descending order due to mayiuse check
 #define HANDLE_CASE(cpu_isa) \
     if (mayiuse(cpu_isa)) return isa_info_t(cpu_isa);
@@ -162,7 +174,6 @@ static isa_info_t get_isa_info_t(void) {
     HANDLE_CASE(avx);
     HANDLE_CASE(sse41);
 #undef HANDLE_CASE
-#endif
     return isa_info_t(isa_undef);
 }
 
@@ -175,26 +186,16 @@ cpu_isa_t get_max_cpu_isa() {
 }
 
 cpu_isa_t get_max_cpu_isa_mask(bool soft) {
-    MAYBE_UNUSED(soft);
-#ifdef DNNL_ENABLE_MAX_CPU_ISA
     return max_cpu_isa().get(soft);
-#else
-    return isa_all;
-#endif
 }
 
 dnnl_cpu_isa_hints_t get_cpu_isa_hints(bool soft) {
     MAYBE_UNUSED(soft);
-#ifdef DNNL_ENABLE_CPU_ISA_HINTS
     return cpu_isa_hints().get(soft);
-#else
-    return dnnl_cpu_isa_no_hints;
-#endif
 }
 
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
     using namespace dnnl::impl::status;
-#ifdef DNNL_ENABLE_MAX_CPU_ISA
     using namespace dnnl::impl;
     using namespace dnnl::impl::cpu;
 
@@ -223,9 +224,6 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
         return success;
     else
         return invalid_arguments;
-#else
-    return unimplemented;
-#endif
 }
 
 dnnl_cpu_isa_t get_effective_cpu_isa() {
@@ -234,7 +232,6 @@ dnnl_cpu_isa_t get_effective_cpu_isa() {
 
 status_t set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints) {
     using namespace dnnl::impl::status;
-#ifdef DNNL_ENABLE_CPU_ISA_HINTS
     using namespace dnnl::impl;
     using namespace dnnl::impl::cpu;
 
@@ -242,9 +239,6 @@ status_t set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints) {
         return success;
     else
         return runtime_error;
-#else
-    return unimplemented;
-#endif
 }
 
 namespace amx {

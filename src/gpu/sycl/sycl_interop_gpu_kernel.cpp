@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/stream_profiler.hpp"
 #include "gpu/ocl/types_interop.h"
@@ -96,7 +97,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
             }
         }
     }
-    CHECK(gpu::compute::check_scalar_arguments(arg_list, arg_types_));
+    CHECK(check_scalar_arguments(arg_list));
 
     auto event = queue.submit([&](::sycl::handler &cgh) {
         cgh.depends_on(sycl_event_t::from(deps).events);
@@ -144,9 +145,11 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
             auto sycl_nd_range = to_sycl_nd_range(range);
             cgh.parallel_for(sycl_nd_range, *sycl_kernel_);
         } else {
-            auto *global_range = range.global_range();
+            const auto &global_range = range.global_range();
             auto sycl_range = ::sycl::range<3>(
-                    global_range[2], global_range[1], global_range[0]);
+                    global_range.ndims() >= 3 ? global_range[2] : 1,
+                    global_range.ndims() >= 2 ? global_range[1] : 1,
+                    global_range[0]);
             cgh.parallel_for(sycl_range, *sycl_kernel_);
         }
     });
@@ -159,13 +162,6 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
 
     sycl_event_t::from(out_dep).events = {event};
     return status::success;
-}
-
-bool sycl_interop_gpu_kernel_t::is_on(
-        const gpu::compute::compute_engine_t &engine) const {
-    if (engine.runtime_kind() != runtime_kind::sycl) return false;
-    auto &sycl_engine = *utils::downcast<const sycl_gpu_engine_t *>(&engine);
-    return sycl_kernel().get_context() == sycl_engine.context();
 }
 
 status_t sycl_interop_gpu_kernel_t::dump() const {

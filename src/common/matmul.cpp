@@ -57,9 +57,9 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     if (is_int8) attr_mask |= smask_t::zero_points_runtime;
 
     // Matmul supports zero points for floating point data types as part of weights decompression
-    const bool wei_is_int8
-            = utils::one_of(wei_dt, data_type::s8, data_type::u8);
-    if (!is_int8 && wei_is_int8) {
+    const bool wei_is_int = utils::one_of(
+            wei_dt, data_type::s8, data_type::u8, data_type::s4, data_type::u4);
+    if (!is_int8 && wei_is_int) {
         attr_mask |= smask_t::zero_points_runtime_data_type;
         attr_mask |= smask_t::zero_points_runtime_groups;
         attr_mask |= smask_t::scales_runtime_data_type;
@@ -106,6 +106,18 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         VCHECK_MATMUL_UNIMPL(mask_dst == 0
                         || (desc.dst_desc.ndims == 2 && mask_dst == 1 << 1),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
+
+        if (utils::one_of(zp.get_data_type(DNNL_ARG_WEIGHTS), data_type::s4,
+                    data_type::u4)) {
+            dim_t k = desc.weights_desc.dims[ndims_wei - 2];
+            dim_t n = desc.weights_desc.dims[ndims_wei - 1];
+            VCHECK_MATMUL_UNIMPL(
+                    IMPLICATION(mask_wei & wei_qmask_K, k % 2 == 0),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+            VCHECK_MATMUL_UNIMPL(
+                    IMPLICATION(mask_wei & wei_qmask_N, n % 2 == 0),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+        }
     }
 
     // Check post-ops
@@ -173,6 +185,12 @@ status_t dnnl_matmul_primitive_desc_create(
     const int bia_mask = with_bias
             ? utils::get_dims_mask(dst_md->dims, op_d.bias_desc.dims, ndims)
             : 0;
+
+    // s4/u4 requires n to be multiple of 2
+    VCHECK_MATMUL(IMPLICATION(utils::one_of(weights_md->data_type,
+                                      data_type::s4, data_type::u4),
+                          weights_md->dims[n_idx] % 2 == 0),
+            VERBOSE_BAD_DIM, "weights", n_idx);
 
     // check if other dims match.
     for (int d = 0; d < ndims - 2; ++d) {

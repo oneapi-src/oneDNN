@@ -65,7 +65,7 @@ protected:
     const size_t gate_dt_size = types::data_type_size(src_data_t);
     const size_t vlen_elems = vlen / scratch_dt_size;
     const size_t loop_len = rnn_.dhc;
-    const size_t loop_tail = loop_len % vlen_elems;
+    const size_t loop_tail = loop_len % nstl::max(size_t(1), vlen_elems);
 
     void generate() override {
         using namespace Xbyak;

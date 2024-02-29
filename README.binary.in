@@ -4,7 +4,8 @@ oneAPI Deep Neural Network Library (oneDNN)
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
 oneDNN is part of oneAPI (https://oneapi.io).
-The library is optimized for Intel(R) Architecture Processors and Intel Graphics.
+The library is optimized for Intel(R) Architecture Processors
+and Intel Graphics.
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance on CPUs and GPUs.
@@ -17,10 +18,12 @@ at the oneDNN Github (https://github.com/oneapi-src/oneDNN/releases).
 Documentation
 -------------
 
-* Developer guide (https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@)
-  explains the programming model, supported functionality, and implementation
-  details, and includes annotated examples.
-* API reference (https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@/modules.html)
+* Developer guide
+(https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@)
+explains the programming model, supported functionality, and implementation
+details, and includes annotated examples.
+* API reference
+(https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@/modules.html)
 provides a comprehensive reference of the library API.
 
 System Requirements
@@ -34,79 +37,31 @@ The library is optimized for the following CPUs:
 * Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
 * Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, Cooper
-  Lake, Ice Lake, and Sapphire Rapids)
+  Lake, Ice Lake, Sapphire Rapids, and Emerald Rapids)
 * Intel Xeon CPU Max Series (formerly Sapphire Rapids HBM)
-* future Intel Xeon Scalable processor (code name Granite Rapids)
+* future Intel Xeon Scalable processors (code name Sierra Forest
+and Granite Rapids)
 
 oneDNN detects the instruction set architecture (ISA) at runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
 for the latest supported ISA. Future ISAs may have initial support in the
 library disabled by default and require the use of run-time controls to enable
-them. See CPU dispatcher control (https://oneapi-src.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html)
+them. See CPU dispatcher control
+(https://oneapi-src.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html)
 for more details.
 
 The library is optimized for the following GPUs:
-* Intel UHD Graphics for 11th generation Intel processors or newer
-* Intel Iris(R) Xe graphics (formerly DG1)
-* Intel Arc(TM) graphics (formerly Alchemist and DG2)
-* Intel Data Center GPU Flex Series (formerly Arctic Sound-M)
+* Intel Graphics for 11th-14th Generation Intel Core Processors
+* Intel Graphics for Intel Core Ultra Processors (formerly Meteor Lake)
+* Intel Iris Xe MAX Graphics (formerly DG1)
+* Intel Arc(TM) Graphics (formerly Alchemist)
+* Intel Data Center GPU Flex Series (formerly Arctic Sound)
 * Intel Data Center GPU Max Series (formerly Ponte Vecchio)
-
-## Linux
-
-Common dependencies:
-* GNU C Library (libc.so) 2.12 or later
-* GNU Standard C++ Library v3 (libstdc++.so) compatible with GCC 4.8 or later
-* Dynamic Linking Library (libdl.so)
-* C Math Library (libm.so)
-* POSIX Threads Library (libpthread.so)
-
-Runtime specific dependencies:
-
-| Runtime configuration | Dependency                                         |
-| --------------------- | -------------------------------------------------- |
-| cpu_gomp              | GNU OpenMP runtime (libgomp.so)                    |
-| cpu_iomp              | Intel OpenMP runtime (libiomp5.so)                 |
-| cpu_tbb               | Threading Building Blocks (libtbb.so)              |
-| cpu_dpcpp_gpu_dpcpp   | Intel oneAPI DPC++ Compiler runtime (libsycl.so)   |
-|                       | Threading Building Blocks (libtbb.so)              |
-|                       | oneAPI Level Zero loader (libze_loader.so)         |
-|                       | OpenCL loader (libOpenCL.so)                       |
-
-## Windows
-
-Common dependencies:
-* Microsoft Visual C++ Redistributable 2015 or later (msvcrt.dll)
-
-Runtime specific dependencies:
-
-| Runtime configuration | Dependency                                         |
-| --------------------- | -------------------------------------------------- |
-| cpu_vcomp             | No additional dependencies                         |
-| cpu_iomp              | Intel OpenMP runtime (iomp5.dll)                   |
-| cpu_tbb               | Threading Building Blocks (tbb.dll)                |
-| cpu_dpcpp_gpu_dpcpp   | Intel oneAPI DPC++ Compiler runtime (sycl.dll)     |
-|                       | Threading Building Blocks (tbb.dll)                |
-|                       | oneAPI Level Zero loader (ze_loader.dll)           |
-|                       | OpenCL loader (OpenCL.dll)                         |
-
-## macOS
-
-Common dependencies:
-* System C/C++ runtime (libc++.dylib, libSystem.dylib) compatible with
-  macOS 10.13 (High Sierra) or later
-
-Runtime specific dependencies:
-
-| Runtime configuration | Dependency                                |
-| --------------------- | ----------------------------------------- |
-| cpu_iomp              | Intel OpenMP runtime (libiomp5.dylib)     |
-| cpu_tbb               | Threading Building Blocks (libtbb.dylib) |
 
 Support
 -------
 
-Please submit your questions, feature requests, and bug reports on the
+Submit questions, feature requests, and bug reports on the
 GitHub issues page (https://github.com/oneapi-src/oneDNN/issues).
 
 You may reach out to project maintainers privately at
@@ -123,17 +78,20 @@ terms.
 
 3-clause BSD license:
 * Xbyak (https://github.com/herumi/xbyak)
-* Instrumentation and Tracing Technology API (ITT API) (https://github.com/intel/ittapi)
+* Instrumentation and Tracing Technology API (ITT API)
+(https://github.com/intel/ittapi)
 * CMake (https://github.com/Kitware/CMake)
 
 Boost Software License, Version 1.0:
 * Boost C++ Libraries (https://www.boost.org/)
 
 MIT License:
-* Intel Graphics Compute Runtime for oneAPI Level Zero and OpenCL Driver (https://github.com/intel/compute-runtime)
+* Intel Graphics Compute Runtime for oneAPI Level Zero and OpenCL Driver
+(https://github.com/intel/compute-runtime)
 * Intel Graphics Compiler (https://github.com/intel/intel-graphics-compiler)
 * oneAPI Level Zero (https://github.com/oneapi-src/level-zero)
-* Intel Metrics Discovery Application Programming Interface (https://github.com/intel/metrics-discovery)
+* Intel Metrics Discovery Application Programming Interface
+(https://github.com/intel/metrics-discovery)
 
 This third party software, even if included with the distribution of
 the Intel software, may be governed by separate license terms, including
@@ -144,8 +102,9 @@ govern your use of the third party programs as set forth in the
 
 # Security
 
-See Intel's Security Center (https://www.intel.com/content/www/us/en/security-center/default.html)
-for information on how to report a potential security issue or vulnerability.
+Security Policy (https://github.com/oneapi-src/oneDNN/blob/main/SECURITY.md)
+outlines our guidelines and procedures for ensuring the highest level
+of Security and trust for our users who consume oneDNN.
 
 # Trademark Information
 

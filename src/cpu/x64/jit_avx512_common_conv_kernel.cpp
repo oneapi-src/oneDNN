@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -4320,7 +4320,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
         }
     }
 
-    auto calc_comp_cost = [j, oh_reduce, nthr_g_](
+    auto calc_comp_cost = [&j, oh_reduce, nthr_g_](
                                   int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         return (dim_t)div_up(j.mb * oh_reduce, nthr_mb)
                 * div_up(j.ngroups, nthr_g_) * div_up(j.nb_oc, nthr_oc_b)

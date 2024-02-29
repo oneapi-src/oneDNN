@@ -78,6 +78,13 @@ struct ref_matmul_t : public gpu_primitive_t {
                                                     f16, src_dt_, wei_dt_)
                                                 && utils::one_of(
                                                         dst_dt_, u8, s8, f16))
+                                        || ((utils::everyone_is(
+                                                     f8_e5m2, src_dt_, wei_dt_)
+                                                    || utils::everyone_is(
+                                                            f8_e4m3, src_dt_,
+                                                            wei_dt_))
+                                                && utils::one_of(dst_dt_, f32,
+                                                        bf16, f16, src_dt_))
                                         || (utils::everyone_is(
                                                     bf16, src_dt_, wei_dt_)
                                                 && utils::one_of(
@@ -115,7 +122,7 @@ struct ref_matmul_t : public gpu_primitive_t {
 
         kernel_ctx.set_data_type(pd()->dst_dt_);
         CHECK(def_attr_info(kernel_ctx, pd()->attr_info_,
-                pd()->attr()->post_ops_, pd()->dst_md()->dims));
+                pd()->attr()->post_ops_, *pd()->dst_md()));
 
         bool runtime_dims = pd()->has_runtime_dims_or_strides() || ndims > 5;
         if (!runtime_dims) {

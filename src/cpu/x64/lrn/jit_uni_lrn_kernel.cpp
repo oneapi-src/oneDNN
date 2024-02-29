@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1582,7 +1582,8 @@ jit_uni_lrn_bwd_kernel_t<isa, d_type>::jit_uni_lrn_bwd_kernel_t(
     : Base(config, code_ptr, code_size, jit_name())
     , config_(lrn_config_t::within_config)
     , within_config_(config)
-    , nalphabeta_(-2.0f * A * B) {}
+    , nalphabeta_(-2.0f * A * B)
+    , use_h_parallelizm_(0) {}
 
 template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_lrn_bwd_kernel_t<isa, d_type>::generate(

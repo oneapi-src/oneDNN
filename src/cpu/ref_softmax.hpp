@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,9 +78,10 @@ struct ref_softmax_fwd_t : public primitive_t {
 
         int nthr_; // To not exceed the limit in execute used for set up.
 
-        bool need_int8_scratchpad() const {
-            return utils::one_of(
-                    dst_md()->data_type, data_type::u8, data_type::s8);
+        bool need_intermediate_scratchpad() const {
+            return dst_md()->data_type
+                    != types::default_accum_data_type(
+                            src_md()->data_type, dst_md()->data_type);
         }
 
     private:
@@ -95,7 +96,7 @@ struct ref_softmax_fwd_t : public primitive_t {
                         2 * in_s * ou_s);
             }
 
-            if (need_int8_scratchpad()) {
+            if (need_intermediate_scratchpad()) {
                 nthr_ = dnnl_get_max_threads();
                 scratchpad.template book<char>(
                         memory_tracking::names::key_softmax_interim_store,

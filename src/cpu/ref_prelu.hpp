@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,13 +52,21 @@ struct ref_prelu_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = is_fwd() && src_md(0)->data_type == dst_md(0)->data_type
-                    && platform::has_data_type_support(src_md(0)->data_type)
-                    && platform::has_data_type_support(weights_md(0)->data_type)
-                    && attr()->has_default_values() && set_default_formats()
-                    && memory_desc_wrapper(src_md())
-                            == memory_desc_wrapper(dst_md());
-            if (!ok) return status::unimplemented;
+            VDISPATCH_PRELU(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_PRELU(src_md(0)->data_type == dst_md(0)->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
+            VDISPATCH_PRELU(
+                    platform::has_data_type_support(src_md(0)->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_PRELU(
+                    platform::has_data_type_support(weights_md(0)->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_PRELU(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_PRELU(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_PRELU(memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
             return status::success;
         }
@@ -83,16 +91,27 @@ struct ref_prelu_bwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = !is_fwd()
-                    && diff_src_md(0)->data_type == src_md(0)->data_type
-                    && diff_weights_md(0)->data_type == weights_md(0)->data_type
-                    && diff_dst_md(0)->data_type == diff_src_md(0)->data_type
-                    && platform::has_data_type_support(src_md(0)->data_type)
-                    && platform::has_data_type_support(weights_md(0)->data_type)
-                    && attr()->has_default_values() && set_default_formats()
-                    && memory_desc_wrapper(diff_dst_md())
-                            == memory_desc_wrapper(diff_src_md());
-            if (!ok) return status::unimplemented;
+            VDISPATCH_PRELU(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_PRELU(diff_src_md(0)->data_type == src_md(0)->data_type,
+                    VERBOSE_INCONSISTENT_DT, "diff_src", "src");
+            VDISPATCH_PRELU(
+                    diff_weights_md(0)->data_type == weights_md(0)->data_type,
+                    VERBOSE_INCONSISTENT_DT, "diff_weights", "weights");
+            VDISPATCH_PRELU(
+                    diff_dst_md(0)->data_type == diff_src_md(0)->data_type,
+                    VERBOSE_INCONSISTENT_DT, "diff_src", "diff_dst");
+            VDISPATCH_PRELU(
+                    platform::has_data_type_support(src_md(0)->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_PRELU(
+                    platform::has_data_type_support(weights_md(0)->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_PRELU(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_PRELU(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_PRELU(memory_desc_wrapper(diff_dst_md())
+                            == memory_desc_wrapper(diff_src_md()),
+                    VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
 
             init_scratchpad();
 

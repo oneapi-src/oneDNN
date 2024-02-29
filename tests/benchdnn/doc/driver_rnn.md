@@ -10,6 +10,8 @@ where *rnn-knobs* are:
  - `--prop={FWD_I [default], FWD_D, BWD_DW}` -- dnnl_prop_kind_t.
             Refer to [direction](knobs_dir.md) for details.
  - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` below.
+ - `--tag={any:any:any [default], ...}` -- physical src, weights and dst memory
+            layouts. Refer to [tags](knobs_tag.md) for details.
  - `--alg={VANILLA_RNN [default], VANILLA_LSTM, VANILLA_GRU, LBR_GRU,
             VANILLA_AUGRU, LBR_AUGRU}` -- RNN algorithm.
  - `--direction={left2right [default], right2left, concat, sum}` -- RNN

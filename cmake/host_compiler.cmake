@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,11 +19,12 @@ if(host_compiler_cmake_included)
 endif()
 set(host_compiler_cmake_included true)
 
-if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
-    if(WIN32)
-        message(FATAL_ERROR "${DNNL_DPCPP_HOST_COMPILER} cannot be used on Windows")
-    endif()
+# There is nothing to do for the default host compiler.
+if(DPCPP_HOST_COMPILER_KIND STREQUAL "DEFAULT")
+    return()
+endif()
 
+if(DPCPP_HOST_COMPILER_KIND STREQUAL "GNU")
     set(DPCPP_HOST_COMPILER_OPTS)
 
     if(DNNL_TARGET_ARCH STREQUAL "X64")
@@ -77,29 +78,9 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
     # which is not always the case.
     append(DPCPP_HOST_COMPILER_OPTS "-Wno-subobject-linkage")
 
-    find_program(GNU_COMPILER NAMES ${DNNL_DPCPP_HOST_COMPILER})
-    if(NOT GNU_COMPILER)
-        message(FATAL_ERROR "GNU host compiler not found")
-    else()
-        message(STATUS "GNU host compiler: ${GNU_COMPILER}")
-    endif()
+    platform_gnu_nowarn_ccxx_flags(DPCPP_CXX_NOWARN_FLAGS ${DPCPP_HOST_COMPILER_MAJOR_VER}.${DPCPP_HOST_COMPILER_MINOR_VER})
 
-    execute_process(COMMAND ${GNU_COMPILER} --version OUTPUT_VARIABLE host_compiler_ver ERROR_QUIET)
-    string(REGEX REPLACE ".*g\\+\\+.* ([0-9]+\\.[0-9]+)\\.[0-9]+.*" "\\1" host_compiler_ver "${host_compiler_ver}")
-
-    string(REPLACE "." ";" host_compiler_ver_list ${host_compiler_ver})
-    list(GET host_compiler_ver_list 0 host_compiler_major_ver)
-    list(GET host_compiler_ver_list 1 host_compiler_minor_ver)
-
-    if((host_compiler_major_ver LESS 7) OR (host_compiler_major_ver EQUAL 7 AND host_compiler_minor_ver LESS 4))
-        message(FATAL_ERROR "The minimum GNU host compiler version is 7.4")
-    else()
-        message(STATUS "GNU host compiler version: ${host_compiler_major_ver}.${host_compiler_minor_ver}")
-    endif()
-
-    platform_gnu_nowarn_ccxx_flags(DPCPP_CXX_NOWARN_FLAGS ${host_compiler_major_ver}.${host_compiler_minor_ver})
-
-    append(CMAKE_CXX_FLAGS "-fsycl-host-compiler=${GNU_COMPILER}")
+    append(CMAKE_CXX_FLAGS "-fsycl-host-compiler=${DPCPP_HOST_COMPILER}")
     append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_HOST_COMPILER_OPTS}")
 
     # When using a non-default host compiler the main compiler doesn't
@@ -107,5 +88,5 @@ if(DNNL_DPCPP_HOST_COMPILER MATCHES "g\\+\\+")
     # Suppress the warning until the bug is fixed.
     append(CMAKE_CXX_FLAGS "-Wno-unused-command-line-argument")
 elseif(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT")
-    message(FATAL_ERROR "The valid values for DNNL_DPCPP_HOST_COMPILER: DEFAULT and g++ or absolute path to it")
+    message(FATAL_ERROR "The valid values for DNNL_DPCPP_HOST_COMPILER: DEFAULT or an executable of the GNU C++ compiler or an absolute path to it")
 endif()

@@ -562,8 +562,7 @@ jit_brgemm_kernel_t<isa, Wmm>::vmm_lower_mask(const Vmm_lower_t vmm_lower_in,
 template <cpu_isa_t isa, typename Wmm>
 void jit_brgemm_kernel_t<isa, Wmm>::maybe_set_avx_mask(bool is_ld_tail) {
     if (IMPLICATION(is_ld_tail, isa_has_masks(brg.isa_impl))) return;
-    mov(reg_tmp_gpr, avx_tail_mask_);
-    vmovups(vmm_tail_mask(), ptr[reg_tmp_gpr]);
+    vmovups(vmm_tail_mask(), ptr[rip + avx_tail_mask_]);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1037,7 +1036,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::apply_post_ops(
                         mov(reg_ptr_sum_scale,
                                 reinterpret_cast<size_t>(p_sum_scale));
                     } else {
-                        mov(reg_ptr_sum_scale, sum_zp_scale_data_);
+                        lea(reg_ptr_sum_scale, ptr[rip + sum_zp_scale_data_]);
                     }
                 }
 
@@ -1199,8 +1198,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_apply_post_ops(
         for (int bd = 0; bd < bd_block; bd++) {
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
-                uni_vcvtps2dq(vmm, vmm);
+                saturate_cvt_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
             }
         }
         // below call is not required as s32 doesn't use vmm_lbound
@@ -1360,8 +1358,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::store_accumulators_without_post_ops(
         for (int bd = 0; bd < bd_block; bd++) {
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                saturate_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
-                uni_vcvtps2dq(vmm, vmm);
+                saturate_cvt_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
             }
         }
         // below call is not required as s32 doesn't use vmm_lbound

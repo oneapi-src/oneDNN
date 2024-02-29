@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2023 Intel Corporation
+# Copyright 2019-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,23 +19,14 @@ if(SYCL_cmake_included)
 endif()
 set(SYCL_cmake_included true)
 
+include("cmake/host_compiler_id.cmake")
+
 if(NOT DNNL_WITH_SYCL)
-    if (NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT")
-        message(FATAL_ERROR "DNNL_DPCPP_HOST_COMPILER is supported only for DPCPP runtime")
-    endif()
     return()
 endif()
 
 include(FindPackageHandleStandardArgs)
 include("cmake/dpcpp_driver_check.cmake")
-
-if(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT" AND DNNL_SYCL_CUDA)
-    message(FATAL_ERROR "DNNL_DPCPP_HOST_COMPILER options is not supported for NVIDIA.")
-endif()
-
-if(NOT DNNL_DPCPP_HOST_COMPILER STREQUAL "DEFAULT" AND DNNL_SYCL_HIP)
-    message(FATAL_ERROR "DNNL_DPCPP_HOST_COMPILER options is not supported for AMD.")
-endif()
 
 # Link SYCL library explicitly for open-source compiler on Windows.
 # In other cases, the compiler is able to automatically link it.

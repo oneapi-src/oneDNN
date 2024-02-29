@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute_engine.hpp"
 #include "gpu/compute/compute_stream.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/jit_generator.hpp"
 
 #define MAGIC0 0xBEEFCAFEu
@@ -230,9 +231,6 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     uint64_t magic5 = MAGIC5;
     uint32_t magic_ptr = MAGICPTR;
 
-    size_t gws[3] = {MAGICSIZEX, MAGICSIZEY, MAGICSIZEZ};
-    size_t lws[3] = {MAGICSIZEX, MAGICSIZEY, MAGICSIZEZ};
-
     memory_storage_t *storage = nullptr;
     std::unique_ptr<memory_storage_t> magic_buf, result_buf;
 
@@ -269,6 +267,9 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     arg_list.set(5, magic5);
     arg_list.set(6, *magic_buf.get());
     arg_list.set(7, *result_buf.get());
+
+    compute::range_t gws = {MAGICSIZEX, MAGICSIZEY, MAGICSIZEZ};
+    compute::range_t lws = {MAGICSIZEX, MAGICSIZEY, MAGICSIZEZ};
 
     auto nd_range = compute::nd_range_t(gws, lws);
 

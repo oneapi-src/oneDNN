@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@
 #define GPU_GEMM_GPU_GEMM_EXEC_TYPES_HPP
 
 #include "common/memory_storage.hpp"
-#include "common/stream.hpp"
+#include "common/primitive_exec_types.hpp"
 
-#define DNNL_ARG_A DNNL_ARG_SRC
-#define DNNL_ARG_B DNNL_ARG_WEIGHTS
+#define DNNL_ARG_A DNNL_ARG_WEIGHTS
+#define DNNL_ARG_B DNNL_ARG_SRC
 #define DNNL_ARG_C DNNL_ARG_DST
 
 namespace dnnl {
@@ -33,17 +33,17 @@ namespace gpu {
                          : dnnl::impl::memory_storage_t::empty_storage())
 
 struct gemm_exec_args_t {
-    memory_storage_t *a = nullptr;
-    memory_storage_t *b = nullptr;
-    memory_storage_t *c = nullptr;
-    memory_storage_t *a_zero_point = nullptr;
-    memory_storage_t *b_zero_point = nullptr;
-    memory_storage_t *c_zero_point = nullptr;
-    memory_storage_t *bias = nullptr;
-    memory_storage_t *a_scales = nullptr;
-    memory_storage_t *b_scales = nullptr;
-    memory_storage_t *c_scales = nullptr;
-    memory_storage_t *sum_ab = nullptr;
+    const memory_storage_t *a = nullptr;
+    const memory_storage_t *b = nullptr;
+    const memory_storage_t *c = nullptr;
+    const memory_storage_t *a_zero_point = nullptr;
+    const memory_storage_t *b_zero_point = nullptr;
+    const memory_storage_t *c_zero_point = nullptr;
+    const memory_storage_t *bias = nullptr;
+    const memory_storage_t *a_scales = nullptr;
+    const memory_storage_t *b_scales = nullptr;
+    const memory_storage_t *c_scales = nullptr;
+    const memory_storage_t *sum_ab = nullptr;
     exec_args_t exec_args;
 };
 

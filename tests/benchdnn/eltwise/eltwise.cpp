@@ -34,11 +34,12 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dims.data(), prb->dt, prb->tag);
-    auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dims.data(), prb->dt, tag::any);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+            force_f32_dt ? dnnl_f32 : prb->dt, prb->tag);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+            force_f32_dt ? dnnl_f32 : prb->dt, tag::any);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 
@@ -56,13 +57,13 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 init_pd_args.src_md ? init_pd_args.src_md : src_d, dst_d,
                 prb->alpha, prb->beta, dnnl_attr)));
     } else {
-        auto diff_src_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt, tag::any);
-        auto diff_dst_d = dnn_mem_t::init_md(
-                prb->ndims, prb->dims.data(), prb->dt, tag::any);
+        auto diff_src_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->dt, tag::any);
+        auto diff_dst_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->dt, tag::any);
         if (prb->use_dst()) // Need to create with proper tag
-            dst_d = dnn_mem_t::init_md(
-                    prb->ndims, prb->dims.data(), prb->dt, prb->tag);
+            dst_d = dnn_mem_t::init_md(prb->ndims, prb->dims.data(),
+                    force_f32_dt ? dnnl_f32 : prb->dt, prb->tag);
         auto &data_d = prb->use_dst() ? dst_d : src_d;
 
         TIME_C_PD(DNN_SAFE_STATUS(dnnl_eltwise_backward_primitive_desc_create(
@@ -378,9 +379,8 @@ std::vector<int> supported_exec_args(dir_t dir) {
 };
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res,
         dnnl_primitive_t prim_ref) {
-    update_inplace_memory_args(mem_map, prb, dir);
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
     const auto &ref_engine = get_cpu_engine();
@@ -486,8 +486,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(
             mem_map, prb, v_prim[0], supported_exec_args(FLAG_FWD));
-    TIME_FILL(SAFE(init_ref_memory_args(
-                           ref_mem_map, mem_map, v_prim[0], prb, res, FLAG_FWD),
+    TIME_FILL(SAFE(
+            init_ref_memory_args(ref_mem_map, mem_map, v_prim[0], prb, res),
             WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
@@ -496,7 +496,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     check_correctness(prb, get_kinds_to_check(prb, FLAG_FWD), args, ref_args,
             setup_cmp, res);
-    SAFE(check_bitwise(prim, get_kinds_to_check(prb, FLAG_FWD), args,
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb, FLAG_FWD), args, prb->attr,
                  prb->inplace, res),
             WARN);
 
@@ -504,8 +504,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         // Pass same memory map as we need data from forward on backward.
         init_memory_args<prb_t>(
                 mem_map, prb, v_prim[1], supported_exec_args(FLAG_BWD));
-        TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, v_prim[1],
-                               prb, res, FLAG_BWD),
+        TIME_FILL(SAFE(
+                init_ref_memory_args(ref_mem_map, mem_map, v_prim[1], prb, res),
                 WARN));
 
         args = args_t(mem_map);
@@ -516,7 +516,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         check_correctness(prb, get_kinds_to_check(prb, FLAG_BWD), args,
                 ref_args, setup_cmp, res);
         SAFE(check_bitwise(prim, get_kinds_to_check(prb, FLAG_BWD), args,
-                     prb->inplace, res),
+                     prb->attr, prb->inplace, res),
                 WARN);
     }
 

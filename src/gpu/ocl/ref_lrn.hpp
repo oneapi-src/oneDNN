@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,13 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
 #include "common/primitive.hpp"
-#include "common/type_helpers.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_lrn_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -49,17 +44,23 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            bool ok = is_fwd()
-                    && utils::one_of(src_md()->data_type, f32, f16, bf16)
-                    && src_md()->data_type == dst_md()->data_type
-                    && attr()->has_default_values()
-                    && IMPLICATION(src_md()->data_type == f16,
-                            compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && set_default_formats_common()
-                    && memory_desc_wrapper(src_md())
-                            == memory_desc_wrapper(dst_md());
-            if (!ok) return status::unimplemented;
+
+            VDISPATCH_LRN(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LRN(utils::one_of(src_md()->data_type, f32, f16, bf16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LRN(src_md()->data_type == dst_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
+            VDISPATCH_LRN(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LRN(IMPLICATION(src_md()->data_type == f16,
+                                  compute_engine->mayiuse(
+                                          compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LRN(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_LRN(memory_desc_wrapper(src_md())
+                            == memory_desc_wrapper(dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
             if (desc_.prop_kind == prop_kind::forward_training) {
                 ws_md_ = *src_md();
@@ -174,21 +175,27 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            bool ok = !is_fwd()
-                    && utils::one_of(src_md()->data_type, f32, bf16, f16)
-                    && utils::everyone_is(src_md()->data_type,
-                            diff_src_md()->data_type, diff_dst_md()->data_type)
-                    && attr()->has_default_values()
-                    && set_default_formats_common()
-                    && memory_desc_wrapper(diff_src_md())
-                            == memory_desc_wrapper(diff_dst_md());
-            if (!ok) return status::unimplemented;
+            VDISPATCH_LRN(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LRN(utils::one_of(src_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LRN(
+                    utils::everyone_is(src_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LRN(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LRN(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_LRN(memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
 
             ws_md_ = *src_md();
             if (utils::one_of(
                         ws_md_.data_type, data_type::bf16, data_type::f16))
                 ws_md_.data_type = data_type::f32;
-            if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+
+            VDISPATCH_LRN(compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
 
             dispatch = compute_engine->create_dispatch(diff_src_md());
             dispatch.define_dim("MB", 0, MB());

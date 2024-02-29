@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,10 +17,11 @@
 #ifndef GPU_COMPUTE_KERNEL_HPP
 #define GPU_COMPUTE_KERNEL_HPP
 
+#include <functional>
 #include <memory>
 #include <utility>
 
-#include "common/stream.hpp"
+#include "common/verbose.hpp"
 #include "gpu/compute/context.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/utils.hpp"
@@ -30,52 +31,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace compute {
-
-class compute_engine_t;
-class kernel_impl_t;
-
-class kernel_t {
-public:
-    kernel_t(std::nullptr_t) : impl_(nullptr) {}
-    kernel_t(std::shared_ptr<kernel_impl_t> &impl) : impl_(impl) {}
-    kernel_t(std::shared_ptr<kernel_impl_t> &&impl) : impl_(std::move(impl)) {}
-
-    kernel_t() = default;
-    kernel_t(kernel_t &&other) = default;
-    kernel_t(const kernel_t &other) = default;
-    kernel_t &operator=(const kernel_t &other) = default;
-    kernel_t &operator=(kernel_t &&other) = default;
-
-    virtual ~kernel_t() = default;
-
-    operator bool() const { return bool(impl_); }
-
-    kernel_impl_t *impl() const { return impl_.get(); }
-
-    status_t parallel_for(stream_t &stream, const nd_range_t &range,
-            const kernel_arg_list_t &arg_list, const event_t &deps,
-            event_t &out_dep) const;
-
-    status_t parallel_for(
-            stream_t &stream, const std::function<void(void *)> &cgf) const;
-
-    status_t get_binary_size(const engine_t *engine, size_t *binary_size) const;
-    status_t get_binary(
-            const engine_t *engine, compute::binary_t &binary) const;
-
-    const std::vector<scalar_type_t> &arg_types() const;
-
-    void save_output_events();
-
-    bool is_on(const compute_engine_t &) const;
-
-    status_t dump() const;
-
-    std::string name() const;
-
-private:
-    std::shared_ptr<kernel_impl_t> impl_;
-};
 
 class kernel_impl_t {
 public:
@@ -116,11 +71,6 @@ public:
 
     virtual void save_output_events() {}
 
-    virtual bool is_on(const compute_engine_t &) const {
-        gpu_assert(false) << "unimplemented function is_on() called";
-        return false;
-    }
-
     virtual status_t dump() const {
         gpu_assert(false) << "unimplemented function dump() called";
         return status::runtime_error;
@@ -130,48 +80,90 @@ public:
         gpu_assert(false) << "unimplemented function name() called";
         return "unknown";
     }
+
+    status_t check_scalar_arguments(const kernel_arg_list_t &arg_list) const {
+        // Some kernels may not support argument validation.
+        if (arg_types().empty()) return status::success;
+
+        for (int i = 0; i < arg_list.nargs(); i++) {
+            auto &arg = arg_list.get(i);
+            auto req_arg_type = arg_types()[i];
+            if (!arg.is_global() && !arg.is_local() && !arg.is_svm_pointer()) {
+                if (req_arg_type == gpu::compute::scalar_type_t::undef) {
+                    // Types of kernel arguments may not be available when zebin
+                    // is used.
+                    continue;
+                }
+
+                if (req_arg_type != arg.scalar_type()) {
+                    VERROR(primitive, gpu,
+                            "%s: scalar kernel argument #%d (%s) is "
+                            "different from the type of the given scalar (%s)",
+                            name().c_str(), i, to_string(req_arg_type).c_str(),
+                            to_string(arg.scalar_type()).c_str());
+                    return status::invalid_arguments;
+                }
+            }
+        }
+        return status::success;
+    }
 };
 
-inline status_t kernel_t::parallel_for(stream_t &stream,
-        const nd_range_t &range, const kernel_arg_list_t &arg_list,
-        const event_t &deps, event_t &out_dep) const {
-    return impl_->parallel_for(stream, range, arg_list, deps, out_dep);
-}
-inline status_t kernel_t::parallel_for(
-        stream_t &stream, const std::function<void(void *)> &cgf) const {
-    return impl_->parallel_for(stream, cgf);
-}
+class kernel_t {
+public:
+    kernel_t(std::nullptr_t) : impl_(nullptr) {}
+    kernel_t(std::shared_ptr<kernel_impl_t> &impl) : impl_(impl) {}
+    kernel_t(std::shared_ptr<kernel_impl_t> &&impl) : impl_(std::move(impl)) {}
 
-inline status_t kernel_t::get_binary_size(
-        const engine_t *engine, size_t *binary_size) const {
-    return impl_->get_binary_size(engine, binary_size);
-}
+    kernel_t() = default;
+    kernel_t(kernel_t &&other) = default;
+    kernel_t(const kernel_t &other) = default;
+    kernel_t &operator=(const kernel_t &other) = default;
+    kernel_t &operator=(kernel_t &&other) = default;
 
-inline status_t kernel_t::get_binary(
-        const engine_t *engine, compute::binary_t &binary) const {
-    return impl_->get_binary(engine, binary);
-}
+    virtual ~kernel_t() = default;
 
-inline const std::vector<scalar_type_t> &kernel_t::arg_types() const {
-    return impl_->arg_types();
-}
+    operator bool() const { return bool(impl_); }
 
-inline void kernel_t::save_output_events() {
-    return impl_->save_output_events();
-}
+    kernel_impl_t *impl() const { return impl_.get(); }
 
-inline bool kernel_t::is_on(const compute_engine_t &engine) const {
-    return impl_->is_on(engine);
-}
+    status_t parallel_for(stream_t &stream, const nd_range_t &range,
+            const kernel_arg_list_t &arg_list, const event_t &deps,
+            event_t &out_dep) const {
+        return impl_->parallel_for(stream, range, arg_list, deps, out_dep);
+    }
 
-inline status_t kernel_t::dump() const {
-    if (!gpu_utils::is_jit_dump_enabled()) return status::success;
-    return impl_->dump();
-}
+    status_t parallel_for(
+            stream_t &stream, const std::function<void(void *)> &cgf) const {
+        return impl_->parallel_for(stream, cgf);
+    }
 
-inline std::string kernel_t::name() const {
-    return impl_->name();
-}
+    status_t get_binary_size(
+            const engine_t *engine, size_t *binary_size) const {
+        return impl_->get_binary_size(engine, binary_size);
+    }
+
+    status_t get_binary(
+            const engine_t *engine, compute::binary_t &binary) const {
+        return impl_->get_binary(engine, binary);
+    }
+
+    const std::vector<scalar_type_t> &arg_types() const {
+        return impl_->arg_types();
+    }
+
+    void save_output_events() { return impl_->save_output_events(); }
+
+    status_t dump() const {
+        if (!gpu_utils::is_jit_dump_enabled()) return status::success;
+        return impl_->dump();
+    }
+
+    std::string name() const { return impl_->name(); }
+
+private:
+    std::shared_ptr<kernel_impl_t> impl_;
+};
 
 class kernel_bundle_t {
 public:
@@ -198,19 +190,6 @@ public:
             kernels[i] = kernel_entry->second;
         }
         return status::success;
-    }
-
-    status_t get_kernels(const engine_t *engine, std::vector<kernel_t> &kernels,
-            const std::vector<const char *> &kernel_names) const {
-        auto &compute_engine
-                = *utils::downcast<const compute_engine_t *>(engine);
-        if (!is_on(compute_engine)) return status::runtime_error;
-        return get_kernels(kernels, kernel_names);
-    }
-
-    bool is_on(const compute_engine_t &engine) const {
-        // All kernels are required to be located in the same context.
-        return !bundle.empty() && bundle.begin()->second.is_on(engine);
     }
 
     std::unordered_map<std::string, kernel_t> bundle;

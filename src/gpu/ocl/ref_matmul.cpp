@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/compute/utils.hpp"
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -128,7 +129,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     append_post_ops_to_arg_list(ctx, arg_list, 41, pd()->attr()->post_ops_);
 
-    size_t gws[3] = {1, (size_t)N, (size_t)(D0 * D1 * D2 * D3)};
+    compute::range_t gws = {1, (size_t)N, (size_t)(D0 * D1 * D2 * D3)};
     auto nd_range = compute::nd_range_t(gws);
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);

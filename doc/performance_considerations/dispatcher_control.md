@@ -4,7 +4,8 @@ CPU Dispatcher Control {#dev_guide_cpu_dispatcher_control}
 oneDNN uses JIT code generation to implement most of its functionality and will
 choose the best code based on detected processor features. Sometimes it is
 necessary to control which features oneDNN detects. This is sometimes useful for
-debugging purposes or for performance exploration.
+debugging purposes or for performance exploration. For example, test SSE4.1 code
+on an AVX2-capable processor.
 
 ## Build-time Controls
 
@@ -21,27 +22,37 @@ When the feature is enabled at build-time, the `ONEDNN_MAX_CPU_ISA` environment
 variable can be used to limit processor features oneDNN is able to detect to
 certain Instruction Set Architecture (ISA) and older instruction sets. It can
 also be used to enable ISAs with initial support in the library that are
-otherwise disabled by default.
+otherwise disabled by default. When the feature is disabled at build-time, the
+environment variable doesn't take any effect but: 1) the detection will still
+happen following the default behavior; 2) functions to control the behavior
+still take effect.
 
-| Environment variable | Value                | Description                                                                                                                                                                         |
-|:---------------------|:---------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ONEDNN_MAX_CPU_ISA   | SSE41                | Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)                                                                                                                                  |
-| \                    | AVX                  | Intel Advanced Vector Extensions (Intel AVX)                                                                                                                                        |
-| \                    | AVX2                 | Intel Advanced Vector Extensions 2 (Intel AVX2)                                                                                                                                     |
-| \                    | AVX2_VNNI            | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost)                                                                                                                          |
-| \                    | AVX512_CORE          | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions                                                                                                                      |
-| \                    | AVX512_CORE_VNNI     | Intel AVX-512 with Intel DL Boost                                                                                                                                                   |
-| \                    | AVX512_CORE_BF16     | Intel AVX-512 with Intel DL Boost and bfloat16 support                                                                                                                              |
-| \                    | AVX512_CORE_FP16     | Intel AVX-512 with float16 and Intel DL Boost and bfloat16                                                                                                                          |
-| \                    | AVX512_CORE_AMX      | Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support                            |
-| \                    | **DEFAULT**          | **No restrictions on the above ISAs, but excludes the below ISAs with preview support in the library (default)**                                                                    |
-| \                    | AVX2_VNNI_2          | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost) with 8-bit integer, float16 and bfloat16 support (preview support)                                                       |
-| \                    | AVX512_CORE_AMX_FP16 | Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer, bfloat16 and float16 support (preview support) |
+| Environment variable | Value                                        | Description                                                                                                                                                           |
+|:---------------------|:---------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ONEDNN_MAX_CPU_ISA   | SSE41                                        | Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)                                                                                                                    |
+| \                    | AVX                                          | Intel Advanced Vector Extensions (Intel AVX)                                                                                                                          |
+| \                    | AVX2                                         | Intel Advanced Vector Extensions 2 (Intel AVX2)                                                                                                                       |
+| \                    | AVX2_VNNI                                    | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost)                                                                                                            |
+| \                    | AVX512_CORE                                  | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions                                                                                                        |
+| \                    | AVX512_CORE_VNNI                             | Intel AVX-512 with Intel DL Boost                                                                                                                                     |
+| \                    | AVX512_CORE_BF16                             | Intel AVX-512 with Intel DL Boost and bfloat16 support                                                                                                                |
+| \                    | AVX10_1_512 or AVX512_CORE_FP16              | Intel AVX10.1/512 with float16 and Intel DL Boost and bfloat16                                                                                                        |
+| \                    | AVX10_1_512_AMX or AVX512_CORE_AMX           | Intel AVX10.1/512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support          |
+| \                    | AVX2_VNNI_2                                  | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost) with 8-bit integer, float16 and bfloat16 support                                                           |
+| \                    | AVX10_1_512_AMX_FP16 or AVX512_CORE_AMX_FP16 | Intel AVX10.1/512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer, bfloat16 and float16 support |
+| \                    | **DEFAULT**                                  | **No restrictions on the above ISAs, but excludes the below ISAs with preview support in the library (default)                                                        |
 
 @note The ISAs are partially ordered:
 * SSE41 < AVX < AVX2 < AVX2_VNNI < AVX2_VNNI_2,
-* AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16 < AVX512_CORE_FP16 < AVX512_CORE_AMX < AVX512_CORE_AMX_FP16,
-* AVX2_VNNI < AVX512_CORE_FP16.
+* AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16 < AVX10_1_512
+  < AVX10_1_512_AMX < AVX10_1_512_AMX_FP16,
+* AVX2_VNNI < AVX10_1_512.
+
+The below values are aliased for backward compatibility with the introduction of
+AVX10.1:
+* AVX512_CORE_FP16 = AVX10_1_512
+* AVX512_CORE_AMX = AVX10_1_512_AMX
+* AVX512_CORE_AMX_FP16 = AVX10_1_512_AMX_FP16
 
 This feature can also be managed at runtime with the following functions:
 * @ref dnnl::set_max_cpu_isa function allows changing the ISA at runtime. The

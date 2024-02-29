@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,9 +50,17 @@ status_t dnnl_ocl_interop_memory_create(memory_t **memory,
     bool is_usm = memory_kind == memory_kind::usm;
 
     std::unique_ptr<memory_storage_t> mem_storage;
-    if (is_usm)
+    if (is_usm) {
+        const auto *ocl_engine
+                = utils::downcast<gpu::compute::compute_engine_t *>(engine);
+        if (handle != DNNL_MEMORY_NONE && handle != DNNL_MEMORY_ALLOCATE
+                && usm::get_pointer_type(engine, handle)
+                        == usm::ocl_usm_kind_t::unknown
+                && !ocl_engine->mayiuse_system_memory_allocators()) {
+            return status::invalid_arguments;
+        }
         mem_storage.reset(new ocl_usm_memory_storage_t(engine));
-    else
+    } else
         mem_storage.reset(new ocl_buffer_memory_storage_t(engine));
     if (!mem_storage) return status::out_of_memory;
 

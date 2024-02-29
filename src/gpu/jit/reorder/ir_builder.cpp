@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 #include <unordered_map>
 
 #include "common/c_types_map.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/ir/epilogue.hpp"
 #include "gpu/jit/ir/gemm_schedule.hpp"
 #include "gpu/jit/ir/ir.hpp"
@@ -347,8 +348,8 @@ compute::nd_range_t reorder_ir_builder_t::nd_range(
     grid_info_t tg_grid;
     compute_grid(src, dst, iter_blocks, loop_blocks, tg_blocks, kernel_grid,
             tg_grid);
-    std::array<size_t, 3> global;
-    std::array<size_t, 3> local;
+    compute::range_t global = compute::range_t::empty(kernel_grid.ndims());
+    compute::range_t local = compute::range_t::empty(kernel_grid.ndims());
     for (int i = 0; i < kernel_grid.ndims(); i++) {
         global[i] = kernel_grid[i] * tg_grid[i];
         local[i] = tg_grid[i];
@@ -357,7 +358,7 @@ compute::nd_range_t reorder_ir_builder_t::nd_range(
             local[i] *= simd;
         }
     }
-    return compute::nd_range_t(global.data(), local.data());
+    return compute::nd_range_t(global, local);
 }
 
 struct normalization_stage_t {

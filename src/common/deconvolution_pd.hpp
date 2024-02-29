@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,19 @@
 #include "convolution_pd.hpp"
 #include "primitive_desc.hpp"
 #include "utils.hpp"
+
+#define VDISPATCH_DECONVOLUTION(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, deconvolution, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
+#define VDISPATCH_DECONVOLUTION_IC(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, deconvolution, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__)
+
+#define VDISPATCH_DECONVOLUTION_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, deconvolution, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

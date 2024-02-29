@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,11 +55,23 @@ public:
         : ir_copier_impl_t(replace_map), ret_var_(std::move(ret_var)) {}
 
     expr copy(const expr_c &v) override {
-        auto ret = ir_copier_impl_t::copy(v);
+        dispatch(v);
+        auto ret = std::move(returned_expr_);
+        bool attr_copied = false;
+        // if v is var/tensor and it is in replace_map_, don't copy attr.
+        // Otherwise, it changes the original var/tensor's attr
+        if (!utils::is_one_of(
+                    v->node_type_, sc_expr_type::var, sc_expr_type::tensor)
+                || replace_map_.count(v) == 0) {
+            copy_attr(*v, expr(ret));
+            attr_copied = true;
+        }
         if (ret.isa<tensor>() || ret.isa<tensorptr>()) {
             if (ret->attr_
                     && ret->attr_->has_key(
                             tensor_shrinker_attrs::should_shrink)) {
+                COMPILE_ASSERT(
+                        attr_copied, "The shrink info should be copied: " << v);
                 auto &shrink_info
                         = ret->attr_->get<tensor_shrinker_t::shrink_info_t>(
                                 tensor_shrinker_attrs::should_shrink);

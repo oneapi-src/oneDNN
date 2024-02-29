@@ -278,6 +278,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool src_df = (src_type == ngen::DataType::df);
     bool src_xf = src_bf || src_f || src_hf || src_df;
     bool f_to_xf = (src_f && (dst_bf || dst_hf));
+    bool native_bf16 = host->exec_cfg().hw().systolic_support();
     op_plan_t plan = grf_size;
     ngen_register_scope_t lex_scope {scope.register_allocator()};
 
@@ -299,6 +300,11 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         // Max supported stride is 4.
         if (src_stride > 4 || dst_stride > 4) step = 1;
 
+        // Don't stride more than 4 bytes for word types.
+        if ((src_type_size == 2 && src_stride >= 4)
+                || (dst_type_size == 2 && dst_stride >= 4))
+            step = 1;
+
         // Non-power-of-2 strides must be handled element-by-element
         if (!math::is_pow2(src_stride) || !math::is_pow2(dst_stride)) step = 1;
 
@@ -312,6 +318,16 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     using reg_data_t = ngen::RegData;
     auto shl16 = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
         host->eshl(mod, dst, src, 16);
+    };
+    auto cvt_f32_to_bf16 = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
+        auto exec_size = mod.getExecSize();
+        host->add(mod, src, src, -0x8000);
+        host->and_(mod | host->nz | host->f0, host->null.ud(), src, 0x1FFFF);
+        src.setType(ngen::DataType::uw);
+        src.setOffset(src.getOffset() * 2 + 1);
+        src.setRegion(exec_size * 2, exec_size, 2);
+        host->emov(mod, dst, src);
+        host->add(mod | host->f0, dst, dst, 1);
     };
     auto mov = [&](inst_mod_t mod, reg_data_t dst, reg_data_t src) {
         host->emov(mod, dst, src);
@@ -433,12 +449,12 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     = lex_scope.alloc_reg_buf_data(nregs).format(0, conv_src);
             emit_reorder_1d_tile(hw, host, scope, width, src, src_stride,
                     tmp_src, conv_src_stride);
-            src = tmp_src;
+            src = std::move(tmp_src);
         }
         if (do_post_reorder) {
             auto tmp_dst
                     = lex_scope.alloc_reg_buf_data(nregs).format(0, conv_dst);
-            dst = tmp_dst;
+            dst = std::move(tmp_dst);
         }
         const int conv_src_stride_bytes = conv_src_type_size * conv_src_stride;
         const int conv_dst_stride_bytes = conv_dst_type_size * conv_dst_stride;
@@ -779,7 +795,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             if (s.offset() != 0) {
                 auto t = tmp.format(0, src_type, esize, src_stride);
                 plan(mov, esize, t, s);
-                s = t;
+                s = std::move(t);
             }
             plan(mov, esize, d, s);
             if (!d_half_grf_aligned) plan(mov, esize, d_old, d);
@@ -825,7 +841,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     host->rnde(esize, t, t);
                 }
                 if (src_xf) {
-                    s = t;
+                    s = std::move(t);
                     local_src_f = true;
                     local_src_hf = local_src_bf = false;
                     local_src_type = ngen::DataType::f;
@@ -833,7 +849,6 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             }
             bool do_d0_align = false;
             if (esize > 1 && dst_bf) {
-                ir_assert(hw != ngen::HW::Gen9); // not gonna happen on Gen9
                 bool d_0_aligned = (d.byte_offset() == 0);
                 bool d_half_grf_aligned = (d.byte_offset() == grf_size / 2);
                 if (!d_0_aligned && (!d_half_grf_aligned || dst_stride != 1)) {
@@ -872,9 +887,15 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 auto td = dst.format(i * dst_stride_bytes, src_type, esize,
                         dst_stride * dst_type_size / src_type_size);
                 plan(mov, esize, td, s);
-                s = td;
+                s = std::move(td);
             }
-            plan(mov, esize, d, s);
+
+            if (dst_bf && !native_bf16) {
+                auto s_int = s.reinterpret(ngen::DataType::d);
+                auto d_int = d.reinterpret(ngen::DataType::uw);
+                plan(cvt_f32_to_bf16, esize, d_int, s_int);
+            } else
+                plan(mov, esize, d, s);
 
             if (do_d0_align) {
                 auto i_type = to_ngen(type_t::u(ngen::getBytes(dst_type) * 8));
@@ -1020,7 +1041,7 @@ void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
     new_src = new_src.format(new_src_byte_off, src.type(), esize, src_stride);
     emit_reorder_1d_tile(scope.hw(), host, scope, esize, src, src_stride,
             new_src, src_stride);
-    src = new_src;
+    src = std::move(new_src);
 }
 
 template <typename GeneratorT>

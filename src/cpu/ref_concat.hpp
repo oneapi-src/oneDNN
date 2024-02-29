@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,15 +42,16 @@ struct ref_concat_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
-            if (!attr()->has_default_values(sm::scales_runtime))
-                return status::unimplemented;
+            VDISPATCH_CONCAT(attr()->has_default_values(sm::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
             status_t status = cpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);
                 status = memory_desc_init_by_strides(tent_dst_md_,
                         dst_md_.ndims, dst_md_.dims, dst_md_.data_type,
                         nullptr);
-                if (status != status::success) return status::unimplemented;
+                VDISPATCH_CONCAT(status == status::success,
+                        VERBOSE_UNSUPPORTED_MEM_STRIDE);
 
                 status = cpu_concat_pd_t::init(&tent_dst_md_);
                 if (status != status::success) return status::unimplemented;

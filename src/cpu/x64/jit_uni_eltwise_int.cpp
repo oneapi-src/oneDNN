@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -267,9 +267,7 @@ void jit_uni_subkernel_int_t<isa>::process_linear(
     uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
     init_saturate_f32(vmm_zero, vmm_saturation_ubound, reg_tmp, data_type::f32,
             data_type());
-    saturate_f32(vr_to, vmm_zero, vmm_saturation_ubound, data_type());
-
-    uni_vcvtps2dq(vr_to, vr_to);
+    saturate_cvt_f32(vr_to, vmm_zero, vmm_saturation_ubound, data_type());
 }
 
 template <cpu_isa_t isa>
@@ -400,18 +398,27 @@ void jit_uni_subkernel_int_t<avx512_core>::store_8bit(const bool vectorize,
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
-    bool ok = is_fwd() && mayiuse(isa)
-            && utils::everyone_is(
-                    d_type, src_md()->data_type, dst_md()->data_type)
-            // only relu and linear so far
-            && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
-                    alg_kind::eltwise_linear)
-            && !has_zero_dim_memory()
-            && memory_desc_wrapper(src_md()).is_dense(true)
-            && attr()->has_default_values() && set_default_formats_common()
-            && memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md());
+    // disabling verbose dispatch messages for unsupported isa for better readability
+    if (!mayiuse(isa)) return status::unimplemented;
 
-    return ok ? status::success : status::unimplemented;
+    VDISPATCH_ELTWISE(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_ELTWISE(utils::everyone_is(
+                              d_type, src_md()->data_type, dst_md()->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    // only relu and linear so far
+    VDISPATCH_ELTWISE(utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
+                              alg_kind::eltwise_linear),
+            VERBOSE_BAD_ALGORITHM);
+    VDISPATCH_ELTWISE(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_ELTWISE(memory_desc_wrapper(src_md()).is_dense(true),
+            VERBOSE_UNSUPPORTED_SPARSE_CFG);
+    VDISPATCH_ELTWISE(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_ELTWISE(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_ELTWISE(
+            memory_desc_wrapper(src_md()) == memory_desc_wrapper(dst_md()),
+            VERBOSE_INCONSISTENT_MDS, "src", "dst");
+
+    return status::success;
 }
 
 template <cpu_isa_t isa, data_type_t d_type>

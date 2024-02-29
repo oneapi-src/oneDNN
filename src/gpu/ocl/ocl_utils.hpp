@@ -17,23 +17,15 @@
 #ifndef GPU_OCL_OCL_UTILS_HPP
 #define GPU_OCL_OCL_UTILS_HPP
 
-#include <cinttypes>
-#include <memory>
-#include <sstream>
 #include <string.h>
 #include <string>
 #include <utility>
 #include <vector>
 #include <CL/cl.h>
-#include <initializer_list>
-#include <type_traits>
 #include <unordered_map>
-#include <unordered_set>
 
 #include "common/c_types_map.hpp"
 #include "common/cpp_compat.hpp"
-#include "common/internal_defs.hpp"
-#include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/utils.hpp"
@@ -41,12 +33,9 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
-
-namespace compute {
-class kernel_t;
-}
-
 namespace ocl {
+
+std::string get_kernel_name(cl_kernel kernel);
 
 inline status_t convert_to_dnnl(cl_int cl_status) {
     switch (cl_status) {
@@ -168,7 +157,7 @@ inline const char *convert_cl_int_to_str(cl_int cl_status) {
         CL_STATUS_CASE(CL_INVALID_BUFFER_SIZE);
         CL_STATUS_CASE(CL_INVALID_MIP_LEVEL);
         CL_STATUS_CASE(CL_INVALID_GLOBAL_WORK_SIZE);
-
+#undef CL_STATUS_CASE
         default: return "unknown macro name";
     }
 }

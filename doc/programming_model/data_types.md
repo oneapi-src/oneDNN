@@ -16,6 +16,7 @@ operations which take bool as inputs and/or outputs data type.
 | bf16      | [non-IEEE 16-bit floating-point](https://www.intel.com/content/dam/develop/external/us/en/documents/bf16-hardware-numerics-definition-white-paper.pdf)                                  |
 | f16       | [IEEE half precision floating-point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)                 |
 | s8/u8     | signed/unsigned 8-bit integer                                                                                                                                                           |
+| s4/u4     | signed/unsigned 4-bit integer                                                                                                                                                           |
 | f64       | [IEEE double precision floating-point](https://en.wikipedia.org/wiki/Double-precision_floating-point_format#IEEE_754_double-precision_binary_floating-point_format:_binary64)           |
 | boolean   | bool (size is C++ implementation defined)                                                                                                                                               |
 | f8\_e5m2  | [OFP8 standard 8-bit floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf) with 5 exponent and 2 mantissa bits |
@@ -30,10 +31,10 @@ operations which take bool as inputs and/or outputs data type.
 
 oneDNN supports training and inference with the following data types:
 
-| Usage mode | CPU                                               | GPU                                           |
-|:-----------|:--------------------------------------------------|:----------------------------------------------|
-| Inference  | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, boolean | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, f64 |
-| Training   | f32, bf16, f16                                    | f32, bf16, f64                                |
+| Usage mode | CPU                                                      | GPU                                           |
+|:-----------|:---------------------------------------------------------|:----------------------------------------------|
+| Inference  | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, s4/u4, boolean | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, f64 |
+| Training   | f32, bf16, f16                                           | f32, bf16, f64                                |
 
 @note
     Using lower precision arithmetic may require changes in the deep learning
@@ -47,10 +48,17 @@ oneDNN supports training and inference with the following data types:
     Boolean is only supported by the oneDNN graph API when the graph compiler
     backend is enabled.
 
+@note
+    s4/u4 data types are only supported as a storage data type for weights argument
+    in case of weights decompression. For more details, refer to
+    [Matmul Tutorial: weights decompression](@ref weights_decompression_matmul_cpp).
+
 See topics for the corresponding data types details:
  * @ref dev_guide_inference_int8
  * @ref dev_guide_attributes_quantization
  * @ref dev_guide_training_bf16
+ * @ref dev_guide_attributes_fpmath_mode
+ * @ref weights_decompression_matmul_cpp
 
 Individual primitives may have additional limitations with respect to data type
 by each primitive is included in the corresponding sections of the developer
@@ -170,28 +178,40 @@ types that oneDNN recognizes.
 ### Intel(R) Processor Graphics and Xe Architecture graphics
 oneDNN performance optimizations for Intel Processor graphics and
 Xe Architecture graphics are specialized based on device microarchitecture (uArch).
-The following uArchs have specialized optimizations in the library:
-* GEN9 (also covers GEN11)
-* Xe-LP (previously known as GEN12LP)
-* Xe-HP
+The following uArchs and associated devices have specialized optimizations in the 
+library:
+ * Xe-LP (accelerated u8, s8 support via DP4A)
+   * Intel(R) UHD Graphics for 11th-14th Gen Intel(R) Processors
+   * Intel(R) Iris(R) Xe Graphics
+   * Intel(R) Iris(R) Xe MAX Graphics (formerly DG1)
+ * Xe-HPG (accelerated f16, bf16, u8, and s8 support via Intel(R) Xe Matrix Extensions (Intel(R) XMX), aka DPAS)
+   * Intel(R) Arc(TM) Graphics (formerly Achemist)
+   * Intel(R) Data Center GPU Flex Series (formerly Arctic Sound)
+ * Xe-HPC (accelerated f16, bf16, u8, and s8 support via DPAS and f64 support via MAD)
+   * Intel(R) Data Center GPU Max Series (formerly Ponte Vecchio)
 
-The following table indicates the minimal supported uArch for each of the data
-types that oneDNN recognizes.
-| Data type | Minimal supported uArch |
-|:----------|:------------------------|
-| f32       | GEN9                    |
-| s8, u8    | Xe-LP                   |
-| bf16      | Xe-HP                   |
-| f16       | GEN9                    |
+The following table indicates the data types with performant compute primitives
+for each uArch supported by oneDNN. Unless otherwise noted, all data types have 
+reference support on all architectures.
+
+| uArch  | Supported Data types                             |
+|:-------|:-------------------------------------------------|
+| Xe-LP  | f32, f16, s8, u8                                 |
+| Xe-HPG | f32, f16, bf16, s8, u8                           |
+| Xe-HPC | f64, f32, bf16, f16, s8, u8                      |
+| TBA    | f64, f32, bf16, f16, s8, u8, f8\_e5m2, f8\_e4m3  |
 
 @note
   f64 configurations are only supported on GPU engines with HW capability for
   double-precision floating-point.
 
 @note
-  f16 operations may be faster with f16 accumulation on GPU
-  architectures older than Xe-HPC. Newer architectures accumulate to
-  f32.
+  f8\_e5m2 compute operations have limited performance through upconversion on
+  Xe-HPC.
+
+@note
+  f16 operations may be faster with f16 accumulation on GPU architectures older
+  than Xe-HPC. Newer architectures accumulate to f32.
 
 @note
   Boolean is only supported by the oneDNN graph API when the graph compiler

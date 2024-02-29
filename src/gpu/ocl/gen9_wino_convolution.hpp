@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,13 +21,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
-#include "gpu/gpu_eltwise_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -70,7 +65,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_CONV(compute_engine->mayiuse(
                                    compute::device_ext_t::intel_subgroups),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup");
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
             VDISPATCH_CONV(
                     IMPLICATION(src_data_t == f16,
                             true
@@ -79,7 +74,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
                                                     intel_subgroups_short)),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup");
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
             VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
             VDISPATCH_CONV(
                     attr()->has_default_values(attr_skip_mask, dst_data_t),
@@ -87,11 +82,11 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
             VDISPATCH_CONV(post_ops_with_binary_ok(attr(), dst_data_t),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
-            CHECK(init_conf(compute_engine));
+            VDISPATCH_CONV_SC(init_conf(compute_engine), "init_conf()");
 
             int sub_group_size = conf.wino_ic_block / 2; // LWX
             VDISPATCH_CONV(compute_engine->mayiuse_sub_group(sub_group_size),
-                    VERBOSE_UNSUPPORTED_FEATURE, "subgroup");
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
 
             init_scratchpad();
 
@@ -99,7 +94,8 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
             VDISPATCH_CONV(ok, VERBOSE_UNSUPPORTED_TAG);
 
-            CHECK(attr_.set_default_formats(dst_md(0)));
+            VDISPATCH_CONV_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             return status::success;
         }

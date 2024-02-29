@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,8 +118,8 @@ public:
     }
 
     static compute::nd_range_t nd_range(int simd, int size) {
-        return compute::nd_range_t(
-                {utils::div_up(size, bytes_per_thr) * simd, 1, 1});
+        return compute::nd_range_t(gpu_utils::into<size_t>(
+                utils::div_up(size, bytes_per_thr) * simd));
     }
 
     static const int bytes_per_thr;

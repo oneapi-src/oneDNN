@@ -207,10 +207,10 @@ enum class type_kind_t {
     s64,
 
     // Floating point types.
-    bf8 = 10,
-    f8_e5m2 = 10,
-    hf8 = 11,
-    f8_e4m3 = 11,
+    bf8,
+    f8_e5m2 = bf8,
+    hf8,
+    f8_e4m3 = hf8,
     bf16,
     f16,
     tf32,

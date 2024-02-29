@@ -36,7 +36,7 @@ objects and how to query underlying OpenCL objects for existing oneDNN objects.
 
 ## OpenCL Buffers and USM Interfaces for Memory Objects
 
-The memory model in OpenCL is based on OpenCL buffers. [Intel extension](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/cl_intel_unified_shared_memory.asciidoc)
+The memory model in OpenCL is based on OpenCL buffers. [Intel extension](https://registry.khronos.org/OpenCL/extensions/intel/cl_intel_unified_shared_memory.html)
 further extends the programming model with a Unified Shared Memory (USM)
 alternative, which provides the ability to allocate and use memory in a uniform
 way on host and OpenCL devices.

@@ -2147,6 +2147,18 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
         // TODO: remove this restriction
         const auto iw_block = (jcp.ow_block - 1) * jcp.stride_w + 1;
         if (!must_exec_vpad && (iw_block > jcp.iw)) try_exec_type_res = false;
+
+        const dim_t work_amount = static_cast<dim_t>(jcp.mb) * jcp.ngroups
+                * jcp.nb_oc * jcp.nb_od * jcp.nb_oh * jcp.nb_ow;
+        const dim_t thr_work_amount = static_cast<dim_t>(jcp.oc_block) * jcp.ic
+                * jcp.od_block * jcp.oh_block * jcp.ow_block;
+        // Disable exec_vpad for large shapes on avx2 for better performance
+        // the threshold is approximate and empiric
+        if (!must_exec_vpad && jcp.isa == avx2 && work_amount >= jcp.nthr * 8
+                && jcp.ic >= 512 && jcp.oc >= 256
+                && thr_work_amount > 2 * brg_blocking_t::L1
+                && jcp.prop_kind == prop_kind::forward)
+            try_exec_type_res = false;
     }
     if (try_exec_base && try_exec_type_res == false) {
         jcp.exec_type = exec_base;
@@ -2580,8 +2592,8 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
     const auto oc_chunks = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
     const auto ic_chunks = div_up(jcp.nb_ic, jcp.nb_ic_blocking);
 
-    auto calc_mem_cost = [=](int nthr_mb, int nthr_g, int nthr_oc_b,
-                                 int nthr_ic_b) {
+    auto calc_mem_cost = [&jcp, os_chunks, oc_chunks, ic_chunks](int nthr_mb,
+                                 int nthr_g, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level
             * optimizer tries to minimize memory consumption. few notes:
             *  (n1) if weights tensor size is less than source and destination
@@ -2653,8 +2665,8 @@ void balance_bwd_w(jit_brgemm_conv_conf_t &jcp) {
         return src_v + dst_v + wei_v;
     };
 
-    auto balance = [=](int &nthr_, int &nthr_mb_, int &nthr_g_, int &nthr_oc_b_,
-                           int &nthr_ic_b_) {
+    auto balance = [&jcp, calc_mem_cost, oc_chunks](int &nthr_, int &nthr_mb_,
+                           int &nthr_g_, int &nthr_oc_b_, int &nthr_ic_b_) {
         nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
 
         if (jcp.nthr < jcp.ngroups) {

@@ -402,7 +402,8 @@ struct zero_points_t : public c_compatible {
         return check_all(&zero_points_t::has_default_data_type);
     }
 
-    status_t get(int arg, int *mask) const;
+    status_t get(int arg, int *mask, data_type_t *dt = nullptr) const;
+
     int get(int arg) const; // Returns 0 if dimension is unset
 
     data_type_t get_data_type(int arg) const {

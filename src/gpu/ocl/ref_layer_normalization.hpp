@@ -19,12 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_layer_normalization_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -46,28 +43,38 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            auto src_data_t = src_md()->data_type;
-            auto dst_data_t = dst_md()->data_type;
+            auto src_dt = src_md()->data_type;
+            auto dst_dt = dst_md()->data_type;
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
-            bool ok = is_fwd()
-                    && (utils::everyone_is(u8, src_data_t, dst_data_t)
-                            || utils::everyone_is(s8, src_data_t, dst_data_t)
-                            || utils::everyone_is(f16, src_data_t, dst_data_t)
-                            || utils::everyone_is(bf16, src_data_t, dst_data_t)
-                            || utils::everyone_is(f32, src_data_t, dst_data_t)
-                            || (utils::everyone_is(f64, src_data_t, dst_data_t)
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values()))
-                    && !memory_desc_ndims_ok(src_md(), dst_md(), stat_md())
-                    && stat_md()->data_type == f32
-                    && check_scale_shift_data_type({f32, bf16, f16})
-                    && attr()->has_default_values(skip_mask_t::scales_runtime)
-                    && attr_scales_ok() && set_default_formats_common();
-            if (!ok) return status::unimplemented;
 
-            return init_conf(engine);
+            bool uses_f16 = utils::one_of(f16, src_dt, dst_dt);
+            bool uses_f64 = utils::one_of(f64, src_dt, dst_dt);
+
+            VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LNORM(IMPLICATION(uses_f16,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16))
+                            && IMPLICATION(uses_f64,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp64)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    !memory_desc_ndims_ok(src_md(), dst_md(), stat_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst stat");
+            VDISPATCH_LNORM(
+                    stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    attr()->has_default_values(skip_mask_t::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_LNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+
+            VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
@@ -124,25 +131,29 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
             auto diff_dst_dt = diff_dst_md()->data_type;
             auto diff_src_dt = diff_src_md()->data_type;
 
-            bool ok = !is_fwd()
-                    && (utils::everyone_is(
-                                f32, src_dt, diff_dst_dt, diff_src_dt)
-                            || utils::everyone_is(
-                                    bf16, src_dt, diff_dst_dt, diff_src_dt)
-                            || utils::everyone_is(
-                                    f16, src_dt, diff_dst_dt, diff_src_dt)
-                            || (utils::everyone_is(
-                                        f64, src_dt, diff_dst_dt, diff_src_dt)
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp64)
-                                    && attr()->post_ops_.has_default_values()))
-                    && stat_md()->data_type == f32
-                    && check_scale_shift_data_type({f32, bf16, f16})
-                    && attr()->has_default_values()
-                    && set_default_formats_common();
-            if (!ok) return status::unimplemented;
+            bool uses_f16
+                    = utils::one_of(f16, src_dt, diff_dst_dt, diff_src_dt);
+            bool uses_f64
+                    = utils::one_of(f64, src_dt, diff_dst_dt, diff_src_dt);
 
-            CHECK(init_conf(engine));
+            VDISPATCH_LNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LNORM(IMPLICATION(uses_f16,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16))
+                            && IMPLICATION(uses_f64,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp64)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LNORM(
+                    stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+
+            VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
             if (conf.vectorize_bwd_scaleshift) { init_scratchpad(); }
             return status::success;
         }

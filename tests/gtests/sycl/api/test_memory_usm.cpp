@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -170,6 +170,63 @@ TEST_P(sycl_memory_usm_test, DefaultConstructor) {
         ASSERT_EQ(mapped_ptr[i], float(i));
     }
     mem.unmap_data(mapped_ptr);
+}
+
+/// This test checks if passing system allocated memory(e.g. using malloc)
+/// will throw if passed into the make_memory
+TEST_P(sycl_memory_usm_test, ErrorMakeMemoryUsingSystemMemory) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+    engine eng(eng_kind, 0);
+    memory::dim n = 100;
+    memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
+
+    std::vector<float> system_buf(n);
+    sycl::device device;
+    try {
+        device = sycl_interop::get_device(eng);
+    } catch (const error &err) {
+        if (err.status == dnnl_status_t::dnnl_invalid_arguments)
+            GTEST_SKIP() << "The selected device is not using a sycl runtime";
+        else
+            GTEST_FAIL() << "Failed to create a device from the engine.";
+    }
+    if (device.has(::sycl::aspect::usm_system_allocations)) {
+        memory mem = sycl_interop::make_memory(
+                mem_d, eng, sycl_interop::memory_kind::usm, system_buf.data());
+    } else {
+        EXPECT_THROW(memory mem = sycl_interop::make_memory(mem_d, eng,
+                             sycl_interop::memory_kind::usm, system_buf.data()),
+                dnnl::error);
+    }
+}
+
+/// This test checks if passing system allocated memory(e.g. using malloc)
+/// will throw if passed into the make_memory
+TEST_P(sycl_memory_usm_test, ErrorMemoryConstructorUsingSystemMemory) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+    engine eng(eng_kind, 0);
+    memory::dim n = 100;
+    memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
+
+    std::vector<float> system_buf(n);
+    sycl::device device;
+    try {
+        device = sycl_interop::get_device(eng);
+    } catch (const error &err) {
+        if (err.status == dnnl_status_t::dnnl_invalid_arguments)
+            GTEST_SKIP() << "The selected device is not using a sycl runtime";
+        else
+            GTEST_FAIL() << "Failed to create a device from the engine.";
+    }
+    if (device.has(::sycl::aspect::usm_system_allocations)) {
+        memory mem(mem_d, eng, system_buf.data());
+    } else {
+        EXPECT_THROW(memory mem(mem_d, eng, system_buf.data()), dnnl::error);
+    }
 }
 
 namespace {

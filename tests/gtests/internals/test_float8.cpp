@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ TEST(test_ref_float8_conversions, f8_e5m2_to_f32) {
                     impl::data_type::f8_e5m2),
             "Engine does not support this data type.");
     // check all 256 f8_e5m2 values
-    for (uint16_t u16 = 0; u16 <= 0xff; ++u16) {
+    impl::parallel_nd(0xff, [&](uint16_t u16) {
         // convert f8_e5m2 to f32 and back again,
         // expecting bitwise idendical values except for sNaN,
         // where the convention is to set the quiet bit:
@@ -54,7 +54,7 @@ TEST(test_ref_float8_conversions, f8_e5m2_to_f32) {
         const uint8_t y8_expect = is_x8_snan ? u8 | 0x02 : u8;
 
         ASSERT_EQ(y8_expect, bit_cast<uint8_t>(y8));
-    }
+    });
 }
 
 TEST(test_ref_float8_conversions, f8_e4m3_to_f32) {
@@ -62,7 +62,7 @@ TEST(test_ref_float8_conversions, f8_e4m3_to_f32) {
                     impl::data_type::f8_e4m3),
             "Engine does not support this data type.");
     // check all 256 f8_e4m3 values
-    for (uint16_t u16 = 0; u16 <= 0xff; ++u16) {
+    impl::parallel_nd(0xff, [&](uint16_t u16) {
         uint8_t u8 = static_cast<uint8_t>(u16);
         constexpr bool is_bitcast = true;
         float8_e4m3_t x8(u8, is_bitcast);
@@ -85,7 +85,7 @@ TEST(test_ref_float8_conversions, f8_e4m3_to_f32) {
                 << "y8_expect = " << static_cast<uint32_t>(y8_expect)
                 << std::endl
                 << std::dec;
-    }
+    });
 }
 
 TEST(test_ref_float8_conversions, f32_to_f8_e4m3) {
@@ -116,5 +116,179 @@ TEST(test_ref_float8_conversions, f32_to_f8_e4m3) {
                 << std::dec;
     });
 }
+
+#if DNNL_X64
+TEST(test_jit_float8_conversions, f8_e5m2_to_f32) {
+    SKIP_IF(!impl::cpu::platform::has_data_type_support(
+                    impl::data_type::f8_e5m2),
+            "Engine does not support this data type.");
+
+    // check all 2^8 fp8 values
+    impl::parallel_nd(0xff, [&](uint16_t u16) {
+        // convert from f8_e5m2 to f32 using ref and jit converters
+        uint8_t u8 = static_cast<uint8_t>(u16);
+        constexpr bool is_bitcast = true;
+        float8_e5m2_t x8(u8, is_bitcast);
+        ASSERT_EQ(u8, x8.raw_bits_);
+        ASSERT_EQ(u8, bit_cast<uint8_t>(x8));
+
+        float16_t ref_x16 = x8;
+        float16_t jit_x16;
+        // can only fail if data type not supported
+        ASSERT_TRUE(impl::cpu::x64::try_cvt_f8_e5m2_to_f16(&jit_x16, &x8));
+        // expect bitwise identical results
+        ASSERT_EQ(bit_cast<uint16_t>(ref_x16), bit_cast<uint16_t>(jit_x16))
+                << std::hex << std::endl
+                << "x8.raw_bits_ = " << static_cast<uint32_t>(u8) << std::endl
+                << "ref_x16.raw_bits_ = " << bit_cast<uint16_t>(ref_x16)
+                << std::endl
+                << "jit_x16.raw_bits_ = " << bit_cast<uint16_t>(jit_x16)
+                << std::endl
+                << std::dec;
+
+        float ref_x32 = static_cast<float>(x8);
+        float jit_x32;
+        // can only fail if data type not supported
+        ASSERT_TRUE(impl::cpu::x64::try_cvt_f8_e5m2_to_f32(&jit_x32, &x8));
+
+        // expect bitwise identical results
+        ASSERT_EQ(bit_cast<uint32_t>(ref_x32), bit_cast<uint32_t>(jit_x32))
+                << std::hex << std::endl
+                << "x8.raw_bits_ = " << static_cast<uint32_t>(u8) << std::endl
+                << "ref_x32.raw_bits_ = " << bit_cast<uint32_t>(ref_x32)
+                << std::endl
+                << "jit_x32.raw_bits_ = " << bit_cast<uint32_t>(jit_x32)
+                << std::endl
+                << std::dec;
+    });
+}
+
+TEST(test_jit_float8_conversions, f8_e4m3_to_f32) {
+    SKIP_IF(!impl::cpu::platform::has_data_type_support(
+                    impl::data_type::f8_e4m3),
+            "Engine does not support this data type.");
+
+    // check all 2^8 fp8 values
+    impl::parallel_nd(0xff, [&](uint16_t u16) {
+        // convert from f8_e4m3 to f32 using ref and jit converters
+        uint8_t u8 = static_cast<uint8_t>(u16);
+        constexpr bool is_bitcast = true;
+        float8_e4m3_t x8(u8, is_bitcast);
+        ASSERT_EQ(u8, x8.raw_bits_);
+        ASSERT_EQ(u8, bit_cast<uint8_t>(x8));
+
+        float16_t ref_x16 = x8;
+        float16_t jit_x16;
+        // can only fail if data type not supported
+        ASSERT_TRUE(impl::cpu::x64::try_cvt_f8_e4m3_to_f16(&jit_x16, &x8));
+        // expect bitwise identical results
+        ASSERT_EQ(bit_cast<uint16_t>(ref_x16), bit_cast<uint16_t>(jit_x16))
+                << std::hex << std::endl
+                << "x8.raw_bits_ = " << static_cast<uint32_t>(u8) << std::endl
+                << "ref_x16.raw_bits_ = " << bit_cast<uint16_t>(ref_x16)
+                << std::endl
+                << "jit_x16.raw_bits_ = " << bit_cast<uint16_t>(jit_x16)
+                << std::endl
+                << std::dec;
+
+        float ref_x32 = static_cast<float>(x8);
+        float jit_x32;
+        // can only fail if data type not supported
+        ASSERT_TRUE(impl::cpu::x64::try_cvt_f8_e4m3_to_f32(&jit_x32, &x8));
+        // expect bitwise identical results
+        ASSERT_EQ(bit_cast<uint32_t>(ref_x32), bit_cast<uint32_t>(jit_x32))
+                << std::hex << std::endl
+                << "x8.raw_bits_ = " << static_cast<uint32_t>(u8) << std::endl
+                << "ref_x32.raw_bits_ = " << bit_cast<uint32_t>(ref_x32)
+                << std::endl
+                << "jit_x32.raw_bits_ = " << bit_cast<uint32_t>(jit_x32)
+                << std::endl
+                << std::dec;
+    });
+}
+
+TEST(test_jit_float8_conversions, f16_to_fp8) {
+    const bool is_fp8_supported = impl::utils::everyone_is(true,
+            impl::cpu::platform::has_data_type_support(
+                    impl::data_type::f8_e5m2),
+            impl::cpu::platform::has_data_type_support(
+                    impl::data_type::f8_e4m3));
+    SKIP_IF(!is_fp8_supported, "Engine does not support this data type.");
+
+    // check all 2^16 f16 values
+    impl::parallel_nd(0xffff, [&](uint16_t u32) {
+        uint16_t u16 = static_cast<uint16_t>(u32);
+        constexpr bool is_bitcast = true;
+        auto x16 = float16_t(u16, is_bitcast);
+        ASSERT_EQ(u16, x16.raw);
+        ASSERT_EQ(u16, bit_cast<uint16_t>(x16));
+
+        // convert from f16 to f8_e5m2 using ref and jit converters
+        float8_e5m2_t ref_x8_e5m2 = x16;
+        float8_e5m2_t jit_x8_e5m2;
+        // can only fail if data type not supported
+        ASSERT_TRUE(impl::cpu::x64::try_cvt_f16_to_f8_e5m2(&jit_x8_e5m2, &x16));
+        // expect bitwise identical results
+        ASSERT_EQ(
+                bit_cast<uint8_t>(ref_x8_e5m2), bit_cast<uint8_t>(jit_x8_e5m2))
+                << std::hex << std::endl
+                << "x16.raw_bits_ = " << static_cast<uint32_t>(u16) << std::endl
+                << "ref_x8_e5m2.raw_bits_ = "
+                << static_cast<uint32_t>(bit_cast<uint8_t>(ref_x8_e5m2))
+                << std::endl
+                << "jit_x8_e5m2.raw_bits_ = "
+                << static_cast<uint32_t>(bit_cast<uint8_t>(jit_x8_e5m2))
+                << std::endl
+                << std::dec;
+
+        // convert from f16 to f8_e4m3 using ref and jit converters
+        float8_e4m3_t ref_x8_e4m3 = x16;
+        float8_e4m3_t jit_x8_e4m3;
+        // can only fail if data type not supported
+        ASSERT_TRUE(impl::cpu::x64::try_cvt_f16_to_f8_e4m3(&jit_x8_e4m3, &x16));
+        // expect bitwise identical results
+        ASSERT_EQ(
+                bit_cast<uint8_t>(ref_x8_e4m3), bit_cast<uint8_t>(jit_x8_e4m3))
+                << std::hex << std::endl
+                << "x16.raw_bits_ = " << static_cast<uint32_t>(u16) << std::endl
+                << "ref_x8_e4m3.raw_bits_ = "
+                << static_cast<uint32_t>(bit_cast<uint8_t>(ref_x8_e4m3))
+                << std::endl
+                << "jit_x8_e4m3.raw_bits_ = "
+                << static_cast<uint32_t>(bit_cast<uint8_t>(jit_x8_e4m3))
+                << std::endl
+                << std::dec;
+    });
+}
+
+TEST(test_f16_conversions, f16_to_f32) {
+    SKIP_IF(!mayiuse(impl::cpu::x64::avx512_core_fp16),
+            "Engine does not support this ISA.");
+
+    // check all 2^16 f16 values
+    impl::parallel_nd(0xffff, [&](uint16_t u32) {
+        // convert from f16 to f32 using ref and jit converters
+        uint16_t u16 = static_cast<uint16_t>(u32);
+        constexpr bool is_bitcast = true;
+        auto x16 = float16_t(u16, is_bitcast);
+        ASSERT_EQ(u16, x16.raw);
+        ASSERT_EQ(u16, bit_cast<uint16_t>(x16));
+        float ref_x32 = static_cast<float>(x16);
+        float jit_x32;
+        // can only fail if data type not supported
+        ASSERT_TRUE(impl::cpu::x64::try_cvt_f16_to_f32(&jit_x32, &x16));
+
+        // expect bitwise identical results
+        ASSERT_EQ(bit_cast<uint32_t>(ref_x32), bit_cast<uint32_t>(jit_x32))
+                << std::hex << std::endl
+                << "x16.raw_bits_ = " << static_cast<uint32_t>(u16) << std::endl
+                << "ref_x32.raw_bits_ = " << bit_cast<uint32_t>(ref_x32)
+                << std::endl
+                << "jit_x32.raw_bits_ = " << bit_cast<uint32_t>(jit_x32)
+                << std::endl
+                << std::dec;
+    });
+}
+#endif // DNNL_X64
 
 } // namespace dnnl

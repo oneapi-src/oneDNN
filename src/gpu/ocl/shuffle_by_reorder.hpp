@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,14 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "common/reorder.hpp"
-#include "common/reorder_pd.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_shuffle_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/primitive_conf.hpp"
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -50,21 +44,28 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
             const memory_desc_wrapper src_d(md_src);
             const memory_desc_wrapper dst_d(md_dst);
 
-            bool ok = src_d.data_type() == dst_d.data_type()
-                    && md_src->format_kind == format_kind::blocked
-                    && attr()->has_default_values()
-                    && set_default_formats_common() && src_d == dst_d
-                    && src_d.is_dense();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SHUFFLE(src_d.data_type() == dst_d.data_type(),
+                    VERBOSE_INCONSISTENT_DT, "src_d", "dst_d");
+            VDISPATCH_SHUFFLE(md_src->format_kind == format_kind::blocked,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SHUFFLE(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_SHUFFLE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SHUFFLE(
+                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
+            VDISPATCH_SHUFFLE(src_d.is_dense(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
 
             // Abort if there's blocking on the dimension that's going to be
             // shuffled; such shuffle cannot be reduced to simple reorder.
             // TODO: if both group_size and groups are multiples of blocking it
             // still could be possible to use reorder.
             for (int i = 0; i < md_src->format_desc.blocking.inner_nblks; i++) {
-                if (md_src->format_desc.blocking.inner_idxs[i] == axis()) {
-                    return status::unimplemented;
-                }
+                VDISPATCH_SHUFFLE(
+                        md_src->format_desc.blocking.inner_idxs[i] != axis(),
+                        VERBOSE_BAD_DIM,
+                        "md_src->format_desc.blocking.inner_idxs[i]",
+                        (int)md_src->format_desc.blocking.inner_idxs[i]);
             }
 
             auto tensor_size
@@ -91,13 +92,16 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
             dims_t strides_src = {d[3] * d[2] * d[1], d[3] * d[2], d[3], 1};
             dims_t strides_dst = {d[3] * d[2] * d[1], d[3], d[1] * d[3], 1};
 
-            CHECK(memory_desc_init_by_strides(
-                    fake_src, 4, d, md_src->data_type, strides_src));
-            CHECK(memory_desc_init_by_strides(
-                    fake_dst, 4, d, md_src->data_type, strides_dst));
+            VDISPATCH_SHUFFLE_SC(memory_desc_init_by_strides(fake_src, 4, d,
+                                         md_src->data_type, strides_src),
+                    "memory_desc_init_by_strides()");
+            VDISPATCH_SHUFFLE_SC(memory_desc_init_by_strides(fake_dst, 4, d,
+                                         md_src->data_type, strides_dst),
+                    "memory_desc_init_by_strides()");
 
-            CHECK(reorder_primitive_desc_create(
-                    reorder_pd_, engine, &fake_src, &fake_dst));
+            VDISPATCH_SHUFFLE_SC(reorder_primitive_desc_create(reorder_pd_,
+                                         engine, &fake_src, &fake_dst),
+                    "reorder_primitive_desc_create()");
             return status::success;
         }
 

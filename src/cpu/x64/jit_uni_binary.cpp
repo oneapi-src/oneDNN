@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,32 +124,46 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
 
     conf_.isa = get_supported_isa();
 
-    bool ok = data_type_supported(conf_.dst_type, conf_.isa)
-            && data_type_supported(conf_.src0_type, conf_.isa)
-            && data_type_supported(conf_.src1_type, conf_.isa)
-            && data_format_supported(src0_md_, conf_.isa)
-            && set_default_params() == status::success && !has_zero_dim_memory()
-            && IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_) && is_applicable()
-            && attr()->has_default_values(sm::post_ops | sm::scales_runtime)
-            && attr_.set_default_formats(dst_md(0)) == status::success;
-    if (!ok) return status::unimplemented;
+    VDISPATCH_BINARY(data_type_supported(conf_.dst_type, conf_.isa),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_BINARY(data_type_supported(conf_.src0_type, conf_.isa),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_BINARY(data_type_supported(conf_.src1_type, conf_.isa),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_BINARY(data_format_supported(src0_md_, conf_.isa),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_BINARY(
+            set_default_params() == status::success, VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_BINARY(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_BINARY(IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_),
+            VERBOSE_INCONSISTENT_MDS, "src", "dst");
+    VDISPATCH_BINARY(
+            is_applicable(), "not applicable for current implementation");
+    VDISPATCH_BINARY(
+            attr()->has_default_values(sm::post_ops | sm::scales_runtime),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_BINARY(attr_.set_default_formats(dst_md(0)) == status::success,
+            VERBOSE_UNSUPPORTED_POSTOP);
 
     // All operations over blocking descriptors should have md initialized.
     conf_.is_src_different_layouts = !compare_layouts(src0_md_, src1_md_);
-    ok = post_ops_ok(attr(), src_md(0), dst_md(),
-                 conf_.is_src_different_layouts, conf_.isa)
-            && (conf_.is_i8 || elt_idx == -1
+    VDISPATCH_BINARY(post_ops_ok(attr(), src_md(0), dst_md(),
+                             conf_.is_src_different_layouts, conf_.isa),
+            VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_BINARY(
+            (conf_.is_i8 || elt_idx == -1
                     || IMPLICATION(!dst_md_.is_dense(),
                             cpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
-                                    po.entry_[elt_idx].eltwise)))
-            && IMPLICATION((!attr()->scales_.has_default_values()),
-                    check_scales_mask())
-            && (conf_.is_i8
-                    || IMPLICATION(!mayiuse(avx2),
-                            src0_md_.consistent_with(src1_md_)
-                                    || src0_md_.is_plain()));
-
-    if (!ok) return status::unimplemented;
+                                    po.entry_[elt_idx].eltwise))),
+            "unsupported datatype or sparse configuration");
+    VDISPATCH_BINARY(IMPLICATION((!attr()->scales_.has_default_values()),
+                             check_scales_mask()),
+            VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VDISPATCH_BINARY((conf_.is_i8
+                             || IMPLICATION(!mayiuse(avx2),
+                                     src0_md_.consistent_with(src1_md_)
+                                             || src0_md_.is_plain())),
+            "unsupported isa or inconsistent mds");
 
     conf_.postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #ifndef GPU_BATCH_NORMALIZATION_MODEL_HPP
 #define GPU_BATCH_NORMALIZATION_MODEL_HPP
 
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
 
 namespace dnnl {
@@ -63,7 +64,7 @@ struct model_params_t {
 };
 void init_hw_params(hw_params_t &hw_params, engine_t *engine);
 float get_used_ss_thr_utilization(hw_params_t &hw_params, int sg_size,
-        const size_t *gws, const size_t *lws);
+        const compute::range_t &gws, const compute::range_t &lws);
 std::string to_string(const kernel_kind_t &kernel);
 std::string to_string(const data_location_t &loc);
 void dump_kernel_descriptor(kernel_desc_t &desc);

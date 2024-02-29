@@ -66,8 +66,8 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
             }
         } else
 #endif
-            return dnn_mem_t::init_md(prb->ndims, src_rt_dims.data(),
-                    prb->src_dt(), prb->stag, prb->strides[STRIDES_SRC]);
+            return dnn_mem_t::init_md(prb->ndims, src_rt_dims.data(), dt,
+                    prb->stag, prb->strides[STRIDES_SRC]);
     }
 
     if (kind == WEI) {
@@ -94,8 +94,8 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
             }
         } else
 #endif
-            return dnn_mem_t::init_md(prb->ndims, weights_rt_dims.data(),
-                    prb->wei_dt(), prb->wtag, prb->strides[STRIDES_WEI]);
+            return dnn_mem_t::init_md(prb->ndims, weights_rt_dims.data(), dt,
+                    prb->wtag, prb->strides[STRIDES_WEI]);
     }
 
     if (kind == DST) {
@@ -111,16 +111,21 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
-    auto src_d = create_md(prb, SRC);
-    auto wei_d = create_md(prb, WEI);
-    auto dst_d = create_md(prb, DST);
+    auto src_d = create_md(
+            prb, SRC, force_f32_dt ? dnnl_f32 : dnnl_data_type_undef);
+    auto wei_d = create_md(
+            prb, WEI, force_f32_dt ? dnnl_f32 : dnnl_data_type_undef);
+    auto dst_d = create_md(
+            prb, DST, force_f32_dt ? dnnl_f32 : dnnl_data_type_undef);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_d {};
     if (prb->bia_dt != dnnl_data_type_undef) {
         auto bia_dims = get_runtime_dims(
                 prb->bia_dims(), prb->bias_runtime_dim_mask());
-        bia_d = dnn_mem_t::init_md(prb->ndims, bia_dims.data(), prb->bia_dt,
+        bia_d = dnn_mem_t::init_md(prb->ndims, bia_dims.data(),
+                force_f32_dt ? dnnl_f32 : prb->bia_dt,
                 prb->dst_runtime_dim_mask() != 0 ? tag::abx : tag::any);
     }
 
@@ -213,17 +218,20 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
         fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
                 /* is_service_prim = */ true);
 
-        if (pdw) {
-            if (query_impl_info(pdw) == "ref:any") return OK;
+        // Prim desc wasn't created - try the next set...
+        if (!pdw) continue;
+        // Reference impl was fetched - try the next set...
+        if (query_impl_info(pdw) == "ref:any") continue;
 
-            auto st = dnnl_primitive_create(&prim_ref_, pdw);
-            if (st != dnnl_success) continue;
+        auto st = dnnl_primitive_create(&prim_ref_, pdw);
+        // Primitive wan't created - try the next set...
+        if (st != dnnl_success) continue;
 
-            BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
-                    query_impl_info(pdw).c_str());
-            res->prim_ref_repro = prb_cpu.str();
-            break;
-        }
+        BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
+                query_impl_info(pdw).c_str());
+        res->prim_ref_repro = prb_cpu.str();
+        prim_ref.reset(prim_ref_);
+        return OK;
     }
 
     prim_ref.reset(prim_ref_);
@@ -477,16 +485,19 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
 
-        // GPU supports only default sum_dt argument.
-        const auto &po = prb->attr.post_ops;
-        const int sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
-        if (sum_idx != -1 && po.entry[sum_idx].sum.dt != dnnl_data_type_undef) {
+        // GPU does not support grouped scales or zero-points.
+        if (prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).policy
+                        == policy_t::PER_OCIC
+                || prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
+                        == policy_t::PER_OCIC) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
 
-        // GPU does not support weights decompression
-        if (prb->weights_decompression()) {
+        // GPU supports only default sum_dt argument.
+        const auto &po = prb->attr.post_ops;
+        const int sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
+        if (sum_idx != -1 && po.entry[sum_idx].sum.dt != dnnl_data_type_undef) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -519,12 +530,21 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
 
-        // GPU doesn't support f8_e5m2/f8_e4m3.
-        const bool is_xf8 = (prb->src_dt() == dnnl_f8_e5m2
-                                    || prb->src_dt() == dnnl_f8_e4m3)
-                && (prb->wei_dt() == dnnl_f8_e5m2
-                        || prb->wei_dt() == dnnl_f8_e4m3);
-        if (is_xf8) {
+        // Weights decompression is supported through ref on pre-XeHPG
+        // platforms with limited post-ops support.
+        if (prb->weights_decompression()
+                && (!prb->attr.zero_points.is_def()
+                        || !prb->attr.scales.is_def())) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+
+        // GPU supports fp8 through ref only for f8_e4m3 on all platformas and
+        // for f8_e5m2 pre-XeHPC with limited post-op support.
+        if (((prb->src_dt() == dnnl_f8_e4m3 || prb->dst_dt() == dnnl_f8_e4m3)
+                    || (prb->src_dt() == dnnl_f8_e5m2
+                            || prb->dst_dt() == dnnl_f8_e5m2))
+                && (!po.is_def() || !prb->attr.scales.is_def())) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -542,7 +562,9 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 #endif
 
     // Zero-points for non-integral data type does not make sense
-    if (!prb->attr.zero_points.is_def() && prb->wei_dt() != dnnl_s8) {
+    if (!prb->attr.zero_points.is_def()
+            && (prb->wei_dt() != dnnl_s8 && prb->wei_dt() != dnnl_u8
+                    && prb->wei_dt() != dnnl_s4 && prb->wei_dt() != dnnl_u4)) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }
@@ -627,7 +649,7 @@ std::vector<int> supported_exec_args(dir_t dir) {
 };
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
-        dnnl_primitive_t prim, const prb_t *prb, res_t *res, dir_t dir,
+        dnnl_primitive_t prim, const prb_t *prb, res_t *res,
         dnnl_primitive_t prim_ref) {
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
@@ -742,8 +764,8 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     dnn_mem_map_t mem_map, ref_mem_map;
     init_memory_args<prb_t>(mem_map, prb, prim, supported_exec_args(prb->dir));
-    TIME_FILL(SAFE(init_ref_memory_args(ref_mem_map, mem_map, prim, prb, res,
-                           prb->dir, prim_ref),
+    TIME_FILL(SAFE(init_ref_memory_args(
+                           ref_mem_map, mem_map, prim, prb, res, prim_ref),
             WARN));
 
     args_t args(mem_map), ref_args(ref_mem_map);
@@ -751,7 +773,7 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     SAFE(execute_and_wait(prim, args, res), WARN);
 
     check_correctness(prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);
-    SAFE(check_bitwise(prim, {DST}, args, prb->inplace, res), WARN);
+    SAFE(check_bitwise(prim, {DST}, args, prb->attr, prb->inplace, res), WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

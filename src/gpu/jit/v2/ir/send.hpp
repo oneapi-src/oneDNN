@@ -62,7 +62,7 @@ struct addr_t {
 
     addr_t() = default;
     addr_t(const layout_t &layout, int slots, int elems_per_slot) {
-        base = layout.base() * layout.type().size();
+        base = simplify_rewrite(layout.base() * layout.type().size());
         slot_incs.resize(slots, 0);
         layout_iterator_t it(layout);
         for (int i = 1; i < slots; i++) {
@@ -126,8 +126,8 @@ struct mask_t {
             it.next(elems_per_slot);
             auto coord = it.coord();
             for (int j = 0; j < md.nmasks(); j++) {
-                dim_masks[j].slot_incs[i]
-                        = md[j].to_expr(coord, /*with_const=*/false);
+                dim_masks[j].slot_incs[i] = simplify_rewrite(
+                        md[j].to_expr(coord, /*with_const=*/false));
             }
         }
     }
@@ -147,10 +147,13 @@ struct mask_t {
 
     std::string str() const {
         std::ostringstream oss;
+        bool is_first = true;
         for (int i = 0; i < nmasks(); i++) {
-            if (i != 0) oss << std::endl;
+            if (dim_masks[i].is_empty()) continue;
+            if (!is_first) oss << std::endl;
             auto tag = "#" + std::to_string(i);
             oss << ir_utils::add_tag(tag, dim_masks[i].str());
+            is_first = false;
         }
         return oss.str();
     }
@@ -217,7 +220,7 @@ struct send_2d_hint_t {
         is_valid = true;
     }
 
-    operator bool() const { return is_valid; }
+    explicit operator bool() const { return is_valid; }
 
     bool init(send_op_t send_op, const type_t &type, bool vnni, bool transpose,
             int w_tile, int h_tile, int w_blk, int h_blk) {
@@ -299,11 +302,11 @@ struct send_1d_desc_t {
     int type_size = 0;
     int slots = 0;
 
-    operator bool() const { return op != send_op_t::undef; }
+    explicit operator bool() const { return op != send_op_t::undef; }
 
     bool base_alignment_ok(const expr_t &off, const prover_t &prover) {
         int align = (type_size >= 16 ? 8 : 1);
-        if (!prover.prove(off % align == 0)) return false;
+        if (!prover.require(off % align == 0)) return false;
         return true;
     }
 
@@ -357,7 +360,7 @@ struct send_1d_plan_t : public base_plan_t {
 
     int nmasks() const { return mask.nmasks(); }
     int nentries() const { return static_cast<int>(entries.size()); }
-    operator bool() const { return desc; }
+    explicit operator bool() const { return (bool)desc; }
 
     bool add_entry(const layout_iterator_t &it, const mask_desc_t &mask_desc,
             int reg_off, const prover_t &prover) {
@@ -451,7 +454,7 @@ struct send_2d_desc_t {
         is_valid = is_supported(view, prover);
     }
 
-    operator bool() const { return is_valid; }
+    explicit operator bool() const { return is_valid; }
 
     // Reduce the number of messages by increasing count per
     // message.
@@ -473,17 +476,17 @@ struct send_2d_desc_t {
         auto pitch_bytes = P * type.size();
         int base_align = block_2d_base_alignment(hw);
         int x_align = block_2d_x_alignment(type.size());
-        if (!prover.prove(width_bytes >= 64)) return false;
-        if (!prover.prove(width_bytes <= (1 << 24))) return false;
-        if (!prover.prove(width_bytes % std::max(4, type.size()) == 0))
+        if (!prover.require(width_bytes >= 64)) return false;
+        if (!prover.require(width_bytes <= (1 << 24))) return false;
+        if (!prover.require(width_bytes % std::max(4, type.size()) == 0))
             return false;
-        if (!prover.prove(H <= (1 << 24))) return false;
-        if (!prover.prove(pitch_bytes >= 64)) return false;
-        if (!prover.prove(pitch_bytes <= (1 << 24))) return false;
-        if (!prover.prove(pitch_bytes % 8 == 0)) return false;
-        if (!prover.prove(plane.y_stride == 1)) return false;
-        if (!prover.prove(base % base_align == 0)) return false;
-        if (!prover.prove(plane.x % x_align == 0)) return false;
+        if (!prover.require(H <= (1 << 24))) return false;
+        if (!prover.require(pitch_bytes >= 64)) return false;
+        if (!prover.require(pitch_bytes <= (1 << 24))) return false;
+        if (!prover.require(pitch_bytes % 8 == 0)) return false;
+        if (!prover.require(plane.y_stride == 1)) return false;
+        if (!prover.require(base % base_align == 0)) return false;
+        if (!prover.require(plane.x % x_align == 0)) return false;
         return true;
     }
 
@@ -524,6 +527,7 @@ struct send_2d_desc_t {
             add_block(w_dim, w, pad_kind_t::dim_pow2);
             add_block(h_dim, h, pad_kind_t::stride_grf);
         }
+        add_block(w_dim, c);
         return ret;
     }
 
@@ -582,7 +586,7 @@ struct send_2d_plan_t : public base_plan_t {
     using base_plan_t::base_plan_t;
 
     int nentries() const { return static_cast<int>(entries.size()); }
-    operator bool() const { return desc; }
+    explicit operator bool() const { return (bool)desc; }
 
     bool add_entry(const prb_coord_t<int> &coord, int reg_off,
             const prover_t &prover) {
@@ -627,8 +631,8 @@ struct send_plan_t : public base_plan_t {
 
     using base_plan_t::base_plan_t;
 
-    bool is_1d() const { return _1d; }
-    bool is_2d() const { return _2d; }
+    bool is_1d() const { return (bool)_1d; }
+    bool is_2d() const { return (bool)_2d; }
     send_1d_plan_t &get_1d() { return _1d; }
     const send_1d_plan_t &get_1d() const { return _1d; }
     send_2d_plan_t &get_2d() { return _2d; }
@@ -655,6 +659,7 @@ struct send_plan_t : public base_plan_t {
     }
 
     std::string str() const {
+        if (!*this) return "(empty)";
         if (is_1d()) return _1d.str();
         return _2d.str();
     }
@@ -726,7 +731,13 @@ public:
         addr_t addr(layout, slots, elems_per_slot);
         if (!desc.base_alignment_ok(addr, reqs.prover())) return false;
 
-        auto reg_layout = middle_last.sub_layout();
+        int elem_stride = 1;
+        if (slot_stride > slot_size) {
+            ir_assert(slot_size < 4);
+            ir_assert(type_size == slot_size);
+            elem_stride = ir_utils::safe_div(slot_stride, slot_size);
+        }
+        auto reg_layout = middle_last.sub_layout(elem_stride);
         reg_layout.pad_bytes(grf_size);
 
         auto entry_tile = reg_layout.int_dim_sizes();
@@ -795,7 +806,7 @@ public:
 
         int reg_off = 0;
         for (int h = 0; h < plane.h; h += desc.h) {
-            for (int w = 0; w < plane.w; w += desc.w) {
+            for (int w = 0; w < plane.w; w += desc.w * desc.c) {
                 prb_coord_t<int> coord;
                 coord[plane.w_dim] = w;
                 coord[plane.h_dim] = h;

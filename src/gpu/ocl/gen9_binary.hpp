@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,12 +19,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_binary_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -48,47 +44,59 @@ struct gen9_binary_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
             const auto attr_skip_mask = sm::post_ops | sm::scales_runtime;
-            bool ok = set_default_params() == status::success
-                    && !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md())
-                    && ((utils::everyone_is(bf16, src_md(0)->data_type,
-                                 src_md(1)->data_type)
-                                && utils::one_of(dst_md()->data_type, bf16, u8))
+            VDISPATCH_BINARY_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_BINARY(
+                    !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
+            VDISPATCH_BINARY(
+                    ((utils::everyone_is(
+                              bf16, src_md(0)->data_type, src_md(1)->data_type)
+                             && utils::one_of(dst_md()->data_type, bf16, u8))
                             || (utils::one_of(
                                         src_md(0)->data_type, f16, f32, s8, u8)
                                     && utils::one_of(src_md(1)->data_type, f16,
                                             f32, s8, u8)
                                     && utils::one_of(dst_md()->data_type, f16,
-                                            f32, s8, u8)))
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
+                                            f32, s8, u8))),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BINARY(
+                    IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(dst_md()->data_type, s8, u8)
                                     && utils::everyone_is(
                                             attr()->scales_.get(DNNL_ARG_SRC_0)
                                                     .mask_,
                                             attr()->scales_.get(DNNL_ARG_SRC_1)
                                                     .mask_,
-                                            0))
-                    && attr()->has_default_values(attr_skip_mask)
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(
+                                            0)),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_BINARY(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_BINARY(compute_engine->mayiuse(
+                                     compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
+            VDISPATCH_BINARY(
+                    IMPLICATION(
                             utils::one_of(f16, src_md(1)->data_type,
                                     src_md(0)->data_type, dst_md()->data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short))
-                    && post_ops_with_binary_ok(
-                            attr(), dst_md()->data_type, MAX_NDIMS)
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && !(attr()->post_ops_.len() > 0
-                            && src_md(0)->data_type == bf16
-                            && src_md(1)->data_type == bf16
-                            && dst_md()->data_type == u8);
+                                                    intel_subgroups_short)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_BINARY(post_ops_with_binary_ok(
+                                     attr(), dst_md()->data_type, MAX_NDIMS),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_BINARY_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_BINARY(!(attr()->post_ops_.len() > 0
+                                     && src_md(0)->data_type == bf16
+                                     && src_md(1)->data_type == bf16
+                                     && dst_md()->data_type == u8),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
-            if (!ok) return status::unimplemented;
-
-            return init_conf(engine);
+            VDISPATCH_BINARY_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

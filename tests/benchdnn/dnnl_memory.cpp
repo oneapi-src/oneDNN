@@ -212,6 +212,20 @@ float dnn_mem_t::get_elem(int64_t idx, int buffer_index) const {
         case dnnl_f8_e4m3:
             elem = static_cast<dnnl::impl::float8_e4m3_t *>(data)[idx];
             break;
+        case dnnl_s4: {
+            auto half = idx % 2 ? dnnl::impl::int4_extract_t::high_half
+                                : dnnl::impl::int4_extract_t::low_half;
+            elem = static_cast<float>(dnnl::impl::int4_t::extract(
+                    static_cast<uint8_t *>(data)[idx / 2], half));
+            break;
+        }
+        case dnnl_u4: {
+            auto half = idx % 2 ? dnnl::impl::int4_extract_t::high_half
+                                : dnnl::impl::int4_extract_t::low_half;
+            elem = static_cast<float>(dnnl::impl::uint4_t::extract(
+                    static_cast<uint8_t *>(data)[idx / 2], half));
+            break;
+        }
         default: assert(!"bad data type");
     }
     return elem;
@@ -234,6 +248,22 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
         case dnnl_f8_e4m3:
             ((dnnl::impl::float8_e4m3_t *)data)[idx] = value;
             break;
+        case dnnl_s4: {
+            using type = dnnl::impl::int4_t;
+            auto half = idx % 2 ? dnnl::impl::int4_extract_t::high_half
+                                : dnnl::impl::int4_extract_t::low_half;
+            uint8_t dst_val = ((uint8_t *)data)[idx / 2];
+            ((type *)data)[idx / 2] = type(value).insert(dst_val, half);
+            break;
+        }
+        case dnnl_u4: {
+            using type = dnnl::impl::uint4_t;
+            auto half = idx % 2 ? dnnl::impl::int4_extract_t::high_half
+                                : dnnl::impl::int4_extract_t::low_half;
+            uint8_t dst_val = ((uint8_t *)data)[idx / 2];
+            ((type *)data)[idx / 2] = type(value).insert(dst_val, half);
+            break;
+        }
         default: assert(!"bad data type");
     }
 }
@@ -907,7 +937,8 @@ int check_zero_padding(
             CASE(dnnl_s32, int32_t);
             CASE(dnnl_s8, int8_t);
             CASE(dnnl_u8, uint8_t);
-
+            CASE(dnnl_s4, int8_t);
+            CASE(dnnl_u4, uint8_t);
         default: assert(!"bad data_type");
     };
 #undef CASE

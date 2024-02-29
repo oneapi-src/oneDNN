@@ -698,8 +698,8 @@ void brgemm_inner_product_bwd_data_t<isa>::execute_backward_data(
         int fwd_ic_block
                 = (is_amx && !jbgp.is_bf32) ? 2 * jbgp.simd_w : jbgp.simd_w;
         int fwd_oc_block = jbgp.get_weights_oc_block();
-        dim_t ic = icb * jbgp.ic_block;
-        dim_t oc = ocb * jbgp.oc_block;
+        int ic = icb * jbgp.ic_block;
+        int oc = ocb * jbgp.oc_block;
 
         int fwd_icb = ic / fwd_ic_block;
         int fwd_ocb = oc / fwd_oc_block;
@@ -1245,7 +1245,8 @@ void brgemm_inner_product_bwd_weights_t<isa>::transpose_matrix_c_chunk(
 
         // Note: This assumes AxB{inner_blocking} weights memory format.
         const dim_t ext_nb_ic = div_up(jbgp.ic, ext_ic_block_);
-        const dim_t ext_block_nelems = ext_ic_block_ * ext_oc_block_;
+        const dim_t ext_block_nelems
+                = static_cast<dim_t>(ext_ic_block_) * ext_oc_block_;
         const dim_t n_sp_slices = jbgp.ks();
 
         dim_t ext_icb = icb * (jbgp.ic_block / ext_ic_block_);

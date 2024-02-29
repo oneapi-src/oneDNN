@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,15 @@
 #include "rnn.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#define VDISPATCH_RNN(cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, rnn, (cond), \
+            status::unimplemented, "%s," msg, this->info(engine), \
+            ##__VA_ARGS__)
+
+#define VDISPATCH_RNN_SC(f, msg, ...) \
+    VCHECK(primitive, create, dispatch, rnn, (f), "%s," msg, \
+            this->info(engine), ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {
@@ -60,9 +69,12 @@ struct rnn_pd_t : public primitive_desc_t {
 
     const memory_desc_t *src_md(
             int index = 0, bool user_input = false) const override {
-        if (index == 0) return &src_layer_md_;
-        if (index == 1 && with_src_iter()) return &src_iter_md_;
-        if (index == 2 && with_src_iter_c()) return &src_iter_c_md_;
+        if (index == 0)
+            return user_input ? &desc()->src_layer_desc : &src_layer_md_;
+        if (index == 1 && with_src_iter())
+            return user_input ? &desc()->src_iter_desc : &src_iter_md_;
+        if (index == 2 && with_src_iter_c())
+            return user_input ? &desc()->src_iter_c_desc : &src_iter_c_md_;
         return &glob_zero_md;
     }
 
@@ -78,27 +90,36 @@ struct rnn_pd_t : public primitive_desc_t {
 
     const memory_desc_t *weights_md(
             int index = 0, bool user_input = false) const override {
-        if (index == 0) return &weights_layer_md_;
-        if (index == 1) return &weights_iter_md_;
+        if (index == 0)
+            return user_input ? &desc()->weights_layer_desc
+                              : &weights_layer_md_;
+        if (index == 1)
+            return user_input ? &desc()->weights_iter_desc : &weights_iter_md_;
 
         const int peephole_index = 2;
         if (is_lstm_peephole() && index == peephole_index)
-            return &weights_peephole_md_;
+            return user_input ? &desc()->weights_peephole_desc
+                              : &weights_peephole_md_;
 
         const int projection_index = 2 + is_lstm_peephole();
         if (is_lstm_projection() && index == projection_index)
-            return &weights_projection_md_;
+            return user_input ? &desc()->weights_projection_desc
+                              : &weights_projection_md_;
 
         const int bias_index = 2 + is_lstm_peephole() + is_lstm_projection();
-        if (with_bias() && index == bias_index) return &bias_md_;
+        if (with_bias() && index == bias_index)
+            return user_input ? &desc()->bias_desc : &bias_md_;
 
         return &glob_zero_md;
     }
     const memory_desc_t *dst_md(
             int index = 0, bool user_input = false) const override {
-        if (index == 0) return &dst_layer_md_;
-        if (index == 1 && with_dst_iter()) return &dst_iter_md_;
-        if (index == 2 && with_dst_iter_c()) return &dst_iter_c_md_;
+        if (index == 0)
+            return user_input ? &desc()->dst_layer_desc : &dst_layer_md_;
+        if (index == 1 && with_dst_iter())
+            return user_input ? &desc()->dst_iter_desc : &dst_iter_md_;
+        if (index == 2 && with_dst_iter_c())
+            return user_input ? &desc()->dst_iter_c_desc : &dst_iter_c_md_;
         return &glob_zero_md;
     }
     const memory_desc_t *workspace_md(int index = 0) const override {
@@ -419,9 +440,15 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
 
     const memory_desc_t *diff_src_md(
             int index = 0, bool user_input = false) const override {
-        if (index == 0) return &diff_src_layer_md_;
-        if (index == 1 && with_src_iter()) return &diff_src_iter_md_;
-        if (index == 2 && with_src_iter_c()) return &diff_src_iter_c_md_;
+        if (index == 0)
+            return user_input ? &desc()->diff_src_layer_desc
+                              : &diff_src_layer_md_;
+        if (index == 1 && with_src_iter())
+            return user_input ? &desc()->diff_src_iter_desc
+                              : &diff_src_iter_md_;
+        if (index == 2 && with_src_iter_c())
+            return user_input ? &desc()->diff_src_iter_c_desc
+                              : &diff_src_iter_c_md_;
         return &glob_zero_md;
     }
     memory_desc_t &diff_augru_attention_md() {
@@ -434,27 +461,40 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
     }
     const memory_desc_t *diff_weights_md(
             int index = 0, bool user_input = false) const override {
-        if (index == 0) return &diff_weights_layer_md_;
-        if (index == 1) return &diff_weights_iter_md_;
+        if (index == 0)
+            return user_input ? &desc()->diff_weights_layer_desc
+                              : &diff_weights_layer_md_;
+        if (index == 1)
+            return user_input ? &desc()->diff_weights_iter_desc
+                              : &diff_weights_iter_md_;
 
         const int peephole_index = 2;
         if (is_lstm_peephole() && index == peephole_index)
-            return &diff_weights_peephole_md_;
+            return user_input ? &desc()->diff_weights_peephole_desc
+                              : &diff_weights_peephole_md_;
 
         const int projection_index = 2 + is_lstm_peephole();
         if (is_lstm_projection() && index == projection_index)
-            return &diff_weights_projection_md_;
+            return user_input ? &desc()->diff_weights_projection_desc
+                              : &diff_weights_projection_md_;
 
         const int bias_index = 2 + is_lstm_peephole() + is_lstm_projection();
-        if (with_bias() && index == bias_index) return &diff_bias_md_;
+        if (with_bias() && index == bias_index)
+            return user_input ? &desc()->diff_bias_desc : &diff_bias_md_;
 
         return &glob_zero_md;
     }
     const memory_desc_t *diff_dst_md(
             int index = 0, bool user_input = false) const override {
-        if (index == 0) return &diff_dst_layer_md_;
-        if (index == 1 && with_dst_iter()) return &diff_dst_iter_md_;
-        if (index == 2 && with_dst_iter_c()) return &diff_dst_iter_c_md_;
+        if (index == 0)
+            return user_input ? &desc()->diff_dst_layer_desc
+                              : &diff_dst_layer_md_;
+        if (index == 1 && with_dst_iter())
+            return user_input ? &desc()->diff_dst_iter_desc
+                              : &diff_dst_iter_md_;
+        if (index == 2 && with_dst_iter_c())
+            return user_input ? &desc()->diff_dst_iter_c_desc
+                              : &diff_dst_iter_c_md_;
         return &glob_zero_md;
     }
 

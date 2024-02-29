@@ -42,7 +42,7 @@ int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
             case eltwise_mish: return 4;
             case eltwise_pow: return 1;
             case eltwise_relu:
-            case eltwise_relu_use_dst_for_bwd: return (alpha_ == 0.f) ? 0 : 1;
+            case eltwise_relu_use_dst_for_bwd: return 1;
             case eltwise_abs: return 0;
             case eltwise_soft_relu: return 1;
             case eltwise_sqrt:
@@ -86,7 +86,7 @@ int jit_eltwise_injector_f32<hw>::preferred_scratch_regs() {
             case eltwise_hardswish: return 8;
             case eltwise_mish: return 8;
             case eltwise_relu:
-            case eltwise_relu_use_dst_for_bwd: return (alpha_ == 0.f) ? 0 : 8;
+            case eltwise_relu_use_dst_for_bwd: return (alpha_ == 0.f) ? 1 : 8;
             case eltwise_tanh: return 8;
             case eltwise_gelu_tanh: return 8;
             case eltwise_soft_relu: return 8;
@@ -184,9 +184,15 @@ int jit_eltwise_injector_f32<hw>::phase_count(alg_kind_t alg) {
 }
 
 template <gpu_gen_t hw>
+void jit_eltwise_injector_f32<hw>::relu_zero_ns_prepare_fwd() {
+    h->mov(1, scratch_[0].f(0), 0.f);
+}
+
+template <gpu_gen_t hw>
 void jit_eltwise_injector_f32<hw>::relu_zero_ns_compute_fwd(
         int simd, const ngen::GRF &r) {
-    h->max_(simd, r, r, 0.f);
+    /* use csel instead of max to propagate NaNs*/
+    h->csel(simd | le | f0[0], r, scratch_[0].f(0), r, r);
 }
 
 template <gpu_gen_t hw>
@@ -797,6 +803,10 @@ void jit_eltwise_injector_f32<hw>::prepare() {
 
     if (is_fwd_) {
         switch (alg_) {
+            case eltwise_relu:
+            case eltwise_relu_use_dst_for_bwd:
+                if (alpha_ == 0.f) relu_zero_ns_prepare_fwd();
+                break;
             case eltwise_mish:
             case eltwise_tanh:
                 if (use_tanh_compat())

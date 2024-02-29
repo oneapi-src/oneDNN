@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,12 +21,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
-#include "common/type_helpers.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -53,32 +49,43 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::scales
                     | primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = true
-                    && utils::one_of(desc()->prop_kind, forward_training,
-                            forward_inference)
-                    && set_default_params(true) == status::success
-                    && IMPLICATION(with_bias(),
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(desc()->prop_kind, forward_training,
+                            forward_inference),
+                    VERBOSE_BAD_PROPKIND);
+
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(true), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(with_bias(),
                             utils::one_of(desc()->bias_desc.data_type, u8, s8,
-                                    bf16, f16, f32))
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(
-                            attr(), desc()->dst_desc.data_type)
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && IMPLICATION(desc()->src_desc.data_type == f16,
+                                    bf16, f16, f32)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_INNER_PRODUCT(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    post_ops_with_binary_ok(attr(), desc()->dst_desc.data_type),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(desc()->src_desc.data_type == f16,
                             compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && (invariant_src_md()->format_desc.blocking.inner_nblks > 0
+                                    compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_INNER_PRODUCT(
+                    (invariant_src_md()->format_desc.blocking.inner_nblks > 0
                             || invariant_wei_md()
                                             ->format_desc.blocking.inner_nblks
                                     > 0
                             || (src_md_.format_kind == format_kind::any
                                     && weights_md_.format_kind
-                                            == format_kind::any));
+                                            == format_kind::any)),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
 
-            if (!ok) return status::unimplemented;
-
-            CHECK(init_conf(engine));
-            CHECK(init_scratchpad());
+            VDISPATCH_INNER_PRODUCT_SC(init_conf(engine), "init_conf()");
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_scratchpad(), VERBOSE_SCRATCHPAD_INIT);
             return status::success;
         }
 

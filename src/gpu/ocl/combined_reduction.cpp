@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,8 +15,10 @@
 *******************************************************************************/
 
 #include "gpu/ocl/combined_reduction.hpp"
+#include "common/c_types_map.hpp"
 #include "common/scratchpad.hpp"
 #include "gpu/block_structure.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -142,9 +144,10 @@ reduction_phase_conf_t::reduction_phase_conf_t(
     threads_per_wg = get_previous_factor(num_subgroups, threads_per_wg);
 
     // Compute the nd_range for this phase
-    size_t gws[3] = {1, 1, 1}, lws[3] = {1, 1, 1};
-    gws[0] = static_cast<size_t>(num_subgroups * subgroup_size);
-    lws[0] = static_cast<size_t>(threads_per_wg * subgroup_size);
+    compute::range_t gws(
+            gpu_utils::into<size_t>(num_subgroups * subgroup_size));
+    compute::range_t lws(
+            gpu_utils::into<size_t>(threads_per_wg * subgroup_size));
     nd_range = compute::nd_range_t(gws, lws);
 
     is_first = false;
@@ -373,8 +376,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             = phase.reduction_block.block / inner_dim_per_sg;
 
     kernel_ctx.define_int("SUBGROUP_SIZE", phase.subgroup_size);
-    kernel_ctx.define_int(
-            "LWS_SIZE", static_cast<int64_t>(phase.nd_range.local_range()[0]));
+    const auto &lws = phase.nd_range.local_range();
+    if (!lws) return status::runtime_error;
+    kernel_ctx.define_int("LWS_SIZE", static_cast<int64_t>(lws[0]));
 
     kernel_ctx.define_int("DIV", conf.div);
     kernel_ctx.define_float("POWER", conf.power);
@@ -453,7 +457,7 @@ status_t combined_reduction_t::pd_t::init_kernel_ctx(
 
     // Set post-op macros
     CHECK(def_attr_info(
-            kernel_ctx, conf.attr_info, attr()->post_ops_, dst_md()->dims));
+            kernel_ctx, conf.attr_info, attr()->post_ops_, *dst_md()));
     if (attr()->post_ops_.len() > 0) {
         if (phase.is_final) {
             // Can only do this for the final phase, since it overwrites def_data_type for DST

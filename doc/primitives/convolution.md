@@ -155,19 +155,22 @@ N/A.
 Convolution primitive supports the following combination of data types for
 source, destination, and weights memory objects:
 
-| Propagation    | Source    | Weights   | Destination                 | Bias                        |
-|:---------------|:----------|:----------|:----------------------------|:----------------------------|
-| forward        | f32       | f32       | f32, u8, s8                 | f32                         |
-| forward        | f16       | f16       | f16, f32, u8, s8            | f16, f32                    |
-| forward        | u8, s8    | s8        | u8, s8, s32, f32, f16, bf16 | u8, s8, s32, f32, f16, bf16 |
-| forward        | bf16      | bf16      | f32, bf16                   | f32, bf16                   |
-| forward        | f64       | f64       | f64                         | f64                         |
-| backward       | f32, bf16 | bf16      | bf16                        |                             |
-| backward       | f32, f16  | f16       | f16                         |                             |
-| backward       | f32       | f32       | f32                         | f32                         |
-| backward       | f64       | f64       | f64                         | f64                         |
-| weights update | bf16      | f32, bf16 | bf16, s8, u8                | f32, bf16                   |
-| weights update | f16       | f32, f16  | f16                         | f32, f16                    |
+| Propagation    | Source    | Weights      | Destination                 | Bias                        |
+|:---------------|:----------|:-------------|:----------------------------|:----------------------------|
+| forward        | f32       | f32          | f32, u8, s8                 | f32                         |
+| forward        | f16       | f16          | f16, f32, u8, s8            | f16, f32                    |
+| forward        | u8, s8    | s8           | u8, s8, s32, f32, f16, bf16 | u8, s8, s32, f32, f16, bf16 |
+| forward        | bf16      | bf16         | f32, bf16                   | f32, bf16                   |
+| forward        | f8_e5m2   | f8_e5m2      | f8_e5m2, f32, f16, bf16     | f32                         |
+| forward        | f64       | f64          | f64                         | f64                         |
+| backward       | f32, bf16 | bf16         | bf16                        |                             |
+| backward       | f32, f16  | f16          | f16                         |                             |
+| backward       | f8_e5m2   | f8_e5m2      | f8_e5m2                     |                             |
+| backward       | f32       | f32          | f32                         | f32                         |
+| backward       | f64       | f64          | f64                         | f64                         |
+| weights update | bf16      | f32, bf16    | bf16, s8, u8                | f32, bf16                   |
+| weights update | f16       | f32, f16     | f16                         | f32, f16                    |
+| weights update | f8_e5m2   | f32, f8_e5m2 | f8_e5m2                     | f32                         |
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -247,7 +250,7 @@ following sequences deploy optimized code:
 
 | Type of convolutions          | Post-ops sequence supported                  |
 |:------------------------------|:---------------------------------------------|
-| f32, bf16 and f16 convolution | eltwise, sum, sum -> eltwise                 |
+| float convolution             | eltwise, sum, sum -> eltwise                 |
 | int8 convolution              | eltwise, sum, sum -> eltwise, eltwise -> sum |
 
 The operations during attributes and post-ops applying are done in single
@@ -338,7 +341,7 @@ algorithms:
 
 - _Direct_. The convolution operation is computed directly using SIMD
   instructions. This is the algorithm used for the most shapes and supports
-  int8, f32, bf16, f16 and f64 (only on GPU engine) data types.
+  int8, f32, bf16, f16, f8_e5m2, and f64 data types.
 
 - _Winograd_. This algorithm reduces computational complexity of convolution
   at the expense of accuracy loss and additional memory operations. The
@@ -424,6 +427,13 @@ of Winograd algorithm implementations.
 
 3. **GPU**
    - Depthwise post-op is not supported
+   - Only reference support is available for f8_e4m3. Optimized implementation
+     is available for f8_e5m2 on Intel(R) Data Center GPU Max Series only.
+
+4. **CPU**
+   - Only reference support for fp8 data types (f8_e5m2, f8_e4m3) is
+     is available on CPU.
+   - No support is available for f64.
 
 ## Performance Tips
 

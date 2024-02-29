@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 #define GPU_JIT_GEN9_SIMPLE_SUM_HPP
 
 #include "common/c_types_map.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_sum_pd.hpp"
 
@@ -82,8 +81,8 @@ struct gen9_simple_sum_t : public gpu_primitive_t {
             arg_list.set(2, scale);
             arg_list.set(3, a);
 
-            size_t gws[3] = {nelems, 1, 1};
-            size_t lws[3] = {1, 1, 1};
+            compute::range_t gws(nelems);
+            compute::range_t lws = compute::range_t::one(gws.ndims());
             auto nd_range = compute::nd_range_t(gws, lws);
             status = parallel_for(ctx, nd_range, kernel_, arg_list);
             if (status != status::success) return status;

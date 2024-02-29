@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(
-                conv_pd_->name(), jit_uni_x8s8s32x_1x1_deconvolution_fwd_t);
+                name_.c_str(), jit_uni_x8s8s32x_1x1_deconvolution_fwd_t);
 
         status_t init_convolution(engine_t *engine) {
             convolution_desc_t cd;
@@ -80,25 +80,38 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
-            bool ok = is_fwd()
-                    && desc()->alg_kind == alg_kind::deconvolution_direct
-                    && !has_zero_dim_memory()
-                    && utils::one_of(src_md(0)->data_type, s8, u8)
-                    && weights_md(0)->data_type == s8
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(
-                                    weights_md(1)->data_type, f32, s32, s8, u8))
-                    && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
-                    && desc()->accum_data_type == s32
-                    && attr()->has_default_values(skip_mask_t::scales_runtime
+            VDISPATCH_DECONVOLUTION(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_DECONVOLUTION(
+                    desc()->alg_kind == alg_kind::deconvolution_direct,
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_DECONVOLUTION(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_DECONVOLUTION(utils::one_of(src_md(0)->data_type, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    weights_md(0)->data_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    IMPLICATION(with_bias(),
+                            utils::one_of(weights_md(1)->data_type, f32, s32,
+                                    s8, u8)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    desc()->accum_data_type == s32, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_DECONVOLUTION(
+                    attr()->has_default_values(skip_mask_t::scales_runtime
                             | skip_mask_t::post_ops
-                            | skip_mask_t::zero_points_runtime)
-                    && zero_points_valid(
-                            attr(), true /*per_oc_bcast_accepted*/);
-            if (!ok) return status::unimplemented;
+                            | skip_mask_t::zero_points_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_DECONVOLUTION(
+                    zero_points_valid(attr(), true /*per_oc_bcast_accepted*/),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
 
             CHECK(init_convolution(engine));
             CHECK(attr_.set_default_formats(dst_md(0)));
+            init_name();
             init_scratchpad();
 
             return status::success;
@@ -121,6 +134,13 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
+        std::string name_ = JIT_IMPL_NAME_HELPER("jit_deconvolution:", isa, "");
+
+        void init_name() {
+            name_.append("+");
+            name_.append(conv_pd_->name());
+        }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,

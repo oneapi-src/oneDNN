@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #include <algorithm>
 
+#include "common/c_types_map.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/ocl/custom_reorder.hpp"
 
 #include "common/utils.hpp"
@@ -514,11 +516,11 @@ void custom_reorder_t::pd_t::alt_gen() {
 
     size_t last = src_mdw.ndims() - 1;
     size_t gws3 = src_mdw.ndims() > 2 ? sdim[last - 2] : 1;
-    size_t gws[3] = {(size_t)sdim[last], (size_t)sdim[last - 1], gws3};
+    compute::range_t gws((size_t)sdim[last], (size_t)sdim[last - 1], gws3);
     size_t work_group_size = 32;
     if (sdim[last] <= 16) { work_group_size = 16; }
     if (sdim[last] <= 8) { work_group_size = 8; }
-    const size_t lws[3] = {work_group_size, 1, 1};
+    const compute::range_t lws(work_group_size, 1, 1);
     // Don't use nonuniform work groups, round up number work items if needed.
     size_t mod = gws[0] % lws[0];
     if (mod != 0) { gws[0] += lws[0] - mod; }
@@ -861,17 +863,17 @@ status_t custom_reorder_t::pd_t::init_kernel_ctx(
 
     if (conf.implementation == plain_to_ABcd84a42b) {
         kernel_ctx.define_int("PLAIN_TO_ABCD84A42B", 1);
-        auto r = conf.dispatch.nd_range();
-        auto *lr = r.local_range();
-        kernel_ctx.define_int(
-                "SG_PER_WG", (lr[0] * lr[1] * lr[2]) / conf.sub_group_size);
+        compute::nd_range_t nd_range = conf.dispatch.nd_range();
+        const auto &lws = nd_range.local_range();
+        if (!lws) return status::runtime_error;
+        kernel_ctx.define_int("SG_PER_WG", lws.nelems() / conf.sub_group_size);
     }
     if (conf.implementation == xb_to_xab_xba) {
         kernel_ctx.define_int("XAB_XBA", 1);
-        auto r = conf.dispatch.nd_range();
-        auto *lr = r.local_range();
-        kernel_ctx.define_int(
-                "SG_PER_WG", (lr[0] * lr[1] * lr[2]) / conf.sub_group_size);
+        compute::nd_range_t nd_range = conf.dispatch.nd_range();
+        const auto &lws = nd_range.local_range();
+        if (!lws) return status::runtime_error;
+        kernel_ctx.define_int("SG_PER_WG", lws.nelems() / conf.sub_group_size);
         kernel_ctx.define_int("BLOCK_SIZE", conf.aux_data.ab.blk_size);
         kernel_ctx.define_int("SRC_BLK_DIM", conf.aux_data.ab.src_blk_dim);
         kernel_ctx.define_int("SRC_OFF_COEFF", conf.aux_data.ab.src_blk_coeff);
@@ -891,11 +893,10 @@ status_t custom_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("SRC_LOOP_DIM", conf.aux_data.vg.src_loop_dim);
         kernel_ctx.define_int("DST_LOOP_DIM", conf.aux_data.vg.dst_loop_dim);
         kernel_ctx.define_int("GROUP", conf.aux_data.vg.group_size);
-        auto r = conf.dispatch.nd_range();
-        auto *lr = r.local_range();
-        if (!lr) return status::runtime_error;
-        kernel_ctx.define_int(
-                "SG_PER_WG", (lr[0] * lr[1] * lr[2]) / conf.sub_group_size);
+        compute::nd_range_t nd_range = conf.dispatch.nd_range();
+        const auto &lws = nd_range.local_range();
+        if (!lws) return status::runtime_error;
+        kernel_ctx.define_int("SG_PER_WG", lws.nelems() / conf.sub_group_size);
         kernel_ctx.define_int(
                 "INNERMOST_SIZE", conf.aux_data.vg.innermost_size);
         kernel_ctx.define_int("VECT_SIZE", conf.sub_group_size);
@@ -935,10 +936,10 @@ status_t custom_reorder_t::pd_t::init_kernel_ctx(
 
     if (conf.implementation == local8x8 || conf.implementation == local16x16) {
         kernel_ctx.define_int("LOCAL_NXN", 1);
-        auto r = conf.dispatch.nd_range();
-        auto *lr = r.local_range();
-        if (!lr) return status::runtime_error;
-        kernel_ctx.define_int("SG_PER_WG", lr[0] * lr[1] * lr[2]);
+        compute::nd_range_t nd_range = conf.dispatch.nd_range();
+        const auto &lws = nd_range.local_range();
+        if (!lws) return status::runtime_error;
+        kernel_ctx.define_int("SG_PER_WG", lws.nelems());
         kernel_ctx.define_int(
                 "DST_BLOCK_DIM", get_Nth_last_dim_or_block(src_mdw).idx);
     }

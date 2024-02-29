@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,15 +43,24 @@ struct ref_pooling_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = platform::has_data_type_support(data_type)
-                    && set_default_params() == status::success && is_fwd()
-                    && utils::everyone_is(
-                            data_type, src_md()->data_type, dst_md()->data_type)
-                    && desc()->accum_data_type == acc_type
-                    && attr()->has_default_values(sm::post_ops)
-                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_POOLING(platform::has_data_type_support(data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(utils::everyone_is(data_type, src_md()->data_type,
+                                      dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(desc()->accum_data_type == acc_type,
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(attr()->has_default_values(sm::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_POOLING(
+                    ref_post_ops_t::primitive_kind_ok(attr()->post_ops_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_POOLING(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             bool is_training = desc_.prop_kind == prop_kind::forward_training;
             if (desc()->alg_kind == alg_kind::pooling_max && is_training)
@@ -95,19 +104,25 @@ struct ref_pooling_bwd_t : public primitive_t {
             const auto diff_src_type = diff_src_md(0)->data_type;
             const auto diff_dst_type = diff_dst_md(0)->data_type;
 
-            bool ok = !is_fwd()
-                    && platform::has_data_type_support(diff_src_type)
-                    && platform::has_data_type_support(diff_dst_type)
-                    && utils::one_of(diff_src_type, f32, bf16, f16)
-                    && utils::one_of(diff_dst_type, f32, bf16, f16)
-                    && set_default_params() == status::success
-                    && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_POOLING(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(platform::has_data_type_support(diff_src_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(platform::has_data_type_support(diff_dst_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(utils::one_of(diff_src_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(utils::one_of(diff_dst_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             if (desc()->alg_kind == alg_kind::pooling_max) {
                 const auto ws_dt = hint_fwd_pd_->workspace_md()->data_type;
                 init_default_ws(ws_dt);
-                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+                VDISPATCH_POOLING(
+                        compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
             nthr_ = dnnl_get_max_threads();

@@ -50,7 +50,7 @@ void maybe_init_layout(
     while (tag.ndims() > md.ndims) {
         tag.remove_dim('a' + non_spatial_ndims);
     }
-    jit::layout_t layout(md, tag.str());
+    jit::layout_t layout(md, tag.str(), /*do_normalize=*/false);
     md = layout.to_dnnl(md.dims);
 }
 
@@ -132,14 +132,18 @@ private:
         kernel_params_t _params;
         if (plan_preset_t::instance().is_set()) {
             _desc = plan_preset_t::instance().get();
-            auto plan = create_conv_plan(_desc);
-            _desc.finalize(plan);
+            _desc.hw = hw_t(engine);
+            {
+                ir_utils::ir_check_log_level_t check_level(ir_utils::LOG_FATAL);
+                auto plan = create_conv_plan(_desc);
+                _desc.finalize(plan);
+            }
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
         }
         if (_desc.is_empty()) return status::unimplemented;
-        ir_assert(_desc.fits(prb));
+        ir_assert(ir_check_fatal(_desc.fits(prb)));
         CHECK(init_layouts(_desc, pd));
         _params.prb = prb;
         desc = std::make_shared<kernel_desc_t>(_desc);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,14 +17,13 @@
 #ifndef GPU_KERNEL_CACHE_HPP
 #define GPU_KERNEL_CACHE_HPP
 
-#include <functional>
 #include <memory>
 #include <type_traits>
 
-#include "common/engine.hpp"
+#include "common/engine_id.hpp"
 #include "common/kernel_cache.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
+#include "gpu/compute/compute_engine.hpp"
 #include "gpu/serialization.hpp"
 
 namespace dnnl {
@@ -125,8 +124,16 @@ struct gpu_kernel_key_impl_t : public kernel_cache::key_impl_t {
 // into the gpu_kernel_key_impl_t. This allows key implementations to be kept as
 // simple data containing structures with no dependencies on the kernel cache.
 template <typename K>
-struct gpu_kernel_key_container_t : public gpu_kernel_key_impl_t {
+struct gpu_kernel_key_container_t final : public gpu_kernel_key_impl_t {
     using value_type = typename K::value_type;
+
+    ~gpu_kernel_key_container_t() final = default;
+    gpu_kernel_key_container_t(const gpu_kernel_key_container_t &) = default;
+    gpu_kernel_key_container_t(gpu_kernel_key_container_t &&) = default;
+    gpu_kernel_key_container_t &operator=(const gpu_kernel_key_container_t &)
+            = default;
+    gpu_kernel_key_container_t &operator=(gpu_kernel_key_container_t &&)
+            = default;
 
     template <typename... Args>
     gpu_kernel_key_container_t(Args &&...args)

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ namespace v2 {
 struct base_plan_t {
     base_plan_t(const hw_t &hw = hw_t()) : hw(hw) {}
 
-    operator bool() const { return !hw.is_undef(); }
+    explicit operator bool() const { return !hw.is_undef(); }
     int grf_size() const { return hw.grf_size(); }
 
     hw_t hw;

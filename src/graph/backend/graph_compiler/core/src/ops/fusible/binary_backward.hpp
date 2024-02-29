@@ -19,7 +19,6 @@
 
 #include <utility>
 #include <vector>
-#include "compiler/dimensions.hpp"
 #include <compiler/ir/graph/fusible_op.hpp>
 #include <runtime/microkernel/cpu/brgemm_alg_kind.hpp>
 
@@ -35,9 +34,9 @@ public:
     DECLARE_QUERY_AND_COMPUTE();
     std::vector<std::pair<int, std::vector<tensor_inplace_info_t>>>
     get_inplace_map() override;
-    binary_backward_op_impl_t(graph_tensor_ptr v);
     binary_backward_op_impl_t(const std::vector<graph_tensor_ptr> &ins,
-            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs);
+            const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs,
+            const binary_backward_operator &backward_opt);
 
     void set_backward_operator(binary_backward_operator backward_op) {
         backward_op_type = backward_op;
@@ -61,13 +60,11 @@ private:
 
 class prelu_bwd_op_t : public binary_backward_op_impl_t {
 public:
-    prelu_bwd_op_t(graph_tensor_ptr v)
-        : binary_backward_op_impl_t({std::move(v)}, {}, {}) {}
     // ins: ins[0] is src, ins[1] is diff_dst
     prelu_bwd_op_t(const std::vector<graph_tensor_ptr> &ins,
             const std::vector<graph_tensor_ptr> &outs, const any_map_t &attrs)
-        : binary_backward_op_impl_t(ins, outs, attrs) {
-        set_backward_operator(binary_backward_operator::PRELU_BWD);
+        : binary_backward_op_impl_t(
+                ins, outs, attrs, binary_backward_operator::PRELU_BWD) {
         attrs_ = attrs;
         op_name_ = "prelu_bwd";
     }

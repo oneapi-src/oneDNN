@@ -79,7 +79,7 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
             utils::array_set(loc_scales,
                     src_scales[0] * wei_scales[0] * scale_adjust_factor, count);
         } else {
-            dim_t wei_scale_count = wei_scale_mask == 0 ? 1 : oc;
+            dim_t wei_scale_count = oc;
             const dim_t count = nstl::min(
                     static_cast<dim_t>(size / sizeof(float)), wei_scale_count);
             PRAGMA_OMP_SIMD()

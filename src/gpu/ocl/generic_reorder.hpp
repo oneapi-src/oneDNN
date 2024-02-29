@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,35 +41,40 @@ struct generic_reorder_t : public gpu_primitive_t {
 
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
-            bool ok = src_engine == dst_engine
-                    && src_engine->kind() == engine_kind::gpu && attr_ok()
-                    && extra_ok();
-            if (!ok) return status::unimplemented;
 
-            if (memory_desc_wrapper(src_md()).has_runtime_dims_or_strides())
-                return status::unimplemented;
+            VDISPATCH_REORDER(
+                    src_engine == dst_engine, VERBOSE_BAD_ENGINE_KIND);
+            VDISPATCH_REORDER(src_engine->kind() == engine_kind::gpu,
+                    VERBOSE_BAD_ENGINE_KIND);
+            VDISPATCH_REORDER(attr_ok(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_REORDER(
+                    extra_ok(), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");
+
+            VDISPATCH_REORDER(!(memory_desc_wrapper(src_md())
+                                              .has_runtime_dims_or_strides()),
+                    VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
                     dst_engine->kind() == engine_kind::gpu ? dst_engine
                                                            : src_engine);
 
-            ok = ok
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups)
-                    && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && IMPLICATION(
+            VDISPATCH_REORDER(compute_engine->mayiuse(
+                                      compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_FEATURE, "subgroups");
+            VDISPATCH_REORDER(!memory_desc_ndims_ok(src_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
+            VDISPATCH_REORDER(
+                    IMPLICATION(
                             utils::one_of(data_type::f16, src_md()->data_type,
                                     dst_md()->data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short));
+                                                    intel_subgroups_short)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
 
-            if (!ok) return status::unimplemented;
-
-            status_t status = init_conf(engine);
-            if (status != status::success) return status;
+            VDISPATCH_REORDER_SC(init_conf(engine), "init_conf()");
             init_scratchpad();
 
             return status::success;

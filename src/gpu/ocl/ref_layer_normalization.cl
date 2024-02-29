@@ -24,11 +24,17 @@
 #define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
 #define STAT_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(STAT, x0, x1, x2, x3, x4, x5)
 
+#if SRC_DT_F64 || DST_DT_F64
+#define ACC_DATA_T double
+#else
+#define ACC_DATA_T float
+#endif
+
 #if IS_FWD
 #if VECTORIZE_CALC_STATS == 1
 KERNEL_ATTR
 __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *dst,
+        __global float *variance, __global DST_DATA_T *dst,
         __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps,
         __global float *src_scale, __global float *dst_scale) {
 
@@ -43,7 +49,7 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         for (int c = 0; c < C; c += SUB_GROUP_SIZE) {
             x[NDIMS - 1] = c + local_id;
             int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
-            dst[dst_off] = CONVERT_DATA_T(0.f);
+            dst[dst_off] = TO_DST(CONVERT_DATA_T(0.f));
         }
         return;
     }
@@ -128,15 +134,9 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 }
 #else //VECTORIZE_CALC_STATS == 1
 
-#if SRC_DT_F64 || DST_DT_F64
-#define ACC_DATA_T double
-#else
-#define ACC_DATA_T float
-#endif
-
 KERNEL_ATTR
 __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *dst,
+        __global float *variance, __global DST_DATA_T *dst,
         __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps,
         __global float *src_scale, __global float *dst_scale) {
 
@@ -150,7 +150,7 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         for (int c = 0; c < C; ++c) {
             x[NDIMS - 1] = c;
             int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
-            dst[dst_off] = CONVERT_DATA_T(0.f);
+            dst[dst_off] = TO_DST(CONVERT_DATA_T(0.f));
         }
         return;
     }
@@ -188,10 +188,6 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
         int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
 
-#if SRC_DT_F64 && DST_DT_F64
-        dst[dst_off] = sm * (src[src_off] - v_mean) + sv;
-#else
-
         ACC_DATA_T d = (sm * (SRC_TO_REF(src[src_off]) - v_mean) + sv);
 
 #if WITH_SRC_SCALES
@@ -201,18 +197,12 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         d /= dst_scale[0];
 #endif
         dst[dst_off] = TO_DST(d);
-#endif
     }
 
     if (CALCULATE_STATS) {
         if (SAVE_STATS) {
-#if SRC_DT_F64 && DST_DT_F64
-            mean[s_off] = DATA_TO_REF(v_mean);
-            variance[s_off] = DATA_TO_REF(v_variance);
-#else
-            mean[s_off] = (v_mean);
-            variance[s_off] = (v_variance);
-#endif
+            mean[s_off] = convert_float(v_mean);
+            variance[s_off] = convert_float(v_variance);
         }
     }
 }
@@ -238,12 +228,31 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 #define convert_vector_to_float VECTORIZED_VERSION(convert_float)
 #endif
 
+#if SRC_DT_BF16 == 1
+#define convert_vector_src_to_float cvt_bf16_to_f32
+#else
+#define convert_vector_src_to_float VECTORIZED_VERSION(convert_float)
+#endif
+
+#if defined(SRC_DT_F64)
+#define SRC_BLOCK_DATA_T ulong
+#elif defined(SRC_DT_F32)
+#define SRC_BLOCK_DATA_T uint
+#elif defined(SRC_DT_F16) || defined(SRC_DT_BF16)
+#define SRC_BLOCK_DATA_T ushort
+#elif defined(SRC_DT_U8) || defined(SRC_DT_S8)
+#define SRC_BLOCK_DATA_T uchar
+#else
+#error "Unexpected SRC data type"
+#endif
+
 #define as_vector_data_t VECTORIZED_VERSION(AS_DATA_T)
+#define as_vector_src_data_t VECTORIZED_VERSION(AS_SRC_DATA_T)
 #define sub_group_read VECTORIZED_VERSION(BLOCK_READ)
 #define vector_float VECTORIZED_VERSION(float)
 
 NAMED_KERNEL_ATTR(SCALESHIFT)
-__kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
+__kernel void ref_lnorm_bwd_scaleshift(__global SRC_DATA_T *src,
         __global float *mean, __global float *variance,
         __global DATA_T *diff_dst, __global float *diff_scale,
         __global float *diff_shift, float eps) {
@@ -271,8 +280,9 @@ __kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
         const int src_off = SRC_OFF(0, n_off, c, 0, 0, 0);
         const int dst_off = DST_OFF(0, n_off, c, 0, 0, 0);
 #endif
-        const vector_float src_vect = convert_vector_to_float(as_vector_data_t(
-                sub_group_read((const __global BLOCK_DATA_T *)&src[src_off])));
+        const vector_float src_vect = convert_vector_src_to_float(
+                as_vector_src_data_t(sub_group_read(
+                        (const __global SRC_BLOCK_DATA_T *)&src[src_off])));
         const vector_float diff_dst_vect
                 = convert_vector_to_float(as_vector_data_t(sub_group_read(
                         (const __global BLOCK_DATA_T *)&diff_dst[dst_off])));
@@ -327,7 +337,7 @@ __kernel void ref_lnorm_bwd_scaleshift_final(__global float *tmp_reduce_mem,
 #else // VECTORIZE_BWD_SCALESHIFT
 
 NAMED_KERNEL_ATTR(SCALESHIFT)
-__kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
+__kernel void ref_lnorm_bwd_scaleshift(__global SRC_DATA_T *src,
         __global float *mean, __global float *variance,
         __global DATA_T *diff_dst, __global WEI_DATA_T *diff_scale,
         __global WEI_DATA_T *diff_shift, float eps) {
@@ -445,16 +455,10 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
 }
 #else // VECTORIZE_BWD
 
-#if SRC_DT_F64 || DST_DT_F64
-#define ACC_DATA_T double
-#else
-#define ACC_DATA_T float
-#endif
-
 KERNEL_ATTR
-__kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
+__kernel void ref_lnorm_bwd(__global SRC_DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
-        __global WEI_DATA_T *scale, __global DATA_T *diff_src, float eps) {
+        __global WEI_DATA_T *scale, __global SRC_DATA_T *diff_src, float eps) {
     int x[6] = {0};
     x[0] = GWS_GET_X0();
     x[1] = GWS_GET_X1();

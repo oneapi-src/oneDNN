@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include "gpu/gpu_impl_list.hpp"
 
 #include "gpu/ocl/ref_layer_normalization.hpp"
+#include "gpu/ocl/reusable_lnorm.hpp"
 #include "gpu/ocl/vectorized_lnorm.hpp"
 
 namespace dnnl {
@@ -32,11 +33,13 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{forward}, {
         INSTANCE(ocl::vectorized_lnorm_fwd_t)
         INSTANCE(ocl::ref_layer_normalization_fwd_t)
+        INSTANCE(ocl::reusable_layer_normalization_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
         INSTANCE(ocl::vectorized_lnorm_bwd_t)
         INSTANCE(ocl::ref_layer_normalization_bwd_t)
+        INSTANCE(ocl::reusable_layer_normalization_bwd_t)
         nullptr,
     })},
 });

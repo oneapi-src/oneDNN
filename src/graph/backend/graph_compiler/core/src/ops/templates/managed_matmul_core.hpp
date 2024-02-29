@@ -39,8 +39,10 @@ struct managed_matmul_core_config_t {
 class gen_managed_matmul_core_t
   : public body_generator_t<managed_matmul_core_config_t> {
 public:
-  // for shapes with M <= 2 and num_threads <= 32, we use avx instead of amx.
-  int64_t dispatch_avx_ = false;
+  // for specific shapes, dtypes and num_threads (refer to
+  // ops::managed_matmul_core_op_t for exact value), we dispatch to avx instead
+  // of amx.
+  int64_t dispatch_avx_ = 0;
 
   int split_iim_ = -1;
 

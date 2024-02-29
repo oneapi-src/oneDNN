@@ -20,6 +20,7 @@
 #include "common/float16.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/compute/utils.hpp"
 #include "gpu/jit/gemm/gemm_walk_orders.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 
@@ -34,11 +35,12 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         const memory_storage_t *ao, const memory_storage_t *bo,
         const memory_storage_t &co, const memory_storage_t *c_temp,
         int po_count, const memory_storage_t **po_srcs, int64_t offset_a,
-        int64_t offset_b, int64_t offset_c, int32_t offset_co,
-        int32_t *offset_po_src, int32_t lda, int32_t ldb, int32_t ldc,
-        int32_t m, int32_t n, int32_t k, int32_t k0, float alpha, float beta,
-        int32_t cmask, bool last_k_block, bool swapab,
-        bool disable_hilbert) const {
+        int64_t offset_b, int64_t offset_c, int32_t offset_ao,
+        int32_t offset_bo, int32_t offset_co, int32_t *offset_po_src,
+        int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
+        int32_t k0, float alpha, float beta, int32_t cmask, bool last_k_block,
+        bool swapab, bool disable_hilbert) const {
+    if (pd()->desc()->batch() == 0) return status::success;
 
     uint32_t flags = 0;
     bool k_parallel_fixed
@@ -133,14 +135,14 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     auto lws_k = pd()->kernel_desc()->aux_params()->wgK;
 
-    size_t gws[3] = {0, 0, 1};
+    compute::range_t gws = compute::range_t::empty();
 
     gws[0] = utils::div_up(m, nocopy_info()->unroll[LoopM]);
     gws[1] = utils::div_up(n, nocopy_info()->unroll[LoopN]);
     gws[2] = nocopy_info()->kParallel() ? nstl::max(1, utils::div_up(k, k0))
                                         : lws_k;
 
-    size_t lws[3] = {size_t(nocopy_info()->wg[LoopM]),
+    compute::range_t lws = {size_t(nocopy_info()->wg[LoopM]),
             size_t(nocopy_info()->wg[LoopN]), size_t(lws_k)};
 
     if (nocopy_info()->isNMK()) {
@@ -185,6 +187,9 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         if (lws[2] > 1) slm = nstl::max(slm, nocopy_info()->perKSLM * lws[2]);
         arg_list.set(argn++, slm, nullptr);
     }
+
+    if (pd()->ao_dims_ > 0) arg_list.set(argn++, offset_ao);
+    if (pd()->bo_dims_ > 0) arg_list.set(argn++, offset_bo);
 
     lws[0] *= nocopy_info()->subgroupSize;
     gws[0] *= nocopy_info()->subgroupSize;
@@ -238,7 +243,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &bias = GEMM_CTX_ARG_STORAGE(bias);
     auto &sum_ab = GEMM_CTX_ARG_STORAGE(sum_ab);
     auto *co = &c_zp;
-    memory_storage_t *ao = nullptr, *bo = nullptr;
+    const memory_storage_t *ao = nullptr, *bo = nullptr;
 
     std::unique_ptr<memory_storage_t> c_temp;
     if (nocopy_info()->needsTempC()) {
@@ -298,7 +303,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             = b.offset() / types::data_type_size(b_type) + pd()->dyn_offset_b;
     size_t off_c0
             = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
-    size_t off_co0 = 0;
+    size_t off_ao0 = 0, off_bo0 = 0, off_co0 = 0;
 
     int32_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
     for (int i = 0; i < po_count; i++)
@@ -364,8 +369,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 && (k > dim_t(k0) * pd()->kernel_desc()->aux_params()->wgK)) {
             status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo, *co,
                     nullptr, po_count, po_srcs, off_a0, off_b0, off_c0,
-                    int32_t(off_co0), po_offsets0, lda, ldb, ldc, m, n, 0, 1,
-                    1.0f, beta, 0, false, swapab, true);
+                    int32_t(off_ao0), int32_t(off_bo0), int32_t(off_co0),
+                    po_offsets0, lda, ldb, ldc, m, n, 0, 1, 1.0f, beta, 0,
+                    false, swapab, true);
             if (status) return status;
             beta = 1.0f;
         }
@@ -391,6 +397,12 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                         + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
 
                 auto off_c = off_c0 + Bm + Bn * ldc;
+
+                auto off_ao = int32_t(off_ao0);
+                auto off_bo = int32_t(off_bo0);
+                if (pd()->ao_dims_ == 1) off_ao += Bm;
+                if (pd()->bo_dims_ == 1) off_bo += Bn;
+
                 auto off_co = int32_t(off_co0);
                 switch (cmask & 3) {
                     case 1: off_co += Bn; break;
@@ -419,9 +431,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
                 status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo,
                         *co, c_temp.get(), po_count, po_srcs, off_a_src,
-                        off_b_src, off_c, off_co, po_offsets, lda, ldb, ldc,
-                        size_m, size_n, size_k, k0, alpha, eff_beta, cmask,
-                        last_k_block, swapab, disable_hilbert);
+                        off_b_src, off_c, off_ao, off_bo, off_co, po_offsets,
+                        lda, ldb, ldc, size_m, size_n, size_k, k0, alpha,
+                        eff_beta, cmask, last_k_block, swapab, disable_hilbert);
 
                 if (status) return status;
             }

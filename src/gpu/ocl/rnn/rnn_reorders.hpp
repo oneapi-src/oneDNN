@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include "common/memory.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/gpu_resource.hpp"
@@ -45,25 +44,27 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
             // Note: currently rnn_u8s8_compensation and rnn_s8s8_compensation
             // have common bit so we have to perform additional checks to
             // separate these two cases
-            if (IMPLICATION(dst_md()->extra.flags
-                                & memory_extra_flags::rnn_u8s8_compensation,
-                        types::extra_flag_rnn_s8s8_compensation_is_set(
-                                dst_md()->extra.flags)))
-                return status::unimplemented;
+            VDISPATCH_REORDER(
+                    !IMPLICATION(dst_md()->extra.flags
+                                    & memory_extra_flags::rnn_u8s8_compensation,
+                            types::extra_flag_rnn_s8s8_compensation_is_set(
+                                    dst_md()->extra.flags)),
+                    VERBOSE_BAD_FLAGS);
 
-            bool args_ok = true
-                    && utils::one_of(src_engine->kind(), engine_kind::gpu,
-                            engine_kind::cpu)
-                    && dst_engine->kind() == engine_kind::gpu;
-            if (!args_ok) return status::unimplemented;
+            VDISPATCH_REORDER(utils::one_of(src_engine->kind(),
+                                      engine_kind::gpu, engine_kind::cpu),
+                    VERBOSE_BAD_ENGINE_KIND);
+            VDISPATCH_REORDER(dst_engine->kind() == engine_kind::gpu,
+                    VERBOSE_BAD_ENGINE_KIND);
 
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(dst_engine);
 
-            args_ok = args_ok
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(
+            VDISPATCH_REORDER(compute_engine->mayiuse(
+                                      compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
+            VDISPATCH_REORDER(
+                    IMPLICATION(
                             utils::one_of(data_type::f16, src_md()->data_type,
                                     dst_md()->data_type),
                             true
@@ -71,12 +72,12 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
                                             compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short));
+                                                    intel_subgroups_short)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
 
-            auto status = init_conf(engine);
-            if (status != status::success) return status;
+            VDISPATCH_REORDER_SC(init_conf(engine), "init_conf()");
             init_scratchpad();
-            return status;
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,22 +45,38 @@ struct nchw_pooling_fwd_t : public primitive_t {
             const format_tag_t desired_fmt_tag = utils::pick(ndims() - 3,
                     format_tag::ncw, format_tag::nchw, format_tag::ncdhw);
 
-            const bool ok = is_fwd()
-                    && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
+            VDISPATCH_POOLING(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(
+                    utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                             alg_kind::pooling_avg_include_padding,
-                            alg_kind::pooling_avg_exclude_padding)
-                    && utils::everyone_is(
-                            d_type, src_md()->data_type, dst_md()->data_type)
-                    && platform::has_data_type_support(d_type)
-                    && !has_zero_dim_memory() && !is_dilated()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, d_type)
-                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
-                    && set_default_params() == status::success
-                    && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+                            alg_kind::pooling_avg_exclude_padding),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_POOLING(utils::everyone_is(d_type, src_md()->data_type,
+                                      dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(platform::has_data_type_support(d_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_POOLING(!is_dilated(), VERBOSE_UNSUPPORTED_FEATURE,
+                    "does not support dilations");
+            VDISPATCH_POOLING(
+                    attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, d_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_POOLING(
+                    ref_post_ops_t::primitive_kind_ok(attr()->post_ops_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_POOLING(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    memory_desc_matches_tag(*src_md(), desired_fmt_tag),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    memory_desc_matches_tag(*dst_md(), desired_fmt_tag),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             const bool is_training
                     = desc_.prop_kind == prop_kind::forward_training;
@@ -118,25 +134,37 @@ struct nchw_pooling_bwd_t : public primitive_t {
 
             using namespace prop_kind;
             using namespace alg_kind;
-            bool ok = !is_fwd()
-                    && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
+            VDISPATCH_POOLING(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(
+                    utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                             alg_kind::pooling_avg_include_padding,
-                            alg_kind::pooling_avg_exclude_padding)
-                    && utils::everyone_is(d_type, diff_dst_md()->data_type,
-                            diff_src_md()->data_type)
-                    && platform::has_data_type_support(d_type)
-                    && !has_zero_dim_memory()
-                    && set_default_params() == status::success
-                    && attr()->has_default_values()
-                    && memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag)
-                    && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag)
-                    && !is_dilated();
-            if (!ok) return status::unimplemented;
+                            alg_kind::pooling_avg_exclude_padding),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_POOLING(
+                    utils::everyone_is(d_type, diff_dst_md()->data_type,
+                            diff_src_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(platform::has_data_type_support(d_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_POOLING(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_POOLING(
+                    memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(!is_dilated(), VERBOSE_UNSUPPORTED_FEATURE,
+                    "does not support dilations");
 
             if (desc()->alg_kind == pooling_max) {
                 const auto ws_dt = hint_fwd_pd_->workspace_md()->data_type;
                 init_default_ws(ws_dt);
-                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+                VDISPATCH_POOLING(
+                        compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
             nthr_ = dnnl_get_max_threads();

@@ -37,6 +37,7 @@
 #include "dnnl_debug.hpp"
 #include "dnnl_memory.hpp"
 #include "utils/cold_cache.hpp"
+#include "utils/dims.hpp"
 #include "utils/parser.hpp"
 #include "utils/stream_kind.hpp"
 
@@ -71,21 +72,6 @@ std::ostream &operator<<(std::ostream &s, dnnl_data_type_t dt) {
 std::ostream &operator<<(std::ostream &s, dnnl_engine_kind_t ek) {
     s << engine_kind2str(ek);
     return s;
-}
-
-dir_t str2dir(const char *str) {
-#define CASE(x) \
-    if (!strcasecmp(STRINGIFY(x), str)) return x
-    CASE(FWD_D);
-    CASE(FWD_I);
-    CASE(FWD_B);
-    CASE(BWD_D);
-    CASE(BWD_W);
-    CASE(BWD_WB);
-    CASE(BWD_DW);
-#undef CASE
-    assert(!"unknown dir");
-    return DIR_UNDEF;
 }
 
 dnnl_prop_kind_t prop2prop_kind(const dir_t dir) {
@@ -211,12 +197,13 @@ int attr_t::policy2mask(int arg, policy_t policy,
             default: SAFE(FAIL, CRIT); return -1;
         }
     } else if (prim_kind == dnnl_matmul) {
+        if (query_md_ndims(wei_md) <= 0) SAFE_V(FAIL);
         switch (policy) {
             case PER_OC: return (1 << (query_md_ndims(wei_md) - 1));
             case PER_OCIC:
                 return (1 << (query_md_ndims(wei_md) - 1))
                         + (1 << (query_md_ndims(wei_md) - 2));
-            default: SAFE(FAIL, CRIT); return -1;
+            default: SAFE_V(FAIL); return -1;
         }
     } else {
         assert(prim_kind == dnnl_undefined_primitive);
@@ -251,6 +238,14 @@ int parse_value_and_runtime(float &value, const std::string &s) {
     return OK;
 }
 
+#define HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING() \
+    if (start_pos == std::string::npos) return OK; \
+    if (start_pos >= s.size()) { \
+        BENCHDNN_PRINT(0, "%s \'%s\'\n", \
+                "Error: dangling symbol at the end of input", s.c_str()); \
+        SAFE_V(FAIL); \
+    }
+
 int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
     *this = arg_scales_t::entry_t();
     if (s.empty()) return OK;
@@ -264,13 +259,7 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
                 policy_str.c_str(), "is not recognized.");
         SAFE_V(FAIL);
     }
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process scale value for COMMON policy
     if (this->policy == COMMON) {
@@ -283,26 +272,17 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
             SAFE_V(FAIL);
         }
     }
-
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process data type
     const auto dt_str = parser::get_substr(s, start_pos, ':');
     this->dt = str2dt(dt_str.c_str());
-
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
+    if (this->dt == dnnl_data_type_undef) {
+        BENCHDNN_PRINT(0, "Error: data type \'%s\' was not recognized.\n",
+                dt_str.c_str());
         SAFE_V(FAIL);
     }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process groups
     const auto g_str = parser::get_substr(s, start_pos, ':');
@@ -325,17 +305,75 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
                 SAFE_V(FAIL);
         }
     }
-
-    if (start_pos == std::string::npos) return OK;
-
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     return OK;
 }
+
+int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
+    *this = zero_points_t::entry_t();
+    if (s.empty()) return OK;
+
+    size_t start_pos = 0;
+
+    // process policy
+    const auto policy_str = parser::get_substr(s, start_pos, ':');
+    this->policy = str2policy(policy_str);
+    if (this->policy == POLICY_TOTAL) {
+        BENCHDNN_PRINT(0, "Error: policy \'%s\' was not recognized.\n",
+                policy_str.c_str());
+        SAFE_V(FAIL);
+    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
+
+    if (this->policy == COMMON) {
+        float value = 0.0f;
+        SAFE(parse_value_and_runtime(
+                     value, parser::get_substr(s, start_pos, ':')),
+                WARN);
+        int zp_val = static_cast<int>(value);
+        if (static_cast<float>(zp_val) != value) {
+            BENCHDNN_PRINT(0, "%s \'%d\'\n",
+                    "Error: the zero point is not exact:", zp_val);
+            SAFE_V(FAIL);
+        }
+        this->value = zp_val;
+    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
+
+    // process data type
+    const auto dt_str = parser::get_substr(s, start_pos, ':');
+    this->dt = str2dt(dt_str.c_str());
+    if (this->dt == dnnl_data_type_undef) {
+        BENCHDNN_PRINT(0, "Error: data type \'%s\' was not recognized.\n",
+                dt_str.c_str());
+        SAFE_V(FAIL);
+    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
+
+    // process groups
+    if (!groups.empty()) {
+        switch (this->policy) {
+            case PER_OCIC:
+                if (this->groups.size() != 2) {
+                    BENCHDNN_PRINT(0, "%s\n",
+                            "Error: number of groups should be equal to number "
+                            "of dimension bits set in the mask.");
+                    SAFE_V(FAIL);
+                }
+                break;
+            default:
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Error: groups are supported only for policy PER_OCIC");
+                SAFE_V(FAIL);
+        }
+    }
+    HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
+
+    return OK;
+}
+
+#undef HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING
 
 int attr_t::zero_points_t::from_str(const std::string &s) {
     *this = zero_points_t();
@@ -355,72 +393,10 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
             SAFE_V(FAIL);
         }
 
-        auto policy = str2policy(parser::get_substr(subs, subs_pos, ':'));
-        if (policy == POLICY_TOTAL) {
-            BENCHDNN_PRINT(0, "Error: policy \'%s\' was not recognized.\n",
-                    subs.c_str());
-            SAFE_V(FAIL);
-        }
-        if (subs_pos == std::string::npos) {
-            if (policy == COMMON) {
-                BENCHDNN_PRINT(0, "%s\n",
-                        "Error: \'common\' policy requires an integer input.");
-                SAFE_V(FAIL);
-            }
-            set(arg, policy, 0); // zp value is not considered
-            continue;
-        }
-        if (subs_pos >= subs.size()) {
-            BENCHDNN_PRINT(0,
-                    "Error: dangling symbol at the end of input: \'%s\'\n",
-                    subs.c_str());
-            SAFE_V(FAIL);
-        }
-
-        float zp = 0;
-        if (policy == COMMON) {
-            SAFE(parse_value_and_runtime(
-                         zp, parser::get_substr(subs, subs_pos, ':')),
-                    WARN);
-        }
-
-        if (subs_pos == std::string::npos) return OK;
-
-        dnnl_data_type_t dt = dnnl_s32;
-        // process data type
-        if (subs_pos != std::string::npos) {
-            const auto dt_str = parser::get_substr(subs, subs_pos, ':');
-            dt = str2dt(dt_str.c_str());
-        }
-
-        dims_t groups = {};
-        // process groups
-        if (subs_pos != std::string::npos) {
-            const auto g_str = parser::get_substr(subs, subs_pos, ':');
-            parser::parse_vector_str(groups, dims_t(),
-                    parser::parser_utils::stoll_safe, g_str, 'x');
-
-            if (!groups.empty()) {
-                switch (policy) {
-                    case PER_OCIC:
-                        if (groups.size() != 2) {
-                            BENCHDNN_PRINT(0, "%s\n",
-                                    "Error: number of groups should be equal "
-                                    "to number of dimension bits set in the "
-                                    "mask.");
-                            SAFE_V(FAIL);
-                        }
-                        break;
-                    default:
-                        BENCHDNN_PRINT(0, "%s\n",
-                                "Error: groups are supported only for policy "
-                                "PER_OCIC");
-                        SAFE_V(FAIL);
-                }
-            }
-        }
-
-        set(arg, policy, static_cast<int>(zp), dt, groups);
+        zero_points_t::entry_t zero_point;
+        SAFE(zero_point.from_str(parser::get_substr(subs, subs_pos, '\0')),
+                WARN);
+        set(arg, zero_point);
     }
     return OK;
 }
@@ -665,7 +641,7 @@ std::ostream &operator<<(
     s << scale.policy;
     if (scale.policy == policy_t::COMMON) s << ":" << scale.scale;
     if (scale.dt != dnnl_f32) s << ':' << scale.dt;
-    if (!scale.groups.empty()) s << ":" << scale.groups;
+    if (!scale.groups.empty()) s << ":" << dims2str(scale.groups);
     return s;
 }
 
@@ -680,7 +656,8 @@ std::ostream &operator<<(
         if (point.second.policy == policy_t::COMMON)
             s << ":" << point.second.value;
         if (point.second.dt != dnnl_s32) s << ':' << point.second.dt;
-        if (!point.second.groups.empty()) s << ":" << point.second.groups;
+        if (!point.second.groups.empty())
+            s << ":" << dims2str(point.second.groups);
         delim = "+";
     }
 

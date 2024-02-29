@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,15 +43,24 @@ struct ref_resampling_fwd_t : public primitive_t {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = is_fwd()
-                    && platform::has_data_type_support(src_md()->data_type)
-                    && platform::has_data_type_support(dst_md()->data_type)
-                    && set_default_params() == status::success
-                    && attr()->has_default_values(
-                            sm::post_ops, dst_md()->data_type)
-                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_RESAMPLING(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_RESAMPLING(
+                    platform::has_data_type_support(src_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_RESAMPLING(
+                    platform::has_data_type_support(dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_RESAMPLING(set_default_params() == status::success,
+                    VERBOSE_BAD_PARAM, "");
+            VDISPATCH_RESAMPLING(attr()->has_default_values(
+                                         sm::post_ops, dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_RESAMPLING(
+                    ref_post_ops_t::primitive_kind_ok(attr()->post_ops_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_RESAMPLING(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             return status::success;
         }
@@ -88,12 +97,17 @@ struct ref_resampling_bwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = !is_fwd()
-                    && platform::has_data_type_support(diff_src_md()->data_type)
-                    && platform::has_data_type_support(diff_dst_md()->data_type)
-                    && set_default_params() == status::success
-                    && attr()->has_default_values();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_RESAMPLING(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_RESAMPLING(
+                    platform::has_data_type_support(diff_src_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_RESAMPLING(
+                    platform::has_data_type_support(diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_RESAMPLING(set_default_params() == status::success,
+                    VERBOSE_BAD_PARAM, "");
+            VDISPATCH_RESAMPLING(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             return status::success;
         }

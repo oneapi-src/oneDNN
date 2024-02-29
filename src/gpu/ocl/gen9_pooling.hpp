@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,10 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/compute.hpp"
 #include "gpu/gpu_pooling_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -50,39 +48,52 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
             auto dst_data_t = dst_md()->data_type;
             auto acc_data_t = desc()->accum_data_type;
 
-            bool ok = set_default_params() == status::success
-                    && utils::one_of(desc()->prop_kind, forward_training,
-                            forward_inference)
-                    && utils::one_of(desc()->alg_kind, pooling_max,
-                            pooling_avg_include_padding,
-                            pooling_avg_exclude_padding)
-                    && (utils::everyone_is(
-                                f32, src_data_t, dst_data_t, acc_data_t)
+            VDISPATCH_POOLING_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(utils::one_of(desc()->prop_kind, forward_training,
+                                      forward_inference),
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(utils::one_of(desc()->alg_kind, pooling_max,
+                                      pooling_avg_include_padding,
+                                      pooling_avg_exclude_padding),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_POOLING(
+                    (utils::everyone_is(f32, src_data_t, dst_data_t, acc_data_t)
                             || utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(u8, src_data_t, dst_data_t)
-                            || utils::everyone_is(s8, src_data_t, dst_data_t))
-                    && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8),
-                            desc()->prop_kind == forward_inference)
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type)
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && !is_dilated()
-                    && !utils::one_of(f64, src_data_t, dst_data_t)
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(src_data_t == f16,
+                            || utils::everyone_is(s8, src_data_t, dst_data_t)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(
+                    IMPLICATION(utils::one_of(src_data_t, f16, s8, u8),
+                            desc()->prop_kind == forward_inference),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_POOLING(
+                    post_ops_with_binary_ok(attr(), dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_POOLING_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(
+                    !is_dilated(), VERBOSE_UNSUPPORTED_FEATURE, "is_dilated()");
+            VDISPATCH_POOLING(!utils::one_of(f64, src_data_t, dst_data_t),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_POOLING(compute_engine->mayiuse(
+                                      compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
+            VDISPATCH_POOLING(
+                    IMPLICATION(src_data_t == f16,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short));
-            if (!ok) return status::unimplemented;
+                                                    intel_subgroups_short)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
 
             bool is_training = desc()->prop_kind == forward_training;
             if (desc()->alg_kind == pooling_max && is_training)
                 init_default_ws(s32);
 
-            return init_conf(engine);
+            VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
@@ -128,39 +139,51 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            bool ok = set_default_params() == status::success
-                    && utils::one_of(desc()->prop_kind, backward_data)
-                    && utils::one_of(desc()->alg_kind, pooling_max,
-                            pooling_avg_include_padding,
-                            pooling_avg_exclude_padding)
-                    && (utils::everyone_is(data_type::f32,
-                                diff_dst_md()->data_type,
-                                diff_src_md()->data_type)
+            VDISPATCH_POOLING_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_POOLING(utils::one_of(desc()->prop_kind, backward_data),
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_POOLING(utils::one_of(desc()->alg_kind, pooling_max,
+                                      pooling_avg_include_padding,
+                                      pooling_avg_exclude_padding),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_POOLING(
+                    (utils::everyone_is(data_type::f32,
+                             diff_dst_md()->data_type, diff_src_md()->data_type)
                             || utils::everyone_is(data_type::f16,
                                     diff_dst_md()->data_type,
                                     diff_src_md()->data_type)
                             || utils::everyone_is(data_type::bf16,
                                     diff_dst_md()->data_type,
-                                    diff_src_md()->data_type))
-                    && !utils::one_of(data_type::f64, diff_src_md()->data_type,
-                            diff_dst_md()->data_type)
-                    && attr()->has_default_values() && !is_dilated()
-                    && IMPLICATION(diff_src_md()->data_type == data_type::f16,
+                                    diff_src_md()->data_type)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(
+                    !utils::one_of(data_type::f64, diff_src_md()->data_type,
+                            diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_POOLING(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_POOLING(
+                    !is_dilated(), VERBOSE_UNSUPPORTED_FEATURE, "is_dilated()");
+            VDISPATCH_POOLING(
+                    IMPLICATION(diff_src_md()->data_type == data_type::f16,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short))
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups);
-            if (!ok) return status::unimplemented;
+                                                    intel_subgroups_short)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_POOLING(compute_engine->mayiuse(
+                                      compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
 
             if (desc()->alg_kind == pooling_max) {
                 init_default_ws(data_type::s32);
-                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+                VDISPATCH_POOLING(
+                        compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
-            return init_conf(engine);
+            VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
