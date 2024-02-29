@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,9 +38,7 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit_int8:",
-                        (jcp_.has_vnni ? avx512_core_vnni : avx512_core), ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int8:", jcp_.isa, ""),
                 jit_avx512_core_x8s8s32x_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
