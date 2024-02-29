@@ -827,8 +827,8 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->has_int8_vnni = isa_has_int8_vnni(brg->isa_impl);
 
     set_brg_vmm(brg); // TODO: Investigate if it is really needed here.
-    brg->req_s8s8_compensation = brg->is_int8 && !brg->is_int8_tmm
-            && (brg->isa_impl != avx2_vnni_2) && brg->dt_a == data_type::s8;
+    brg->req_s8s8_compensation = brg->is_int8 && brg->dt_a == data_type::s8
+            && !isa_has_s8s8(brg->isa_impl);
 
     brg->LDA = (brg->is_row_major()) ? static_cast<int>(LDA)
                                      : static_cast<int>(LDB);
