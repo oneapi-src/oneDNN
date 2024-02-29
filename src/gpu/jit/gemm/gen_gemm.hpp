@@ -111,23 +111,6 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && utils::one_of(d->a_type(), u8, s8, u4, s4)) {
                 ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp_);
 
-                bool a_zp
-                        = !attr()->zero_points_.has_default_values(DNNL_ARG_A);
-                bool b_zp
-                        = !attr()->zero_points_.has_default_values(DNNL_ARG_B);
-
-                int cmask_a = 0, cmask_b = 0, cmask_c = 0;
-                CHECK(attr()->zero_points_.get(DNNL_ARG_A, &cmask_a));
-                CHECK(attr()->zero_points_.get(DNNL_ARG_B, &cmask_b));
-                CHECK(attr()->zero_points_.get(DNNL_ARG_C, &cmask_c));
-                ok &= utils::one_of(cmask_a, 0, 1 << 1, 1 << 2)
-                        && utils::one_of(cmask_b, 0, 1 << 0)
-                        && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
-
-                ao_dims_ = a_zp ? (cmask_a != 0 ? 1 : 0) : -1;
-                bo_dims_ = b_zp ? (cmask_b != 0 ? 1 : 0) : -1;
-                if (swap_ab_) std::swap(ao_dims_, bo_dims_);
-
                 attr_skip_mask |= smask_t::zero_points_runtime;
 
                 ok = ok
@@ -164,6 +147,25 @@ struct gen_gemm_t : public gpu_gemm_t {
                                             DNNL_ARG_DST)))
                     && attr()->post_ops_.check_sum_consistency(
                             d->c_type(), utils::one_of(d->a_type(), s8, u8));
+
+            if (!attr()->zero_points_.has_default_values()) {
+                int cmask_a = 0, cmask_b = 0, cmask_c = 0;
+                CHECK(attr()->zero_points_.get(DNNL_ARG_A, &cmask_a));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_B, &cmask_b));
+                CHECK(attr()->zero_points_.get(DNNL_ARG_C, &cmask_c));
+                ok &= utils::one_of(cmask_a, 0, 1 << 1, 1 << 2)
+                        && utils::one_of(cmask_b, 0, 1 << 0)
+                        && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
+                bool a_zp
+                        = !attr()->zero_points_.has_default_values(DNNL_ARG_A);
+                bool b_zp
+                        = !attr()->zero_points_.has_default_values(DNNL_ARG_B);
+
+                ao_dims_ = a_zp ? (cmask_a != 0 ? 1 : 0) : -1;
+                bo_dims_ = b_zp ? (cmask_b != 0 ? 1 : 0) : -1;
+                if (swap_ab_) std::swap(ao_dims_, bo_dims_);
+            }
+
             for (const auto &s :
                     {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 ok &= utils::one_of(attr()->scales_.get(s).mask_, 0, 1 << 0,
