@@ -263,10 +263,9 @@ status_t brgemm_blocking(brgemm_t *brg) {
         brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
         const int rd_unroll = 4;
-        const int vnni_granularity
-                = (brg->is_f16 && brg->isa_impl == avx512_core_fp16)
-                ? 1
-                : data_type_vnni_granularity(brg->dt_a);
+        const data_type_t rd_block_dt = get_mac_emu_data_type(
+                brg->dt_a, brg->isa_impl, brg->isa_impl != avx2_vnni_2);
+        const int vnni_granularity = data_type_vnni_granularity(rd_block_dt);
         brg->rd_block = rd_unroll * vnni_granularity;
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
@@ -852,18 +851,13 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->bdb2 = 0;
     brg->bdb2_tail = 0;
 
-    const bool is_b_in_vnni_format = !(
-            brg->dt_b == data_type::f16 && brg->isa_impl == avx512_core_fp16);
-    brg->ld_step
-            = is_b_in_vnni_format ? data_type_vnni_granularity(brg->dt_b) : 1;
+    const data_type_t ld_step_compute_dt = get_mac_emu_data_type(
+            brg->dt_b, brg->isa_impl, brg->isa_impl != avx2_vnni_2);
+    brg->ld_step = data_type_vnni_granularity(ld_step_compute_dt);
 
-    const bool has_no_vnni_compute_instruction
-            = (brg->is_f16
-                      && one_of(brg->isa_impl, avx2_vnni_2, avx512_core_fp16))
-            || (brg->is_bf16 && brg->isa_impl == avx2_vnni_2);
-    brg->rd_step = has_no_vnni_compute_instruction
-            ? 1
-            : data_type_vnni_granularity(brg->dt_b);
+    const data_type_t rd_step_compute_dt
+            = get_mac_emu_data_type(brg->dt_b, brg->isa_impl);
+    brg->rd_step = data_type_vnni_granularity(rd_step_compute_dt);
 }
 
 void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
