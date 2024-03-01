@@ -773,15 +773,18 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     // the GEMM as a row major problem.
     auto create_gemm_pd =
             [&](std::shared_ptr<primitive_desc_t> &gemm_pd, dim_t m, dim_t n,
-                    dim_t k, dim_t lda, dim_t ldb, dim_t ldc, data_type_t a_dt,
-                    data_type_t b_dt, data_type_t c_dt, bool is_A_trans,
-                    bool is_B_trans, float beta) -> status_t {
+                    dim_t k, strides_t<2> a_strides, strides_t<2> b_strides,
+                    strides_t<2> c_strides, data_type_t a_dt, data_type_t b_dt,
+                    data_type_t c_dt, float beta) -> status_t {
         memory_desc_t a_md, b_md, c_md;
-        CHECK(create_2d_desc(&b_md, k, m, a_dt,
-                is_A_trans ? transpose::trans : transpose::notrans, lda));
-        CHECK(create_2d_desc(&a_md, n, k, b_dt,
-                is_B_trans ? transpose::trans : transpose::notrans, ldb));
-        CHECK(create_2d_desc(&c_md, n, m, c_dt, transpose::notrans, ldc));
+        dims_t a_dims = {n, k}, b_dims = {k, m}, c_dims = {n, m};
+
+        dims_t b_strides_md = {b_strides[0], b_strides[1]};
+        CHECK(memory_desc_init_by_strides(b_md, 2, b_dims, b_dt, b_strides_md));
+        dims_t a_strides_md = {a_strides[0], a_strides[1]};
+        CHECK(memory_desc_init_by_strides(a_md, 2, a_dims, a_dt, a_strides_md));
+        dims_t c_strides_md = {c_strides[0], c_strides[1]};
+        CHECK(memory_desc_init_by_strides(c_md, 2, c_dims, c_dt, c_strides_md));
 
         primitive_attr_t attr;
         CHECK(attr.post_ops_.append_sum(beta));
@@ -812,20 +815,22 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         case prop_kind::forward:
             VDISPATCH_RNN_SC(
                     create_gemm_pd(gemm_layer_fwd_pd_, n_gates * dhc,
-                            layer_merged_size, slc, rnn_conf.weights_layer_ld,
-                            rnn_conf.states_ws_ld, rnn_conf.scratch_gates_ld,
-                            weights_type, src_type, rnn_conf.acc_data_type,
-                            false, false, 0.0),
+                            layer_merged_size, slc, {rnn_conf.states_ws_ld, 1},
+                            {off.weights_layer[2], off.weights_layer[4]},
+                            {rnn_conf.scratch_gates_ld, 1}, weights_type,
+                            src_type, rnn_conf.acc_data_type, 0.0),
                     "create_gemm_pd(gemm_layer_fwd_pd_)");
             if (!rnn_conf.copy_src_layer) {
                 if (off.src_layer[1] != rnn_conf.states_ws_ld)
                     VDISPATCH_RNN_SC(
                             create_gemm_pd(gemm_layer_fwd_src_pd_,
                                     n_gates * dhc, layer_merged_size, slc,
-                                    rnn_conf.weights_layer_ld, off.src_layer[1],
-                                    rnn_conf.scratch_gates_ld, weights_type,
-                                    src_type, rnn_conf.acc_data_type, false,
-                                    false, 0.0),
+                                    {off.src_layer[1], off.src_layer[2]},
+                                    {off.weights_layer[2],
+                                            off.weights_layer[4]},
+                                    {rnn_conf.scratch_gates_ld, 1},
+                                    weights_type, src_type,
+                                    rnn_conf.acc_data_type, 0.0),
                             "create_gemm_pd(gemm_layer_fwd_src_pd_)");
                 else
                     gemm_layer_fwd_src_pd_ = gemm_layer_fwd_pd_;
@@ -833,26 +838,28 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             if (rnn_conf.is_vanilla_gru) {
                 VDISPATCH_RNN_SC(
                         create_gemm_pd(gemm_iter_fwd_pd_, (n_gates - 1) * dhc,
-                                batch, sic, rnn_conf.weights_iter_ld,
-                                rnn_conf.states_ws_ld,
-                                rnn_conf.scratch_gates_ld, weights_type,
-                                src_type, rnn_conf.acc_data_type, false, false,
+                                batch, sic, {rnn_conf.states_ws_ld, 1},
+                                {off.weights_iter[2], off.weights_iter[4]},
+                                {rnn_conf.scratch_gates_ld, 1}, weights_type,
+                                src_type, rnn_conf.acc_data_type,
                                 gemm_iter_fwd_beta),
                         "create_gemm_pd(gemm_iter_fwd_pd_)");
                 VDISPATCH_RNN_SC(
                         create_gemm_pd(gemm_iter_fwd_2_pd_, dhc, batch, sic,
-                                rnn_conf.weights_iter_ld, rnn_conf.states_ws_ld,
-                                rnn_conf.scratch_gates_ld, weights_type,
-                                src_type, rnn_conf.acc_data_type, false, false,
+                                {rnn_conf.states_ws_ld, 1},
+                                {off.weights_iter[2], off.weights_iter[4]},
+                                {rnn_conf.scratch_gates_ld, 1}, weights_type,
+                                src_type, rnn_conf.acc_data_type,
                                 gemm_iter_fwd_beta),
                         "create_gemm_pd(gemm_iter_fwd_2_pd_)");
             } else {
                 VDISPATCH_RNN_SC(
                         create_gemm_pd(gemm_iter_fwd_pd_, n_gates * dhc, batch,
-                                sic, rnn_conf.weights_iter_ld,
-                                rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
-                                weights_type, src_type, rnn_conf.acc_data_type,
-                                false, false, gemm_iter_fwd_beta),
+                                sic, {rnn_conf.states_ws_ld, 1},
+                                {off.weights_iter[2], off.weights_iter[4]},
+                                {rnn_conf.gates_ws_ld, 1}, weights_type,
+                                src_type, rnn_conf.acc_data_type,
+                                gemm_iter_fwd_beta),
                         "create_gemm_pd(gemm_iter_fwd_pd_)");
             }
             break;
@@ -860,117 +867,117 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             if (rnn_conf.is_vanilla_gru) {
                 VDISPATCH_RNN_SC(
                         create_gemm_pd(gemm_iter_bwd_pd_, sic, batch,
-                                (n_gates - 1) * dhc, rnn_conf.weights_iter_ld,
-                                rnn_conf.scratch_diff_gates_ld,
-                                rnn_conf.scratch_diff_states_ld, weights_type,
-                                src_type, rnn_conf.acc_data_type, false, false,
+                                (n_gates - 1) * dhc,
+                                {rnn_conf.scratch_diff_gates_ld, 1},
+                                {off.weights_iter[4], off.weights_iter[2]},
+                                {rnn_conf.scratch_diff_states_ld, 1},
+                                weights_type, src_type, rnn_conf.acc_data_type,
                                 1.0f),
                         "create_gemm_pd(gemm_iter_bwd_pd_)");
                 VDISPATCH_RNN_SC(
                         create_gemm_pd(gemm_iter_bwd_2_pd_, sic, batch, dhc,
-                                rnn_conf.weights_iter_ld,
-                                rnn_conf.scratch_diff_gates_ld,
-                                rnn_conf.scratch_diff_states_ld, weights_type,
-                                src_type, rnn_conf.acc_data_type, false, false,
+                                {rnn_conf.scratch_diff_gates_ld, 1},
+                                {off.weights_iter[4], off.weights_iter[2]},
+                                {rnn_conf.scratch_diff_states_ld, 1},
+                                weights_type, src_type, rnn_conf.acc_data_type,
                                 0.0f),
                         "create_gemm_pd(gemm_iter_bwd_2_pd_)");
                 VDISPATCH_RNN_SC(
                         create_gemm_pd(gemm_diff_wei_iter_pd_,
                                 (n_gates - 1) * dhc, sic, iter_merged_size,
-                                rnn_conf.scratch_diff_gates_ld,
-                                rnn_conf.states_ws_ld,
-                                rnn_conf.diff_weights_iter_ld, weights_type,
-                                src_type, rnn_conf.acc_data_type, false, true,
+                                {1, rnn_conf.states_ws_ld},
+                                {rnn_conf.scratch_diff_gates_ld, 1},
+                                {rnn_conf.diff_weights_iter_ld, 1},
+                                weights_type, src_type, rnn_conf.acc_data_type,
                                 1.0f),
                         "create_gemm_pd(gemm_diff_wei_iter_pd_)");
                 VDISPATCH_RNN_SC(
                         create_gemm_pd(gemm_diff_wei_iter_2_pd_, dhc, sic,
-                                iter_merged_size,
-                                rnn_conf.scratch_diff_gates_ld,
-                                rnn_conf.states_ws_ld,
-                                rnn_conf.diff_weights_iter_ld, weights_type,
-                                src_type, rnn_conf.acc_data_type, false, true,
+                                iter_merged_size, {1, rnn_conf.states_ws_ld},
+                                {rnn_conf.scratch_diff_gates_ld, 1},
+                                {rnn_conf.diff_weights_iter_ld, 1},
+                                weights_type, src_type, rnn_conf.acc_data_type,
                                 1.0f),
                         "create_gemm_pd(gemm_diff_wei_iter_2_pd_)");
             } else {
                 if (rnn_conf.recompute_gates) {
-                    VDISPATCH_RNN_SC(
-                            create_gemm_pd(gemm_layer_fwd_pd_, n_gates * dhc,
-                                    layer_merged_size, slc,
-                                    rnn_conf.weights_layer_ld,
-                                    rnn_conf.states_ws_ld,
-                                    rnn_conf.scratch_gates_ld, weights_type,
-                                    src_type, rnn_conf.acc_data_type, true,
-                                    false, 0.0),
+                    VDISPATCH_RNN_SC(create_gemm_pd(gemm_layer_fwd_pd_,
+                                             n_gates * dhc, layer_merged_size,
+                                             slc, {rnn_conf.states_ws_ld, 1},
+                                             {off.weights_layer[2],
+                                                     off.weights_layer[4]},
+                                             {rnn_conf.scratch_gates_ld, 1},
+                                             weights_type, src_type,
+                                             rnn_conf.acc_data_type, 0.0),
                             "create_gemm_pd(gemm_layer_fwd_pd_)");
                     if (!rnn_conf.copy_src_layer) {
                         if (off.src_layer[1] != rnn_conf.states_ws_ld)
                             VDISPATCH_RNN_SC(
                                     create_gemm_pd(gemm_layer_fwd_src_pd_,
                                             n_gates * dhc, layer_merged_size,
-                                            slc, rnn_conf.weights_layer_ld,
-                                            off.src_layer[1],
-                                            rnn_conf.scratch_gates_ld,
+                                            slc,
+                                            {off.src_layer[1],
+                                                    off.src_layer[2]},
+                                            {off.weights_layer[2],
+                                                    off.weights_layer[4]},
+                                            {rnn_conf.scratch_gates_ld, 1},
                                             weights_type, src_type,
-                                            rnn_conf.acc_data_type, true, false,
-                                            0.0),
+                                            rnn_conf.acc_data_type, 0.0),
                                     "create_gemm_pd(gemm_layer_fwd_src_pd_)");
                         else
                             gemm_layer_fwd_src_pd_ = gemm_layer_fwd_pd_;
                     }
                     VDISPATCH_RNN_SC(
                             create_gemm_pd(gemm_iter_fwd_pd_, n_gates * dhc,
-                                    batch, sic, rnn_conf.weights_iter_ld,
-                                    rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
-                                    weights_type, src_type,
-                                    rnn_conf.acc_data_type, true, false,
+                                    batch, sic, {rnn_conf.states_ws_ld, 1},
+                                    {off.weights_iter[2], off.weights_iter[4]},
+                                    {rnn_conf.gates_ws_ld, 1}, weights_type,
+                                    src_type, rnn_conf.acc_data_type,
                                     gemm_iter_fwd_beta),
                             "create_gemm_pd(gemm_iter_fwd_pd_)");
                 }
                 VDISPATCH_RNN_SC(
                         create_gemm_pd(gemm_iter_bwd_pd_, sic, batch,
-                                n_gates * dhc, rnn_conf.weights_iter_ld,
-                                rnn_conf.scratch_diff_gates_ld,
-                                rnn_conf.scratch_diff_states_ld, weights_type,
-                                src_type, rnn_conf.acc_data_type, false, false,
+                                n_gates * dhc,
+                                {rnn_conf.scratch_diff_gates_ld, 1},
+                                {off.weights_iter[4], off.weights_iter[2]},
+                                {rnn_conf.scratch_diff_states_ld, 1},
+                                weights_type, src_type, rnn_conf.acc_data_type,
                                 gemm_iter_bwd_beta),
                         "create_gemm_pd(gemm_iter_bwd_pd_)");
-                VDISPATCH_RNN_SC(
-                        create_gemm_pd(gemm_diff_wei_iter_pd_, n_gates * dhc,
-                                sic, iter_merged_size,
-                                rnn_conf.scratch_diff_gates_ld,
-                                rnn_conf.states_ws_ld,
-                                rnn_conf.diff_weights_iter_ld, weights_type,
-                                src_type, rnn_conf.acc_data_type, false, true,
-                                1.0f),
+                VDISPATCH_RNN_SC(create_gemm_pd(gemm_diff_wei_iter_pd_,
+                                         n_gates * dhc, sic, iter_merged_size,
+                                         {1, rnn_conf.states_ws_ld},
+                                         {rnn_conf.scratch_diff_gates_ld, 1},
+                                         {rnn_conf.diff_weights_iter_ld, 1},
+                                         weights_type, src_type,
+                                         rnn_conf.acc_data_type, 1.0f),
                         "create_gemm_pd(gemm_diff_wei_iter_pd_)");
             }
             VDISPATCH_RNN_SC(
                     create_gemm_pd(gemm_layer_bwd_pd_, slc, layer_merged_size,
-                            n_gates * dhc, rnn_conf.weights_layer_ld,
-                            rnn_conf.scratch_diff_gates_ld,
-                            rnn_conf.scratch_diff_states_ld, weights_type,
-                            src_type, rnn_conf.acc_data_type, false, false,
-                            0.0f),
+                            n_gates * dhc, {rnn_conf.scratch_diff_gates_ld, 1},
+                            {off.weights_layer[4], off.weights_layer[2]},
+                            {rnn_conf.scratch_diff_states_ld, 1}, weights_type,
+                            src_type, rnn_conf.acc_data_type, 0.0f),
                     "create_gemm_pd(gemm_layer_bwd_pd_)");
             VDISPATCH_RNN_SC(
                     create_gemm_pd(gemm_diff_wei_layer_pd_, n_gates * dhc, slc,
-                            layer_merged_size, rnn_conf.scratch_diff_gates_ld,
-                            rnn_conf.states_ws_ld,
-                            rnn_conf.diff_weights_layer_ld, weights_type,
-                            src_type, rnn_conf.acc_data_type, false, true,
-                            1.0f),
+                            layer_merged_size, {1, rnn_conf.states_ws_ld},
+                            {rnn_conf.scratch_diff_gates_ld, 1},
+                            {rnn_conf.diff_weights_layer_ld, 1}, weights_type,
+                            src_type, rnn_conf.acc_data_type, 1.0f),
                     "create_gemm_pd(gemm_diff_wei_layer_pd_)");
             if (!rnn_conf.copy_src_layer) {
                 if (off.src_layer[1] != rnn_conf.states_ws_ld)
                     VDISPATCH_RNN_SC(
                             create_gemm_pd(gemm_diff_wei_layer_src_pd_,
                                     n_gates * dhc, slc, layer_merged_size,
-                                    rnn_conf.scratch_diff_gates_ld,
-                                    off.src_layer[1],
-                                    rnn_conf.diff_weights_layer_ld,
+                                    {off.src_layer[2], off.src_layer[1]},
+                                    {rnn_conf.scratch_diff_gates_ld, 1},
+                                    {rnn_conf.diff_weights_layer_ld, 1},
                                     weights_type, src_type,
-                                    rnn_conf.acc_data_type, false, true, 1.0f),
+                                    rnn_conf.acc_data_type, 1.0f),
                             "create_gemm_pd(gemm_diff_wei_layer_src_pd_)");
                 else
                     gemm_diff_wei_layer_src_pd_ = gemm_diff_wei_layer_pd_;
