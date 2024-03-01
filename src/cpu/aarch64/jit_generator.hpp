@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2023 Intel Corporation
-* Copyright 2020-2023 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -671,10 +671,11 @@ public:
 
 public:
     jit_generator(void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE,
-            bool use_autogrow = true)
+            bool use_autogrow = true, cpu_isa_t max_cpu_isa = isa_all)
         : Xbyak_aarch64::CodeGenerator(code_size,
                 (code_ptr == nullptr && use_autogrow) ? Xbyak_aarch64::AutoGrow
-                                                      : code_ptr) {}
+                                                      : code_ptr)
+        , max_cpu_isa_(max_cpu_isa) {}
     virtual ~jit_generator() {}
 
     virtual const char *name() const = 0;
@@ -700,6 +701,7 @@ public:
     }
 
 private:
+    const cpu_isa_t max_cpu_isa_;
     const uint8_t *getCode() {
         this->ready();
         if (!is_initialized()) return nullptr;

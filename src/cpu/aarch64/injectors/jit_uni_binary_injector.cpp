@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
-* Copyright 2022-2023 FUJITSU LIMITED
+* Copyright 2022-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,6 +97,22 @@ bool binary_args_broadcast_supported(const post_ops_t &post_ops,
                             entry.binary.src1_desc, dst_d,
                             supported_strategy_set);
                     return bcast_type == broadcasting_strategy_t::unsupported;
+                }
+                return false;
+            });
+}
+
+bool any_binary_postop_rhs_non_scalar_broadcast(
+        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d) {
+    return std::any_of(post_ops.entry_.cbegin(), post_ops.entry_.cend(),
+            [&](const post_ops_t::entry_t &entry) -> bool {
+                if (entry.is_like_binary()) {
+                    const auto bcast_type = get_rhs_arg_broadcasting_strategy(
+                            entry.binary.src1_desc, dst_d,
+                            get_all_strategies_supported_by_injector());
+                    return !utils::one_of(bcast_type,
+                            broadcasting_strategy_t::scalar,
+                            broadcasting_strategy_t::unsupported);
                 }
                 return false;
             });
