@@ -2470,7 +2470,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
 
     postamble();
 
-    if (brg.with_eltwise) postops_injector_->prepare_table();
+    if (brg.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
 
     if (brg.is_bf32) {
         align(64);

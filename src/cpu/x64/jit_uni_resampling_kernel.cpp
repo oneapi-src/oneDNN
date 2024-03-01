@@ -910,7 +910,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::generate() {
     postamble();
 
     if (conf_.with_eltwise && postops_injector_)
-        postops_injector_->prepare_table();
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 template struct jit_uni_resampling_kernel_t<avx512_core_fp16, Zmm>;

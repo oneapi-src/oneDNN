@@ -2496,7 +2496,8 @@ void jit_brgemm_kernel_t<isa, Wmm>::generate() {
             dd(scale_int);
     }
 
-    if (brg.with_eltwise) postops_injector_->prepare_table();
+    if (brg.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 brgemm_attr_t::brgemm_attr_t()

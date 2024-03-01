@@ -1385,7 +1385,8 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::generate() {
 
     postamble();
 
-    if (jcp.with_eltwise) postops_injector_->prepare_table();
+    if (jcp.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 const float *jit_avx512_core_x8s8s32x_deconvolution_fwd_t::adjust_oscales(

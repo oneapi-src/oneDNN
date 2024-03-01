@@ -1353,7 +1353,8 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::generate() {
     add(rsp, stack_space_needed_);
     postamble();
 
-    if (brg.with_eltwise) postops_injector_->prepare_table();
+    if (brg.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
 
     if (is_fast_vnni_int8()) {
         align(64);

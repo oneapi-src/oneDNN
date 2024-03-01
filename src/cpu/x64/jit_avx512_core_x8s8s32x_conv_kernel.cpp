@@ -1344,7 +1344,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
 
     postamble();
 
-    if (jcp.with_eltwise) postops_injector_->prepare_table();
+    if (jcp.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
 
     if (jcp.is_fast_depthwise) {
         align(64);

@@ -1261,7 +1261,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
     postamble();
 
     if (jpp.with_eltwise && postops_injector_)
-        postops_injector_->prepare_table();
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 template <cpu_isa_t isa>

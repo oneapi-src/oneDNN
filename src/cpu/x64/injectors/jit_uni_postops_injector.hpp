@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ public:
     /*
      * Thin wrapper for eltwise injector specific function
      */
-    void prepare_table(bool gen_table = true);
+    void prepare_table(bool gen_table);
     void set_lambda_injector(lambda_jit_injectors_t::key_type,
             const lambda_jit_injectors_t::mapped_type &jit_injector);
 

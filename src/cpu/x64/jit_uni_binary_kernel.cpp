@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -699,7 +699,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::generate() {
     postamble();
 
     if ((conf_.with_eltwise || conf_.is_i8) && postops_injector_)
-        postops_injector_->prepare_table();
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 #undef PARAM_OFF
