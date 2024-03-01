@@ -84,15 +84,9 @@
 
 #define cell_execution_sig(f) \
     status_t f(engine_t *engine, const exec_ctx_t &ctx, dim_t dir, dim_t lay, \
-            dim_t iter, dim_t wei_layer_offset, \
-            const std::vector<dim_t> &wei_iter_offsets, \
-            const rnn_utils::user_data_t &user_data, \
+            dim_t iter, const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
-            const memory_storage_t &wei_layer, \
-            const memory_storage_t &wei_iter, \
-            const memory_storage_t &diff_weights_layer, \
-            const memory_storage_t &diff_weights_iter, \
             const memory_storage_t &diff_bias, const memory_storage_t *scales, \
             const memory_storage_t *tm_scales) const
 
@@ -101,10 +95,6 @@
             const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
-            const memory_storage_t &wei_layer, \
-            const memory_storage_t &wei_iter, \
-            const memory_storage_t &diff_weights_layer, \
-            const memory_storage_t &diff_weights_iter, \
             const memory_storage_t &diff_bias, const memory_storage_t *scales, \
             const memory_storage_t *tm_scales) const
 
@@ -113,12 +103,6 @@
             const rnn_utils::sub_buffer_t &a, \
             const rnn_utils::sub_buffer_t &b, \
             const rnn_utils::sub_buffer_t &c, gemm_kind_t gemm_kind) const
-
-#define weights_assign_sig(f) \
-    void f(const rnn_utils::conf_t &rnn, const memory_desc_t *md, \
-            std::vector<dim_t> &weights_, dim_t n_parts, \
-            const dim_t *gates_per_part, dim_t ld, dim_t nld, \
-            data_type_t wei_t) const
 
 namespace dnnl {
 namespace impl {
@@ -310,10 +294,6 @@ struct conf_t {
     dim_t iter_loop;
 
     bool copy_bias;
-    dim_t weights_layer_ld, weights_layer_nld;
-    dim_t diff_weights_layer_ld, diff_weights_layer_nld;
-    dim_t weights_iter_ld, weights_iter_nld;
-    dim_t diff_weights_iter_ld, diff_weights_iter_nld;
     dim_t states_ws_ld, scratch_diff_states_ld;
     bool is_fwd, is_training, is_lbr, is_int8, is_testmode, is_vanilla_gru;
     bool use_workspace;
@@ -356,6 +336,8 @@ struct conf_t {
     data_type_t output_data_type;
     data_type_t dst_data_type;
     data_type_t diff_data_type;
+    data_type_t wei_layer_type;
+    data_type_t wei_iter_type;
 };
 bool is_ldigo(const memory_desc_wrapper &md);
 bool is_ldgoi(const memory_desc_wrapper &md);
@@ -381,20 +363,6 @@ void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 dim_t set_workspace_offsets(const conf_t &rnn, dim_t &ws_gates_offset,
         dim_t &ws_h_state_offset, dim_t &ws_c_state_offset,
         dim_t &ws_grid_comp_onfset, dim_t &ws_bias_offset);
-void set_gru_offsets_part2(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        const std::vector<dim_t> &wei_iter_off_ptr, dim_t &cell_wei_iter_offset,
-        dim_t &cell_scratch_offset);
-void set_offsets_fwd_gemm(const conf_t &rnn, dim_t dir, dim_t lay,
-        const std::vector<dim_t> &wei_layer_offsets,
-        dim_t &grid_wei_lay_offset);
-void set_offsets_fwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        const std::vector<dim_t> &wei_iter_offsets,
-        dim_t &cell_wei_iter_offset);
-void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off,
-        dim_t &cell_diff_wei_iter_off2);
-void set_offsets_bwd_gemm(const conf_t &rnn, dim_t iter, dim_t dir, dim_t lay,
-        dim_t &cell_diff_wei_iter_off, dim_t &cell_diff_wei_lay_off);
 dim_t get_workspace_size(const conf_t &rnn);
 status_t set_expected_desc(
         conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
@@ -459,13 +427,19 @@ struct data_helper_t {
 
 struct user_data_t : public data_helper_t {
     using mst = memory_storage_t;
-    user_data_t(const mst &src_layer, const mst &bias,
-            const mst &diff_src_layer, const mst &diff_dst_layer,
-            const conf_t &conf, const rnn_offsets_t &offsets)
+    user_data_t(const mst &src_layer, const mst &wei_layer, const mst &wei_iter,
+            const mst &bias, const mst &diff_src_layer,
+            const mst &diff_dst_layer, const mst &diff_wei_layer,
+            const mst &diff_wei_iter, const conf_t &conf,
+            const rnn_offsets_t &offsets)
         : src_layer_(src_layer)
+        , wei_layer_(wei_layer)
+        , wei_iter_(wei_iter)
         , bias_(bias)
         , diff_src_layer_(diff_src_layer)
         , diff_dst_layer_(diff_dst_layer)
+        , diff_wei_layer_(diff_wei_layer)
+        , diff_wei_iter_(diff_wei_iter)
         , conf_(conf)
         , offsets_(offsets) {
         // The packed restriction could be removed by using batched GEMM with
@@ -523,7 +497,7 @@ struct user_data_t : public data_helper_t {
         // src_layer dimension order: iter, mini-batch, channel
         const auto iter_stride
                 = offsets_.src_layer[0] * type_size(conf_.input_data_type);
-        auto offset = iter * iter_stride;
+        dim_t offset = iter * iter_stride;
         auto cell_size = iter_stride;
         auto n_cells = all_iter ? conf_.n_iter - iter : 1;
         return {src_layer(), offset, cell_size * n_cells};
@@ -534,6 +508,62 @@ struct user_data_t : public data_helper_t {
         // Use negative iterations stride for backwards iteration
         ret[0] *= (0 == normalized_iter(dir, 0)) ? 1 : -1;
         return ret;
+    }
+
+    const mst &wei_layer() const { return wei_layer_; }
+    sub_buffer_t wei_layer(
+            dim_t lay, dim_t dir, bool is_multi_cell = false) const {
+
+        // wei_layer dimension order: layer, dir, src c, gate, dst c
+        dim_t t = type_size(conf_.wei_layer_type);
+        dim_t lay_stride = offsets_.weights_layer[0];
+        dim_t dir_stride = offsets_.weights_layer[1];
+        dim_t offset = (lay * lay_stride + dir * dir_stride) * t;
+        dim_t cell_size = dir_stride * t;
+
+        if (is_multi_cell) return {wei_layer(), offset};
+
+        return {wei_layer(), offset, cell_size};
+    }
+
+    const mst &wei_iter() const { return wei_iter_; }
+    sub_buffer_t wei_iter(dim_t lay, dim_t dir) const {
+        // wei_iter dimension order: layer, dir, src c, gate, dst c
+        dim_t t = type_size(conf_.wei_iter_type);
+        dim_t lay_stride = offsets_.weights_iter[0];
+        dim_t dir_stride = offsets_.weights_iter[1];
+        dim_t offset = (lay * lay_stride + dir * dir_stride) * t;
+        dim_t cell_size = dir_stride * t;
+        return {wei_iter(), offset, cell_size};
+    }
+
+    const mst &diff_wei_layer() const { return diff_wei_layer_; }
+    sub_buffer_t diff_wei_layer(
+            dim_t lay, dim_t dir, bool is_multi_cell = false) const {
+
+        // diff_wei_layer dimension order: layer, dir, src c, gate, dst c
+        dim_t t = sizeof(float);
+        dim_t lay_stride = offsets_.diff_weights_layer[0];
+        dim_t dir_stride = offsets_.diff_weights_layer[1];
+        dim_t offset = (lay * lay_stride + dir * dir_stride) * t;
+        dim_t cell_size = dir_stride * t;
+
+        if (is_multi_cell) return {diff_wei_layer(), offset};
+
+        return {diff_wei_layer(), offset, cell_size};
+    }
+
+    const mst &diff_wei_iter() const { return diff_wei_iter_; }
+    sub_buffer_t diff_wei_iter(
+            dim_t lay, dim_t dir, bool is_multi_cell = false) const {
+        // diff_wei_iter dimension order: layer, dir, src c, gate, dst c
+        dim_t t = sizeof(float);
+        dim_t lay_stride = offsets_.diff_weights_iter[0];
+        dim_t dir_stride = offsets_.diff_weights_iter[1];
+        dim_t offset = (lay * lay_stride + dir * dir_stride) * t;
+        dim_t cell_size = dir_stride * t;
+        if (is_multi_cell) return {diff_wei_iter(), offset};
+        return {diff_wei_iter(), offset, cell_size};
     }
 
     const mst &bias() const { return bias_; }
@@ -583,9 +613,13 @@ struct user_data_t : public data_helper_t {
     }
 
     const mst &src_layer_;
+    const mst &wei_layer_;
+    const mst &wei_iter_;
     const mst &bias_;
     const mst &diff_src_layer_;
     const mst &diff_dst_layer_;
+    const mst &diff_wei_layer_;
+    const mst &diff_wei_iter_;
     const conf_t &conf_;
     const rnn_offsets_t &offsets_;
 };

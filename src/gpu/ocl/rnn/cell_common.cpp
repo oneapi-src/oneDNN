@@ -125,10 +125,6 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     const rnn_offsets_t &offsets = this->pd()->off;
 
     const bool use_cell = ocl_conf.cell_comp.is_enabled;
-    dim_t cell_wei_iter_offset;
-
-    set_offsets_fwd_gemm(
-            rnn, iter, dir, lay, wei_iter_offsets, cell_wei_iter_offset);
 
     strides_t<4> user_layer_strides {[&]() {
         auto s = user_data.src_layer_strides(dir);
@@ -147,18 +143,21 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     strides_t<2> scratch_gates_strides
             = {scratch.calc_off_gates(1), rnn.scratch_gates_ld};
 
+    auto wei_layer = user_data.wei_layer(lay, dir);
+    auto wei_iter = user_data.wei_iter(lay, dir);
+
     if ((aprop == prop_kind::forward) || rnn.recompute_gates) {
         if (!rnn.merge_gemm_layer && !rnn.cell_fusion.gemm_layer) {
             auto gemm_cell_layer_fwd = !rnn.copy_src_layer && lay == 0
                     ? gemm_layer_fwd_src
                     : gemm_layer_fwd;
-            CHECK(gemm_primitive(engine, ctx, {wei_layer, wei_layer_offset},
-                    cell_layer, scratch_gates, gemm_cell_layer_fwd));
+            CHECK(gemm_primitive(engine, ctx, wei_layer, cell_layer,
+                    scratch_gates, gemm_cell_layer_fwd));
         }
 
         if (!rnn.cell_fusion.gemm_iter)
-            CHECK(gemm_primitive(engine, ctx, {wei_iter, cell_wei_iter_offset},
-                    cell_iter, scratch_gates, gemm_iter_fwd));
+            CHECK(gemm_primitive(engine, ctx, wei_iter, cell_iter,
+                    scratch_gates, gemm_iter_fwd));
     }
 
     if (aprop == prop_kind::forward) {
@@ -168,19 +167,13 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                     {}, 0, scales, tm_scales, diff_bias));
         } else {
             CHECK(compute_cell_fwd(ctx, kernels_[kernel_id::cell_fwd], lay, dir,
-                    iter, workspace, user_data, {wei_layer, wei_layer_offset},
-                    {wei_iter, cell_wei_iter_offset}, cell_layer,
+                    iter, workspace, user_data, wei_layer, wei_iter, cell_layer,
                     cell_layer_strides, cell_iter, cell_iter_strides,
                     scratch_gates, scratch_gates_strides, pd()->desc()->alpha,
                     tm_scales, rnn, ocl_conf, offsets));
         }
 
     } else { // backward
-        dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off;
-
-        set_offsets_bwd_gemm(rnn, iter, dir, lay, cell_diff_wei_iter_off,
-                cell_diff_wei_lay_off);
-
         auto diff_states_iter = scratch.diff_states(lay, dir, 0, iter + 1);
         auto diff_states_iter_s1 = rnn.n_states == 2
                 ? scratch.diff_states(lay, dir, 1, iter + 1)
@@ -209,26 +202,25 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 diff_states_iter, diff_states_iter_s1, diff_states_layer,
                 diff_states_layer_ld, scales, tm_scales, diff_bias));
 
-        CHECK(gemm_primitive(engine, ctx, {wei_iter, cell_wei_iter_offset},
-                diff_gates, diff_states, gemm_iter_bwd));
+        CHECK(gemm_primitive(
+                engine, ctx, wei_iter, diff_gates, diff_states, gemm_iter_bwd));
 
         if (!rnn.merge_gemm_layer) {
-            CHECK(gemm_primitive(engine, ctx, {wei_layer, wei_layer_offset},
-                    diff_gates, diff_states1, gemm_layer_bwd));
+            CHECK(gemm_primitive(engine, ctx, wei_layer, diff_gates,
+                    diff_states1, gemm_layer_bwd));
 
             auto gemm_diff_wei_cell_layer = !rnn.copy_src_layer && lay == 0
                     ? gemm_diff_wei_layer_src
                     : gemm_diff_wei_layer;
 
             CHECK(gemm_primitive(engine, ctx, diff_gates, cell_layer,
-                    {diff_weights_layer, cell_diff_wei_lay_off},
+                    user_data.diff_wei_layer(lay, dir),
                     gemm_diff_wei_cell_layer));
         }
 
         if (!rnn.merge_gemm_iter) {
             CHECK(gemm_primitive(engine, ctx, diff_gates, cell_iter,
-                    {diff_weights_iter, cell_diff_wei_iter_off},
-                    gemm_diff_wei_iter));
+                    user_data.diff_wei_iter(lay, dir), gemm_diff_wei_iter));
         }
     }
     return status::success;
