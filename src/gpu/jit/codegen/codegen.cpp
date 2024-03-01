@@ -582,7 +582,7 @@ private:
                 send_func.zero_out, send_func.cache_hint);
         auto &cmpwr_send = cmpwr_func.as<send_t>();
         send_impl_t cmpwr(cmpwr_send);
-        bool is_df = size == 64;
+        bool is_df = send_func.type.kind() == type_kind_t::qword;
 
         int grf_size = ngen::GRF::bytes(hw);
         int regs = utils::div_up(size, grf_size);
@@ -608,18 +608,19 @@ private:
                 = is_df ? new_val[0].df(0)(4, 4, 1) : new_val[0].f(0)(8, 8, 1);
         auto old_save_region = is_df ? old_save[0].df(0)(4, 4, 1)
                                      : old_save[0].f(0)(8, 8, 1);
+        int esize = (is_df && size < 64) ? 4 : 8;
         host_->mark(atomic_label);
-        host_->emov(8, old_save_region, old_region);
-        auto ne_mod = 8 | flag | host_->ne | flag;
-        auto eq_mod = 8 | flag | host_->eq | flag;
-        host_->add(8, region, old_region, rd.setRegion(4, 4, 1));
+        host_->emov(esize, old_save_region, old_region);
+        auto ne_mod = esize | flag | host_->ne | flag;
+        auto eq_mod = esize | flag | host_->eq | flag;
+        host_->add(esize, region, old_region, rd.setRegion(4, 4, 1));
         cmpwr.emit(host_, scope, mod | flag, old_region, mem_buf_rd, surf_bti,
                 mem_off_op, old_region);
         host_->cmp(ne_mod, old_save_region, old_region);
         // The previous comparison always fails for NaNs so check for NaNs
         // explictly to prevent an infinite loop.
         host_->cmp(eq_mod, old_region, old_region);
-        host_->while_(8 | flag, atomic_label);
+        host_->while_(esize | flag, atomic_label);
     }
 
     void send(ngen_register_scope_t &scope, const send_t &send_func,
@@ -676,7 +677,7 @@ private:
         if ((hw <= ngen::HW::XeLP && send_func.is_atomic())
                 || (hw == ngen::HW::XeHPG && send_func.is_atomic()
                         && send_func.type.kind() == type_kind_t::qword
-                        && !is_xelpg_)) {
+                        && is_xelpg_)) {
             send_atomic_add_emu(scope, send_func, mask_op, mod, mem_buf_rd,
                     surf_bti, mem_off_op.reg_data(), rd);
         } else {
