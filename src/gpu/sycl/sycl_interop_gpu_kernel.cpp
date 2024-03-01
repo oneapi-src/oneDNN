@@ -20,7 +20,7 @@
 #include "gpu/compute/utils.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/stream_profiler.hpp"
-#include "gpu/ocl/types_interop.h"
+#include "gpu/ocl/types_interop.hpp"
 #include "gpu/utils.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_c_types_map.hpp"
@@ -60,15 +60,27 @@ static void set_scalar_arg(::sycl::handler &cgh, int index,
         case scalar_type_t::_zero_pad_mask_t:
             cgh.set_arg(index, *static_cast<const zero_pad_mask_t *>(value));
             break;
+        case scalar_type_t::_int64x2_t:
+            cgh.set_arg(index, *static_cast<const int64x2_t *>(value));
+            break;
         case scalar_type_t::_int64x3_t:
             cgh.set_arg(index, *static_cast<const int64x3_t *>(value));
+            break;
+        case scalar_type_t::_int64x4_t:
+            cgh.set_arg(index, *static_cast<const int64x4_t *>(value));
+            break;
+        case scalar_type_t::_int64x5_t:
+            cgh.set_arg(index, *static_cast<const int64x5_t *>(value));
+            break;
+        case scalar_type_t::_int64x6_t:
+            cgh.set_arg(index, *static_cast<const int64x6_t *>(value));
             break;
         case scalar_type_t::_dispatch_gws_rt_params_t:
             cgh.set_arg(index,
                     *static_cast<const dispatch_gws_rt_params_t *>(value));
             break;
         default:
-            assert(!"Please add another case");
+            gpu_error_not_expected() << "Unimplemented scalar_type_t";
             throw std::runtime_error("Internal error");
     }
 }

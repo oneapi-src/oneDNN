@@ -23,22 +23,7 @@ namespace gpu {
 namespace ocl {
 
 using namespace dnnl::impl::gpu::gpu_utils;
-
-struct arg_list_t {
-    template <typename T>
-    void append(const T &t) {
-        args.append(t);
-    }
-    void append(const rnn_utils::sub_buffer_t &buffer, data_type_t dt) {
-        args.append(buffer.get_storage());
-        args.append(gpu_utils::into<dim_t>(buffer.offset(dt)));
-    }
-    compute::kernel_arg_list_t args;
-};
-
-static_assert(sizeof(arg_list_t) == sizeof(compute::kernel_arg_list_t),
-        "The arg_list_t is a helper for injecting RNN specific helper "
-        "functions structures into kernel_args_list_t.");
+using namespace rnn_utils;
 
 template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
@@ -47,8 +32,8 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? kernels_[kernel_id::elemwise_fwd]
+            : kernels_[kernel_id::elemwise_bwd];
 
     arg_list_t arg_list;
     if (aprop == prop_kind::backward) {
@@ -107,7 +92,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
         arg_list.append(scratch_diff_states_iter, diff_dt);
         arg_list.append(scratch_diff_states_layer, diff_dt);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list.args, pd()->off.diff_bias, 4);
+        arg_list.append(pd()->off.diff_bias);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list.args);
 }
@@ -121,8 +106,8 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? kernels_[kernel_id::elemwise_fwd]
+            : kernels_[kernel_id::elemwise_bwd];
 
     arg_list_t arg_list;
     if (aprop == prop_kind::backward) {
@@ -182,7 +167,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
         arg_list.append(scratch_diff_states_s1, diff_dt);
         arg_list.append(scratch_diff_states_iter_s1, diff_dt);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list.args, pd()->off.diff_bias, 4);
+        arg_list.append(pd()->off.diff_bias);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list.args);
 }
@@ -242,7 +227,8 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_layer));
     arg_list.append(into<int32_t>(pd()->rnn_conf.n_dir));
     arg_list.append(pd()->rnn_conf.tm_cscale);
-    return parallel_for(ctx, nd_range, elemwise_fwd_kernel_, arg_list.args);
+    return parallel_for(
+            ctx, nd_range, kernels_[kernel_id::elemwise_fwd], arg_list.args);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise_u8s8);
 template elemwise_sig(ref_rnn_bwd_t::lstm_elemwise_u8s8);
@@ -254,8 +240,8 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? kernels_[kernel_id::elemwise_fwd]
+            : kernels_[kernel_id::elemwise_bwd];
 
     arg_list_t arg_list;
     if (aprop == prop_kind::backward) {
@@ -316,7 +302,7 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
         arg_list.append(scratch_diff_states_iter, diff_dt);
         arg_list.append(scratch_diff_states_layer, diff_dt);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list.args, pd()->off.diff_bias, 4);
+        arg_list.append(pd()->off.diff_bias);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list.args);
 }
@@ -330,8 +316,8 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
 
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? kernels_[kernel_id::elemwise_fwd]
+            : kernels_[kernel_id::elemwise_bwd];
 
     arg_list_t arg_list;
     if (aprop == prop_kind::backward) {
@@ -393,7 +379,7 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
         arg_list.append(scratch_diff_states_iter, diff_dt);
         arg_list.append(scratch_diff_states_layer, diff_dt);
         arg_list.append(diff_bias);
-        rnn_utils::append_strides(arg_list.args, pd()->off.diff_bias, 4);
+        arg_list.append(pd()->off.diff_bias);
     }
     return parallel_for(ctx, nd_range, kernel, arg_list.args);
 }

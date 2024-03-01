@@ -231,6 +231,7 @@ public:
     int max_exec_size() const { return max_exec_size(gpu_arch()); }
     int max_subgroup_size(data_type_t type = data_type::undef) const;
     static int max_subgroup_size(gpu_arch_t gpu_arch);
+    int min_subgroup_size() const;
     size_t max_wg_size(bool large_grf_mode) const;
     int eu_count() const { return eu_count_; }
     int hw_threads() const { return hw_threads_[0]; }

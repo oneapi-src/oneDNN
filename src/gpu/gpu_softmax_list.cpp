@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 
 #include "gpu/ocl/gen9_softmax.hpp"
 #include "gpu/ocl/ref_softmax.hpp"
+#include "gpu/ocl/reusable_softmax.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,6 +33,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{forward}, {
         INSTANCE(ocl::gen9_softmax_fwd_t)
         INSTANCE(ocl::ref_softmax_fwd_t)
+        INSTANCE(ocl::reusable_softmax_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({

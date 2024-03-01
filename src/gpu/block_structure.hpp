@@ -23,6 +23,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
+#include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/serialization.hpp"
 #include "gpu/utils.hpp"
 
@@ -94,6 +95,13 @@ private:
 
     dim_t stride_ = undefined_stride;
 };
+
+namespace compute {
+template <>
+struct scalar_type_traits<stride_t> {
+    static const auto type = scalar_type_t::_long;
+};
+} // namespace compute
 assert_trivially_serializable(stride_t);
 
 inline stride_t operator*(const stride_t &a, const stride_t &b) {
