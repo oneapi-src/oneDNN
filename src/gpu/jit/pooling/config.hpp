@@ -227,7 +227,7 @@ public:
 
         std::vector<int> padded {
                 int(src.dim(0)), int(src.dim(1)), prb.od, prb.oh, prb.ow};
-        const auto &mb = padded[0], &oc = padded[1];
+        auto &mb = padded[0], &oc = padded[1];
         auto &od = padded[2], &oh = padded[3], &ow = padded[4];
 
         const bool is_scalar = (prb.kd * prb.kh * prb.kw == 1);
@@ -479,6 +479,7 @@ public:
             }
         }
         lg[1] *= simd;
+        oc = utils::rnd_up(oc, lg[1]);
         kg[0] *= utils::div_up(oc, lg[1]);
         kg[1] *= utils::div_up(mb, lg[0]);
 

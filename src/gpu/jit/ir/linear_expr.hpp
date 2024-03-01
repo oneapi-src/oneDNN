@@ -49,7 +49,7 @@ expr_t linear_div(const expr_t &e, int factor);
 
 // Simplifies a modulus of an expression by a constant. The expression must be
 // convertable to linear_t.
-expr_t linear_mod(const expr_t &e, int factor);
+expr_t simplify_linear_mod(const expr_t &e, int factor);
 
 // Returns the base and the increments of linear expression `expr` when
 // incrementing `idxs[i]` by 1:

@@ -211,6 +211,18 @@ inline std::vector<std::string> split(const std::string &s,
     return ret;
 }
 
+inline std::string join(
+        const std::string &delimiter, const std::vector<std::string> &parts) {
+    std::ostringstream oss;
+    bool is_first = true;
+    for (auto &p : parts) {
+        if (!is_first) oss << delimiter;
+        oss << p;
+        is_first = false;
+    }
+    return oss.str();
+}
+
 bool is_jit_dump_enabled();
 status_t dump_kernel_binary(
         const std::vector<uint8_t> &binary, const std::string &name);

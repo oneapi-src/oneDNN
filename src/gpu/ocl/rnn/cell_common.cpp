@@ -26,25 +26,129 @@ namespace ocl {
 using namespace dnnl::impl::utils;
 using namespace rnn_utils;
 
+template <size_t out_ndims, size_t in_ndims>
+strides_t<out_ndims> inner(const strides_t<in_ndims> &s) {
+    static_assert(in_ndims >= out_ndims,
+            "The output strides are expected to be smaller than the input "
+            "strides");
+    strides_t<out_ndims> ret;
+    for (size_t i = 0; i < out_ndims; i++) {
+        ret[i] = s[i + in_ndims - out_ndims];
+    }
+    return ret;
+}
+
+status_t compute_cell_fwd(const exec_ctx_t &ctx,
+        const compute::kernel_t &kernel, int lay, int dir, int iter,
+        const workspace_t &workspace, const user_data_t user_data,
+        const sub_buffer_t &weights_layer, const sub_buffer_t &weights_iter,
+        const sub_buffer_t &cell_layer, const strides_t<4> &cell_layer_strides,
+        const sub_buffer_t &cell_iter, const strides_t<4> &cell_iter_strides,
+        const sub_buffer_t &scratch_gates,
+        const strides_t<2> &scratch_gates_strides, float alpha,
+        const memory_storage_t *tm_scales, const conf_t &conf,
+        const ocl_conf_t &ocl_conf, const rnn_offsets_t &offsets) {
+
+    auto &cell_conf = ocl_conf.cell_comp;
+    const size_t dhc = conf.dhc;
+    const size_t dhc_thr = cell_conf.dhc_thr;
+    const size_t dhc_tg = cell_conf.dhc_tg;
+    const size_t dhc_loop = utils::rnd_up(conf.dhc_loop, dhc_thr * dhc_tg);
+
+    gpu_assert(dhc_tg % ocl_conf.subgroup_size == 0);
+
+    const size_t mb = conf.mb;
+    const size_t batch_tg = cell_conf.mb_tg;
+    const size_t batch_thr = cell_conf.mb_thr;
+    const size_t batch_local = batch_thr * batch_tg;
+    compute::nd_range_t nd_range {
+            {utils::div_up(dhc, dhc_loop) * dhc_tg,
+                    utils::div_up(mb, batch_local) * batch_tg},
+            {dhc_tg, batch_tg}};
+
+    auto gates = workspace.gates(lay, dir, iter);
+    auto gates_strides = workspace.gates_strides();
+    auto states = workspace.states(lay, dir, iter);
+    auto states_strides = workspace.states_strides();
+    auto bias = user_data.bias(lay, dir);
+    auto c_states_t_l = ocl_conf.cell_kind == alg_kind::vanilla_lstm
+            ? workspace.c_states(lay, dir, iter)
+            : sub_buffer_t();
+    auto c_states_tm1_l = ocl_conf.cell_kind == alg_kind::vanilla_lstm
+            ? workspace.c_states(lay, dir, iter - 1)
+            : sub_buffer_t();
+
+    arg_list_t arg_list;
+    arg_list.append(weights_layer, ocl_conf.wei_dt);
+    arg_list.append(offsets.weights_layer);
+    arg_list.append(weights_iter, ocl_conf.wei_dt);
+    arg_list.append(offsets.weights_iter);
+    arg_list.append(cell_layer, ocl_conf.aux_dt);
+    arg_list.append(inner<2>(cell_layer_strides));
+    arg_list.append(cell_iter, ocl_conf.aux_dt);
+    arg_list.append(inner<2>(cell_iter_strides));
+    arg_list.append(gates, ocl_conf.aux_dt);
+    arg_list.append(inner<2>(gates_strides));
+    arg_list.append(states, ocl_conf.aux_dt);
+    arg_list.append(inner<2>(states_strides));
+
+    if (ocl_conf.cell_kind == alg_kind::vanilla_lstm) {
+        arg_list.append(c_states_t_l, ocl_conf.aux_dt);
+        arg_list.append(c_states_tm1_l, ocl_conf.aux_dt);
+        arg_list.append(conf.tm_cscale);
+    }
+
+    if (!(cell_conf.compute_gemm_layer && cell_conf.compute_gemm_iter)) {
+        arg_list.append(scratch_gates, ocl_conf.aux_dt);
+        arg_list.append(scratch_gates_strides);
+    }
+
+    if (cell_conf.enable_iter_block) { arg_list.append(conf.iter_loop); }
+
+    arg_list.append(bias, ocl_conf.bia_dt);
+    arg_list.append(alpha);
+    arg_list.append(get_storage(tm_scales));
+    arg_list.append(conf.mb);
+    arg_list.append(conf.dhc);
+    arg_list.append(conf.slc);
+    arg_list.append(conf.sic);
+
+    arg_list.append(gpu_utils::into<dim_t>(dhc_loop));
+
+    return gpu_primitive_t::parallel_for(ctx, nd_range, kernel, arg_list.args);
+}
+
 template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     const conf_t &rnn = this->pd()->rnn_conf;
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
     const rnn_offsets_t &offsets = this->pd()->off;
 
+    const bool use_cell = ocl_conf.cell_comp.is_enabled;
     dim_t cell_wei_iter_offset;
 
     set_offsets_fwd_gemm(
             rnn, iter, dir, lay, wei_iter_offsets, cell_wei_iter_offset);
 
+    strides_t<4> user_layer_strides {[&]() {
+        auto s = user_data.src_layer_strides(dir);
+        return strides_t<4> {0, 0, s[0], s[1]};
+    }()};
+
     auto cell_layer = !rnn.copy_src_layer && lay == 0
             ? user_data.src_layer(dir, iter)
             : workspace.states(lay - 1, dir, iter);
+    auto &cell_layer_strides = !rnn.copy_src_layer && lay == 0
+            ? user_layer_strides
+            : workspace.states_strides();
     auto cell_iter = workspace.states(lay, dir, iter - 1);
+    auto &cell_iter_strides = workspace.states_strides();
     auto scratch_gates = scratch.gates(iter);
+    strides_t<2> scratch_gates_strides
+            = {scratch.calc_off_gates(1), rnn.scratch_gates_ld};
 
-    if (aprop == prop_kind::forward || rnn.recompute_gates) {
-        if (!rnn.merge_gemm_layer) {
+    if ((aprop == prop_kind::forward) || rnn.recompute_gates) {
+        if (!rnn.merge_gemm_layer && !rnn.cell_fusion.gemm_layer) {
             auto gemm_cell_layer_fwd = !rnn.copy_src_layer && lay == 0
                     ? gemm_layer_fwd_src
                     : gemm_layer_fwd;
@@ -52,14 +156,24 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                     cell_layer, scratch_gates, gemm_cell_layer_fwd));
         }
 
-        CHECK(gemm_primitive(engine, ctx, {wei_iter, cell_wei_iter_offset},
-                cell_iter, scratch_gates, gemm_iter_fwd));
+        if (!rnn.cell_fusion.gemm_iter)
+            CHECK(gemm_primitive(engine, ctx, {wei_iter, cell_wei_iter_offset},
+                    cell_iter, scratch_gates, gemm_iter_fwd));
     }
 
     if (aprop == prop_kind::forward) {
-        CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
-                user_data, workspace, scratch_gates, {}, {}, {}, {}, {}, {}, 0,
-                scales, tm_scales, diff_bias));
+        if (!use_cell) {
+            CHECK((this->*elemwise_common)(ctx, dir, lay, iter, rnn.dhc, rnn.mb,
+                    1, user_data, workspace, scratch_gates, {}, {}, {}, {}, {},
+                    {}, 0, scales, tm_scales, diff_bias));
+        } else {
+            CHECK(compute_cell_fwd(ctx, kernels_[kernel_id::cell_fwd], lay, dir,
+                    iter, workspace, user_data, {wei_layer, wei_layer_offset},
+                    {wei_iter, cell_wei_iter_offset}, cell_layer,
+                    cell_layer_strides, cell_iter, cell_iter_strides,
+                    scratch_gates, scratch_gates_strides, pd()->desc()->alpha,
+                    tm_scales, rnn, ocl_conf, offsets));
+        }
 
     } else { // backward
         dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off;

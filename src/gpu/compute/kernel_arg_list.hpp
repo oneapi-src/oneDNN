@@ -26,8 +26,6 @@
 #include "common/float16.hpp"
 #include "common/memory_storage.hpp"
 #include "common/nstl.hpp"
-#include "gpu/block_structure.hpp"
-#include "gpu/ocl/types_interop.h"
 
 namespace dnnl {
 namespace impl {
@@ -57,7 +55,11 @@ enum class scalar_type_t {
     _ulong,
     _ushort,
     _zero_pad_mask_t,
+    _int64x2_t,
     _int64x3_t,
+    _int64x4_t,
+    _int64x5_t,
+    _int64x6_t,
     _dispatch_gws_rt_params_t,
 };
 
@@ -80,7 +82,11 @@ inline std::string to_string(scalar_type_t type) {
         CASE(_ulong);
         CASE(_ushort);
         CASE(_zero_pad_mask_t);
+        CASE(_int64x2_t);
         CASE(_int64x3_t);
+        CASE(_int64x4_t);
+        CASE(_int64x5_t);
+        CASE(_int64x6_t);
         CASE(_dispatch_gws_rt_params_t);
     }
     return "unexpected";
@@ -134,22 +140,6 @@ struct scalar_type_traits<int32_t> {
 };
 template <>
 struct scalar_type_traits<int64_t> {
-    static const auto type = scalar_type_t::_long;
-};
-template <>
-struct scalar_type_traits<zero_pad_mask_t> {
-    static const auto type = scalar_type_t::_zero_pad_mask_t;
-};
-template <>
-struct scalar_type_traits<int64x3_t> {
-    static const auto type = scalar_type_t::_int64x3_t;
-};
-template <>
-struct scalar_type_traits<dispatch_gws_rt_params_t> {
-    static const auto type = scalar_type_t::_dispatch_gws_rt_params_t;
-};
-template <>
-struct scalar_type_traits<stride_t> {
     static const auto type = scalar_type_t::_long;
 };
 

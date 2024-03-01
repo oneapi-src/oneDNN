@@ -40,26 +40,12 @@ TEST(isa_test_t, TestISA) {
 
     ASSERT_TRUE(st == status::success);
 
-    const auto cur_internal_isa = get_max_cpu_isa_mask(test_flag);
-
-    const std::set<cpu_isa> &compatible_isa = compatible_cpu_isa(cur_isa);
-    const std::set<cpu_isa> &isa_list = cpu_isa_list();
-
-    std::set<cpu_isa> incompatible_isa;
-    std::set_difference(isa_list.cbegin(), isa_list.cend(),
-            compatible_isa.cbegin(), compatible_isa.cend(),
-            std::inserter(incompatible_isa, incompatible_isa.begin()));
-
-    for (const cpu_isa cmpt_isa : compatible_isa) {
-        const auto &internal_isa_set = masked_internal_cpu_isa(cmpt_isa);
-        for (auto internal_isa : internal_isa_set) {
-            ASSERT_TRUE((cur_internal_isa & internal_isa) == internal_isa);
-        }
-    }
-
-    for (const cpu_isa incmpt_isa : incompatible_isa) {
-        const auto &internal_isa = cvt_to_internal_cpu_isa(incmpt_isa);
-        ASSERT_TRUE((cur_internal_isa & internal_isa) != internal_isa);
+    const auto &subsets = compatible_cpu_isa(cur_isa);
+    for (const auto isa : cpu_isa_list()) {
+        const bool is_compatible = subsets.find(isa) != subsets.end();
+        const auto internal_isa = cvt_to_internal_cpu_isa(isa);
+        ASSERT_TRUE(impl::cpu::x64::mayiuse(internal_isa, test_flag)
+                == is_compatible);
     }
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,30 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_IR_PLAN_UTILS_HPP
-#define GPU_JIT_V2_IR_PLAN_UTILS_HPP
-
-#include "gpu/jit/ir/hw.hpp"
+#include "gpu/jit/utils/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
-namespace v2 {
+namespace ir_utils {
 
-struct base_plan_t {
-    base_plan_t(const hw_t &hw = hw_t()) : hw(hw) {}
+thread_local int ir_check_log_level_t::level_ = LOG_CHECK_DEFAULT;
 
-    explicit operator bool() const { return !hw.is_undef(); }
-    int grf_size() const { return hw.grf_size(); }
-
-    hw_t hw;
-};
-
-} // namespace v2
+}
 } // namespace jit
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
-#endif

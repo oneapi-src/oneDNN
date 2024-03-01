@@ -132,7 +132,8 @@ int init_op(std::unordered_map<int, graph_link_t> &op_graph,
     }
     SAFE(create_primitive(prim, get_test_engine(), init_pd, prb, res, prb->dir,
                  /* hint = */ nullptr,
-                 /* is_service_prim = */ false, src_md_hint),
+                 /* is_service_prim = */ false, src_md_hint,
+                 /* force_f32_dt = */ false),
             WARN);
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 

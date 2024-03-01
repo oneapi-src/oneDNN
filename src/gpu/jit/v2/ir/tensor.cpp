@@ -16,6 +16,10 @@
 
 #include "gpu/jit/v2/ir/tensor.hpp"
 
+#include <array>
+
+#include "gpu/jit/pass/simplify.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -23,7 +27,8 @@ namespace jit {
 namespace v2 {
 
 static bool is_abx_tag(const std::string &s) {
-    std::vector<bool> seen('z' - 'a' + 1);
+    std::array<bool, 'z' - 'a' + 1> seen;
+    seen.fill(false);
     for (auto c : s) {
         auto c_lower = std::tolower(c);
         if (std::isalpha(c) && c == c_lower && c != 'x') {
@@ -53,25 +58,6 @@ std::string block_t::str() const {
     oss << "  dim:    " << dim << std::endl;
     oss << "  size:   " << size << std::endl;
     oss << "  stride: " << stride;
-    return oss.str();
-}
-
-void dim_mapper_t::set_dim(const prb_dim_t &dim, const expr_t &expr) {
-    exprs_.set(dim, expr.is_empty() ? index_var(dim) : expr);
-}
-
-const expr_t &dim_mapper_t::expr(const prb_dim_t &dim) const {
-    if (is_empty()) return index_var(dim);
-    return exprs_[dim];
-}
-
-std::string dim_mapper_t::str() const {
-    std::ostringstream oss;
-    oss << "dim_mapper:" << std::endl;
-    for (auto &dim : exprs_) {
-        oss << "  " << dim.str() << " -> ";
-        oss << exprs_[dim].str() << std::endl;
-    }
     return oss.str();
 }
 
@@ -149,6 +135,25 @@ std::string layout_desc_t::str() const {
     return oss.str();
 }
 
+void dim_mapper_t::set_dim(const prb_dim_t &dim, const expr_t &expr) {
+    exprs_.set(dim, expr.is_empty() ? index_var(dim) : expr);
+}
+
+const expr_t &dim_mapper_t::expr(const prb_dim_t &dim) const {
+    if (is_empty()) return index_var(dim);
+    return exprs_[dim];
+}
+
+std::string dim_mapper_t::str() const {
+    std::ostringstream oss;
+    oss << "dim_mapper:" << std::endl;
+    for (auto &dim : exprs_) {
+        oss << "  " << dim.str() << " -> ";
+        oss << exprs_[dim].str() << std::endl;
+    }
+    return oss.str();
+}
+
 void layout_raw_tag_t::add_entry(char letter, int block, bool is_blocked) {
     entries_.emplace_back(letter, block, is_blocked);
 }
@@ -204,7 +209,8 @@ int layout_raw_tag_t::ndims() const {
 
 int layout_raw_tag_t::non_x_ndims() const {
     ir_assert(!is_any());
-    std::vector<bool> seen('z' - 'a' + 1);
+    std::array<bool, 'z' - 'a' + 1> seen;
+    seen.fill(false);
     for (auto &e : entries_) {
         if (!e.is_x()) seen[e.index()] = true;
     }
@@ -246,10 +252,11 @@ bool layout_raw_tag_t::matches(const layout_raw_tag_t &other,
 
 void layout_raw_tag_t::init_entries(const std::string &s) {
     ir_assert(is_abx_tag(s)) << s;
-    std::vector<bool> is_blocked('z' - 'a' + 1);
+    std::array<bool, 'z' - 'a' + 1> is_blocked;
+    is_blocked.fill(false);
     auto letter_blocks = parse_letter_blocks(s);
     for (auto &p : letter_blocks) {
-        if (p.second != 0) is_blocked[std::tolower(p.first)] = true;
+        if (p.second != 0) is_blocked[std::tolower(p.first) - 'a'] = true;
     }
     for (auto &p : letter_blocks) {
         char letter = std::tolower(p.first);
@@ -362,6 +369,7 @@ static inline void advance(
 
 bool layout_tag_t::matches(
         const layout_tag_t &other, const prb_tile_t &sizes) const {
+    if (type_ != other.type_) return false;
     return raw_tag().matches(other.raw_tag(), desc_, sizes);
 }
 
@@ -502,7 +510,7 @@ bool layout_t::is_blocked_by(const layout_t &other) const {
         if (!b.has_same_stride(b_other)) return false;
         if (is_last && b.has_const_size() && b_other.has_const_size()) {
             if (b.int_size() % b_other.int_size() != 0) return false;
-        } else if (!b.size.is_same(b_other.size)) {
+        } else if (!b.has_same_size(b_other)) {
             return false;
         }
     }
@@ -526,17 +534,21 @@ void layout_t::add_block(
     blocks_.emplace_back(dim, size, stride);
 }
 
-void layout_t::block_by(const block_t &block) {
+void layout_t::block_by(const std::vector<block_t> &inner_blocks) {
     ir_assert(has_zero_base());
     ir_assert(has_const_sizes());
-    ir_assert(stride_pad_ == 1);
     auto rem_sizes = int_dim_sizes();
-    if (!rem_sizes.try_factor(block.dim, block.int_size()))
-        ir_error_not_expected();
+    for (auto &b : inner_blocks) {
+        if (!rem_sizes.try_factor(b.dim, b.int_size())) ir_error_not_expected();
+    }
 
     auto old_blocks = std::move(blocks_);
+    // Reset stride padding as the blocks are to be added from scratch.
+    pad(1);
     blocks_.clear();
-    add_block(block.dim, block.size);
+    for (auto &b : inner_blocks) {
+        add_block(b.dim, b.size);
+    }
     for (auto &b : old_blocks) {
         int b_size = b.int_size();
         bool ok = rem_sizes.try_factor(b.dim, b_size);
@@ -550,6 +562,7 @@ void layout_t::block_by(const block_t &block) {
     }
     for (auto &d : rem_sizes)
         ir_assert(rem_sizes.at(d) == 1);
+    normalize();
 }
 
 void layout_t::normalize() {
@@ -611,7 +624,6 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
     idxs.fill_missing(0);
     rem_sizes.fill_missing(1);
     expr_t base = base_;
-    expr_t stride = 1;
     std::vector<block_t> mapped_blocks;
     dim_map_t<prb_dim_t, bool> seen_outer;
     for (auto &b : blocks()) {
@@ -639,7 +651,7 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
             }
             if (mapped_size != 1) {
                 cur_size /= mapped_size;
-                auto mapped_stride = linear.u_vec[i] * stride;
+                auto mapped_stride = linear.u_vec[i] * b.stride;
                 mapped_blocks.emplace_back(dim, mapped_size, mapped_stride);
             }
             bool is_outer = true;
@@ -652,14 +664,14 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
                 }
             }
             if (is_outer) {
+                ir_assert(!seen_outer.has(dim));
                 seen_outer.set(dim, true);
                 off += idxs[dim] * linear.u_vec[i];
             }
         }
-        base += off * stride;
-        stride = b.size * b.stride;
+        base += off * b.stride;
     }
-    return layout_t(desc(), type(), base, mapped_blocks);
+    return layout_t(dim_mapper.layout_desc(), type(), base, mapped_blocks);
 }
 
 template layout_t layout_t::map<int>(const dim_mapper_t &dim_mapper,
@@ -816,10 +828,10 @@ bool block_iterator_t::is_dense(const prover_t &prover) const {
     expr_t stride = 1;
     for (int i = 0; i < block_idx_; i++) {
         auto &b = parent_->blocks()[i];
-        if (!prover.prove(b.stride == stride)) return false;
+        if (!prover.require(b.stride == stride)) return false;
         stride = b.int_size() * b.stride;
     }
-    return prover.prove(block_.stride == stride);
+    return prover.require(block_.stride == stride);
 }
 
 int block_iterator_t::elems(const prb_dim_t &dim) const {
@@ -833,12 +845,15 @@ int block_iterator_t::elems(const prb_dim_t &dim) const {
     return ret;
 }
 
-layout_t block_iterator_t::sub_layout() const {
+layout_t block_iterator_t::sub_layout(int _stride) const {
     layout_t ret(parent_->desc(), parent_->type());
+    expr_t stride = _stride;
     for (int i = 0; i < block_idx_; i++) {
-        ret.add_block(parent_->blocks()[i].dim, parent_->blocks()[i].size);
+        ret.add_block(
+                parent_->blocks()[i].dim, parent_->blocks()[i].size, stride);
+        stride = expr_t();
     }
-    if (!block_.is_empty()) ret.add_block(block_.dim, block_.size);
+    if (!block_.is_empty()) ret.add_block(block_.dim, block_.size, stride);
     return ret;
 }
 
@@ -951,7 +966,7 @@ template expr_t dim_mask_desc_t::to_expr(
 
 dim_mask_desc_t dim_mask_desc_t::map(const prb_coord_t<expr_t> &coord) const {
     auto ret = *this;
-    ret.base = to_expr(coord);
+    ret.base = simplify_rewrite(to_expr(coord));
     if (!is_identity()) return ret;
     int x_div = linear_max_pow2_divisor(coord[x_dim]);
     ret.block = math::gcd(block, x_div);
@@ -1003,7 +1018,8 @@ mask_desc_t::mask_desc_t(
         }
         bool do_zero_cmp
                 = utils::one_of(d, prb_dims::id, prb_dims::ih, prb_dims::iw);
-        dim_masks_.emplace_back(d, expr, dim_sizes[d], block, do_zero_cmp);
+        dim_masks_.emplace_back(
+                d, expr, simplify_rewrite(dim_sizes[d]), block, do_zero_cmp);
     }
 }
 
@@ -1025,9 +1041,9 @@ bool mask_desc_t::is_uniform(
         if (!dm.has((*it).dim)) continue;
         if (!dm.is_identity()) return false;
         int dim_size = it.elems((*it).dim);
-        int dim_size_pow2 = utils::rnd_up_pow2(dim_size);
+        ir_assert(math::is_pow2(dim_size));
         if (dim_size > dm.block) return false;
-        if (!prover.prove(dm.bound % dim_size_pow2 == 0)) return false;
+        if (!prover.require(dm.bound % dim_size == 0)) return false;
     }
     return true;
 }
@@ -1085,6 +1101,7 @@ plane_t::plane_t(const layout_t &layout, const mask_desc_t &mask_desc) {
             y_mask_desc = &dmd;
         }
     }
+    if (!x_mask_desc || !y_mask_desc) return;
     if (!is_one(x_mask_desc->dim_stride(w_dim))) return;
 
     y_stride = y_mask_desc->dim_stride(h_dim);
@@ -1099,6 +1116,56 @@ plane_t::plane_t(const layout_t &layout, const mask_desc_t &mask_desc) {
     P = layout.stride(h_dim, 0);
 
     is_valid = true;
+}
+
+void grid_splitter_t::add(const expr_t &idx, int size) {
+    ir_assert(size > 1);
+    idxs_.emplace_back(idx, size);
+}
+
+bool grid_splitter_t::is_empty() const {
+    for (auto &idx : idxs_)
+        if (idx.size != 1) return false;
+    return true;
+}
+
+expr_t grid_splitter_t::pop(int size) {
+    expr_t cur = 0;
+    for (auto &idx : idxs_) {
+        if (idx.size == 1) continue;
+        if (size == 1) break;
+        cur = size * cur;
+        cur += idx.pop(size);
+    }
+    ir_assert(size == 1);
+    return register_index(simplify_rewrite(cur));
+}
+
+expr_t grid_splitter_t::index_t::pop(int &n) {
+    if (n == 1) return 0;
+    if (size >= n) {
+        ir_assert(size % n == 0);
+        auto ret = expr % n;
+        expr = (size == n ? 0 : expr / n);
+        size /= n;
+        n = 1;
+        return ret;
+    }
+    ir_assert(n % size == 0);
+    n /= size;
+    size = 1;
+    auto ret = expr;
+    expr = expr_t(0);
+    return ret;
+}
+
+expr_t grid_splitter_t::register_index(const expr_t &expr) {
+    if (expr.is<var_t>()) return expr;
+    int idx = (int)virt_grid_idxs_.size();
+    auto var
+            = var_t::make(type_t::s32(), "virt_grid_idx" + std::to_string(idx));
+    virt_grid_idxs_.emplace(var, expr);
+    return var;
 }
 
 view_t::view_t(const dim_mapper_t &dim_mapper, const layout_t &base_layout,
@@ -1120,6 +1187,79 @@ std::string view_t::str() const {
     oss << ir_utils::add_tag("layout", layout_.str()) << std::endl;
     oss << ir_utils::add_tag("mask_desc", mask_desc_.str());
     return oss.str();
+}
+
+layout_t split_layout(const layout_t &layout, int inner_elems, int outer_elems,
+        std::vector<int> &inner_block_idxs,
+        std::vector<int> &outer_block_idxs) {
+    int cur_elems = 1;
+    auto in_inner = [&]() { return cur_elems < inner_elems; };
+    auto in_outer = [&]() {
+        return cur_elems >= inner_elems
+                && cur_elems < inner_elems * outer_elems;
+    };
+    inner_block_idxs.clear();
+    outer_block_idxs.clear();
+    for (int i = 0; i < layout.nblocks(); i++) {
+        auto &b = layout.blocks()[i];
+        int b_size = b.int_size();
+        ir_assert(b_size != 1);
+        if (in_inner()) {
+            inner_block_idxs.push_back(i);
+            if (cur_elems * b_size > inner_elems) {
+                int b_inner = ir_utils::safe_div(inner_elems, cur_elems);
+                int b_outer = ir_utils::safe_div(b_size, b_inner);
+                auto new_layout = layout.split_block(&b, b_inner, b_outer);
+                return split_layout(new_layout, inner_elems, outer_elems,
+                        inner_block_idxs, outer_block_idxs);
+            }
+        } else if (in_outer()) {
+            outer_block_idxs.push_back(i);
+            if (cur_elems * b_size > inner_elems * outer_elems) {
+                int b_inner = ir_utils::safe_div(
+                        cur_elems, inner_elems * outer_elems);
+                int b_outer = ir_utils::safe_div(b_size, b_inner);
+                auto new_layout = layout.split_block(&b, b_inner, b_outer);
+                return split_layout(new_layout, inner_elems, outer_elems,
+                        inner_block_idxs, outer_block_idxs);
+            }
+        } else {
+            break;
+        }
+        cur_elems *= b_size;
+    }
+    return layout;
+}
+
+view_t view_t::split(const dim_mapper_t &dim_mapper,
+        const layout_t &base_layout, const prb_coord_t<expr_t> &_coord,
+        const prb_tile_t &_tile, grid_splitter_t &grid_splitter) {
+    auto coord = dim_mapper.layout_desc().filter_dim_map(_coord);
+    auto tile = dim_mapper.layout_desc().filter_dim_map(_tile);
+    prb_tile_t split_tile = tile;
+    prb_coord_t<expr_t> split_coord = coord;
+    int outer_elems = grid_splitter.size();
+    int inner_elems = tile.elems() / outer_elems;
+    std::vector<int> inner_idxs;
+    std::vector<int> outer_idxs;
+    auto layout = split_layout(base_layout.map(dim_mapper, coord, tile),
+            inner_elems, outer_elems, inner_idxs, outer_idxs);
+    prb_tile_t inner_dims(1);
+    for (int i = 0; i < layout.nblocks(); i++) {
+        auto &b = layout.blocks()[i];
+        if (std::find(outer_idxs.begin(), outer_idxs.end(), i)
+                != outer_idxs.end()) {
+            int b_size = b.int_size();
+            split_tile[b.dim]
+                    = ir_utils::safe_div(split_tile.at(b.dim), b_size);
+            split_coord[b.dim]
+                    += grid_splitter.pop(b_size) * inner_dims.at(b.dim);
+            split_coord[b.dim] = simplify_rewrite(split_coord[b.dim]);
+        }
+        inner_dims[b.dim] *= b.int_size();
+    }
+    ir_assert(grid_splitter.is_empty());
+    return view_t(dim_mapper, base_layout, split_coord, split_tile);
 }
 
 } // namespace v2

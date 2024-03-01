@@ -113,6 +113,19 @@ int device_info_t::max_subgroup_size(gpu_arch_t gpu_arch) {
     return 16;
 }
 
+int device_info_t::min_subgroup_size() const {
+    switch (gpu_arch()) {
+        case gpu_arch_t::gen9:
+        case gpu_arch_t::gen11:
+        case gpu_arch_t::xe_lp:
+        case gpu_arch_t::xe_hp:
+        case gpu_arch_t::xe_hpg: return 8;
+        case gpu_arch_t::xe_hpc:
+        case gpu_arch_t::xe2: return 16;
+        default: return 0;
+    }
+}
+
 int device_info_t::max_exec_size(gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
         case gpu::compute::gpu_arch_t::xe2:

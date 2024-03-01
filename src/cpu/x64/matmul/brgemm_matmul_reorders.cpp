@@ -36,16 +36,25 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
 
     const auto type_i = id.data_type();
     const auto type_o = od.data_type();
+
     // TODO: enable support for type_i != type_o cases
-    const bool dt_ok = true && type_i == type_o
-            && utils::one_of(type_o, data_type::s8, data_type::bf16,
-                    data_type::f16, data_type::f32);
+    const bool dt_ok = true
+            && IMPLICATION(type_i == type_o,
+                    utils::one_of(type_o, data_type::s8, data_type::bf16,
+                            data_type::f16, data_type::f32))
+            && IMPLICATION(type_i != type_o,
+                    type_o == data_type::bf16
+                            && utils::one_of(
+                                    type_i, data_type::s8, data_type::u8));
     const bool is_f16 = utils::one_of(data_type::f16, type_i, type_o);
     const bool is_s8s8 = type_i == data_type::s8 && type_o == data_type::s8;
+    const bool is_bf16_with_int_wei = type_o == data_type::bf16
+            && utils::one_of(type_i, data_type::s8, data_type::u8);
     const bool has_adj_scale
             = od.extra().flags & memory_extra_flags::scale_adjust;
     const bool args_ok = true && dt_ok && id.is_dense()
             && utils::one_of(ndims, 2, 3)
+            && IMPLICATION(is_bf16_with_int_wei, mayiuse(avx512_core_bf16))
             && IMPLICATION(is_f16, mayiuse(avx512_core_fp16))
             && IMPLICATION(!is_f16, mayiuse(avx512_core))
             && IMPLICATION(is_s8s8, mayiuse(avx512_core_vnni)) && !has_adj_scale
@@ -76,10 +85,14 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
             break;
         default: otag = format_tag::undef;
     }
+    if (is_bf16_with_int_wei) itag = id.matches_one_of_tag(ab, abc, otag);
 
     if (utils::one_of(format_tag::undef, itag, otag)) return invalid_arguments;
 
     // initialize all required fields to generate copy_b kernel
+    matmul_conf_for_reorder_.blocked_B = !utils::one_of(itag, ab, abc);
+    matmul_conf_for_reorder_.is_bf16_with_int_wei = is_bf16_with_int_wei;
+    matmul_conf_for_reorder_.orig_wei_dt = type_i;
     matmul_conf_for_reorder_.wei_tag = itag;
     matmul_conf_for_reorder_.batch = ndims > 2 ? dims[ndims - 3] : 1;
     matmul_conf_for_reorder_.K = dims[ndims - 2];
@@ -94,7 +107,8 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
     matmul_conf_for_reorder_.src_dt = matmul_conf_for_reorder_.wei_dt = type_o;
     matmul_conf_for_reorder_.a_dt_sz = matmul_conf_for_reorder_.tr_a_dt_sz
             = types::data_type_size(matmul_conf_for_reorder_.src_dt);
-    matmul_conf_for_reorder_.b_dt_sz = matmul_conf_for_reorder_.tr_b_dt_sz
+    matmul_conf_for_reorder_.b_dt_sz = types::data_type_size(type_i);
+    matmul_conf_for_reorder_.tr_b_dt_sz
             = types::data_type_size(matmul_conf_for_reorder_.wei_dt);
     matmul_conf_for_reorder_.copy_B_wei_stride
             = matmul_conf_for_reorder_.N * matmul_conf_for_reorder_.b_dt_sz;
@@ -208,8 +222,11 @@ status_t brgemm_matmul_matrix_B_reorder_t::execute_body(
                 for (; k_blk_idx < kernel_conf.K / kernel_conf.K_blk;
                         k_blk_idx++) {
                     const auto k = k_blk_idx * kernel_conf.K_blk;
-                    ker_exec_ctx.src = (void *)&src[get_blk_off(
-                            src_d, sdt_sz, batch, k, n)];
+                    const auto src_offset = !kernel_conf.blocked_B
+                            ? get_blk_off(src_d, sdt_sz, batch, k, n)
+                            : get_blk_off(
+                                    src_d, sdt_sz, batch, k_blk_idx, n_blk_idx);
+                    ker_exec_ctx.src = (void *)&src[src_offset];
                     ker_exec_ctx.tr_src = (void *)&dst[get_blk_off(
                             dst_d, ddt_sz, batch, k_blk_idx, n_blk_idx)];
                     ker_exec_ctx.current_K_start = k;
@@ -218,8 +235,11 @@ status_t brgemm_matmul_matrix_B_reorder_t::execute_body(
                 }
                 if (kernel_conf.K_tail > 0) {
                     const auto k = k_blk_idx * kernel_conf.K_blk;
-                    ker_exec_ctx.src = (void *)&src[get_blk_off(
-                            src_d, sdt_sz, batch, k, n)];
+                    const auto src_offset = !kernel_conf.blocked_B
+                            ? get_blk_off(src_d, sdt_sz, batch, k, n)
+                            : get_blk_off(
+                                    src_d, sdt_sz, batch, k_blk_idx, n_blk_idx);
+                    ker_exec_ctx.src = (void *)&src[src_offset];
                     const auto dst_offset = get_blk_off(
                             dst_d, ddt_sz, batch, k_blk_idx, n_blk_idx);
                     ker_exec_ctx.tr_src = (void *)&dst[dst_offset];

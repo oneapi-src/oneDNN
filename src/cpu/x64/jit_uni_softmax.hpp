@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -171,8 +171,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
     private:
         void init_scratchpad() {
-            if (utils::one_of(
-                        dst_md()->data_type, data_type::u8, data_type::s8)) {
+            if (dst_md()->data_type != data_type::f32) {
                 auto scratchpad = scratchpad_registry().registrar();
                 // When stride != 1, then each thread operates over simd at a
                 // time, thus, increased scratchpad size.

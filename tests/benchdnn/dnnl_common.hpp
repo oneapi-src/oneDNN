@@ -185,7 +185,7 @@ template <typename prb_t>
 struct init_pd_args_t {
     init_pd_args_t(res_t *res, dnnl_engine_t engine, const prb_t *prb,
             dir_t dir, const_dnnl_primitive_desc_t hint,
-            const_dnnl_memory_desc_t src_md)
+            const_dnnl_memory_desc_t src_md, bool force_f32_dt)
         : pd(nullptr)
         , is_iterator_supported(true)
         , res(res)
@@ -193,7 +193,13 @@ struct init_pd_args_t {
         , prb(prb)
         , dir(dir)
         , hint(hint)
-        , src_md(src_md) {}
+        , src_md(src_md)
+        , force_f32_dt(force_f32_dt) {}
+
+    init_pd_args_t(res_t *res, dnnl_engine_t engine, const prb_t *prb,
+            dir_t dir, const_dnnl_primitive_desc_t hint,
+            const_dnnl_memory_desc_t src_md)
+        : init_pd_args_t(res, engine, prb, dir, hint, src_md, false) {}
 
     // Output members
     dnnl_primitive_desc_t pd;
@@ -210,6 +216,9 @@ struct init_pd_args_t {
     const_dnnl_primitive_desc_t hint;
     // Use for memory propagation between pd. Nullptr will ignore the setting.
     const_dnnl_memory_desc_t src_md;
+    // When `true`, overrides prb data type with f32 for ALL memory descriptors
+    // when creating pd objects.
+    bool force_f32_dt;
 };
 
 struct cpu_cache_args_t {
@@ -374,13 +383,15 @@ template <typename func_t, typename prb_t>
 int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
         dnnl_engine_t engine, const func_t &init_pd_func, const prb_t *prb,
         res_t *res, dir_t dir, const_dnnl_primitive_desc_t hint,
-        bool is_service_prim, const_dnnl_memory_desc_t src_md) {
+        bool is_service_prim, const_dnnl_memory_desc_t src_md,
+        bool force_f32_dt) {
     dnnl_status_t status = dnnl_success;
     dnnl_primitive_t prim {};
 
     benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
 
-    init_pd_args_t<prb_t> init_pd_args(res, engine, prb, dir, hint, src_md);
+    init_pd_args_t<prb_t> init_pd_args(
+            res, engine, prb, dir, hint, src_md, force_f32_dt);
     status = init_pd_func(init_pd_args);
 
     SAFE(check_dnnl_status(status, prb, res), WARN);
@@ -446,7 +457,8 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
 
         // The first primitive creation using a temporary engine.
         SAFE(create_primitive(primw, engine, init_pd_func, prb, res, dir, hint,
-                     is_service_prim, /* src_md = */ nullptr),
+                     is_service_prim, /* src_md = */ nullptr,
+                     /* force_f32_dt = */ false),
                 WARN);
         if (res->state == SKIPPED) return OK;
     }
@@ -455,7 +467,8 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
     // The second (if the cache is enabled) primitive creation using the global
     // test engine. This primitive is expected to come from the cache.
     SAFE(create_primitive(primw, get_test_engine(), init_pd_func, prb, res, dir,
-                 hint, is_service_prim, /* src_md = */ nullptr),
+                 hint, is_service_prim, /* src_md = */ nullptr,
+                 /* force_f32_dt = */ false),
             WARN);
     if (res->state == SKIPPED) return OK;
 

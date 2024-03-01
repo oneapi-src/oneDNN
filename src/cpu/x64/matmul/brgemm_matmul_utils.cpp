@@ -158,7 +158,19 @@ status_t check_isa_with_datatype(
                     one_of(isa, avx512_core_amx_fp16, avx512_core_fp16,
                             avx2_vnni_2))
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
-                    is_superset(isa, avx512_core) || isa == avx2_vnni_2);
+                    is_superset(isa, avx512_core) || isa == avx2_vnni_2)
+            && IMPLICATION(bm_conf_utils.is_bf16_with_int_wei(),
+                    is_superset(isa, avx512_core_bf16));
+    return ok ? status::success : status::unimplemented;
+}
+
+status_t check_datatype_cfg(const brgemm_matmul_conf_utils_t &bm_conf_utils) {
+    const bool ok = one_of(true, bm_conf_utils.is_f32(),
+                            bm_conf_utils.is_bf16(), bm_conf_utils.is_f16(),
+                            bm_conf_utils.is_bf32(), bm_conf_utils.is_int8(),
+                            bm_conf_utils.is_bf16_with_int_wei())
+            && IMPLICATION(bm_conf_utils.is_bf16_with_int_wei(),
+                    bm_conf_utils.with_weights_decompression());
     return ok ? status::success : status::unimplemented;
 }
 
@@ -177,6 +189,12 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , bf32_dt(f32_dt
               && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
               && isa == avx512_core_amx)
+    , bf16_with_int_wei_dt(bgmmc.src_dt == bf16
+              && utils::one_of(bgmmc.wei_dt, u8, s8)
+              && one_of(bgmmc.dst_dt, bf16, f32))
+    , weights_decompression_support(one_of(bgmmc.wei_dt, u8, s8)
+              && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
+              && attr.fpmath_.apply_to_int_)
     , A_any_layout(A_any_layout)
     , B_any_layout(B_any_layout)
     , C_any_layout(C_any_layout)
@@ -195,9 +213,7 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
               blocked_64n_B_layout_tag, blocked_48n_B_layout_tag,
               blocked_32n_B_layout_tag, blocked_16n_B_layout_tag))
     , n_blk_fixed((!B_any_layout) && blocked_B_layouts_allowed)
-    , isa_(isa) {
-    assert(int8_dt || bf16_dt || f16_dt || f32_dt || bf32_dt);
-}
+    , isa_(isa) {}
 
 status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
         memory_desc_t &B_md, bool init_n_tag) const {
@@ -258,8 +274,9 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
                 && bgmmc.isa == avx2_vnni_2;
         const bool is_int8_avx512_core
                 = this->is_int8() && is_superset(bgmmc.isa, avx512_core);
-        bgmmc.src_tag = (this->is_bf16() || this->is_f32() || this->is_bf32()
-                                || this->is_f16())
+        bgmmc.src_tag
+                = (this->is_bf16() || this->is_f32() || this->is_bf32()
+                          || this->is_f16() || this->is_bf16_with_int_wei())
                         && !xf16_avx2_vnni_2
                 ? memory_desc_matches_one_of_tag(A_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, acbd, adbc)
@@ -333,7 +350,8 @@ format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
             default: return format_tag::undef;
         }
 
-    if (this->is_bf16() || (this->is_f16() && bgmmc.isa != avx512_core_fp16))
+    if (this->is_bf16() || this->is_bf16_with_int_wei()
+            || (this->is_f16() && bgmmc.isa != avx512_core_fp16))
         switch (n_blk) {
             case 64: return bgmmc.ndims == 3 ? aCB16b64c2b : BA16a64b2a;
             case 48: return bgmmc.ndims == 3 ? aCB16b48c2b : BA16a48b2a;
@@ -592,7 +610,8 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
             = div_up(static_cast<int>(bgmmc.K), min_k_per_thread);
     const bool is_amx_xf16 = bgmmc.is_amx
             && (bm_conf_utils.is_bf16() || bm_conf_utils.is_f16()
-                    || bm_conf_utils.is_bf32());
+                    || bm_conf_utils.is_bf32()
+                    || bm_conf_utils.is_bf16_with_int_wei());
     const bool is_amx_int8 = bgmmc.is_amx && bm_conf_utils.is_int8();
 
     const bool runtime_dims
@@ -1046,6 +1065,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.src_dt = src_d.data_type();
     bgmmc.dst_dt = dst_d.data_type();
     bgmmc.wei_dt = weights_d.data_type();
+    bgmmc.orig_wei_dt = weights_d.data_type();
 
     bgmmc.with_bias = mmd.bias_desc.format_kind != format_kind::undef;
     bgmmc.bia_dt = bgmmc.with_bias ? mmd.bias_desc.data_type : data_type::undef;
@@ -1059,6 +1079,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             dst_d.format_kind() == format_kind::any,
             bias_md.format_kind == format_kind::any);
 
+    VCHECK_BG(check_datatype_cfg(bm_conf_utils), VERBOSE_UNSUPPORTED_DT_CFG);
     VCHECK_BG(check_isa_with_datatype(isa, bm_conf_utils),
             VERBOSE_ISA_DT_MISMATCH);
 
@@ -1072,10 +1093,11 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
         VCONDCHECK_BG(bgmmc.wei_dt == s8, VERBOSE_UNSUPPORTED_DT);
     }
     bgmmc.is_bf32 = bm_conf_utils.is_bf32();
+    bgmmc.is_bf16_with_int_wei = bm_conf_utils.is_bf16_with_int_wei();
 
     // Make BRGeMM compute MatMul as if it were in bfloat16, while down-convert
     // happens during copy-buffer computations
-    if (bgmmc.is_bf32) {
+    if (bgmmc.is_bf32 || bgmmc.is_bf16_with_int_wei) {
         bgmmc.src_dt = bf16;
         bgmmc.wei_dt = bf16;
         bgmmc.tr_a_dt_sz = types::data_type_size(bf16);
@@ -1270,7 +1292,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     }
 
     const bool lda_is_big_2pow
-            = (bm_conf_utils.is_bf16()
+            = (bm_conf_utils.is_bf16() || bm_conf_utils.is_bf16_with_int_wei()
                       || (bgmmc.is_amx && bm_conf_utils.is_f16()))
             && (bgmmc.isa != avx2_vnni_2) // no perf study yet.
             && bgmmc.lda_big_pow2() && bgmmc.M >= 1024;
@@ -1279,7 +1301,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                       && ((bgmmc.K % bgmmc.required_k_granularity != 0)
                               || bm_conf_utils.is_bf32()))
             || (bm_conf_utils.is_f16() && isa == avx512_core_fp16)
-            || bgmmc.wei_zp_type != brgemm_broadcast_t::none
+            || (bgmmc.wei_zp_type != brgemm_broadcast_t::none
+                    && !bm_conf_utils.with_weights_decompression())
             || bgmmc.transposed_A || lda_is_big_2pow;
     bgmmc.use_buffer_a = is_copy_a_required;
 
@@ -1369,7 +1392,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // performance measurements.
     is_small_shapes = is_small_shapes && (bgmmc.isa != avx512_core_amx_fp16);
 
-    if (bm_conf_utils.is_bf16() || bm_conf_utils.is_f16()) {
+    if (bm_conf_utils.is_bf16() || bm_conf_utils.is_f16()
+            || bm_conf_utils.is_bf16_with_int_wei()) {
         // empirical observation for performance breakpoint between amx and vnni bf16/f16
         const dim_t buffer_a_chunk_sz_limit = 126;
         is_small_shapes = is_small_shapes

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2733,7 +2733,8 @@ struct jit_brgemm_matmul_copy_b_bf16_t : public jit_brgemm_matmul_copy_b_t,
         , src_stride(conf->copy_B_wei_stride)
         , tr_src_stride(conf_->LDB * k_blk_step * tr_typesize)
         , is_dynamic_stride(is_runtime_value(src_stride))
-        , is_dynamic_N(conf->is_runtime_N) {}
+        , is_dynamic_N(conf->is_runtime_N)
+        , req_cvtps2bf16(conf->is_bf32 || conf->is_bf16_with_int_wei) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -2750,6 +2751,7 @@ private:
     const dim_t src_stride, tr_src_stride;
     const bool is_dynamic_stride;
     const bool is_dynamic_N;
+    const bool req_cvtps2bf16;
 
     constexpr static int reg_src_offs = 0;
 
@@ -2789,7 +2791,7 @@ private:
             sub(reg_tmp, 1);
         } else
             mov(regw_tmp, w);
-        if (conf_->is_bf32)
+        if (req_cvtps2bf16)
             jit_generator::kmovw(k, regw_tmp);
         else
             jit_generator::kmovd(k, regw_tmp);
@@ -2839,12 +2841,22 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
         const auto reg_src_load
                 = is_dynamic_stride && k % 2 != 0 ? reg_src_load_1 : reg_src;
         auto load_addr = maybe_EVEX_compress_addr(reg_src_load, offset);
-        if (is_tail && !isa_has_masks(conf_->isa)) {
-            load_bytes(src_load, load_addr, columns_tail * tr_typesize);
-        } else if (IMPLICATION(isa_has_masks(conf_->isa), conf_->is_bf32)) {
-            uni_vmovups(src_load, load_addr);
+        if (!isa_has_masks(conf_->isa)) {
+            if (is_tail)
+                load_bytes(src_load, load_addr, columns_tail * tr_typesize);
+            else
+                uni_vmovups(src_load, load_addr);
         } else {
-            vmovdqu16(src_load, load_addr);
+            if (conf_->is_bf32)
+                uni_vmovups(src_load, load_addr);
+            else if (conf_->is_bf16_with_int_wei) {
+                if (conf_->orig_wei_dt == data_type::s8)
+                    uni_vpmovsxbd(src_load, load_addr);
+                else
+                    uni_vpmovzxbd(src_load, load_addr);
+                uni_vcvtdq2ps(src_load, src_load);
+            } else
+                vmovdqu16(src_load, load_addr);
         }
     };
 
@@ -2884,13 +2896,13 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
 
         if (nrows - k >= k_blk_step) {
             load(blk_idx, k + 1, n);
-            if (conf_->is_bf32) {
+            if (req_cvtps2bf16) {
                 vcvtne2ps2bf16(src_vmm0, src_vmm1, src_vmm0);
             } else if (is_superset(conf_->isa, avx512_core)) {
                 const auto src_ymm1 = ymm(src_vmm1.getIdx());
                 vinsertf64x4(src_zmm0, src_zmm0, src_ymm1, 1);
             }
-        } else if (conf_->is_bf32) {
+        } else if (req_cvtps2bf16) {
             vcvtneps2bf16(ymm(src_vmm0.getIdx()), src_vmm0);
         } else if (!is_superset(conf_->isa, avx512_core)) {
             uni_vxorps(src_vmm1, src_vmm1, src_vmm1);
@@ -3236,6 +3248,8 @@ struct jit_brgemm_matmul_copy_b_transposed_t
         , do_compute_compensation_(
                   conf_->has_zero_point_a || conf_->s8s8_compensation_required)
         , is_bf32_(conf->is_bf32)
+        , is_bf16_with_int_wei_(conf->is_bf16_with_int_wei)
+        , req_cvtps2bf16_(conf->is_bf32 || conf->is_bf16_with_int_wei)
         , req_zp_comp_(conf_->has_zero_point_a)
         , req_s8s8_comp_(conf_->s8s8_compensation_required)
         , avx512_core_dot_product_(
@@ -3261,7 +3275,7 @@ private:
     static constexpr int max_vmm_regs_ = cpu_isa_traits<isa_>::n_vregs;
     static constexpr int vlen_ = vreg_traits<Vmm>::vlen;
     static constexpr int n_blk_step_ = is_ymm_ ? 8 : 16;
-    static constexpr int bf32_k_blk_step_ = 16;
+    static constexpr int req_cvt_bf16_k_blk_step_ = 16;
     static constexpr size_t comp_shift_ = vlen_;
 
     const int typesize_;
@@ -3270,6 +3284,8 @@ private:
     const int k_blk_step_;
     const bool do_compute_compensation_;
     const bool is_bf32_;
+    const bool is_bf16_with_int_wei_;
+    const bool req_cvtps2bf16_;
     const bool req_zp_comp_;
     const bool req_s8s8_comp_;
     const bool avx512_core_dot_product_;
@@ -3369,11 +3385,12 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
             && ncolumns <= k_blk_step_);
     if (!nrows) return;
 
-    const int columns_tail
-            = ncolumns % (is_bf32_ ? bf32_k_blk_step_ : k_blk_step_);
+    const int columns_tail = ncolumns
+            % (req_cvtps2bf16_ ? req_cvt_bf16_k_blk_step_ : k_blk_step_);
     if (columns_tail > 0) {
-        const int dt_step
-                = (is_bf32_ || conf_->isa == avx512_core_fp16) ? 1 : typesize_;
+        const int dt_step = req_cvtps2bf16_ || conf_->isa == avx512_core_fp16
+                ? 1
+                : typesize_;
         const auto tail_mask
                 = size_t(((size_t)1 << dt_step * columns_tail) - 1);
         if (is_bf32_)
@@ -3382,7 +3399,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
             kmovq(kTail, tail_mask);
     }
 
-    auto load_bf32 = [this, nrows, columns_tail, ncolumns](int i) {
+    auto load2bf16 = [this, nrows, columns_tail, ncolumns](int i) {
         auto src_reg = src_vmm(i);
         auto src_reg_next = tmp_vmm(i);
 
@@ -3403,19 +3420,38 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
         }
 
         // check if k_tail exists and it's in the first zmm
-        auto zmm_src = columns_tail > 0 && ncolumns < bf32_k_blk_step_
+        auto zmm_src = columns_tail > 0 && ncolumns < req_cvt_bf16_k_blk_step_
                 ? src_reg | kTail | T_z
                 : src_reg;
-        vmovups(zmm_src, EVEX_compress_addr(reg_src, i * src_stride_));
+        const auto addr = EVEX_compress_addr(reg_src, i * src_stride_);
+        if (is_bf32_)
+            vmovups(zmm_src, addr);
+        else if (is_bf16_with_int_wei_) {
+            if (conf_->orig_wei_dt == data_type::s8)
+                vpmovsxbd(zmm_src, addr);
+            else
+                vpmovzxbd(zmm_src, addr);
+            vcvtdq2ps(zmm_src, zmm_src);
+        } else
+            assert("Unsupported data type in loading");
 
-        if (ncolumns <= bf32_k_blk_step_) {
+        if (ncolumns <= req_cvt_bf16_k_blk_step_) {
             vpxord(src_reg_next, src_reg_next, src_reg_next);
         } else {
             auto zmm_src_next = columns_tail > 0 ? src_reg_next | kTail | T_z
                                                  : src_reg_next;
-            vmovups(zmm_src_next,
-                    EVEX_compress_addr(reg_src,
-                            i * src_stride_ + bf32_k_blk_step_ * typesize_));
+            const auto next_addr = EVEX_compress_addr(reg_src,
+                    i * src_stride_ + req_cvt_bf16_k_blk_step_ * typesize_);
+            if (is_bf32_)
+                vmovups(zmm_src_next, next_addr);
+            else if (is_bf16_with_int_wei_) {
+                if (conf_->orig_wei_dt == data_type::s8)
+                    vpmovsxbd(zmm_src_next, next_addr);
+                else
+                    vpmovzxbd(zmm_src_next, next_addr);
+                vcvtdq2ps(zmm_src_next, zmm_src_next);
+            } else
+                assert("Unsupported data type in loading");
         }
 
         vcvtne2ps2bf16(src_reg, src_reg_next, src_reg);
@@ -3463,14 +3499,14 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
         const int tmp_corr_idx = do_compute_compensation_ * base_idx;
 
         // swap 1
-        if (is_bf32_) {
+        if (req_cvtps2bf16_) {
             for (int i = 0; i < 4; i++) {
                 const int src_idx0 = base_idx + i * 2;
                 const int src_idx1 = src_idx0 + 1;
 
                 if (base_idx == 0 && i == 0) {
-                    load_bf32(src_idx0);
-                    load_bf32(src_idx1);
+                    load2bf16(src_idx0);
+                    load2bf16(src_idx1);
                 }
 
                 const int next_src_idx0 = src_idx0 + 2;
@@ -3484,11 +3520,11 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
                 const auto src1 = src_vmm(src_idx1);
 
                 if (valid_to_load_next(next_src_idx0, nrows) && load_next)
-                    load_bf32(next_src_idx0);
+                    load2bf16(next_src_idx0);
                 valignd(tmp0, src0, src0, 0x1);
 
                 if (valid_to_load_next(next_src_idx1, nrows) && load_next)
-                    load_bf32(next_src_idx1);
+                    load2bf16(next_src_idx1);
                 valignd(tmp1, src1, src1, 0xf);
 
                 vmovaps(src0 | kAAAA, tmp1);
@@ -3901,6 +3937,181 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::generate() {
 template struct jit_brgemm_matmul_copy_b_transposed_t<Zmm>;
 template struct jit_brgemm_matmul_copy_b_transposed_t<Ymm>;
 
+template <typename Vmm>
+struct jit_brgemm_matmul_copy_b_cvt_bf16_t : public jit_brgemm_matmul_copy_b_t,
+                                             public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_matmul_copy_b_cvt_bf16_t)
+
+    jit_brgemm_matmul_copy_b_cvt_bf16_t(const brgemm_matmul_conf_t *conf)
+        : jit_brgemm_matmul_copy_b_t(conf)
+        , jit_generator(jit_name())
+        , typesize_(conf->b_dt_sz)
+        , tr_typesize_(conf->tr_b_dt_sz)
+        , src_stride_(conf->LDB * k_blk_step * typesize_)
+        , tr_src_stride_(conf_->LDB * k_blk_step * tr_typesize_) {}
+
+    void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+private:
+    using reg64_t = const Xbyak::Reg64;
+    using reg32_t = const Xbyak::Reg32;
+    using opmask_t = const Xbyak::Opmask;
+    using zmm = const Xbyak::Zmm;
+    using ymm = const Xbyak::Ymm;
+
+    enum { k_blk_step = 2, n_blk_step = 16 };
+    const int typesize_, tr_typesize_;
+    const dim_t src_stride_, tr_src_stride_;
+
+    reg64_t reg_src = rax;
+    reg64_t reg_tr_src = rbx;
+
+    reg64_t reg_K_iters = r8;
+    reg64_t reg_N_blk = r9;
+    reg64_t reg_tmp = r10;
+
+    reg64_t reg_copy_block_n_shift = rsi;
+
+    reg64_t reg_dynamic_tail = rcx;
+    Xbyak::Reg8 reg8_mask_shift = reg_dynamic_tail.cvt8();
+
+    Vmm vmm_zero = Vmm(0);
+    Vmm vmm_zp_shift = Vmm(1);
+
+    void copy_block(const int nrows, const int ncolumns);
+    void generate() override;
+};
+
+template <typename Vmm>
+void jit_brgemm_matmul_copy_b_cvt_bf16_t<Vmm>::copy_block(
+        const int nrows, int ncolumns) {
+    static constexpr int blk_sz = k_blk_step;
+    static constexpr int reserved_regs = 2;
+    const int max_isa_regs = isa_num_vregs(conf_->isa);
+    const int max_regs_available = max_isa_regs - reserved_regs;
+    const int max_unroll = max_regs_available / blk_sz;
+
+    auto get_vmm = [max_unroll, max_isa_regs](int blk, int idx) {
+        assert(idx >= 0 && idx < blk_sz && blk >= 0);
+        auto reg_idx = reserved_regs + max_unroll * ((idx + 1) % blk_sz) + blk;
+        UNUSED(max_isa_regs);
+        assert(reg_idx >= reserved_regs && reg_idx < max_isa_regs);
+        return Vmm(reg_idx);
+    };
+
+    // Every load converts unroll * k_blk_step * n_blk_step
+    auto load = [this, get_vmm](int blk, int k_blk, int n) {
+        const auto src_vmm0 = get_vmm(blk, 0);
+        const auto src_vmm1 = get_vmm(blk, 1);
+        const dim_t offset = k_blk * src_stride_ + n * k_blk_step * typesize_;
+        const auto stride = n_blk_step * typesize_;
+        auto load_addr0 = maybe_EVEX_compress_addr(reg_src, offset);
+        auto load_addr1 = maybe_EVEX_compress_addr(reg_src, offset + stride);
+        if (conf_->orig_wei_dt == data_type::s8) {
+            vpmovsxbd(src_vmm0, load_addr0);
+            vpmovsxbd(src_vmm1, load_addr1);
+        } else {
+            vpmovzxbd(src_vmm0, load_addr0);
+            vpmovzxbd(src_vmm1, load_addr1);
+        }
+        vcvtdq2ps(src_vmm0, src_vmm0);
+        vcvtdq2ps(src_vmm1, src_vmm1);
+        vcvtne2ps2bf16(src_vmm0, src_vmm1, src_vmm0);
+    };
+
+    int iter = 0;
+    for_(int k = 0; k < nrows; k += k_blk_step)
+    for (int n = 0; n < ncolumns; n += n_blk_step) {
+        const int k_blk = k / k_blk_step;
+        const dim_t tr_src_off
+                = k_blk * tr_src_stride_ + n * k_blk_step * tr_typesize_;
+        const auto store_addr
+                = maybe_EVEX_compress_addr(reg_tr_src, tr_src_off);
+        const int blk_idx = iter % max_unroll;
+
+        load(blk_idx, k_blk, n);
+        uni_vmovups(store_addr, get_vmm(blk_idx, 0));
+
+        iter++;
+    }
+}
+
+template <typename Vmm>
+void jit_brgemm_matmul_copy_b_cvt_bf16_t<Vmm>::generate() {
+    assert(tr_typesize_ == sizeof(bfloat16_t));
+    preamble();
+
+    uni_vxorps(vmm_zero, vmm_zero, vmm_zero);
+
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
+    mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
+    mov(reg_N_blk, ptr[param1 + GET_OFF(current_N_blk)]);
+
+    auto compute_K_loop = [&](const int ncolumns) {
+        const int k_unroll = 8;
+
+        Label K_loop_unrolled, K_loop_single, K_loop_tail_or_done;
+        cmp(reg_K_iters, k_unroll * k_blk_step);
+        jl(K_loop_single, T_NEAR);
+
+        L(K_loop_unrolled);
+        copy_block(k_unroll * k_blk_step, ncolumns);
+        add(reg_src, k_unroll * src_stride_);
+        add(reg_tr_src, k_unroll * tr_src_stride_);
+
+        sub(reg_K_iters, k_unroll * k_blk_step);
+        cmp(reg_K_iters, k_unroll * k_blk_step);
+        jge(K_loop_unrolled, T_NEAR);
+
+        L(K_loop_single);
+        cmp(reg_K_iters, k_blk_step);
+        jl(K_loop_tail_or_done, T_NEAR);
+
+        copy_block(k_blk_step, ncolumns);
+        add(reg_src, src_stride_);
+        add(reg_tr_src, tr_src_stride_);
+
+        sub(reg_K_iters, k_blk_step);
+        jmp(K_loop_single, T_NEAR);
+
+        L(K_loop_tail_or_done);
+
+        const int k_blk_tail = conf_->K % k_blk_step;
+        if (k_blk_tail > 0) {
+            Label K_loop_done;
+            cmp(reg_K_iters, 0);
+            jle(K_loop_done, T_NEAR);
+
+            copy_block(k_blk_tail, ncolumns);
+            sub(reg_K_iters, k_blk_tail);
+            L(K_loop_done);
+        }
+    };
+
+    Label done;
+    cmp(reg_N_blk, 0);
+    jle(done, T_NEAR);
+
+    if (conf_->N_tail > 0) {
+        Label main_N_blk;
+        cmp(reg_N_blk, conf_->N_blk);
+        je(main_N_blk, T_NEAR);
+        compute_K_loop(conf_->N_tail);
+        jmp(done, T_NEAR);
+
+        L(main_N_blk);
+    }
+
+    compute_K_loop(conf_->N_blk);
+    L(done);
+
+    postamble();
+}
+
+template struct jit_brgemm_matmul_copy_b_cvt_bf16_t<Zmm>;
+template struct jit_brgemm_matmul_copy_b_cvt_bf16_t<Ymm>;
 status_t create_brgemm_matmul_copy_b(
         std::unique_ptr<jit_brgemm_matmul_copy_b_t> &copy_ker,
         const brgemm_matmul_conf_t *conf) {
@@ -3921,7 +4132,13 @@ status_t create_brgemm_matmul_copy_b(
                     new jit_brgemm_matmul_copy_b_transposed_t<Ymm>(conf)));
         }
     } else {
-        if (is_bf16 || is_f16 || conf->is_bf32) {
+        if (conf->is_bf16_with_int_wei && conf->blocked_B) {
+            if (is_superset(conf->isa, avx512_core))
+                CHECK(safe_ptr_assign(copy_ker,
+                        new jit_brgemm_matmul_copy_b_cvt_bf16_t<Zmm>(conf)));
+            else
+                assert("Unsupported isa for bf16_with_int_wei");
+        } else if (is_bf16 || is_f16 || conf->is_bf32) {
             if (is_superset(conf->isa, avx512_core))
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_brgemm_matmul_copy_b_bf16_t<Zmm>(conf)));

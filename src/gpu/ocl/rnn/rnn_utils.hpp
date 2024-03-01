@@ -120,10 +120,6 @@
             const dim_t *gates_per_part, dim_t ld, dim_t nld, \
             data_type_t wei_t) const
 
-static inline bool is_ws_print_enabled() {
-    return get_verbose_dev_mode(dnnl::impl::verbose_t::debuginfo) >= 5;
-}
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -159,6 +155,17 @@ enum ws_part_t {
     bias
 };
 
+namespace kernel_id {
+constexpr size_t bias_prepare = 0;
+constexpr size_t copy_init_layer = 1;
+constexpr size_t copy_init_iter = 2;
+constexpr size_t copy_res_layer = 3;
+constexpr size_t copy_res_iter = 4;
+constexpr size_t elemwise_fwd = 5;
+constexpr size_t elemwise_bwd = 6;
+constexpr size_t cell_fwd = 7;
+} // namespace kernel_id
+
 struct ocl_conf_t {
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_bundle_t &bundle) const {
@@ -169,22 +176,12 @@ struct ocl_conf_t {
                 bundle, get_kernel_names(), kernel_ctx);
     }
     const std::vector<const char *> &get_kernel_names() const {
-        if (!is_ws_print_enabled()) {
-            static const std::vector<const char *> names
-                    = {"ref_rnn_bias_prepare", "ref_rnn_copy_init_layer",
-                            "ref_rnn_copy_init_iter", "ref_rnn_copy_res_layer",
-                            "ref_rnn_copy_res_iter", "ref_rnn_ws_set",
-                            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd"};
-            return names;
-        } else {
-            static const std::vector<const char *> names
-                    = {"ref_rnn_bias_prepare", "ref_rnn_copy_init_layer",
-                            "ref_rnn_copy_init_iter", "ref_rnn_copy_res_layer",
-                            "ref_rnn_copy_res_iter", "ref_rnn_ws_set",
-                            "ref_rnn_elemwise_fwd", "ref_rnn_elemwise_bwd",
-                            "ref_rnn_ws_print"};
-            return names;
-        }
+        static const std::vector<const char *> names
+                = {"ref_rnn_bias_prepare", "ref_rnn_copy_init_layer",
+                        "ref_rnn_copy_init_iter", "ref_rnn_copy_res_layer",
+                        "ref_rnn_copy_res_iter", "ref_rnn_elemwise_fwd",
+                        "ref_rnn_elemwise_bwd", "ref_rnn_cell_fwd"};
+        return names;
     }
 
 #if __cplusplus >= 202002L
@@ -265,6 +262,23 @@ struct ocl_conf_t {
     bool copy_diff_dst_layer = false;
     bool copy_diff_src_layer;
     bool deterministic = false;
+    struct comp_conf_t {
+        bool is_enabled = false;
+        bool compute_gemm_layer = false;
+        bool gemm_layer_k_tail = false;
+        bool compute_gemm_iter = false;
+        bool gemm_iter_k_tail = false;
+        bool dhc_tail = false;
+        bool mb_tail = false;
+        bool enable_iter_block = false;
+        int dhc_thr = 0;
+        int dhc_tg = 0;
+        int mb_thr = 0;
+        int mb_tg = 0;
+#if __cplusplus >= 202002L
+        bool operator==(const comp_conf_t &) const = default;
+#endif
+    } cell_comp;
 };
 
 struct conf_t {
@@ -286,6 +300,14 @@ struct conf_t {
     // Size of packed data in bytes
     dim_t weights_layer_comp_offset, weights_layer_pack_size,
             weights_iter_comp_offset, weights_iter_pack_size;
+
+    struct {
+        bool gemm_layer;
+        bool gemm_iter;
+    } cell_fusion;
+
+    dim_t dhc_loop;
+    dim_t iter_loop;
 
     bool copy_bias;
     dim_t weights_layer_ld, weights_layer_nld;
@@ -345,7 +367,8 @@ void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d, bool is_xe_hpc);
+        const memory_desc_wrapper &dst_layer_d, data_type_t acc_data_type,
+        const compute::device_info_t &device_info);
 void init_test_mode(conf_t &rnn, const primitive_attr_t &attr);
 void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
@@ -377,22 +400,9 @@ status_t set_expected_desc(
         conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
 status_t set_good_strides(
         dim_t ld_, memory_desc_t &weights_md, format_tag_t tag);
-memory_storage_t &get_storage(const std::unique_ptr<memory_storage_t> &storage);
-
-inline void append_strides(compute::kernel_arg_list_t &arg_list,
-        const dim_t offs[4][MAX_NDIMS], int ocl_nparams, int ndims) {
-    for (int d = 0; d < ocl_nparams; d++) {
-        arg_list.append((d < ndims) ? (cl_int)offs[1][d] : 0);
-    }
-}
-
-inline void append_strides(compute::kernel_arg_list_t &arg_list,
-        const strides_t &strides, int ocl_nparams) {
-    for (int d = 0; d < ocl_nparams; d++) {
-        assert(strides[d] < INT_MAX);
-        arg_list.append((cl_int)strides[d]);
-    }
-}
+const memory_storage_t &get_storage(const memory_storage_t *storage);
+const memory_storage_t &get_storage(
+        const std::unique_ptr<memory_storage_t> &storage);
 
 struct sub_buffer_t {
     static constexpr dim_t unset = 0;
@@ -402,11 +412,10 @@ struct sub_buffer_t {
             dim_t size = unset)
         : buffer_(buffer.is_null()
                         ? nullptr
-                        : ((size == unset || offset % OCL_BUFFER_ALIGNMENT != 0)
-                                        ? buffer.clone()
-                                        : buffer.get_sub_storage(
-                                                offset, size))) {
-        if (buffer_ && (size == unset || offset % OCL_BUFFER_ALIGNMENT != 0))
+                        : (use_clone(size, offset) ? buffer.clone()
+                                                   : buffer.get_sub_storage(
+                                                           offset, size))) {
+        if (buffer_ && use_clone(size, offset))
             buffer_->set_offset(static_cast<size_t>(offset));
     }
 
@@ -436,6 +445,9 @@ struct sub_buffer_t {
     }
 
 private:
+    static constexpr bool use_clone(dim_t size, dim_t offset) {
+        return size == unset || offset % OCL_BUFFER_ALIGNMENT != 0;
+    }
     std::unique_ptr<memory_storage_t> buffer_;
 };
 
@@ -516,6 +528,13 @@ struct user_data_t : public data_helper_t {
         auto n_cells = all_iter ? conf_.n_iter - iter : 1;
         return {src_layer(), offset, cell_size * n_cells};
     }
+    strides_t<3> src_layer_strides(dim_t dir) const {
+        auto ret = offsets_.src_layer;
+
+        // Use negative iterations stride for backwards iteration
+        ret[0] *= (0 == normalized_iter(dir, 0)) ? 1 : -1;
+        return ret;
+    }
 
     const mst &bias() const { return bias_; }
     sub_buffer_t bias(dim_t lay, dim_t dir) const {
@@ -579,9 +598,11 @@ struct workspace_t : public data_helper_t {
         , gates_(conf.ws_gates_size > 0 ? ws.get_sub_storage(
                          conf.ws_gates_offset, conf.ws_gates_size)
                                         : nullptr)
+        , gates_strides_ {0}
         , states_(conf.ws_states_size > 0 ? ws.get_sub_storage(
                           conf.ws_states_offset, conf.ws_states_size)
                                           : nullptr)
+        , states_strides_ {0}
         , c_states_(conf.ws_c_states_size > 0 ? ws.get_sub_storage(
                             conf.ws_c_state_offset, conf.ws_c_states_size)
                                               : nullptr)
@@ -590,7 +611,34 @@ struct workspace_t : public data_helper_t {
                                       : nullptr)
         , grid_comp_(conf.ws_grid_comp_size > 0 ? ws.get_sub_storage(
                              conf.ws_grid_comp_offset, conf.ws_grid_comp_size)
-                                                : nullptr) {}
+                                                : nullptr) {
+        if (gates_) {
+            const int n_b = conf_.mb;
+            const int n_tb = conf_.n_iter * n_b;
+            const int n_dtb = conf_.n_dir * n_tb;
+            gates_strides_
+                    = {n_dtb * conf_.gates_ws_ld, n_tb * conf_.gates_ws_ld,
+                            n_b * conf_.gates_ws_ld, conf_.gates_ws_ld};
+        }
+        if (states_) {
+            const int n_b = conf_.mb;
+            const int n_tb = (conf_.n_iter + 1) * n_b;
+            const int n_dtb = conf_.n_dir * n_tb;
+            states_strides_
+                    = {n_dtb * conf_.states_ws_ld, n_tb * conf_.states_ws_ld,
+                            n_b * conf_.states_ws_ld, conf_.states_ws_ld};
+        }
+    }
+
+    template <size_t ndims>
+    static dim_t get_offset(const strides_t<ndims> &strides,
+            const std::array<dim_t, ndims> &dims) {
+        dim_t offset = 0;
+        for (size_t i = 0; i < ndims; i++) {
+            offset += strides[i] * dims[i];
+        }
+        return offset;
+    }
 
     dim_t calc_off_ws_state(
             dim_t i0_, dim_t i1, dim_t i2_, dim_t i3, dim_t i4) const {
@@ -620,14 +668,6 @@ struct workspace_t : public data_helper_t {
                 conf_.mb, i4, conf_.states_ws_ld);
     }
 
-    dim_t calc_off_ws_gates(
-            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4, dim_t i5) const {
-        return i0 * conf_.n_dir * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
-                + i1 * conf_.n_iter * conf_.mb * conf_.gates_ws_ld
-                + i2 * conf_.mb * conf_.gates_ws_ld + i3 * conf_.gates_ws_ld
-                + i4 * conf_.dhc + i5;
-    }
-
     dim_t calc_off_ws_grid_offset(
             dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4) const {
         return OFF5(i0, conf_.n_layer, i1, conf_.n_dir, i2, conf_.n_iter, i3,
@@ -640,10 +680,15 @@ struct workspace_t : public data_helper_t {
 
     sub_buffer_t states(dim_t layer, dim_t dir, dim_t time) const {
         if (!states_) return {};
-        auto off_ = calc_off_ws_state(layer, dir, time, 0, 0)
+
+        auto i0 = conf_.copy_src_layer ? layer + 1 : layer;
+        auto i2 = time + 1;
+        auto off_ = get_offset(states_strides(), {i0, dir, i2, 0})
                 * conf_.ws_states_elsz;
         return {states(), off_, conf_.ws_states_cell_size};
     }
+
+    const strides_t<4> &states_strides() const { return states_strides_; }
 
     sub_buffer_t states_range(dim_t layer_start, dim_t layer_end,
             dim_t dir_start, dim_t dir_end, dim_t time_start,
@@ -666,13 +711,14 @@ struct workspace_t : public data_helper_t {
         return {c_states(), off, conf_.ws_c_states_cell_size};
     }
 
-    sub_buffer_t gates(dim_t layer, dim_t dir, dim_t time) const {
+    sub_buffer_t gates(dim_t layer, dim_t dir, dim_t time, dim_t mb = 0) const {
         if (!gates_) return {};
 
-        auto off = calc_off_ws_gates(layer, dir, time, 0, 0, 0)
+        auto off = get_offset(gates_strides(), {layer, dir, time, mb})
                 * type_size(conf_.aux_data_type);
         return {gates(), off, conf_.ws_gates_cell_size};
     }
+    const strides_t<4> &gates_strides() const { return gates_strides_; }
 
     sub_buffer_t grid_comp(dim_t layer, dim_t dir, dim_t time) const {
         if (!grid_comp_) return {};
@@ -690,7 +736,9 @@ private:
     const mst &ws_;
     const conf_t &conf_;
     std::unique_ptr<mst> gates_;
+    strides_t<4> gates_strides_;
     std::unique_ptr<mst> states_;
+    strides_t<4> states_strides_;
     std::unique_ptr<mst> c_states_;
     std::unique_ptr<mst> bias_;
     std::unique_ptr<mst> grid_comp_;
@@ -792,9 +840,9 @@ struct scratch_t : public data_helper_t {
     }
 
     dim_t calc_off_gates(dim_t iter) const {
-        return conf_.n_iter_scratch_gates != 1 ? iter * conf_.mb
-                        * conf_.scratch_gates_ld * conf_.scratch_gates_elsz
-                                               : 0;
+        return conf_.n_iter_scratch_gates != 1
+                ? iter * conf_.mb * conf_.scratch_gates_ld
+                : 0;
     };
 
     const mst *gates() const {
@@ -808,7 +856,7 @@ struct scratch_t : public data_helper_t {
         auto g = gates();
         if (g == nullptr) return {};
 
-        auto off = calc_off_gates(iter);
+        auto off = calc_off_gates(iter) * conf_.scratch_gates_elsz;
         auto cell_size
                 = conf_.mb * conf_.scratch_gates_ld * conf_.scratch_gates_elsz;
         return {*g, off, cell_size};
@@ -817,7 +865,6 @@ struct scratch_t : public data_helper_t {
     dim_t calc_off_diff_gates(dim_t iter) const {
         return conf_.n_iter_scratch_gates != 1
                 ? iter * conf_.mb * conf_.scratch_diff_gates_ld
-                        * conf_.scratch_diff_gates_elsz
                 : 0;
     };
     const mst *diff_gates() const { return diff_gates_.get(); }
@@ -826,7 +873,7 @@ struct scratch_t : public data_helper_t {
         auto g = diff_gates();
         if (g == nullptr) return {};
 
-        auto off = calc_off_diff_gates(iter);
+        auto off = calc_off_diff_gates(iter) * conf_.scratch_diff_gates_elsz;
         auto cell_size = conf_.mb * conf_.scratch_diff_gates_ld
                 * conf_.scratch_diff_gates_elsz;
         return {*g, off, cell_size};
@@ -888,6 +935,22 @@ private:
     std::unique_ptr<mst> diff_states_;
     std::unique_ptr<mst> diff_ht_;
 };
+
+struct arg_list_t {
+    template <typename T>
+    void append(const T &t) {
+        args.append(t);
+    }
+    void append(const rnn_utils::sub_buffer_t &buffer, data_type_t dt) {
+        args.append(buffer.get_storage());
+        args.append(gpu_utils::into<dim_t>(buffer.offset(dt)));
+    }
+    compute::kernel_arg_list_t args;
+};
+
+static_assert(sizeof(arg_list_t) == sizeof(compute::kernel_arg_list_t),
+        "The arg_list_t is a helper for injecting RNN specific helper "
+        "functions structures into kernel_args_list_t.");
 
 } // namespace rnn_utils
 

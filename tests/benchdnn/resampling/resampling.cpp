@@ -70,14 +70,15 @@ int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
     std::string src_tag = (prb->dir & FLAG_FWD) ? prb->tag : tag::any;
     std::string dst_tag = (prb->dir & FLAG_BWD) ? prb->tag : tag::any;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->src_dims().data(), prb->sdt, src_tag);
-    auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dst_dims().data(), prb->ddt, dst_tag);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->sdt, src_tag);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->ddt, dst_tag);
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
 

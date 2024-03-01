@@ -31,6 +31,9 @@ int div_up(int a, unsigned int b) {
 int rnd_up(int a, unsigned int b) {
     return div_up(a, b) * b;
 }
+int rnd_down(int a, unsigned int b) {
+    return (a / b) * b;
+}
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 

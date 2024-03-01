@@ -233,7 +233,28 @@ struct attr_info_t {
     bool with_per_oc_dst_zpoints;
 };
 
-using strides_t = std::array<dim_t, MAX_NDIMS>;
+template <size_t ndims>
+using strides_t = std::array<dim_t, ndims>;
+template <>
+struct compute::scalar_type_traits<strides_t<2>> {
+    static const auto type = scalar_type_t::_int64x3_t;
+};
+template <>
+struct compute::scalar_type_traits<strides_t<3>> {
+    static const auto type = scalar_type_t::_int64x3_t;
+};
+template <>
+struct compute::scalar_type_traits<strides_t<4>> {
+    static const auto type = scalar_type_t::_int64x4_t;
+};
+template <>
+struct compute::scalar_type_traits<strides_t<5>> {
+    static const auto type = scalar_type_t::_int64x5_t;
+};
+template <>
+struct compute::scalar_type_traits<strides_t<6>> {
+    static const auto type = scalar_type_t::_int64x5_t;
+};
 
 struct offsets_t {
     dim_t src_off[4][MAX_NDIMS];
@@ -242,27 +263,26 @@ struct offsets_t {
 };
 
 struct rnn_offsets_t {
-    strides_t src_layer;
-    strides_t src_iter;
-    strides_t src_iter_c;
-    strides_t weights_layer;
-    strides_t weights_iter;
+    strides_t<3> src_layer;
+    strides_t<4> src_iter;
+    strides_t<4> src_iter_c;
+    strides_t<5> weights_layer;
+    strides_t<5> weights_iter;
     dim_t weights_layer_comp_off;
     dim_t weights_iter_comp_off;
-    strides_t bias;
-    strides_t dst_layer;
-    strides_t dst_iter;
-    strides_t dst_iter_c;
-    strides_t diff_src_layer;
-    strides_t diff_src_iter;
-    strides_t diff_src_iter_c;
-    strides_t diff_weights_layer;
-    strides_t diff_weights_iter;
-    strides_t diff_bias;
-    strides_t diff_dst_layer;
-    strides_t diff_dst_iter;
-    strides_t diff_dst_iter_c;
-    strides_t ws;
+    strides_t<4> bias;
+    strides_t<3> dst_layer;
+    strides_t<4> dst_iter;
+    strides_t<4> dst_iter_c;
+    strides_t<3> diff_src_layer;
+    strides_t<4> diff_src_iter;
+    strides_t<4> diff_src_iter_c;
+    strides_t<5> diff_weights_layer;
+    strides_t<5> diff_weights_iter;
+    strides_t<4> diff_bias;
+    strides_t<3> diff_dst_layer;
+    strides_t<4> diff_dst_iter;
+    strides_t<4> diff_dst_iter_c;
 };
 
 // Convolution
@@ -1009,23 +1029,33 @@ inline void set_offsets(
     }
 }
 
-inline strides_t get_outer_strides(const memory_desc_wrapper &md) {
-    strides_t ret;
-    for (int d = MAX_NDIMS - 1; d >= 0; d--) {
-        // Assumes size 1 dimensions are dense with respect to the neighboring
-        // dimension so they can be used for size calculations in some layouts
-        ret[d] = [&]() {
-            if (d >= md.ndims())
-                return static_cast<dim_t>(0);
-            else if (md.padded_dims()[d] > 1)
-                return md.strides()[d];
-            else if (d == md.ndims() - 1)
-                return static_cast<dim_t>(1);
-            else
-                return ret[d + 1] * md.padded_dims()[d + 1];
-        }();
+struct outer_strides_getter_t {
+    template <size_t ndims>
+    operator strides_t<ndims>() const {
+        strides_t<ndims> ret;
+        gpu_assert(gpu_utils::into<dim_t>(ndims) >= md.ndims());
+        for (int d = ndims - 1; d >= 0; d--) {
+            // Assumes size 1 dimensions are dense with respect to the neighboring
+            // dimension so they can be used for size calculations in some layouts
+            ret[d] = [&]() {
+                if (d >= md.ndims())
+                    return static_cast<dim_t>(0);
+                else if (md.padded_dims()[d] > 1)
+                    return md.strides()[d];
+                else if (d == md.ndims() - 1)
+                    return static_cast<dim_t>(1);
+                else
+                    return ret[d + 1] * md.padded_dims()[d + 1];
+            }();
+        }
+        return ret;
     }
-    return ret;
+
+    const memory_desc_wrapper &md;
+};
+
+inline outer_strides_getter_t get_outer_strides(const memory_desc_wrapper &md) {
+    return {md};
 }
 
 inline block_layout_t get_inner_layout(const memory_desc_wrapper &md) {

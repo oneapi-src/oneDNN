@@ -44,6 +44,16 @@ struct block_t {
     int int_size() const { return to_int(size); }
     int int_stride() const { return to_int(stride); }
 
+    bool has_same_size(const expr_t &other_size) const {
+        auto *imm = other_size.as_ptr<int_imm_t>();
+        if (imm && has_const_size()) return int_size() == (int)imm->value;
+        return size.is_same(other_size);
+    }
+
+    bool has_same_size(const block_t &other) const {
+        return has_same_size(other.size);
+    }
+
     bool has_same_stride(const expr_t &other_stride) const {
         auto *imm = other_stride.as_ptr<int_imm_t>();
         if (imm && has_const_stride()) return int_stride() == (int)imm->value;
@@ -68,19 +78,6 @@ struct block_t {
     expr_t stride;
 };
 
-class dim_mapper_t {
-public:
-    void set_dim(const prb_dim_t &dim, const expr_t &expr = expr_t());
-    bool is_empty() const { return exprs_.is_empty(); }
-    bool has(const prb_dim_t &dim) const { return exprs_.has(dim); }
-    const expr_t &expr(const prb_dim_t &dim) const;
-    std::string str() const;
-    IR_DEFINE_DUMP()
-
-private:
-    dim_map_t<prb_dim_t, expr_t> exprs_;
-};
-
 class layout_desc_t {
 public:
     layout_desc_t() = default;
@@ -91,6 +88,16 @@ public:
     prb_dim_t prb_dim(int idx) const;
     int dim_index(const prb_dim_t &dim) const;
     std::string to_abx_tag(const std::string &tag) const;
+
+    template <typename T>
+    T filter_dim_map(const T &dim_map) const {
+        T ret;
+        for (auto &d : dim_map) {
+            if (!letter_map_.has(d)) continue;
+            ret[d] = dim_map[d];
+        }
+        return ret;
+    }
 
     bool operator==(const layout_desc_t &other) const {
         return letter_map_ == other.letter_map_;
@@ -120,6 +127,22 @@ private:
     std::string canonical_;
 };
 
+class dim_mapper_t {
+public:
+    void set_dim(const prb_dim_t &dim, const expr_t &expr = expr_t());
+    void set_layout_desc(const layout_desc_t &desc) { layout_desc_ = desc; }
+    bool is_empty() const { return exprs_.is_empty(); }
+    bool has(const prb_dim_t &dim) const { return exprs_.has(dim); }
+    const expr_t &expr(const prb_dim_t &dim) const;
+    const layout_desc_t &layout_desc() const { return layout_desc_; }
+    std::string str() const;
+    IR_DEFINE_DUMP()
+
+private:
+    dim_map_t<prb_dim_t, expr_t> exprs_;
+    layout_desc_t layout_desc_;
+};
+
 struct layout_raw_tag_entry_t {
     char letter = '?';
     int block = 0;
@@ -139,7 +162,8 @@ struct layout_raw_tag_entry_t {
     std::string str() const {
         std::ostringstream oss;
         if (block != 0) oss << block;
-        oss << std::string(1, (is_blocked ? std::toupper(letter) : letter));
+        oss << std::string(
+                1, (is_blocked && block == 0 ? std::toupper(letter) : letter));
         return oss.str();
     }
 
@@ -340,7 +364,7 @@ public:
     bool is_blocked_by(const layout_t &other) const;
     void add_block(const prb_dim_t &dim, const expr_t &size,
             const expr_t &_stride = expr_t());
-    void block_by(const block_t &block);
+    void block_by(const std::vector<block_t> &blocks);
     void pad(int elems) { stride_pad_ = elems; }
     void pad_bytes(int bytes) { pad(ir_utils::safe_div(bytes, type().size())); }
     void normalize();
@@ -357,7 +381,9 @@ public:
 
     template <typename T = int>
     layout_t map(const prb_tile_t &tile) const {
-        return map(dim_mapper_t(), prb_coord_t<T>(), tile);
+        dim_mapper_t mapper;
+        mapper.set_layout_desc(desc_);
+        return map(mapper, prb_coord_t<T>(), tile);
     }
 
     prb_coord_t<int> to_coord(const std::vector<int> &block_idx) const;
@@ -425,7 +451,7 @@ public:
     block_t remaining_block() const;
     bool is_dense(const prover_t &prover = prover_t::instance()) const;
     int elems(const prb_dim_t &dim = prb_dim_t()) const;
-    layout_t sub_layout() const;
+    layout_t sub_layout(int stride = 1) const;
     std::string str() const;
 
     IR_DEFINE_DUMP()
@@ -544,7 +570,38 @@ struct plane_t {
 
     plane_t() = default;
     plane_t(const layout_t &layout, const mask_desc_t &mask_desc);
-    operator bool() const { return is_valid; }
+    explicit operator bool() const { return is_valid; }
+};
+
+// Helper class for layout splitting across a grid.
+class grid_splitter_t {
+public:
+    void add(const expr_t &idx, int size);
+    int size() const {
+        int ret = 1;
+        for (auto &idx : idxs_)
+            ret *= idx.size;
+        return ret;
+    }
+    bool is_empty() const;
+    expr_t pop(int size);
+    const object_map_t<expr_t, expr_t> &virt_grid_idxs() const {
+        return virt_grid_idxs_;
+    }
+
+private:
+    struct index_t {
+        expr_t expr;
+        int size = 0;
+
+        index_t(const expr_t &expr, int size) : expr(expr), size(size) {}
+        expr_t pop(int &n);
+    };
+
+    expr_t register_index(const expr_t &expr);
+
+    std::vector<index_t> idxs_;
+    object_map_t<expr_t, expr_t> virt_grid_idxs_;
 };
 
 class view_t {
@@ -562,6 +619,10 @@ public:
     const type_t &type() const { return layout_.type(); }
     std::string str() const;
     IR_DEFINE_DUMP()
+
+    static view_t split(const dim_mapper_t &dim_mapper,
+            const layout_t &base_layout, const prb_coord_t<expr_t> &coord,
+            const prb_tile_t &tile, grid_splitter_t &grid_splitter);
 
 private:
     dim_mapper_t dim_mapper_;

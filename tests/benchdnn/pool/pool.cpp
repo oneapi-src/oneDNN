@@ -101,13 +101,14 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     const prb_t *prb = init_pd_args.prb;
     const dir_t dir = init_pd_args.dir;
     res_t *res = init_pd_args.res;
+    bool force_f32_dt = init_pd_args.force_f32_dt;
 
     const auto src_tag = (dir & FLAG_FWD) ? prb->tag : tag::any;
 
-    auto src_d = dnn_mem_t::init_md(
-            prb->ndims, prb->src_dims().data(), prb->src_dt(), src_tag);
-    auto dst_d = dnn_mem_t::init_md(
-            prb->ndims, prb->dst_dims().data(), prb->dst_dt(), tag::any);
+    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->src_dt(), src_tag);
+    auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims().data(),
+            force_f32_dt ? dnnl_f32 : prb->dst_dt(), tag::any);
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(
