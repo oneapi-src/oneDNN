@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,6 +87,123 @@ jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
         const eltwise_injector::static_params_t &eltwise_static_params)
     : jit_uni_postops_injector_t(host, post_ops, binary_static_params,
             eltwise_static_params, lambda_jit_injectors_t()) {}
+
+// Specialization instantiations are needed to avoid instantiating ISA with
+// Vmm that don't make any sense like sse41 + Zmm.
+template <>
+jit_uni_postops_injector_base_t<Xbyak::Zmm> *
+jit_uni_postops_injector_base_t<Xbyak::Zmm>::create(jit_generator *host,
+        cpu_isa_t isa, const post_ops_t &post_ops,
+        const binary_injector::static_params_t &binary_static_params) {
+
+// Exact match case goes first and required to force `isa` passed by user.
+#define CASE_EXACT_MATCH(_isa) \
+    if (isa == (_isa)) \
+        return new jit_uni_postops_injector_t<_isa, Xbyak::Zmm>( \
+                host, post_ops, binary_static_params);
+
+    CASE_EXACT_MATCH(avx512_core_fp16);
+    CASE_EXACT_MATCH(avx512_core_bf16);
+    CASE_EXACT_MATCH(avx512_core);
+
+#undef CASE_EXACT_MATCH
+
+// When there's no exact match, pick up what's allowed through mayiuse since
+// not every ISA has instances in post-ops injector.
+#define CASE_MAYIUSE(_isa) \
+    if (mayiuse(_isa)) \
+        return new jit_uni_postops_injector_t<_isa, Xbyak::Zmm>( \
+                host, post_ops, binary_static_params);
+
+    CASE_MAYIUSE(avx512_core_fp16);
+    CASE_MAYIUSE(avx512_core_bf16);
+    CASE_MAYIUSE(avx512_core);
+
+#undef CASE_MAYIUSE
+
+    assert(!"Kernel is empty!");
+    return nullptr;
+}
+
+template <>
+jit_uni_postops_injector_base_t<Xbyak::Ymm> *
+jit_uni_postops_injector_base_t<Xbyak::Ymm>::create(jit_generator *host,
+        cpu_isa_t isa, const post_ops_t &post_ops,
+        const binary_injector::static_params_t &binary_static_params) {
+
+// Exact match case goes first and required to force `isa` passed by user.
+#define CASE_EXACT_MATCH(_isa) \
+    if (isa == (_isa)) \
+        return new jit_uni_postops_injector_t<_isa, Xbyak::Ymm>( \
+                host, post_ops, binary_static_params);
+
+    CASE_EXACT_MATCH(avx512_core_fp16);
+    CASE_EXACT_MATCH(avx512_core);
+    CASE_EXACT_MATCH(avx2_vnni_2);
+    CASE_EXACT_MATCH(avx2);
+    CASE_EXACT_MATCH(avx);
+
+#undef CASE_EXACT_MATCH
+
+// When there's no exact match, pick up what's allowed through mayiuse since
+// not every ISA has instances in post-ops injector.
+#define CASE_MAYIUSE(_isa) \
+    if (mayiuse(_isa)) \
+        return new jit_uni_postops_injector_t<_isa, Xbyak::Ymm>( \
+                host, post_ops, binary_static_params);
+
+    CASE_MAYIUSE(avx512_core_fp16);
+    CASE_MAYIUSE(avx512_core);
+    CASE_MAYIUSE(avx2_vnni_2);
+    CASE_MAYIUSE(avx2);
+    CASE_MAYIUSE(avx);
+
+#undef CASE_MAYIUSE
+
+    assert(!"Kernel is empty!");
+    return nullptr;
+}
+
+template <>
+jit_uni_postops_injector_base_t<Xbyak::Xmm> *
+jit_uni_postops_injector_base_t<Xbyak::Xmm>::create(jit_generator *host,
+        cpu_isa_t isa, const post_ops_t &post_ops,
+        const binary_injector::static_params_t &binary_static_params) {
+
+// Exact match case goes first and required to force `isa` passed by user.
+#define CASE_EXACT_MATCH(_isa) \
+    if (isa == (_isa)) \
+        return new jit_uni_postops_injector_t<_isa, Xbyak::Xmm>( \
+                host, post_ops, binary_static_params);
+
+    CASE_EXACT_MATCH(avx512_core_fp16);
+    CASE_EXACT_MATCH(avx512_core);
+    CASE_EXACT_MATCH(avx2_vnni_2);
+    CASE_EXACT_MATCH(avx2);
+    CASE_EXACT_MATCH(avx);
+    CASE_EXACT_MATCH(sse41);
+
+#undef CASE_EXACT_MATCH
+
+// When there's no exact match, pick up what's allowed through mayiuse since
+// not every ISA has instances in post-ops injector.
+#define CASE_MAYIUSE(_isa) \
+    if (mayiuse(_isa)) \
+        return new jit_uni_postops_injector_t<_isa, Xbyak::Xmm>( \
+                host, post_ops, binary_static_params);
+
+    CASE_MAYIUSE(avx512_core_fp16);
+    CASE_MAYIUSE(avx512_core);
+    CASE_MAYIUSE(avx2_vnni_2);
+    CASE_MAYIUSE(avx2);
+    CASE_MAYIUSE(avx);
+    CASE_MAYIUSE(sse41);
+
+#undef CASE_MAYIUSE
+
+    assert(!"Kernel is empty!");
+    return nullptr;
+}
 
 template <cpu_isa_t isa, typename Vmm>
 void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
@@ -242,20 +359,24 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
     return true;
 }
 
-template class jit_uni_postops_injector_t<avx512_core_fp16>;
+template class jit_uni_postops_injector_t<avx512_core_fp16, Xbyak::Zmm>;
 template class jit_uni_postops_injector_t<avx512_core_fp16, Xbyak::Ymm>;
 template class jit_uni_postops_injector_t<avx512_core_fp16, Xbyak::Xmm>;
-template class jit_uni_postops_injector_t<avx512_core_bf16>;
-template class jit_uni_postops_injector_t<avx512_core>;
+template class jit_uni_postops_injector_t<avx512_core_bf16, Xbyak::Zmm>;
+template class jit_uni_postops_injector_t<avx512_core, Xbyak::Zmm>;
 template class jit_uni_postops_injector_t<avx512_core, Xbyak::Ymm>;
 template class jit_uni_postops_injector_t<avx512_core, Xbyak::Xmm>;
-template class jit_uni_postops_injector_t<avx2_vnni_2>;
+template class jit_uni_postops_injector_t<avx2_vnni_2, Xbyak::Ymm>;
 template class jit_uni_postops_injector_t<avx2_vnni_2, Xbyak::Xmm>;
-template class jit_uni_postops_injector_t<avx2>;
+template class jit_uni_postops_injector_t<avx2, Xbyak::Ymm>;
 template class jit_uni_postops_injector_t<avx2, Xbyak::Xmm>;
-template class jit_uni_postops_injector_t<avx>;
+template class jit_uni_postops_injector_t<avx, Xbyak::Ymm>;
 template class jit_uni_postops_injector_t<avx, Xbyak::Xmm>;
-template class jit_uni_postops_injector_t<sse41>;
+template class jit_uni_postops_injector_t<sse41, Xbyak::Xmm>;
+
+template class jit_uni_postops_injector_base_t<Xbyak::Zmm>;
+template class jit_uni_postops_injector_base_t<Xbyak::Ymm>;
+template class jit_uni_postops_injector_base_t<Xbyak::Xmm>;
 
 } // namespace injector
 } // namespace x64
