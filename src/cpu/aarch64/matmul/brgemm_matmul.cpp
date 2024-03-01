@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
-*
+* Copyright 2024 FUJITSU LIMITED
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -35,7 +35,7 @@ namespace aarch64 {
 namespace matmul {
 
 using namespace dnnl::impl::cpu::matmul;
-
+using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 
@@ -78,6 +78,16 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             // This case requires scratchpad
             if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }
+
+        if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
+                || !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
+                || !attr()->scales_.get(DNNL_ARG_DST).has_default_values()) {
+            return false;
+        }
+             
+        if(!attr()->post_ops_.sum_with_default_dt())
+                return false;
+
         return ok;
     };
 
@@ -165,6 +175,17 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     auto scratchpad = scratchpad_registry().registrar();
     init_scratchpad(scratchpad, bgmmc_);
     book_precomputed_scales(scratchpad, attr()->scales_, N());
+
+    const bool is_B_transposed
+        = one_of(bgmmc_.wei_tag,abdc, ba, acb,  adbc, abced, abcdfe, abcdegf,
+                abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
+
+    const bool is_A_transposed
+        = one_of(bgmmc_.src_tag,abdc, ba, acb,  adbc, abced, abcdfe, abcdegf,
+                abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
+
+    if(is_A_transposed || is_B_transposed)
+        return status::unimplemented;
 
     return status::success;
 }

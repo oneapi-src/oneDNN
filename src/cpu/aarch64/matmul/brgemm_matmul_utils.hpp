@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
-*
+* Copyright 2024 FUJITSU LIMITED
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -211,6 +211,7 @@ struct brgemm_matmul_conf_utils_t {
     inline bool use_buffer_b(bool use_heuristic = true) const {
         // Values based on measured performance difference
         // between plain and copy-to-blocked routine.
+        // return false;
         size_t big_LDB = bgmmc.N > 256;
         bool is_pow2 = math::is_pow2(bgmmc.N);
         bool use_copy_buffer = IMPLICATION(

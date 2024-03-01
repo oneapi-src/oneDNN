@@ -1,12 +1,12 @@
 /*******************************************************************************
 * Copyright 2016-2023 Intel Corporation
-* Copyright 2020-2023 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
 *
-*     http://www.apache.org/licenses/LICENSE-2.0 
+*     http://www.apache.org/licenses/LICENSE-2.0
 *
 * Unless required by applicable law or agreed to in writing, software
 * distributed under the License is distributed on an "AS IS" BASIS,
@@ -54,7 +54,8 @@ typedef enum {
 
 // Callee-saved registers
 constexpr Xbyak_aarch64::Operand::Code abi_save_gpr_regs[]
-        = {Xbyak_aarch64::Operand::X19, Xbyak_aarch64::Operand::X20,
+        = {Xbyak_aarch64::Operand::X16, Xbyak_aarch64::Operand::X17,
+                Xbyak_aarch64::Operand::X19, Xbyak_aarch64::Operand::X20,
                 Xbyak_aarch64::Operand::X21, Xbyak_aarch64::Operand::X22,
                 Xbyak_aarch64::Operand::X23, Xbyak_aarch64::Operand::X24,
                 Xbyak_aarch64::Operand::X25, Xbyak_aarch64::Operand::X26,
@@ -210,22 +211,6 @@ public:
         L(label);
     }
 
-
-template <typename T>
-    Xbyak_aarch64::XReg EVEX_compress_addr(const Xbyak_aarch64::XReg &addr,
-            const Xbyak_aarch64::XReg &x_tmp, Xbyak_aarch64::XReg base,
-            T raw_offt, bool bcast = false) {
-
-        assert(raw_offt <= INT_MAX);
-        auto offt = static_cast<int>(raw_offt);
-
-        add_imm(addr, base, offt, x_tmp);
-        if (bcast) {
-            // addr is the same as addr when bcast is false.
-        }
-        return addr;
-    }
-    
     template <typename T>
     Xbyak_aarch64::XReg addr_off(const Xbyak_aarch64::XReg &base, const T off,
             const Xbyak_aarch64::XReg &addr, const Xbyak_aarch64::XReg &x_tmp) {
@@ -724,10 +709,6 @@ private:
                 = reinterpret_cast<const uint8_t *>(CodeGenerator::getCode());
         register_jit_code(code, getSize() * CSIZE);
         return code;
-    }
-
-    inline bool is_valid_isa(cpu_isa_t isa) {
-        return is_subset(isa, max_cpu_isa_) && mayiuse(isa);
     }
 
     static inline bool is_initialized() {

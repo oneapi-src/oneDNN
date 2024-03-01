@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
-* Copyright 2020-2023 FUJITSU LIMITED
-* Copyright 2023 Arm Ltd. and affiliates
+* Copyright 2020-2024 FUJITSU LIMITED
+* Copyright 2023 Arm Ltd. and affiliates 
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@
 #define CPU_AARCH64_CPU_ISA_TRAITS_HPP
 
 #include <type_traits>
-#include "common/type_helpers.hpp"
-#include "dnnl_types.h"
 
+#include "dnnl_types.h"
+#include "common/type_helpers.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/utils.hpp"
 
@@ -203,6 +203,17 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     return false;
 }
 
+static inline int isa_max_vlen(cpu_isa_t isa) {
+    if (isa == sve_512)
+        return cpu_isa_traits<sve_512>::vlen;
+    else if (isa == sve_256)
+        return cpu_isa_traits<sve_256>::vlen;
+    else if (isa == sve_128)
+        return cpu_isa_traits<sve_128>::vlen;
+    else
+        return 0;
+};
+
 static inline uint64_t get_sve_length() {
     return cpu().getSveLen();
 }
@@ -211,19 +222,10 @@ static inline bool mayiuse_atomic() {
     using namespace Xbyak_aarch64::util;
     return cpu().isAtomicSupported();
 }
+
 static inline bool isa_has_s8s8(cpu_isa_t isa) {
     return is_superset(isa, sve_256);
 }
-static inline int isa_max_vlen(cpu_isa_t isa) {
-    if (isa == sve_512)
-        return cpu_isa_traits<sve_512>::vlen;
-    else if (isa == sve_512)
-        return cpu_isa_traits<sve_256>::vlen;
-    else if (isa == sve_512)
-        return cpu_isa_traits<sve_128>::vlen;
-    else
-        return 0;
-}; 
 
 static inline bool mayiuse_bf16() {
     using namespace Xbyak_aarch64::util;

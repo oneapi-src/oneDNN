@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
-* Copyright 2022-2023 FUJITSU LIMITED
+* Copyright 2022-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,7 +118,6 @@ bool any_binary_postop_rhs_non_scalar_broadcast(
             });
 }
 
- 
 bool binary_args_tail_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d, int vlen,
         const bcast_set_t &supported_strategy_set) {

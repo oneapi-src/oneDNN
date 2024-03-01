@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
-*
+* Copyright 2024 FUJITSU LIMITED
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -27,11 +27,11 @@
 
 // TODO add a method to print brgemm conf info
 #define VCONDCHECK_BG(cond, msg, ...) \
-    VCONDCHECK(primitive,create, dispatch, brgemm_matmul, (cond), status::unimplemented, \
+    VCONDCHECK(primitive, create, dispatch, brgemm_matmul, (cond), status::unimplemented, \
             msg, ##__VA_ARGS__);
 
 #define VCHECK_BG(f, msg, ...) \
-    VCHECK(primitive,create, dispatch, brgemm_matmul, f, msg, ##__VA_ARGS__);
+    VCHECK(primitive, create, dispatch, brgemm_matmul, f, msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
