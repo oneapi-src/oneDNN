@@ -787,8 +787,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         CHECK(attr.post_ops_.append_sum(beta));
         CHECK(attr.set_fpmath_mode(fpmath_mode));
         attr.deterministic_ = this->attr()->deterministic_;
-        status_t status = dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md,
-                &b_md, &c_md, &glob_zero_md, c_dt, &attr);
+        CHECK(dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md, &b_md, &c_md,
+                &glob_zero_md, c_dt, &attr));
         if (ocl_conf.threads_per_eu == 0)
             CHECK(gemm_pd->query(query::preferred_gpu_threads_per_eu, 0,
                     &ocl_conf.threads_per_eu));
@@ -798,7 +798,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             if (t != ocl_conf.threads_per_eu)
                 printf("[WARNING] GEMM grf modes are inconsistent");
         }
-        return status;
+        return status::success;
     };
 
     dim_t layer_merged_size
