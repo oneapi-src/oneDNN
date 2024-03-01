@@ -325,6 +325,9 @@ struct jit_softmax_base_t : public jit_generator {
             trn1(p_shuff0.d, p_shuff0.d, p_shuff0.d);
             trn1(p_shuff1.s, P_ALL_ONE.s, P_TMP_1.s);
         }
+
+        if (simd_w_ != cpu_sveLen / sizeof(float))
+            set_preg(P_ALL_ONE.s, simd_w_, X_TMP_0, X_TMP_1);
     }
 
     void restore_mask() {
@@ -490,22 +493,12 @@ struct jit_softmax_t<sve_512> : public jit_softmax_base_t<sve_512> {
     }
 
     void get_horizontal_op(const ZReg &v, const ZReg &vtmp, op_t op) override {
-        mov(vtmp.d, v.d);
-        ext(vtmp.b, v.b, 32);
-        perform_op(v, vtmp, op);
-        mov(vtmp.s, P_ALL_ONE, v.s);
-        mov(v_tmp0.s, P_ALL_ONE, v.s);
-        ext(v_tmp0.b, v.b, 48);
-        ext(vtmp.b, v.b, 16);
-        mov(vtmp.d, p_shuff0 / T_m, v_tmp0.d);
-        perform_op(v, vtmp, op);
-        uzp2(v_tmp0.d, v.d, v.d);
-        trn1(vtmp.d, v_tmp0.d, v.d);
-        perform_op(v, vtmp, op);
-        trn1(vtmp.s, v.s, v.s);
-        trn2(v_tmp0.s, v.s, v.s);
-        mov(vtmp.s, p_shuff1 / T_m, v_tmp0.s);
-        perform_op(v, vtmp, op);
+        if (op == op_t::max)
+            fmaxv(SReg(v.getIdx()), P_ALL_ONE, v.s);
+        else
+            faddv(SReg(v.getIdx()), P_ALL_ONE, v.s);
+
+        dup(v.s, v.s[0]);
     }
 
     void accumulate_vmax() override {
@@ -770,19 +763,12 @@ struct jit_softmax_t<sve_256> : public jit_softmax_base_t<sve_256> {
     }
 
     void get_horizontal_op(const ZReg &v, const ZReg &vtmp, op_t op) override {
-        mov(vtmp.d, v.d);
-        ext(vtmp.b, v.b, 16);
-        perform_op(v, vtmp, op);
-        mov(vtmp.s, P_ALL_ONE / T_m, v.s);
-        mov(v_tmp0.s, P_ALL_ONE / T_m, v.s);
-        ext(v_tmp0.b, v.b, 24);
-        ext(vtmp.b, v.b, 32);
-        mov(vtmp.s, p_shuff0 / T_m, v_tmp0.s);
-        perform_op(v, vtmp, op);
-        trn1(vtmp.s, v.s, v.s);
-        trn2(v_tmp0.s, v.s, v.s);
-        mov(vtmp.s, p_shuff1 / T_m, v_tmp0.s);
-        perform_op(v, vtmp, op);
+        if (op == op_t::max)
+            fmaxv(SReg(v.getIdx()), P_ALL_ONE, v.s);
+        else
+            faddv(SReg(v.getIdx()), P_ALL_ONE, v.s);
+
+        dup(v.s, v.s[0]);
     }
 
     void accumulate_vmax() override {
