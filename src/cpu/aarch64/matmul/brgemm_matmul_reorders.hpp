@@ -17,8 +17,8 @@
 #ifndef CPU_AARCH64_MATMUL_BRGEMM_MATMUL_REORDERS_HPP
 #define CPU_AARCH64_MATMUL_BRGEMM_MATMUL_REORDERS_HPP
 
-#include "cpu/reorder/cpu_reorder_pd.hpp"
 #include "cpu/aarch64/matmul/brgemm_matmul_copy_utils.hpp"
+#include "cpu/reorder/cpu_reorder_pd.hpp"
 
 namespace dnnl {
 namespace impl {

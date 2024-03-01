@@ -21,10 +21,10 @@
 
 #include <type_traits>
 
-#include "dnnl_types.h"
-#include "common/type_helpers.hpp"
 #include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "dnnl_types.h"
 
 /* in order to make selinux happy memory that would be marked with X-bit should
  * be obtained with mmap */
@@ -245,7 +245,6 @@ static inline bool mayiuse_bf16() {
     ((isa) == sve_512 ? prefix STRINGIFY(sve_512) : \
     prefix suffix_if_any)))))
 /* clang-format on */
-
 
 inline size_t data_type_vnni_granularity(data_type_t data_type) {
     using namespace data_type;

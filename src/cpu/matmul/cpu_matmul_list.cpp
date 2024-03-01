@@ -32,7 +32,7 @@ using namespace dnnl::impl::cpu::x64;
 #elif DNNL_AARCH64
 #include "cpu/aarch64/matmul/brgemm_matmul.hpp"
 #ifdef DNNL_AARCH64_USE_ACL
-#include "cpu/aarch64/matmul/acl_matmul.hpp" 
+#include "cpu/aarch64/matmul/acl_matmul.hpp"
 #endif
 using namespace dnnl::impl::cpu::aarch64::matmul;
 using namespace dnnl::impl::cpu::aarch64;

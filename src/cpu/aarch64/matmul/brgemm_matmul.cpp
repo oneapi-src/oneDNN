@@ -84,9 +84,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                 || !attr()->scales_.get(DNNL_ARG_DST).has_default_values()) {
             return false;
         }
-             
-        if(!attr()->post_ops_.sum_with_default_dt())
-                return false;
+
+        if (!attr()->post_ops_.sum_with_default_dt()) return false;
 
         return ok;
     };
@@ -176,16 +175,15 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     init_scratchpad(scratchpad, bgmmc_);
     book_precomputed_scales(scratchpad, attr()->scales_, N());
 
-    const bool is_B_transposed
-        = one_of(bgmmc_.wei_tag,abdc, ba, acb,  adbc, abced, abcdfe, abcdegf,
-                abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
+    const bool is_B_transposed = one_of(bgmmc_.wei_tag, abdc, ba, acb, adbc,
+            abced, abcdfe, abcdegf, abcdefhg, abcdefgih, abcdefghji,
+            abcdefghikj, abcdefghijlk);
 
-    const bool is_A_transposed
-        = one_of(bgmmc_.src_tag,abdc, ba, acb,  adbc, abced, abcdfe, abcdegf,
-                abcdefhg, abcdefgih, abcdefghji, abcdefghikj, abcdefghijlk);
+    const bool is_A_transposed = one_of(bgmmc_.src_tag, abdc, ba, acb, adbc,
+            abced, abcdfe, abcdegf, abcdefhg, abcdefgih, abcdefghji,
+            abcdefghikj, abcdefghijlk);
 
-    if(is_A_transposed || is_B_transposed)
-        return status::unimplemented;
+    if (is_A_transposed || is_B_transposed) return status::unimplemented;
 
     return status::success;
 }
@@ -373,8 +371,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
                 ithr, 0, gemm_batch, b_idx, m_blk_idx, k_blk_idx, n_blk_idx);
 
         if (post_ops_applicable && is_last_K_chunk && !is_K_tail) {
-            void *scratch = static_cast<void *>(brgmm_ctx.get_s8s8_comp_ptr(
-                            ithr, b_idx, n_blk_idx));
+            void *scratch = static_cast<void *>(
+                    brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx));
 
             const size_t dst_row_logical_off
                     = brgmm_ctx.get_M_idx(m_blk_idx, true);
@@ -401,8 +399,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
             brgemm_kernel_execute_postops(brg_kernel, gemm_batch, addr_batch,
                     (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
         } else {
-            brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
-                    (void *)ptr_C, nullptr);
+            brgemm_kernel_execute(
+                    brg_kernel, gemm_batch, addr_batch, (void *)ptr_C, nullptr);
         }
     }
     if (is_K_tail) {
@@ -416,8 +414,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
         const auto brg_kernel_k_tail = brg_kernels_[brg_ker_idx].get();
 
         if (post_ops_applicable) {
-            void *scratch = static_cast<void *>(brgmm_ctx.get_s8s8_comp_ptr(
-                            ithr, b_idx, n_blk_idx));
+            void *scratch = static_cast<void *>(
+                    brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx));
 
             const size_t dst_row_logical_off
                     = brgmm_ctx.get_M_idx(m_blk_idx, true);
@@ -444,8 +442,8 @@ void brgemm_matmul_t<isa>::compute_kernel(
             brgemm_kernel_execute_postops(brg_kernel_k_tail, 1, addr_batch,
                     (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch);
         } else {
-            brgemm_kernel_execute(brg_kernel_k_tail, 1, addr_batch,
-                    (void *)ptr_C, nullptr);
+            brgemm_kernel_execute(
+                    brg_kernel_k_tail, 1, addr_batch, (void *)ptr_C, nullptr);
         }
     }
 
@@ -652,8 +650,8 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = nstl::min(bgmmc.K_blk, bgmmc.K);
-	assert(isa == sve_512);
-	(*copy_B_kernel_)(&ctx);
+        assert(isa == sve_512);
+        (*copy_B_kernel_)(&ctx);
     }
 
     if (is_K_tail) {
@@ -664,8 +662,8 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = bgmmc.K % bgmmc.K_blk;
-	assert(isa == sve_512);
-	(*copy_B_kernel_)(&ctx);
+        assert(isa == sve_512);
+        (*copy_B_kernel_)(&ctx);
     }
 }
 
@@ -1231,9 +1229,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 + m_blk_local * bgmmc_.zp_b_comp_buffer_shift_m;
     }
 
-    char *get_tile_workspace(int ithr) const {
-        return nullptr;
-    }
+    char *get_tile_workspace(int ithr) const { return nullptr; }
 
     const std::vector<const void *> &get_post_ops_binary_rhs_arg_vec() const {
         return post_ops_binary_rhs_arg_vec_;
