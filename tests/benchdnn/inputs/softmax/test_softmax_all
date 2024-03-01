@@ -22,7 +22,8 @@
 --batch=shapes_2d
 --batch=shapes_3d
 
---stag=aBx8b,aBx16b
+# Blocked cases target ARM-SVE
+--stag=aBx4b,aBx8b,aBx16b
 --axis=0,1
 --batch=shapes_2d
 --batch=shapes_3d
