@@ -82,8 +82,12 @@ private:
         return mutex;
     }
 
-    void lock_write() { rw_mutex().lock_write(); }
-    void unlock_write() { rw_mutex().unlock_write(); }
+    void lock_write() {
+        rw_mutex().lock_write();
+    }
+    void unlock_write() {
+        rw_mutex().unlock_write();
+    }
 
 #else
     std::set<std::shared_ptr<brgemm_kernel_t>,

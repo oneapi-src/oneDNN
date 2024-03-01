@@ -64,7 +64,7 @@ private:
     using opmask_t = const Xbyak_aarch64::PReg;
 
     static constexpr int vlen_ = cpu_isa_traits<isa>::vlen;
-  static constexpr bool is_ymm_ = isa == sve_256;
+    static constexpr bool is_ymm_ = isa == sve_256;
     static constexpr int num_comp_acc_ = is_ymm_ ? 7 : 8;
 
     const int typesize_;
@@ -175,7 +175,7 @@ void jit_brgemm_matmul_copy_a_impl_t<sve_256>::store_vmm(int idx, int offset) {
 #endif
 }
 
-  template <>
+template <>
 void jit_brgemm_matmul_copy_a_impl_t<sve_512>::load_tail(
         int k_tail, size_t offset) {
     assert(!"under construction");
@@ -213,7 +213,7 @@ void jit_brgemm_matmul_copy_a_impl_t<sve_512>::load_tail(
 #endif
 }
 
-  template <>
+template <>
 void jit_brgemm_matmul_copy_a_impl_t<sve_256>::load_tail(
         int k_tail, size_t offset) {
     assert(!"under construction");
@@ -223,7 +223,7 @@ void jit_brgemm_matmul_copy_a_impl_t<sve_256>::load_tail(
 #endif
 }
 
-  template <>
+template <>
 void jit_brgemm_matmul_copy_a_impl_t<sve_512>::store_tail(
         int k_tail, size_t offset) {
     assert(!"under construction");
@@ -240,7 +240,7 @@ void jit_brgemm_matmul_copy_a_impl_t<sve_512>::store_tail(
 #endif
 }
 
-  template <>
+template <>
 void jit_brgemm_matmul_copy_a_impl_t<sve_256>::store_tail(
         int k_tail, size_t offset) {
     assert(!"under construction");
@@ -268,8 +268,8 @@ void jit_brgemm_matmul_copy_a_impl_t<
 #endif
 }
 
-  template <cpu_isa_t isa>
-  void jit_brgemm_matmul_copy_a_impl_t<isa>::copy_K_loop(
+template <cpu_isa_t isa>
+void jit_brgemm_matmul_copy_a_impl_t<isa>::copy_K_loop(
         bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     assert(!"under construction");
 #if 0
@@ -421,7 +421,7 @@ void jit_brgemm_matmul_copy_a_impl_t<
 #endif
 }
 
-  template <cpu_isa_t isa>
+template <cpu_isa_t isa>
 void jit_brgemm_matmul_copy_a_impl_t<isa>::copy_M_loop(
         bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     assert(!"under construction");
@@ -463,7 +463,7 @@ void jit_brgemm_matmul_copy_a_impl_t<isa>::copy_M_loop(
 #endif
 }
 
-  template <cpu_isa_t isa>
+template <cpu_isa_t isa>
 void jit_brgemm_matmul_copy_a_impl_t<isa>::generate() {
     preamble();
     assert(!"under construction");
@@ -603,11 +603,10 @@ private:
     reg64_t reg_aux_src1 = x9;
     reg64_t reg_loop_k = x1;
     reg64_t reg_loop_m = x2;
-  reg64_t imm_addr64 = x3;
-            // Note: this must be assigned to rcx as it's used in shl instruction,
-            // clashes with abi_param1 on Windows OS
-  reg64_t reg_opmask_shift_compute
-  = x4;
+    reg64_t imm_addr64 = x3;
+    // Note: this must be assigned to rcx as it's used in shl instruction,
+    // clashes with abi_param1 on Windows OS
+    reg64_t reg_opmask_shift_compute = x4;
 
     Xbyak_aarch64::ZReg vidx1 = z31;
     Xbyak_aarch64::ZReg vidx2 = z30;
@@ -633,7 +632,7 @@ private:
 
 void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_bf16(
         reg64_t dst, reg64_t src, int nrows, int ncolumns) {
-  assert(!"under construction");
+    assert(!"under construction");
 #if 0
     assert(nrows >= 0 && nrows <= rows_step && ncolumns >= 0
             && ncolumns <= columns_step);
@@ -830,7 +829,7 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_bf16(
 
 void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_f32(
         reg64_t dst, reg64_t src, int nrows, int ncolumns) {
-  assert(!"under construction");
+    assert(!"under construction");
 #if 0
     assert(nrows >= 0 && nrows <= rows_step && ncolumns >= 0
             && ncolumns <= columns_step);
@@ -1000,10 +999,10 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t::transpose_f32(
 
 void jit_brgemm_matmul_copy_a_transposed_impl_t::deploy_transpose(
         reg64_t dst, reg64_t src, int nrows, int ncolumns) {
-  if (is_f32)
+    if (is_f32)
         transpose_f32(dst, src, nrows, ncolumns);
     else
-      assert(!"unreachable");
+        assert(!"unreachable");
 }
 
 void jit_brgemm_matmul_copy_a_transposed_impl_t::generate() {
@@ -1228,7 +1227,7 @@ protected:
     using reg64_t = const Xbyak_aarch64::XReg;
     using reg32_t = const Xbyak_aarch64::WReg;
 
-  static constexpr bool is_ymm_ = cpu_isa_traits<isa>::vlen == 32;
+    static constexpr bool is_ymm_ = cpu_isa_traits<isa>::vlen == 32;
     static constexpr int k_blk_step_ = 4;
     static constexpr int n_blk_step_ = 64;
     static constexpr int blk_sz_ = 6;
@@ -1242,9 +1241,9 @@ protected:
 
     const Xbyak_aarch64::PReg kTail = p7;
 
-  reg64_t reg_src = x1;
-  reg64_t reg_tr_src = x2;
-  reg64_t reg_comp_ptr = x3;
+    reg64_t reg_src = x1;
+    reg64_t reg_tr_src = x2;
+    reg64_t reg_comp_ptr = x3;
     reg64_t reg_zp_comp_ptr = x11;
     reg64_t reg_zp_a_neg_val_ptr = x12;
 
@@ -1259,37 +1258,36 @@ protected:
     ZReg vmm_dot_product_temp = ZReg(25);
 
     // ZMM stuff
-  ZReg vreg_idx_lo_256 = z26;
-  ZReg vreg_idx_hi_256 = z27;
-  ZReg vreg_idx_lo_128 = z28;
-  ZReg vreg_idx_hi_128 = z29;
+    ZReg vreg_idx_lo_256 = z26;
+    ZReg vreg_idx_hi_256 = z27;
+    ZReg vreg_idx_lo_128 = z28;
+    ZReg vreg_idx_hi_128 = z29;
 
     // Shared
-  ZReg vmm_comp_mul = z30;
-  ZReg vmm_zero = z31;
+    ZReg vmm_comp_mul = z30;
+    ZReg vmm_zero = z31;
 
     ZReg get_comp_acc(int i) { return ZReg(comp_acc_idx_ - i); }
     ZReg get_vmm_zp_comp_res(int i) { return get_comp_acc(i); }
     ZReg get_vmm_oscale_comp_res(int i) { return ZReg(i); }
 
     inline void vmovdqa64(ZReg vmm, const void *addr) {
-      assert(!"under construction");
-      #if 0
+        assert(!"under construction");
+#if 0
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
         jit_generator::vmovdqa64(vmm, ptr[imm_addr64]);
 #endif
     }
 
     inline ZReg get_vmm(int blk, int idx) {
-      if (idx < 0 || idx >= 32)
-            assert(!"idx > vregs");
+        if (idx < 0 || idx >= 32) assert(!"idx > vregs");
         assert(IMPLICATION(!is_ymm_, idx < blk_sz_ && blk >= 0));
         auto reg_idx = blk_sz_ * blk + idx;
         return ZReg(reg_idx);
     }
     inline void load(int blk, int i, bool is_tail) {}
-  inline void kmovq(Xbyak_aarch64::PReg k, size_t q) {
-    assert(!"under construction");
+    inline void kmovq(Xbyak_aarch64::PReg k, size_t q) {
+        assert(!"under construction");
 #if 0
     mov(regq_tmp, q);
     jit_generator::kmovq(k, regq_tmp);
@@ -1307,7 +1305,7 @@ protected:
     void generate() override;
 };
 
-  template <>
+template <>
 inline void jit_brgemm_matmul_copy_b_int8_t<sve_512>::load(
         int blk, int i, bool is_tail) {
     assert(!"under construction");
@@ -1447,7 +1445,8 @@ private:
 struct jit_sve_256_core_brgemm_matmul_copy_b_int8_t
     : public jit_brgemm_matmul_copy_b_int8_t<sve_256> {
 
-    jit_sve_256_core_brgemm_matmul_copy_b_int8_t(const brgemm_matmul_conf_t *conf)
+    jit_sve_256_core_brgemm_matmul_copy_b_int8_t(
+            const brgemm_matmul_conf_t *conf)
         : jit_brgemm_matmul_copy_b_int8_t<sve_256>(conf) {}
 
 private:
@@ -1794,7 +1793,7 @@ private:
     zmm zmm_permw = z30;
     zmm zmm_zero = z31;
 
-  inline void kmovw(Xbyak_aarch64::PReg k, unsigned w) {
+    inline void kmovw(Xbyak_aarch64::PReg k, unsigned w) {
         assert(!"under construction");
 #if 0
         mov(regw_tmp, w);
@@ -1911,7 +1910,7 @@ void jit_brgemm_matmul_copy_b_f32_t::generate() {
     postamble();
 }
 
-  template <cpu_isa_t isa>
+template <cpu_isa_t isa>
 struct jit_brgemm_matmul_copy_b_transposed_t
     : public jit_brgemm_matmul_copy_b_t,
       public jit_generator {
@@ -1929,8 +1928,7 @@ struct jit_brgemm_matmul_copy_b_transposed_t
         , is_bf32_(conf->is_bf32)
         , req_zp_comp_(conf_->has_zero_point_a)
         , req_s8s8_comp_(conf_->s8s8_compensation_required)
-        , max_tmp_idx(16
-                  - (do_compute_compensation_ ? 6 : 0))
+        , max_tmp_idx(16 - (do_compute_compensation_ ? 6 : 0))
         , src_stride_(conf_->wei_tag == format_tag::adbc
                           ? conf_->copy_B_wei_stride
                           : conf_->K * typesize_)
@@ -1945,8 +1943,7 @@ private:
     using opmask_t = const Xbyak_aarch64::PReg;
     using ZReg = const Xbyak_aarch64::ZReg;
 
-    static constexpr bool is_ymm_
-    = isa == sve_256;
+    static constexpr bool is_ymm_ = isa == sve_256;
     static constexpr cpu_isa_t isa_ = isa;
     static constexpr int max_vmm_regs_ = cpu_isa_traits<isa_>::n_vregs;
     static constexpr int vlen_ = cpu_isa_traits<isa>::vlen;
@@ -2047,7 +2044,7 @@ private:
     void generate() override;
 };
 
-  template <cpu_isa_t isa>
+template <cpu_isa_t isa>
 void jit_brgemm_matmul_copy_b_transposed_t<isa>::copy_row_x_col(
         int nrows, int ncolumns) {
     assert(!"under construction");
@@ -2341,7 +2338,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<sve_256>::copy_row_x_col(
 #endif
 }
 
-  template <cpu_isa_t isa>
+template <cpu_isa_t isa>
 void jit_brgemm_matmul_copy_b_transposed_t<isa>::compute_K_loop(bool is_N_tail,
         int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     assert(!"under construction");
@@ -2402,7 +2399,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<isa>::compute_K_loop(bool is_N_tail,
 #endif
 }
 
-  template <cpu_isa_t isa>
+template <cpu_isa_t isa>
 void jit_brgemm_matmul_copy_b_transposed_t<isa>::compute_N_loop(
         int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
     assert(!"under construction");
@@ -2439,7 +2436,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<isa>::compute_N_loop(
 #endif
 }
 
-  template <cpu_isa_t isa>
+template <cpu_isa_t isa>
 void jit_brgemm_matmul_copy_b_transposed_t<isa>::generate() {
 
     preamble();
@@ -2593,7 +2590,7 @@ status_t create_brgemm_matmul_copy_b(
                 assert(is_superset(conf->isa, sve_256));
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_sve_256_core_brgemm_matmul_copy_b_int8_t(
-									 conf)));
+                                conf)));
             }
         }
     }
