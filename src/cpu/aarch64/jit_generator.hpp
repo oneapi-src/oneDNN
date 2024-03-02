@@ -35,12 +35,8 @@
 #endif
 
 #define DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_name) \
-    const char *name() const override { \
-        return STRINGIFY(jit_name); \
-    } \
-    const char *source_file() const override { \
-        return __FILE__; \
-    }
+    const char *name() const override { return STRINGIFY(jit_name); } \
+    const char *source_file() const override { return __FILE__; }
 
 static const size_t CSIZE = sizeof(uint32_t);
 
