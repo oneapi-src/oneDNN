@@ -718,6 +718,7 @@ status_t brdgmm_blocking(brgemm_t *brg) {
 
     if (brg->isa_impl == isa_undef) return status::unimplemented;
 
+    set_brg_vmm(brg); // Needed to dispatch into the right kernel later.
     const int max_vregs = isa_num_vregs(brg->isa_impl);
 
     const int simd_w = isa_max_vlen(brg->isa_impl) / brg->typesize_C;
@@ -754,13 +755,10 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     const int max_n_block2 = max_n_block2_vmms / n_block1_num_steps;
     n_block2 = nstl::min(max_n_block2, nb_n_block1);
 
-    // Note: using avx512_core template, but calculation uses 'brg->isa_impl'
-    // which is dynamic i.e. uses values AVX2, AVX2_VNNI, etc. depending on the
-    // configuration.
-    const int aux_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
-            Xbyak::Zmm>::get_aux_vmm_count(*brg);
-    const int compute_vregs = jit_brdgmm_kernel_base_t<avx512_core_vnni,
-            Xbyak::Zmm>::get_compute_vmm_count(*brg);
+    const int aux_vregs
+            = jit_brdgmm_kernel_base_t<Xbyak::Zmm>::get_aux_vmm_count(*brg);
+    const int compute_vregs
+            = jit_brdgmm_kernel_base_t<Xbyak::Zmm>::get_compute_vmm_count(*brg);
     const int bf16_emu_vregs = brg->is_bf16_emu * 4;
     const int max_acc_vmms
             = max_vregs - nstl::max(compute_vregs + aux_vregs, bf16_emu_vregs);

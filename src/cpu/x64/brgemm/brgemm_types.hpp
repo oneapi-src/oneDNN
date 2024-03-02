@@ -449,10 +449,10 @@ struct brgemm_kernel_params_t {
     dim_t dynamic_LDD = 0;
 };
 
-template <cpu_isa_t isa, typename Vmm>
+template <typename Vmm>
 struct jit_brgemm_kernel_t;
 struct jit_brgemm_amx_uker_base_t;
-template <cpu_isa_t isa, typename Vmm>
+template <typename Vmm>
 struct jit_brdgmm_kernel_base_t;
 class jit_generator;
 
@@ -464,7 +464,7 @@ struct brgemm_kernel_t {
     virtual const jit_generator *get_jit_generator() const = 0;
 };
 
-template <cpu_isa_t isa, typename Vmm>
+template <typename Vmm>
 struct brgemm_kernel_common_t : public brgemm_kernel_t {
     brgemm_kernel_common_t(const brgemm_t &abrd);
     ~brgemm_kernel_common_t();
@@ -474,7 +474,7 @@ struct brgemm_kernel_common_t : public brgemm_kernel_t {
     virtual const jit_generator *get_jit_generator() const;
 
 private:
-    jit_brgemm_kernel_t<isa, Vmm> *brgemm_kernel_ = nullptr;
+    jit_brgemm_kernel_t<Vmm> *brgemm_kernel_ = nullptr;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(brgemm_kernel_common_t);
 };
@@ -493,7 +493,7 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(brgemm_amx_uker_t);
 };
 
-template <cpu_isa_t isa, typename Vmm>
+template <typename Vmm>
 struct brdgmm_kernel_t : public brgemm_kernel_t {
     brdgmm_kernel_t(const brgemm_t &abrd);
     ~brdgmm_kernel_t();
@@ -503,7 +503,7 @@ struct brdgmm_kernel_t : public brgemm_kernel_t {
     virtual const jit_generator *get_jit_generator() const;
 
 private:
-    jit_brdgmm_kernel_base_t<isa, Vmm> *brgemm_kernel_ = nullptr;
+    jit_brdgmm_kernel_base_t<Vmm> *brgemm_kernel_ = nullptr;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(brdgmm_kernel_t);
 };

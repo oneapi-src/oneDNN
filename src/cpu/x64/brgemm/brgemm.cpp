@@ -551,71 +551,27 @@ status_t brgemm_kernel_create(
 
     if (brg.is_dgmm) {
         if (brg.type == brgemm_static_offs) return status::unimplemented;
-#define CASE(isa) \
-    case isa: \
-        CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel, \
-                new brdgmm_kernel_t<isa, typename cpu_isa_traits<isa>::Vmm>( \
-                        brg))); \
-        break
-        switch (brg.isa_impl) {
-            CASE(avx512_core_fp16);
-            CASE(avx512_core_bf16);
-            CASE(avx512_core_vnni);
-            CASE(avx512_core);
-            CASE(avx2_vnni_2);
-            CASE(avx2_vnni);
-            CASE(avx2);
-            default: return status::unimplemented;
+        if (brg.is_tmm || brg.is_zmm) {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                    *brg_kernel, new brdgmm_kernel_t<Xbyak::Zmm>(brg)));
+        } else if (brg.is_ymm) {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                    *brg_kernel, new brdgmm_kernel_t<Xbyak::Ymm>(brg)));
         }
-#undef CASE
     } else if (can_dispatch_uker(&brg)) {
         CHECK(safe_ptr_assign<brgemm_kernel_t>(
                 *brg_kernel, new brgemm_amx_uker_t(brg)));
     } else {
         if (brg.type == brgemm_static_offs) return status::unimplemented;
         if (brg.is_tmm) {
-            if (brg.is_f16_tmm) {
-                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                        new brgemm_kernel_common_t<avx512_core_amx_fp16,
-                                Xbyak::Tmm>(brg)));
-            } else {
-                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                        new brgemm_kernel_common_t<avx512_core_amx, Xbyak::Tmm>(
-                                brg)));
-            }
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                    *brg_kernel, new brgemm_kernel_common_t<Xbyak::Tmm>(brg)));
         } else if (brg.is_zmm) {
-            // isa specific instantiations are required because
-            // post-ops require template isa param.
-            if (brg.isa_impl == avx512_core_fp16) {
-                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                        new brgemm_kernel_common_t<avx512_core_fp16,
-                                Xbyak::Zmm>(brg)));
-            } else if (brg.isa_impl == avx512_core_bf16) {
-                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                        new brgemm_kernel_common_t<avx512_core_bf16,
-                                Xbyak::Zmm>(brg)));
-            } else if (brg.isa_impl == avx512_core_vnni) {
-                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                        new brgemm_kernel_common_t<avx512_core_vnni,
-                                Xbyak::Zmm>(brg)));
-            } else {
-                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                        new brgemm_kernel_common_t<avx512_core, Xbyak::Zmm>(
-                                brg)));
-            }
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                    *brg_kernel, new brgemm_kernel_common_t<Xbyak::Zmm>(brg)));
         } else if (brg.is_ymm) {
-            if (brg.isa_impl == avx2) {
-                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                        new brgemm_kernel_common_t<avx2, Xbyak::Ymm>(brg)));
-            } else if (brg.isa_impl == avx2_vnni) {
-                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                        new brgemm_kernel_common_t<avx2_vnni, Xbyak::Ymm>(
-                                brg)));
-            } else if (brg.isa_impl == avx2_vnni_2) {
-                CHECK(safe_ptr_assign<brgemm_kernel_t>(*brg_kernel,
-                        new brgemm_kernel_common_t<avx2_vnni_2, Xbyak::Ymm>(
-                                brg)));
-            }
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                    *brg_kernel, new brgemm_kernel_common_t<Xbyak::Ymm>(brg)));
         }
     }
     if (!(*brg_kernel)) return status::unimplemented;

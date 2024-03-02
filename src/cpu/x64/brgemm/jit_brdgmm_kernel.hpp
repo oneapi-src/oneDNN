@@ -33,7 +33,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa, typename Wmm>
+template <typename Wmm>
 struct jit_brdgmm_kernel_base_t : public jit_generator {
     jit_brdgmm_kernel_base_t(const brgemm_t &abrd);
 
@@ -167,10 +167,7 @@ private:
             typename utils::conditional<std::is_same<Wmm, Xbyak::Tmm>::value,
                     Xbyak::Zmm, Wmm>::type;
     using Vmm_low_t = typename vreg_traits<Vmm>::Vmm_lower_t;
-    static constexpr cpu_isa_t po_isa_t = utils::map(isa, avx512_core, avx2,
-            avx2, avx2_vnni, avx2, avx2_vnni_2, avx2_vnni_2, avx512_core_fp16,
-            avx512_core_fp16);
-    using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_t, Vmm>;
+    using po_injector_t = injector::jit_uni_postops_injector_base_t<Vmm>;
     std::unique_ptr<po_injector_t> postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
