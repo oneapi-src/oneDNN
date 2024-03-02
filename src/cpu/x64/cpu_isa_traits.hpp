@@ -138,6 +138,8 @@ enum cpu_isa_t : unsigned {
     isa_all = ~0u & ~cpu_isa_hints_utils::hints_mask,
 };
 
+std::string isa2str(cpu_isa_t isa);
+
 enum class cpu_isa_cmp_t {
     // List of infix comparison relations between two cpu_isa_t
     // where we take isa_1 and isa_2 to be two cpu_isa_t instances.
