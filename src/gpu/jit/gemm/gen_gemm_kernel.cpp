@@ -73,6 +73,14 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     adjustStrategy(hw_, problem_, strategy_);
     modifyStrategy(strategy_, aux_params_);
 
+    // Check for legal 2D quantization group size.
+    if (problem_.aoPtrDims == 2 || problem_.aScale2D)
+        if (problem_.aqGroupK % strategy_.aqGroupKGranularity())
+            return status::unimplemented;
+    if (problem_.boPtrDims == 2 || problem_.bScale2D)
+        if (problem_.bqGroupK % strategy_.bqGroupKGranularity())
+            return status::unimplemented;
+
     if (hw_ == ngen::HW::Xe2) {
         // Temporary hack to use XeHPC register banking on Xe2, in order
         //   to successfully reuse XeHPC strategies.
@@ -231,10 +239,11 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(const post_ops_t &post_ops,
 status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         int stepping, int eu_count, bool has_systolic, compute_mode mode,
         int batch_dims, bool trans_a, bool trans_b, bool trans_co, bool swap_ab,
-        int ao_dims, int bo_dims, bool c_offset, bool bias, sum_ab_t reduce_ab,
-        float alpha, float beta, const post_ops_t &post_ops, data_type_t a_type,
-        data_type_t b_type, data_type_t c_type, data_type_t ao_type,
-        data_type_t bo_type, data_type_t co_type, data_type_t acc_type,
+        int ao_dims, int bo_dims, bool wei_scale_2d, int wei_q2d_group_k,
+        bool c_offset, bool bias, sum_ab_t reduce_ab, float alpha, float beta,
+        const post_ops_t &post_ops, data_type_t a_type, data_type_t b_type,
+        data_type_t c_type, data_type_t ao_type, data_type_t bo_type,
+        data_type_t wei_scales_type, data_type_t co_type, data_type_t acc_type,
         int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
         dim_t lda, dim_t ldb, dim_t ldc, dim_t batch,
         const memory_desc_t &prelu_wei_md) {
@@ -286,9 +295,37 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         problem_.batch = BatchMode::Strided;
         problem_.batchDims = batch_dims;
     }
-    if (ao_dims >= 0 || bo_dims >= 0) problem_.abOffset = ABOffset::Calc;
+    if (ao_dims >= 0) problem_.aOffset = ABOffset::Calc;
+    if (bo_dims >= 0) problem_.bOffset = ABOffset::Calc;
     problem_.aoPtrDims = ao_dims;
     problem_.boPtrDims = bo_dims;
+    problem_.AO.layout = MatrixLayout::N;
+    problem_.BO.layout = MatrixLayout::T;
+    problem_.AO.crosspack = problem_.BO.crosspack = 1;
+    problem_.AO.packSize = problem_.BO.packSize = 0;
+    problem_.A_scale = problem_.AO;
+    problem_.B_scale = problem_.BO;
+    if (ao_type != data_type::undef)
+        problem_.AO.setAlignment(int(types::data_type_size(ao_type)));
+    if (bo_type != data_type::undef)
+        problem_.BO.setAlignment(int(types::data_type_size(bo_type)));
+    if (!swap_ab) {
+        problem_.aScale2D = wei_scale_2d;
+        problem_.aqGroupK = wei_q2d_group_k;
+        if (wei_scales_type != data_type::undef) {
+            problem_.Ta_scale = convert_dnnl_to_kernel_type(wei_scales_type);
+            problem_.A_scale.setAlignment(
+                    int(types::data_type_size(wei_scales_type)));
+        }
+    } else {
+        problem_.bScale2D = wei_scale_2d;
+        problem_.bqGroupK = wei_q2d_group_k;
+        if (wei_scales_type != data_type::undef) {
+            problem_.Tb_scale = convert_dnnl_to_kernel_type(wei_scales_type);
+            problem_.B_scale.setAlignment(
+                    int(types::data_type_size(wei_scales_type)));
+        }
+    }
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
@@ -439,9 +476,14 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
         problem_.batch = BatchMode::Strided;
         problem_.batchDims = batch_dims;
     }
-    if (a_offset || b_offset) problem_.abOffset = ABOffset::Load;
-    if (a_offset) problem_.aoPtrDims = 0;
-    if (b_offset) problem_.boPtrDims = 0;
+    if (a_offset) {
+        problem_.aOffset = ABOffset::Load;
+        problem_.aoPtrDims = 0;
+    }
+    if (b_offset) {
+        problem_.bOffset = ABOffset::Load;
+        problem_.boPtrDims = 0;
+    }
     if (alpha == 1.0f) problem_.alpha = alpha;
     if (beta == 0.0f || beta == 1.0f) problem_.beta = beta;
 
@@ -557,18 +599,18 @@ void gen_gemm_kernel_t::init_interface() {
     interface_.newArgument("k", DataType::d);
     interface_.newArgument("alpha_real", s_type_ngen);
     interface_.newArgument("beta_real", s_type_ngen);
-    if (problem.abOffset != ABOffset::None) {
-        if (problem.aoPtrDims < 0 && problem.boPtrDims < 0)
-            interface_.newArgument("abo", DataType::ud);
-        else {
-            if (problem.aoPtrDims >= 0)
-                interface_.newArgument(
-                        "ao_ptr", ExternalArgumentType::GlobalPtr);
-            if (problem.boPtrDims >= 0)
-                interface_.newArgument(
-                        "bo_ptr", ExternalArgumentType::GlobalPtr);
-        }
-    }
+    if (problem.aoPtrDims >= 0)
+        interface_.newArgument("ao_ptr", ExternalArgumentType::GlobalPtr);
+    if (problem.boPtrDims >= 0)
+        interface_.newArgument("bo_ptr", ExternalArgumentType::GlobalPtr);
+    if (problem.aScale2D)
+        interface_.newArgument("a_scale_ptr", ExternalArgumentType::GlobalPtr);
+    if (problem.bScale2D)
+        interface_.newArgument("b_scale_ptr", ExternalArgumentType::GlobalPtr);
+    if (problem.aoPtrDims == 2 || problem.aScale2D)
+        interface_.newArgument("ldaq", DataType::d);
+    if (problem.boPtrDims == 2 || problem.bScale2D)
+        interface_.newArgument("ldbq", DataType::d);
     if (problem.cOffset != COffset::None || problem.sumA || problem.sumB) {
         interface_.newArgument("CO", ExternalArgumentType::GlobalPtr);
         interface_.newArgument("offset_CO", DataType::d);
@@ -649,12 +691,10 @@ void gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("group_stride", DataType::ud);
     if (strategy.variableSLM())
         interface_.newArgument("local_mem", ExternalArgumentType::LocalPtr);
-    if (problem.abOffset != ABOffset::None) {
-        if (problem.aoPtrDims >= 1)
-            interface_.newArgument("offset_AO", DataType::d);
-        if (problem.boPtrDims >= 1)
-            interface_.newArgument("offset_BO", DataType::d);
-    }
+    if (problem.aoPtrDims >= 1 || problem.aScale2D)
+        interface_.newArgument("offset_Aq", DataType::d);
+    if (problem.boPtrDims >= 1 || problem.bScale2D)
+        interface_.newArgument("offset_Bq", DataType::d);
 
     interface_.externalName(kernel_name());
 }
