@@ -20186,7 +20186,7 @@ void gemm_kernel_generator_t<hw>::gemmScaleInputs(const GEMMProblem &problem,
          Tc_ext = problem.Tc_ext, Tco = problem.Tco;
     auto &inputs = state.inputs;
 
-    auto scale = [&](Type T, Subregister s,
+    auto scale = [&](Type T, Subregister &s,
                          Subregister defaultSrc = Subregister()) {
         if (s.isValid()) {
             if (T.isInt4())
