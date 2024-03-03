@@ -23,7 +23,7 @@
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
-#include "gpu/ocl/reduction_utils.hpp"
+#include "gpu/ocl/reduction/reduction_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 #include "gpu/serialization.hpp"
 
@@ -32,7 +32,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct atomic_reduction_key_params_t {
+struct atomic_reduction_key_params_t
+    : trivially_serializable_t<atomic_reduction_key_params_t> {
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_bundle_t &bundle) const {
         compute::kernel_ctx_t kernel_ctx;
@@ -50,27 +51,14 @@ struct atomic_reduction_key_params_t {
 #if __cplusplus >= 202002L
     bool operator==(const atomic_reduction_key_params_t &) const = default;
 #endif
-    serialized_t serialize() const {
-        assert_trivially_serializable(atomic_reduction_key_params_t);
-        return {*this};
-    }
-
-    static atomic_reduction_key_params_t deserialize(const serialized_t &s) {
-        atomic_reduction_key_params_t t {};
-        deserializer_t d(s);
-        d.pop(t);
-        return t;
-    }
 
     status_t get_kernel_ctx(compute::kernel_ctx_t &) const;
 
     // Basic reduction parameters
-    alg_kind_t alg;
+    reduction_alg_kind_t alg, secondary_alg;
     data_type_t src_type, dst_type;
 
     // Implementation-specific parameters
-    bool is_first, is_final;
-    bool padding[2] = {0};
     int32_t threads_per_eu;
     int32_t subgroup_size;
     int32_t vect_size;
@@ -85,8 +73,9 @@ assert_trivially_serializable(atomic_reduction_key_params_t);
 
 struct atomic_reduction_conf_t : public reduction_subproblem_t {
     atomic_reduction_conf_t(const reduction_subproblem_t &subprb,
-            data_type_t src_type, data_type_t dst_type, bool is_first,
-            bool is_final, const compute::device_info_t &device_info,
+            reduction_alg_kind_t alg, reduction_alg_kind_t secondary_alg,
+            data_type_t src_type, data_type_t dst_type,
+            const compute::device_info_t &device_info,
             gpu_primitive_attr_t *gpu_attr);
     status_t init_dispatcher(const compute::compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr);

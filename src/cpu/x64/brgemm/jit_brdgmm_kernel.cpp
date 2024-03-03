@@ -933,7 +933,7 @@ void jit_brdgmm_kernel_base_t<isa, Wmm>::brdgmm_microkernel(int m_blocks,
         } else if (brg.is_f16) {
             vfmadd231ps(vmm_acc, vmma, vmmb);
         } else if (brg.is_int8) {
-            if (brg.isa_impl == avx2_vnni_2 && brg.dt_a == data_type::s8)
+            if (brg.dt_a == data_type::s8 && isa_has_s8s8(brg.isa_impl))
                 vpdpbssd(vmm_acc, vmma, vmmb);
             else
                 vpdpbusd(vmm_acc, vmma, vmmb,

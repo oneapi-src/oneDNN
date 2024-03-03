@@ -27,9 +27,9 @@
 #include "gpu/compute/kernel_ctx.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/gpu_primitive_attr.hpp"
-#include "gpu/ocl/atomic_reduction.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/reduction_utils.hpp"
+#include "gpu/ocl/reduction/atomic_reduction.hpp"
+#include "gpu/ocl/reduction/reduction_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -92,15 +92,13 @@ compute::dim_id_t outer = 6;
 } // namespace reduction_dims
 
 atomic_reduction_conf_t::atomic_reduction_conf_t(
-        const reduction_subproblem_t &subprb, data_type_t src_type,
-        data_type_t dst_type, bool is_first, bool is_final,
-        const compute::device_info_t &device_info,
+        const reduction_subproblem_t &subprb, reduction_alg_kind_t alg,
+        reduction_alg_kind_t secondary_alg, data_type_t src_type,
+        data_type_t dst_type, const compute::device_info_t &device_info,
         gpu_primitive_attr_t *gpu_attr)
     : reduction_subproblem_t(subprb) {
     conf.src_type = src_type;
     conf.dst_type = dst_type;
-    conf.is_first = is_first;
-    conf.is_final = is_final;
     conf.subgroup_size = device_info.max_subgroup_size();
     auto arch = device_info.gpu_arch();
     const int base_threads_per_eu
@@ -139,6 +137,14 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
     }
     if (conf.local_acc > reduction_block.block) conf.local_acc /= 2;
     conf.local_acc = std::min(conf.local_acc, into<dim_t>(max_sg_per_wg));
+
+    // If using atomic accumulation, mean is performed in separate kernel
+    // XXX: dividing before the final accumulation can lead to lower accuracy
+    if (conf.global_acc > 1 && alg == reduction_alg_kind_t::mean) {
+        alg = secondary_alg = reduction_alg_kind_t::sum;
+    }
+    conf.alg = alg;
+    conf.secondary_alg = secondary_alg;
 
     // Increase vector size to increase block size, without reducing saturation
     bool is_pre_xe_hp = arch < compute::gpu_arch_t::xe_hp;
@@ -360,11 +366,14 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
         const bool is_final = (i == subprbs.size() - 1);
         data_type_t src_dt = is_first ? src_mdw.data_type() : accum_data_type;
         data_type_t dst_dt = is_final ? dst_mdw.data_type() : accum_data_type;
+        reduction_alg_kind_t alg
+                = from_alg(desc()->alg_kind, is_first, is_final);
+        reduction_alg_kind_t secondary_alg
+                = from_alg(desc()->alg_kind, false, is_final);
 
-        phases.emplace_back(subprbs[i], src_dt, dst_dt, is_first, is_final,
+        phases.emplace_back(subprbs[i], alg, secondary_alg, src_dt, dst_dt,
                 *compute_engine->device_info(), gpu_attr);
         atomic_reduction_conf_t &phase = phases.back();
-        phase.conf.alg = desc()->alg_kind;
         if (phase.inner_block.block % phase.conf.subgroup_size != 0) {
             return status::unimplemented;
         }
@@ -380,8 +389,9 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
             // f32 sum/mean (initialized to 0) and f32 min (initialized to inf)
             // are supported. Better filling logic could enable f16 atomic operations.
             ok = ok && phase.conf.dst_type == data_type::f32
-                    && utils::one_of(phase.conf.alg, reduction_mean,
-                            reduction_sum, reduction_min);
+                    && utils::one_of(phase.conf.alg, reduction_alg_kind_t::mean,
+                            reduction_alg_kind_t::sum,
+                            reduction_alg_kind_t::min);
             if (!ok) return status::unimplemented;
         }
     }
@@ -437,6 +447,8 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     using namespace alg_kind;
 
     kernel_ctx.set_data_type(conf.src_type);
+    def_data_type(kernel_ctx, conf.src_type, "SRC");
+    def_data_type(kernel_ctx, conf.dst_type, "DST");
 
     conf.params.def_kernel_macros(kernel_ctx);
 
@@ -451,34 +463,12 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     // To use atomic_global_add
     kernel_ctx.add_option("-cl-std=CL2.0");
 
-    kernel_ctx.define_int("IS_FINAL", conf.is_final);
-    kernel_ctx.define_int("IS_FIRST", conf.is_first);
-
     kernel_ctx.define_int("VECT_DT_N", conf.vect_size);
 
-    switch (conf.alg) {
-        case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
-        case reduction_min: kernel_ctx.define_int("IS_MIN", 1); break;
-        case reduction_mean: kernel_ctx.define_int("IS_MEAN", 1); break;
-        case reduction_sum: kernel_ctx.define_int("IS_SUM", 1); break;
-        case reduction_mul: kernel_ctx.define_int("IS_MUL", 1); break;
-        case reduction_norm_lp_max:
-            kernel_ctx.define_int("IS_LP_MAX", 1);
-            break;
-        case reduction_norm_lp_sum:
-            kernel_ctx.define_int("IS_LP_SUM", 1);
-            break;
-        case reduction_norm_lp_power_p_max:
-            kernel_ctx.define_int("IS_P_MAX", 1);
-            break;
-        case reduction_norm_lp_power_p_sum:
-            kernel_ctx.define_int("IS_P_SUM", 1);
-            break;
-        default: gpu_assert(false); // unexpected
-    }
-
-    def_data_type(kernel_ctx, conf.src_type, "SRC");
-    def_data_type(kernel_ctx, conf.dst_type, "DST");
+    def_reduction_alg_kinds(kernel_ctx);
+    kernel_ctx.define_int("REDUCTION_ALG", to_int(conf.alg));
+    kernel_ctx.define_int(
+            "SECONDARY_REDUCTION_ALG", to_int(conf.secondary_alg));
 }
 
 status_t atomic_reduction_key_params_t::get_kernel_ctx(
@@ -521,7 +511,7 @@ status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
         if (phase.conf.global_acc > 1) {
             // min -> fill with inf (11111111), otherwise sum/mean fill with 0
             uint8_t pattern
-                    = phase.conf.alg == alg_kind::reduction_min ? 255 : 0;
+                    = phase.conf.alg == reduction_alg_kind_t::min ? 255 : 0;
             const size_t dst_data_size
                     = types::data_type_size(phase.conf.dst_type);
             const size_t num_dst_elems = into<size_t>(

@@ -1748,7 +1748,7 @@ void jit_brgemm_kernel_t<isa, Wmm>::dot_product(Vmm v1, Vmm v2, Vmm v3) {
     else if (brg.is_bf16)
         vdpbf16ps(v1, v2, v3);
     else if (brg.is_int8) {
-        if (brg.isa_impl == avx2_vnni_2 && brg.dt_a == data_type::s8)
+        if (brg.dt_a == data_type::s8 && isa_has_s8s8(brg.isa_impl))
             vpdpbssd(v1, v3, v2);
         else if (brg.has_int8_vnni)
             vpdpbusd(v1, v3, v2,

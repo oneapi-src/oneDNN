@@ -56,7 +56,7 @@ template <typename Vmm>
 _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::_jit_avx512_core_x8s8s32x_fwd_kernel(
         const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(jit_name())
+    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, ajcp.isa)
     , jcp(ajcp)
     , attr_(attr)
     , postops_injector_(nullptr) {
@@ -1428,8 +1428,16 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
     // Used for bfloat16 output
-    jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
-                                        : bf16_emulation_t::get_isa();
+    jcp.isa = mayiuse(avx512_core_vnni) ? avx512_core_vnni : avx512_core;
+    if (dst_d.data_type() == bf16) {
+        if (mayiuse(avx512_core_bf16)) {
+            jcp.isa = avx512_core_bf16;
+        } else {
+            const auto bf16_emulation_isa = bf16_emulation_t::get_isa();
+            if (!is_superset(jcp.isa, bf16_emulation_isa))
+                return status::unimplemented;
+        }
+    }
 
     if (jcp.is_depthwise && is_3d)
         // NOTE: 3D depthwise is not currently supported here.

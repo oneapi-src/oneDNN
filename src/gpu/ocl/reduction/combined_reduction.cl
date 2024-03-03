@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,68 +16,7 @@
 
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
-
-// Initialize for different algorithms
-#if defined(IS_MAX)
-#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_MIN)
-#elif defined(IS_MIN)
-#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_MAX)
-#elif defined(IS_MUL)
-#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_ONE)
-#else
-#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_ZERO)
-#endif
-
-// Integer data types have different max/min functions
-#if defined(SRC_DT_S8) || defined(SRC_DT_U8) || defined(SRC_DT_S32)
-#define MAX_FUNC max
-#define MIN_FUNC min
-#else
-#define MAX_FUNC fmax
-#define MIN_FUNC fmin
-#endif
-
-// Define accumulation functions
-#if defined(IS_MAX)
-#define ACCUMULATE_INITIAL(x, y) MAX_FUNC(x, y)
-#elif defined(IS_MIN)
-#define ACCUMULATE_INITIAL(x, y) MIN_FUNC(x, y)
-#elif defined(IS_MEAN) || defined(IS_SUM)
-#define ACCUMULATE_INITIAL(x, y) (x + y)
-#elif defined(IS_MUL)
-#define ACCUMULATE_INITIAL(x, y) (x * y)
-#else
-#define ACCUMULATE_INITIAL(x, y) (x + pow(fabs(y), POWER))
-#endif
-
-// Define secondary accumulation functions
-#if defined(IS_MAX) || defined(IS_MIN) || defined(IS_MEAN) || defined(IS_MUL)
-#define ACCUMULATE_FURTHER ACCUMULATE_INITIAL
-#else
-#define ACCUMULATE_FURTHER(x, y) (x + y)
-#endif
-
-// Define which accumulate function we use
-#if IS_FIRST
-#define ACCUMULATE ACCUMULATE_INITIAL
-#else
-#define ACCUMULATE ACCUMULATE_FURTHER
-#endif
-
-// Finalize reduction at the end of the kernel
-#if defined(IS_MEAN)
-#define FINALIZE(x) (x / DIV)
-#elif defined(IS_LP_MAX)
-#define FINALIZE(x) rootn(fmax(x, EPS), POWER)
-#elif defined(IS_LP_SUM)
-#define FINALIZE(x) rootn(x + EPS, POWER)
-#elif defined(IS_P_MAX)
-#define FINALIZE(x) fmax(x, EPS)
-#elif defined(IS_P_SUM)
-#define FINALIZE(x) (x + EPS)
-#else
-#define FINALIZE(x) (x)
-#endif
+#include "gpu/ocl/reduction/ocl_reduction.h"
 
 #define BLOCK_READ_DATA_T(data_ptr) \
     AS_VECT_DATA_T(VECT_BLOCK_READ((const __global BLOCK_DATA_T *)data_ptr))
@@ -167,6 +106,12 @@ dim_t dst_off_w_zero_padding(dim_t outer, dim_t inner) {
             *DST_Z1_SIZE1
 #endif
 
+#if VECT_DT_N == 1
+#define GET_ELEM(vect, idx) vect
+#else
+#define GET_ELEM(vect, idx) vect[idx]
+#endif
+
 // If reducing or not using vectorization, we can't access with an index
 #if !REDUCE_VECTOR && VECT_DT_N > 1
 #define GET_FINAL(x, idx) x[idx]
@@ -206,7 +151,8 @@ combined_reduce(
             || sglid >= INNER_DIM_SIZE * inner_dims_per_sg)
         return;
 
-    VECT_DEF_ACC_DATA_T acc = INIT_ACC;
+    VECT_DEF_ACC_DATA_T acc;
+    init_acc(REDUCTION_ALG, &acc);
     const int loop_stride = _SRC_OFF(
             0, inner_dims_per_sg * (REDUCE_VECTOR ? VECT_DT_N : 1), 0);
     int src_off = _SRC_OFF(outer_idx, WITH_BLOCK_READ ? 0 : red_off,
@@ -218,14 +164,18 @@ combined_reduce(
         const VECT_DATA_T src_val = READ_DATA(src[src_off]);
 
         // Accumulate
-        acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
+        unroll_for(int i = 0; i < VECT_DT_N; i++) GET_ELEM(acc, i)
+                = reduce(REDUCTION_ALG, GET_ELEM(acc, i),
+                        GET_ELEM(AS_VECT_DEF_ACC_DATA_T(src_val), i), POWER);
     }
     if (red_off < tail_reductions) {
         // Load
         const VECT_DATA_T src_val = READ_DATA(src[src_off]);
 
         // Accumulate
-        acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
+        unroll_for(int i = 0; i < VECT_DT_N; i++) GET_ELEM(acc, i)
+                = reduce(REDUCTION_ALG, GET_ELEM(acc, i),
+                        GET_ELEM(AS_VECT_DEF_ACC_DATA_T(src_val), i), POWER);
     }
 
     // Potentially accumulate within the subgroup too
@@ -235,16 +185,22 @@ combined_reduce(
     local_acc[local_idx] = acc;
     if (sglid < INNER_DIM_SIZE) {
         unroll_for(int i = 1; i < inner_dims_per_sg; i++) {
-            acc = ACCUMULATE_FURTHER(
-                    acc, local_acc[local_idx + i * INNER_DIM_SIZE]);
+            unroll_for(int v = 0; v < VECT_DT_N; v++) {
+                GET_ELEM(acc, v) = reduce(SECONDARY_REDUCTION_ALG,
+                        GET_ELEM(acc, v),
+                        GET_ELEM(local_acc[local_idx + i * INNER_DIM_SIZE], v),
+                        POWER);
+            }
         }
     }
 
     if (sglid < INNER_DIM_SIZE) {
 #if REDUCE_VECTOR
-        DEF_ACC_DATA_T final_acc = {INIT_ACC};
+        DEF_ACC_DATA_T final_acc;
+        init_acc(SECONDARY_REDUCTION_ALG, &final_acc);
         for (int i = 0; i < VECT_DT_N; i++) {
-            final_acc = ACCUMULATE_FURTHER(acc[i], final_acc);
+            final_acc
+                    = reduce(SECONDARY_REDUCTION_ALG, acc[i], final_acc, POWER);
         }
 #else
         // Just rename the variable to match the REDUCE_VECTOR case
@@ -260,7 +216,8 @@ combined_reduce(
                     = _DST_OFF(outer_idx, inner_idx + i * SUBGROUP_SIZE);
             // finalize the result
 #if IS_FINAL
-            float res = FINALIZE(convert_float(GET_FINAL(final_acc, i)));
+            float res = finalize(REDUCTION_ALG,
+                    convert_float(GET_FINAL(final_acc, i)), DIV, POWER, EPS);
 
             // Apply post-ops
 #if WITH_POST_OP

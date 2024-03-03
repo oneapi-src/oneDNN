@@ -19,7 +19,7 @@
 #include "common/primitive_exec_types.hpp"
 
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/ref_reduction.hpp"
+#include "gpu/ocl/reduction/ref_reduction.hpp"
 
 namespace dnnl {
 namespace impl {

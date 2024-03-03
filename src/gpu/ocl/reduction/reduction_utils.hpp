@@ -23,11 +23,105 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/block_structure.hpp"
+#include "gpu/compute/kernel_ctx.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+// Same as reduction portions of alg_kind_t, plus:
+// lp_norm_power_p:
+//     dst = sum(|src|^p)
+// pth_root_max:
+//     dst = root(max(sum(src), eps), p)
+// pth_root_sum:
+//     dst = root(sum(src) + eps, p)
+// final_max:
+//     dst = max(sum(src), eps)
+// final_sum:
+//     dst = sum(src) + eps
+enum class reduction_alg_kind_t {
+    undef = alg_kind::undef,
+    max = alg_kind::reduction_max,
+    min = alg_kind::reduction_min,
+    sum = alg_kind::reduction_sum,
+    mul = alg_kind::reduction_mul,
+    mean = alg_kind::reduction_mean,
+    lp_norm_max = alg_kind::reduction_norm_lp_max,
+    lp_norm_sum = alg_kind::reduction_norm_lp_sum,
+    lp_norm_power_p_max = alg_kind::reduction_norm_lp_power_p_max,
+    lp_norm_power_p_sum = alg_kind::reduction_norm_lp_power_p_sum,
+    // Extra algs
+    lp_norm_power_p,
+    pth_root_max,
+    pth_root_sum,
+    final_max,
+    final_sum,
+};
+
+// Convert from the basic alg_kind_t to the expanded reduction_alg_kind_t. Since
+// we break reduction problems into phases, this assigns a unique alg to any
+// phase. e.g. mean -> sum, sum, sum, ..., mean (with the full div)
+inline reduction_alg_kind_t from_alg(alg_kind_t alg, bool first, bool final) {
+    using namespace alg_kind;
+    switch (alg) {
+        case (reduction_max): return reduction_alg_kind_t::max;
+        case (reduction_min): return reduction_alg_kind_t::min;
+        case (reduction_sum): return reduction_alg_kind_t::sum;
+        case (reduction_mul): return reduction_alg_kind_t::mul;
+        case (reduction_mean):
+            return final ? reduction_alg_kind_t::mean
+                         : reduction_alg_kind_t::sum;
+        case (reduction_norm_lp_max):
+            return first && final     ? reduction_alg_kind_t::lp_norm_max
+                    : first && !final ? reduction_alg_kind_t::lp_norm_power_p
+                    : !first && final ? reduction_alg_kind_t::pth_root_max
+                                      : reduction_alg_kind_t::sum;
+        case (reduction_norm_lp_sum):
+            return first && final     ? reduction_alg_kind_t::lp_norm_sum
+                    : first && !final ? reduction_alg_kind_t::lp_norm_power_p
+                    : !first && final ? reduction_alg_kind_t::pth_root_sum
+                                      : reduction_alg_kind_t::sum;
+        case (reduction_norm_lp_power_p_max):
+            return first && final ? reduction_alg_kind_t::lp_norm_power_p_max
+                    : first && !final ? reduction_alg_kind_t::lp_norm_power_p
+                    : !first && final ? reduction_alg_kind_t::final_max
+                                      : reduction_alg_kind_t::sum;
+        case (reduction_norm_lp_power_p_sum):
+            return first && final ? reduction_alg_kind_t::lp_norm_power_p_sum
+                    : first && !final ? reduction_alg_kind_t::lp_norm_power_p
+                    : !first && final ? reduction_alg_kind_t::final_sum
+                                      : reduction_alg_kind_t::sum;
+        default: gpu_assert(false) << "Unexpected alg";
+    }
+    return reduction_alg_kind_t::undef;
+}
+
+inline int to_int(reduction_alg_kind_t alg) {
+    return static_cast<int>(alg);
+}
+
+inline void def_reduction_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
+#define CASE(alg, str) \
+    kernel_ctx.define_int("REDUCTION_" str, to_int(reduction_alg_kind_t::alg));
+    CASE(max, "MAX");
+    CASE(min, "MIN");
+    CASE(sum, "SUM");
+    CASE(mul, "MUL");
+    CASE(mean, "MEAN");
+    CASE(lp_norm_max, "LP_NORM_MAX");
+    CASE(lp_norm_sum, "LP_NORM_SUM");
+    CASE(lp_norm_power_p_max, "LP_NORM_POWER_P_MAX");
+    CASE(lp_norm_power_p_sum, "LP_NORM_POWER_P_SUM");
+    CASE(lp_norm_power_p, "LP_NORM_POWER_P");
+    CASE(pth_root_max, "PTH_ROOT_MAX");
+    CASE(pth_root_sum, "PTH_ROOT_SUM");
+    CASE(final_max, "FINAL_MAX");
+    CASE(final_sum, "FINAL_SUM");
+#undef CASE
+}
 
 // Zero padding splits one block into two, filling with
 // zeros. This is a kind of reorder that can be used

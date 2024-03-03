@@ -16,82 +16,33 @@
 
 #include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/ocl_types.h"
+#include "gpu/ocl/reduction/ocl_reduction.h"
 #include "gpu/ocl/types_interop.h"
 
-// Initialize for different algorithms
 #if defined(IS_MAX)
-#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_MIN)
+#define ATOMIC_ACCUMULATE(atomic_p, data) atomic_max_global(atomic_p, data)
 #elif defined(IS_MIN)
-#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_MAX)
-#elif defined(IS_MUL)
-#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_ONE)
-#else
-#define INIT_ACC TO_DEF_ACC_DATA_T(DATA_ZERO)
-#endif
-
-// Integer data types have different max/min functions
-#if defined(SRC_DT_S8) || defined(SRC_DT_U8) || defined(SRC_DT_S32)
-#define MAX_FUNC max
-#define MIN_FUNC min
-#else
-#define MAX_FUNC fmax
-#define MIN_FUNC fmin
+#define ATOMIC_ACCUMULATE(atomic_p, data) atomic_min_global(atomic_p, data)
+#elif defined(IS_MEAN) || defined(IS_SUM)
+#define ATOMIC_ACCUMULATE(atomic_p, data) atomic_add_global(atomic_p, data)
 #endif
 
 // Define accumulation functions
-#if defined(IS_MAX)
-#define ACCUMULATE_INITIAL(x, y) MAX_FUNC(x, y)
-#define ATOMIC_ACCUMULATE(atomic_p, data) atomic_max_global(atomic_p, data)
-#elif defined(IS_MIN)
-#define ACCUMULATE_INITIAL(x, y) MIN_FUNC(x, y)
-#define ATOMIC_ACCUMULATE(atomic_p, data) atomic_min_global(atomic_p, data)
-#elif defined(IS_MEAN) || defined(IS_SUM)
-#define ACCUMULATE_INITIAL(x, y) (x + y)
-#define ATOMIC_ACCUMULATE(atomic_p, data) atomic_add_global(atomic_p, data)
-#elif defined(IS_MUL)
-#define ACCUMULATE_INITIAL(x, y) (x * y)
-#else
-#define ACCUMULATE_INITIAL(x, y) (x + pow(fabs(y), power))
-#endif
-
-// Define secondary accumulation functions
-#if defined(IS_MAX) || defined(IS_MIN) || defined(IS_MEAN) || defined(IS_MUL)
-#define ACCUMULATE_FURTHER ACCUMULATE_INITIAL
-#else
-#define ACCUMULATE_FURTHER(x, y) (x + y)
-#endif
-
-// Define which accumulate function we use
-#if IS_FIRST
-#define ACCUMULATE ACCUMULATE_INITIAL
-#else
-#define ACCUMULATE ACCUMULATE_FURTHER
-#endif
-
-// Finalize reduction at the end of the kernel
-#if defined(IS_MEAN)
-#define FINALIZE(x) (x / div)
-#elif defined(IS_LP_MAX)
-#define FINALIZE(x) rootn(fmax(x, eps), power)
-#elif defined(IS_LP_SUM)
-#define FINALIZE(x) rootn(x + eps, power)
-#elif defined(IS_P_MAX)
-#define FINALIZE(x) fmax(x, eps)
-#elif defined(IS_P_SUM)
-#define FINALIZE(x) (x + eps)
-#else
-#define FINALIZE(x) (x)
-#endif
-
-// Finalize only applies in the final stage, and atomic accumulation
-// is finalized in a separate eltwise kernel
-#if (!IS_FINAL) || (ATOMIC_REDUCTION_SIZE > 1)
-#undef FINALIZE
-#define FINALIZE(x) (x)
-#endif
+#define DEF_atomic_accumulate(dt) \
+    dt atomic_accumulate(int alg, __global ATOMIC(dt) * atomic_p, dt data) { \
+        switch (alg) { \
+            case (REDUCTION_MAX): return atomic_max_global(atomic_p, data); \
+            case (REDUCTION_MIN): return atomic_min_global(atomic_p, data); \
+            case (REDUCTION_MEAN): \
+            case (REDUCTION_SUM): return atomic_add_global(atomic_p, data); \
+        } \
+        printf("Atomic accumulate on unexpected algorithm\n"); \
+        return 0; \
+    }
 
 #if ATOMIC_REDUCTION_SIZE > 1
 #define ATOMIC(x) CONCAT2(atomic_, x)
+DEF_atomic_accumulate(float);
 #else
 #define ATOMIC(x) x
 #endif
@@ -101,7 +52,7 @@
     AS_VECT_DATA_T(VECT_BLOCK_READ((const __global BLOCK_DATA_T *)data_ptr))
 
 #if VECT_DT_N == 1
-#define GET_ELEM(x, idx) (x)
+#define GET_ELEM(x, idx) x
 #else
 #define GET_ELEM(x, idx) x[idx]
 #endif
@@ -155,7 +106,8 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
     const int beg = local_idx + atomic_idx * LOCAL_SIZE;
     ASSUME(beg < REDUCTION_WI_COUNT);
     const int tail_count = num_reductions % REDUCTION_WI_COUNT;
-    VECT_DEF_ACC_DATA_T acc = INIT_ACC;
+    VECT_DEF_ACC_DATA_T acc;
+    init_acc(REDUCTION_ALG, &acc);
     // XXX: To match static kernel performance, both regular and tail cases
     // need optimized unrolling. We first detect which case we're in, and dispatch
     // to the appropriately-unrolled loop.
@@ -164,13 +116,19 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
         unroll_for_by(FULL_UNROLL_FACTOR)(off_t i = 0; i < iters; i++) {
             const off_t src_off = (beg + i * REDUCTION_WI_COUNT) * inner_size;
             const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
-            acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
+            unroll_for(uint i = 0; i < VECT_DT_N; i++) {
+                GET_ELEM(acc, i) = reduce(REDUCTION_ALG, GET_ELEM(acc, i),
+                        TO_DEF_ACC_DATA_T(GET_ELEM(src_val, i)), power);
+            }
         }
     } else {
         unroll_for_by(TAIL_UNROLL_FACTOR)(off_t i = 0; i < iters; i++) {
             const off_t src_off = (beg + i * REDUCTION_WI_COUNT) * inner_size;
             const VECT_DATA_T src_val = BLOCK_READ_DATA_T(&src[src_off]);
-            acc = ACCUMULATE(acc, AS_VECT_DEF_ACC_DATA_T(src_val));
+            unroll_for(uint i = 0; i < VECT_DT_N; i++) {
+                GET_ELEM(acc, i) = reduce(REDUCTION_ALG, GET_ELEM(acc, i),
+                        TO_DEF_ACC_DATA_T(GET_ELEM(src_val, i)), power);
+            }
         }
     }
 
@@ -187,25 +145,38 @@ __kernel void atomic_reduce(__global SRC_DATA_T *src,
     // In the first subgroup of each work group:
     if (local_idx == 0) {
         // Perform the SLM reduction
-        VECT_DEF_ACC_DATA_T local_acc = INIT_ACC;
+        VECT_DEF_ACC_DATA_T local_acc;
+        init_acc(SECONDARY_REDUCTION_ALG, &local_acc);
 
         unroll_for(int slm_off = 0; slm_off < LOCAL_SIZE; slm_off++) {
             unroll_for(int v = 0; v < VECT_DT_N; v++) {
                 DEF_ACC_DATA_T slm_data
                         = local_acc_buf[slm_off][sglid + v * subgroup_size];
-                GET_ELEM(local_acc, v)
-                        = ACCUMULATE_FURTHER(GET_ELEM(local_acc, v), slm_data);
+                GET_ELEM(local_acc, v) = reduce(SECONDARY_REDUCTION_ALG,
+                        GET_ELEM(local_acc, v), slm_data, power);
             }
         }
 
         // Finalize data, then (atomically) accumulate into to dst
-        VECT_DST_DATA_T vect_dst_data
-                = TO_VECT_DST(FINALIZE(VECT_DEF_ACC_TO_FLOAT(local_acc)));
+        // XXX: There's a bug in the compiler that makes the following code break when
+        // VECT_DT_N = 1. Instead, here's a workaround:
+#if VECT_DT_N == 1
+        float f = finalize(REDUCTION_ALG, convert_float(GET_ELEM(local_acc, i)),
+                div, power, eps);
+        DST_DATA_T vect_dst_data = TO_DST(f);
+#else
+        VECT_DST_DATA_T vect_dst_data;
+        unroll_for(uint i = 0; i < VECT_DT_N; i++) {
+            float f = finalize(REDUCTION_ALG,
+                    convert_float(GET_ELEM(local_acc, i)), div, power, eps);
+            GET_ELEM(vect_dst_data, i) = TO_DST(f);
+        }
+#endif
         unroll_for(int v = 0; v < VECT_DT_N; v++) {
             DST_DATA_T dst_data = GET_ELEM(vect_dst_data, v);
 #if ATOMIC_REDUCTION_SIZE > 1
-            DST_DATA_T old_val
-                    = ATOMIC_ACCUMULATE(&dst[v * subgroup_size], dst_data);
+            DST_DATA_T old_val = atomic_accumulate(
+                    REDUCTION_ALG, &dst[v * subgroup_size], dst_data);
 #else
             dst[v * subgroup_size] = dst_data;
 #endif

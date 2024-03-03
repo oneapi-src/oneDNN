@@ -4,6 +4,7 @@ A few flags can be set at runtime (dev mode only) to affect the compilation of O
 
 - enable_ocl_werror (values: 0/1): Set to 1 to add the `-Werror` flag to kernel compilations.
 - enable_check_assumptions (values: 0/1): Set to 1 to convert compiler assumptions (using the `ASSUME` macro) into runtime checks to confirm their validity.
+- ocl_debug (values: 0/1): Set to 1 to enable debug prints
 
 ## Debuginfo verbosity levels
 

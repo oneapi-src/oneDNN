@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,7 +81,8 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 
     float tmp[NVECT];
     unroll_for(unsigned idx = 0; idx < NVECT; ++idx) {
-        tmp[idx] = get_eltwise_op(tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
+        tmp[idx] = binary_op(
+                BINARY_ALG, tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
     }
 
     float dst_data[NVECT];
@@ -202,7 +203,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #if WITH_SRC1_SCALE
             tmp_src1 = tmp_src1 * src1_scale[0];
 #endif
-            res = get_eltwise_op(tmp_src0, tmp_src1);
+            res = binary_op(BINARY_ALG, tmp_src0, tmp_src1);
 
             APPLY_POST_OPS_SERIAL(res, float, dst_data, float, d0 + d0_i, 1,
                     d1 + d1_i, 1, d2, 1, d3 + sglid, 1, d4, 1, d5, 1);
@@ -268,7 +269,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #if WITH_SRC1_SCALE
             tmp_src1 = tmp_src1 * src1_scale[0];
 #endif
-            d = get_eltwise_op(tmp_src0, tmp_src1);
+            d = binary_op(BINARY_ALG, tmp_src0, tmp_src1);
 #if WITH_SUM
             dst_data = CONVERT_FLOAT8_T(DST_BLOCK_READ8(&t_dst[0]));
 #endif
@@ -365,7 +366,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     tmp_src1 = tmp_src1 * src1_scale[0];
 #endif
 
-    d = get_eltwise_op(tmp_src0, tmp_src1);
+    d = binary_op(BINARY_ALG, tmp_src0, tmp_src1);
 
 #if WITH_SUM
 #if NVECT == 1
@@ -460,7 +461,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         tmp_src1 = tmp_src1 * src1_scale[0];
 #endif
 
-        d = get_eltwise_op(tmp_src0, tmp_src1);
+        d = binary_op(BINARY_ALG, tmp_src0, tmp_src1);
 
 #if WITH_SUM
         dst_data = CONVERT_FLOAT_T(
