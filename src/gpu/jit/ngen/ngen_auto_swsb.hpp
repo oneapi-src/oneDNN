@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 #include <list>
 #include <map>
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 namespace autoswsb {
 
 /*******************/
@@ -1253,14 +1253,15 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
 
             if (insn.opcode() == Opcode::directive) {
                 switch (getDirective(insn)) {
-                    case Directive::wrdep:
-                        regions[1].hw = hw;
-                        insn.getOperandRegion(regions[1], 0);
-                        break;
                     case Directive::ignoredep_dst:  ignoreDeps[0] = true; break;
                     case Directive::ignoredep_src0: ignoreDeps[1] = true; break;
                     case Directive::ignoredep_src1: ignoreDeps[2] = true; break;
                     case Directive::ignoredep_src2: ignoreDeps[3] = true; break;
+                    case Directive::wrdep:
+                        regions[1].hw = hw;
+                        insn.getOperandRegion(regions[1], 0);
+                        break;
+                    case Directive::fencedep: break;
                 }
                 continue;
             }
@@ -1477,6 +1478,8 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
     const bool final = (phase == 2);
     const bool computeSWSB = (phase > 0);
     bool forceA1 = false;
+    uint32_t forceTokenMaskDstNext = 0;
+    bool forcePhase2Next = false;
     int inumChain = -1;
     uint32_t chainTokenMaskSrc = 0, chainTokenMaskDst = 0, chainTokenMaskDstX = 0;
     Dependency<true> chainGenerated;
@@ -1555,12 +1558,23 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
         if (insn.opcode() == Opcode::illegal)
             continue;
 
-        // Process auto-SWSB directives. Only wrdep needs handling here.
+        // Process auto-SWSB directives. Only wrdep/fencedep need handling here.
         if (insn.opcode() == Opcode::directive) {
-            if (getDirective(insn) == Directive::wrdep) {
-                auto &region = bb.getOperandRegion(inum, 0);
-                if (!region.empty())
-                    depOperands.push_back(std::make_pair(false, &region));
+            switch (getDirective(insn)) {
+                case Directive::wrdep: {
+                    auto &region = bb.getOperandRegion(inum, 0);
+                    if (!region.empty())
+                        depOperands.push_back(std::make_pair(false, &region));
+                    break;
+                }
+                case Directive::fencedep: {
+                    auto swsbDep = program[inum + insn.getFencedepJIP()].swsb();
+                    if (swsbDep.hasTokenSet())
+                        forceTokenMaskDstNext |= (1u << swsbDep.getToken());
+                    else
+                        forcePhase2Next = true;
+                }
+                default: break;
             }
             continue;
         }
@@ -1635,6 +1649,8 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
                 tokenMaskDstX = chainTokenMaskDstX;
                 generated = chainGenerated;
             }
+
+            tokenMaskDst |= forceTokenMaskDstNext;
 
             // Jumps with unknown destination: preconsume all dependencies.
             if (inum == (bb.iend - 1)) {
@@ -1734,7 +1750,7 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
             // Always wait until phase 2 to assign SWSB to {Atomic} chains --
             //   it's not known if all dependencies for the chain have been found until the end.
             // Also delay predicated token instructions, to ensure we know all SBIDs.
-            if (inumChain >= 0 || insn.atomic() || (tokenInsn && insn.predicated()))
+            if (inumChain >= 0 || insn.atomic() || (tokenInsn && insn.predicated()) || forcePhase2Next)
                 foundAllDeps = false;
 
             // If token missing on OOO instruction, assign one during phase 1.
@@ -1786,6 +1802,9 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
                 //   In this case, add sync on our token as a precaution, if the token might be in use.
                 // For {Atomic} chains, do the same, but for a different reason -- it's possible
                 //   our token may be in use and we must clear it prior to entering the chain.
+                // In all other cases, remove dependencies on our own token.
+                if (tokenAssigned && inumChain < 0)
+                    tokenMaskDst &= ~(1 << tokenInfo.token);
                 if (tokenAssigned && (insn.predicated() || inumChain >= 0) && tokenMayBeActive)
                     tokenMaskDst |= (1 << tokenInfo.token);
 
@@ -1917,6 +1936,9 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
                 }
             }
         }
+
+        forceTokenMaskDstNext = 0;
+        forcePhase2Next = false;
 
         // First pass: record pipeline SWSB dependencies for later entry into consumer table.
         recordIOPreconsumes(generated);
@@ -2289,7 +2311,7 @@ inline BasicBlockList autoSWSB(HW hw, int grfCount, Program &program)
 }
 
 } /* namespace autoswsb */
-} /* namespace ngen */
+} /* namespace NGEN_NAMESPACE */
 
 // Instruction interface:
 // 	SWSBInfo swsb() const;

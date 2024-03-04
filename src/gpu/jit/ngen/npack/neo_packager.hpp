@@ -25,7 +25,7 @@
 #include "hash.hpp"
 #include "../ngen_utils.hpp"
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 namespace npack {
 
 class bad_elf : public std::runtime_error {
@@ -200,19 +200,38 @@ inline GfxCoreFamily encodeGfxCoreFamily(HW hw)
     }
 }
 
-inline ngen::ProductFamily decodeProductFamily(ProductFamily family)
+inline NGEN_NAMESPACE::ProductFamily decodeProductFamily(ProductFamily family)
 {
-    if (family >= ProductFamily::SKL && family < ProductFamily::CNL) return ngen::ProductFamily::GenericGen9;
-    if (family >= ProductFamily::CNL && family < ProductFamily::ICL) return ngen::ProductFamily::GenericGen10;
-    if (family >= ProductFamily::ICL && family < ProductFamily::TGLLP) return ngen::ProductFamily::GenericGen11;
-    if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return ngen::ProductFamily::GenericGen12LP;
-    if (family == ProductFamily::XE_HP_SDV) return ngen::ProductFamily::GenericXeHP;
-    if (family == ProductFamily::DG2) return ngen::ProductFamily::DG2;
-    if (family == ProductFamily::MTL) return ngen::ProductFamily::MTL;
-    if (family == ProductFamily::PVC) return ngen::ProductFamily::PVC;
-    if (family == ProductFamily::ARL) return ngen::ProductFamily::ARL;
-    if (family >= ProductFamily::LNL && family <= ProductFamily::LNL_M) return ngen::ProductFamily::GenericXe2;
-    return ngen::ProductFamily::Unknown;
+    if (family >= ProductFamily::SKL && family < ProductFamily::CNL) return NGEN_NAMESPACE::ProductFamily::GenericGen9;
+    if (family >= ProductFamily::CNL && family < ProductFamily::ICL) return NGEN_NAMESPACE::ProductFamily::GenericGen10;
+    if (family >= ProductFamily::ICL && family < ProductFamily::TGLLP) return NGEN_NAMESPACE::ProductFamily::GenericGen11;
+    if (family >= ProductFamily::TGLLP && family <= ProductFamily::DG1) return NGEN_NAMESPACE::ProductFamily::GenericGen12LP;
+    if (family == ProductFamily::XE_HP_SDV) return NGEN_NAMESPACE::ProductFamily::GenericXeHP;
+    if (family == ProductFamily::DG2) return NGEN_NAMESPACE::ProductFamily::DG2;
+    if (family == ProductFamily::MTL) return NGEN_NAMESPACE::ProductFamily::MTL;
+    if (family == ProductFamily::PVC) return NGEN_NAMESPACE::ProductFamily::PVC;
+    if (family == ProductFamily::ARL) return NGEN_NAMESPACE::ProductFamily::ARL;
+    if (family >= ProductFamily::LNL && family <= ProductFamily::LNL_M) return NGEN_NAMESPACE::ProductFamily::GenericXe2;
+    return NGEN_NAMESPACE::ProductFamily::Unknown;
+}
+
+inline bool hasGatewayEOTSend(const std::vector<uint8_t> &binary)
+{
+    using b16 = std::array<uint8_t, 16>;
+    b16 gtwyEOT = {0x31, 0,    0, 0x80, 0x04,    0,    0,    0, 0x0C, 0, 0x20, 0x30,    0,    0,    0,    0};
+    b16 mask    = {0xFF, 0, 0xFC, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    b16 temp;
+
+    for (size_t i = 0; i < binary.size() - 0x10; i++) {
+        if (binary[i] == 0x31) {
+            for (int j = 0; j < 0x10; j++)
+                temp[j] = binary[i + j] & mask[j];
+            if (temp == gtwyEOT)
+                return true;
+        }
+    }
+
+    return false;
 }
 
 inline void getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, Product &outProduct)
@@ -221,21 +240,15 @@ inline void getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, Produ
 
     findDeviceBinary(binary, nullptr, &pheader, nullptr);
     outHW = decodeGfxCoreFamily(pheader->Device);
-    outProduct.family = ngen::ProductFamily::Unknown;
+    outProduct.family = NGEN_NAMESPACE::ProductFamily::Unknown;
     outProduct.stepping = pheader->SteppingId;
 
     // XeHPG identifies with older runtimes as XeHP. Check whether EOT goes to TS (XeHP) or gateway (XeHPG).
-    using b14 = std::array<uint8_t, 14>;
-    b14 gtwyEOT{{3, 0x80, 4, 0, 0, 0, 0xC, 0x7F, 0x20, 0x30, 0, 0, 0, 0}};
-    if (outHW == HW::XeHP) for (size_t i = 0; i < binary.size() - 0x10; i++) {
-        if (binary[i] == 0x31 && *(b14 *)(binary.data() + i + 2) == gtwyEOT) {
-            outHW = HW::XeHPG;
-            break;
-        }
-    }
+    if (outHW == HW::XeHP && hasGatewayEOTSend(binary))
+        outHW = HW::XeHPG;
 }
 
-inline ngen::Product decodeHWIPVersion(uint32_t rawVersion)
+inline NGEN_NAMESPACE::Product decodeHWIPVersion(uint32_t rawVersion)
 {
     struct HWIPVersion {
         union {
