@@ -635,9 +635,9 @@ def convert_zp_policy(value, prim_kind):
     if prim_kind == "matmul":
         masks = {
             0: "common",
-            2: "per_dim_1",
+            2: "per_oc",
             3: "per_ocic",
-            4: "per_dim_2",
+            4: "per_oc",
             6: "per_ocic",
             12: "per_ocic",
         }
