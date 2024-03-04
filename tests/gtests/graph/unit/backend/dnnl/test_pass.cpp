@@ -30,6 +30,8 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
+#include "graph/backend/dnnl/platform.hpp"
+#include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
 
 using namespace dnnl::impl::graph;
@@ -52,6 +54,17 @@ dnnl::impl::graph::pass::pass_base_ptr get_pass(const std::string &pass_name) {
                     -> bool { return p->get_pass_name() == pass_name; });
 
     return *find;
+}
+
+bool is_supported_partition(const std::shared_ptr<graph::partition_impl_t> &p) {
+    return (p != nullptr)
+            && (p->get_assigned_backend()->get_name() != "fake_backend");
+}
+
+bool is_supported_dtype(data_type_t dt) {
+    static graph::engine_t *engine = get_engine();
+    return dnnl::impl::graph::dnnl_impl::platform::get_dtype_support_status(
+            engine->kind(), dt);
 }
 
 } // namespace
@@ -4655,7 +4668,7 @@ struct single_op_params_t {
     size_t input_num;
     size_t output_num;
     graph::data_type_t data_type;
-    size_t partition_num;
+    bool is_supported;
     std::vector<graph::op_attr_t> float_attrs;
 };
 
@@ -4689,7 +4702,15 @@ public:
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
-        ASSERT_EQ(agraph.get_num_partitions(), params.partition_num);
+        if (!is_supported_dtype(params.data_type)) {
+            ASSERT_EQ(agraph.get_num_partitions(), 1U);
+
+            auto p = agraph.get_partitions().front();
+            ASSERT_EQ(is_supported_partition(p), params.is_supported);
+        } else {
+            ASSERT_EQ(
+                    agraph.get_num_partitions(), params.is_supported ? 1U : 0U);
+        }
     }
 };
 
@@ -4699,34 +4720,36 @@ TEST_P(test_single_op_pass_t, Test_Single_Op_Pass) {
 
 INSTANTIATE_TEST_SUITE_P(test_pass_single_op_pass, test_single_op_pass_t,
         ::testing::Values(single_op_params_t {graph::op_kind::Round, 1, 1,
-                                  graph::data_type::f32, 1},
-                single_op_params_t {
-                        graph::op_kind::Round, 1, 1, graph::data_type::bf16, 0},
-                single_op_params_t {
-                        graph::op_kind::Round, 1, 1, graph::data_type::f16, 0},
+                                  graph::data_type::f32, true},
+                single_op_params_t {graph::op_kind::Round, 1, 1,
+                        graph::data_type::bf16, false},
+                single_op_params_t {graph::op_kind::Round, 1, 1,
+                        graph::data_type::f16, false},
                 single_op_params_t {graph::op_kind::BatchNormInference, 5, 1,
-                        graph::data_type::f32, 1, {graph::op_attr::epsilon}},
+                        graph::data_type::f32, true, {graph::op_attr::epsilon}},
                 single_op_params_t {graph::op_kind::BatchNormInference, 5, 1,
-                        graph::data_type::bf16, 0, {graph::op_attr::epsilon}},
+                        graph::data_type::bf16, false,
+                        {graph::op_attr::epsilon}},
                 single_op_params_t {graph::op_kind::BatchNormForwardTraining, 5,
-                        5, graph::data_type::f32, 1, {graph::op_attr::epsilon}},
+                        5, graph::data_type::f32, true,
+                        {graph::op_attr::epsilon}},
                 single_op_params_t {graph::op_kind::BatchNormForwardTraining, 5,
-                        5, graph::data_type::bf16, 0,
+                        5, graph::data_type::bf16, false,
                         {graph::op_attr::epsilon}},
                 single_op_params_t {graph::op_kind::BatchNormTrainingBackward,
-                        5, 3, graph::data_type::f32, 1,
+                        5, 3, graph::data_type::f32, true,
                         {graph::op_attr::epsilon}},
                 single_op_params_t {graph::op_kind::BatchNormTrainingBackward,
-                        5, 3, graph::data_type::bf16, 0,
+                        5, 3, graph::data_type::bf16, false,
                         {graph::op_attr::epsilon}},
                 single_op_params_t {graph::op_kind::LayerNorm, 3, 3,
-                        graph::data_type::f32, 1},
+                        graph::data_type::f32, true},
                 single_op_params_t {graph::op_kind::LayerNorm, 3, 3,
-                        graph::data_type::bf16, 0},
+                        graph::data_type::bf16, false},
                 single_op_params_t {graph::op_kind::LayerNormBackward, 6, 3,
-                        graph::data_type::f32, 1},
+                        graph::data_type::f32, true},
                 single_op_params_t {graph::op_kind::LayerNormBackward, 6, 3,
-                        graph::data_type::bf16, 0}));
+                        graph::data_type::bf16, false}));
 
 TEST(test_pass_pass, ConvSingleOpReplacement) {
     graph_t agraph;
@@ -8913,6 +8936,9 @@ TEST(test_pass_pass, FuseToX8s8bf16Matmul) {
 }
 
 TEST(test_pass_pass_system, FuseToX8s8bf16Matmul) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9053,6 +9079,8 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulDiv) {
 }
 
 TEST(test_pass_pass_system, FuseToX8s8bf16MatmulDiv) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9240,6 +9268,8 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulScaleAdd) {
 }
 
 TEST(test_pass_pass_system, FuseToX8s8bf16MatmulScaleAdd) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9399,6 +9429,8 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBias) {
 }
 
 TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBias) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -9573,6 +9605,8 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBiasAddBF16) {
 }
 
 TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBiasAddBF16) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -9748,6 +9782,8 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBiasGelu) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulBiasGelu) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9930,6 +9966,8 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulGelu) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulGelu) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10113,6 +10151,8 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBias) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulBias) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10287,6 +10327,8 @@ TEST(test_pass_pass, MixInt8AndBf16Matmul) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16Matmul) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10374,6 +10416,9 @@ TEST(test_pass_pass_system, MixInt8AndBf16Matmul) {
 }
 
 TEST(test_pass_pass_system, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<bool> with_bias_typecasts {false, true};
@@ -10591,6 +10636,8 @@ TEST(test_pass_pass, MixInt8AndBf16ConvolutionBias) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBias) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -10866,6 +10913,8 @@ TEST(test_pass_pass, MixInt8AndBf16ConvolutionBiasGelu) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBiasGelu) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -10966,6 +11015,8 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBiasGelu) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionAdd) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -11277,6 +11328,8 @@ TEST(test_pass_pass_system, FuseLayernormQuantize) {
 }
 
 TEST(test_pass_pass_system, FuseSoftmaxTypecast) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
              | (bf16)
            softmax
@@ -11315,6 +11368,8 @@ TEST(test_pass_pass_system, FuseSoftmaxTypecast) {
 }
 
 TEST(test_pass_pass_system, FuseLayernormTypecast) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
              | (bf16)
            layernorm
@@ -11362,6 +11417,8 @@ TEST(test_pass_pass_system, FuseLayernormTypecast) {
 }
 
 TEST(test_pass_pass_system, FuseSoftmaxTypecastQuantize) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
              | (bf16)
            softmax
@@ -11412,6 +11469,8 @@ TEST(test_pass_pass_system, FuseSoftmaxTypecastQuantize) {
 }
 
 TEST(test_pass_pass_system, FuseLayernormTypecastQuantize) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
              | (bf16)
            layernorm
@@ -11470,6 +11529,8 @@ TEST(test_pass_pass_system, FuseLayernormTypecastQuantize) {
 }
 
 TEST(test_pass_pass_system, NotFuseLayernormTypecast) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
              | (bf16)
            layernorm
@@ -11601,6 +11662,8 @@ TEST(test_pass_pass, ShuffleFusion) {
 }
 
 TEST(test_pass_pass_system, FuseTypecaseQuantize) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
              | (bf16)
            typecast
@@ -11644,6 +11707,8 @@ TEST(test_pass_pass_system, FuseTypecaseQuantize) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulAdd) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -11751,6 +11816,8 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulAdd) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulDiv) {
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -14674,5 +14741,12 @@ TEST(test_pass_pass_system, LayernormWithSpecialAxis) {
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
-    ASSERT_EQ(agraph.get_num_partitions(), 0U);
+    if (!is_supported_dtype(data_type::bf16)) {
+        ASSERT_EQ(agraph.get_num_partitions(), 1U);
+
+        auto p = agraph.get_partitions().front();
+        ASSERT_FALSE(is_supported_partition(p));
+    } else {
+        ASSERT_EQ(agraph.get_num_partitions(), 0U);
+    }
 }
