@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -450,6 +450,7 @@ struct Instruction12 {
     inline bool getImm32(uint32_t &imm) const;
     inline bool getSendDesc(MessageDescriptor &desc) const;
     inline bool getARFType(ARFType &arfType, int opNum, HW hw) const;
+    inline int getFencedepJIP() const;
 
     bool isMathMacro() const {
         if (opcode() != Opcode::math) return false;
@@ -699,7 +700,7 @@ static inline void encodeTernaryTypes(Instruction12 &i, D dst, S0 src0, S1 src1,
 
 #ifdef NGEN_SAFE
     if (((dtype & s0type & s1type & s2type) ^ (dtype | s0type | s1type | s2type)) & 8)
-        throw ngen::invalid_type_exception();
+        throw NGEN_NAMESPACE::invalid_type_exception();
 #endif
 }
 
@@ -840,20 +841,30 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
     switch (op) {
         case Opcode::nop_gen12:
         case Opcode::illegal:
+        case Opcode::goto_:
+        case Opcode::if_:
+        case Opcode::else_:
+        case Opcode::endif:
+        case Opcode::join:
+        case Opcode::cont:
+        case Opcode::break_:
+        case Opcode::while_:
             return false;
         case Opcode::directive:
             switch (opNum) {
                 case -1: {
                     BinaryOperand12 o;
                     o.bits = binary.dst;
-                    region = DependencyRegion(hw, 1, GRF(o.direct.regNum));
+                    unsigned regNum = o.direct.regNum;
+                    region = DependencyRegion(hw, 1, GRF(regNum));
                     return true;
                 }
                 case 0: {
                     BinaryOperand12 o0, o1;
                     o0.bits = binary.src0;
                     o1.bits = binary.src1;
-                    region = DependencyRegion(hw, GRF(o0.direct.regNum)-GRF(o1.direct.regNum));
+                    unsigned rn0 = o0.direct.regNum, rn1 = o1.direct.regNum;
+                    region = DependencyRegion(hw, GRF(rn0)-GRF(rn1));
                     return true;
                 }
                 default: return false;
@@ -1033,7 +1044,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
     }
 
     auto esize = 1 << ((hw >= HW::XeHPC) ? commonXeHPC.execSize : common.execSize);
-    rd.fixup(hw, esize, DataType::invalid, opNum, 2);
+    rd.fixup(hw, esize, 0, DataType::invalid, opNum, 2);
     region = DependencyRegion(hw, esize, rd);
     return true;
 }
@@ -1091,6 +1102,13 @@ bool Instruction12::getSendDesc(MessageDescriptor &desc) const
         desc.all = send.desc0_10 | (send.desc11_19 << 11) | (send.desc20_24 << 20)
                                  | (send.desc25_29 << 25) | (send.desc30_31 << 30);
     return !send.descIsReg;
+}
+
+int Instruction12::getFencedepJIP() const
+{
+    uint32_t imm = 0;
+    (void) getImm32(imm);
+    return int32_t(imm) / sizeof(Instruction12);
 }
 
 bool Instruction12::getARFType(ARFType &arfType, int opNum, HW hw) const

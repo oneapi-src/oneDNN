@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@
 #include "ngen.hpp"
 
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 
 
 inline void RegData::outputText(std::ostream &str, PrintDetail detail, LabelManager &man) const
@@ -145,7 +145,8 @@ inline void Label::outputText(std::ostream &str, PrintDetail detail, LabelManage
 
 struct NoOperand {
     static const bool emptyOp = true;
-    void fixup(HW hw, int esize, DataType defaultType, int srcN, int arity) const {}
+    void fixup(HW hw, int esize, int ewidth, DataType defaultType, int srcN, int arity) const {}
+    constexpr DataType getType() const { return DataType::invalid; }
     constexpr bool isScalar() const { return false; }
 
     void outputText(std::ostream &str, PrintDetail detail, LabelManager &man) const {}
@@ -251,6 +252,13 @@ struct AsmInstruction {
             return false;
     }
     bool getSendDesc(MessageDescriptor &desc) const { return getImm32(desc.all, 3); }
+    int getFencedepJIP() const {
+        if (src[0].type == AsmOperand::Type::label) {
+            auto label = src[0].label;
+            return labelManager->getTarget(label.getID(*labelManager)) - inum + 1;
+        } else
+            return 0;
+    }
 
 protected:
     static inline unsigned getTypecode(const AsmOperand &op);
@@ -346,8 +354,7 @@ bool AsmInstruction::getOperandRegion(autoswsb::DependencyRegion &region, int op
             bool exdescImm = (src[2].type == AsmOperand::Type::imm);
             if (exdescImm && (hw >= HW::XeHPG))
                 len = ext >> 8;
-            else
-            if (exdescImm) {
+            else if (exdescImm) {
                 ExtendedMessageDescriptor exdesc;
                 exdesc.all = static_cast<uint64_t>(src[2].imm);
                 len = exdesc.parts.extMessageLen;
@@ -460,6 +467,8 @@ protected:
 
     Label _labelLocalIDsLoaded;
     Label _labelArgsLoaded;
+    Label _lastFenceLabel;
+    RegData _lastFenceDst;
 
 private:
     InstructionModifier defaultModifier;
@@ -526,7 +535,11 @@ private:
                 i.src[2].imm = uint32_t(exdesc | static_cast<uint8_t>(sf));
         }
     }
-    void opDpas(Opcode op, const InstructionModifier &mod, int sdepth, int rcount, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &src2) {
+    void opDpas(Opcode op, DataType defaultType, const InstructionModifier &mod, int sdepth, int rcount, RegData dst, RegData src0, RegData src1, RegData src2) {
+        dst.fixup(hardware, 1, 0, defaultType, -1, 3);
+        src0.fixup(hardware, 1, 0, defaultType, 0, 3);
+        src1.fixup(hardware, 1, 0, defaultType, 1, 3);
+        src2.fixup(hardware, 1, 0, defaultType, 2, 3);
         (void) streamStack.back()->append(op, (sdepth << 8) | rcount, mod | defaultModifier, &labelManager, dst, src0, src1, src2);
     }
     template <typename D, typename S0> void opCall(Opcode op, const InstructionModifier &mod, D dst, S0 src0) {
@@ -816,11 +829,13 @@ protected:
     void dp4a(const InstructionModifier &mod, const RegData &dst, const Immediate &src0, const RegData &src1, const Immediate &src2) {
         opX(Opcode::dp4a, getDataType<DT>(), mod, dst, src0, src1, src2);
     }
+    template <typename DT = void>
     void dpas(const InstructionModifier &mod, uint8_t sdepth, uint8_t rcount, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &src2) {
-        opDpas(Opcode::dpas, mod, sdepth, rcount, dst, src0, src1, src2);
+        opDpas(Opcode::dpas, getDataType<DT>(), mod, sdepth, rcount, dst, src0, src1, src2);
     }
+    template <typename DT = void>
     void dpasw(const InstructionModifier &mod, uint8_t sdepth, uint8_t rcount, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &src2) {
-        opDpas(Opcode::dpasw, mod, sdepth, rcount, dst, src0, src1, src2);
+        opDpas(Opcode::dpasw, getDataType<DT>(), mod, sdepth, rcount, dst, src0, src1, src2);
     }
     template <typename DT = void>
     void dph(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
@@ -1488,6 +1503,9 @@ public:
     void wrdep(const GRF &r) {
         wrdep(r-r);
     }
+    void fencedep(Label &fenceLocation) {
+        opX(Opcode::directive, DataType::ud, InstructionModifier::createAutoSWSB(), GRF(static_cast<int>(Directive::fencedep)), fenceLocation);
+    }
 
     inline void mark(Label &label)          { streamStack.back()->mark(label, labelManager); }
 
@@ -1577,10 +1595,11 @@ void AsmCodeGenerator::opX(Opcode op, DataType defaultType, const InstructionMod
         throw invalid_execution_size_exception();
 #endif
 
-    dst.fixup(hardware, esize, defaultType, -1, arity);
-    src0.fixup(hardware, esize, defaultType, 0, arity);
-    src1.fixup(hardware, esize, defaultType, 1, arity);
-    src2.fixup(hardware, esize, defaultType, 2, arity);
+    auto ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType(), src2.getType()});
+    dst.fixup(hardware,  esize, ewidth, defaultType, -1, arity);
+    src0.fixup(hardware, esize, ewidth, defaultType, 0, arity);
+    src1.fixup(hardware, esize, ewidth, defaultType, 1, arity);
+    src2.fixup(hardware, esize, ewidth, defaultType, 2, arity);
 
     streamStack.back()->append(op, ext, emod, &labelManager, dst, src0, src1, src2);
 }
@@ -1763,6 +1782,6 @@ void AsmCodeGenerator::outMods(std::ostream &out,const InstructionModifier &mod,
     }
 }
 
-} /* namespace ngen */
+} /* namespace NGEN_NAMESPACE */
 
 #endif

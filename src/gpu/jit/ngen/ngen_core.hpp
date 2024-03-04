@@ -81,7 +81,7 @@
     add(8 | ~any2h | f1, ...)
  */
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 
 #ifdef NGEN_SAFE
 static constexpr bool _safe_ = 1;
@@ -587,8 +587,9 @@ public:
     }
 
     /* for compatibility with RegData */
-    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) {}
-    constexpr14 bool isScalar() const { return false; }
+    void fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity) {}
+    constexpr DataType getType() const { return DataType::invalid; }
+    constexpr bool isScalar() const { return false; }
 
 #ifdef NGEN_ASM
     static const bool emptyOp = false;
@@ -651,8 +652,8 @@ public:
     constexpr bool getNeg()          const { return mods & 2; }
     constexpr bool getAbs()          const { return mods & 1; }
     constexpr int getMods()          const { return mods; }
-    constexpr int getBytes()         const { return ngen::getBytes(getType()); }
-    constexpr14 int getDwords()      const { return ngen::getDwords(getType()); }
+    constexpr int getBytes()         const { return NGEN_NAMESPACE::getBytes(getType()); }
+    constexpr14 int getDwords()      const { return NGEN_NAMESPACE::getDwords(getType()); }
     constexpr bool isScalar()        const { return hs == 0 && vs == 0 && width == 1; }
 
     inline constexpr14 RegData getIndirectReg() const;
@@ -667,7 +668,7 @@ public:
     void invalidate()                     { invalid = true; }
     RegData &operator=(const Invalid &i)  { this->invalidate(); return *this; }
 
-    inline void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity);                    // Adjust automatically-computed strides given ESize.
+    inline void fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity);                    // Adjust automatically-computed strides given ESize.
 
     constexpr RegData operator+() const { return *this; }
     constexpr14 RegData operator-() const {
@@ -704,7 +705,7 @@ inline RegData abs(const RegData &r)
     return result.setMods(1);
 }
 
-inline void RegData::fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity)
+inline void RegData::fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity)
 {
 #ifdef NGEN_SAFE
     if (isInvalid()) throw invalid_object_exception();
@@ -732,11 +733,19 @@ inline void RegData::fixup(HW hw, int execSize, DataType defaultType, int srcN, 
                 vs = 1;
                 hs = 0;
             }
-        }
+        } else if (execSize == width)
+            vs = width * hs;
         bool isDest = srcN < 0;
         if (isDest && hs == 0)
-            hs = 1;
+            hs = (execWidth > getBytes()) ? (execWidth / getBytes()) : 1;
     }
+}
+
+inline int getExecWidth(std::initializer_list<DataType> types)
+{
+    int ewidth = 1;
+    for (auto dt: types) ewidth = std::max(ewidth, getBytes(dt));
+    return ewidth;
 }
 
 // Operands for Align16 instructions
@@ -782,8 +791,8 @@ public:
     bool isValid()                        const { return !rd.isInvalid(); }
     constexpr bool isScalar()             const { return rd.isScalar(); }
 
-    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) {
-        rd.fixup(hw, execSize, defaultType, srcN, arity);
+    void fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity) {
+        rd.fixup(hw, execSize, execWidth, defaultType, srcN, arity);
     }
 
 #ifdef NGEN_ASM
@@ -1123,8 +1132,8 @@ public:
     constexpr ExtendedReg(RegData base_, uint8_t mmeNum_) : base(base_), mmeNum(mmeNum_) {}
     constexpr ExtendedReg(RegData base_, SpecialAccumulatorRegister acc) : base(base_), mmeNum(acc.getMME()) {}
 
-    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) {
-        base.fixup(hw, execSize, defaultType, srcN, arity);
+    void fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity) {
+        base.fixup(hw, execSize, execWidth, defaultType, srcN, arity);
     }
 
     constexpr int getMods()         const { return base.getMods(); }
@@ -1265,6 +1274,8 @@ public:
     constexpr int16_t getDispX() const { return disp & 0xFFFF; }
     constexpr int16_t getDispY() const { return disp >> 16; }
 
+    void clearDisp()                   { disp = 0; }
+
     GRFDisp operator+(int offset) const { return GRFDisp(base, disp + offset); }
     GRFDisp operator-(int offset) const { return GRFDisp(base, disp - offset); }
 };
@@ -1376,7 +1387,8 @@ public:
 
     inline Subregister sub(HW hw, int offset, DataType type) const;
 
-    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) {}
+    void fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity) {}
+    constexpr DataType getType() const { return DataType::invalid; }
 
 #ifdef NGEN_ASM
     static const bool emptyOp = false;
@@ -1602,6 +1614,7 @@ enum class Directive {
     ignoredep_src1 = 2,
     ignoredep_src2 = 3,
     wrdep = 0x10,
+    fencedep = 0x11,
 };
 
 static inline bool isSend(Opcode op)
@@ -2130,7 +2143,7 @@ public:
         return Immediate(payload, DataType::vf);
     }
 
-    void fixup(HW hw, int execSize, DataType defaultType, int srcN, int arity) const {
+    void fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity) const {
 #ifdef NGEN_SAFE
         if (getBytes(type) > (16 >> arity))
             throw invalid_immediate_exception();
@@ -3093,7 +3106,7 @@ static inline void encodeAtomicDescriptors(HW hw, MessageDescriptor &desc, Exten
 }
 
 
-} /* namespace ngen */
+} /* namespace NGEN_NAMESPACE */
 
 
 #endif /* header guard */

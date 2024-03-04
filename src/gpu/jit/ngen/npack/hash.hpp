@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #ifndef NGEN_NPACK_HASH_H
 #define NGEN_NPACK_HASH_H
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 namespace npack {
 
 /*********************************************/
@@ -65,6 +65,6 @@ static inline uint32_t neo_hash(const unsigned char *buf, size_t len)
 }
 
 } /* namespace npack */
-} /* namespace ngen */
+} /* namespace NGEN_NAMESPACE */
 
 #endif /* header guard */
