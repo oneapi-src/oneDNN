@@ -40,6 +40,10 @@
 #include "graph/utils/sycl_check.hpp"
 #endif
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "graph/utils/ocl_check.hpp"
+#endif
+
 using namespace dnnl::impl::graph;
 
 /// This allows to create a partition directly with an op and an engine kind. In
@@ -667,6 +671,8 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
     if (astream->engine()->kind() == engine_kind::gpu) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         return execute_sycl(astream, inputs, outputs, {}, nullptr);
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        return execute_ocl(astream, inputs, outputs, {}, nullptr);
 #else
         return status::runtime_error;
 #endif
@@ -723,3 +729,30 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
     return ret;
 }
 #endif // DNNL_WITH_SYCL
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+// It looks very similar to execute_sycl(). Consider to merge them in the
+// future.
+graph::status_t dnnl_graph_compiled_partition::execute_ocl(
+        const graph::stream_t *astream,
+        const std::vector<graph::tensor_t> &inputs,
+        const std::vector<graph::tensor_t> &outputs,
+        const std::vector<cl_event> &ocl_deps, cl_event *ocl_event) const {
+    if (!astream || (astream->engine()->kind() != pimpl_->get_engine()->kind()))
+        return status::invalid_arguments;
+
+    status_t ret;
+
+    const backend_t *backend = src_partition_.get_assigned_backend();
+    if (!backend) return status::invalid_arguments;
+
+    std::vector<tensor_t> processed_inputs, processed_outputs;
+    pre_process(processed_inputs, inputs, backend);
+    pre_process(processed_outputs, outputs, backend);
+
+    ret = pimpl_->execute_ocl(
+            astream, processed_inputs, processed_outputs, ocl_deps, ocl_event);
+
+    return ret;
+}
+#endif
