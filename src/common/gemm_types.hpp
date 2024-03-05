@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,6 +78,7 @@ struct gemm_desc_t {
     }
     transpose_t transa() const { return get_trans(b_desc); };
     transpose_t transb() const { return get_trans(a_desc); };
+    transpose_t transc() const { return get_trans(c_desc); };
     transpose_t trans_bias() const { return get_trans(bias_desc); }
 
     dnnl_dim_t batch() const {
