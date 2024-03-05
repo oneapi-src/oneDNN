@@ -135,8 +135,7 @@ private:
             _desc.hw = hw_t(engine);
             {
                 ir_utils::ir_check_log_level_t check_level(ir_utils::LOG_FATAL);
-                auto plan = create_conv_plan(_desc);
-                _desc.finalize(plan);
+                auto plan = create_conv_plan_and_finalize_desc(_desc);
             }
         } else {
             auto &registry = const_plan_registry();

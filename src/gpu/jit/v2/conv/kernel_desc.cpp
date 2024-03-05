@@ -31,6 +31,42 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
+load_desc_t str_to_load_desc(const std::string &s) {
+    auto parts = gpu_utils::split(s, ",");
+    load_desc_t ret;
+    for (auto &p : parts) {
+        auto p_parts = gpu_utils::split(p, ":");
+        ir_assert(p_parts.size() == 2);
+        auto tensor = p_parts[0];
+        auto kind = p_parts[1];
+        if (tensor == "a") {
+            ret.a = str_to_send_kind(kind);
+        } else if (tensor == "b") {
+            ret.b = str_to_send_kind(kind);
+        } else {
+            ir_error_not_expected() << p;
+        }
+    }
+    return ret;
+}
+
+store_desc_t str_to_store_desc(const std::string &s) {
+    auto parts = gpu_utils::split(s, ",");
+    store_desc_t ret;
+    for (auto &p : parts) {
+        auto p_parts = gpu_utils::split(p, ":");
+        ir_assert(p_parts.size() == 2);
+        auto tensor = p_parts[0];
+        auto kind = p_parts[1];
+        if (tensor == "c") {
+            ret.c = str_to_send_kind(kind);
+        } else {
+            ir_error_not_expected() << p;
+        }
+    }
+    return ret;
+}
+
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group) {
     bool is_wei = (tensor_kind == tensor_kind_t::wei);
@@ -43,17 +79,59 @@ layout_desc_t make_conv_layout_desc(
             case prb_dim_kind_t::ic: c = is_wei ? 'i' : 'c'; break;
             case prb_dim_kind_t::oc: c = is_wei ? 'o' : 'c'; break;
             case prb_dim_kind_t::id:
-            case prb_dim_kind_t::od:
-            case prb_dim_kind_t::kd: c = 'd'; break;
+            case prb_dim_kind_t::od: c = 'd'; break;
+            case prb_dim_kind_t::kd: c = is_wei ? 'd' : 'z'; break;
             case prb_dim_kind_t::ih:
-            case prb_dim_kind_t::oh:
-            case prb_dim_kind_t::kh: c = 'h'; break;
+            case prb_dim_kind_t::oh: c = 'h'; break;
+            case prb_dim_kind_t::kh: c = is_wei ? 'h' : 'y'; break;
             case prb_dim_kind_t::iw:
-            case prb_dim_kind_t::ow:
-            case prb_dim_kind_t::kw: c = 'w'; break;
+            case prb_dim_kind_t::ow: c = 'w'; break;
+            case prb_dim_kind_t::kw: c = is_wei ? 'w' : 'x'; break;
             default: ir_error_not_expected();
         }
         letter_map[d] = c;
+    }
+    return layout_desc_t(letter_map);
+}
+
+layout_desc_t make_conv_algo_layout_desc(
+        prop_kind_t prop, tensor_kind_t tensor_kind) {
+    auto desc = make_conv_layout_desc(tensor_kind, /*src_dst_with_group=*/true);
+    switch (tensor_kind) {
+        case tensor_kind_t::wei: return desc;
+        case tensor_kind_t::src:
+            if (prop == prop_kind::backward_data) return desc;
+            break;
+        case tensor_kind_t::dst:
+            if (prop != prop_kind::backward_data) return desc;
+            break;
+        default: ir_error_not_expected();
+    }
+    dim_map_t<prb_dim_t, char> letter_map;
+    bool is_src = (tensor_kind == tensor_kind_t::src);
+    prb_dim_t xd = (is_src ? prb_dims::od : prb_dims::id);
+    prb_dim_t xh = (is_src ? prb_dims::oh : prb_dims::ih);
+    prb_dim_t xw = (is_src ? prb_dims::ow : prb_dims::iw);
+    for (int i = 0; i < desc.ndims(); i++) {
+        auto d = desc.prb_dim(i);
+        switch (d.kind()) {
+            case prb_dim_kind_t::id:
+            case prb_dim_kind_t::od:
+                letter_map[xd] = 'd';
+                letter_map[prb_dims::kd] = 'z';
+                break;
+            case prb_dim_kind_t::ih:
+            case prb_dim_kind_t::oh:
+                letter_map[xh] = 'h';
+                letter_map[prb_dims::kh] = 'y';
+                break;
+            case prb_dim_kind_t::iw:
+            case prb_dim_kind_t::ow:
+                letter_map[xw] = 'w';
+                letter_map[prb_dims::kw] = 'x';
+                break;
+            default: letter_map[d] = desc.layout_letter(d); break;
+        }
     }
     return layout_desc_t(letter_map);
 }
@@ -223,7 +301,6 @@ void kernel_desc_t::set_defaults() {
 void kernel_desc_t::finalize(const plan_t &plan) {
     is_finalized = true;
     reqs = plan.reqs();
-    reqs.simplify();
 }
 
 std::string kernel_desc_t::cmd_str() const {
@@ -233,6 +310,7 @@ std::string kernel_desc_t::cmd_str() const {
 std::string kernel_desc_t::str() const {
     std::ostringstream oss;
     oss << "Propagation:        " << ir_utils::to_string(prop) << std::endl;
+    oss << "Depthwise:          " << ir_utils::to_string(is_dw) << std::endl;
     oss << "Source tag:         " << src_tag << std::endl;
     oss << "Weights tag:        " << wei_tag << std::endl;
     oss << "Destination tag:    " << dst_tag << std::endl;
@@ -243,9 +321,8 @@ std::string kernel_desc_t::str() const {
     oss << "Iteration tile:     " << iter_tile << std::endl;
     oss << "Thread group tile:  " << thread_group_tile << std::endl;
     oss << "Loop nest:          " << loop_nest << std::endl;
-    oss << "A access kind:      " << to_string(a_access_kind) << std::endl;
-    oss << "B access kind:      " << to_string(b_access_kind) << std::endl;
-    oss << "C access kind:      " << to_string(c_access_kind) << std::endl;
+    oss << "Load:               " << load.str() << std::endl;
+    oss << "Store:              " << store.str() << std::endl;
     if (reqs) oss << ir_utils::add_tag("Reqs", reqs.str()) << std::endl;
     oss << "Command:            " << cmd_str();
     return ir_utils::add_tag("Desc", oss.str());
@@ -334,7 +411,7 @@ ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
             "Whether the problem is a depthwise convolution (0 or 1).",
             MAKE_GETTER(std::string(desc->is_dw ? "1" : "0")),
             MAKE_SETTER(is_dw, ir_utils::str_to_bool(value)));
-    iface.add_arg("--src", "Source layout tag (e.g. axb:f32).",
+    iface.add_arg("--src", "Source layout tag. Examples: axb:f32, aBx16b:f16).",
             MAKE_GETTER(desc->src_tag.str()),
             MAKE_SETTER(
                     src_tag, make_conv_layout_tag(tensor_kind_t::src, value)));
@@ -368,15 +445,15 @@ ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
             "kw,kh,kd,ic).",
             MAKE_GETTER(desc->loop_nest.str()),
             MAKE_SETTER(loop_nest, str_to_loop_nest(value)));
-    iface.add_arg("--a-access", "Access type for A (block, scattered, 2d).",
-            MAKE_GETTER(to_string(desc->a_access_kind)),
-            MAKE_SETTER(a_access_kind, str_to_send_kind(value)));
-    iface.add_arg("--b-access", "Access type for B (block, scattered, 2d).",
-            MAKE_GETTER(to_string(desc->b_access_kind)),
-            MAKE_SETTER(b_access_kind, str_to_send_kind(value)));
-    iface.add_arg("--c-access", "Access type for C (block, scattered, 2d).",
-            MAKE_GETTER(to_string(desc->c_access_kind)),
-            MAKE_SETTER(c_access_kind, str_to_send_kind(value)));
+    iface.add_arg("--load",
+            "Load type (block, scattered [default], 2d) for A and B, e.g. "
+            "a:2d,b:block.",
+            MAKE_GETTER(desc->load.str()),
+            MAKE_SETTER(load, str_to_load_desc(value)));
+    iface.add_arg("--store",
+            "Store type (block, scattered [default], 2d) for C,  e.g. c:2d.",
+            MAKE_GETTER(desc->store.str()),
+            MAKE_SETTER(store, str_to_store_desc(value)));
     return iface;
 #undef MAKE_SETTER
 #undef MAKE_GETTER

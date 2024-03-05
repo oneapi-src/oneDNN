@@ -108,7 +108,7 @@ std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::get_sub_storage(
     cl_int err;
     err = clGetMemObjectInfo(
             mem_object(), CL_MEM_FLAGS, sizeof(mem_flags), &mem_flags, nullptr);
-    assert(err == CL_SUCCESS);
+    gpu_assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 
     gpu_assert(size != 0);
@@ -117,7 +117,7 @@ std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::get_sub_storage(
     cl_buffer_region buffer_region = {base_offset_ + offset, size};
     ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(parent_mem_object(),
             mem_flags, CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
-    assert(err == CL_SUCCESS);
+    gpu_assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 
     auto sub_storage

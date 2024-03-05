@@ -352,6 +352,9 @@ int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
     HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     // process groups
+    const auto g_str = parser::get_substr(s, start_pos, ':');
+    parser::parse_vector_str(this->groups, dims_t(),
+            parser::parser_utils::stoll_safe, g_str, 'x');
     if (!groups.empty()) {
         switch (this->policy) {
             case PER_OCIC:

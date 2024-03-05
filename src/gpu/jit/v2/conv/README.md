@@ -17,11 +17,17 @@ make -C build -j `nproc` benchdnn gpu_conv_planner
 
 # 2. Test
 export enable_conv_v2=1
-./build/tests/benchdnn/benchdnn -v5 --conv --dir=FWD_I --batch=shapes_resnet_50_v1_5
+./build/tests/benchdnn/benchdnn -v5 --engine=gpu --mode=F --conv --dir=FWD_I --batch=shapes_resnet_50_v1_5
 ...
-perf,gpu,jit:ir_v2,"resnet_50_v1_5:res2a_branch2b*3",--mode=F --conv --engine=gpu --dir=FWD_I mb128ic64ih56oc64oh56kh3ph1n"resnet_50_v1_5:res2a_branch2b*3",28.8946,87.1855,1.42384,20293.4,1.42887,20222
-run: --mode=F --conv --engine=gpu --dir=FWD_I mb128ic256ih56oc64oh56kh1ph0n"resnet_50_v1_5:res2b_branch2a*2"
+run: --mode=F --conv --engine=gpu --dir=FWD_I ic64ih56oc64oh56kh3ph1n"resnet_50_v1_5:res2a_branch2b*3"
+perf,gpu,jit:ir_v2,"resnet_50_v1_5:res2a_branch2b*3",--mode=F --conv --engine=gpu --dir=FWD_I ic64ih56oc64oh56kh3ph1n"resnet_50_v1_5:res2a_branch2b*3",0.451478,155.925,0.10656,4236.84,0.107055,4217.25
+
+# 3. Set kernel descriptor from environment
+export enable_conv_v2=1
+export desc="--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --iter ic16mb16oc32 --tg ow4oc4 --loop-nest kw,kh,kd,ic --load a:2d,b:2d --store c:2d"
+./build/tests/benchdnn/benchdnn -v5 --engine=gpu --mode=F --conv --dir=FWD_I --dt=f32 mb128ic256ih56oc64oh56kh1ph0
 ...
+perf,gpu,jit:ir_v2,,--mode=F --conv --engine=gpu --dir=FWD_I mb128ic256ih56oc64oh56kh1ph0,13.1533,158.426,1.124,11702.3,1.13858,11552.4
 ```
 
 Look for `jit:ir_v2` implementation name.

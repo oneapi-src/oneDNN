@@ -82,6 +82,16 @@ static int check_attr2str() {
             "--attr-zero-points=wei:per_dim_1:s8 ");
 
     attr = attr_t();
+    attr.scales.set(DNNL_ARG_SRC_0,
+            attr_t::arg_scales_t::entry_t(
+                    policy_t::PER_OC, 2.3f, dnnl_bf16, {}));
+    attr.zero_points.set(
+            DNNL_ARG_WEIGHTS, {policy_t::PER_OCIC, 2, dnnl_s8, {4, 1}});
+    SELF_CHECK_PRINT_EQ(attr,
+            "--attr-scales=src:per_oc:bf16 "
+            "--attr-zero-points=wei:per_ocic:s8:4x1 ");
+
+    attr = attr_t();
     attr.fpmath_mode.set(dnnl_fpmath_mode_strict, true);
     SELF_CHECK_PRINT_EQ(attr, "--attr-fpmath=strict:true ");
     attr.fpmath_mode.set(dnnl_fpmath_mode_bf16, false);
@@ -91,11 +101,15 @@ static int check_attr2str() {
 }
 
 static int check_attr() {
-#define SELF_CHECK_ATTR_ZP(zp, arg, zero_points_policy, zero_points_value) \
+#define SELF_CHECK_ATTR_ZP(zp, arg, zero_points_policy, zero_points_value, \
+        zero_points_data_type, zero_points_groups) \
     do { \
         const auto &entry = (zp).get(arg); \
         SELF_CHECK_EQ(entry.policy, zero_points_policy); \
         SELF_CHECK_EQ(entry.value, zero_points_value); \
+        SELF_CHECK_EQ(entry.dt, zero_points_data_type); \
+        for (size_t i = 0; i < (zero_points_groups).size(); ++i) \
+            SELF_CHECK_EQ(entry.groups[i], (zero_points_groups)[i]); \
     } while (0)
 
     {
@@ -105,11 +119,16 @@ static int check_attr() {
                               "common:-2,src:per_dim_1"),
                 true);
         SELF_CHECK_EQ(zp.size(), 2);
-        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_SRC, policy_t::COMMON, 0);
-        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_WEIGHTS, policy_t::PER_OC, 0);
-        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_DST, policy_t::COMMON, -2);
+        const std::vector<dnnl_dim_t> def_g {};
+        SELF_CHECK_ATTR_ZP(
+                zp[0], DNNL_ARG_SRC, policy_t::COMMON, 0, dnnl_s32, def_g);
+        SELF_CHECK_ATTR_ZP(
+                zp[0], DNNL_ARG_WEIGHTS, policy_t::PER_OC, 0, dnnl_s32, def_g);
+        SELF_CHECK_ATTR_ZP(
+                zp[0], DNNL_ARG_DST, policy_t::COMMON, -2, dnnl_s32, def_g);
 
-        SELF_CHECK_ATTR_ZP(zp[1], DNNL_ARG_SRC, policy_t::PER_DIM_1, 0);
+        SELF_CHECK_ATTR_ZP(
+                zp[1], DNNL_ARG_SRC, policy_t::PER_DIM_1, 0, dnnl_s32, def_g);
     }
 
     {
@@ -136,6 +155,17 @@ static int check_attr() {
         SELF_CHECK_EQ(sc[0].get(DNNL_ARG_SRC_0).scale, 2.5);
         SELF_CHECK_EQ(sc[0].get(DNNL_ARG_SRC_1).policy, policy_t::COMMON);
         SELF_CHECK_EQ(sc[0].get(DNNL_ARG_SRC_1).scale, 1.5);
+    }
+
+    {
+        std::vector<attr_t::zero_points_t> zp;
+        SELF_CHECK_EQ(parse_attr_zero_points(
+                              zp, "--attr-zero-points=wei:per_ocic:s8:2x1"),
+                true);
+        SELF_CHECK_EQ(zp.size(), 1);
+        std::vector<dnnl_dim_t> groups = {2, 1};
+        SELF_CHECK_ATTR_ZP(zp[0], DNNL_ARG_WEIGHTS, policy_t::PER_OCIC, 0,
+                dnnl_s8, groups);
     }
 
     {

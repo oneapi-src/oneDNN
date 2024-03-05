@@ -646,9 +646,9 @@ def convert_zp_policy(value, prim_kind):
     if prim_kind == "matmul":
         masks = {
             0: "common",
-            2: "per_dim_1",
+            2: "per_oc",
             3: "per_ocic",
-            4: "per_dim_2",
+            4: "per_oc",
             6: "per_ocic",
             12: "per_ocic",
         }
@@ -722,40 +722,34 @@ def convert_post_ops(post_ops, prim_kind):
     return benchdnn_postops
 
 
-def convert_scales(scales, prim_kind):
+def convert_quantization(q_param, prim_kind, def_value, def_type):
     res = []
-    for arg in scales.keys():
-        s = scales[arg]
-        policy = convert_scale_policy(s["mask"], prim_kind)
-        benchdnn_scale = arg + ":" + policy
+    for arg in q_param.keys():
+        p = q_param[arg]
+        policy = convert_scale_policy(p["mask"], prim_kind)
+        benchdnn_p = arg + ":" + policy
         if policy == "common":
-            benchdnn_scale += ":0.5"
-        dt = s["data_type"]
-        groups = s["groups"]
-        if dt != "f32" or groups != "":
-            benchdnn_scale += ":" + dt
+            benchdnn_p += ":" + def_value
+        dt = p["data_type"]
+        groups = p["groups"]
+        if dt != def_type or groups != "":
+            benchdnn_p += ":" + dt
         if groups != "":
-            benchdnn_scale += ":" + groups
-        res.append(benchdnn_scale)
+            benchdnn_p += ":" + groups
+        res.append(benchdnn_p)
     return "+".join(res)
+
+
+def convert_scales(scales, prim_kind):
+    return convert_quantization(
+        q_param=scales, prim_kind=prim_kind, def_value="0.5", def_type="f32"
+    )
 
 
 def convert_zero_points(zero_points, prim_kind):
-    res = []
-    for arg in zero_points.keys():
-        zp = zero_points[arg]
-        policy = convert_zp_policy(zp["mask"], prim_kind)
-        benchdnn_zp = arg + ":" + policy
-        if policy == "common":
-            benchdnn_zp += ":1"
-        dt = zp["data_type"]
-        groups = zp["groups"]
-        if dt != "s32" or groups != "":
-            benchdnn_zp += ":" + dt
-        if groups != "":
-            benchdnn_zp += ":" + groups
-        res.append(benchdnn_zp)
-    return "+".join(res)
+    return convert_quantization(
+        q_param=zero_points, prim_kind=prim_kind, def_value="1", def_type="s32"
+    )
 
 
 def convert_scratchpad_mode(scratchpad_mode, prim_kind):

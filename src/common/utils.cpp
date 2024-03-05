@@ -283,6 +283,14 @@ bool is_destroying_cache_safe() {
         //    3. oneDNN is statically linked in an executable which is done
         //       and now the process terminates In all these scenarios
         //       content of the cache can be safely destroyed.
+        //
+        // Note: the first 2 scenarios can still cause some issues in the
+        // case of OpenCL runtime. There doesn't seem to be a way to distinguish
+        // the 2 scenarios from the 3rd one therefore it's always
+        // considered unsafe to clean up the cache.
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        return false;
+#endif
         return true;
     }
 #else

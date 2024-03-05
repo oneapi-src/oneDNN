@@ -22,6 +22,7 @@
 #include "gpu/jit/ir/message.hpp"
 #include "gpu/jit/v2/conv/problem.hpp"
 #include "gpu/jit/v2/ir/reqs.hpp"
+#include "gpu/jit/v2/ir/send.hpp"
 #include "gpu/jit/v2/ir/tensor.hpp"
 
 namespace dnnl {
@@ -170,8 +171,71 @@ inline loop_nest_t str_to_loop_nest(const std::string &s) {
     return ret;
 }
 
+struct load_desc_t {
+    send_kind_t a = send_kind_t::undef;
+    send_kind_t b = send_kind_t::undef;
+
+    std::string str() const {
+        std::vector<std::string> parts;
+        if (a != send_kind_t::undef) parts.emplace_back("a:" + to_string(a));
+        if (b != send_kind_t::undef) parts.emplace_back("b:" + to_string(b));
+        return gpu_utils::join(",", parts);
+    }
+
+    IR_DEFINE_DUMP()
+
+    bool operator==(const load_desc_t &other) const {
+        return (a == other.a) && (b == other.b);
+    }
+
+    bool operator!=(const load_desc_t &other) const {
+        return !operator==(other);
+    }
+
+    size_t get_hash() const { return ir_utils::get_hash(a, b); }
+
+    void serialize(std::ostream &out) const {
+        ir_utils::serialize(a, out);
+        ir_utils::serialize(b, out);
+    }
+
+    void deserialize(std::istream &in) {
+        ir_utils::deserialize(a, in);
+        ir_utils::deserialize(b, in);
+    }
+};
+
+load_desc_t str_to_load_desc(const std::string &s);
+
+struct store_desc_t {
+    send_kind_t c = send_kind_t::undef;
+
+    std::string str() const {
+        if (c != send_kind_t::undef) return "c:" + to_string(c);
+        return "c:scattered";
+    }
+
+    IR_DEFINE_DUMP()
+
+    bool operator==(const store_desc_t &other) const { return (c == other.c); }
+
+    bool operator!=(const store_desc_t &other) const {
+        return !operator==(other);
+    }
+
+    size_t get_hash() const { return ir_utils::get_hash(c); }
+
+    void serialize(std::ostream &out) const { ir_utils::serialize(c, out); }
+
+    void deserialize(std::istream &in) { ir_utils::deserialize(c, in); }
+};
+
+store_desc_t str_to_store_desc(const std::string &s);
+
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group = false);
+layout_desc_t make_conv_algo_layout_desc(
+        prop_kind_t prop, tensor_kind_t tensor_kind);
 layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, const std::string &s);
 layout_tag_t make_conv_layout_tag(
@@ -193,9 +257,8 @@ public:
     prb_tile_t iter_tile;
     prb_tile_t thread_group_tile;
     loop_nest_t loop_nest;
-    send_kind_t a_access_kind = send_kind_t::undef;
-    send_kind_t b_access_kind = send_kind_t::undef;
-    send_kind_t c_access_kind = send_kind_t::undef;
+    load_desc_t load;
+    store_desc_t store;
     prb_reqs_t reqs;
     bool is_finalized = false;
 
@@ -206,14 +269,18 @@ public:
     void finalize(const plan_t &plan);
 
     bool fits(const problem_t &prb, bool check_tags = true) const {
-        if (prb.prop() != prop) return false;
+        ir_check(prb.prop() == prop) << "Propagation kind does not match";
         if (check_tags) {
-            if (!prb.src_tag().matches(src_tag, prb.shape())) return false;
-            if (!prb.wei_tag().matches(wei_tag, prb.shape())) return false;
-            if (!prb.dst_tag().matches(dst_tag, prb.shape())) return false;
+            ir_check(prb.src_tag().matches(src_tag, prb.shape()))
+                    << "Source tag does not match";
+            ir_check(prb.wei_tag().matches(wei_tag, prb.shape()))
+                    << "Weights tag does not match";
+            ir_check(prb.dst_tag().matches(dst_tag, prb.shape()))
+                    << "Destination tag does not match";
         }
-        if (prb.is_depthwise() != is_dw) return false;
-        if (!reqs.fits(prb.shape())) return false;
+        ir_check(prb.is_depthwise() == is_dw)
+                << "Mixing depthwise/non-depthwise descriptor and problem";
+        ir_check(reqs.fits(prb.shape()));
         return true;
     }
 
@@ -229,10 +296,8 @@ public:
                 && (fma == other.fma) && (simd == other.simd)
                 && (regs == other.regs) && (iter_tile == other.iter_tile)
                 && (thread_group_tile == other.thread_group_tile)
-                && (loop_nest == other.loop_nest)
-                && (a_access_kind == other.a_access_kind)
-                && (b_access_kind == other.b_access_kind)
-                && (c_access_kind == other.c_access_kind)
+                && (loop_nest == other.loop_nest) && (load == other.load)
+                && (store == other.store)
                 && (is_finalized == other.is_finalized);
     }
 
@@ -242,8 +307,8 @@ public:
 
     size_t get_hash() const {
         return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag, hw,
-                fma, simd, regs, iter_tile, thread_group_tile, loop_nest,
-                a_access_kind, b_access_kind, c_access_kind, is_finalized);
+                fma, simd, regs, iter_tile, thread_group_tile, loop_nest, load,
+                store, is_finalized);
     }
 
     void serialize(std::ostream &out) const {
@@ -260,9 +325,8 @@ public:
         ir_utils::serialize(iter_tile, out);
         ir_utils::serialize(thread_group_tile, out);
         ir_utils::serialize(loop_nest, out);
-        ir_utils::serialize(a_access_kind, out);
-        ir_utils::serialize(b_access_kind, out);
-        ir_utils::serialize(c_access_kind, out);
+        ir_utils::serialize(load, out);
+        ir_utils::serialize(store, out);
         ir_utils::serialize(reqs, out);
     }
 
@@ -279,9 +343,8 @@ public:
         ir_utils::deserialize(iter_tile, in);
         ir_utils::deserialize(thread_group_tile, in);
         ir_utils::deserialize(loop_nest, in);
-        ir_utils::deserialize(a_access_kind, in);
-        ir_utils::deserialize(b_access_kind, in);
-        ir_utils::deserialize(c_access_kind, in);
+        ir_utils::deserialize(load, in);
+        ir_utils::deserialize(store, in);
         ir_utils::deserialize(reqs, in);
         is_finalized = true;
     }
@@ -297,11 +360,23 @@ public:
         return pick_c(prop, src_tag.type(), wei_tag.type(), dst_tag.type());
     }
 
-    send_kind_t access_kind(tensor_kind_t tensor) const {
-        if (tensor == tensor_kind_t::a) return a_access_kind;
-        if (tensor == tensor_kind_t::b) return b_access_kind;
-        if (tensor == tensor_kind_t::c) return c_access_kind;
-        ir_error_not_expected();
+    send_kind_t access_kind(send_op_t op, tensor_kind_t tensor) const {
+        switch (op) {
+            case send_op_t::load:
+                switch (tensor) {
+                    case tensor_kind_t::a: return load.a;
+                    case tensor_kind_t::b: return load.b;
+                    default: ir_error_not_expected();
+                }
+                break;
+            case send_op_t::store:
+                switch (tensor) {
+                    case tensor_kind_t::c: return store.c;
+                    default: ir_error_not_expected();
+                }
+                break;
+            default: ir_error_not_expected();
+        }
         return send_kind_t::undef;
     }
 

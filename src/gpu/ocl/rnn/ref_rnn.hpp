@@ -64,7 +64,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
     typedef cell_execution_sig((class_name::*cell_execution_f));
     typedef grid_execution_sig((class_name::*grid_execution_f));
     typedef gemm_sig((class_name::*gemm_t));
-    typedef weights_assign_sig((class_name::*weights_assign_t));
 
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
@@ -172,8 +171,6 @@ private:
     elemwise_sig_gru_lbr(gru_lbr_elemwise);
 
     gemm_sig(gemm_primitive);
-
-    weights_assign_sig(assign_weight_offsets);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping)
             = nullptr;

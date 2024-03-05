@@ -622,11 +622,15 @@ private:
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
         const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr);
 status_t init_cfg(conv_config_t &cfg, const primitive_t *prim);
+status_t init_regs(conv_config_t &cfg);
 int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
         bool do_src_zp_compensation, bool enable_a, bool enable_b,
         bool do_unroll);
 tensor_config_t get_tensor_config(const conv_config_t &cfg);
 int estimate_register_count(const conv_config_t &cfg);
+int default_regs(const conv_config_t &cfg);
+void init_kernel_grid(conv_config_t &cfg);
+void init_thread_group_grid(conv_config_t &cfg);
 const std::array<prb_tile_t, 3> &get_kernel_grid_conv_dims(
         const conv_problem_t &prb);
 const std::array<prb_tile_t, 3> &get_thread_group_grid_conv_dims(

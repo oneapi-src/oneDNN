@@ -56,6 +56,43 @@ inline std::string to_string(send_op_t kind) {
     return {};
 }
 
+enum class send_kind_t {
+    undef,
+    _2d,
+    block,
+    scattered,
+    compressed_prefetch,
+};
+
+inline std::string to_string(send_kind_t kind) {
+    switch (kind) {
+#define CASE(name) \
+    case send_kind_t::name: return #name
+        CASE(undef);
+        CASE(block);
+        CASE(scattered);
+        CASE(compressed_prefetch);
+        case send_kind_t::_2d: return "2d";
+        default: ir_error_not_expected(); return "undef";
+#undef CASE
+    }
+}
+
+inline send_kind_t str_to_send_kind(const std::string &s) {
+    if (s == "2d") return send_kind_t::_2d;
+#define CASE(name) \
+    do { \
+        if (s == to_string(send_kind_t::name)) return send_kind_t::name; \
+    } while (false)
+    CASE(undef);
+    CASE(block);
+    CASE(scattered);
+    CASE(compressed_prefetch);
+#undef CASE
+    ir_error_not_expected();
+    return send_kind_t::undef;
+}
+
 struct addr_t {
     expr_t base;
     std::vector<expr_t> slot_incs;
@@ -67,7 +104,8 @@ struct addr_t {
         layout_iterator_t it(layout);
         for (int i = 1; i < slots; i++) {
             it.next(elems_per_slot);
-            slot_incs[i] = layout.offset_in_bytes(it.block_offset());
+            slot_incs[i] = simplify_rewrite(
+                    layout.offset_in_bytes(it.block_offset()));
         }
     }
 
@@ -671,34 +709,48 @@ class send_plan_builder_t {
 public:
     send_plan_builder_t() = default;
     send_plan_builder_t(const send_params_t &params, const view_t &view)
-        : params_(params), view_(view), plan_(params_.hw) {}
+        : init_params_(params), init_view_(view) {}
 
-    const send_plan_t &plan() const { return plan_; }
-
-    void build() {
-        if (try_build_2d()) return;
-        if (try_build_1d()) return;
-        ir_error_not_expected();
+    send_plan_t build() const {
+        send_params_t params = init_params_;
+        switch (params.kind) {
+            case send_kind_t::_2d: return try_build_2d(params, init_view_);
+            case send_kind_t::compressed_prefetch: {
+                prb_reqs_t reqs;
+                int cache_line_size = params.hw.cache_line_size();
+                auto view
+                        = init_view_.scatterize(cache_line_size, reqs.prover());
+                if (view.is_empty()) return send_plan_t();
+                params.kind = send_kind_t::scattered;
+                return try_build_1d(params, view, reqs);
+            }
+            default: return try_build_1d(params, init_view_);
+        }
     }
 
-    bool try_build_1d() {
-        prb_reqs_t reqs;
-        auto &layout = view_.layout();
-        auto &mask_desc = view_.mask_desc();
-        auto inner_last = find_inner_last(mask_desc, reqs);
+private:
+    send_plan_t try_build_1d(const send_params_t &params, const view_t &view,
+            prb_reqs_t reqs = prb_reqs_t()) const {
+        send_plan_t plan(params.hw);
+        auto &layout = view.layout();
+        auto &mask_desc = view.mask_desc();
+        auto inner_last = find_inner_last(params, view, mask_desc, reqs);
         int type_size = layout.type().size();
         int inner_elems = inner_last.elems();
         int inner_bytes = type_size * inner_elems;
         int slot_size = ir_utils::max_pow2_divisor(inner_bytes);
-        int grf_size = plan_.hw.grf_size();
+        int grf_size = plan.hw.grf_size();
 
-        // TODO: Add oword block support.
         if (slot_size < grf_size)
             slot_size = std::min(max_slot_size, slot_size);
+        if (type_size < slot_size && slot_size < 4) slot_size = type_size;
 
         ir_assert(inner_bytes % slot_size == 0);
         ir_assert(slot_size % type_size == 0);
         bool is_scattered = (slot_size <= max_slot_size);
+        if (is_scattered && params.kind == send_kind_t::block)
+            return send_plan_t();
+
         int slots = inner_bytes / slot_size;
         int elems_per_slot = slot_size / type_size;
         int slot_stride = std::max(4, slot_size);
@@ -713,7 +765,7 @@ public:
                 int entry_reg_size
                         = utils::rnd_up(it_slots * slot_stride, grf_size);
                 if (it_slots > max_slots
-                        || entry_reg_size > params_.max_entry_reg_size) {
+                        || entry_reg_size > params.max_entry_reg_size) {
                     outer_begin = it;
                     break;
                 }
@@ -723,13 +775,13 @@ public:
         }
 
         send_1d_desc_t desc;
-        desc.hw = params_.hw;
-        desc.op = params_.op;
+        desc.hw = params.hw;
+        desc.op = params.op;
         desc.type_size = slot_size;
         desc.slots = slots;
 
         addr_t addr(layout, slots, elems_per_slot);
-        if (!desc.base_alignment_ok(addr, reqs.prover())) return false;
+        if (!desc.base_alignment_ok(addr, reqs.prover())) return send_plan_t();
 
         int elem_stride = 1;
         if (slot_stride > slot_size) {
@@ -744,65 +796,62 @@ public:
         add_remaining_blocks(reg_layout, middle_last);
         reg_layout.normalize();
 
-        auto &plan = plan_.get_1d();
-        plan = send_1d_plan_t(plan_.hw);
-        plan.desc = desc;
-        plan.addr = addr;
-        plan.mask = mask_t(mask_desc, layout, slots, elems_per_slot);
-        plan.reg_layout = reg_layout;
-        plan.entry_tile = entry_tile;
-
-        for (auto &d : params_.skip_mask)
-            plan.mask.clear(d);
+        auto &plan_1d = plan.get_1d();
+        plan_1d = send_1d_plan_t(plan.hw);
+        plan_1d.desc = desc;
+        plan_1d.addr = addr;
+        plan_1d.mask = mask_t(mask_desc, layout, slots, elems_per_slot);
+        plan_1d.reg_layout = reg_layout;
+        plan_1d.entry_tile = entry_tile;
+        for (auto &d : params.skip_mask)
+            plan_1d.mask.clear(d);
 
         int step_elems = slots * elems_per_slot;
         layout_iterator_t it(layout);
         int reg_off = 0;
-        plan.add_entry(it, mask_desc, reg_off, reqs.prover());
+        plan_1d.add_entry(it, mask_desc, reg_off, reqs.prover());
         while (it.has_next(step_elems)) {
             it.next(step_elems);
             reg_off += slots * slot_stride;
             reg_off = utils::rnd_up(reg_off, grf_size);
-            if (!plan.add_entry(it, mask_desc, reg_off, reqs.prover()))
-                return false;
+            if (!plan_1d.add_entry(it, mask_desc, reg_off, reqs.prover()))
+                return send_plan_t();
         }
-        plan.reqs = reqs;
-        return true;
+        plan_1d.reqs = reqs;
+        plan_1d.reqs.simplify();
+        return plan;
     }
 
-    bool try_build_2d() {
-        if (params_.kind != send_kind_t::_2d) return false;
+    send_plan_t try_build_2d(const send_params_t &params, const view_t &view,
+            prb_reqs_t reqs = prb_reqs_t()) const {
+        send_plan_t plan(params.hw);
+        send_2d_desc_t desc(view, params, reqs.prover());
+        if (!desc) return send_plan_t();
 
-        prb_reqs_t reqs;
-        send_2d_desc_t desc(view_, params_, reqs.prover());
-        if (!desc) return false;
-
-        auto &plane = view_.plane();
-        int grf_size = params_.hw.grf_size();
-        auto reg_layout = desc.reg_layout(grf_size, view_.layout().desc());
+        auto &plane = view.plane();
+        int grf_size = params.hw.grf_size();
+        auto reg_layout = desc.reg_layout(grf_size, view.layout().desc());
         int entry_reg_size = utils::rnd_up(reg_layout.size(), grf_size);
-        ir_assert(entry_reg_size <= params_.max_entry_reg_size);
+        ir_assert(entry_reg_size <= params.max_entry_reg_size);
         reg_layout.pad_bytes(grf_size);
 
         auto entry_tile = reg_layout.int_dim_sizes();
         reg_layout.add_block(plane.w_dim, desc.w_rcount);
         reg_layout.add_block(plane.h_dim, desc.h_rcount);
 
-        auto &plan = plan_.get_2d();
-        plan = send_2d_plan_t(plan_.hw);
-        plan.desc = desc;
-        plan.reqs = reqs;
-        plan.base = desc.base;
-        plan.x_base = plane.x;
-        plan.y_base = plane.y;
-        plan.mask = mask_t(view_.mask_desc());
-        plan.mask.clear(plane.x_dim);
-        plan.mask.clear(plane.y_dim);
-        for (auto &d : params_.skip_mask)
-            plan.mask.clear(d);
-
-        plan.reg_layout = reg_layout;
-        plan.entry_tile = entry_tile;
+        auto &plan_2d = plan.get_2d();
+        plan_2d = send_2d_plan_t(plan.hw);
+        plan_2d.desc = desc;
+        plan_2d.base = desc.base;
+        plan_2d.x_base = plane.x;
+        plan_2d.y_base = plane.y;
+        plan_2d.mask = mask_t(view.mask_desc());
+        plan_2d.mask.clear(plane.x_dim);
+        plan_2d.mask.clear(plane.y_dim);
+        for (auto &d : params.skip_mask)
+            plan_2d.mask.clear(d);
+        plan_2d.reg_layout = reg_layout;
+        plan_2d.entry_tile = entry_tile;
 
         int reg_off = 0;
         for (int h = 0; h < plane.h; h += desc.h) {
@@ -810,30 +859,32 @@ public:
                 prb_coord_t<int> coord;
                 coord[plane.w_dim] = w;
                 coord[plane.h_dim] = h;
-                if (!plan.add_entry(coord, reg_off, reqs.prover()))
-                    return false;
+                if (!plan_2d.add_entry(coord, reg_off, reqs.prover()))
+                    return send_plan_t();
                 reg_off += entry_reg_size;
             }
         }
-        return true;
+        plan_2d.reqs = reqs;
+        plan_2d.reqs.simplify();
+        return plan;
     }
 
-private:
-    block_iterator_t find_inner_last(
-            const mask_desc_t &mask_desc, prb_reqs_t &reqs) const {
-        auto &layout = view_.layout();
+    block_iterator_t find_inner_last(const send_params_t &params,
+            const view_t &view, const mask_desc_t &mask_desc,
+            prb_reqs_t &reqs) const {
+        auto &layout = view.layout();
         auto inner_last = begin(layout);
         int type_size = layout.type().size();
         auto ok_to_return = [&]() {
-            if (params_.kind != send_kind_t::block) return true;
-            int grf_size = plan_.hw.grf_size();
+            if (params.kind != send_kind_t::block) return true;
+            int grf_size = params.hw.grf_size();
             return type_size * inner_last.elems() >= grf_size;
         };
         for (auto it = begin(layout); it != end(layout); ++it) {
             auto prover = reqs.prover(!ok_to_return());
             if (!mask_desc.is_uniform(it, prover)) break;
-            if (!it.is_dense(prover)) break;
-            if (type_size * it.elems() > params_.max_entry_reg_size) break;
+            if (!it.is_dense()) break;
+            if (type_size * it.elems() > params.max_entry_reg_size) break;
             inner_last = it;
         }
         return inner_last;
@@ -864,16 +915,18 @@ private:
         plan = new_plan;
     }
 
-    send_params_t params_;
-    view_t view_;
-    send_plan_t plan_;
+    send_params_t init_params_;
+    view_t init_view_;
 };
 
-inline send_plan_t create_send_plan(
-        const send_params_t &params, const view_t &view) {
+inline send_plan_t create_send_plan(const send_params_t &params,
+        const view_t &view, bool allow_fail = false) {
     send_plan_builder_t spb(params, view);
-    spb.build();
-    return spb.plan();
+    auto plan = spb.build();
+    if (!plan) {
+        if (!allow_fail) ir_error_not_expected() << "Cannot create send plan.";
+    }
+    return plan;
 }
 
 } // namespace v2

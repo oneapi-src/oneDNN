@@ -32,11 +32,6 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
     const rnn_offsets_t &offsets = this->pd()->off;
 
-    dim_t cell_wei_iter_offset, cell_wei_iter_offset2, cell_scratch_offset2;
-
-    set_offsets_fwd_gemm(
-            rnn, iter, dir, lay, wei_iter_offsets, cell_wei_iter_offset);
-
     auto cell_layer = !rnn.copy_src_layer && lay == 0
             ? user_data.src_layer(dir, iter)
             : workspace.states(lay - 1, dir, iter);
@@ -50,20 +45,24 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     auto cell_iter2 = workspace.states(lay, dir, iter);
     auto scratch_cell = scratch.cell();
 
-    set_gru_offsets_part2(rnn, iter, dir, lay, wei_iter_offsets,
-            cell_wei_iter_offset2, cell_scratch_offset2);
+    dim_t cell_wei_iter_offset2 = 2 * offsets.weights_iter[3]
+            * types::data_type_size(rnn.wei_iter_type);
+    dim_t cell_scratch_offset2 = 2 * rnn.dhc * rnn.scratch_gates_elsz;
 
     auto scratch_gates = scratch.gates(iter);
+
+    auto wei_layer = user_data.wei_layer(lay, dir);
+    auto wei_iter = user_data.wei_iter(lay, dir);
 
     if (aprop == prop_kind::forward) {
         // 1. gemm Wx[0-2],x
         if (!rnn.merge_gemm_layer)
-            CHECK(gemm_primitive(engine, ctx, {wei_layer, wei_layer_offset},
-                    cell_layer, scratch_gates, gemm_cell_layer_fwd));
+            CHECK(gemm_primitive(engine, ctx, wei_layer, cell_layer,
+                    scratch_gates, gemm_cell_layer_fwd));
 
         // 2. gemm Wh[0-1],h
-        CHECK(gemm_primitive(engine, ctx, {wei_iter, cell_wei_iter_offset},
-                cell_iter, scratch_gates, gemm_iter_fwd));
+        CHECK(gemm_primitive(engine, ctx, wei_iter, cell_iter, scratch_gates,
+                gemm_iter_fwd));
 
         // 3. activation zt and rt + elemwise multiplication rt,ht-1
         CHECK((this->*elemwise_gru)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, 1,
@@ -81,12 +80,6 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 {}, 0, {}, tm_scales, diff_bias, PART_TWO));
 
     } else {
-        dim_t cell_diff_wei_iter_off, cell_diff_wei_lay_off,
-                cell_diff_wei_iter_off2;
-
-        set_offsets_bwd_gemm(rnn, iter, dir, lay, cell_diff_wei_iter_off,
-                cell_diff_wei_lay_off, cell_diff_wei_iter_off2);
-
         auto diff_states_iter = scratch.diff_states(lay, dir, 0, iter + 1);
         auto diff_states_layer
                 = !rnn.copy_diff_dst_layer && lay + 1 == rnn.n_layer
@@ -128,30 +121,32 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
                 diff_states_iter, diff_states_layer, diff_states_layer_ld,
                 scratch_diff_ht, tm_scales, diff_bias, PART_TWO));
 
+        auto diff_wei_iter = user_data.diff_wei_iter(lay, dir);
+        dim_t cell_diff_wei_iter_off2
+                = 2 * offsets.diff_weights_iter[3] * sizeof(float);
         // 4. calculate diff weights
         // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)
-        CHECK(gemm_primitive(engine, ctx, diff_gates, cell_iter,
-                {diff_weights_iter, cell_diff_wei_iter_off},
+        CHECK(gemm_primitive(engine, ctx, diff_gates, cell_iter, diff_wei_iter,
                 gemm_diff_wei_iter));
 
         CHECK(gemm_primitive(engine, ctx, {diff_gates, cell_scratch_diff_off2},
-                *scratch_cell, {diff_weights_iter, cell_diff_wei_iter_off2},
+                *scratch_cell, {diff_wei_iter, cell_diff_wei_iter_off2},
                 gemm_diff_wei_iter_2));
 
         // 5. calculate diff states
         // dht-1 += dG1 * W1h + dG0 * W0h
-        CHECK(gemm_primitive(engine, ctx, {wei_iter, cell_wei_iter_offset},
-                diff_gates, diff_states, gemm_iter_bwd));
+        CHECK(gemm_primitive(
+                engine, ctx, wei_iter, diff_gates, diff_states, gemm_iter_bwd));
 
         if (!rnn.merge_gemm_layer) {
             // dWx += [dG0 dG1 dG2] * [x]
             CHECK(gemm_primitive(engine, ctx, diff_gates, cell_layer,
-                    {diff_weights_layer, cell_diff_wei_lay_off},
+                    user_data.diff_wei_layer(lay, dir),
                     gemm_diff_wei_cell_layer));
 
             // dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
-            CHECK(gemm_primitive(engine, ctx, {wei_layer, wei_layer_offset},
-                    diff_gates, diff_states1, gemm_layer_bwd));
+            CHECK(gemm_primitive(engine, ctx, wei_layer, diff_gates,
+                    diff_states1, gemm_layer_bwd));
         }
     }
     return status::success;
