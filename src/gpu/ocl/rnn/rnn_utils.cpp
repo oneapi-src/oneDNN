@@ -180,19 +180,31 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         // kernels is more performant.
         const dim_t k_limit = tail_dhc ? 50 : 160;
 
+        // The fused gemm implementation assumes the dst channel dimension is
+        // dense
+        auto is_dense_dst_c = [](const memory_desc_wrapper &md) {
+            if (md.format_kind() == format_kind::any) return true;
+            if (md.format_kind() != format_kind::blocked) return false;
+            if (md.dims()[4] == 1) return true;
+            if (md.blocking_desc().strides[4] == 1) return true;
+            return false;
+        };
+
         rnn.cell_fusion.gemm_iter
                 = dev_getenv("fuse_gemm_iter",
                           !rnn.merge_gemm_iter
                                   && rnn.dhc * rnn.sic * rnn.mb * rnn.n_gates
                                           < fuse_gemm_limit
-                                  && rnn.sic < k_limit)
+                                  && rnn.sic < k_limit
+                                  && is_dense_dst_c(weights_layer_d))
                 && can_fuse_gemm;
         rnn.cell_fusion.gemm_layer
                 = dev_getenv("fuse_gemm_layer",
                           rnn.cell_fusion.gemm_iter && !rnn.merge_gemm_layer
                                   && rnn.dhc * rnn.slc * rnn.mb * rnn.n_gates
                                           < fuse_gemm_limit
-                                  && rnn.slc < k_limit)
+                                  && rnn.slc < k_limit
+                                  && is_dense_dst_c(weights_iter_d))
                 && can_fuse_gemm;
 
         // Currently, external gemm_iter always accumulates in C. As such,
