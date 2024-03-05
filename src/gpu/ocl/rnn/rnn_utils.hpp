@@ -378,19 +378,12 @@ struct sub_buffer_t {
     sub_buffer_t() : buffer_(nullptr) {}
     sub_buffer_t(const memory_storage_t &buffer, dim_t offset = 0,
             dim_t size = unset)
-        : buffer_(buffer.is_null()
-                        ? nullptr
-                        : (use_clone(size, offset) ? buffer.clone()
-                                                   : buffer.get_sub_storage(
-                                                           offset, size))) {
-        if (buffer_ && use_clone(size, offset))
-            buffer_->set_offset(static_cast<size_t>(offset));
+        : buffer_(buffer.is_null() ? nullptr : buffer.clone()) {
+        if (buffer_) buffer_->set_offset(static_cast<size_t>(offset));
     }
 
     sub_buffer_t(const sub_buffer_t &buffer, dim_t offset = 0)
-        : buffer_((buffer.buffer_ == nullptr || buffer.buffer_->is_null())
-                        ? nullptr
-                        : buffer.buffer_->clone()) {
+        : buffer_(buffer ? buffer.buffer_->clone() : nullptr) {
         if (buffer_) buffer_->set_offset(buffer.offset() + offset);
     }
 
@@ -413,9 +406,6 @@ struct sub_buffer_t {
     }
 
 private:
-    static constexpr bool use_clone(dim_t size, dim_t offset) {
-        return size == unset || offset % OCL_BUFFER_ALIGNMENT != 0;
-    }
     std::unique_ptr<memory_storage_t> buffer_;
 };
 
