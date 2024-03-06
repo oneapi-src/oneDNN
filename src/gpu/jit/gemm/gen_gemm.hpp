@@ -76,6 +76,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             // If m = 1, swap A/B to use more efficient n = 1 kernels if possible.
             eff_lda_ = d->lda();
             eff_ldb_ = d->ldb();
+            eff_transa_ = d->transa() == dnnl_trans;
+            eff_transb_ = d->transb() == dnnl_trans;
 
             bool check_lda = ((d->transa() == dnnl_notrans && d->lda() == 1)
                     || (d->transa() == dnnl_trans));
@@ -83,7 +85,15 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (swap_ab_) {
                 std::swap(eff_lda_, eff_ldb_);
-                if (d->transa() == dnnl_notrans) eff_ldb_ = d->k();
+                std::swap(eff_transa_, eff_transb_);
+                eff_transa_ = !eff_transa_;
+                eff_transb_ = !eff_transb_;
+
+                // Do not use transposed B when it is unnecessary
+                if (eff_transb_ && eff_n() == 1) {
+                    eff_transb_ = false;
+                    eff_ldb_ = d->k();
+                }
             }
 
             // Pad leading dimensions in case of a single row/column.
@@ -428,13 +438,8 @@ struct gen_gemm_t : public gpu_gemm_t {
         int batch_dims() const {
             return nstl::max(desc()->c_desc.ndims - 2, 0);
         }
-        bool eff_transa() const {
-            return !swap_ab() ? (desc()->transa() == dnnl_trans)
-                              : (desc()->transb() == dnnl_notrans);
-        }
-        bool eff_transb() const {
-            return !swap_ab() ? (desc()->transb() == dnnl_trans) : false;
-        }
+        bool eff_transa() const { return eff_transa_; }
+        bool eff_transb() const { return eff_transb_; }
         bool eff_trans_bias() const {
             return swap_ab() ? (desc()->trans_bias() == dnnl_notrans)
                              : (desc()->trans_bias() == dnnl_trans);
@@ -505,6 +510,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool a_zp_ = false, b_zp_ = false;
         bool wei_decomp_ = false;
         dim_t eff_lda_ = 0, eff_ldb_ = 0;
+        bool eff_transa_ = false, eff_transb_ = false;
 
         const compute::device_info_t *dev_info_ = nullptr;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
