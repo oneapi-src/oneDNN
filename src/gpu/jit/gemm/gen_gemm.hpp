@@ -69,9 +69,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                                   && utils::one_of(d->a_type(), u8, s8, s4, u4)
                                   && utils::one_of(d->b_type(), f16, f32, bf16))
                     && attr()->mayiconvert(d->a_type(), f32);
-            auto status = set_default_formats();
-
-            if (status != status::success) return status;
+            CHECK(set_default_formats(false));
 
             // If m = 1, swap A/B to use more efficient n = 1 kernels if possible.
             eff_lda_ = d->lda();
@@ -81,7 +79,8 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             bool check_lda = ((d->transa() == dnnl_notrans && d->lda() == 1)
                     || (d->transa() == dnnl_trans));
-            swap_ab_ = (d->m() == 1 && d->ldc() == 1 && check_lda);
+            swap_ab_ = (d->m() == 1 && d->ldc() == 1 && check_lda)
+                    || d->transc() == dnnl_trans;
 
             if (swap_ab_) {
                 std::swap(eff_lda_, eff_ldb_);
@@ -179,8 +178,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                         1 << 1, 1 << 2);
             }
 
-            status = init_post_ops();
-            if (status != status::success) return status;
+            CHECK(init_post_ops());
 
             bool with_binary = (post_ops_.find(binary) != -1)
                     || (post_ops_.find(prelu) != -1);
@@ -249,7 +247,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             CHECK(gpu_post_ops_t::make(gpu_post_ops, post_ops_, dst_md(),
                     get_post_op_specializations()));
 
-            status = kernel_desc_.select_kernel(arch_, stepping,
+            CHECK(kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
                     eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
                     ao_dims_, bo_dims_, with_c_zero_points(), with_bias(),
@@ -257,9 +255,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     desc()->c_type(), ao_type, bo_type, co_type, acc_type,
                     eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
                     d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch(),
-                    std::move(gpu_post_ops));
-
-            if (status != status::success) return status;
+                    std::move(gpu_post_ops)));
 
             // Global k-parallel kernels don't support post-ops or non-f32/s32
             //   accumulation unless fusion is enabled.
@@ -294,7 +290,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             return status::success;
         }
 
-        status_t set_default_formats() {
+        status_t set_default_formats(bool no_transpose_c) {
             using namespace data_type;
             using namespace format_tag;
             using arch_t = compute::gpu_arch_t;
@@ -330,7 +326,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                 return status::unimplemented;
             if (!b_any && !is_md_gemm_compatible_plain_format(&b_desc))
                 return status::unimplemented;
-            if (!c_any && !is_md_gemm_compatible_plain_format(&c_desc, true))
+            if (!c_any
+                    && !is_md_gemm_compatible_plain_format(
+                            &c_desc, no_transpose_c))
                 return status::unimplemented;
 
             bool is_a_trans = (desc()->transa() == dnnl_trans);
