@@ -1934,7 +1934,7 @@ static bool needsPseudoblock(HW hw, Type T, int r, int c,
     bool pseudo = !dwAligned || ((consecutive * T) & 0x3)
             || (writable && ((consecutive * T) & 0xF) && !astrategy.newDP)
             || (writable && !owAligned && !astrategy.newDP)
-            || (writable && masked && (T.isInt4() || T.size() & 3))
+            || (writable && masked && (T.paddedSize() & 3))
             || (masked && !owAligned
                     && (hw >= HW::XeHP
                             || astrategy.base.getModel() != ModelA64))
@@ -2264,8 +2264,6 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
     int R = rounddown_pow2(r);
     int C = rounddown_pow2(c);
 
-    int t_size = T.isInt4() ? 1 : T.size();
-
     if (maxRBlock == 0) maxRBlock = r;
     if (maxCBlock == 0) maxCBlock = c;
 
@@ -2396,14 +2394,14 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
 
             channelScattered |= byte;
 
-            bool qword = (t_size >= 8 && !channelScattered && !prefetch
+            bool qword = (T.paddedSize() >= 8 && !channelScattered && !prefetch
                     && (a64 || astrategy.newDP));
             if (atomic && hasNativeAtomicAdd(hw, T.real(), atype, astrategy))
-                qword &= (!T.isInt4() && T.real().size() >= 8);
+                qword &= (T.real().paddedSize() >= 8);
             int width = qword ? 8 : 4;
             block.ebytes = byte ? 1 : width;
             block.crosspack = std::max<int>(1, width / T);
-            int consecutive = std::max<int>(1, t_size / width);
+            int consecutive = std::max<int>(1, T.paddedSize() / width);
 
             if (prefetch) consecutive = 1;
 
@@ -2480,11 +2478,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             if (prefetch) {
                 block.count = 1;
             } else if (byte) {
-                if (T.isInt4()) {
-                    block.count /= 2;
-                } else {
-                    block.count *= t_size;
-                }
+                block.count *= T;
             } else
                 block.count = std::max<int>(1, block.count / block.crosspack);
 
@@ -2561,11 +2555,11 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
             bool effCM = colMajor ^ isLargeCrosspack(T, atype.crosspack);
             auto consecutive = consecutiveElements(T, r, c, atype);
             bool masking = (effCM ? remainderR : remainderC);
-            bool bytePartialCP = (T.isInt4() || t_size & 3)
+            bool bytePartialCP = (T.paddedSize() & 3)
                     && ((colMajor ? C : R) % atype.crosspack);
             bool byte = (atype.alignment & 3) || (consecutive * T & 3)
                     || bytePartialCP
-                    || ((T.isInt4() || t_size & 3) && writable && masking);
+                    || ((T.paddedSize() & 3) && writable && masking);
             bool byte1PerSlot = byte && (bytePartialCP || masking || atomic);
             bool pseudo = (accessType == AccessType::PseudoBlock)
                     | needsPseudoblock(
@@ -2589,7 +2583,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                 block.ebytes = qword ? 8 : 4;
                 maxElements = (64 * block.ebytes) / T;
                 maskGranularity
-                        = t_size; // Convenience value; LSC cannot mask individual elements
+                        = T.paddedSize(); // Convenience value; LSC cannot mask individual elements
             } else if (!pseudo) {
                 int maxCount = 8;
                 oword = !a64;
@@ -2611,15 +2605,16 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                     canQW &= !byte && a64;
                 if (slm && atomic) // QW SLM atomics are implemented in XeHPC, but seeing functionality issues.
                     canQW = false;
-                if (remainderR || remainderC) canQW &= (t_size % 8 == 0);
-                if (nativeAtomic)
-                    canQW = mustQW = (!T.isInt4() && T.real().size() >= 8);
+                if (remainderR || remainderC)
+                    canQW &= (T.paddedSize() % 8 == 0);
+                if (nativeAtomic) canQW = mustQW = (T.real().paddedSize() >= 8);
                 auto stride = canQW ? 8 : 4;
                 auto maxNPack = byte1PerSlot ? 1 : std::max<int>(1, stride / T);
                 int simdCap = maxSIMD;
                 if (atomic && !nativeAtomic) simdCap = 16;
                 maxElements = simdCap * maxNPack;
-                if (t_size > stride) maxElements = maxElements * stride / T;
+                if (T.paddedSize() > stride)
+                    maxElements = maxElements * stride / T;
                 if (allowFixedMasks) R = r, C = c;
             }
 
@@ -2699,7 +2694,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                     npack = 1;
                     (effCM ? cblock : rblock) = 1;
                 }
-                maskGranularity = qword ? 8 : byte1PerSlot ? t_size : 4;
+                maskGranularity = qword ? 8 : byte1PerSlot ? T.paddedSize() : 4;
             }
 
             if (remainderR) {
@@ -2718,7 +2713,8 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                         // As long as we do not need to write to this matrix, we can read
                         // in maskGranularity-sized chunks knowing we will never cross a page boundary.
 
-                        if (writable && (t_size & (maskGranularity - 1)))
+                        if (writable
+                                && (T.paddedSize() & (maskGranularity - 1)))
                             return false;
                         if (!pseudo && oword && aoword) hw_unsupported();
 
@@ -2729,8 +2725,8 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
 
                         vrmask.isFixed = false;
                         vrmask.rsize = rblock;
-                        vrmask.bitRep
-                                = std::max<int>(t_size / maskGranularity, 1);
+                        vrmask.bitRep = std::max<int>(
+                                T.paddedSize() / maskGranularity, 1);
                         vrmask.maskRep = cblock;
                         vrmask.rdivide = std::max<int>(maskGranularity / T, 1);
                     }
@@ -2760,7 +2756,8 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                     if (cblock > cblockLimit)
                         block.colFragment = cblockLimit;
                     else {
-                        if (writable && (t_size & (maskGranularity - 1)))
+                        if (writable
+                                && (T.paddedSize() & (maskGranularity - 1)))
                             return false;
                         if (!pseudo && oword && aoword) hw_unsupported();
 
@@ -2771,8 +2768,8 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
 
                         vcmask.isFixed = false;
                         vcmask.rsize = cblock;
-                        vcmask.bitRep
-                                = std::max<int>(t_size / maskGranularity, 1);
+                        vcmask.bitRep = std::max<int>(
+                                T.paddedSize() / maskGranularity, 1);
                         vcmask.maskRep = rblock;
                         vcmask.rdivide = std::max<int>(maskGranularity / T, 1);
                     }
@@ -2819,10 +2816,7 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
                         && !aoword) // BTS/SLM oword loads are oword-addressed.
                     block.addrShift = 4;
             } else {
-                block.count = byte
-                        ? std::min(nbytes,
-                                (T.isInt4() ? div_up(npack, 2) : npack * T))
-                        : 1;
+                block.count = byte ? std::min(nbytes, npack * T) : 1;
                 block.ebytes = byte ? 1 : maskGranularity;
                 block.extra = 1;
                 if (!(a32 || a64
@@ -2871,31 +2865,25 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
 
             // Choose underlying type.
             auto Tblock = T;
-            int tblock_size = t_size;
             if (transpose) {
                 int maxW;
-                if (t_size > 8) hw_unsupported();
-                if (t_size > 4) {
+                if (Tblock.paddedSize() > 8) hw_unsupported();
+                if (Tblock.paddedSize() > 4) {
                     Tblock = Type::u64;
-                    tblock_size = 8;
                     maxW = 4;
                     maxYBlock = 8;
                 } else {
                     Tblock = Type::u32;
-                    tblock_size = 4;
                     maxW = 8;
                 }
                 maxXBlock = std::min(maxXBlock, (maxW * Tblock) / T);
                 minAlign = 4;
             } else if (vnni) {
-                if (tblock_size >= 4) hw_unsupported();
+                if (Tblock.paddedSize() >= 4) hw_unsupported();
                 if ((Y * Tblock) % 4) hw_unsupported();
                 maxXBlock = std::min(maxXBlock, 16);
             } else {
-                if (tblock_size > 8) {
-                    Tblock = Type::u64;
-                    tblock_size = 8;
-                }
+                if (Tblock.paddedSize() > 8) { Tblock = Type::u64; }
                 block.crosspack = atype.crosspack;
             }
             if ((X * T) % 4) hw_unsupported();
@@ -2922,7 +2910,8 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
 
             yblock = std::min({maxYBlock, Y, yblockLimit});
 
-            if (transpose && tblock_size == 8 && yblock != 8) hw_unsupported();
+            if (transpose && Tblock.paddedSize() == 8 && yblock != 8)
+                hw_unsupported();
 
             // Choose # of blocks. In postprocessLayout, this RegisterBlock will be
             //  split into one RegisterBlock for each block in the array.
@@ -2948,9 +2937,9 @@ bool gemm_kernel_generator_t<hw>::getBlockInfo(Type T,
 
             block.simdSize = 1;
             block.ld = roundup_pow2(transpose ? yblock : xblock);
-            block.ebytes = tblock_size;
+            block.ebytes = Tblock.paddedSize();
             block.count = count;
-            block.extra = t_size;
+            block.extra = T.paddedSize();
             auto bytes = align_up((block.colMajor ? cblock : rblock) / count,
                                  block.crosspack)
                     * block.ld * count * T;
@@ -3175,7 +3164,6 @@ bool gemm_kernel_generator_t<hw>::getSubblock(Type T, RegisterBlock &blockDst,
         const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy) {
     auto Telem = T;
-    int t_size = T.isInt4() ? 1 : T.size();
     auto effAccessType = effectiveAccessType(atype, astrategy, blockSrc);
     blockDst = blockSrc;
 
@@ -3198,14 +3186,10 @@ bool gemm_kernel_generator_t<hw>::getSubblock(Type T, RegisterBlock &blockDst,
                 case AccessType::ChannelScattered:
                     blockDst.count = x2 - x1;
                     if (blockDst.ebytes == 1)
-                        if (T.isInt4()) {
-                            blockDst.count = std::max(1, blockDst.count / 2);
-                        } else {
-                            blockDst.count *= t_size;
-                        }
+                        blockDst.count *= T;
                     else if (blockDst.splitComplex)
                         blockDst.count *= 2;
-                    else if (T.isInt4() || t_size < blockDst.ebytes) {
+                    else if (T.paddedSize() < blockDst.ebytes) {
                         // Extra alignment path with small types.
                         // Check to see if we can still use this element size,
                         //  if not downgrade to scattered byte.
@@ -3267,7 +3251,7 @@ bool gemm_kernel_generator_t<hw>::getSubblock(Type T, RegisterBlock &blockDst,
                 }
                 case AccessType::Scattered:
                 case AccessType::ChannelScattered: {
-                    if (t_size > blockDst.ebytes) return false;
+                    if (T.paddedSize() > blockDst.ebytes) return false;
                     if (x1 != 0) return false;
                     if (!is_zero_or_pow2(x2)) return false;
 
@@ -4108,11 +4092,7 @@ void coalesceAddrs(HW hw, Type T, vector<RegisterBlock> &layout,
                         break;
                     default: return;
                 }
-                if (T.isInt4()) {
-                    block.set2DOffset(ox / (block.ebytes * 2), oy);
-                } else {
-                    block.set2DOffset(ox * T.size() / block.ebytes, oy);
-                }
+                block.set2DOffset(ox * T / block.ebytes, oy);
             } else {
                 // No match. Make this block the new anchor.
                 anchor = &block;
@@ -4130,11 +4110,7 @@ void coalesceAddrs(HW hw, Type T, vector<RegisterBlock> &layout,
                     block.offsetAddr = untile(T, atype, block);
                     break;
             }
-            if (T.isInt4()) {
-                block.offsetAddr = std::max(block.offsetAddr / 2, 1);
-            } else {
-                block.offsetAddr *= T.size();
-            }
+            block.offsetAddr *= T;
             if (block.offsetAddr >= max || block.offsetAddr < -max)
                 block.offsetAddr = 0;
             if (one_of(accessType, AccessType::Scattered,
@@ -4277,7 +4253,7 @@ static Subregister findBlockReg(Type T, const RegisterBlock &block, int rr,
     int subreg = el % ne;
     // Effective byte subreg
     if (Te.isInt4()) {
-        if (subreg % 2) throw std::runtime_error("Invalid int4 offset. ");
+        if (subreg % 2) throw std::runtime_error("Invalid int4 offset.");
         subreg = div_up(subreg, 2);
     }
 
@@ -4765,8 +4741,7 @@ static inline int contiguityCheck(
     return offsetReg;
 }
 
-static DataSizeLSC getDataSizeLSC(
-        int ebytes, bool pad32, bool transpose2D = false) {
+static DataSizeLSC getDataSizeLSC(int ebytes, bool pad32) {
     switch (ebytes) {
         case 8: return DataSizeLSC::D64;
         case 4: return DataSizeLSC::D32;
@@ -6016,11 +5991,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T, const GRFRange &addr,
             auto boffX = memCM ? block.offsetR : block.offsetC;
             auto boffY = memCM ? block.offsetC : block.offsetR;
 
-            if (T.isInt4()) {
-                boffX /= uint8_t(2);
-            } else {
-                boffX *= uint8_t(T.size());
-            }
+            boffX *= T;
             if (boffX % block.ebytes) stub();
             boffX /= block.ebytes;
 
@@ -6057,11 +6028,8 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T, const GRFRange &addr,
 
                 if (nx.isValid()) {
                     if (T.isInt4()) {
-                        auto temp = state.ra.alloc_sub<uint32_t>();
-                        shr(1, temp.reinterpret(0, nx.getType()), nx, 1);
-                        add(1, addr[0].ud(2), temp.reinterpret(0, nx.getType()),
-                                ngen::Immediate(-1));
-                        state.ra.release(temp);
+                        addScaled(1, addr[0].ud(2), addr[0].ud(2), nx, -1, 2,
+                                state, true);
                     } else {
                         mad(1, addr[0].ud(2), -1, nx, T.size());
                     }
@@ -6085,7 +6053,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T, const GRFRange &addr,
                     if (offX.isValid())
                         add(1, addr[0].ud(5), addr[0].ud(5), baseAdjustElems);
                 }
-                if (T.isInt4() || T.size() < widthAlign)
+                if (T.paddedSize() < widthAlign)
                     or_(1, addr[0].ud(2), addr[0].ud(2), widthAlign - 1);
             } else if (remW.isInvalid() && remH.isInvalid())
                 emov(1, addr[0].uq(1),
@@ -6096,13 +6064,8 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T, const GRFRange &addr,
                 if (remW.isValid() && multiX > 1) stub();
                 if (remW.isValid()) {
                     if (T.isInt4()) {
-                        auto temp = state.ra.alloc_sub<uint32_t>();
-                        shr(1, temp.reinterpret(0, ngen::DataType::uw),
-                                remW.uw(), 1);
-                        add(1, addr[0].ud(2),
-                                temp.reinterpret(0, ngen::DataType::uw),
-                                ngen::Immediate(-1));
-                        state.ra.release(temp);
+                        addScaled(1, addr[0].ud(2), addr[0].ud(2), remW.uw(),
+                                -1, 2, state, true);
                     } else {
                         mad(1, addr[0].ud(2), -1, remW.uw(), T.size());
                     }
@@ -6111,7 +6074,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T, const GRFRange &addr,
                 }
                 remH.isValid() ? mad(1, addr[0].ud(3), -1, remH.uw(), multiX)
                                : mov(1, addr[0].ud(3), bh - 1);
-                if (remW.isValid() && (T.isInt4() || T.size() < widthAlign))
+                if (remW.isValid() && (T.paddedSize() < widthAlign))
                     or_(1, addr[0].ud(2), addr[0].ud(2), widthAlign - 1);
             }
 
@@ -6147,8 +6110,8 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T, const GRFRange &addr,
             if (hasRemX && remX.isValid()) {
                 auto limit = state.ra.alloc_sub<uint32_t>();
                 if (T.isInt4()) {
-                    eshr(1, limit, remX.uw(), 1, strategy, state);
-                    eadd(1, limit, limit, -setback, strategy, state);
+                    addScaled(1 | sat, limit, -setback, remX.uw(), 1, 2, state,
+                            true);
                 } else {
                     emad(1 | sat, limit, -setback, remX.uw(), T.size(),
                             strategy, state);
@@ -6281,12 +6244,7 @@ void gemm_kernel_generator_t<hw>::setupAddrRel(Type T, const GRFRange &addrDst,
                         - untile(T, atype, blockSrc);
                 break;
         }
-
-        if (T.isInt4()) {
-            offsetFixed /= 2;
-        } else {
-            offsetFixed *= T.size();
-        }
+        offsetFixed *= T;
 
         offsetAddr(addrDst, addrSrc, blockDst, blockSrc, offsetFixed, offsetLD,
                 ld, atype, astrategy, strategy, state, ldMultiples);
@@ -6384,11 +6342,7 @@ void gemm_kernel_generator_t<hw>::setupAddr(Type T,
                     break;
             }
 
-            if (T.isInt4()) {
-                offsetFixed /= 2;
-            } else {
-                offsetFixed *= T.size();
-            }
+            offsetFixed *= T;
 
             offsetAddr(addr[b], addr[b], block, block, offsetFixed, offsetLD,
                     ld, atype, astrategy, strategy, state, ldMultiples);
@@ -6645,8 +6599,8 @@ void gemm_kernel_generator_t<hw>::setAddrRemainder(Type T, const GRFRange &addr,
     if (remW.isValid()) {
         if (block.count > 1 || multiX > 1) stub();
         if (T.isInt4()) {
-            eshr(1, addr[0].ud(2), remW.uw(), 1, strategy, state);
-            eadd(1, addr[0].ud(2), addr[0].ud(2), -1, strategy, state);
+            addScaled(1, addr[0].ud(2), addr[0].ud(2), remW.uw(), 1, 2, state,
+                    true);
         } else {
             mad(1, addr[0].ud(2), -1, remW.uw(), T.size());
         }
@@ -6655,8 +6609,7 @@ void gemm_kernel_generator_t<hw>::setAddrRemainder(Type T, const GRFRange &addr,
         if (T.isInt4()) {
             assert(multiX % 2 == 0 || multiX == 1);
             if (multiX == 1) {
-                eshr(1, addr[0].ud(3), remH.uw(), 1, strategy, state);
-                eadd(1, addr[0].ud(2), addr[0].ud(2), -1, strategy, state);
+                addScaled(1, addr[0].ud(3), -1, remH.uw(), 1, 2, state, true);
             } else {
                 mad(1, addr[0].ud(3), -1, remH.uw(), multiX / 2);
             }
@@ -6664,7 +6617,7 @@ void gemm_kernel_generator_t<hw>::setAddrRemainder(Type T, const GRFRange &addr,
             mad(1, addr[0].ud(3), -1, remH.uw(), T.size() * multiX);
         }
     }
-    if (remW.isValid() && (T.isInt4() || T.size() < 4))
+    if (remW.isValid() && (T.paddedSize() < 4))
         or_(1, addr[0].ud(2), addr[0].ud(2), 3);
 
     state.ra.safeRelease(tempRem);
@@ -6689,12 +6642,12 @@ void gemm_kernel_generator_t<hw>::setupTeardownRemask(Type T, int index,
         bool setup, int nq, const Subregister &remQ,
         const CommonStrategy &strategy, CommonState &state, int fixedOffQ,
         const Subregister &variableOffQ) {
-    if (!T.isInt4() && T.size() > 4) T = Type::u32;
-
+    if (T.paddedSize() > 4) T = Type::u32;
     if (setup) {
-        int n_mask_regs = T.isInt4()
-                ? (div_up(nq * 2, GRF::bytes(hw)))
-                : div_up(T.size(), 2) * div_up(nq * 2, GRF::bytes(hw));
+        // TODO: CHECK IF IT CAN BE CONSOLIDATED WITH PADDEDSIZE
+        int n_mask_regs = //T.isInt4()
+                //? (div_up(nq * 2, GRF::bytes(hw)))
+                div_up(T.paddedSize(), 2) * div_up(nq * 2, GRF::bytes(hw));
         auto masks = state.remaskRegs[index]
                 = state.ra.alloc_range(n_mask_regs);
         int ne16 = elementsPerGRF(hw, Type::u16);
@@ -6703,8 +6656,7 @@ void gemm_kernel_generator_t<hw>::setupTeardownRemask(Type T, int index,
         int ne = elementsPerGRF(hw, T);
         auto flag = state.raVFlag.tryAlloc((n16 > 16) ? 2 : 1);
         bool useCMP = flag.isValid()
-                && (T.isInt4()
-                        || T.size() < 4); // apparent issues with 4b sequence
+                && (T.paddedSize() < 4); // apparent issues with 4b sequence
 
         auto effRemQ = remQ;
         bool freeEffRemQ = false;
@@ -6734,7 +6686,7 @@ void gemm_kernel_generator_t<hw>::setupTeardownRemask(Type T, int index,
             for (int q0 = n16; q0 < nq; q0 += n16)
                 add<uint16_t>(n16, masks[q0 / n16], masks[0], q0);
 
-        switch (T.isInt4() ? 1 : T.size()) {
+        switch (T.paddedSize()) {
             case 1:
             case 2:
                 if (useCMP) {
@@ -6749,7 +6701,7 @@ void gemm_kernel_generator_t<hw>::setupTeardownRemask(Type T, int index,
                                 asr(simd, r1, r1, 15);
                             });
                 }
-                if (T.isInt4() || T.size() == 1)
+                if (T.paddedSize() == 1)
                     for (int q0 = 0; q0 < nq; q0 += n16)
                         mov(n16, masks[q0 / ne].ub(q0 % ne)(1),
                                 masks[q0 / n16].ub(1)(2));
@@ -6799,7 +6751,7 @@ void gemm_kernel_generator_t<hw>::remaskLayout(Type T, int index, bool column,
 
                 auto necp = ne * crosspack;
                 necp = std::min(necp, 2 * elementsPerGRF(hw, Tr));
-                if (!Tr.isInt4() && (necp * Tr) & 3) stub();
+                if ((necp * Tr) & 3) stub();
 
                 int mstride;
                 Type mtype = Type::u32;
@@ -6820,15 +6772,10 @@ void gemm_kernel_generator_t<hw>::remaskLayout(Type T, int index, bool column,
                 auto mask
                         = state.remaskRegs[index][mreg].sub(msub, mtype.ngen());
                 auto mregion = mask(mstride);
-                if (!Tr.isInt4() && Tr.size() > 4 && mstride == 1)
+                if (Tr.paddedSize() > 4 && mstride == 1)
                     mregion = mask(1, Tr.size() / 4, 0);
-                if (Tr.isInt4()) {
-                    and_<uint32_t>(
-                            (necp * Tr) / 4, sub.ud()(1), sub.ud()(1), mregion);
-                } else {
-                    and_<uint32_t>(
-                            (necp * Tr) / 4, sub.ud()(1), sub.ud()(1), mregion);
-                }
+                and_<uint32_t>(
+                        (necp * Tr) / 4, sub.ud()(1), sub.ud()(1), mregion);
                 x0 += necp / crosspack;
             }
         }
@@ -6852,7 +6799,7 @@ static bool needsRemask(Type T, bool column, const RegisterBlock &block,
     if (ignoreMasks && !(block2DRemask && astrategy.address2D))
         maskGranularity = 256;
 
-    return (T.isInt4() || T.size() < maskGranularity);
+    return (T.paddedSize() < maskGranularity);
 }
 
 static bool needsRemask(Type T, bool column,
@@ -11180,7 +11127,7 @@ GRFRange gemm_kernel_generator_t<hw>::loadVector(Type Tsrc, Type Tdst,
     atype.layout = MatrixLayout::N;
     atype.packSize = 0;
     atype.crosspack = 1;
-    atype.alignment = Tsrc.isInt4() ? 1 : Tsrc.size();
+    atype.alignment = Tsrc.paddedSize();
 
     astrategy.base = A64;
     astrategy.accessType = AccessType::Block;
@@ -11202,8 +11149,7 @@ GRFRange gemm_kernel_generator_t<hw>::loadVector(Type Tsrc, Type Tdst,
     safeReleaseMaskAssignments(masks, state);
     safeReleaseRanges(addrs, state);
 
-    if (!hasFullCrosspack(layout, 1)
-            || (Tsrc.isInt4() || Tsrc.size() != Tdst.size())) {
+    if (!hasFullCrosspack(layout, 1) || (Tsrc.paddedSize() != Tdst.size())) {
         // Data didn't come in with unit stride. Repack it.
         vector<RegisterBlock> nlayout;
         makeUnbackedRegLayout(Tdst, nlayout, n, 1, true);
@@ -14518,9 +14464,7 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
             && Ta_remask.size() == Tb_remask.size())
         iremaskB = iremaskA; /* A, B can share remasking masks */
 
-    if (remaskA && remaskB
-            && (Ta_remask.isInt4() || Tb_remask.isInt4()
-                    || Ta_load.size() != Tb_load.size())
+    if (remaskA && remaskB && (Ta_load.bits() != Tb_load.bits())
             && !(utils::one_of(Type::f16, Ta_load, Tb_load)
                     || utils::one_of(Type::bf16, Ta_load, Tb_load)))
         stub();
@@ -14578,8 +14522,7 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     // A/B repacking.
     auto reqRepackA = every(ka_loadMain) | variants(A_copies);
     auto reqRepackARem = every(ka_loadRem) | variants(A_copies);
-    bool convertA = (Ta != Ta_load)
-            && (Ta_load.isInt4() || Ta.size() == Ta_load.size());
+    bool convertA = (Ta != Ta_load) && (Ta.bits() == Ta_load.bits());
     bool scheduleRepackA = state.repackA || state.repackARem || convertA;
 
     if (scheduleRepackA && readA)
@@ -14606,8 +14549,7 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
 
     auto reqRepackB = every(kb_loadMain) | variants(B_copies);
     auto reqRepackBRem = every(kb_loadRem) | variants(B_copies);
-    bool convertB = (Tb != Tb_load)
-            && (Tb_load.isInt4() || Tb.size() == Tb_load.size());
+    bool convertB = (Tb != Tb_load) && (Tb.bits() == Tb_load.bits());
     bool scheduleRepackB = state.repackB || state.repackBRem || convertB;
 
     if (scheduleRepackB && readB)
@@ -14694,11 +14636,11 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
 
     auto slmConvertA = [&](Iteration h) {
         return slmA && aioShare(h) && (Ta != Ta_ext)
-                && (Ta_ext.isInt4() || Ta.size() == Ta_ext.size());
+                && (Ta.bits() == Ta_ext.bits());
     };
     auto slmConvertB = [&](Iteration h) {
         return slmB && bioShare(h) && (Tb != Tb_ext)
-                && (Tb_ext.isInt4() || Tb.size() == Tb_ext.size());
+                && (Tb.bits() == Tb_ext.bits());
     };
 
     auto doSLMRepack = [&](Iteration h) {
@@ -15486,7 +15428,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
             strategy.A.newDP = (hw >= HW::XeHPG);
             strategy.A.cachingR = CacheSettingsLSC::Default;
             Ta_load = Ta;
-            state.aioShare = !Ta_ext.isInt4() && Ta.size() == Ta_ext.size()
+            state.aioShare = Ta.bits() == Ta_ext.bits()
                     && Ta.components() == Ta_ext.components()
                     && matchLayoutsBidirectional(
                             Ta, state.Ai_layout, state.Ao_layout);
@@ -15671,7 +15613,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
             strategy.B.newDP = (hw >= HW::XeHPG);
             strategy.B.cachingR = CacheSettingsLSC::Default;
             Tb_load = Tb;
-            state.bioShare = (!Tb_ext.isInt4() && Tb.size() == Tb_ext.size())
+            state.bioShare = (Tb.bits() == Tb_ext.bits())
                     && Tb.components() == Tb_ext.components()
                     && matchLayoutsBidirectional(
                             Tb, state.Bi_layout, state.Bo_layout);
@@ -15931,10 +15873,10 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
             |= (crosspackB && !hasFullCrosspack(state.B_layout, crosspackB))
             || !hasTiling(state.B_layout, tileK_B, tileN_B);
 
-    state.repackA |= ((Ta_ext.isInt4() || Ta.size() != Ta_ext.size())
+    state.repackA |= ((Ta.bits() != Ta_ext.bits())
                              || Ta.components() != Ta_ext.components())
             && !strategy.slmA;
-    state.repackB |= ((Tb_ext.isInt4() || Tb.size() != Tb_ext.size())
+    state.repackB |= ((Tb.bits() != Tb_ext.bits())
                              || Tb.components() != Tb_ext.components())
             && !strategy.slmB;
 
@@ -18505,10 +18447,8 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
     auto doAOffset = [&](Subregister offsetAx, Subregister i0x) {
         if (problem.A.layout == MatrixLayout::Nontranspose)
             if (Ta_ext.isInt4()) {
-                eshr(1, tempQ0.reinterpret(0, i0x.getType()), i0x, 1, strategy,
-                        state);
-                eadd(1, offsetAx, offsetAx,
-                        tempQ0.reinterpret(0, i0x.getType()), strategy, state);
+                addScaled(1, offsetAx.ud(), offsetAx.ud(), i0x.ud(), 1, 2,
+                        state, true);
             } else {
                 emad(1, offsetAx, offsetAx, i0x, Ta_ext.size(), strategy,
                         state);
@@ -18523,10 +18463,8 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
     auto doBOffset = [&](Subregister offsetBx, Subregister j0x) {
         if (problem.B.layout == MatrixLayout::Transpose)
             if (Tb_ext.isInt4()) {
-                eshr(1, tempQ0.reinterpret(0, j0x.getType()), j0x, 1, strategy,
-                        state);
-                eadd(1, offsetBx, offsetBx,
-                        tempQ0.reinterpret(0, j0x.getType()), strategy, state);
+                addScaled(1, offsetBx.ud(), offsetBx.ud(), j0x.ud(), 1, 2,
+                        state, true);
             } else {
                 emad(1, offsetBx, offsetBx, j0x, Tb_ext.size(), strategy,
                         state);
@@ -18640,11 +18578,8 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
                 case MatrixLayout::Transpose:
                     if (doA) {
                         if (Ta_ext.isInt4()) {
-                            eshr(1, tempQ0.reinterpret(0, h0.getType()), h0, 1,
-                                    strategy, state);
-                            eadd(1, offsetA, offsetA,
-                                    tempQ0.reinterpret(0, h0.getType()),
-                                    strategy, state);
+                            addScaled(1, offsetA.ud(), offsetA.ud(), h0.ud(), 1,
+                                    2, state, true);
                         } else {
                             emad(1, offsetA, offsetA, h0, Ta_ext.size(),
                                     strategy, state);
@@ -18652,11 +18587,8 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
                     }
                     if (doAp) {
                         if (Ta_ext.isInt4()) {
-                            eshr(1, tempQ0.reinterpret(0, h0.getType()), h0, 1,
-                                    strategy, state);
-                            eadd(1, offsetAp, offsetAp,
-                                    tempQ0.reinterpret(0, h0.getType()),
-                                    strategy, state);
+                            addScaled(1, offsetAp.ud(), offsetAp.ud(), h0.ud(),
+                                    1, 2, state, true);
                         } else {
                             emad(1, offsetAp, offsetAp, h0, Ta_ext.size(),
                                     strategy, state);
@@ -18666,16 +18598,12 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
                 case MatrixLayout::PackedColumns:
                     if (doA)
                         emad(1, offsetA, offsetA, h0,
-                                (Ta_ext.isInt4() ? (strategy.unroll[LoopM] / 2)
-                                                 : (strategy.unroll[LoopM]
-                                                         * Ta_ext)),
-                                strategy, state);
+                                strategy.unroll[LoopM] * Ta_ext, strategy,
+                                state);
                     if (doAp)
                         emad(1, offsetAp, offsetAp, h0,
-                                (Ta_ext.isInt4() ? (strategy.unroll[LoopM] / 2)
-                                                 : (strategy.unroll[LoopM]
-                                                         * Ta_ext)),
-                                strategy, state);
+                                strategy.unroll[LoopM] * Ta_ext, strategy,
+                                state);
                     break;
                 default: stub();
             }
@@ -18683,11 +18611,8 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
                 case MatrixLayout::Nontranspose:
                     if (doB) {
                         if (Tb_ext.isInt4()) {
-                            eshr(1, tempQ0.reinterpret(0, h0.getType()), h0, 1,
-                                    strategy, state);
-                            eadd(1, offsetB, offsetB,
-                                    tempQ0.reinterpret(0, h0.getType()),
-                                    strategy, state);
+                            addScaled(1, offsetB.ud(), offsetB.ud(), h0.ud(), 1,
+                                    2, state, true);
                         } else {
                             emad(1, offsetB, offsetB, h0, Tb_ext.size(),
                                     strategy, state);
@@ -18695,11 +18620,8 @@ void gemm_kernel_generator_t<hw>::gemmOffsetABC(bool initial, Subregister i0,
                     }
                     if (doBp) {
                         if (Tb_ext.isInt4()) {
-                            eshr(1, tempQ0.reinterpret(0, h0.getType()), h0, 1,
-                                    strategy, state);
-                            eadd(1, offsetBp, offsetBp,
-                                    tempQ0.reinterpret(0, h0.getType()),
-                                    strategy, state);
+                            addScaled(1, offsetBp.ud(), offsetBp.ud(), h0.ud(),
+                                    1, 2, state, true);
                         } else {
                             emad(1, offsetBp, offsetBp, h0, Tb_ext.size(),
                                     strategy, state);
@@ -21093,10 +21015,10 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem) {
     if (fmaSIMD == 0) {
         fmaSIMD = std::min(32,
                 2 * GRF::bytes(hw)
-                        / std::max<int>({(Ta.isInt4() ? 1 : Ta.size()),
-                                (Tb.isInt4() ? 1 : Tb.size()), Tc.size()}));
-        if (hw == HW::Gen9 && (Ta_real.isInt4() || Ta_real.size() == 1)
-                && Tb_real.size() == 1 && Tc_real.size() == 4)
+                        / std::max<int>({(Ta.paddedSize()), (Tb.paddedSize()),
+                                Tc.paddedSize()}));
+        if (hw == HW::Gen9 && (Ta_real.paddedSize() == 1)
+                && Tb_real.paddedSize() == 1 && Tc_real.paddedSize() == 4)
             fmaSIMD = 32;
     }
 
@@ -25661,8 +25583,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
         bool conjugate, const CommonStrategy &strategy, CommonState &state,
         bool preserveSrc) {
     auto Ts_real = Ts.real(), Td_real = Td.real();
-    bool Ts_int4 = utils::one_of(Ts_real, Type::s4, Type::u4);
-    bool Td_int4 = utils::one_of(Td_real, Type::s4, Type::u4);
+    bool Ts_int4 = Ts_real.isInt4();
+    bool Td_int4 = Td_real.isInt4();
     auto nes_real = elementsPerGRF(hw, Ts_real);
     auto ned_real = elementsPerGRF(hw, Td_real);
 
@@ -25835,8 +25757,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                     && utils::one_of(Td_real, Type::f16,
                                             Type::bf16, Type::f32);
                             byteAlign |= allInt4;
-                            assert(IMPLICATION(
-                                    Ts_int4, byteAlign || Td_real == Ts_real));
+                            if (Ts_int4 && (!byteAlign && Td_real != Ts_real))
+                                stub();
                             if (byteAlign) {
                                 nelems_real = std::min(nelems_real,
                                         elementsPerGRF(hw, Type::f32));
@@ -25970,17 +25892,11 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                 tmp1.reinterpret(
                                                         0, Td_real.ngen())(2),
                                                 tmp1.f()(1));
+                                        mov(nelems_real | modMov, tmp1.w()(1),
+                                                tmp1.w()(2));
                                         mov(nelems_real | modMov,
-                                                tmp1.reinterpret(0,
-                                                        ngen::DataType::w)(1),
-                                                tmp1.reinterpret(0,
-                                                        ngen::DataType::w)(2));
-                                        mov(nelems_real | modMov,
-                                                dreg.reinterpret(
-                                                        0, ngen::DataType::w)(
-                                                        dcrosspack),
-                                                tmp1.reinterpret(0,
-                                                        ngen::DataType::w)(1));
+                                                dreg.w()(dcrosspack),
+                                                tmp1.w()(1));
                                     } else {
                                         mov(nelems_real | modMov,
                                                 dreg.reinterpret(
