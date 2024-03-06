@@ -265,6 +265,7 @@ struct brgemm_t {
     bool is_tmm = false;
     bool is_int8 = false, is_int8_tmm = false;
     bool is_bf16 = false, is_bf16_tmm = false, is_bf16_emu = false;
+    bool is_fp8 = false, is_fp8_tmm = false;
     bool is_f16 = false, is_f16_tmm = false;
     bool is_f32 = false;
     bool is_bf32 = false;
@@ -294,6 +295,13 @@ struct brgemm_t {
     void set_dst_md(const memory_desc_t *pdst_md);
     const primitive_attr_t *attr() const { return attr_; };
     const memory_desc_t *dst_md() const { return dst_md_; };
+
+    // return 'true' when FP8 MAC is not natively supported by the CPU ISA
+    bool is_fp8_via_convert() const {
+        return is_fp8 && utils::one_of(isa_impl, avx10_1_512_amx_fp16);
+    }
+
+    bool is_input_convert() const { return is_bf32 || is_fp8_via_convert(); }
 
     bool is_row_major() const {
         assert(layout != brgemm_layout_undef);
@@ -355,7 +363,7 @@ struct brgemm_t {
         if (is_tmm) {
             constexpr int tilesize = 1024;
             sz = get_num_C_tiles() * tilesize; // postops buffer
-            if (is_bf32) {
+            if (is_input_convert()) {
                 const int n_bdb = bd_block2;
                 const int n_rdb = rdb + (rdb_tail != 0);
                 const int n_ldb = ldb + (ldb_tail != 0);

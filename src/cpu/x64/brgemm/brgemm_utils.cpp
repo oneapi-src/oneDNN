@@ -42,7 +42,8 @@ enum {
 impl::data_type_t get_accum_datatype(brgemm_t *brg) {
     // this assert should check if 'init_kernel_datatype()' was previously
     // called.
-    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16);
+    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16
+            || brg->is_fp8);
     return brg->is_int8 ? data_type::s32 : data_type::f32;
 }
 
@@ -54,7 +55,10 @@ void init_kernel_datatype(
     brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
     brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
     brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
-    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16);
+    brg->is_fp8 = one_of(dt_a, data_type::f8_e5m2, data_type::f8_e4m3)
+            && one_of(dt_b, data_type::f8_e5m2, data_type::f8_e4m3);
+    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16
+            || brg->is_fp8);
 }
 
 void init_common_conf(brgemm_t *brg, brgemm_batch_kind_t type, float alpha,
@@ -145,12 +149,15 @@ void set_isa_impl(brgemm_t *brg) {
                 avx512_core_amx, is_isa_ok(avx512_core_vnni), avx512_core_vnni,
                 is_isa_ok(avx512_core), avx512_core, is_isa_ok(avx2_vnni_2),
                 avx2_vnni_2, is_isa_ok(avx2_vnni), avx2_vnni);
+    } else if (brg->is_fp8) {
+        brg->isa_impl = utils::map(true, isa_undef,
+                is_isa_ok(avx10_1_512_amx_fp16), avx10_1_512_amx_fp16);
     }
 }
 
 void set_brg_vmm(brgemm_t *brg) {
     brg->is_tmm = brg->is_int8_tmm || brg->is_bf16_tmm || brg->is_f16_tmm
-            || brg->is_bf32;
+            || brg->is_bf32 || brg->is_fp8_tmm;
     brg->is_zmm = !brg->is_tmm && mayiuse(avx512_core)
             && is_superset(brg->isa_impl, avx512_core);
     brg->is_ymm
@@ -672,11 +679,10 @@ status_t brgemm_blocking(brgemm_t *brg) {
             brg->load_nt_B
                     = (brg->brgattr.hint_load_nt_B == brgemm_hint_nt_true);
 
-        const auto max_rd_block
-                = (brg->is_bf16_tmm || brg->is_f16_tmm || brg->is_bf32) ? 32
-                                                                        : 64;
-        const auto rd_block_step
-                = (brg->is_bf16_tmm || brg->is_f16_tmm || brg->is_bf32) ? 2 : 4;
+        const bool reduce_by_words = brg->is_bf16_tmm || brg->is_f16_tmm
+                || brg->is_input_convert();
+        const auto max_rd_block = reduce_by_words ? 32 : 64;
+        const auto rd_block_step = reduce_by_words ? 2 : 4;
         // TODO: if rd_block calculated is very small then maybe it makes
         // sense to use 1x2 or 2x1 blocking with supporting rd_block
         // and rdb_tail
@@ -692,14 +698,18 @@ status_t brgemm_blocking(brgemm_t *brg) {
 
         // Remove these guards in the future (add tail processing by reduction
         // dimension)
-        if (!IMPLICATION(brg->rdb > 0 && brg->rdb_tail, brg->is_bf32))
+        // TODO: these checks do not work for fp8-f16 and f16-fp8 cfgs
+        if (!IMPLICATION(
+                    brg->rdb > 0 && brg->rdb_tail, brg->is_input_convert())) {
             return status::unimplemented;
+        }
         if (!IMPLICATION(
                     (brg->rdb_tail
                             % ((brg->is_bf16_tmm || brg->is_f16_tmm) ? 2 : 4))
                             != 0,
-                    brg->is_bf32))
+                    brg->is_input_convert())) {
             return status::unimplemented;
+        }
 
         //TODO: check this condition
         brg->interleave_tilestores_ = brg->beta == 0
@@ -822,6 +832,8 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->is_bf32 = is_bf32
             && utils::one_of(brg->isa_user, isa_undef, avx512_core_amx)
             && mayiuse(avx512_core_amx);
+    brg->is_fp8_tmm
+            = brg->is_fp8 && one_of(brg->isa_impl, avx512_core_amx_fp16);
 
     brg->has_int8_vnni = isa_has_int8_vnni(brg->isa_impl);
 
