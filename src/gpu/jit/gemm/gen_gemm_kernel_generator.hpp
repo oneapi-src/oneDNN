@@ -91,19 +91,25 @@ public:
     constexpr int components() const { return 1; }
     constexpr bool isInteger() const { return uint32_t(val) & 0x800000; }
     constexpr bool isFP() const { return !isInteger(); }
-    constexpr bool isInt4() const {
-        return utils::one_of(val, Type::u4, Type::s4);
-    }
+    constexpr bool isInt4() const { return uint32_t(val) & 0x10000000; }
     constexpr bool isInt8() const {
         return utils::one_of(val, Type::u8, Type::s8);
     }
     constexpr bool isSigned() const {
         return (uint32_t(val) & 0x810000) != 0x800000;
     }
-    constexpr int log2Size() const { return uint32_t(val) & 0xFF; }
+    int log2Size() const {
+        assert(!isInt4());
+        return uint32_t(val) & 0xFF;
+    }
+
+    constexpr int bits() const { return isInt4() ? 4 : (paddedSize() * 8); }
+
+    constexpr int paddedSize() const { return (uint32_t(val) >> 8) & 0xFF; }
+
     int size() const {
         assert(!isInt4());
-        return (uint32_t(val) >> 8) & 0xFF;
+        return paddedSize();
     }
 
     constexpr Type arithmetic() const {
@@ -125,7 +131,16 @@ public:
 
     template <typename U>
     friend int operator*(U a, Type t) {
-        return (t.isInt4()) ? std::max(int(a >> 1), 1) : int(a << t.log2Size());
+        return (t.isInt4()) ? int((a + 1) >> 1) : int(a << t.log2Size());
+    }
+    template <typename U>
+    friend int operator*(Type t, U b) {
+        return (t.isInt4()) ? int((b + 1) >> 1) : int(b << t.log2Size());
+    }
+    template <typename U>
+    friend int operator*=(U &a, Type t) {
+        a = a * t;
+        return t;
     }
     template <typename U>
     constexpr friend int operator/(U a, Type t) {
