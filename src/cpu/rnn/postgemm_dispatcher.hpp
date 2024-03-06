@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -263,6 +263,12 @@ protected:
         const bool jit_bwd = !pd_->is_fwd()
                 && utils::one_of(src_type, data_type::f32, data_type::bf16,
                         data_type::f16);
+
+        // Note: Using ref (no-jit) post-gemm for avx2_vnni_2 for now.
+        // Implement jit version of post-gemm if perf becomes a concern.
+        if (utils::one_of(src_type, data_type::bf16, data_type::f16)
+                && !mayiuse(avx512_core))
+            return status::success;
 
 #define CREATE_WITH_DIR(k, ker_t) \
     do { \

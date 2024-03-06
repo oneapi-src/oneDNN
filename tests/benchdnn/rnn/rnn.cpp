@@ -779,13 +779,10 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
 #endif
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    static auto isa = dnnl_get_effective_cpu_isa();
-    // f16 is not implemented on any x64 platform yet.
-    const bool is_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16;
-    // bf16 is currently supported only on avx512_core[+] platforms
-    const bool is_bf16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_bf16
-            && !dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core);
-    if (is_f16_not_ok || is_bf16_not_ok) {
+    // f16 training is not yet fully supported.
+    const bool is_f16_not_ok
+            = prb.cfg[SRC_LAYER].dt == dnnl_f16 && !(dir & FLAG_INF);
+    if (is_f16_not_ok) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
@@ -824,7 +821,9 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
     }
 
     // LSTM w/ projection is not supported for bf16
-    if (prb.is_lstm_projection() && prb.cfg[SRC_LAYER].dt == dnnl_bf16) {
+    if (prb.is_lstm_projection()
+            && (prb.cfg[SRC_LAYER].dt == dnnl_bf16
+                    || prb.cfg[SRC_LAYER].dt == dnnl_f16)) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }

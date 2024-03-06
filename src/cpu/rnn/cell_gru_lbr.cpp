@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,14 +40,25 @@ rnn_cell_execution_sig((_ref_rnn_fwd_t<src_type, weights_type,
     const auto src_iter_ld = rnn.src_iter_ld(cell_position);
 
     if (rnn.need_gemm_layer(cell_position)) {
-        CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc, rnn.mb,
-                rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, src_layer_,
-                src_layer_ld, 0.0, scratch_gates_, rnn.scratch_gates_ld));
+        if (rnn.use_matmul) {
+            CHECK(this->execute_matmul(ctx,
+                    this->get_matmul_layer(cell_position), w_layer_[0],
+                    src_layer_, scratch_gates_));
+        } else {
+            CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
+                    rnn.mb, rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld,
+                    src_layer_, src_layer_ld, 0.0, scratch_gates_,
+                    rnn.scratch_gates_ld));
+        }
     }
-    CHECK((this->*gemm_iter_func)('N', 'N', rnn.n_gates * rnn.dhc, rnn.mb,
-            rnn.sic, 1.0, w_iter_[0], rnn.weights_iter_ld, src_iter_,
-            src_iter_ld, 0.0, scratch_cell_, rnn.ws_gates_ld));
-
+    if (rnn.use_matmul) {
+        CHECK(this->execute_matmul(ctx, this->get_matmul_iter(cell_position),
+                w_iter_[0], src_iter_, scratch_cell_));
+    } else {
+        CHECK((this->*gemm_iter_func)('N', 'N', rnn.n_gates * rnn.dhc, rnn.mb,
+                rnn.sic, 1.0, w_iter_[0], rnn.weights_iter_ld, src_iter_,
+                src_iter_ld, 0.0, scratch_cell_, rnn.ws_gates_ld));
+    }
     this->rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             augru_attention_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
             diff_src_layer_, diff_augru_attention_, diff_src_iter_,

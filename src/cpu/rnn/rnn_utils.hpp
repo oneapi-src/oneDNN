@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@
             gemm_acc_t *diff_src_layer_, gemm_acc_t *diff_w_layer_) const
 
 #define rnn_cell_execution_sig(f) \
-    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
+    dnnl_status_t f(const exec_ctx_t &ctx, const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \
             void *dst_iter_c_, gemm_acc_t *diff_src_layer_, \
             gemm_acc_t *diff_augru_attention_, gemm_acc_t *diff_src_iter_, \
@@ -126,7 +126,7 @@
             gemm_acc_t *amx_scratchpad) const
 
 #define rnn_grid_execution_sig(f) \
-    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
+    dnnl_status_t f(const exec_ctx_t &ctx, const rnn_utils::rnn_conf_t &rnn, \
             weights_t **weights_layer_, weights_t **weights_iter_, \
             weights_t **weights_projection_, const float *weights_peephole_, \
             const float *w_proj_comp, void **bias_, \
@@ -145,6 +145,11 @@
             float *diff_weights_projection_, float *diff_weights_peephole_, \
             float *diff_bias_, gemm_acc_t *amx_scratchpad) const
 #endif
+
+#define rnn_matmul_sig(f) \
+    dnnl_status_t f(const exec_ctx_t &ctx, \
+            const std::shared_ptr<dnnl::impl::primitive_t> &matmul_prim, \
+            const weights_t *a_, const gemm_data_t *b_, gemm_acc_t *c_) const
 
 #define rnn_gemm_sig(f) \
     dnnl_status_t f(const char transA, const char transB, dim_t m, dim_t n, \
@@ -382,6 +387,7 @@ struct rnn_conf_t {
     int n_iter_scratch_gates = 0;
 
     bool diff_weights_overwrite = false;
+    bool use_matmul = false;
 
     inline bool is_int8_conf() const {
         return is_signed_int8_conf() || is_unsigned_int8_conf();
@@ -693,15 +699,17 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                      dst_layer_d.data_type(), weights_layer_d.data_type())) {
         if (!platform::has_data_type_support(data_type::bf16)) return false;
 #if DNNL_X64
-        if (!x64::mayiuse(x64::avx512_core)) return false;
+        if (!(x64::mayiuse(x64::avx512_core) || x64::mayiuse(x64::avx2_vnni_2)))
+            return false;
 #endif
         rnn.dt_conf = all_bf16;
     } else if (utils::everyone_is(data_type::f16, src_layer_d.data_type(),
                        dst_layer_d.data_type(), weights_layer_d.data_type())) {
-        if (!rnn.is_brgemm) return false; // GeMM_f16 is not available
         if (!platform::has_data_type_support(data_type::f16)) return false;
 #if DNNL_X64
-        if (!x64::mayiuse(x64::avx512_core_amx_fp16)) return false;
+        if (!(x64::mayiuse(x64::avx512_core_fp16)
+                    || x64::mayiuse(x64::avx2_vnni_2)))
+            return false;
 #endif
         rnn.dt_conf = all_f16;
     } else if (dst_layer_d.data_type() == data_type::u8) {
@@ -730,6 +738,9 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         else
             rnn.dt_conf = f32u8f32f32;
     }
+
+    if (!rnn.is_fwd && !platform::has_training_support(src_layer_d.data_type()))
+        return false;
 
     // Set problem members defining problem sizes
     rnn.n_layer = weights_layer_d.dims()[0];
@@ -844,10 +855,19 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.parts_bias[0] = rnn.n_bias;
     rnn.parts_bias[1] = 0;
 
+    rnn.use_matmul = !rnn.is_brgemm && rnn.is_fwd // TODO: Enable BWD
+    // TODO: Below checks are for legacy and a performance study is
+    // required to avoid regressions.
+#if DNNL_X64
+            && IMPLICATION(
+                    rnn.is_cell_dt_bf16(), !x64::mayiuse(x64::avx512_core))
+#endif
+            && !rnn.is_cell_dt_f32() && !rnn.is_cell_dt_int8();
+
     /* Decide which gemm implementation to use: packed/nonpacked jit/cblas
      * and if to merge gemm across iterations */
     const bool is_f32 = rnn.dt_conf == all_f32,
-               is_xf16 = utils::one_of(rnn.dt_conf, all_bf16, all_f16);
+               is_bf16 = rnn.dt_conf == all_bf16;
     const bool is_gru = utils::one_of(rd.cell_kind, alg_kind::vanilla_gru,
             alg_kind::lbr_gru, alg_kind::vanilla_augru, alg_kind::lbr_augru);
     const bool is_inference = !rnn.is_training;
@@ -859,14 +879,14 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.dst_layer_is_trivial_stride = dst_layer_d.blocking_desc().strides[0]
             == (rnn.dst_layer_ld_ * rnn.mb);
 
-    rnn.merge_gemm_layer = (!rnn.is_brgemm)
+    rnn.merge_gemm_layer = !(rnn.is_brgemm || rnn.use_matmul)
             ? ((rnn.is_fwd && rnn.src_layer_is_trivial_stride)
                       || ((rd.prop_kind == prop_kind::backward)
                               && rnn.dst_layer_is_trivial_stride))
                     && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd)
                             || rnn.is_int8_conf())
             : false;
-    rnn.merge_gemm_iter = (!rnn.is_brgemm)
+    rnn.merge_gemm_iter = !(rnn.is_brgemm || rnn.use_matmul)
             ? rnn.dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru)
             : false;
     rnn.force_nocopy = false;
@@ -879,26 +899,26 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     /* Decide to copy bias */
     rnn.copy_bias = rnn.is_int8_conf();
 
-    rnn.use_layer_packed_gemm = !rnn.is_brgemm
+    rnn.use_layer_packed_gemm = !(rnn.is_brgemm || rnn.use_matmul)
             ? utils::one_of(weights_layer_d.format_kind(), format_kind::any,
                       format_kind::rnn_packed)
                     && is_inference
                     && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
-                            || rnn.is_int8_conf() || is_xf16)
+                            || rnn.is_int8_conf() || is_bf16)
             : false;
-    rnn.use_iter_packed_gemm = !rnn.is_brgemm
+    rnn.use_iter_packed_gemm = !(rnn.is_brgemm || rnn.use_matmul)
             ? utils::one_of(weights_iter_d.format_kind(), format_kind::any,
                       format_kind::rnn_packed)
                     && is_inference
                     && ((is_f32 && pack_sgemm_supported() && rnn.mb >= 16)
-                            || rnn.is_int8_conf() || is_xf16)
+                            || rnn.is_int8_conf() || is_bf16)
             : false;
-    rnn.use_projection_packed_gemm = !rnn.is_brgemm
+    rnn.use_projection_packed_gemm = !(rnn.is_brgemm || rnn.use_matmul)
             ? utils::one_of(weights_projection_d.format_kind(),
                       format_kind::any, format_kind::rnn_packed)
                     && is_inference
                     && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
-                            || rnn.is_int8_conf() || is_xf16)
+                            || rnn.is_int8_conf() || is_bf16)
             : false;
 
     rnn.diff_weights_overwrite = rd.flags & rnn_flags::diff_weights_overwrite;

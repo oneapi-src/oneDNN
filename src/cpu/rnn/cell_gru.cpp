@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,16 +45,28 @@ rnn_cell_execution_sig((
 
     // 1. gemm Wx[0-2],x
     if (rnn.need_gemm_layer(cell_position)) {
-        CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc, rnn.mb,
-                rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, src_layer_,
-                src_layer_ld, 0.0f, scratch_gates_, rnn.scratch_gates_ld));
+        if (rnn.use_matmul) {
+            CHECK(this->execute_matmul(ctx,
+                    this->get_matmul_layer(cell_position), w_layer_[0],
+                    src_layer_, scratch_gates_));
+        } else {
+            CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
+                    rnn.mb, rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld,
+                    src_layer_, src_layer_ld, 0.0f, scratch_gates_,
+                    rnn.scratch_gates_ld));
+        }
     }
 
     // 2. gemm Wh[0-1],h
-    CHECK((this->*gemm_iter_func)('N', 'N', (rnn.n_gates - 1) * rnn.dhc, rnn.mb,
-            rnn.sic, 1.0, w_iter_[0], rnn.weights_iter_ld, src_iter_,
-            src_iter_ld, 1.0f, scratch_gates_, rnn.scratch_gates_ld));
-
+    if (rnn.use_matmul) {
+        CHECK(this->execute_matmul(ctx, this->get_matmul_iter(cell_position),
+                w_iter_[0], src_iter_, scratch_gates_));
+    } else {
+        CHECK((this->*gemm_iter_func)('N', 'N', (rnn.n_gates - 1) * rnn.dhc,
+                rnn.mb, rnn.sic, 1.0, w_iter_[0], rnn.weights_iter_ld,
+                src_iter_, src_iter_ld, 1.0f, scratch_gates_,
+                rnn.scratch_gates_ld));
+    }
     // 3. activation zt and rt + elemwise multiplication rt,ht-1
     this->rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             augru_attention_, dst_layer_, nullptr, src_iter_, nullptr,
@@ -63,10 +75,14 @@ rnn_cell_execution_sig((
             nullptr, nullptr, dst_iter_, weights_scales, rnn.dhc);
 
     // 4. gemm Wh[2],h~t
-    CHECK((this->*gemm_iter_func)('N', 'N', rnn.dhc, rnn.mb, rnn.sic, 1.0,
-            w_iter_[1], rnn.weights_iter_ld, dst_layer_, dst_iter_part2_ld, 1.0,
-            &(scratch_gates(0, 2, 0)), rnn.scratch_gates_ld));
-
+    if (rnn.use_matmul) {
+        CHECK(this->execute_matmul(ctx, this->get_matmul_part2(cell_position),
+                w_iter_[1], dst_layer_, &(scratch_gates(0, 2, 0))));
+    } else {
+        CHECK((this->*gemm_iter_func)('N', 'N', rnn.dhc, rnn.mb, rnn.sic, 1.0,
+                w_iter_[1], rnn.weights_iter_ld, dst_layer_, dst_iter_part2_ld,
+                1.0, &(scratch_gates(0, 2, 0)), rnn.scratch_gates_ld));
+    }
     // 5. activation h~t + calculate ht
     this->rnn_postgemm_->execute_part2(rnn, cell_position, ws_gates_,
             scratch_gates_, augru_attention_, dst_layer_, dst_iter_c_,

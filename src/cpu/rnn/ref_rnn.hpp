@@ -149,6 +149,16 @@ struct _ref_rnn_common_t : public primitive_t {
         status_t init(engine_t *engine);
 
         rnn_utils::rnn_conf_t rnn_;
+        std::shared_ptr<primitive_desc_t> matmul_layer_1_pd_;
+        std::shared_ptr<primitive_desc_t> matmul_layer_2_pd_;
+        std::shared_ptr<primitive_desc_t> matmul_layer_3_pd_;
+        std::shared_ptr<primitive_desc_t> matmul_iter_1_pd_;
+        std::shared_ptr<primitive_desc_t> matmul_iter_2_pd_;
+        std::shared_ptr<primitive_desc_t> matmul_iter_3_pd_;
+        std::shared_ptr<primitive_desc_t> matmul_part2_1_pd_;
+        std::shared_ptr<primitive_desc_t> matmul_part2_2_pd_;
+        std::shared_ptr<primitive_desc_t> matmul_part2_3_pd_;
+        std::shared_ptr<primitive_desc_t> matmul_part2_4_pd_;
 #if DNNL_X64
         std::shared_ptr<primitive_desc_t> bf32_wei_layer_reorder_pd_;
         std::shared_ptr<primitive_desc_t> bf32_wei_iter_reorder_pd_;
@@ -201,6 +211,7 @@ protected:
             const gemm_acc_t *ws_diff_states_iter_c_) const;
 
     rnn_grid_execution_sig(linear_execution);
+    rnn_matmul_sig(execute_matmul);
     virtual rnn_cell_execution_sig(cell_execution_ref) = 0;
     virtual rnn_merged_layer_execution_sig(merged_layer_execution_ref) = 0;
     virtual rnn_cell_execution_sig(cell_execution_brgemm) = 0;
@@ -213,6 +224,13 @@ protected:
     rnn_bias_finalize_sig(bias_finalize);
     rnn_weights_assign_sig(assign_weights);
     rnn_weights_assign_sig(assign_packed_weights);
+
+    const std::shared_ptr<primitive_t> &get_matmul_layer(
+            rnn_utils::cell_position_t cell_position) const;
+    const std::shared_ptr<primitive_t> &get_matmul_iter(
+            rnn_utils::cell_position_t cell_position) const;
+    const std::shared_ptr<primitive_t> &get_matmul_part2(
+            rnn_utils::cell_position_t cell_position) const;
 
     float (*activation_func)(float s, float alpha, float cliping);
 
@@ -243,6 +261,20 @@ protected:
     weights_assign_t weights_layer_assign_func;
     weights_assign_t weights_iter_assign_func;
     weights_assign_t weights_projection_assign_func;
+
+    // While using Matmul instead of GeMM, we require multiple matmuls, due to
+    // differences in M, N, K, LDB and post-ops at different cell_positions.
+    // TODO: Maybe replace them with runtime matmul if it becomes unmanageable.
+    std::shared_ptr<primitive_t> matmul_layer_1_;
+    std::shared_ptr<primitive_t> matmul_layer_2_;
+    std::shared_ptr<primitive_t> matmul_layer_3_;
+    std::shared_ptr<primitive_t> matmul_iter_1_;
+    std::shared_ptr<primitive_t> matmul_iter_2_;
+    std::shared_ptr<primitive_t> matmul_iter_3_;
+    std::shared_ptr<primitive_t> matmul_part2_1_;
+    std::shared_ptr<primitive_t> matmul_part2_2_;
+    std::shared_ptr<primitive_t> matmul_part2_3_;
+    std::shared_ptr<primitive_t> matmul_part2_4_;
 
     gemm_t gemm_layer_func;
     gemm_t gemm_iter_func;
