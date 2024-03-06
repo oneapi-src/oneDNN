@@ -655,20 +655,23 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     jbgp.adjusted_batch_size
             = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
 
-    if (is_amx_xf16 || jbgp.is_bf32) {
-        if (adjust_thread_balance()) {
-            // Adjust oc_block to improve thread balancing
-            jbgp.oc_block = get_adjusted_oc_block();
-            jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
-            jbgp.nb_oc_blocking = get_nb_oc_blocking(true);
+    if ((is_amx_xf16 || jbgp.is_bf32) && adjust_thread_balance()) {
+        // Adjust oc_block to improve thread balancing
+        jbgp.oc_block = get_adjusted_oc_block();
+        jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
+        jbgp.nb_oc_blocking = get_nb_oc_blocking(true);
 
-            // Adjust os_block to improve thread balancing
-            if (jbgp.oc <= 16
-                    || types::data_type_size(jbgp.src_dt) * jbgp.mb * jbgp.ic
-                            <= (size_t)platform::get_per_core_cache_size(2)) {
-                jbgp.os_block = get_os_block(false, true);
-                jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
-            }
+        size_t l2_per_core = platform::get_per_core_cache_size(2);
+        size_t src_sz = types::data_type_size(jbgp.src_dt) * jbgp.mb * jbgp.ic;
+
+        // Reduce amount of cache for bad leading dimension.
+        const dim_t bad_ld = 1024;
+        if (jbgp.ic % bad_ld == 0) l2_per_core /= 2;
+
+        // Adjust os_block to improve thread balancing
+        if (jbgp.oc <= 16 || src_sz <= l2_per_core) {
+            jbgp.os_block = get_os_block(false, true);
+            jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
         }
     }
 
