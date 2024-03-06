@@ -95,6 +95,18 @@ int jit_brgemm_ip_conf_t::get_os_block(
         const bool enable_128_os_blocking
                 = use_128_block_for_amx || is_gigantic_shape;
         max_os_block = enable_128_os_blocking ? 128 : 64;
+
+        const int max_oc_block = 64;
+        int min_nb_os = div_up(jbgp.os, max_os_block);
+        int min_nb_oc = div_up(jbgp.oc, max_oc_block);
+        const int n_blks_per_thr = 50;
+
+        // Shapes that have many blocks per thread don't need to sacrifice
+        // os-block size, because there is enough blocks to balance the threads
+        // and amortize the tail cost.
+        if (min_nb_os * min_nb_oc > jbgp.nthr * n_blks_per_thr)
+            min_os_block = max_os_block;
+
         // Work done by each thread is given by:
         //     (nb_oc / nb_oc_blocking) * (nb_os / nb_os_blocking)
         // As a first approximation we take nb_oc_blocking = nb_os_blocking = 1
@@ -106,8 +118,7 @@ int jit_brgemm_ip_conf_t::get_os_block(
         // of os_block such that the work amount per thread ~ 2
         if (is_f32_compute && jbgp.nb_oc != 0) {
             const bool small_work_amt_per_thread
-                    = div_up(jbgp.os, max_os_block) * jbgp.nb_oc
-                    < 1.8f * jbgp.nthr;
+                    = min_nb_os * jbgp.nb_oc < 1.8f * jbgp.nthr;
             if (small_work_amt_per_thread)
                 max_os_block = saturate(16, max_os_block,
                         div_up(jbgp.os * jbgp.nb_oc, 2 * jbgp.nthr));
