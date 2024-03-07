@@ -1703,6 +1703,7 @@ enum class plan_status_t {
     invalid_slm_k_slicing,
     invalid_slm_layout,
     invalid_direct_view,
+    invalid_c_layout,
 };
 
 #define PLAN_CHECK(status) \
@@ -2286,6 +2287,15 @@ private:
         c_mapper.push_blocks(abc_kind_t::b, x2r.b_layout.blocks());
         auto c_prb_layout = c_mapper.map_from_bmnk(abc_kind_t::c,
                 {bmnk_kind_t::b, bmnk_kind_t::m, bmnk_kind_t::n}, c_layout);
+
+        // Reject cfgs that require unsupported f64 fadd emulation vec_size on
+        // XeLPG. F64 fadd emulation is only reliable with vec_size 8 on XeLPG.
+        bool requires_fadd
+                = prb_.is_bwd_w && gemm_schedule_.with_kernel_grid_k_slicing();
+        if (cfg_.hw().is_xelpg() && requires_fadd && c_layout.elems() % 8 != 0
+                && c_type == type_t::f64()) {
+            return plan_status_t::invalid_c_layout;
+        }
 
         plan.a_layout = a_layout;
         plan.b_layout = b_layout;
