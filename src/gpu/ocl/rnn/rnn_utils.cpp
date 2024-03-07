@@ -584,19 +584,29 @@ status_t rnn_utils::set_good_strides(
     return status::success;
 }
 
-status_t rnn_utils::set_expected_desc(
-        conf_t &rnn, memory_desc_t &weights_md, bool is_iter) {
+status_t rnn_utils::set_weights_desc(
+        memory_desc_t &weights_md, const conf_t &rnn) {
     using namespace format_tag;
-    CHECK(memory_desc_init_by_tag(weights_md, rnn.is_fwd ? ldigo : ldgoi));
+    if (weights_md.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(weights_md, rnn.is_fwd ? ldigo : ldgoi));
 
-    // Adjust strides for good leading dimension in GEMM
-    CHECK(set_good_strides(
-            rnn.arch_ld, weights_md, rnn.is_fwd ? ldigo : ldgoi));
+        // Adjust strides for good leading dimension in GEMM
+        CHECK(set_good_strides(
+                rnn.arch_ld, weights_md, rnn.is_fwd ? ldigo : ldgoi));
 
-    // set we need extra memory
-    if (rnn.is_fwd && !one_of(rnn.dt_conf, all_f32, all_f16, all_bf16)) {
-        weights_md.extra.flags = memory_extra_flags::rnn_u8s8_compensation;
-        weights_md.extra.compensation_mask = 27; // ldigo 11011;
+        // set we need extra memory
+        if (rnn.is_fwd && rnn.is_int8) {
+            weights_md.extra.flags = memory_extra_flags::rnn_u8s8_compensation;
+            weights_md.extra.compensation_mask = 27; // ldigo 11011;
+        }
+        return status::success;
+    } else if (weights_md.format_kind != format_kind::blocked) {
+        // This implementation only supports blocked memory
+        return status::unimplemented;
+    } else if (rnn.is_fwd && rnn.is_int8) {
+        // Int8 RNN requires extra memory on weights buffers for the
+        // compensations
+        return status::unimplemented;
     }
     return status::success;
 }

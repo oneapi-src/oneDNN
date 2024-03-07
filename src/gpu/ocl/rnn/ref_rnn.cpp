@@ -705,27 +705,10 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     }
 
     // Set weights descriptors to desired format
-    memory_desc_t new_weights_layer_md = *this->weights_md(0);
-    VDISPATCH_RNN_SC(set_expected_desc(rnn_conf, new_weights_layer_md, false),
-            "set_expected_desc()");
-
-    if (this->weights_layer_md_.format_kind == format_kind::any) {
-        this->weights_layer_md_ = new_weights_layer_md;
-    } else if (this->weights_layer_md_.format_kind == format_kind::rnn_packed) {
-        if (dnnl::impl::operator!=(
-                    this->weights_layer_md_, new_weights_layer_md))
-            return status::unimplemented;
-    }
-
-    memory_desc_t new_weights_iter_md = *this->weights_md(1);
-    VDISPATCH_RNN_SC(set_expected_desc(rnn_conf, new_weights_iter_md, true),
-            "set_expected_desc()");
-    if (this->weights_iter_md_.format_kind == format_kind::any) {
-        this->weights_iter_md_ = new_weights_iter_md;
-    } else if (this->weights_iter_md_.format_kind == format_kind::rnn_packed) {
-        if (dnnl::impl::operator!=(this->weights_iter_md_, new_weights_iter_md))
-            return status::unimplemented;
-    }
+    VDISPATCH_RNN_SC(set_weights_desc(this->weights_layer_md_, rnn_conf),
+            "unsupported weights layer memory descriptor");
+    VDISPATCH_RNN_SC(set_weights_desc(this->weights_iter_md_, rnn_conf),
+            "unsupported weights iter memory descriptor");
 
     // Check dimensions consistency
     int ls_multiplier
