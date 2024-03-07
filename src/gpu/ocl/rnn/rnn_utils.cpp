@@ -268,7 +268,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             rnn.dst_data_type = bf16;
             rnn.output_data_type = bf16;
             break;
-        default: assert(!"unimplemented");
+        default: gpu_error_not_expected();
     }
 }
 
