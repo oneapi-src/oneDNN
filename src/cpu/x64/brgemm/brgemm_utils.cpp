@@ -682,7 +682,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
         const bool reduce_by_words = brg->is_bf16_tmm || brg->is_f16_tmm
                 || brg->is_input_convert();
         const auto max_rd_block = reduce_by_words ? 32 : 64;
-        const auto rd_block_step = reduce_by_words ? 2 : 4;
+        const auto rd_block_step = (reduce_by_words && !brg->is_fp8) ? 2 : 4;
         // TODO: if rd_block calculated is very small then maybe it makes
         // sense to use 1x2 or 2x1 blocking with supporting rd_block
         // and rdb_tail
@@ -863,12 +863,13 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->bdb2 = 0;
     brg->bdb2_tail = 0;
 
-    const data_type_t ld_step_compute_dt = get_mac_emu_data_type(
-            brg->dt_b, brg->isa_impl, brg->isa_impl != avx2_vnni_2);
+    const data_type_t ld_step_compute_dt
+            = get_mac_emu_data_type(brg->dt_b, brg->isa_impl,
+                    brg->isa_impl != avx2_vnni_2 && !brg->is_fp8_via_convert());
     brg->ld_step = data_type_vnni_granularity(ld_step_compute_dt);
 
-    const data_type_t rd_step_compute_dt
-            = get_mac_emu_data_type(brg->dt_b, brg->isa_impl);
+    const data_type_t rd_step_compute_dt = get_mac_emu_data_type(
+            brg->dt_b, brg->isa_impl, !brg->is_fp8_via_convert());
     brg->rd_step = data_type_vnni_granularity(rd_step_compute_dt);
 }
 
