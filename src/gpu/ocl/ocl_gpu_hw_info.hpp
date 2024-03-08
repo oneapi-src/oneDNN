@@ -28,8 +28,9 @@ namespace gpu {
 namespace ocl {
 
 void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
-        compute::gpu_arch_t &gpu_arch, int &stepping_id, bool &mayiuse_systolic,
-        bool &mayiuse_ngen_kernels, bool &is_xelpg);
+        compute::gpu_arch_t &gpu_arch, int &stepping_id,
+        uint64_t &native_extensions, bool &mayiuse_systolic,
+        bool &mayiuse_ngen_kernels);
 
 } // namespace ocl
 } // namespace gpu
