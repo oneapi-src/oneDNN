@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "common/utils.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/utils.hpp"
 
 namespace dnnl {

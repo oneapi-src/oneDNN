@@ -843,7 +843,7 @@ bool data_types_ok(const conv_problem_t &prb, const hw_t &hw) {
         return false;
     if (prb.is_f64_conv()
             && (utils::one_of(hw.to_ngen(), ngen::HW::XeLP, ngen::HW::XeHPG)
-                    && !hw.is_xelpg()))
+                    && !hw.has_fp64_atomic_support()))
         return false;
     if (is_bf8
             && !(utils::one_of(hw, ngen::HW::XeHPC) && hw.systolic_support()))

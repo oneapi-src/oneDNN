@@ -128,6 +128,21 @@ static inline const char *ext2cl_str(device_ext_t ext) {
 #undef CASE
 }
 
+enum class native_ext_t : uint64_t {
+    // clang-format off
+    // OpenCL data types
+    fp32_atomic_add = 1ull << 0,                   
+    fp32_atomic_min_max = 1ull << 1, 
+    fp32_atomic_load_store = 1ull << 2,  
+    fp16_atomic_add = 1ull << 3,                   
+    fp16_atomic_min_max = 1ull << 4,              
+    fp16_atomic_load_store = 1ull << 5,  
+    fp64_atomic_add = 1ull << 6,
+    fp64_atomic_min_max = 1ull << 7,
+    fp64_atomic_load_store = 1ull << 8,  
+    last
+};
+
 struct runtime_version_t {
     int major;
     int minor;
@@ -221,6 +236,7 @@ public:
     }
 
     bool has(device_ext_t ext) const { return extensions_ & (uint64_t)ext; }
+    bool has_native(native_ext_t ext) const { return native_extensions_ & (uint64_t)ext; }
     gpu_arch_t gpu_arch() const { return gpu_arch_; }
     int stepping_id() const { return stepping_id_; }
     int max_eus_per_wg() const { return max_eus_per_wg_; }
@@ -256,8 +272,6 @@ public:
 
     bool mayiuse_systolic() const { return mayiuse_systolic_; }
 
-    bool is_xelpg() const { return is_xelpg_; }
-
     bool mayiuse_non_uniform_work_groups() const {
         return mayiuse_non_uniform_work_groups_;
     }
@@ -268,6 +282,8 @@ public:
     }
 
     bool mayiuse_sub_group(int size) const;
+
+    bool mayiuse_float_atomic_add(data_type_t type) const;
 
     bool has_native(data_type_t type) const;
 
@@ -299,7 +315,6 @@ protected:
     bool mayiuse_systolic_ = false;
     bool mayiuse_ngen_kernels_ = false;
     bool mayiuse_system_memory_allocators_ = false;
-    bool is_xelpg_ = false;
 
     std::string name_;
     runtime_version_t runtime_version_;
@@ -317,6 +332,8 @@ protected:
 
     // extensions_ and gpu_arch_ describe effective extensions and GPU architecture.
     uint64_t extensions_ = 0;
+    // native extensions, may differ from support reported by runtime.
+    uint64_t native_extensions_ = 0;
 
 private:
     status_t init_attributes_common(engine_t *engine);
