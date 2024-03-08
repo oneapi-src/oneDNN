@@ -85,18 +85,14 @@ public:
     // to openmp. We also only enable the decompose kernel in the machine with
     // specific ISA support. There is also an internal env var to decide if use
     // the kernel.
-    // TODOs: we have follow to-do tasks in the future:
-    //   1. Remove CPU runtime check when we extend the support for others
-    //   2. Currently we support machines whose ISA is avx512_core_amx, we will
-    //      need to remove this check once the effectiveness of the algorithm
-    //      is verified on other machines
+    // TODO: Remove CPU runtime check when we extend the support for others
     bool enable_decomp_kernel() {
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_OMP
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP \
+        || DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+        return graph::utils::getenv_int_internal("ENABLE_SDP_DECOMP", 1) > 0;
+#else
         return false;
 #endif
-        bool enable_sdp_decomp
-                = graph::utils::getenv_int_internal("ENABLE_SDP_DECOMP", 1) > 0;
-        return enable_sdp_decomp;
     }
 
     status_t execute_impl(const stream_t *g_stream,
