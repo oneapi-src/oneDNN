@@ -2292,8 +2292,8 @@ private:
         // XeLPG. F64 fadd emulation is only reliable with vec_size 8 on XeLPG.
         bool requires_fadd
                 = prb_.is_bwd_w && gemm_schedule_.with_kernel_grid_k_slicing();
-        if (cfg_.hw().is_xelpg() && requires_fadd && c_layout.elems() % 8 != 0
-                && c_type == type_t::f64()) {
+        if (!cfg_.hw().has_fp64_atomic_support() && requires_fadd
+                && c_layout.elems() % 8 != 0 && c_type == type_t::f64()) {
             return plan_status_t::invalid_c_layout;
         }
 

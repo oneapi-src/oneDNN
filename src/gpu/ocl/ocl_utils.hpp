@@ -452,6 +452,9 @@ status_t get_ocl_device_eu_count(cl_device_id device, int32_t *eu_count);
 status_t get_ocl_device_enabled_systolic_intel(
         cl_device_id device, bool &systolic_enabled);
 
+status_t get_ocl_device_enabled_native_float_atomics(
+        cl_device_id device, uint64_t &native_extensions, bool is_xelpg);
+
 status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
 
 status_t create_ocl_program(gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program,

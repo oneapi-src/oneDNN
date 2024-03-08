@@ -68,6 +68,15 @@ bool device_info_t::mayiuse_sub_group(int size) const {
     }
 }
 
+bool device_info_t::mayiuse_float_atomic_add(data_type_t type) const {
+    switch (type) {
+        case data_type::f16: return has_native(native_ext_t::fp16_atomic_add);
+        case data_type::f32: return has_native(native_ext_t::fp32_atomic_add);
+        case data_type::f64: return has_native(native_ext_t::fp64_atomic_add);
+        default: return false;
+    }
+}
+
 bool device_info_t::has_native(data_type_t type) const {
     switch (type) {
         case data_type::undef:
@@ -264,6 +273,7 @@ status_t device_info_t::init_serialized_device_info(
     serialized_device_info_.write(&max_wg_size_);
     serialized_device_info_.write(&llc_cache_size_);
     serialized_device_info_.write(&extensions_);
+    serialized_device_info_.write(&native_extensions_);
     serialized_device_info_.write(&mayiuse_systolic_);
     serialized_device_info_.write(&mayiuse_ngen_kernels_);
     serialized_device_info_.write(&mayiuse_non_uniform_work_groups_);
@@ -301,6 +311,7 @@ status_t device_info_t::init_from_cache_blob(
     DESERIALIZE(max_wg_size_, size_t);
     DESERIALIZE(llc_cache_size_, size_t);
     DESERIALIZE(extensions_, uint64_t);
+    DESERIALIZE(native_extensions_, uint64_t);
     DESERIALIZE(mayiuse_systolic_, bool);
     DESERIALIZE(mayiuse_ngen_kernels_, bool);
     DESERIALIZE(mayiuse_non_uniform_work_groups_, bool);
