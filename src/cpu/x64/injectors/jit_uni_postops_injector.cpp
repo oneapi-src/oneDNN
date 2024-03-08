@@ -279,7 +279,9 @@ void jit_uni_postops_injector_t<isa, Vmm>::compute_vector_range(
         } else if (post_op.is_like_binary()) {
             binary_injector_->compute_vector_range(
                     vmm_idxs, rhs_arg_idx, post_op, rhs_arg_params);
-            ++rhs_arg_idx;
+            rhs_arg_idx += 1;
+            if (post_op.is_prelu() && post_op.prelu.has_scaleshift)
+                rhs_arg_idx += 2;
         } else {
             const auto lam = lambda_jit_injectors_.find(post_op.kind);
             if (lam != lambda_jit_injectors_.end()) lam->second();
@@ -296,6 +298,7 @@ template <cpu_isa_t isa, typename Vmm>
 void jit_uni_postops_injector_t<isa, Vmm>::prepare_table(bool gen_table) {
     for (auto &alg_elt_inject : alg_to_eltwise_injector_)
         alg_elt_inject.second.prepare_table(gen_table);
+    binary_injector_->prepare_table();
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -389,11 +392,10 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                 case prelu:
                     if (entry.is_like_binary()) {
                         assert(dst_d != nullptr && "dst_d is null");
-                        return !entry.prelu.has_scaleshift
-                                && binary_injector::is_supported(isa,
-                                        binary_injector::get_src1_desc(
-                                                entry, *dst_d),
-                                        *dst_d, enabled_bcast_strategy);
+                        return binary_injector::is_supported(isa,
+                                binary_injector::get_src1_desc(entry, *dst_d),
+                                *dst_d, enabled_bcast_strategy,
+                                entry.is_prelu() && entry.prelu.has_scaleshift);
                     }
                     break;
                 default: assert(false && "Unhandled post_op type");
