@@ -165,8 +165,6 @@ gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
     if (!this->force_nocopy || is_gemv) { this->jit_init(); }
 }
 
-static std::mutex kern_mutex;
-
 // copyA[trans][sum]
 template <typename a_t, typename b_t, typename c_t>
 typename gemm_info_t<a_t, b_t, c_t>::copy_a_fptr_t
@@ -878,12 +876,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
     bool doAlpha1 = this->alpha != 1.0f && is_bf16 ? no_alpha1 : do_alpha1;
 
-    {
-        // NOTE: This lock may not be needed at all as writes to copy_a_kern
-        // (and others) are protected within std::call_once(). The lock is added
-        // only to fix warnings reported by clang TSAN about a data race in
-        // this code block.
-        std::lock_guard<std::mutex> g(kern_mutex);
+    static std::once_flag post_init_flag;
+    std::call_once(post_init_flag, [&]() {
         this->copyA = copy_a_kern[copy_trans_a][doSumA];
         this->copyB = copy_b_kern[copy_trans_b][doSumB];
         for (int isBeta0 : {no_beta0, do_beta0})
@@ -893,7 +887,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                             = kern[isBeta0][doAlpha1][doColSum][doRowSum];
         for (int isTrans : {no_trans, do_trans})
             this->gemv_kernel[isTrans] = gemv_kern[isTrans];
-    }
+    });
 
     this->gemv_s8s8s32_kernel = nullptr;
     this->gemv_s8u8s32_kernel = nullptr;
