@@ -386,7 +386,7 @@ void skip_unimplemented_ops(const dnnl::graph::partition &partition,
 
     // A list of ops that don't have DNNL backend support so far.
     static const std::vector<std::string> unimplemented_ops {
-            "Pow", "Select", "StaticReshape", "StaticTranspose"};
+            "Pow", "StaticReshape", "StaticTranspose"};
 
     // For an unsupported partition, retrieve all operation IDs, find a
     // correspondent operation kind in a deserialized_graph and match it against
