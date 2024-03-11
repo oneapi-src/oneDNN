@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
-* Copyright 2024 FUJITSU LIMITED
+* Copyright 2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -248,10 +248,11 @@ struct brgemm_t {
 
     bool is_ymm = false;
     bool is_zmm = false;
-    bool is_tmm = false;
-    bool is_int8 = false, is_int8_tmm = false;
-    bool is_bf16 = false, is_bf16_tmm = false, is_bf16_emu = false;
-    bool is_f16 = false, is_f16_tmm = false;
+
+    bool is_int8 = false;
+    bool is_bf16 = false, is_bf16_emu = false;
+    bool is_f16 = false;
+    
     bool is_f32 = false;
     bool is_bf32 = false;
 
@@ -270,7 +271,7 @@ struct brgemm_t {
     brgemm_prf_t prfA, prfB, prfC;
 
     static constexpr int MAX_VPAD = 100;
-    static constexpr int AMX_TILES_NUM = 8;
+
 
     const primitive_attr_t *attr = nullptr;
     const memory_desc_t *dst_md = nullptr;
@@ -280,69 +281,12 @@ struct brgemm_t {
         return layout == brgemm_row_major;
     }
 
-    // Tile register decomposition
-    int get_bd_block2() const noexcept {
-        auto res = (bdb <= bd_block2) ? bdb : (bd_block2 + (bdb_tail ? 1 : 0));
-        return res;
-    }
+    
 
-    int get_ld_block2() const noexcept {
-        auto res = (ldb <= ld_block2) ? ldb : (ld_block2 + (ldb_tail ? 1 : 0));
-        return res;
-    }
 
-    int get_num_C_tiles() const noexcept {
-        return get_bd_block2() * get_ld_block2();
-    }
-    int get_C_tensor(int m, int n, bool m_tail = false,
-            bool n_tail = false) const noexcept {
-        auto M = m_tail ? get_bd_block2() - 1 : m;
-        auto N = n_tail ? get_ld_block2() - 1 : n;
-        return (M * get_ld_block2() + N);
-    }
-
-    int tiles_for_A() const noexcept {
-        return (AMX_TILES_NUM - get_num_C_tiles() - 1);
-    }
-
-    int get_A_tensor(int m, bool m_tail = false) const noexcept {
-        auto full_A_tiles = get_num_A_tiles() - (bdb_tail ? 1 : 0);
-        auto M = m_tail ? get_num_A_tiles() - 1 : m % full_A_tiles;
-        return (get_num_C_tiles() + M);
-    }
-
-    int get_num_A_tiles() const noexcept {
-        return nstl::min(get_bd_block2(), tiles_for_A());
-    }
-
-    int tiles_for_B() const noexcept {
-        return (AMX_TILES_NUM - get_num_C_tiles() - get_num_A_tiles());
-    }
-
-    int get_B_tensor(int n, bool n_tail = false) const noexcept {
-        auto full_B_tiles = get_num_B_tiles() - (ldb_tail ? 1 : 0);
-        auto N = n_tail ? get_num_B_tiles() - 1 : n % full_B_tiles;
-        return (get_num_C_tiles() + get_num_A_tiles() + N);
-    }
-
-    int get_num_B_tiles() const noexcept {
-        return nstl::min(get_ld_block2(), tiles_for_B());
-    }
 
     int get_wsp_buffer_size() const noexcept {
         int sz = 0;
-        if (is_tmm) {
-            constexpr int tilesize = 1024;
-            sz = get_num_C_tiles() * tilesize; // postops buffer
-            if (is_bf32) {
-                const int n_bdb = bd_block2;
-                const int n_rdb = rdb + (rdb_tail != 0);
-                const int n_ldb = ldb + (ldb_tail != 0);
-                const int downcvt_tiles
-                        = brgattr.max_bs * n_rdb * (n_bdb + n_ldb);
-                sz += downcvt_tiles * tilesize;
-            }
-        }
         return sz;
     }
 

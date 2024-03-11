@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
-* Copyright 2024 FUJITSU LIMITED
+* Copyright 2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -183,10 +183,6 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         return status::unimplemented;
 
     CHECK(brgemm_blocking(brg));
-
-    // sve_256 kernel requires blocked weights
-    if (brg->isa_impl == sve_256 && brg->LDB % brg->ld_block > 0)
-        return status::unimplemented;
 
     return status::success;
 }
@@ -375,7 +371,7 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
                     || brgattr.hint_ld_block != 0 || brgattr.hint_ld_block2 != 0
                     || brgattr.hint_load_nt_A != brgemm_hint_nt_undef
                     || brgattr.hint_load_nt_B != brgemm_hint_nt_undef);
-    if (brgattr.use_uker || brg->is_bf16_tmm || hint_blocking_set
+    if (brgattr.use_uker || hint_blocking_set
             || brgattr.bd_mask_level
             || brgattr.fpmath_mode != fpmath_mode::strict || max_vpad > 0) {
         if (brg->is_dgmm)
@@ -403,9 +399,7 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
     if (!IMPLICATION(brg->is_blocked, brg->layout = brgemm_row_major))
         return status::invalid_arguments;
 
-    // virtual padding is not supported for "amx"
-    if ((brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)
-            && (brg->is_tmm))
+    if (brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)
         return status::unimplemented;
 
     brg->prfA = brgattr.hint_prfA;
@@ -446,9 +440,7 @@ status_t brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
 }
 
 status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
-
-    if (!brg.is_tmm) return status::unimplemented;
-    return status::success;
+    return status::unimplemented;    
 }
 
 namespace {
@@ -573,5 +565,3 @@ bool brgemm_t::operator<(const brgemm_t &rhs) const {
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

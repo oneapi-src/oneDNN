@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
-* Copyright 2024 FUJITSU LIMITED
+*
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -176,7 +176,6 @@ struct brgemm_matmul_conf_t {
 
     int wsp_tile_per_thr_bytes;
     int brgemm_batch_element_per_thr_sz;
-    bool is_amx;
 
     int required_k_granularity;
     bool is_bf32 = false;
@@ -211,15 +210,15 @@ struct brgemm_matmul_conf_utils_t {
     inline bool use_buffer_b(bool use_heuristic = true) const {
         // Values based on measured performance difference
         // between plain and copy-to-blocked routine.
-        // return false;
         size_t big_LDB = bgmmc.N > 256;
         bool is_pow2 = math::is_pow2(bgmmc.N);
         bool use_copy_buffer = IMPLICATION(
                 this->is_f32(), use_heuristic && (big_LDB && is_pow2));
 
-        if (this->is_f16()) return false;
-
-        return (use_copy_buffer && this->check_is_plain(bgmmc.wei_tag))
+	if(this->is_f16())
+	  return false;
+	
+        return  (use_copy_buffer && this->check_is_plain(bgmmc.wei_tag))
                 || this->check_is_transposed(bgmmc.wei_tag)
                 || (bgmmc.wei_tag == format_tag::acbd)
                 || (bgmmc.wei_tag == format_tag::adbc);
@@ -230,7 +229,7 @@ struct brgemm_matmul_conf_utils_t {
             assert(bgmmc.b_dt_sz == bgmmc.tr_b_dt_sz);
             return bgmmc.B_strides[1] / bgmmc.b_dt_sz;
         }
-        bool use_blocked_LDB = bgmmc.is_amx || bgmmc.use_buffer_b
+        bool use_blocked_LDB = bgmmc.use_buffer_b
                 || bgmmc.wei_tag != plain_tensor_layout_tag;
         return use_blocked_LDB ? bgmmc.wei_n_blk : bgmmc.N;
     }

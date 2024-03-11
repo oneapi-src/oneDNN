@@ -130,9 +130,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
     const int max_m_ker_idx
             = bgmmc_.is_runtime_M ? max_num_dynamic_m_tails + 1 : 2;
-    // In the case of dynamic M for amx the last tail kernel generate using
-    // non-amx isa. s8s8 proplem type is exception to avoid compensations
-    // processing for tail kernel
+
     assert(!is_bf16);
     const auto backup_isa = isa;
     for_(int i_bs = 0; i_bs < 2; i_bs++)
@@ -1388,7 +1386,7 @@ private:
         dim_t buf_dim_idx;
     };
 
-    bool is_amx_;
+
     const brgemm_matmul_conf_t &bgmmc_;
     const char *data_A_ptr_;
     const char *data_B_ptr_;

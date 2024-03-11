@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
-* Copyright 2024 FUJITSU LIMITED
+* Copyright 2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,9 +152,7 @@ status_t DNNL_API brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
 /// @param batch Array of batch elements containing pointers to matrices
 ///     A,B and virtual padding for matrices A
 /// @param ptr_C Pointer to destination matrix C
-/// @param scratch Scratchpad memory needed in several scenarios:
-///     * Where: AMX+ hardware; When: always; For: buffer for tiles store.
-///     * In rest scenarios is not used.
+/// @param scratch Scratchpad memory needed in several scenarios
 ///
 void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const brgemm_batch_element_t *batch, void *ptr_C,
@@ -177,9 +175,7 @@ void DNNL_API brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 ///     and virtual padding for matrix A. This parameter is ignored when
 ///     using fixed offsets.
 /// @param ptr_C Pointer to destination matrix C
-/// @param scratch Scratchpad memory needed in several scenarios:
-///     * Where: AMX+ hardware; When: always; For: buffer for tiles store.
-///     * In rest scenarios is not used.
+/// @param scratch Scratchpad memory needed in several scenarios
 ///
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
@@ -202,10 +198,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 /// @param ptr_D Pointer to destination matrix D
 /// @param post_ops_data Specifies tensors and data used in post processing
 ///     phase
-/// @param scratch Scratchpad memory needed in several scenarios:
-///     * Where: AMX+ hardware; When: always; For: buffer for tiles store.
-///     * Where: pre-VNNI hardware; When: s8s8 kernel; For: compensation buffer.
-///     * In rest scenarios is not used.
+/// @param scratch Scratchpad memory needed in several scenarios
 ///
 void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
         int bs, const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
@@ -230,10 +223,7 @@ void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
 /// @param ptr_D Pointer to destination matrix D
 /// @param post_ops_data Specifies tensors and data used in post processing
 ///     phase
-/// @param scratch Scratchpad memory needed in several scenarios:
-///     * Where: AMX+ hardware; When: always; For: buffer for tiles store.
-///     * Where: pre-VNNI hardware; When: s8s8 kernel; For: compensation buffer.
-///     * In rest scenarios is not used.
+/// @param scratch Scratchpad memory needed in several scenarios
 ///
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
         const void *addr_A, const void *addr_B,
