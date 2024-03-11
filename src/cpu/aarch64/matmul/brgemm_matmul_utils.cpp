@@ -17,9 +17,9 @@
 #include <unordered_set>
 
 #include "common/dnnl_thread.hpp"
-#include "cpu/platform.hpp"
 #include "cpu/aarch64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/aarch64/matmul/brgemm_matmul_utils.hpp"
+#include "cpu/platform.hpp"
 
 #include "cpu/binary_injector_utils.hpp"
 #include "cpu/matmul/matmul_utils.hpp"
@@ -27,11 +27,11 @@
 
 // TODO add a method to print brgemm conf info
 #define VCONDCHECK_BG(cond, msg, ...) \
-    VCONDCHECK(primitive,create, dispatch, brgemm_matmul, (cond), status::unimplemented, \
-            msg, ##__VA_ARGS__);
+    VCONDCHECK(primitive, create, dispatch, brgemm_matmul, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 #define VCHECK_BG(f, msg, ...) \
-    VCHECK(primitive,create, dispatch, brgemm_matmul, f, msg, ##__VA_ARGS__);
+    VCHECK(primitive, create, dispatch, brgemm_matmul, f, msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
@@ -46,8 +46,6 @@ using namespace dnnl::impl::utils;
 
 using namespace data_type;
 using namespace format_tag;
-
-
 
 int get_default_n_block(format_tag_t matrix_b_tag) {
     // Note: consider using weights mem_descriptor 'inner_blks' to
@@ -132,12 +130,12 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
 
 status_t check_isa_with_datatype(
         const cpu_isa_t isa, const brgemm_matmul_conf_utils_t &bm_conf_utils) {
-  assert(bm_conf_utils.is_f32());
-  assert(!bm_conf_utils.is_int8());
-  assert(!bm_conf_utils.is_bf16());
-  assert(!bm_conf_utils.is_f16());
-  assert(!bm_conf_utils.is_int8());
-  return status::success;
+    assert(bm_conf_utils.is_f32());
+    assert(!bm_conf_utils.is_int8());
+    assert(!bm_conf_utils.is_bf16());
+    assert(!bm_conf_utils.is_f16());
+    assert(!bm_conf_utils.is_int8());
+    return status::success;
 }
 
 brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
@@ -492,7 +490,6 @@ struct matmul_avx512_blocking_params_t {
     }
 };
 
-
 float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils,
         const matmul_avx512_blocking_params_t::matmul_params_t &matmul,
@@ -689,7 +686,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
 
         best_blocking.update_configuration(bgmmc);
     } else {
-      assert(one_of(bm_conf_utils.get_isa(), sve_256));
+        assert(one_of(bm_conf_utils.get_isa(), sve_256));
 
         const matmul_avx512_blocking_params_t::matmul_params_t matmul(
                 bgmmc.M, bgmmc.N, bgmmc.K, bgmmc.batch);
@@ -745,9 +742,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     // Make BRGeMM compute MatMul as if it were in bfloat16, while down-convert
     // happens during copy-buffer computations
-    if (bgmmc.is_bf32 || bm_conf_utils.is_f16()) {
-      assert(!"unreachable");
-    }
+    if (bgmmc.is_bf32 || bm_conf_utils.is_f16()) { assert(!"unreachable"); }
 
     bgmmc.acc_dt = bm_conf_utils.is_int8() ? s32 : f32;
 
@@ -826,8 +821,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     VCONDCHECK_BG(!is_small_shapes, VERBOSE_SMALL_SHAPES);
 
     // required granularity for k dimension
-    bgmmc.required_k_granularity
-            = 1;
+    bgmmc.required_k_granularity = 1;
     VCONDCHECK_BG(bgmmc.required_k_granularity > 0, VERBOSE_BLOCKING_FAIL);
     bgmmc.wei_k_blk = data_type_vnni_simd_elems<sve_512>(bgmmc.wei_dt);
 
@@ -886,8 +880,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     }
 
     const bool lda_is_big_2pow = false;
-    const bool is_copy_a_required = 
-      bgmmc.wei_zp_type != brgemm_broadcast_t::none
+    const bool is_copy_a_required
+            = bgmmc.wei_zp_type != brgemm_broadcast_t::none
             || bgmmc.transposed_A || lda_is_big_2pow;
     bgmmc.use_buffer_a = is_copy_a_required;
 
@@ -1108,14 +1102,6 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 bgmmc.LDD * bgmmc.M_blk * bgmmc.M_chunk_size * bgmmc.c_dt_sz,
                 default_data_align);
 }
-
-
-
-
-
-
-
-
 
 } // namespace matmul
 } // namespace aarch64

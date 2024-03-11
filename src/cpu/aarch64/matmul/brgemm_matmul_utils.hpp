@@ -215,10 +215,9 @@ struct brgemm_matmul_conf_utils_t {
         bool use_copy_buffer = IMPLICATION(
                 this->is_f32(), use_heuristic && (big_LDB && is_pow2));
 
-	if(this->is_f16())
-	  return false;
-	
-        return  (use_copy_buffer && this->check_is_plain(bgmmc.wei_tag))
+        if (this->is_f16()) return false;
+
+        return (use_copy_buffer && this->check_is_plain(bgmmc.wei_tag))
                 || this->check_is_transposed(bgmmc.wei_tag)
                 || (bgmmc.wei_tag == format_tag::acbd)
                 || (bgmmc.wei_tag == format_tag::adbc);

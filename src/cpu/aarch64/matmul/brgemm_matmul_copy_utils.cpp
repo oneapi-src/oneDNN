@@ -433,9 +433,7 @@ struct jit_sve_512_core_brgemm_matmul_copy_b_int8_t
         : jit_brgemm_matmul_copy_b_int8_t<sve_512>(conf) {}
 
 private:
-    void init_permute() override {
-        assert(!"under construction");
-    }
+    void init_permute() override { assert(!"under construction"); }
 
     void copy_4x64(int nrows, int ncolumns) override {
         assert(!"under construction");

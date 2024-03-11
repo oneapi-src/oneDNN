@@ -94,10 +94,10 @@ struct jit_uni_sparse_matmul_kernel_t : public sparse_matmul_kernel_t {
 
     XReg reg_param = abi_param1;
 
-  XReg reg_nnz_count = x1;
-  XReg reg_blocks_count = x2;
-  XReg reg_src_indices = x3;
-  XReg reg_src_col_idx = x4;
+    XReg reg_nnz_count = x1;
+    XReg reg_blocks_count = x2;
+    XReg reg_src_indices = x3;
+    XReg reg_src_col_idx = x4;
 
     XReg reg_src_values = x8;
     XReg reg_wei = x9;
@@ -108,50 +108,38 @@ struct jit_uni_sparse_matmul_kernel_t : public sparse_matmul_kernel_t {
     XReg reg_tmp = x14;
     XReg reg_nnz = x15;
 
-  PReg tail_opmask = p2;
-  ZReg tail_vmask = z0;
+    PReg tail_opmask = p2;
+    ZReg tail_vmask = z0;
 
-  ZReg vreg_src_val = z19;
-  VReg xreg_src_val = v11;
+    ZReg vreg_src_val = z19;
+    VReg xreg_src_val = v11;
 
-    void load_kernel_params() {
-      assert(!"under construction");
-    }
+    void load_kernel_params() { assert(!"under construction"); }
 
-    XReg wei_ptr(size_t offt = 0) {
-      assert(!"under construction");
-    }
+    XReg wei_ptr(size_t offt = 0) { assert(!"under construction"); }
 
-  XReg dst_ptr(size_t offt = 0) {
-      assert(!"under construction");
-    }
+    XReg dst_ptr(size_t offt = 0) { assert(!"under construction"); }
 
-  XReg src_values_ptr(size_t offt = 0) {
-      assert(!"under construction");
-    }
+    XReg src_values_ptr(size_t offt = 0) { assert(!"under construction"); }
 
-  XReg src_indices_ptr(size_t offt = 0) {
-      assert(!"under construction");
-    }
+    XReg src_indices_ptr(size_t offt = 0) { assert(!"under construction"); }
 
     void load_tail(const ZReg &dst, const XReg &src) {
-      assert(!"under construction");
+        assert(!"under construction");
     }
-
 
     void store_tail(const XReg &dst, const ZReg &src) {
-      assert(!"under construction");
+        assert(!"under construction");
     }
 
+    void prepare_tail_mask();
 
-  void prepare_tail_mask();
-
-  ZReg get_dst_reg(int index) const {
+    ZReg get_dst_reg(int index) const {
         // Vmm(0) is reserved for mask.
         return ZReg(index + 1);
     }
 
-  ZReg get_wei_reg(int index, bool is_tail_block) {
+    ZReg get_wei_reg(int index, bool is_tail_block) {
         // Vmm(0) is reserved for mask.
         const int nloads = is_tail_block
                 ? utils::div_up(tail_block_size(), simd_w())
@@ -160,17 +148,15 @@ struct jit_uni_sparse_matmul_kernel_t : public sparse_matmul_kernel_t {
     }
 
     void loop_within_block_row(
-			       ZReg vreg_src_val, XReg reg_src_col_idx, bool is_tail_block) {
-      assert(!"under construction");
+            ZReg vreg_src_val, XReg reg_src_col_idx, bool is_tail_block) {
+        assert(!"under construction");
     }
 
     void loop_within_block(int unroll_factor, bool is_tail_block) {
-      assert(!"under construction");
+        assert(!"under construction");
     }
 
-    void loop_over_blocks(bool is_tail_block) {
-      assert(!"under construction");
-    }
+    void loop_over_blocks(bool is_tail_block) { assert(!"under construction"); }
 
     void compute() {
         const size_t n_full_blocks = N() / block_size();
@@ -193,20 +179,20 @@ struct jit_uni_sparse_matmul_kernel_t : public sparse_matmul_kernel_t {
 
 template <>
 void jit_uni_sparse_matmul_kernel_t<sve_512>::prepare_tail_mask() {
-      assert(!"under construction");
+    assert(!"under construction");
 }
 
 template <>
 void jit_uni_sparse_matmul_kernel_t<sve_256>::prepare_tail_mask() {
-      assert(!"under construction");
+    assert(!"under construction");
 }
 
 status_t jit_uni_sparse_matmul_t::init(engine_t *engine) {
-  if (mayiuse(sve_512)) {
-    using kernel_t = jit_uni_sparse_matmul_kernel_t<sve_512>;
+    if (mayiuse(sve_512)) {
+        using kernel_t = jit_uni_sparse_matmul_kernel_t<sve_512>;
         kernel_ = std::unique_ptr<kernel_t> {new kernel_t(pd())};
-  } else {
-    assert(!"unreachable");
+    } else {
+        assert(!"unreachable");
     }
     if (!kernel_) return status::runtime_error;
 

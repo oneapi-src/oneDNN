@@ -1386,7 +1386,6 @@ private:
         dim_t buf_dim_idx;
     };
 
-
     const brgemm_matmul_conf_t &bgmmc_;
     const char *data_A_ptr_;
     const char *data_B_ptr_;

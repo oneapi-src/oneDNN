@@ -371,8 +371,7 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
                     || brgattr.hint_ld_block != 0 || brgattr.hint_ld_block2 != 0
                     || brgattr.hint_load_nt_A != brgemm_hint_nt_undef
                     || brgattr.hint_load_nt_B != brgemm_hint_nt_undef);
-    if (brgattr.use_uker || hint_blocking_set
-            || brgattr.bd_mask_level
+    if (brgattr.use_uker || hint_blocking_set || brgattr.bd_mask_level
             || brgattr.fpmath_mode != fpmath_mode::strict || max_vpad > 0) {
         if (brg->is_dgmm)
             CHECK(brdgmm_blocking(brg));
@@ -440,7 +439,7 @@ status_t brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
 }
 
 status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
-    return status::unimplemented;    
+    return status::unimplemented;
 }
 
 namespace {

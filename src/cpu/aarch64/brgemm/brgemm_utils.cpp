@@ -88,7 +88,6 @@ void maybe_try_bf32(brgemm_t *brg) {
     //
 }
 
-
 void set_isa_impl(brgemm_t *brg) {
     auto is_isa_ok = [&](cpu_isa_t isa) {
         return mayiuse(isa) &&
@@ -114,8 +113,7 @@ void set_isa_impl(brgemm_t *brg) {
 
 void set_brg_vmm(brgemm_t *brg) {
 
-    brg->is_zmm = mayiuse(sve_512)
-            && is_superset(brg->isa_impl, sve_512);
+    brg->is_zmm = mayiuse(sve_512) && is_superset(brg->isa_impl, sve_512);
     brg->is_ymm = !brg->is_zmm && mayiuse(sve_256)
             && is_superset(brg->isa_impl, sve_256);
 }
@@ -193,57 +191,54 @@ status_t brgemm_blocking(brgemm_t *brg) {
     set_isa_impl(brg);
     if (brg->isa_impl == isa_undef) return status::unimplemented;
     set_brg_vmm(brg);
-    if (!(brg->is_zmm || brg->is_ymm))
-        return status::unimplemented;
+    if (!(brg->is_zmm || brg->is_ymm)) return status::unimplemented;
 
-  
-        const int simd_w = is_superset(brg->isa_impl, sve_512) ? 16 : 8;
-        brg->ld_block = simd_w;
-        brg->ldb = brg->load_dim / brg->ld_block;
-        brg->ldb_tail = brg->load_dim % brg->ld_block;
+    const int simd_w = is_superset(brg->isa_impl, sve_512) ? 16 : 8;
+    brg->ld_block = simd_w;
+    brg->ldb = brg->load_dim / brg->ld_block;
+    brg->ldb_tail = brg->load_dim % brg->ld_block;
 
-        int adj_ld_block2 = calculate_ldb_params(brg, 4);
-        int max_bcast_block = calculate_max_bcast_block(brg, adj_ld_block2);
+    int adj_ld_block2 = calculate_ldb_params(brg, 4);
+    int max_bcast_block = calculate_max_bcast_block(brg, adj_ld_block2);
 
-        // reduce 'ld_block2' to allow a larger 'bd_block'
-        const int max_vpad = nstl::max(
-                brg->brgattr.max_top_vpad, brg->brgattr.max_bottom_vpad);
-        if (is_superset(brg->isa_impl, sve_256) && max_bcast_block < max_vpad) {
-            adj_ld_block2 = calculate_ldb_params(brg, 2);
-            max_bcast_block = calculate_max_bcast_block(brg, adj_ld_block2);
+    // reduce 'ld_block2' to allow a larger 'bd_block'
+    const int max_vpad = nstl::max(
+            brg->brgattr.max_top_vpad, brg->brgattr.max_bottom_vpad);
+    if (is_superset(brg->isa_impl, sve_256) && max_bcast_block < max_vpad) {
+        adj_ld_block2 = calculate_ldb_params(brg, 2);
+        max_bcast_block = calculate_max_bcast_block(brg, adj_ld_block2);
+    }
+
+    const int min_block = 1;
+    float best_bd_block_eff = 0.f;
+    brg->bd_block = 1;
+    for (int bd_block = max_bcast_block; bd_block >= min_block; bd_block--) {
+        const auto bd_block_disb = static_cast<float>(brg->bcast_dim)
+                / rnd_up(brg->bcast_dim, bd_block);
+        const auto brgemm_microkernel_eff
+                = (static_cast<float>(adj_ld_block2) * bd_block)
+                / (((adj_ld_block2) + bd_block) * max_bcast_block);
+        const auto bd_block_eff = bd_block_disb * brgemm_microkernel_eff;
+
+        float block_foot_print = static_cast<float>(brg->typesize_A)
+                * (bd_block * brg->reduce_dim);
+        if (block_foot_print <= static_cast<float>(
+                    platform::get_per_core_cache_size(1))
+                && (bd_block_eff > best_bd_block_eff)) {
+            brg->bd_block = bd_block;
+            best_bd_block_eff = bd_block_eff;
         }
+    }
+    brg->bdb = brg->bcast_dim / brg->bd_block;
+    brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
-        const int min_block = 1;
-        float best_bd_block_eff = 0.f;
-        brg->bd_block = 1;
-        for (int bd_block = max_bcast_block; bd_block >= min_block;
-                bd_block--) {
-            const auto bd_block_disb = static_cast<float>(brg->bcast_dim)
-                    / rnd_up(brg->bcast_dim, bd_block);
-            const auto brgemm_microkernel_eff
-                    = (static_cast<float>(adj_ld_block2) * bd_block)
-                    / (((adj_ld_block2) + bd_block) * max_bcast_block);
-            const auto bd_block_eff = bd_block_disb * brgemm_microkernel_eff;
+    const int rd_unroll = 4;
+    const int vnni_granularity = data_type_vnni_granularity(brg->dt_a);
+    brg->rd_block = rd_unroll * vnni_granularity;
+    brg->rdb = brg->reduce_dim / brg->rd_block;
+    brg->rdb_tail = brg->reduce_dim % brg->rd_block;
 
-            float block_foot_print = static_cast<float>(brg->typesize_A)
-                    * (bd_block * brg->reduce_dim);
-            if (block_foot_print <= static_cast<float>(
-                        platform::get_per_core_cache_size(1))
-                    && (bd_block_eff > best_bd_block_eff)) {
-                brg->bd_block = bd_block;
-                best_bd_block_eff = bd_block_eff;
-            }
-        }
-        brg->bdb = brg->bcast_dim / brg->bd_block;
-        brg->bdb_tail = brg->bcast_dim % brg->bd_block;
-
-        const int rd_unroll = 4;
-        const int vnni_granularity = data_type_vnni_granularity(brg->dt_a);
-        brg->rd_block = rd_unroll * vnni_granularity;
-        brg->rdb = brg->reduce_dim / brg->rd_block;
-        brg->rdb_tail = brg->reduce_dim % brg->rd_block;
-
-        brg->is_M_tail = false;
+    brg->is_M_tail = false;
     return status::success;
 }
 
@@ -329,8 +324,7 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->has_int8_vnni = true;
 
     set_brg_vmm(brg); // TODO: Investigate if it is really needed here.
-    brg->req_s8s8_compensation
-            = brg->is_int8 && brg->dt_a == data_type::s8;
+    brg->req_s8s8_compensation = brg->is_int8 && brg->dt_a == data_type::s8;
 
     brg->LDA = (brg->is_row_major()) ? static_cast<int>(LDA)
                                      : static_cast<int>(LDB);

@@ -252,7 +252,7 @@ struct brgemm_t {
     bool is_int8 = false;
     bool is_bf16 = false, is_bf16_emu = false;
     bool is_f16 = false;
-    
+
     bool is_f32 = false;
     bool is_bf32 = false;
 
@@ -272,7 +272,6 @@ struct brgemm_t {
 
     static constexpr int MAX_VPAD = 100;
 
-
     const primitive_attr_t *attr = nullptr;
     const memory_desc_t *dst_md = nullptr;
 
@@ -280,10 +279,6 @@ struct brgemm_t {
         assert(layout != brgemm_layout_undef);
         return layout == brgemm_row_major;
     }
-
-    
-
-
 
     int get_wsp_buffer_size() const noexcept {
         int sz = 0;
