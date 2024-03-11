@@ -36,6 +36,7 @@
 #include "graph/backend/dnnl/kernels/resampling.hpp"
 #include "graph/backend/dnnl/kernels/sdp.hpp"
 #include "graph/backend/dnnl/kernels/sdp_base.hpp"
+#include "graph/backend/dnnl/kernels/select.hpp"
 #include "graph/backend/dnnl/kernels/shuffle.hpp"
 #include "graph/backend/dnnl/kernels/softmax.hpp"
 #include "graph/backend/dnnl/kernels/sum.hpp"

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -359,6 +359,7 @@ bool post_binary_fusible(const op_t *base_op, const op_t *bin_op) {
     auto fused_out = base_op->get_output_values()[0];
     auto consumers = fused_out->get_consumers();
     if (consumers.size() != 1) return false;
+    if (consumers[0].get_op().num_inputs() != 2) return false;
 
     size_t fused_in_off = consumers[0].get_offset();
     auto fused_in = bin_op->get_input_value(fused_in_off)->get_logical_tensor();
@@ -373,6 +374,12 @@ bool post_binary_fusible(const op_t *base_op, const op_t *bin_op) {
                            bin_op->get_attr<int64_t>(op_attr::alg_kind))
                         != dnnl::algorithm::binary_add)
             return false;
+    }
+
+    // Special check: dnnl_eltwise only support src and dst datatype are same
+    if (base_op->get_kind() == op_kind::dnnl_eltwise) {
+        auto bin_out = bin_op->get_output_values()[0]->get_logical_tensor();
+        if (ltw(fused_in).data_type() != ltw(bin_out).data_type()) return false;
     }
 
     return post_binary_fusible_impl(
