@@ -191,23 +191,17 @@ public:
 
 private:
     void set(const std::string &key, const std::string &value) {
-        if (key == "prop") {
-            prop_ = ir_utils::str_to_prop_kind(value);
-        } else if (key == "iter") {
+        if (key == "iter") {
             auto dim = prb_dim_t::from_name(value);
             tile_infos_[dim].add(tile_flags_t::iter);
         } else if (key == "tg") {
             auto dim = prb_dim_t::from_name(value);
             tile_infos_[dim].add(tile_flags_t::thread_group);
-        } else if (key == "loop") {
-            auto dim = prb_dim_t::from_name(value);
-            tile_infos_[dim].add(tile_flags_t::loop);
         } else {
             ir_error_not_expected();
         }
     }
 
-    prop_kind_t prop_ = prop_kind::undef;
     dim_map_t<prb_dim_t, tile_info_t> tile_infos_;
 };
 
@@ -304,9 +298,9 @@ private:
 // clang-format off
 std::vector<tile_scheme_t> get_tile_schemes() {
     std::vector<tile_scheme_t> schemes;
-    schemes.emplace_back("prop=fwd, loop=[ic,kd,kh,kw], tg=[oc,ow], iter=[mb,oc,ic]");
-    schemes.emplace_back("prop=fwd, loop=[ic,kd,kh,kw], tg=[oc,mb], iter=[mb,oc,ic]");
-    schemes.emplace_back("prop=fwd, loop=[ic,kd,kh,kw], tg=[oc,ow], iter=[ow,oc,ic]");
+    schemes.emplace_back("tg=[oc,ow], iter=[mb,oc,ic]");
+    schemes.emplace_back("tg=[oc,mb], iter=[mb,oc,ic]");
+    schemes.emplace_back("tg=[oc,ow], iter=[ow,oc,ic]");
     return schemes;
 }
 // clang-format on
