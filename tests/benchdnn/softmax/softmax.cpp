@@ -180,7 +180,8 @@ int fill_data_bwd(data_kind_t data_kind, const prb_t *prb, dnn_mem_t &mem_dt,
         return fill_random_real(mem_dt, mem_fp, nullptr);
     }
 
-    const int range = seed % 2 == 0 ? 8 : 128;
+    // TODO: replace with some better filling mechanism.
+    const int range = ((seed % 2 == 0) || mem_dt.dt() == dnnl_f16) ? 8 : 128;
 
     // to avoid any cancellation error it's better to have d_dst and dst of
     // different signs (refer to ref computations).
