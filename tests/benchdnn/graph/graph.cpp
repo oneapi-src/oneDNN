@@ -448,13 +448,6 @@ int doit(const prb_t *prb, res_t *res) {
         skip_unimplemented_ops(partitions[i], dg, res);
         if (res->state == SKIPPED) return OK;
 
-        BENCHDNN_PRINT(3, "[INFO]: partition #%zd is unsupported!\n", i);
-        res->state = UNIMPLEMENTED;
-        return FAIL;
-    }
-
-    for (size_t i = 0; i < partitions.size(); ++i) {
-        if (is_single_end_op_partition(partitions[i], end_opid_v)) { continue; }
         auto in_out_lts = partitions[i].get_input_ports();
         const auto &outputs = partitions[i].get_output_ports();
         in_out_lts.insert(in_out_lts.end(), outputs.begin(), outputs.end());
@@ -494,6 +487,11 @@ int doit(const prb_t *prb, res_t *res) {
             }
         }
         skip_unimplemented_data_type(in_out_dt, dir, res);
+        if (res->state == SKIPPED) return OK;
+
+        BENCHDNN_PRINT(3, "[INFO]: partition #%zd is unsupported!\n", i);
+        res->state = UNIMPLEMENTED;
+        return FAIL;
     }
 
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
