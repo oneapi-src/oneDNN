@@ -108,8 +108,6 @@ class bench_task_base_t {
 public:
     static const int iters = 10;
 
-    virtual bool init_primitive(engine &eng) = 0;
-
     void init_mem(memory_pool_t &mem_pool) {
         for (auto &kv : get_mds()) {
             mem_pool.reserve(kv.first, kv.second);
@@ -195,7 +193,7 @@ public:
         pw = prb.shape()[prb_dims::pw];
     }
 
-    bool init_primitive(engine &eng) override {
+    bool init_primitive(engine &eng) {
         try {
             memory::dims src_dims = {mb, ic, ih, iw};
             memory::dims wei_dims = {1, oc, ic, kh, kw};
