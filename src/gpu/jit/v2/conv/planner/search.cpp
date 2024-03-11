@@ -295,15 +295,24 @@ private:
     dim_map_t<prb_dim_t, std::vector<dim_tile_t>> tiles_;
 };
 
-// clang-format off
-std::vector<tile_scheme_t> get_tile_schemes() {
+std::vector<tile_scheme_t> get_tile_schemes(prop_kind_t prop) {
     std::vector<tile_scheme_t> schemes;
-    schemes.emplace_back("tg=[oc,ow], iter=[mb,oc,ic]");
-    schemes.emplace_back("tg=[oc,mb], iter=[mb,oc,ic]");
-    schemes.emplace_back("tg=[oc,ow], iter=[ow,oc,ic]");
+    if (prop == prop_kind::forward) {
+        schemes.emplace_back("tg=[oc,ow], iter=[mb,oc,ic]");
+        schemes.emplace_back("tg=[oc,mb], iter=[mb,oc,ic]");
+        schemes.emplace_back("tg=[oc,ow], iter=[ow,oc,ic]");
+    } else if (prop == prop_kind::backward_data) {
+        schemes.emplace_back("tg=[ic,iw], iter=[mb,oc,ic]");
+        schemes.emplace_back("tg=[ic,mb], iter=[mb,oc,ic]");
+        schemes.emplace_back("tg=[ic,iw], iter=[iw,oc,ic]");
+    } else if (prop == prop_kind::backward_weights) {
+        schemes.emplace_back("tg=[oc,ic], iter=[mb,oc,ic]");
+        schemes.emplace_back("tg=[oc,ic], iter=[ow,oc,ic]");
+    } else {
+        ir_error_not_expected();
+    }
     return schemes;
 }
-// clang-format on
 
 class kernel_search_manager_t {
 public:
@@ -332,7 +341,7 @@ private:
     std::vector<kernel_desc_t> gen_descs() const {
         std::unordered_set<kernel_desc_t, ir_utils::hasher_t<kernel_desc_t>>
                 descs;
-        for (auto &s : get_tile_schemes()) {
+        for (auto &s : get_tile_schemes(base_desc_.prop)) {
             dim_tile_set_t tile_set(s);
             auto tiling_descs = tile_set.create_tiling_descs();
             for (auto &td : tiling_descs) {
@@ -377,6 +386,14 @@ void auto_search(const bench_manager_t &bench_mger) {
         "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:2d --store c:2d",
         "--prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256 --load a:2d,b:2d --store c:2d --prefetch x3",
         "--prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256",
+
+        "--prop bwd_d --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --spec-reqs sw1sh1sd1",
+        "--prop bwd_d --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:2d --store c:2d --spec-reqs sw1sh1sd1",
+        "--prop bwd_d --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256 --load a:2d,b:2d --store c:2d --prefetch x3 --spec-reqs sw1sh1sd1",
+        "--prop bwd_d --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256 --spec-reqs sw1sh1sd1",
+
+        "--prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128",
+        "--prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:2d --store c:2d",
     };
     // clang-format on
     for (const char *r : recipes) {
