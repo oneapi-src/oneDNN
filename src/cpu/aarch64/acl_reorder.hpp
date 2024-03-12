@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Arm Ltd. and affiliates
+* Copyright 2023-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,8 +110,8 @@ struct acl_reorder_fwd_t : public primitive_t {
                 return status::unimplemented;
             }
 
-            // In case we have two or four dimensions we can't have the first
-            // two dimensions as 1. This is valid for f32->f32 and f32->bf16.
+            // In case we have two or four dimensions, we can't have one of the
+            // two first dimensions as 1. This is valid for f32->f32 and f32->bf16.
             if (dst_md->dims[0] == 1 || dst_md->dims[1] == 1) {
                 return status::unimplemented;
             }
@@ -123,17 +123,18 @@ struct acl_reorder_fwd_t : public primitive_t {
 
             auto dst_tag = memory_desc_matches_one_of_tag(*dst_md,
                     format_tag::BA8b4a, format_tag::BA4b4a, format_tag::Ab4a,
-                    format_tag::Ab8a);
+                    format_tag::Ab8a, format_tag::Acdb8a, format_tag::Acdb4a);
             ACL_CHECK_SUPPORT(format_tag::undef == dst_tag,
-                    "Only Ab4a, Ab8a, BA8b4a and BA4b4a destination formats "
-                    "supported");
+                    "Only Ab4a/Ab8a, BA8b4a/BA4b4a and Acdb8a/Acdb4a "
+                    "destination formats supported");
 
             if (dst_tag == format_tag::BA4b4a || dst_tag == format_tag::Acdb4a
                     || dst_tag == format_tag::Ab4a) {
                 _pd->app_.dst_wf = arm_compute::WeightFormat::OHWIo4;
-            } else if (dst_tag == format_tag::BA8b4a
-                    || dst_tag == format_tag::Acdb8a
-                    || dst_tag == format_tag::Ab8a) {
+            } else if (mayiuse(sve_256)
+                    && (dst_tag == format_tag::BA8b4a
+                            || dst_tag == format_tag::Acdb8a
+                            || dst_tag == format_tag::Ab8a)) {
                 _pd->app_.dst_wf = arm_compute::WeightFormat::OHWIo8;
             } else {
                 return status::unimplemented;
