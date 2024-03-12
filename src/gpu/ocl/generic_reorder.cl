@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,14 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
+#define USE_CUSTOM_GWS_GET_ID
+
 #include "gpu/ocl/dispatch.h"
 #include "gpu/ocl/reorder_common.h"
+#include "gpu/ocl/types_interop.h"
+
+#define GWS_GET_THREAD_ID(index) (get_global_id(index) + offset.array[index])
 
 KERNEL_ATTR
 __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         __global DST_DATA_T *restrict dst, __global float *restrict src_scales,
         __global int *restrict src_zps, __global float *restrict dst_scales,
-        __global int *restrict dst_zps, float sum_scale, int sum_zp) {
+        __global int *restrict dst_zps, float sum_scale, int sum_zp,
+        int64x3_t offset) {
 
     const int src_zp = GET_SRC_ZP(src_zps);
     const int dst_zp = GET_DST_ZP(dst_zps);
@@ -33,8 +39,9 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
 
 #define LOOP_NEST_LEVEL 4
     const uint sgId = get_sub_group_local_id();
-    uint d[6]; // tensor coordinates from workitem ID
-    uint b[6] = {0, 0, 0, 0, 0, 0}; // ajustment to coordinates per block (loop)
+    off_t d[6]; // tensor coordinates from workitem ID
+    off_t b[6]
+            = {0, 0, 0, 0, 0, 0}; // ajustment to coordinates per block (loop)
 
     d[0] = GWS_GET_D0();
     d[1] = GWS_GET_D1();
@@ -103,7 +110,7 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         // In a majority of cases, src_off contains neighboring values for
         // neighboring workitems. Exceptions occur when the src tensor has
         // additional striding in some dimension(s).
-        const uint src_off = SRC_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+        const off_t src_off = SRC_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
                 d[3] + b[3], d[4] + b[4], d[5] + b[5]);
 
         // Data in cache (local mem) is organized as if it had 'fedcba' format
@@ -172,7 +179,7 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
         // neighboring workitems. Exceptions occur when the dst tensor has
         // additional striding in some dimension(s), e.g., when reorder is used
         // in reference concat.
-        const uint dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
+        const off_t dst_off = DST_OFF(d[0] + b[0], d[1] + b[1], d[2] + b[2],
                 d[3] + b[3], d[4] + b[4], d[5] + b[5]);
 
         DST_DATA_T dst_tmp;
@@ -197,14 +204,14 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
             dst_tmp = dst[dst_off];
 #endif
 #if WITH_SRC_SCALE
-            uint src_scale_idx = SCALE_OFF(SRC, d[0] + b[0], d[1] + b[1],
+            off_t src_scale_idx = SCALE_OFF(SRC, d[0] + b[0], d[1] + b[1],
                     d[2] + b[2], d[3] + b[3], d[4] + b[4], d[5] + b[5]);
             src_scale = src_scale_idx < SRC_NUM_SCALES
                     ? src_scales[src_scale_idx]
                     : 0.0;
 #endif
 #if WITH_DST_SCALE
-            uint dst_scale_idx = SCALE_OFF(DST, d[0] + b[0], d[1] + b[1],
+            off_t dst_scale_idx = SCALE_OFF(DST, d[0] + b[0], d[1] + b[1],
                     d[2] + b[2], d[3] + b[3], d[4] + b[4], d[5] + b[5]);
             dst_scale = dst_scale_idx < DST_NUM_SCALES
                     ? dst_scales[dst_scale_idx]

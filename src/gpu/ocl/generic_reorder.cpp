@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -992,8 +992,7 @@ status_t generic_reorder_t::execute(const exec_ctx_t &ctx) const {
 
     auto nd_range = conf.dispatch.nd_range();
 
-    status = parallel_for(ctx, nd_range, kernel_, arg_list);
-    return status;
+    return large_parallel_for(ctx, nd_range, kernel_, arg_list, 8);
 }
 
 } // namespace ocl
