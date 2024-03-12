@@ -8,6 +8,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_LIBRARY_TYPE             | **SHARED**, STATIC                         | Defines the resulting library type                                                              |
 | ONEDNN_CPU_RUNTIME              | NONE, **OMP**, TBB, SEQ, THREADPOOL, SYCL  | Defines the threading runtime for CPU engines                                                   |
 | ONEDNN_GPU_RUNTIME              | **NONE**, OCL, SYCL                        | Defines the offload runtime for GPU engines                                                     |
+| ONEDNN_BUILD_DOC                | **ON**, OFF                                | Controls building the documentation                                                             |
 | ONEDNN_BUILD_EXAMPLES           | **ON**, OFF                                | Controls building the examples                                                                  |
 | ONEDNN_BUILD_TESTS              | **ON**, OFF                                | Controls building the tests                                                                     |
 | ONEDNN_BUILD_GRAPH              | **ON**, OFF                                | Controls building graph component                                                               |
