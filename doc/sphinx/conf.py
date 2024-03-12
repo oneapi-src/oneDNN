@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ sys.path.insert(1, os.path.abspath(doxyrest_share_path))
 # -- Project information -----------------------------------------------------
 
 project = 'oneDNN'
-copyright = '2016-2022 Intel Corporation'
+copyright = '2016-2024 Intel Corporation'
 author = ''
 
 # -- General configuration ---------------------------------------------------
