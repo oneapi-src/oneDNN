@@ -136,7 +136,7 @@ struct tile_info_t {
 
     std::vector<int> iter_tiles() const {
         if (!any(flags & tile_flags_t::iter)) return {1};
-        return pow_range(8, 64, 2);
+        return pow_range(2, 64, 2);
     }
 
     std::vector<int> thread_group_tiles() const {
