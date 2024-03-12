@@ -6775,7 +6775,7 @@ void gemm_kernel_generator_t<hw>::remaskLayout(Type T, int index, bool column,
                 if (Tr.paddedSize() > 4 && mstride == 1)
                     mregion = mask(1, Tr.size() / 4, 0);
                 and_<uint32_t>(
-                        (necp * Tr) / 4, sub.ud()(1), sub.ud()(1), mregion);
+                        (necp * Tr) / 4, sub.ud()(1), mregion, sub.ud()(1));
                 x0 += necp / crosspack;
             }
         }
