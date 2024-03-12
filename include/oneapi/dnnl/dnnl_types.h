@@ -2839,18 +2839,21 @@ typedef enum {
     /// and Intel Core processor family.
     // TODO: Align avx10_1 values to internal representation.
     dnnl_cpu_isa_avx10_1_512 = 0x1ef,
+    /// @copydoc dnnl_cpu_isa_avx10_1_512
     dnnl_cpu_isa_avx512_core_fp16 = dnnl_cpu_isa_avx10_1_512,
 
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer and bfloat16 support
     // TODO: Align avx10_1 values to internal representation.
     dnnl_cpu_isa_avx10_1_512_amx = 0xfef,
+    /// @copydoc dnnl_cpu_isa_avx10_1_512_amx
     dnnl_cpu_isa_avx512_core_amx = dnnl_cpu_isa_avx10_1_512_amx,
 
     /// Intel AVX-512 with float16, Intel DL Boost and bfloat16 support and
     /// Intel AMX with 8-bit integer, bfloat16 and float16 support
     // TODO: Align avx10_1 values to internal representation.
     dnnl_cpu_isa_avx10_1_512_amx_fp16 = 0x1fef,
+    /// @copydoc dnnl_cpu_isa_avx10_1_512_amx_fp16
     dnnl_cpu_isa_avx512_core_amx_fp16 = dnnl_cpu_isa_avx10_1_512_amx_fp16,
 } dnnl_cpu_isa_t;
 
