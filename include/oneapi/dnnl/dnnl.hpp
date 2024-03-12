@@ -3984,6 +3984,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     correspondence between the tensor dimensions and the scales array.
     ///     The set i-th dimension indicates a number of groups of scaling
     ///     factors used for that logical dimension in a memory indicated by @p arg.
+    /// @param data_type Scaling factors data_type.
     void set_scales(int arg, int mask, const memory::dims &groups,
             memory::data_type data_type = memory::data_type::f32) {
         error::wrap_c_api(dnnl_primitive_attr_set_scales(get(), arg, mask,
@@ -4028,6 +4029,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     correspondence between the tensor dimensions and the zero_points array.
     ///     The set i-th dimension indicates a number of groups of zero point
     ///     factors used for that logical dimension in a memory indicated by @p arg.
+    /// @param data_type Zero point factors data_type.
     void set_zero_points(int arg, int mask, const memory::dims &groups,
             memory::data_type data_type = memory::data_type::s32) {
         error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg, mask,
