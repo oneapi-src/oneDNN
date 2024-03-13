@@ -767,35 +767,35 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
     skip_unimplemented_sum_po(prb.attr, res, dnnl_rnn, prb.cfg[SRC_LAYER].dt);
     skip_unimplemented_prelu_po(prb.attr, res, dnnl_rnn);
 
+    if (is_cpu()) {
 #if !defined(DNNL_X64) || DNNL_X64 == 0 \
         || DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    // int8 is not supported altogether since RNN relies on packed IGEMM
-    // FIXME: this will disable int8 RNN testing if the library is built with
-    //        Intel MKL that does have packed IGEMM
-    if (prb.is_int8()) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
+        // int8 is not supported altogether since RNN relies on packed IGEMM
+        // FIXME: this will disable int8 RNN testing if the library is built with
+        //        Intel MKL that does have packed IGEMM
+        if (prb.is_int8()) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
 #endif
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    // f16 training is not yet fully supported.
-    const bool is_f16_not_ok
-            = prb.cfg[SRC_LAYER].dt == dnnl_f16 && !(dir & FLAG_INF);
-    if (is_f16_not_ok) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-#endif
+        // f16 training is not yet fully supported.
+        const bool is_f16_not_ok
+                = prb.cfg[SRC_LAYER].dt == dnnl_f16 && !(dir & FLAG_INF);
+        if (is_f16_not_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
 
 #ifdef DNNL_AARCH64_USE_ACL
-    const bool is_acl_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16
-            && dnnl::impl::cpu::platform::has_data_type_support(dnnl_f16);
-    if (is_acl_f16_not_ok) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
+        const bool is_acl_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16
+                && dnnl::impl::cpu::platform::has_data_type_support(dnnl_f16);
+        if (is_acl_f16_not_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
 #endif
+    }
 
     // int8 weights reorder does not support non trivial strides;
     // only LSTM and GRU cell kinds support int8 so far;
