@@ -791,6 +791,8 @@ struct jit_brgemm_conv_conf_t {
     bool req_brg_comp_pad;
     bool req_cal_comp_pad;
     bool is_bf32;
+    bool is_fp8 {false};
+    bool is_fp8_convert {false};
     bool comp_with_vpads;
 
     int nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b, nthr_oh;
