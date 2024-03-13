@@ -101,11 +101,16 @@ struct acl_inner_product_fwd_t : public primitive_t {
             const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, f32);
+            const bool is_fp32_bf16_ok
+                    = expect_data_types(f32, bf16, f32, f32, undef)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, f32);
             const bool is_weights_md_format_ok
                     = utils::one_of(weights_format_kind_received,
                             format_kind::any, format_kind::blocked);
             const bool ok = is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(true, is_fp16_ok, is_fp32_ok)
+                    && utils::one_of(
+                            true, is_fp16_ok, is_fp32_ok, is_fp32_bf16_ok)
                     && is_weights_md_format_ok
                     && set_default_params(true) == status::success;
 

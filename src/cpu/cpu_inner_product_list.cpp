@@ -83,6 +83,15 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE(ref_inner_product_fwd_t)
             nullptr,
         }},
+        /* With graph compilation, we are able to reorder and pre-pack the weights during the model load
+         * and compilation phase itself so that redundant and on-the-fly reorders can be avoided.
+         * This primitive definition is to support gemm fastmath mode for the compile scenario where src is
+         * in fp32 and weights are in bf16
+         */
+        {{forward, f32, bf16, f32}, {
+            CPU_INSTANCE_AARCH64_ACL(acl_inner_product_fwd_t)
+            nullptr,
+        }},
         {{backward_data, f32, f32, f32}, REG_BWD_PK({
             CPU_INSTANCE_AMX(brgemm_inner_product_bwd_data_t<avx512_core_amx>) // bf32
             CPU_INSTANCE_AVX512(brgemm_inner_product_bwd_data_t<avx512_core>)
