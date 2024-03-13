@@ -938,8 +938,8 @@ struct scratch_t : public data_helper_t {
 
     sub_buffer_t diff_states(
             dim_t layer, dim_t dir, dim_t state, dim_t iter) const {
-        int aux_elsz = conf_.aux_data_type == data_type::f16 ? sizeof(cl_half)
-                                                             : sizeof(float);
+        int aux_elsz = type_size(conf_.aux_data_type);
+
         if (!diff_states_) return {};
         auto off
                 = calc_off_diff_state(layer, dir, state, iter, 0, 0) * aux_elsz;
