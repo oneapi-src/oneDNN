@@ -40,6 +40,9 @@ All building options listed support their counterparts with `DNNL` prefix
 instead of `ONEDNN`. `DNNL` options would take precedence over `ONEDNN`
 versions, if both versions are specified.
 
+`ONEDNN_BUILD_DOC`, `ONEDNN_BUILD_EXAMPLES` and `ONEDNN_BUILD_TESTS` are disabled
+by default when oneDNN is built as a sub-project.
+
 All other building options or values that can be found in CMake files are
 intended for development/debug purposes and are subject to change without
 notice. Please avoid using them.
