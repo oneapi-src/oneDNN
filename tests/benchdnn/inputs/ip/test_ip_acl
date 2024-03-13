@@ -24,3 +24,11 @@
 --wtag=abx,axb
 # 2d-spatial dimensions
 --batch=shapes_googlenet_v1
+
+# Tests for external blocked weights layout.
+--reset
+--dir=FWD_I
+--skip-impl='ref,jit'
+--allow-enum-tags-only=0
+--wtag=Ab8a
+--batch=shapes_bert
