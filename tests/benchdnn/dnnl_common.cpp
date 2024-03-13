@@ -631,7 +631,7 @@ void skip_unimplemented_data_type(
             || (is_cpu() && has_data_type_support(dnnl_bf16)
                     && IMPLICATION(!(dir & FLAG_INF),
                             has_training_support(dnnl_bf16)));
-    const bool has_f16_support = (is_gpu() && (dir & FLAG_FWD))
+    const bool has_f16_support = is_gpu()
             || (is_cpu() && has_data_type_support(dnnl_f16)
                     && IMPLICATION(
                             !(dir & FLAG_INF), has_training_support(dnnl_f16)));
