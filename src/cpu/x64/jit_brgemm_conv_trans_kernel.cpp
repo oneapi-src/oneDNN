@@ -88,7 +88,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::load(
         vmovdqu32(x, addr);
     else if (one_of(jcp.src_dt, bf16, f16))
         vmovdqu16(x, addr);
-    else if (one_of(jcp.src_dt, s8, u8))
+    else if (one_of(jcp.src_dt, s8, u8, f8_e5m2, f8_e4m3))
         vmovdqu8(x, addr);
     else
         assert(!"Unknown type!");
@@ -100,7 +100,7 @@ void jit_avx512_core_brgemm_conv_trans_kernel_t::store(
         vmovdqu32(addr, x);
     else if (one_of(jcp.src_dt, bf16, f16))
         vmovdqu16(addr, x);
-    else if (one_of(jcp.src_dt, s8, u8))
+    else if (one_of(jcp.src_dt, s8, u8, f8_e5m2, f8_e4m3))
         vmovdqu8(addr, x);
     else
         assert(!"Unknown type!");

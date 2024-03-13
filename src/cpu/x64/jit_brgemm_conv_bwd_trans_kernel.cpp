@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,7 +77,9 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::load(
         case bf16:
         case f16: vmovdqu16(x, addr); break;
         case s8:
-        case u8: vmovdqu8(x, addr); break;
+        case u8:
+        case f8_e5m2:
+        case f8_e4m3: vmovdqu8(x, addr); break;
         default: assert(!"Unknown type!");
     }
 }
@@ -92,7 +94,9 @@ void jit_avx512_core_brgemm_conv_bwd_trans_kernel_t<Vmm>::store(
         case bf16:
         case f16: vmovdqu16(addr, x); break;
         case s8:
-        case u8: vmovdqu8(addr, x); break;
+        case u8:
+        case f8_e5m2:
+        case f8_e4m3: vmovdqu8(addr, x); break;
         default: assert(!"Unknown type!");
     }
 }
