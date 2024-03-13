@@ -103,7 +103,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.is_int8 = !one_of(rnn.dt_conf, all_f32, all_f16, all_bf16);
 
     rnn.aux_data_type
-            = rnn.dt_conf == all_f16 ? data_type::f16 : data_type::f32;
+            = acc_data_t == data_type::f16 ? data_type::f16 : data_type::f32;
     rnn.diff_data_type = data_type::f32;
 
     rnn.acc_data_type = acc_data_t;
