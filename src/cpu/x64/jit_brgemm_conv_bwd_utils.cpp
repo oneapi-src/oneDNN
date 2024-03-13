@@ -1078,7 +1078,14 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         update_blocks();
 
         eff = est_eff();
-        if (eff > best_brgb.eff || best_brgb.eff == 0) best_brgb = *this;
+        // Minimum allowed blocking efficiency. Value was picked empirically.
+        // Currently threshold is enabled for f32 only, due to its perf being
+        // highly sensitive for inefficient blockings.
+        constexpr float min_eff = 0.00001f;
+        const bool is_f32 = utils::everyone_is(f32, src_dt, wei_dt, dst_dt);
+        if ((eff > best_brgb.eff || best_brgb.eff == 0)
+                && IMPLICATION(is_f32, eff >= min_eff))
+            best_brgb = *this;
     }
 }
 
