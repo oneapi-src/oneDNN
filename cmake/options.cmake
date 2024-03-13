@@ -22,7 +22,7 @@ if(options_cmake_included)
 endif()
 set(options_cmake_included true)
 
-if ("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(DNNL_IS_MAIN_PROJECT TRUE)
 endif()
 
