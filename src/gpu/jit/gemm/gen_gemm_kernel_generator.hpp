@@ -2659,8 +2659,6 @@ protected:
             const GEMMStrategy &strategy, GEMMState &state);
     bool gemmUpdateC(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
-    bool gemmUpdateCDispatch(
-            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
 
     bool gemmBody(GEMMProblem problem, GEMMStrategy strategy, GEMMState state);
     bool gemmBodyInternal(
@@ -2680,8 +2678,6 @@ protected:
     bool gemmMEdge(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     bool gemmNEdge(GEMMProblem problem, GEMMStrategy strategy, GEMMState state);
-    void gemmOOBExit(ngen::Label &target, const GEMMStrategy &strategy,
-            GEMMState &state);
 
     void gemmSimpleLinearOrder(const GEMMProblem &problem,
             GEMMStrategy &strategy, GEMMState &state);
@@ -2697,8 +2693,6 @@ protected:
     void broadcastToWG(ngen::FlagRegister leaderFlag, ngen::GRF value,
             const CommonStrategy &strategy, CommonState &state,
             int slmOffset = 0);
-    void gemmStoreZeroC(GEMMProblem problem, GEMMStrategy strategy,
-            GEMMState state, bool initialZeroing = true);
     void gemmFusedBetaPOInit(const ngen::Subregister &groupID,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
@@ -2711,8 +2705,6 @@ protected:
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmFusedBetaWaitCompletion(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
-    bool gemmFusedPostOpsFinalize(ngen::Label &labelLateExit,
-            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     void gemmRedirectToTempC(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
 
