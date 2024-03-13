@@ -116,13 +116,25 @@ struct jit_uni_sparse_matmul_kernel_t : public sparse_matmul_kernel_t {
 
     void load_kernel_params() { assert(!"under construction"); }
 
-    XReg wei_ptr(size_t offt = 0) { assert(!"under construction"); }
+    XReg wei_ptr(size_t offt = 0) {
+        assert(!"under construction");
+        return x0;
+    }
 
-    XReg dst_ptr(size_t offt = 0) { assert(!"under construction"); }
+    XReg dst_ptr(size_t offt = 0) {
+        assert(!"under construction");
+        return x0;
+    }
 
-    XReg src_values_ptr(size_t offt = 0) { assert(!"under construction"); }
+    XReg src_values_ptr(size_t offt = 0) {
+        assert(!"under construction");
+        return x0;
+    }
 
-    XReg src_indices_ptr(size_t offt = 0) { assert(!"under construction"); }
+    XReg src_indices_ptr(size_t offt = 0) {
+        assert(!"under construction");
+        return x0;
+    }
 
     void load_tail(const ZReg &dst, const XReg &src) {
         assert(!"under construction");
