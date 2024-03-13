@@ -26,6 +26,8 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
+constexpr int miopen_softmax_max_ndims = 4;
+
 struct miopen_softmax_impl_base_t {
     enum io { src = 0, dst, d_src, d_dst, NUM_IO };
     int strides[NUM_IO][DNNL_MAX_NDIMS];
@@ -68,8 +70,12 @@ struct miopen_softmax_fwd_impl_t : public miopen_softmax_impl_base_t {
 
         if (pd->has_zero_dim_memory()) return status::success;
 
-        if (pd->ndims() > MIOPEN_DIM_MAX) { return status::invalid_arguments; }
-        ndims = pd->ndims() < 4 ? 4 : pd->ndims();
+        if (pd->ndims() > miopen_softmax_max_ndims) {
+            return status::invalid_arguments;
+        }
+        ndims = pd->ndims() < miopen_softmax_max_ndims
+                ? miopen_softmax_max_ndims
+                : pd->ndims();
 
         convert_dims(pd->src_md()->padded_dims, dims[src], pd->ndims());
         convert_dims(pd->src_md()->format_desc.blocking.strides, strides[src],
@@ -83,8 +89,8 @@ struct miopen_softmax_fwd_impl_t : public miopen_softmax_impl_base_t {
 
         CHECK(convert_data_type(pd->src_md(), &data_type));
 
-        CHECK(create_and_set_tensor_descriptor(
-                &tensor_desc, data_type, 4, dims[src], strides[src]));
+        CHECK(create_and_set_tensor_descriptor(&tensor_desc, data_type,
+                miopen_softmax_max_ndims, dims[src], strides[src]));
 
         return status::success;
     }
@@ -110,8 +116,12 @@ struct miopen_softmax_bwd_impl_t : public miopen_softmax_impl_base_t {
     status_t init(const softmax_pd_t *pd) override {
 
         if (pd->has_zero_dim_memory()) return status::success;
-        if (pd->ndims() > MIOPEN_DIM_MAX) { return status::invalid_arguments; }
-        ndims = pd->ndims() < 4 ? 4 : pd->ndims();
+        if (pd->ndims() > miopen_softmax_max_ndims) {
+            return status::invalid_arguments;
+        }
+        ndims = pd->ndims() < miopen_softmax_max_ndims
+                ? miopen_softmax_max_ndims
+                : pd->ndims();
 
         convert_dims(pd->dst_md()->padded_dims, dims[dst], pd->ndims());
         convert_dims(pd->diff_src_md()->padded_dims, dims[d_src], pd->ndims());
@@ -129,10 +139,10 @@ struct miopen_softmax_bwd_impl_t : public miopen_softmax_impl_base_t {
         convert_dims(pd->diff_dst_md()->format_desc.blocking.strides,
                 strides[d_dst], pd->ndims());
 
-        CHECK(create_and_set_tensor_descriptor(
-                &tensor_dst_desc, data_type, 4, dims[dst], strides[dst]));
-        CHECK(create_and_set_tensor_descriptor(
-                &tensor_diff_desc, data_type, 4, dims[d_src], strides[d_src]));
+        CHECK(create_and_set_tensor_descriptor(&tensor_dst_desc, data_type,
+                miopen_softmax_max_ndims, dims[dst], strides[dst]));
+        CHECK(create_and_set_tensor_descriptor(&tensor_diff_desc, data_type,
+                miopen_softmax_max_ndims, dims[d_src], strides[d_src]));
 
         return status::success;
     }

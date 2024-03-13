@@ -225,9 +225,10 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     const auto trh_dt = (prb->dir & FLAG_FWD) ? prb->ddt : prb->sdt;
-    const bool is_flt_or_dbl = trh_dt == dnnl_f32 || trh_dt == dnnl_f64;
+    const bool is_fp
+            = trh_dt == dnnl_f32 || trh_dt == dnnl_f64 || trh_dt == dnnl_f16;
     const float trh_coeff_log = prb->alg == LOGSOFTMAX ? 5 : 1;
-    const float trh_coeff_f32 = is_flt_or_dbl ? 10.f : 1.f;
+    const float trh_coeff_f32 = is_fp ? 10.f : 1.f;
     const float trh_coeff_bwd = (prb->dir & FLAG_FWD) ? 1.f : 4.f;
     const float trh_f32 = trh_coeff_log * trh_coeff_bwd * trh_coeff_f32
             * epsilon_dt(trh_dt);
@@ -237,7 +238,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // https://github.com/oneapi-src/oneDNN/issues/1819
     const float trh = trh_f32;
 #else
-    const float trh = is_flt_or_dbl ? trh_f32 : 0.f;
+    const float trh = is_fp ? trh_f32 : 0.f;
 #endif
     cmp.set_threshold(trh);
 
