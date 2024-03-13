@@ -510,6 +510,11 @@ inline size_t data_type_vnni_granularity(const data_type_t data_type) {
 inline size_t data_type_vnni_simd_elems(data_type_t data_type, cpu_isa_t isa) {
     const size_t dt_size = types::data_type_size(data_type);
     assert(dt_size > 0);
+    // Note: Currently, int8 matmul has avx512_core hardcoded.
+    // TODO: Investigate and remove if possible.
+    if (data_type == data_type::s8 && isa != avx512_core)
+        return data_type_vnni_simd_elems(data_type, avx512_core);
+
     return isa_max_vlen(isa) / dt_size;
 }
 
