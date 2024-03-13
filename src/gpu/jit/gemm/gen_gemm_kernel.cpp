@@ -14,16 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <cctype>
-
-#include "common/gemm_utils.hpp"
+#include "gpu/jit/gemm/gen_gemm_kernel.hpp"
 #include "common/impl_registration.hpp"
 #include "gpu/compute/device_info.hpp"
-#include "gpu/jit/gemm/gen_gemm_kernel.hpp"
 #include "gpu/jit/gemm/kernel_catalog.hpp"
 #include "gpu/jit/gemm/kernel_selector.hpp"
 #include "gpu/jit/gemm/strategy_parser.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/jit/utils/ngen_type_bridge.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -252,7 +249,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     using namespace kcatalog;
 
     arch_ = arch;
-    hw_ = convert_dnnl_arch_to_hw(arch);
+    hw_ = convert_dnnl_arch_to_ngen(arch);
     stepping_ = stepping;
     m_ = m;
     n_ = n;
@@ -430,7 +427,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     using namespace kcatalog;
 
     arch_ = arch;
-    hw_ = convert_dnnl_arch_to_hw(arch);
+    hw_ = convert_dnnl_arch_to_ngen(arch);
     stepping_ = stepping;
     m_ = m;
     n_ = n;
