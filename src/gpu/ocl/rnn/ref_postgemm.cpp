@@ -42,11 +42,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
         arg_list.append(into<int32_t>(iter));
     }
     if (aprop == prop_kind::forward) {
-        arg_list.append(scratch_gates, pd()->ocl_conf.aux_dt);
+        arg_list.append(scratch_gates, pd()->ocl_conf.acc_dt);
     } else {
         arg_list.append(scratch_diff_gates, pd()->ocl_conf.src_dt);
         arg_list.append(scratch_gates ? scratch_gates : scratch_diff_gates,
-                pd()->ocl_conf.aux_dt);
+                pd()->ocl_conf.acc_dt);
     }
     auto bias = user_data.bias(lay, dir);
     arg_list.append(bias, pd()->ocl_conf.bia_dt);
@@ -116,11 +116,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
         arg_list.append(into<int32_t>(iter));
     }
     if (aprop == prop_kind::forward) {
-        arg_list.append(scratch_gates, pd()->ocl_conf.aux_dt);
+        arg_list.append(scratch_gates, pd()->ocl_conf.acc_dt);
     } else {
         arg_list.append(scratch_diff_gates, pd()->ocl_conf.src_dt);
         arg_list.append(scratch_gates ? scratch_gates : scratch_diff_gates,
-                pd()->ocl_conf.aux_dt);
+                pd()->ocl_conf.acc_dt);
     }
     auto bias = user_data.bias(lay, dir);
     arg_list.append(bias, pd()->ocl_conf.bia_dt);
@@ -250,11 +250,11 @@ elemwise_sig_gru_lbr((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
         arg_list.append(into<int32_t>(iter));
     }
     if (aprop == prop_kind::forward) {
-        arg_list.append(scratch_gates, pd()->ocl_conf.aux_dt);
+        arg_list.append(scratch_gates, pd()->ocl_conf.acc_dt);
     } else {
         arg_list.append(scratch_diff_gates, pd()->ocl_conf.src_dt);
         arg_list.append(scratch_gates ? scratch_gates : scratch_diff_gates,
-                pd()->ocl_conf.aux_dt);
+                pd()->ocl_conf.acc_dt);
     }
     auto bias = user_data.bias(lay, dir);
     arg_list.append(bias, pd()->ocl_conf.bia_dt);
@@ -326,11 +326,11 @@ elemwise_sig_gru((_ref_rnn_common_t<aprop>::gru_elemwise)) {
         arg_list.append(into<int32_t>(iter));
     }
     if (aprop == prop_kind::forward) {
-        arg_list.append(scratch_gates, pd()->ocl_conf.aux_dt);
+        arg_list.append(scratch_gates, pd()->ocl_conf.acc_dt);
     } else {
         arg_list.append(scratch_diff_gates, pd()->ocl_conf.src_dt);
         arg_list.append(scratch_gates ? scratch_gates : scratch_diff_gates,
-                pd()->ocl_conf.aux_dt);
+                pd()->ocl_conf.acc_dt);
     }
     auto bias = user_data.bias(lay, dir);
     arg_list.append(bias, pd()->ocl_conf.bia_dt);

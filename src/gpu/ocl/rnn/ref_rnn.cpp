@@ -87,7 +87,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
 
     ocl_conf.src_dt = src_layer_d.data_type();
     ocl_conf.wei_dt = weights_layer_d.data_type();
-    ocl_conf.bia_dt = rnn.aux_data_type;
+    ocl_conf.bia_dt = bias_d.data_type();
     ocl_conf.acc_dt = rnn.acc_data_type;
     ocl_conf.aux_dt = rnn.aux_data_type;
     ocl_conf.diff_dt = rnn.diff_data_type;
