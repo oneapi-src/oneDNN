@@ -1528,21 +1528,25 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             "skipping implementation as it does not support small 3d shapes "
             "with small oc");
 
-    // TODO: optimize 2d/3d shapes with small iw for f32
-    const auto is_small_iw = jcp.iw < 64;
-    const auto is_2d_or_3d = jcp.ih > 1 || jcp.id > 1;
     const bool is_f32
             = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
-    VDISPATCH_CONV_IC(!(is_f32 && is_small_iw && is_2d_or_3d),
-            "skipping implementation due to performance reason for 2d/3d "
-            "shapes with small iw");
 
-    // Disable 2 shapes that cause performance regression
+    // Disable 4 shapes that cause performance regression
     const auto is_regression_shape = jcp.id == 1 && jcp.od == 1
             && ((jcp.ic == 128 && jcp.oc == 256 && jcp.ih == 101 && jcp.oh == 49
                         && jcp.iw == 85 && jcp.ow == 41)
                     || (jcp.ic == 3 && jcp.oc == 128 && jcp.ih == 207
-                            && jcp.oh == 101 && jcp.iw == 175 && jcp.ow == 85));
+                            && jcp.oh == 101 && jcp.iw == 175 && jcp.ow == 85)
+                    || (jcp.ic == 512 && jcp.oc == 1024
+                            && everyone_is(8, jcp.ih, jcp.iw)
+                            && everyone_is(4, jcp.oh, jcp.ow)
+                            && everyone_is(4, jcp.kh, jcp.kw)
+                            && everyone_is(2, jcp.stride_h, jcp.stride_w))
+                    || (jcp.ic == 1024 && jcp.oc == 2048
+                            && everyone_is(4, jcp.ih, jcp.iw)
+                            && everyone_is(2, jcp.oh, jcp.ow)
+                            && everyone_is(4, jcp.kh, jcp.kw)
+                            && everyone_is(2, jcp.stride_h, jcp.stride_w)));
     VDISPATCH_CONV_IC(!(is_f32 && is_regression_shape),
             "implementation skipped due to low performance");
 
