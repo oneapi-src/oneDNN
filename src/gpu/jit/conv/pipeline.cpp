@@ -825,9 +825,11 @@ public:
 // buffers.
 class sbid_manager_t {
 public:
-    sbid_manager_t(const hw_t &hw = hw_t())
-        : sbid_count_(hw >= ngen::HW::XeHPC ? 32 : 16)
-        , tuple_func_(builtin_t::make("tuple")) {}
+    sbid_manager_t(const hw_t &hw = hw_t(), const int regs = 128)
+        : sbid_count_(ngen::tokenCount(hw.to_ngen(), regs))
+        , tuple_func_(builtin_t::make("tuple")) {
+        ir_assert(sbid_count_ <= max_sbid_count);
+    }
 
     ngen_proxy::SBID get_sbid(const expr_t &buf, int index = 0) {
         auto key = tuple_func_.call({buf, expr_t(index)});
@@ -1550,7 +1552,7 @@ public:
         compute_iterator_t it(params_, loop_nest_);
         stmt_t body;
 
-        sbid_manager_t sbid_mgr(cfg_.hw());
+        sbid_manager_t sbid_mgr(cfg_.hw(), cfg_.regs());
 
         auto &outer_loop_info = loop_nest_.outer_loop_info();
 
