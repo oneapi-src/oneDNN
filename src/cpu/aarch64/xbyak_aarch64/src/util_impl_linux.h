@@ -146,8 +146,13 @@ private:
     regex_t regexBuf;
     regmatch_t match[1];
 
-    if (regcomp(&regexBuf, regex, REG_EXTENDED) != 0)
-      throw ERR_INTERNAL;
+    if (regcomp(&regexBuf, regex, REG_EXTENDED) != 0) {
+      /* There are platforms with /sys not mounted. return empty buffers
+       * in these scenarios
+       */
+      buf[0] = '\0';
+      return 0;
+    }
 
     const int retVal = regexec(&regexBuf, path, 1, match, 0);
     regfree(&regexBuf);
@@ -189,8 +194,12 @@ private:
       regex_t regexBuf;
       regmatch_t match[2];
 
-      if (regcomp(&regexBuf, "index[0-9]*$", REG_EXTENDED) != 0)
-        throw ERR_INTERNAL;
+      if (regcomp(&regexBuf, "index[0-9]*$", REG_EXTENDED) != 0) {
+        /* There are platforms with /sys not mounted. return gracefully
+         * in these scenarios
+         */
+        goto init_and_return_false;
+      }
 
       if (regexec(&regexBuf, dp->d_name, 1, match, 0) == 0) { // Found index[1-9][0-9]. directory
         char *dir_name = buf0;
@@ -440,12 +449,15 @@ private:
 
     FILE *file = fopen(path_midr_el1, "r");
     if (file == nullptr) {
-      throw Error(ERR_INTERNAL);
+      /* There are platforms with /sys not mounted. return empty buffer
+       * in these scenarios
+       */
+      buf[0] = '\0';
       return;
     }
 
     if (fread(buf, sizeof(char), 64, file) == 0) {
-      throw Error(ERR_INTERNAL);
+      cacheInfo_.midr_el1 = 0xFE << 24;
       return;
     }
 
