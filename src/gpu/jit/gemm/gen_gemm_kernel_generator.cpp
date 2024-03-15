@@ -26832,7 +26832,6 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                             bool src_bf8 = (Ts_real == Type::bf8);
                             bool dst_bf8 = (Td_real == Type::bf8);
                             bool bf8_align = src_bf8 ^ dst_bf8;
-                            if (bf8_align) allocTemp();
 
                             // Check if separate conversions are needed due to size changes.
                             auto sconvertCP = Ts_real.isInt4()
@@ -26898,6 +26897,12 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                     && (sreg.getOffset() & 1)
                                                     && hw >= HW::XeHP));
                             dconvert &= !bf8_align;
+                            bool prepBF = (!sconvert && !dconvert)
+                                    && Ts_real == Type::bf16;
+                            if (prepBF)
+                                sregConverted = sreg.reinterpret(
+                                        0, ngen::DataType::f)(scrosspack);
+                            if (bf8_align || prepBF) allocTemp();
                             auto dregConverted = dconvert
                                     ? dreg.reinterpret(0, Ts_real.ngen())(
                                             dconvertCP)
@@ -27060,6 +27065,13 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                         sregConverted,
                                                         sreg(scrosspack));
                                             }
+                                        } else if (prepBF) {
+                                            shl(nelems_real,
+                                                    copyTemp[0].sub(
+                                                            sreg.getOffset(),
+                                                            ngen::DataType::ud)(
+                                                            scrosspack),
+                                                    sreg.uw()(scrosspack), 16);
                                         }
                                         break;
                                     case 0:
@@ -27114,6 +27126,15 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                                 ? base(1)
                                                                 : base(0, wd,
                                                                         1));
+                                            } else if (prepBF) {
+                                                emov(telems | mmodMov,
+                                                        dregConverted,
+                                                        copyTemp[0].sub(
+                                                                sreg.getOffset(),
+                                                                ngen::DataType::
+                                                                        f)(
+                                                                scrosspack),
+                                                        strategy, state);
                                             } else if (!byteAlign && !bf8_align)
                                                 emov(telems | mmodMov,
                                                         dregConverted,
