@@ -102,18 +102,21 @@ private:
     size_t val = 0;
     size_t len = sizeof(val);
 
+    /* There are platforms with /sys not mounted. skip
+     * handling HW caps for such platforms.
+     */
     if (sysctlbyname(hw_opt_atomics, &val, &len, NULL, 0) != 0)
-      throw Error(ERR_INTERNAL);
+      type_ = 0;
     else
       type_ |= (val == 1) ? (Type)XBYAK_AARCH64_HWCAP_ATOMIC : 0;
 
     if (sysctlbyname(hw_opt_fp, &val, &len, NULL, 0) != 0)
-      throw Error(ERR_INTERNAL);
+      type_ = 0;
     else
       type_ |= (val == 1) ? (Type)XBYAK_AARCH64_HWCAP_FP : 0;
 
     if (sysctlbyname(hw_opt_neon, &val, &len, NULL, 0) != 0)
-      throw Error(ERR_INTERNAL);
+      type_ = 0;
     else
       type_ |= (val == 1) ? (Type)XBYAK_AARCH64_HWCAP_ADVSIMD : 0;
   }
