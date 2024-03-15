@@ -368,12 +368,11 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
                 const auto &source
                         = ((prb->dir & FLAG_BWD) && prb->use_dst()) ? dst : src;
                 const float s = source.get_elem(args.idx);
-                if (check_abs_err(prb, s, args.trh)
-                        || miopen_check_correctness(prb, args))
+                if (check_abs_err(prb, s, args.trh))
                     return args.diff <= args.trh;
                 if (prb->attr.post_ops.binary_index() != -1)
                     return args.diff <= args.trh;
-                return false;
+                return miopen_check_correctness(prb, args);
             };
     cmp.set_driver_check_function(eltwise_add_check);
 }
