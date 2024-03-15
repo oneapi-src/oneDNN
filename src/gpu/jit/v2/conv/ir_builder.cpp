@@ -34,119 +34,6 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-class let_ctx_t {
-public:
-    friend class let_ctx_mutator_t;
-
-    let_ctx_t(const kernel_info_t &kernel_info, const grid_context_t &grid_ctx,
-            const grid_t &tg_grid, const grid_t &thr_grid,
-            const virt_grid_t &virt_grid, int simd, ir_context_t &ir_ctx)
-        : kernel_info_(kernel_info), ir_ctx_(ir_ctx) {
-        // Handle thread indices.
-        for (int i = 0; i < grid_ctx.ndims(); i++) {
-            auto value = grid_ctx.local_id(i);
-            if (i == 0) value /= simd;
-            auto thr_idx = thr_grid.index_var(i);
-            let_stmts_.push_back(
-                    let_t::make(thr_idx, cast(value, thr_idx.type())));
-        }
-        // Handle thread group indices.
-        for (int i = 0; i < grid_ctx.ndims(); i++) {
-            auto tg_idx = tg_grid.index_var(i);
-            expr_map_.emplace(tg_idx, grid_ctx.tg_idx(i));
-        }
-        // Handle virtual grid indices.
-        for (auto &kv : virt_grid.idxs()) {
-            expr_map_.emplace(kv.first, get(kv.second));
-        }
-    }
-
-    std::vector<stmt_t> let_stmts() const { return let_stmts_; }
-
-    expr_t get(const expr_t &expr);
-
-    std::vector<expr_t> get(const std::vector<expr_t> &exprs) {
-        std::vector<expr_t> ret;
-        for (auto &e : exprs)
-            ret.push_back(get(e));
-        return ret;
-    }
-
-    expr_t get_shuffle(const std::vector<expr_t> &exprs) {
-        std::vector<expr_t> vec = get(exprs);
-        return shuffle_t::make(vec);
-    }
-
-private:
-    const expr_t *find(const expr_t &expr) const {
-        auto it = expr_map_.find(expr);
-        if (it != expr_map_.end()) return &it->second;
-        return nullptr;
-    }
-
-    expr_t register_expr(const expr_t &key, const expr_t &value) {
-        if (is_const(key) || key.is<const_var_t>() || key.is<var_t>())
-            return value;
-        if (auto *cached = find(key)) {
-            ir_assert(value.is_same(*cached));
-            return value;
-        }
-        auto tmp_var = ir_ctx_.create_tmp_var(type_t::s32());
-        let_stmts_.push_back(let_t::make(tmp_var, value));
-        expr_map_.emplace(key, tmp_var);
-        return tmp_var;
-    }
-
-    expr_t get_var(const var_t &var) {
-        if (auto *cached = find(var)) return *cached;
-        return var;
-    }
-
-    expr_t get_const_var(const const_var_t &var) {
-        if (auto *cached = find(var)) return *cached;
-
-        auto value = kernel_info_.find_arg(var.name);
-        return register_expr(var, value);
-    }
-
-    const kernel_info_t &kernel_info_;
-    ir_context_t &ir_ctx_;
-    object_eq_map_t<expr_t, expr_t> expr_map_;
-    std::vector<stmt_t> let_stmts_;
-};
-
-class let_ctx_mutator_t : public ir_mutator_t {
-public:
-    let_ctx_mutator_t(let_ctx_t &ctx) : ctx_(ctx) {}
-
-    object_t _mutate(const binary_op_t &obj) override {
-        switch (obj.op_kind) {
-            case op_kind_t::_div_up: return mutate((obj.a + obj.b - 1) / obj.b);
-            default: return ir_mutator_t::_mutate(obj);
-        }
-    }
-
-    object_t _mutate(const const_var_t &obj) override {
-        return ctx_.get_const_var(obj);
-    }
-
-    object_t _mutate(const linear_t &obj) override {
-        return mutate(obj.to_expr());
-    }
-
-    object_t _mutate(const var_t &obj) override { return ctx_.get_var(obj); }
-
-private:
-    let_ctx_t &ctx_;
-};
-
-expr_t let_ctx_t::get(const expr_t &expr) {
-    if (auto *cached = find(expr)) return *cached;
-    let_ctx_mutator_t mutator(*this);
-    auto ret = mutator.mutate(expr);
-    return register_expr(expr, ret);
-}
-
 struct offset_params_t {
     // Type of the offset.
     type_t type;
@@ -337,10 +224,10 @@ private:
 
 class offset_ctx_t {
 public:
-    offset_ctx_t(let_ctx_t &let_ctx, buffer_manager_t &buf_mgr,
+    offset_ctx_t(buffer_manager_t &buf_mgr, ir_context_t &ir_ctx,
             const loop_nest_t &loop_nest, const coord_info_t &coord_info)
-        : let_ctx_(let_ctx)
-        , buf_mgr_(buf_mgr)
+        : buf_mgr_(buf_mgr)
+        , ir_ctx_(ir_ctx)
         , loop_nest_(loop_nest)
         , coord_info_(coord_info) {}
 
@@ -381,9 +268,9 @@ public:
         auto y = get_offset(expr_t(0), y_base, y_inc, y_params);
 
         int type_size = desc.type.size();
-        auto W_enc = let_ctx_.get(desc.W) * type_size - 1;
-        auto H_enc = let_ctx_.get(desc.H) - 1;
-        auto P_enc = let_ctx_.get(desc.P) * type_size - 1;
+        auto W_enc = to_simple_expr(desc.W) * type_size - 1;
+        auto H_enc = to_simple_expr(desc.H) - 1;
+        auto P_enc = to_simple_expr(desc.P) * type_size - 1;
         (void)get_offset(
                 W_enc, off.buf + send_t::header_2d_off_surface_width());
         (void)get_offset(
@@ -412,7 +299,7 @@ public:
             params.allow_reuse = true;
             auto off = get_offset(
                     expr_t(0), dm.base, dm.slot_incs, shift, params);
-            ret.add_mask(off, let_ctx_.get(dm.bound), dm.has_underflow);
+            ret.add_mask(off, to_simple_expr(dm.bound), dm.has_underflow);
         }
         return ret;
     }
@@ -434,6 +321,10 @@ public:
         return ret;
     }
 
+    stmt_t inject_let_stmts(const stmt_t &stmt) const {
+        return jit::inject_let_stmts(stmt, let_stmts_);
+    }
+
 private:
     // base0 - memory buffer base address
     // base, shift_vec, shift - offset parts (see offset_t description)
@@ -450,8 +341,8 @@ private:
         split_to_linear(base, loop_idxs, _base_init, _loop_incs);
 
         auto type = params.type.with_elems(params.esize);
-        auto shift_vec = _shift_vec.empty() ? expr_t(0)
-                                            : let_ctx_.get_shuffle(_shift_vec);
+        auto shift_vec
+                = _shift_vec.empty() ? expr_t(0) : shuffle_t::make(_shift_vec);
         if (params.allow_bcast) {
             if (auto *shuffle = shift_vec.as_ptr<shuffle_t>()) {
                 if (shuffle->is_broadcast()) {
@@ -462,19 +353,18 @@ private:
         }
         offset_t ret;
         ret.type = type;
-        ret.base = base0 + let_ctx_.get(_base_init);
-        ret.shift = let_ctx_.get(_shift);
+        ret.base = base0 + _base_init;
+        ret.shift = _shift;
         ret.shift_vec = shift_vec;
         ret.esize = params.esize;
 
-        auto loop_incs = let_ctx_.get(_loop_incs);
         expr_t comp_value = 0;
         for (auto &e : loop_nest_) {
             auto loop_size = coord_info_.loop_size(e.dim);
-            auto inc_value = simplify(loop_incs[e.idx] - comp_value);
-            auto inc = let_ctx_.get(inc_value);
+            auto inc_value = simplify(_loop_incs[e.idx] - comp_value);
+            auto inc = to_simple_expr(inc_value);
             ret.loop_incs.push_back(inc);
-            comp_value = (loop_incs[e.idx] * loop_size);
+            comp_value = to_simple_expr(_loop_incs[e.idx] * loop_size);
         }
 
         if (params.allow_reuse) {
@@ -527,10 +417,24 @@ private:
         }
         ir_error_not_expected();
     }
-    let_ctx_t &let_ctx_;
+
+    expr_t to_simple_expr(const expr_t &e) {
+        if (is_const(e) || e.is<const_var_t>() || e.is<var_t>()) return e;
+        auto it = expr2var_.find(e);
+        if (it != expr2var_.end()) return it->second;
+        auto tmp_var = ir_ctx_.create_tmp_var(type_t::s32());
+        let_stmts_.push_back(let_t::make(tmp_var, e));
+        expr2var_.emplace(e, tmp_var);
+        return tmp_var;
+    }
+
     buffer_manager_t &buf_mgr_;
+    ir_context_t &ir_ctx_;
     loop_nest_t loop_nest_;
     coord_info_t coord_info_;
+
+    object_eq_map_t<expr_t, expr_t> expr2var_;
+    std::vector<stmt_t> let_stmts_;
 
     int offset_id_ = 0;
     std::vector<offset_t> offsets_;
@@ -727,6 +631,52 @@ stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
             prb_coord_t<int>());
 }
 
+class var_replacer_t : public ir_mutator_t {
+public:
+    var_replacer_t(const kernel_info_t &kernel_info,
+            const grid_context_t &grid_ctx, const grid_t &tg_grid) {
+        for (auto &d : conv_dims()) {
+            auto &size = size_var(d).as<const_var_t>();
+            auto size_arg = kernel_info.find_arg(size.name);
+            var_map_.emplace(size, size_arg);
+        }
+        for (int i = 0; i < grid_ctx.ndims(); i++) {
+            auto tg_idx = tg_grid.index_var(i);
+            var_map_.emplace(tg_idx, grid_ctx.tg_idx(i));
+        }
+    }
+    object_t _mutate(const var_t &obj) override {
+        auto it = var_map_.find(obj);
+        if (it != var_map_.end()) return it->second;
+        return obj;
+    }
+
+    object_t _mutate(const const_var_t &obj) override {
+        auto it = var_map_.find(obj);
+        if (it != var_map_.end()) return it->second;
+        ir_error_not_expected() << "Cannot map const var: " << obj;
+        return expr_t();
+    }
+
+    object_t _mutate(const binary_op_t &obj) override {
+        switch (obj.op_kind) {
+            case op_kind_t::_div_up: return mutate((obj.a + obj.b - 1) / obj.b);
+            default: return ir_mutator_t::_mutate(obj);
+        }
+    }
+
+private:
+    object_map_t<expr_t, expr_t> var_map_;
+};
+
+stmt_t finalize_vars(const stmt_t &stmt, const kernel_info_t &kernel_info,
+        const grid_context_t &grid_ctx, const grid_t &tg_grid,
+        ir_context_t &ir_ctx) {
+    auto ret = var_replacer_t(kernel_info, grid_ctx, tg_grid).mutate(stmt);
+    ret = inject_external_var_let(ret, ir_ctx);
+    return ret;
+}
+
 class ir_builder_t {
 public:
     ir_builder_t(const kernel_desc_t &desc, const kernel_info_t &kernel_info,
@@ -738,11 +688,9 @@ public:
         , cset_(desc.spec_reqs.as_constraint_set(kernel_info))
         , ir_ctx_(desc.exec_cfg(), cset_)
         , buf_mgr_(ir_ctx_)
-        , let_ctx_(kernel_info, grid_ctx, plan.tg_grid, plan.thr_grid,
-                  plan.virt_grid, desc.simd, ir_ctx_)
-        , off_ctx_(let_ctx_, buf_mgr_, desc_.loop_nest, plan_.coord_info)
+        , off_ctx_(buf_mgr_, ir_ctx_, desc_.loop_nest, plan_.coord_info)
         , prefetch_off_ctx_(
-                  let_ctx_, buf_mgr_, desc_.loop_nest, plan_.coord_info) {}
+                  buf_mgr_, ir_ctx_, desc_.loop_nest, plan_.coord_info) {}
 
     stmt_t build() {
         build_prefetch();
@@ -756,6 +704,9 @@ public:
         stmt = zero_out_stmt().append(stmt);
         stmt = stmt.append(c_store_stmt_);
         stmt = inject_alloc_and_let(stmt);
+        stmt = finalize_vars(
+                stmt, kernel_info_, grid_ctx_, plan_.tg_grid, ir_ctx_);
+
         stmt = simplify(stmt, ir_ctx_);
         stmt = optimize_alloc_let(stmt, ir_ctx_);
         stmt = split_wide_stores(stmt, ir_ctx_);
@@ -775,7 +726,7 @@ private:
         if (prefetch_dist > 0) {
             prefetch_it = iterator_t(buf_mgr_);
             for (auto &e : loop_nest) {
-                auto bound = let_ctx_.get(coord_info.loop_size(e.dim));
+                auto bound = coord_info.loop_size(e.dim);
                 prefetch_it.add_loop(e, bound);
             }
             init_stmt = init_stmt.append(prefetch_it.init_stmt());
@@ -798,8 +749,8 @@ private:
             ret = ret.append(prefetch_it.inc_stmt(prefetch_off_ctx_));
         }
         for (auto &e : loop_nest) {
-            auto var = let_ctx_.get(coord_info.loop_index(e.dim));
-            auto bound = let_ctx_.get(coord_info.loop_size(e.dim));
+            auto var = coord_info.loop_index(e.dim);
+            auto bound = coord_info.loop_size(e.dim);
             ret = ret.append(off_ctx_.inc_loop_stmt(e));
             ret = for_t::make(var, 0, bound, ret);
         }
@@ -825,10 +776,10 @@ private:
         stmt_t ret = stmt;
         ret = inject_out_alloc(ret);
         ret = inject_header_alloc(ret);
-        ret = inject_let_stmts(ret, let_ctx_.let_stmts());
+        ret = off_ctx_.inject_let_stmts(ret);
+        ret = prefetch_off_ctx_.inject_let_stmts(ret);
         ret = inject_global_alloc(ret);
         ret = inject_index_let(ret);
-        ret = inject_external_var_let(ret, ir_ctx_);
         return ret;
     }
 
@@ -875,19 +826,28 @@ private:
         auto &coord_info = plan_.coord_info;
         stmt_t ret = stmt;
         for (auto &d : conv_index_dims(plan_.desc.prop)) {
-            auto tg_idx = let_ctx_.get(coord_info.tg_index(d));
+            auto tg_idx = coord_info.tg_index(d);
             if (is_const(tg_idx)) continue;
-            auto base_tg_idx = let_ctx_.get(tg_grid.index_var(d));
+            auto base_tg_idx = tg_grid.index_var(d);
             if (base_tg_idx.is_empty()) continue;
             auto value = unpack_tg_index(d);
             ret = let_t::make(tg_idx, value, ret);
+        }
+        for (auto &kv : plan_.virt_grid.idxs()) {
+            ret = let_t::make(kv.first, kv.second, ret);
+        }
+        for (int i = 0; i < grid_ctx_.ndims(); i++) {
+            auto value = grid_ctx_.local_id(i);
+            if (i == 0) value /= plan_.desc.simd;
+            auto thr_idx = plan_.thr_grid.index_var(i);
+            ret = let_t::make(thr_idx, cast(value, thr_idx.type()), ret);
         }
         return ret;
     }
 
     expr_t unpack_tg_index(const prb_dim_t &dim) const {
         auto &tg_grid = plan_.tg_grid;
-        auto base_idx = let_ctx_.get(tg_grid.index_var(dim));
+        auto base_idx = tg_grid.index_var(dim);
         if (base_idx.is_empty()) return expr_t();
 
         expr_t value = base_idx;
@@ -1088,7 +1048,6 @@ private:
     mutable constraint_set_t cset_;
     mutable ir_context_t ir_ctx_;
     mutable buffer_manager_t buf_mgr_;
-    mutable let_ctx_t let_ctx_;
     mutable offset_ctx_t off_ctx_;
     mutable offset_ctx_t prefetch_off_ctx_;
 
