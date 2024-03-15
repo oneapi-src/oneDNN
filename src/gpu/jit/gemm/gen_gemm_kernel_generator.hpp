@@ -62,10 +62,10 @@ public:
         invalid = 0,
         f16 = 0x01000201,
         f32 = 0x01010402,
+        u4 = 0x21840100,
+        s4 = 0x21850100,
         u8 = 0x01840100,
         s8 = 0x01850100,
-        u4 = 0x11840100,
-        s4 = 0x11850100,
         u16 = 0x01860201,
         s16 = 0x01870201,
         u32 = 0x01880402,
@@ -91,26 +91,26 @@ public:
     constexpr int components() const { return 1; }
     constexpr bool isInteger() const { return uint32_t(val) & 0x800000; }
     constexpr bool isFP() const { return !isInteger(); }
-    constexpr bool isInt4() const { return uint32_t(val) & 0x10000000; }
+    constexpr bool isInt4() const { return uint32_t(val) & 0x20000000; }
     constexpr bool isInt8() const {
-        return utils::one_of(val, Type::u8, Type::s8);
+        return (val == Type::u8) || (val == Type::s8);
     }
     constexpr bool isSigned() const {
         return (uint32_t(val) & 0x810000) != 0x800000;
     }
+    constexpr int bits() const { return isInt4() ? 4 : (paddedSize() * 8); }
+    constexpr int paddedSize() const { return (uint32_t(val) >> 8) & 0xFF; }
     int log2Size() const {
-        assert(!isInt4());
+        subByteCheck();
         return uint32_t(val) & 0xFF;
     }
-
-    constexpr int bits() const { return isInt4() ? 4 : (paddedSize() * 8); }
-
-    constexpr int paddedSize() const { return (uint32_t(val) >> 8) & 0xFF; }
-
     int size() const {
-        assert(!isInt4());
+        subByteCheck();
         return paddedSize();
     }
+    constexpr int perByte() const { return isInt4() ? 2 : 1; }
+
+    void subByteCheck() const;
 
     constexpr Type arithmetic() const {
         return (val == tf32) ? Type(f32) : real();
@@ -130,21 +130,21 @@ public:
     constexpr Type baseType() const { return *this; }
 
     template <typename U>
-    friend int operator*(U a, Type t) {
-        return (t.isInt4()) ? int((a + 1) >> 1) : int(a << t.log2Size());
+    constexpr friend int operator*(U a, Type t) {
+        return t.isInt4() ? int((a + 1) >> 1) : int(a << t.log2Size());
     }
     template <typename U>
-    friend int operator*(Type t, U b) {
-        return (t.isInt4()) ? int((b + 1) >> 1) : int(b << t.log2Size());
+    constexpr friend int operator*(Type t, U a) {
+        return a * t;
     }
     template <typename U>
     friend int operator*=(U &a, Type t) {
         a = a * t;
-        return t;
+        return a;
     }
     template <typename U>
     constexpr friend int operator/(U a, Type t) {
-        return (t.isInt4()) ? int(a << 1) : int(a >> t.log2Size());
+        return t.isInt4() ? int(a << 1) : int(a >> t.log2Size());
     }
 
     ngen::DataType ngen() const {
@@ -181,7 +181,7 @@ static inline bool isColMajor(MatrixLayout l) {
 }
 
 static inline bool isLargeCrosspack(Type T, int crosspack) {
-    return ((crosspack > 1) && crosspack * T > 4);
+    return (crosspack * T > 4) && (crosspack > 1);
 }
 
 static inline MatrixLayout transposeLayout(MatrixLayout l) {
@@ -448,7 +448,7 @@ struct MatrixAddressing {
     void setAlignment(int align) { alignment = sanitizeAlign(align); }
     int defaultAlignment(Type T) const {
         return sanitizeAlign(
-                T.size() * (isPacked(layout) ? (packSize * crosspack) : 1));
+                (isPacked(layout) ? (packSize * crosspack) : 1) * T);
     }
 
 private:
@@ -875,7 +875,16 @@ enum class COffset {
 enum class BatchMode { None, Strided, Nonstrided, Variable };
 
 // Binary operations.
-enum class BinaryOp { Add, Sub, Mul, Div, Min, Max, Prelu };
+enum class BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Min,
+    Max,
+    Prelu,
+    ScaleSub /* internal use only */
+};
 
 // GEMM kernel problem description.
 struct GEMMProblem : public CommonProblem {
@@ -918,7 +927,7 @@ struct GEMMProblem : public CommonProblem {
             binaryTrans; // Used to compute GEMMProblem::binary
 
     // The following data is derived from the postOps and does not need
-    // considered for equality/hashing purposes
+    //   to be considered for equality/hashing purposes.
     std::vector<MatrixAddressing> binary; // Binary postop data
     std::vector<Type> Tbinary; // Binary types
 
@@ -972,6 +981,9 @@ struct GEMMProblem : public CommonProblem {
     }
     bool usesCO() const { return (cOffset != COffset::None) || sumA || sumB; }
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
+
+    bool quantized2DA() const { return (aoPtrDims == 2) || aScale2D; }
+    bool quantized2DB() const { return (boPtrDims == 2) || bScale2D; }
 
     /* Kernel cache helpers. */
     void serialize(serialized_data_t &s) const {
@@ -1216,15 +1228,13 @@ struct GEMMStrategy : public GEMMStrategyPOD {
 
     int slmABufBlockSize(const GEMMProblem &problem) const {
         return fixedSystolic ? 1152
-                             : (int(slmA) * problem.Ta.components()
-                                       * unroll[LoopM] * unrollKSLM)
-                        * problem.Ta;
+                             : int(slmA) * unroll[LoopM] * unrollKSLM
+                        * problem.Ta * problem.Ta.components();
     }
     int slmBBufBlockSize(const GEMMProblem &problem) const {
         return fixedSystolic ? 1536
-                             : (int(slmB) * problem.Tb.components()
-                                       * unroll[LoopN] * unrollKSLM)
-                        * problem.Tb;
+                             : int(slmB) * unroll[LoopN] * unrollKSLM
+                        * problem.Tb * problem.Tb.components();
     }
     int slmGEMMABufSize(const GEMMProblem &problem) const {
         return slmABufBlockSize(problem) * wg[LoopM] * wg[LoopK] * slmBuffers;
@@ -1881,6 +1891,10 @@ protected:
         EmulationImplementation::emulConstant<DT>(
                 *this, mod, dst, src0, src1, strategy.emulate, state.emulate);
     }
+    template <typename DT = void>
+    void emulConstant(const ngen::InstructionModifier &mod,
+            const ngen::RegData &dst, const ngen::RegData &src0, Type src1,
+            const CommonStrategy &strategy, const CommonState &state);
     template <typename S1>
     void emul32High(const ngen::InstructionModifier &mod,
             const ngen::RegData &dstHi, const ngen::RegData &src0,
@@ -1905,6 +1919,10 @@ protected:
     void emad(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
             const S0 &src0, const ngen::RegData &src1, int32_t src2,
             const CommonStrategy &strategy, CommonState &state);
+    template <typename S0>
+    void eaddScaled(const ngen::InstructionModifier &mod,
+            const ngen::RegData &dst, const S0 &src0, const ngen::RegData &src1,
+            Type src2, const CommonStrategy &strategy, CommonState &state);
     template <typename DT = void, typename S0, typename S2>
     void eadd3(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
             const S0 &src0, const ngen::RegData &src1, const S2 &src2);
@@ -1958,6 +1976,10 @@ protected:
             const ngen::RegData &dst, const ngen::RegData &src0, int src1,
             int numerator, int denominator, CommonState &state,
             bool exact = false);
+    template <typename S0, typename S1>
+    void addScaled(const ngen::InstructionModifier &mod,
+            const ngen::RegData &dst, S0 src0, S1 src1, Type T,
+            CommonState &state, bool exact = false, int scale = 1);
 
     template <typename DT = void>
     void mod(const ngen::Subregister &dst, const ngen::Subregister &src,
@@ -2601,6 +2623,20 @@ protected:
             const GRFMultirange &src, const GRFMultirange &dst,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
+    void gemmRepack2DOffsetData(Type Text, Type Ts, Type Td,
+            const std::vector<RegisterBlock> &layoutSrc,
+            const std::vector<RegisterBlock> &layoutDst,
+            const GRFMultirange &src, const GRFMultirange &dst,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
+    bool dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
+            const std::vector<RegisterBlock> &layoutSrc,
+            const std::vector<RegisterBlock> &layoutDst,
+            const std::vector<RegisterBlock> &layoutOffset,
+            const std::vector<RegisterBlock> &layoutScale, GRFMultirange src,
+            GRFMultirange dst, GRFMultirange offset, GRFMultirange scale,
+            int offR, int offC, const GEMMProblem *problem,
+            const CommonStrategy &strategy, CommonState &state);
     void gemm2DDequantizeOperation(bool doA, Type T, BinaryOp op,
             const std::vector<RegisterBlock> &layout,
             const std::vector<RegisterBlock> &olayout,
@@ -2891,8 +2927,8 @@ inline char precisionChar(Type T) {
         case Type::f16: return 'H';
         case Type::bf8: return 'Q';
         case Type::f32: return 'S';
-        case Type::u4: return 'o';
-        case Type::s4: return 'O';
+        case Type::u4: return 'f';
+        case Type::s4: return 'F';
         case Type::u8: return 'o';
         case Type::s8: return 'O';
         case Type::u16: return 'w';
@@ -2912,6 +2948,8 @@ static inline Type charPrecision(char c) {
         case 'H': return Type::f16;
         case 'Q': return Type::bf8;
         case 'S': return Type::f32;
+        case 'f': return Type::u4;
+        case 'F': return Type::s4;
         case 'o': return Type::u8;
         case 'O': return Type::s8;
         case 'w': return Type::u16;
