@@ -2024,6 +2024,11 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             "heuristic to skip amx implementation for given data dimensions");
 
     if (jcp.req_cal_comp_pad) {
+        VDISPATCH_CONV_IC(!(is_amx(jcp.isa)
+                                  && static_cast<dim_t>(jcp.ngroups) * jcp.nb_ic
+                                                  * jcp.ic_block * jcp.iw
+                                          > 4096),
+                "heuristic to skip amx implementation because of buffer size");
         const auto comp_buffer_iw = jcp.exec_type == exec_trans ? jcp.iw : 1;
         jcp.ker_ranges_size = precalculate_comp_pad_kernels(jcp);
         jcp.comp_a_buffer_size = static_cast<dim_t>(jcp.ngroups) * jcp.nb_ic
