@@ -67,7 +67,8 @@ inline bool block_2d_pitch_ok(
         const hw_t &hw, int pitch, int type_size, bool use_xy = true) {
     int pitch_bytes = pitch * type_size;
     if (pitch_bytes < 64) return false;
-    if (pitch_bytes > (1 << 24)) return false;
+    // 2^24 Pitch does not work on Xe2/Xe3
+    if (pitch_bytes > ((1 << 24) - 1)) return false;
     if (pitch_bytes % block_2d_pitch_alignment(hw) != 0) return false;
     // To be able to point the base to different rows.
     if (use_xy && pitch_bytes % block_2d_base_alignment(hw) != 0) return false;
