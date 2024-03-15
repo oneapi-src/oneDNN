@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -141,7 +141,7 @@ private:
     template <typename T>
     object_t mutate_scope(const T &obj, const expr_t &var) {
         auto ret = refs_.insert({var, ref_info_t(level_)});
-        ir_assert(ret.second) << stmt_t(obj);
+        ir_assert(ret.second) << var;
         MAYBE_UNUSED(ret);
 
         auto new_obj = ir_mutator_t::_mutate(obj);
