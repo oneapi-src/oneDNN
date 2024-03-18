@@ -42,7 +42,7 @@ status_t gen_gemm_kernel_desc_t::create_generator(
     return engine.create_kernel(&kernel, &kd, cache_blob_t());
 }
 
-status_t gen_gemm_kernel_desc_t::finalize() {
+status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
     // Update problem alignments to match catalog entry.
     if (!isPacked(problem_.A.layout)) {
         problem_.A.setAlignment(
@@ -70,7 +70,7 @@ status_t gen_gemm_kernel_desc_t::finalize() {
     parseStrategy(entry_->strategy, hw_, problem_, strategy_);
     strategy_.panelCheck
             |= (isPacked(problem_.A.layout) || isPacked(problem_.B.layout));
-    adjustStrategy(hw_, problem_, strategy_);
+    adjustStrategy(hw_, problem_, strategy_, tags);
     modifyStrategy(strategy_, aux_params_);
 
     // Check for legal 2D quantization group size.
@@ -86,8 +86,16 @@ status_t gen_gemm_kernel_desc_t::finalize() {
         //   to successfully reuse XeHPC strategies.
         strategy_.raHW = ngen::HW::XeHPC;
 
-        // Workaround for over-stringent emulation block 2D checks.
-        if (strategy_.optAlignAB == 8) strategy_.optAlignAB = 64;
+        // Bump up alignments to 16 bytes for block 2D if available.
+        bool block_2d_a = false, block_2d_b = false;
+        for (auto c = tags; *c; c++) {
+            block_2d_a |= (*c == kcatalog::ReqBlock2DA);
+            block_2d_b |= (*c == kcatalog::ReqBlock2DB);
+        }
+        if (block_2d_a && strategy_.legalAAlignment(problem_, 16))
+            problem_.A.setAlignment(nstl::max<int>(problem_.A.alignment, 16));
+        if (block_2d_b && strategy_.legalBAlignment(problem_, 16))
+            problem_.B.setAlignment(nstl::max<int>(problem_.B.alignment, 16));
     }
 
     // Disable global k parallelization if it wouldn't be used.
@@ -414,7 +422,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     auto block_k = entry_->driverInfo.blocking[LoopK];
     if (block_k > 0 && k > block_k && beta != 1.0f) problem_.beta = Scalar();
 
-    return finalize();
+    return finalize(match_params[0].tags);
 }
 
 status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
@@ -534,7 +542,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
 
     if (!entry_) return status::unimplemented;
 
-    return finalize();
+    return finalize(match_params.tags);
 }
 
 void gen_gemm_xe_systolic_kernel_desc_t::choose_unrolls(

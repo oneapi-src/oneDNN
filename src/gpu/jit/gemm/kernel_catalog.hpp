@@ -80,6 +80,8 @@ enum RestrictionTags : char {
     ReqNoSystolic = 'i',
     ReqCustom1 = 'D',
     ReqNoCustom1 = 'd',
+    ReqXe2Block2D = 'G',
+    ReqNoXe2Block2D = 'g',
 };
 
 enum HWTags : char {

@@ -21234,6 +21234,20 @@ static inline void downgradePFAccess(
         atype = AccessType::Block;
 }
 
+static inline void downgradeAPFAccess(
+        const GEMMProblem &problem, GEMMStrategy &strategy) {
+    downgradePFAccess(strategy.A_prefetch.accessType, strategy.ka_prefetch,
+            problem.A.layout == MatrixLayout::T,
+            strategy.unroll[LoopM] * problem.Ta_ext);
+}
+
+static inline void downgradeBPFAccess(
+        const GEMMProblem &problem, GEMMStrategy &strategy) {
+    downgradePFAccess(strategy.B_prefetch.accessType, strategy.kb_prefetch,
+            problem.B.layout == MatrixLayout::N,
+            strategy.unroll[LoopN] * problem.Tb_ext);
+}
+
 template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmDowngradeAccess(
         const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state) {
@@ -21249,19 +21263,18 @@ void gemm_kernel_generator_t<hw>::gemmDowngradeAccess(
     a2D &= isBlock2D(strategy.A.accessType);
     b2D &= isBlock2D(strategy.B.accessType);
 
+    int minAlignA = block2DMinAlignment(hw, problem.A, strategy.A_prefetch);
+    int minAlignB = block2DMinAlignment(hw, problem.B, strategy.B_prefetch);
+
     if (pfA && isBlock2D(strategy.A_prefetch.accessType)
-            && problem.A.alignment < 4) {
-        downgradePFAccess(strategy.A_prefetch.accessType, strategy.ka_prefetch,
-                problem.A.layout == MatrixLayout::T,
-                strategy.unroll[LoopM] * problem.Ta_ext);
+            && problem.A.alignment < minAlignA) {
+        downgradeAPFAccess(problem, strategy);
         ap2D = false;
     }
 
     if (pfB && isBlock2D(strategy.B_prefetch.accessType)
-            && problem.B.alignment < 4) {
-        downgradePFAccess(strategy.B_prefetch.accessType, strategy.kb_prefetch,
-                problem.B.layout == MatrixLayout::N,
-                strategy.unroll[LoopN] * problem.Tb_ext);
+            && problem.B.alignment < minAlignB) {
+        downgradeBPFAccess(problem, strategy);
         bp2D = false;
     }
 
@@ -21370,38 +21383,79 @@ void gemm_kernel_generator_t<hw>::gemmSubkernel(
 
     // Create the kernel body. If enabled, create two versions, one with A/B more aligned.
     bool success;
-    if (!strategy.optAlignAB)
+    int optAlignA = strategy.optAlignAB;
+    int optAlignB = strategy.optAlignAB;
+
+    // Handle block 2D alignment checks.
+    if (optAlignA == GEMMStrategy::AlignBlock2D) {
+        optAlignA = std::max({block2DMinAlignment(hw, problem.A, strategy.A),
+                block2DMinAlignment(hw, problem.A, strategy.A_prefetch)});
+    }
+    if (optAlignB == GEMMStrategy::AlignBlock2D) {
+        optAlignB = std::max({block2DMinAlignment(hw, problem.B, strategy.B),
+                block2DMinAlignment(hw, problem.B, strategy.B_prefetch)});
+    }
+
+    // If it's not possible to force the higher alignment, force the unaligned path.
+    bool forceDowngrade = false;
+    if (optAlignA && problem.A.layout == MatrixLayout::N)
+        forceDowngrade
+                |= ((strategy.unroll[LoopM] * problem.Ta) % optAlignA) != 0;
+    if (optAlignB && problem.B.layout == MatrixLayout::T)
+        forceDowngrade
+                |= ((strategy.unroll[LoopN] * problem.Tb) % optAlignB) != 0;
+
+    if (forceDowngrade) {
+        optAlignA = optAlignB = 0;
+        gemmDowngradeAccess(problem, strategy, state);
+    }
+
+    uint16_t maskA = (optAlignA - 1);
+    uint16_t maskB = (optAlignB - 1);
+    bool doA = (optAlignA && (problem.A.alignment & maskA));
+    bool doB = (optAlignB && (problem.B.alignment & maskB));
+
+    if (!doA && !doB)
         success = gemmMEdge(problem, strategy, state);
     else {
         // Check alignment of effA, effB, lda, and ldb.
         Label labelUnaligned;
-        uint16_t mask = (strategy.optAlignAB - 1);
-        bool check_lda = !isPacked(problem.A.layout);
-        bool check_ldb = !isPacked(problem.B.layout);
-        if (problem.A.alignment & mask) {
-            and_(1 | nz | f0[0], null.uw(), state.effA.uw(), mask);
-            if (check_lda)
-                and_(1 | nz | f1[0], null.uw(), state.inputs.lda.uw(), mask);
+        bool checkLDA = !isPacked(problem.A.layout);
+        bool checkLDB = !isPacked(problem.B.layout);
+        if (doA) {
+            and_(1 | nz | f0[0], null.uw(), state.effA.uw(), maskA);
+            if (checkLDA)
+                and_(1 | nz | f1[0], null.uw(), state.inputs.lda.uw(), maskA);
         }
-        if (problem.B.alignment & mask) {
-            and_(1 | nz | f0[1], null.uw(), state.effB.uw(), mask);
-            if (check_ldb)
-                and_(1 | nz | f1[1], null.uw(), state.inputs.ldb.uw(), mask);
+        if (doB) {
+            and_(1 | nz | f0[1], null.uw(), state.effB.uw(), maskB);
+            if (checkLDB)
+                and_(1 | nz | f1[1], null.uw(), state.inputs.ldb.uw(), maskB);
         }
-        if (problem.A.alignment & mask) {
-            InstructionModifier amod = check_lda ? 1 | f0[0] | anyv : 1 | f0[0];
+        if (doA) {
+            InstructionModifier amod = checkLDA ? 1 | f0[0] | anyv : 1 | f0[0];
             ejmpi(amod, labelUnaligned);
         }
-        if (problem.B.alignment & mask) {
-            InstructionModifier bmod = check_ldb ? 1 | f0[1] | anyv : 1 | f0[1];
+        if (doB) {
+            InstructionModifier bmod = checkLDB ? 1 | f0[1] | anyv : 1 | f0[1];
             ejmpi(bmod, labelUnaligned);
+        }
+        if (strategy.optAlignAB == GEMMStrategy::AlignBlock2D) {
+            if (doA)
+                and_(1 | nz | f0[0], null.ud(), state.inputs.lda, 0xFF000000);
+            if (doB)
+                and_(1 | nz | f1[0], null.ud(), state.inputs.ldb, 0xFF000000);
+            if (doA) jmpi(1 | f0[0], labelUnaligned);
+            if (doB) jmpi(1 | f1[0], labelUnaligned);
         }
 
         auto alignedProblem = problem;
-        alignedProblem.A.setAlignment(
-                std::max<int>(problem.A.alignment, strategy.optAlignAB));
-        alignedProblem.B.setAlignment(
-                std::max<int>(problem.B.alignment, strategy.optAlignAB));
+        if (doA)
+            alignedProblem.A.setAlignment(
+                    std::max<int>(problem.A.alignment, optAlignA));
+        if (doB)
+            alignedProblem.B.setAlignment(
+                    std::max<int>(problem.B.alignment, optAlignB));
 
         status << "Aligned A/B" << status_stream::endl;
         success = gemmMEdge(alignedProblem, strategy, state);
@@ -21802,16 +21856,21 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem) {
     auto Tc_real = Tc.real();
 
     // Safety checks for alignment.
-    if (problem.A.layout == MatrixLayout::N)
-        if ((unroll[LoopM] * Ta) % problem.A.alignment)
-            throw std::runtime_error(
-                    "A alignment will be lost during m-parallelization");
-    if (problem.B.layout == MatrixLayout::T)
-        if ((unroll[LoopN] * Tb) % problem.B.alignment)
-            throw std::runtime_error(
-                    "B alignment will be lost during n-parallelization");
+    if (!legalAAlignment(problem, problem.A.alignment))
+        throw std::runtime_error(
+                "A alignment will be lost during m-parallelization");
+    if (!legalBAlignment(problem, problem.B.alignment))
+        throw std::runtime_error(
+                "B alignment will be lost during n-parallelization");
 
     // Addressing preflight.
+
+    if (isBlock2D(A_prefetch.accessType) && !isPacked(problem.A.layout)
+            && !A_prefetch.address2D)
+        downgradeAPFAccess(problem, *this);
+    if (isBlock2D(B_prefetch.accessType) && !isPacked(problem.B.layout)
+            && !B_prefetch.address2D)
+        downgradeBPFAccess(problem, *this);
 
     // Remove variable k-parallelization when batching.
     if (kParallelVariable && problem.batch != BatchMode::None)

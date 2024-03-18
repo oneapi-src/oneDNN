@@ -1091,6 +1091,9 @@ struct GEMMStrategyPOD : public CommonStrategy {
     uint8_t pad4[3] = {};
     int optAlignAB
             = 0; // Optional alignment for A/B. If > 0, create two versions of k loop, one for A/B aligned to this value, one not.
+    enum {
+        AlignBlock2D = 65536 //   Special optAlignAB value for block 2D loads.
+    };
     AccessType unalignedAccA,
             unalignedAccB; // Access types to use for A/B on unaligned path.
     uint8_t pad5[2] = {};
@@ -1300,6 +1303,14 @@ struct GEMMStrategy : public GEMMStrategyPOD {
     }
     bool linearOrder() const { return cWalkOrder != WalkOrder::HW2D; }
 
+    bool legalAAlignment(const GEMMProblem &problem, int align) {
+        return (problem.A.layout != MatrixLayout::N)
+                || ((unroll[LoopM] * problem.Ta) % align == 0);
+    }
+    bool legalBAlignment(const GEMMProblem &problem, int align) {
+        return (problem.B.layout != MatrixLayout::T)
+                || ((unroll[LoopN] * problem.Tb) % align == 0);
+    }
     int kAlign(const GEMMProblem &problem) const;
 
     int statusFlagStride() const {

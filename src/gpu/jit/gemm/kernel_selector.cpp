@@ -299,6 +299,8 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, const GEMMProblem &problem) {
     if (problem.aOffset != ABOffset::None) *tagPtr++ = ReqSumB;
     if (problem.bOffset != ABOffset::None) *tagPtr++ = ReqSumA;
 
+    if (hw == ngen::HW::Xe2) *tagPtr++ = ReqXe2Block2D;
+
     sizes.batch = sizes.m = sizes.n = sizes.k = 0;
 }
 

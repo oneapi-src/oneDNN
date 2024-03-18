@@ -127,7 +127,7 @@ protected:
     status_t transfer_post_ops(const post_ops_t &post_ops, bool swap_ab,
             const memory_desc_t &prelu_wei_md);
 
-    status_t finalize();
+    status_t finalize(const char *tags);
     void update_driver_info();
 };
 
