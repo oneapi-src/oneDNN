@@ -117,7 +117,7 @@ protected:
 
     status_t transfer_post_ops(gpu_post_ops_t &&post_ops, bool swap_ab);
 
-    status_t finalize();
+    status_t finalize(const char *tags);
     void update_driver_info();
 };
 
