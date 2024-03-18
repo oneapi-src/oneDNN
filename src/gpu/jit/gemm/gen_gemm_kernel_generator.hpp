@@ -1518,6 +1518,7 @@ struct GEMMState : public CommonState {
     bool aoReuseA = false, boReuseB = false;
     Type Tao_int, Ta_scaleInt;
     Type Tbo_int, Tb_scaleInt;
+    Type Ta_scaleOp, Tb_scaleOp;
     MatrixAddressing Ai, Bi, Ao, Bo, tempC;
     MatrixAddressingStrategy Ai_strategy, Bi_strategy;
     MatrixAddressingStrategy Ao_strategy, Bo_strategy;
@@ -2664,9 +2665,9 @@ protected:
             const std::vector<RegisterBlock> &layoutOffset,
             const std::vector<RegisterBlock> &layoutScale, GRFMultirange src,
             GRFMultirange dst, GRFMultirange offset, GRFMultirange scale,
-            int offR, int offC, const GEMMProblem *problem,
+            Type Tscale, int offR, int offC, const GEMMProblem *problem,
             const CommonStrategy &strategy, CommonState &state);
-    void gemm2DDequantizeOperation(bool doA, Type T, BinaryOp op,
+    void gemm2DDequantizeOperation(bool doA, Type T, Type To, BinaryOp op,
             const std::vector<RegisterBlock> &layout,
             const std::vector<RegisterBlock> &qlayout,
             const GRFMultirange &regs, const GRFMultirange &qregs, int hq,

@@ -10554,6 +10554,39 @@ void gemm_kernel_generator_t<hw>::convert(const GRFMultirange &range, Type Told,
         return;
     }
 
+    // Special path: s16->bf16.
+    if (Told == Type::s16 && Tnew == Type::bf16) {
+        auto temp = state.ra.alloc_range(range.getLen());
+        if (hw < HW::Gen11) stub();
+        int ne = elementsPerGRF<uint32_t>(hw);
+        for (int i = 0; i < range.getLen(); i++)
+            mov(ne, temp[i].f(0)(1), range[i].w(0)(2));
+        for (int i = 0; i < range.getLen(); i++)
+            if (strategy.systolicAvailable) {
+                shr(ne, temp[i].uw(0)(2), temp[i].ud(), 16);
+            } else {
+                mov(ne, temp[i].bf(0)(2), temp[i].f());
+            }
+        for (int i = 0; i < range.getLen(); i++)
+            mov(ne, range[i].uw(0)(2), temp[i].uw(0)(2));
+        for (int i = 0; i < range.getLen(); i++)
+            rol(ne, range[i].ud(), range[i].ud(), 16);
+        for (int i = 0; i < range.getLen(); i++)
+            mov(ne, temp[i].f(0)(1), range[i].w(0)(2));
+        for (int i = 0; i < range.getLen(); i++)
+            if (strategy.systolicAvailable) {
+                shr(ne, temp[i].uw(0)(2), temp[i].ud(), 16);
+            } else {
+                mov(ne, temp[i].bf(0)(2), temp[i].f());
+            }
+        for (int i = 0; i < range.getLen(); i++)
+            mov(ne, range[i].uw(0)(2), temp[i].uw(0)(2));
+        for (int i = 0; i < range.getLen(); i++)
+            rol(ne, range[i].ud(), range[i].ud(), 16);
+        state.ra.release(temp);
+        return;
+    }
+
     int maxLS = std::max(Told.log2Size(), Tnew.log2Size());
     int hsOld = 1 << (maxLS - Told.log2Size());
     int hsNew = 1 << (maxLS - Tnew.log2Size());
@@ -13169,11 +13202,15 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
     auto Txs = isA ? problem.Ta_scale : problem.Tb_scale;
     auto &Txo_int = isA ? state.Tao_int : state.Tbo_int;
     auto &Txs_int = isA ? state.Ta_scaleInt : state.Tb_scaleInt;
+    auto &Tx_scaleOp = isA ? state.Ta_scaleOp : state.Tb_scaleOp;
 
+    bool Tx_bf = Tx == Type::bf16;
+    Tx_scaleOp = (Tx_bf ? Type(Tx_ext.isInt4() ? Type::f16 : Type::f32) : Txs);
     Txo_int = Txo.isInteger() ? sintType(Tx) : Tx;
     Txs_int = Tx;
 
-    bool int4SpecialPath = Tx_ext.isInt4() && one_of(Tx, Type::f16, Type::f32);
+    bool int4SpecialPath
+            = Tx_ext.isInt4() && one_of(Tx, Type::f16, Type::bf16, Type::f32);
     if (int4SpecialPath) Txo_int = Txs_int = Type::f16;
 
     int r, c, k;
@@ -13242,7 +13279,7 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
     };
 
     if (xo2D) makeQRepack(Txo, Txo_int, Xr_offsetLayout, X_offsetLayout);
-    if (xs2D) makeQRepack(Txs, Txs_int, Xr_scaleLayout, X_scaleLayout);
+    if (xs2D) { makeQRepack(Txs, Tx_scaleOp, Xr_scaleLayout, X_scaleLayout); }
 
     return true;
 }
@@ -13337,7 +13374,7 @@ void gemm_kernel_generator_t<hw>::gemmRepack2DOffsetData(Type Text, Type Ts,
 // Apply a single 2D group dequantize operation (scale/multiply).
 template <HW hw>
 void gemm_kernel_generator_t<hw>::gemm2DDequantizeOperation(bool doA, Type T,
-        BinaryOp op, const std::vector<RegisterBlock> &layout,
+        Type To, BinaryOp op, const std::vector<RegisterBlock> &layout,
         const std::vector<RegisterBlock> &qlayout, const GRFMultirange &regs,
         const GRFMultirange &qregs, int hq, const GEMMProblem &problem) {
     int xqGroupK = doA ? problem.aqGroupK : problem.bqGroupK;
@@ -13362,7 +13399,7 @@ void gemm_kernel_generator_t<hw>::gemm2DDequantizeOperation(bool doA, Type T,
                 const RegisterBlock *qblock;
                 auto data = findBlockReg(T, block, ii0, jj0, regs, ne);
                 auto qdata = findBlockReg(
-                        T, qlayout, io0, jo0, qregs, neq, qblock);
+                        To, qlayout, io0, jo0, qregs, neq, qblock);
 
                 int strideq = 1;
                 if (colMajor == doA) {
@@ -13373,7 +13410,10 @@ void gemm_kernel_generator_t<hw>::gemm2DDequantizeOperation(bool doA, Type T,
                     strideq = 0;
                 }
 
-                int simd = std::min(ne * crosspack, 2 * elementsPerGRF(hw, T));
+                int simd = std::min(
+                        {ne * crosspack, 2 * elementsPerGRF(hw, T), 32});
+                if (To == Type::f32) simd = std::min(16, simd);
+
                 switch (op) {
                     case BinaryOp::Sub:
                         add(simd, data(1), data(1), -qdata(strideq));
@@ -13401,10 +13441,11 @@ bool gemm_kernel_generator_t<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
         const vector<RegisterBlock> &layoutDst,
         const vector<RegisterBlock> &layoutOffset,
         const vector<RegisterBlock> &layoutScale, GRFMultirange src,
-        GRFMultirange dst, GRFMultirange offset, GRFMultirange scale, int offR,
-        int offC, const GEMMProblem *problem, const CommonStrategy &strategy,
-        CommonState &state) {
-    if (!Tsrc.isInt4() || !one_of(Tdst, Type::f16, Type::f32)) return false;
+        GRFMultirange dst, GRFMultirange offset, GRFMultirange scale,
+        Type Tscale, int offR, int offC, const GEMMProblem *problem,
+        const CommonStrategy &strategy, CommonState &state) {
+    if (!Tsrc.isInt4() || !one_of(Tdst, Type::f16, Type::bf16, Type::f32))
+        return false;
 
     int m, n, md, nd;
     getLayoutDims(layoutSrc, m, n);
@@ -13415,6 +13456,7 @@ bool gemm_kernel_generator_t<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
 
     bool s4 = Tsrc.isSigned();
     bool f32 = (Tdst == Type::f32);
+    bool bf16 = (Tdst == Type::bf16);
 
     int offR0 = offR, offC0 = offC;
 
@@ -13422,9 +13464,9 @@ bool gemm_kernel_generator_t<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
     const vector<RegisterBlock> *effLayoutDst = &layoutDst;
     GRFMultirange dstF16;
     const GRFMultirange *effDst = &dst;
-    if (f32) {
-        makeUnbackedRegLayout(
-                Type::f16, layoutDstF16, m, n, isLayoutColMajor(layoutDst), 1);
+    if (f32 || bf16) {
+        makeUnbackedRegLayout(Type::f16, layoutDstF16, m, n,
+                isLayoutColMajor(layoutDst), layoutDst[0].crosspack);
         dstF16 = chunkAlloc(getRegCount(layoutDstF16), 2, state);
         effLayoutDst = &layoutDstF16;
         effDst = &dstF16;
@@ -13448,7 +13490,7 @@ bool gemm_kernel_generator_t<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
     int hab = doA ? offC : offR;
     if (!layoutOffset.empty()) {
         if (!problem) stub();
-        gemm2DDequantizeOperation(doA, Type::f16, BinaryOp::ScaleSub,
+        gemm2DDequantizeOperation(doA, Type::f16, Type::f16, BinaryOp::ScaleSub,
                 *effLayoutDst, layoutOffset, *effDst, offset, hab, *problem);
     } else {
         map(hw, Type::f16, *effDst, *effLayoutDst, strategy,
@@ -13469,12 +13511,12 @@ bool gemm_kernel_generator_t<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
     //      this could be scaled into the previous multiplication.
     if (!layoutScale.empty()) {
         if (!problem) stub();
-        gemm2DDequantizeOperation(doA, Type::f16, BinaryOp::Mul, *effLayoutDst,
-                layoutScale, *effDst, scale, hab, *problem);
+        gemm2DDequantizeOperation(doA, Type::f16, Tscale, BinaryOp::Mul,
+                *effLayoutDst, layoutScale, *effDst, scale, hab, *problem);
     }
 
-    // 6) Upconvert f16->f32 if needed.
-    if (f32) {
+    // 6) Convert to Dst type if needed.
+    if (f32 || bf16) {
         copyRegisters(Type::f16, Tdst, layoutDstF16, layoutDst, dstF16, dst,
                 offR0, offC0, false, strategy, state);
         safeReleaseRanges(dstF16, state);
@@ -13492,6 +13534,7 @@ void gemm_kernel_generator_t<hw>::gemm2DDequantizeAB(bool doA, Type Tsrc,
         const GEMMStrategy &strategy, GEMMState &state) {
     auto Txo_int = doA ? state.Tao_int : state.Tbo_int;
     auto Tx_scaleInt = doA ? state.Ta_scaleInt : state.Tb_scaleInt;
+    auto Tx_scaleOp = doA ? state.Ta_scaleOp : state.Tb_scaleOp;
     auto &oiLayout = doA ? state.A_offsetLayout : state.B_offsetLayout;
     auto &orLayout = doA ? state.Ar_offsetLayout : state.Br_offsetLayout;
     auto &oiRegs = doA ? state.A_offsetRegs : state.B_offsetRegs;
@@ -13532,8 +13575,8 @@ void gemm_kernel_generator_t<hw>::gemm2DDequantizeAB(bool doA, Type Tsrc,
     }
 
     bool int4OK = dequantizeInt4(doA, Tsrc, Tdst, layoutSrc, layoutDst, oLayout,
-            sLayout, src, dst, oRegs, sRegs, offR, offC, &problem, strategy,
-            state);
+            sLayout, src, dst, oRegs, sRegs, Tx_scaleOp, offR, offC, &problem,
+            strategy, state);
     if (!int4OK) {
         if (copy)
             copyRegisters(Tsrc, Tx1_int, layoutSrc, layoutDst, src, dst, offR,
@@ -13542,14 +13585,15 @@ void gemm_kernel_generator_t<hw>::gemm2DDequantizeAB(bool doA, Type Tsrc,
             convert(src, Tsrc, Tx1_int, strategy, state);
 
         if (xo2D) {
-            gemm2DDequantizeOperation(doA, Txo_int, BinaryOp::Sub, layoutDst,
-                    oLayout, dst, oRegs, hab, problem);
+            gemm2DDequantizeOperation(doA, Txo_int, Txo_int, BinaryOp::Sub,
+                    layoutDst, oLayout, dst, oRegs, hab, problem);
             convert(dst, Txo_int, Tx2_int, strategy, state);
         }
 
         if (xs2D) {
-            gemm2DDequantizeOperation(doA, Tx_scaleInt, BinaryOp::Mul,
-                    layoutDst, sLayout, dst, sRegs, hab, problem);
+            gemm2DDequantizeOperation(doA, Tx_scaleInt, Tx_scaleOp,
+                    BinaryOp::Mul, layoutDst, sLayout, dst, sRegs, hab,
+                    problem);
             convert(dst, Tx_scaleInt, Tdst, strategy, state);
         }
     }
@@ -15189,10 +15233,10 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
                         state.A_offsetRegs, state.Ar_offsetRegs, problem,
                         strategy, state);
             if (as2D)
-                gemmRepack2DQuantizationData(problem.Ta_scale,
-                        state.Ta_scaleInt, state.A_scaleLayout,
-                        state.Ar_scaleLayout, state.A_scaleRegs,
-                        state.Ar_scaleRegs, problem, strategy, state);
+                gemmRepack2DQuantizationData(problem.Ta_scale, state.Ta_scaleOp,
+                        state.A_scaleLayout, state.Ar_scaleLayout,
+                        state.A_scaleRegs, state.Ar_scaleRegs, problem,
+                        strategy, state);
         });
 
     if (dequantize2DB)
@@ -15203,10 +15247,10 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
                         state.B_offsetRegs, state.Br_offsetRegs, problem,
                         strategy, state);
             if (bs2D)
-                gemmRepack2DQuantizationData(problem.Tb_scale,
-                        state.Tb_scaleInt, state.B_scaleLayout,
-                        state.Br_scaleLayout, state.B_scaleRegs,
-                        state.Br_scaleRegs, problem, strategy, state);
+                gemmRepack2DQuantizationData(problem.Tb_scale, state.Tb_scaleOp,
+                        state.B_scaleLayout, state.Br_scaleLayout,
+                        state.B_scaleRegs, state.Br_scaleRegs, problem,
+                        strategy, state);
         });
 
     // A/B repacking.
@@ -15362,21 +15406,22 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
                             strategy, state);
                 if (as2D)
                     gemmRepack2DQuantizationData(problem.Ta_scale,
-                            state.Ta_scaleInt, state.A_scaleLayout,
+                            state.Ta_scaleOp, state.A_scaleLayout,
                             state.Ar_scaleLayout, state.A_scaleRegs,
                             state.Ar_scaleRegs, problem, strategy, state);
             }
             if (slmDequantize2DB) {
                 if (bo2D)
-                    gemmRepack2DOffsetData(Tb_ext, problem.Tbo, state.Tbo_int,
+                    gemmRepack2DOffsetData(Tb_ext, problem.Tbo, state.Tao_int,
                             state.B_offsetLayout, state.Br_offsetLayout,
                             state.B_offsetRegs, state.Br_offsetRegs, problem,
                             strategy, state);
-                if (bs2D)
+                if (bs2D) {
                     gemmRepack2DQuantizationData(problem.Tb_scale,
-                            state.Tb_scaleInt, state.B_scaleLayout,
+                            state.Tb_scaleOp, state.B_scaleLayout,
                             state.Br_scaleLayout, state.B_scaleRegs,
                             state.Br_scaleRegs, problem, strategy, state);
+                }
             }
         });
 
@@ -26680,8 +26725,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
         vector<RegisterBlock> emptyLayout;
         GRFMultirange emptyRegs;
         bool int4OK = dequantizeInt4(true, Ts, Td, layoutSrc, layoutDst,
-                emptyLayout, emptyLayout, src, dst, emptyRegs, emptyRegs, dOffR,
-                dOffC, nullptr, strategy, state);
+                emptyLayout, emptyLayout, src, dst, emptyRegs, emptyRegs, Td,
+                dOffR, dOffC, nullptr, strategy, state);
         if (int4OK) return true;
     }
 
@@ -26843,14 +26888,11 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                             || (Ts_real.bits()
                                                     < Td_real.bits()))
                                     && one_of(Td_real, Type::f16, Type::bf16,
-                                            Type::u16, Type::f32);
+                                            Type::u16, Type::s16, Type::f32);
                             byteAlign |= allInt4;
                             if (Ts_real.isInt4()
                                     && (!byteAlign && Td_real != Ts_real))
                                 stub();
-                            if (byteAlign && Td_real != Type::u16)
-                                nelems_real = std::min(
-                                        nelems_real, elementsPerGRF<float>(hw));
 
                             auto sregConverted = sconvert
                                     ? sreg.reinterpret(0, Td_real.ngen())(
@@ -26874,12 +26916,18 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                     && (sreg.getOffset() & 1)
                                                     && hw >= HW::XeHP));
                             dconvert &= !bf8_align;
-                            bool prepBF = (!sconvert && !dconvert)
-                                    && Ts_real == Type::bf16;
-                            if (prepBF)
+                            bool bfHfCvt = (!sconvert && !dconvert && !byteAlign
+                                                   && !bf8_align)
+                                    && one_of(Ts_real, Type::bf16, Type::f16)
+                                    && one_of(Td_real, Type::f16, Type::bf16)
+                                    && Ts_real != Td_real;
+                            if (bfHfCvt)
                                 sregConverted = sreg.reinterpret(
                                         0, ngen::DataType::f)(scrosspack);
-                            if (bf8_align || prepBF) allocTemp();
+                            if (bf8_align || bfHfCvt) allocTemp();
+                            if ((byteAlign || bfHfCvt) && Td_real != Type::u16)
+                                nelems_real = std::min(
+                                        nelems_real, elementsPerGRF<float>(hw));
                             auto dregConverted = dconvert
                                     ? dreg.reinterpret(0, Ts_real.ngen())(
                                             dconvertCP)
@@ -27019,6 +27067,73 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                 }
                             };
 
+                            auto doBfHfCvt = [&]() {
+                                if (Ts_real == Type::bf16) {
+                                    if (scrosspack != 1) {
+                                        mov(nelems_real,
+                                                copyTemp[0].sub(0,
+                                                        ngen::DataType::uw)(2),
+                                                sreg.uw()(scrosspack));
+                                        shl(nelems_real,
+                                                copyTemp[0].sub(0,
+                                                        ngen::DataType::ud)(1),
+                                                copyTemp[0].sub(0,
+                                                        ngen::DataType::uw)(2),
+                                                16);
+                                        mov(nelems_real,
+                                                copyTemp[0].sub(0,
+                                                        ngen::DataType::hf)(2),
+                                                copyTemp[0].sub(0,
+                                                        ngen::DataType::f)(1));
+                                        emov(nelems_real | mmodMov,
+                                                dreg.reinterpret(
+                                                        0, ngen::DataType::uw)(
+                                                        dcrosspack),
+                                                copyTemp[0].sub(
+                                                        sreg.getOffset(),
+                                                        ngen::DataType::uw)(2),
+                                                strategy, state);
+                                    } else {
+                                        shl(nelems_real,
+                                                copyTemp[0].sub(
+                                                        sreg.getOffset(),
+                                                        ngen::DataType::ud)(
+                                                        scrosspack),
+                                                sreg.uw()(scrosspack), 16);
+                                        emov(nelems_real | mmodMov,
+                                                dregConverted,
+                                                copyTemp[0].sub(
+                                                        sreg.getOffset(),
+                                                        ngen::DataType::f)(
+                                                        scrosspack),
+                                                strategy, state);
+                                    }
+                                } else {
+                                    mov(nelems_real,
+                                            copyTemp[0].sub(
+                                                    0, ngen::DataType::uw)(2),
+                                            sreg.uw()(scrosspack));
+                                    mov(nelems_real,
+                                            copyTemp[0].sub(
+                                                    0, ngen::DataType::f)(1),
+                                            copyTemp[0].sub(
+                                                    0, ngen::DataType::hf)(2));
+                                    shr(nelems_real,
+                                            copyTemp[0].sub(
+                                                    0, ngen::DataType::uw)(2),
+                                            copyTemp[0].sub(
+                                                    0, ngen::DataType::ud)(1),
+                                            16);
+                                    emov(nelems_real | mmodMov,
+                                            dreg.reinterpret(
+                                                    0, ngen::DataType::uw)(
+                                                    dcrosspack),
+                                            copyTemp[0].sub(sreg.getOffset(),
+                                                    ngen::DataType::uw)(2),
+                                            strategy, state);
+                                }
+                            };
+
                             // Finally, copy, with any necessary conjugation and scaling. If doing a raw copy, use another pipe.
                             if (!skip) switch (phase) {
                                     case -1:
@@ -27042,13 +27157,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                         sregConverted,
                                                         sreg(scrosspack));
                                             }
-                                        } else if (prepBF) {
-                                            shl(nelems_real,
-                                                    copyTemp[0].sub(
-                                                            sreg.getOffset(),
-                                                            ngen::DataType::ud)(
-                                                            scrosspack),
-                                                    sreg.uw()(scrosspack), 16);
+                                        } else if (bfHfCvt) {
+                                            doBfHfCvt();
                                         }
                                         break;
                                     case 0:
@@ -27103,16 +27213,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                                 ? base(1)
                                                                 : base(0, wd,
                                                                         1));
-                                            } else if (prepBF) {
-                                                emov(telems | mmodMov,
-                                                        dregConverted,
-                                                        copyTemp[0].sub(
-                                                                sreg.getOffset(),
-                                                                ngen::DataType::
-                                                                        f)(
-                                                                scrosspack),
-                                                        strategy, state);
-                                            } else if (!byteAlign && !bf8_align)
+                                            } else if (!byteAlign && !bf8_align
+                                                    && !bfHfCvt)
                                                 emov(telems | mmodMov,
                                                         dregConverted,
                                                         sregConverted, strategy,
