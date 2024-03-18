@@ -559,10 +559,10 @@ struct MaskInfo {
 };
 
 struct MaskAssignment {
-    MaskInfo mask; // Associated mask
-    LoopType var; // Variable to base mask off of
-    uint8_t offset; // Amount to subtract from variable.
+    MaskInfo mask; // Associated mask.
     VirtualFlag flag; // Index of virtual flag register to use.
+    LoopType var; // Variable to base mask off of.
+    uint16_t offset; // Amount to subtract from variable.
 
     bool compatible(const MaskAssignment &other) const {
         return mask == other.mask && var == other.var && offset == other.offset;
