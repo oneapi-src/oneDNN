@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ __kernel void gen9_global_pooling_fwd(
 
 #if IS_BWD
 
-#if DT_BF16
+#if DT_BF16 || DT_F16
 #define DST_BLOCK_WRITE(dst, val) \
     BLOCK_WRITE((__global ushort *)(dst), as_ushort(val))
 #endif // DT_BF16
