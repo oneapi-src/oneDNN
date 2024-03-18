@@ -26,13 +26,13 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
+// Softmax implementation in MIOpen only works with up to 4 dimensions.
 constexpr int miopen_softmax_max_ndims = 4;
 
 struct miopen_softmax_impl_base_t {
     enum io { src = 0, dst, d_src, d_dst, NUM_IO };
     int strides[NUM_IO][DNNL_MAX_NDIMS];
     miopenDataType_t data_type;
-    int ndims;
     miopenSoftmaxAlgorithm_t alg_kind;
 
     miopenSoftmaxMode_t mode = miopenSoftmaxMode_t::MIOPEN_SOFTMAX_MODE_CHANNEL;
@@ -69,13 +69,9 @@ struct miopen_softmax_fwd_impl_t : public miopen_softmax_impl_base_t {
     status_t init(const softmax_pd_t *pd) override {
 
         if (pd->has_zero_dim_memory()) return status::success;
-
         if (pd->ndims() > miopen_softmax_max_ndims) {
             return status::invalid_arguments;
         }
-        ndims = pd->ndims() < miopen_softmax_max_ndims
-                ? miopen_softmax_max_ndims
-                : pd->ndims();
 
         convert_dims(pd->src_md()->padded_dims, dims[src], pd->ndims());
         convert_dims(pd->src_md()->format_desc.blocking.strides, strides[src],
@@ -119,9 +115,6 @@ struct miopen_softmax_bwd_impl_t : public miopen_softmax_impl_base_t {
         if (pd->ndims() > miopen_softmax_max_ndims) {
             return status::invalid_arguments;
         }
-        ndims = pd->ndims() < miopen_softmax_max_ndims
-                ? miopen_softmax_max_ndims
-                : pd->ndims();
 
         convert_dims(pd->dst_md()->padded_dims, dims[dst], pd->ndims());
         convert_dims(pd->diff_src_md()->padded_dims, dims[d_src], pd->ndims());
