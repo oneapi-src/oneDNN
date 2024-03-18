@@ -90,7 +90,7 @@ This C API will have to be used as follow for serialization and deserialization:
         /// Construct a memory descriptor from a binary blob
         ///
         /// @param blob A binary blob previously queried from a memory descriptor.
-        memory::desc(std::vector<uint8_t> blob);
+        memory::desc(const std::vector<uint8_t> &blob);
         
         /// Returns a binary blob associated with the given memory descriptor
         /// @returns The memory descriptor blob associated with the memory descriptor
