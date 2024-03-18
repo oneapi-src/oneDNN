@@ -93,7 +93,7 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
             SRC_DATA_T sval = src[src_off];
             uchar dval = 0; //dst[dst_off/2];
             dval = dval | TO_DST(sval);
-            sval = src[src_off + 1];
+            sval = src[src_off + SRC_S_CONTIG_D];
             dval = dval | ((TO_DST(sval) << 4));
             dst[dst_off / 2] = dval;
         }

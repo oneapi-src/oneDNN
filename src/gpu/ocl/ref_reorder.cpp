@@ -76,6 +76,7 @@ status_t ref_reorder_t::pd_t::init_conf(engine_t *engine) {
 status_t ref_reorder_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     using namespace format_tag;
+    using namespace data_type;
 
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
@@ -97,6 +98,31 @@ status_t ref_reorder_t::pd_t::init_kernel_ctx(
 
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
+
+    bool to_i4 = utils::one_of(dst_md()->data_type, s4, u4)
+            && !utils::one_of(src_md()->data_type, s4, u4);
+
+    if (to_i4) {
+        if (dst_md()->format_kind != format_kind::blocked)
+            return status::unimplemented;
+        auto &dst_blk = dst_md()->format_desc.blocking;
+
+        int dst_contig_dim = -1;
+        if (dst_blk.inner_nblks > 0)
+            dst_contig_dim = dst_blk.inner_blks[0];
+        else
+            for (int i = 0; i < dst_md()->ndims; i++)
+                if (dst_blk.strides[i] == 1) dst_contig_dim = i;
+
+        // TODO: also check that innermost block or dimension has even size
+        if (dst_contig_dim < 0) return status::unimplemented;
+
+        dims_t d = {0};
+        d[dst_contig_dim] = 1;
+
+        const memory_desc_wrapper src_mdw(src_md());
+        kernel_ctx.define_int("SRC_S_CONTIG_D", src_mdw.off_v(d));
+    }
 
     return status::success;
 }
