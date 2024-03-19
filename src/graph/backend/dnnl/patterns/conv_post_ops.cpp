@@ -57,6 +57,7 @@ DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(conv_post_ops)
   to provide conv weight size when creating logical tensors if they want the 
   computation graph to benefit from this pattern.
 */
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, fp_conv_postops_depthwise_postops_cpu)
         .set_priority(10.3f)
@@ -104,7 +105,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_conv_fwd>();
         });
-
+#endif
 /*
                     [quant_weight]*
         |                  |
@@ -127,6 +128,7 @@ Conv: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Post-sum with zero points
 */
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::cpu)
@@ -174,7 +176,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
         });
+#endif
 
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::gpu)
@@ -223,7 +227,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
         });
-
+#endif
 /*
                     [quant_weight]*
         |                  |
@@ -406,6 +410,7 @@ Conv: Currently DNNL Backend doesn't support below
 features on GPU:
 1. Post-sum with zero points
 */
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::cpu)
@@ -495,7 +500,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
         });
+#endif
 
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::gpu)
@@ -586,7 +593,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
         });
-
+#endif
 /*
 TODO(Jiexin): Currently, we found conv+relu+multiply/divide/subtract lacks 
 optimization in oneDNN post-ops fusion, so we don't plan to extend the post-op 

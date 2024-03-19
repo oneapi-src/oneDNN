@@ -75,6 +75,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_fusion)
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
 on GPU, while CPU supports.
 */
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_cpu)
         .set_priority(10.2f)
         .set_engine_kind(engine_kind::cpu)
@@ -108,11 +109,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_cpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_reorder>();
         });
-
+#endif
 /*
 Currently DNNL Backend doesn't support Post-sum/binary with zero points
 on GPU, while CPU supports.
 */
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_gpu)
         .set_priority(10.2f)
         .set_engine_kind(engine_kind::gpu)
@@ -148,7 +150,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_gpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_reorder>();
         });
-
+#endif
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
