@@ -276,6 +276,11 @@ private:
     }
     bool is_fma_embd() { return is_fma_embd(brg); }
     bool is_fast_vnni_int8() { return is_fast_vnni_int8(brg); }
+    bool is_slow_bf16_vnni() {
+        // On avx512_core_amx machines, the bf16 vnni is found to be slower.
+        // TODO: Check the above limitations on new cpus
+        return brg.is_bf16 && mayiuse(avx512_core_amx);
+    }
 
     bool req_vmm_reload() { return brg.is_bf16_emu; }
     bool assign_data_vmm_once() { return !req_vmm_reload(); }

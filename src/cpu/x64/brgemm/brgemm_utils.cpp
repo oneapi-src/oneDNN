@@ -917,7 +917,6 @@ void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->req_s8s8_compensation = brg->is_int8 && brg->dt_a == data_type::s8
             && !isa_has_s8s8(brg->isa_impl);
 
-    brg->is_bf16_tmm = brg->is_bf16 && mayiuse(avx512_core_amx);
     brg->is_dgmm = true;
 
     brg->LDA = static_cast<int>(LDA);

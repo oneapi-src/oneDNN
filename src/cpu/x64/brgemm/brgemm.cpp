@@ -570,7 +570,7 @@ status_t brgemm_kernel_create(
 
     if (brg.is_dgmm) {
         if (brg.type == brgemm_static_offs) return status::unimplemented;
-        if (brg.is_tmm || brg.is_zmm) {
+        if (brg.is_zmm) {
             CHECK(safe_ptr_assign<brgemm_kernel_t>(
                     *brg_kernel, new brdgmm_kernel_t<Xbyak::Zmm>(brg)));
         } else if (brg.is_ymm) {
