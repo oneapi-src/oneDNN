@@ -23,6 +23,7 @@
 #include "gpu/compute/utils.hpp"
 #include "gpu/jit/codegen/operand.hpp"
 #include "gpu/jit/codegen/register_allocator.hpp"
+#include "gpu/jit/emulation.hpp"
 #include "gpu/jit/ir/ir.hpp"
 #include "gpu/jit/ir/kernel_desc.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
@@ -31,8 +32,6 @@
 #include "gpu/jit/jit_generator.hpp"
 #include "gpu/jit/ngen/ngen.hpp"
 #include "gpu/jit/ngen/ngen_register_allocator.hpp"
-
-#include "gpu/jit/gemm/emulation.hpp"
 
 namespace dnnl {
 namespace impl {

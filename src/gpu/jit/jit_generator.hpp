@@ -19,7 +19,11 @@
 
 #include <memory>
 
+// Must be included before emulation.hpp
+#include "gpu/jit/ngen/ngen.hpp"
+
 #include "common/nstl.hpp"
+#include "gpu/jit/emulation.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
 #include "oneapi/dnnl/dnnl_config.h"
 
@@ -102,8 +106,8 @@ template <gpu_gen_t hw>
 class jit_generator : public ngen::OpenCLCodeGenerator<hw>,
                       public jit_generator_base {
     friend struct jit_eltwise_injector_f32<hw>;
-
     friend struct jit_post_op_injector<hw>;
+    friend struct EmulationImplementation;
 
 private:
 #ifdef CL_VERSION_2_0

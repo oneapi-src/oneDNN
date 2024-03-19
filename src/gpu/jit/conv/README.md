@@ -330,7 +330,7 @@ Additionally, the generator implements extra logic for functionality such as:
 
 - Instruction emulation. Some platforms don't have support for some instructions. Examples:
     - 64-bit arithmetic emulation. This is not handled by the generator and
-      implemented in `gpu/jit/gemm/emulation.hpp`.
+      implemented in `gpu/jit/emulation.hpp`.
     - `add3` instruction. Emulated as two `add` instructions on older architectures.
 - GRF region restrictions. Example:
     - `d` <-> `q` or `d` <-> `b` conversions require to align the smaller data

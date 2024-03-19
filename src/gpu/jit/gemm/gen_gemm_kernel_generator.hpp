@@ -40,7 +40,7 @@
 #endif
 #include "../ngen/ngen_register_allocator.hpp"
 
-#include "gpu/jit/gemm/emulation.hpp"
+#include "gpu/jit/emulation.hpp"
 
 #include <array>
 #include <complex>
