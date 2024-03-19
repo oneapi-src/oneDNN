@@ -581,7 +581,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     N = ic >= ic_block ? ic_block : 0;
     N_tail = ic % ic_block;
     K = oc >= oc_block ? oc_block : 0;
-    K_tail = oc_block;
+    K_tail = oc % oc_block;
 
     const auto vK = K > 0 ? K : K_tail;
     const auto vM = M > 0 ? M : M_tail;
