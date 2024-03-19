@@ -155,12 +155,6 @@ private:
     expr_t od_idx = index_var(prb_dims::od);
     expr_t oh_idx = index_var(prb_dims::oh);
     expr_t ow_idx = index_var(prb_dims::ow);
-    expr_t od_bwd_d_idx = var_t::make(type_t::s32(), "od_bwd_d_idx");
-    expr_t oh_bwd_d_idx = var_t::make(type_t::s32(), "oh_bwd_d_idx");
-    expr_t ow_bwd_d_idx = var_t::make(type_t::s32(), "ow_bwd_d_idx");
-    expr_t kd_bwd_d_idx = var_t::make(type_t::s32(), "kd_bwd_d_idx");
-    expr_t kh_bwd_d_idx = var_t::make(type_t::s32(), "kh_bwd_d_idx");
-    expr_t kw_bwd_d_idx = var_t::make(type_t::s32(), "kw_bwd_d_idx");
 
     dim_mapper_t init_src_mapper() const {
         auto pd = reqs_.to_expr(prb_dims::pd);
@@ -227,9 +221,29 @@ private:
             mapper.set_dim(prb_dims::oh);
             mapper.set_dim(prb_dims::ow);
         } else {
-            mapper.set_dim(prb_dims::od, od_bwd_d_idx - kd_bwd_d_idx);
-            mapper.set_dim(prb_dims::oh, oh_bwd_d_idx - kh_bwd_d_idx);
-            mapper.set_dim(prb_dims::ow, ow_bwd_d_idx - kw_bwd_d_idx);
+            auto pd = reqs_.to_expr(prb_dims::pd);
+            auto ph = reqs_.to_expr(prb_dims::ph);
+            auto pw = reqs_.to_expr(prb_dims::pw);
+            auto sd = reqs_.to_expr(prb_dims::sd);
+            auto sh = reqs_.to_expr(prb_dims::sh);
+            auto sw = reqs_.to_expr(prb_dims::sw);
+            auto dd = reqs_.to_expr(prb_dims::dd);
+            auto dh = reqs_.to_expr(prb_dims::dh);
+            auto dw = reqs_.to_expr(prb_dims::dw);
+
+            auto dd_inc = const_fold(dd + 1);
+            auto dh_inc = const_fold(dh + 1);
+            auto dw_inc = const_fold(dw + 1);
+
+            mapper.set_dim(prb_dims::od,
+                    simplify_rewrite((id_idx + pd - (kd_idx * dd_inc)) / sd),
+                    true);
+            mapper.set_dim(prb_dims::oh,
+                    simplify_rewrite((ih_idx + ph - (kh_idx * dh_inc)) / sh),
+                    true);
+            mapper.set_dim(prb_dims::ow,
+                    simplify_rewrite((iw_idx + pw - (kw_idx * dw_inc)) / sw),
+                    true);
         }
         mapper.set_layout_desc(
                 make_conv_algo_layout_desc(prop_, tensor_kind_t::dst));
