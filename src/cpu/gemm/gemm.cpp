@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 * Copyright 2022 IBM Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -185,7 +185,6 @@ dnnl_status_t try_cblas_gemm_s8u8s32(const char *transa, const char *transb,
 #endif
 }
 
-template <>
 dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const char *offsetc, const dim_t *M, const dim_t *N, const dim_t *K,
         const float *alpha, const int8_t *A, const dim_t *LDA, const int8_t *ao,
@@ -227,7 +226,6 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
             B, LDB, bo, beta, C, LDC, co);
 }
 
-template <>
 dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const char *offsetc, const dim_t *M, const dim_t *N, const dim_t *K,
         const float *alpha, const int8_t *A, const dim_t *LDA, const int8_t *ao,
