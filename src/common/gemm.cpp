@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -116,10 +116,9 @@ dnnl_status_t dnnl_gemm_u8s8s32(char transa, char transb, char offsetc, dim_t M,
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     status_t status = dnnl_success;
     MAYBE_VERBOSE(status, "u8", "s8", "s32",
-            MAYBE_RUN_STACK_CHECKER(dnnl_gemm_u8s8s32,
-                    cpu::gemm_s8x8s32<uint8_t>, &transb, &transa,
-                    c2f_offsetC(&offsetc), &N, &M, &K, &alpha, B, &ldb, &bo, A,
-                    &lda, &ao, &beta, C, &ldc, co));
+            MAYBE_RUN_STACK_CHECKER(dnnl_gemm_u8s8s32, cpu::gemm_s8x8s32,
+                    &transb, &transa, c2f_offsetC(&offsetc), &N, &M, &K, &alpha,
+                    B, &ldb, &bo, A, &lda, &ao, &beta, C, &ldc, co));
     return status;
 #else
     return dnnl::impl::status::unimplemented;
@@ -133,10 +132,9 @@ dnnl_status_t dnnl_gemm_s8s8s32(char transa, char transb, char offsetc, dim_t M,
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     status_t status = dnnl_success;
     MAYBE_VERBOSE(status, "s8", "s8", "s32",
-            MAYBE_RUN_STACK_CHECKER(dnnl_gemm_s8s8s32,
-                    cpu::gemm_s8x8s32<int8_t>, &transb, &transa,
-                    c2f_offsetC(&offsetc), &N, &M, &K, &alpha, B, &ldb, &bo, A,
-                    &lda, &ao, &beta, C, &ldc, co));
+            MAYBE_RUN_STACK_CHECKER(dnnl_gemm_s8s8s32, cpu::gemm_s8x8s32,
+                    &transb, &transa, c2f_offsetC(&offsetc), &N, &M, &K, &alpha,
+                    B, &ldb, &bo, A, &lda, &ao, &beta, C, &ldc, co));
     return status;
 #else
     return dnnl::impl::status::unimplemented;
@@ -184,9 +182,9 @@ dnnl_status_t dnnl_threadpool_interop_gemm_u8s8s32(char transa, char transb,
     status_t status = dnnl_success;
     MAYBE_VERBOSE(status, "u8", "s8", "s32",
             MAYBE_RUN_STACK_CHECKER(dnnl_threadpool_interop_gemm_u8s8s32,
-                    cpu::gemm_s8x8s32<uint8_t>, &transb, &transa,
-                    c2f_offsetC(&offsetc), &N, &M, &K, &alpha, B, &ldb, &bo, A,
-                    &lda, &ao, &beta, C, &ldc, co));
+                    cpu::gemm_s8x8s32, &transb, &transa, c2f_offsetC(&offsetc),
+                    &N, &M, &K, &alpha, B, &ldb, &bo, A, &lda, &ao, &beta, C,
+                    &ldc, co));
     threadpool_utils::deactivate_threadpool();
     return status;
 }
@@ -200,9 +198,9 @@ dnnl_status_t dnnl_threadpool_interop_gemm_s8s8s32(char transa, char transb,
     status_t status = dnnl_success;
     MAYBE_VERBOSE(status, "s8", "s8", "s32",
             MAYBE_RUN_STACK_CHECKER(dnnl_threadpool_interop_gemm_s8s8s32,
-                    cpu::gemm_s8x8s32<int8_t>, &transb, &transa,
-                    c2f_offsetC(&offsetc), &N, &M, &K, &alpha, B, &ldb, &bo, A,
-                    &lda, &ao, &beta, C, &ldc, co));
+                    cpu::gemm_s8x8s32, &transb, &transa, c2f_offsetC(&offsetc),
+                    &N, &M, &K, &alpha, B, &ldb, &bo, A, &lda, &ao, &beta, C,
+                    &ldc, co));
     threadpool_utils::deactivate_threadpool();
     return status;
 }
