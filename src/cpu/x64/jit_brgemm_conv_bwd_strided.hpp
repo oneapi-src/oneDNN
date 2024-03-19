@@ -59,11 +59,11 @@ struct brgemm_convolution_bwd_strided_t : public primitive_t {
         std::shared_ptr<brgemm_containers::brgemm_desc_container_t> brgs_;
 
         jit_brgemm_conv_conf_t jcp_;
-        // batch sizes info for unrolled kernels
-        int bs_c, first_bs;
-        std::vector<int> batchsizes;
+        // batch size info
+        const int first_bs = 0;
         int get_brg_idx(int bs, int m, bool do_initialization, bool is_N_tail,
                 bool is_K_tail) const {
+            const int bs_c = 1;
             auto bs_idx = 0;
             return (((m * bs_c + bs_idx) * 2
                             + static_cast<int>(do_initialization))
