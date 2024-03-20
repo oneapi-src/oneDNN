@@ -1321,8 +1321,17 @@ struct GEMMStrategy : public GEMMStrategyPOD {
 
     bool checkAdd32Rem() const { return checkAdd32 && emulate.emulate64; }
 
-    int aqGroupKGranularity() const { return slmA ? unrollKSLM : ka_load; }
-    int bqGroupKGranularity() const { return slmB ? unrollKSLM : kb_load; }
+    int aqGroupKGranularity() const {
+        return groupKReduce(slmA ? unrollKSLM : ka_load);
+    }
+    int bqGroupKGranularity() const {
+        return groupKReduce(slmB ? unrollKSLM : kb_load);
+    }
+    int groupKReduce(int x) const {
+        while (x > 32 && (x & 1) == 0)
+            x >>= 1;
+        return x;
+    }
 
     void serialize(serialized_data_t &s) const {
         GEMMStrategyPOD::serialize(s);
@@ -1372,7 +1381,8 @@ struct GEMMState : public CommonState {
         ngen::Subregister flags; // ud
         ngen::Subregister diagA, diagB, diagC; // q
         ngen::Subregister statusBuffer; // q
-        uint8_t surfaceA, surfaceB; // BTS indices
+        uint8_t surfaceA, surfaceAO, surfaceAScale; // BTS indices
+        uint8_t surfaceB, surfaceBO, surfaceBScale; // BTS indices
         uint8_t surfaceC[2], surfaceCO, surfaceTempC; // BTS indices
         ngen::Subregister strideA[2], strideB[2],
                 strideC[2]; // ud, used for strided batch.
@@ -1446,7 +1456,8 @@ struct GEMMState : public CommonState {
     SubregisterPair lda, ldb;
     LDIncrements ldaIncrements, ldbIncrements; // Cached lda * ka, ldb * kb
     LDMultiples ldaMultiples, ldbMultiples, ldcMultiples[2];
-    int ka_cached = 0, kb_cached = 0; // Multipliers for lda_ka/ldb_kb.
+    ngen::Subregister ldao_kaq, ldaScale_kaq; // ud
+    ngen::Subregister ldbo_kbq, ldbScale_kbq; // ud
     ngen::Subregister k, K; // d
     ngen::Subregister kNoBarrierStart, kNoBarrierEnd; // d
     ngen::FlagRegister flagAP;
@@ -1478,7 +1489,7 @@ struct GEMMState : public CommonState {
     CoopSplit effCoopB = CoopSplit::K;
     ngen::Subregister kSLMA, kSLMB, kSLMStorage; // w/w/ud
     bool kSLMCountUp = false;
-    int kaq, kbq;
+    int kaq, kbq, kaqStride, kbqStride;
     std::vector<RegisterBlock> A_layout, B_layout, C_layout;
     std::vector<RegisterBlock> A_layoutRem, B_layoutRem;
     std::vector<RegisterBlock> A_layoutAlt, B_layoutAlt;
@@ -2650,8 +2661,8 @@ protected:
             const CommonStrategy &strategy, CommonState &state);
     void gemm2DDequantizeOperation(bool doA, Type T, BinaryOp op,
             const std::vector<RegisterBlock> &layout,
-            const std::vector<RegisterBlock> &olayout,
-            const GRFMultirange &regs, const GRFMultirange &oregs, int hab,
+            const std::vector<RegisterBlock> &qlayout,
+            const GRFMultirange &regs, const GRFMultirange &qregs, int hq,
             const GEMMProblem &problem);
     void gemm2DDequantizeAB(bool doA, Type Tsrc, Type Tdst,
             const std::vector<RegisterBlock> &layoutSrc,
