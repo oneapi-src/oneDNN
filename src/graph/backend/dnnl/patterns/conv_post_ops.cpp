@@ -394,8 +394,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_reshape_post_ops)
                 |          /
                 |  typecast_other
                 |  /
-               Add   [typecast_binary]*
-                |        /
+               Add
+                |
 [unary/binary]*[0,MAX_REPETITION)
                 |
             typecast_out
@@ -469,33 +469,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
                                     in_edge(1, typecast_add, 0)});
 
                     //post ops
-                    auto postop_with_tc_graph = std::make_shared<pb_graph_t>();
+                    auto postop_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pop = postop_graph->append_alternation(
+                            get_unary_binary_ops());
+                    postop_graph->create_input_port(0, pop, 0);
+                    postop_graph->create_input_port(1, pop, 1);
+                    postop_graph->create_output_port(0, pop, 0);
 
-                    auto popt_typecast_binary_graph
-                            = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *typecast_binary
-                            = popt_typecast_binary_graph->append_op(
-                                    graph::op_kind::TypeCast);
-                    popt_typecast_binary_graph->create_input_port(
-                            0, typecast_binary, 0);
-                    popt_typecast_binary_graph->create_output_port(
-                            0, typecast_binary, 0);
-                    auto popt_typecast_binary
-                            = postop_with_tc_graph->append_optional(
-                                    popt_typecast_binary_graph);
-
-                    pm::pb_op_t *pop_with_tc
-                            = postop_with_tc_graph->append_alternation(
-                                    get_unary_binary_ops(),
-                                    in_edges_t {in_edge(
-                                            1, popt_typecast_binary, 0)});
-                    postop_with_tc_graph->create_input_port(0, pop_with_tc, 0);
-                    postop_with_tc_graph->create_input_port(
-                            1, popt_typecast_binary, 1);
-                    postop_with_tc_graph->create_output_port(0, pop_with_tc, 0);
-
-                    auto prep = pgraph->append_repetition(postop_with_tc_graph,
-                            {0, 0}, 0, MAX_REPETITION,
+                    auto prep = pgraph->append_repetition(postop_graph, {0, 0},
+                            0, MAX_REPETITION,
                             in_edges_t {in_edge(0, padd, 0)});
 
                     pm::pb_op_t *ptc_out
@@ -578,33 +560,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                                     in_edge(1, typecast_add, 0)});
 
                     //post ops
-                    auto postop_with_tc_graph = std::make_shared<pb_graph_t>();
+                    auto postop_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pop = postop_graph->append_alternation(
+                            get_unary_binary_ops());
+                    postop_graph->create_input_port(0, pop, 0);
+                    postop_graph->create_input_port(1, pop, 1);
+                    postop_graph->create_output_port(0, pop, 0);
 
-                    auto popt_typecast_binary_graph
-                            = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *typecast_binary
-                            = popt_typecast_binary_graph->append_op(
-                                    graph::op_kind::TypeCast);
-                    popt_typecast_binary_graph->create_input_port(
-                            0, typecast_binary, 0);
-                    popt_typecast_binary_graph->create_output_port(
-                            0, typecast_binary, 0);
-                    auto popt_typecast_binary
-                            = postop_with_tc_graph->append_optional(
-                                    popt_typecast_binary_graph);
-
-                    pm::pb_op_t *pop_with_tc
-                            = postop_with_tc_graph->append_alternation(
-                                    get_unary_binary_ops(),
-                                    in_edges_t {in_edge(
-                                            1, popt_typecast_binary, 0)});
-                    postop_with_tc_graph->create_input_port(0, pop_with_tc, 0);
-                    postop_with_tc_graph->create_input_port(
-                            1, popt_typecast_binary, 1);
-                    postop_with_tc_graph->create_output_port(0, pop_with_tc, 0);
-
-                    auto prep = pgraph->append_repetition(postop_with_tc_graph,
-                            {0, 0}, 0, MAX_REPETITION,
+                    auto prep = pgraph->append_repetition(postop_graph, {0, 0},
+                            0, MAX_REPETITION,
                             in_edges_t {in_edge(0, padd, 0)});
 
                     pm::pb_op_t *ptc_out
@@ -637,8 +601,8 @@ enabled.
                conv
                 | [typecast_bias]*
                 |   /
-              [bias]*  [typecast_binary]*
-                |        /
+              [bias]*
+                |
             [unary/binary]*
                 |
     [typecast_out -> quant_out]*
@@ -689,32 +653,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_post_ops)
                     auto popt_bias
                             = optional_bias_add(pgraph, convolution, true);
                     // post ops
-                    auto postop_with_tc_graph = std::make_shared<pb_graph_t>();
+                    auto postop_graph = std::make_shared<pb_graph_t>();
+                    pm::pb_op_t *pop = postop_graph->append_alternation(
+                            get_unary_binary_ops());
+                    postop_graph->create_input_port(0, pop, 0);
+                    postop_graph->create_input_port(1, pop, 1);
+                    postop_graph->create_output_port(0, pop, 0);
 
-                    auto popt_typecast_binary_graph
-                            = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *typecast_binary
-                            = popt_typecast_binary_graph->append_op(
-                                    graph::op_kind::TypeCast);
-                    popt_typecast_binary_graph->create_input_port(
-                            0, typecast_binary, 0);
-                    popt_typecast_binary_graph->create_output_port(
-                            0, typecast_binary, 0);
-                    auto popt_typecast_binary
-                            = postop_with_tc_graph->append_optional(
-                                    popt_typecast_binary_graph);
-
-                    pm::pb_op_t *pop_with_tc
-                            = postop_with_tc_graph->append_alternation(
-                                    get_unary_binary_ops(),
-                                    in_edges_t {in_edge(
-                                            1, popt_typecast_binary, 0)});
-                    postop_with_tc_graph->create_input_port(0, pop_with_tc, 0);
-                    postop_with_tc_graph->create_input_port(
-                            1, popt_typecast_binary, 1);
-                    postop_with_tc_graph->create_output_port(0, pop_with_tc, 0);
-
-                    auto prep = pgraph->append_optional(postop_with_tc_graph,
+                    auto prep = pgraph->append_optional(postop_graph,
                             in_edges_t {in_edge(0, popt_bias, 0)});
 
                     // Optional typecast_out + quant_out

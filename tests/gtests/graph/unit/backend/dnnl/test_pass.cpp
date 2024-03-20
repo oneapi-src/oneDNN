@@ -11133,16 +11133,27 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionAdd) {
 
     pm.run_passes(agraph, "no_config");
 
-    ASSERT_EQ(agraph.get_num_partitions(), 1U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 7U);
+    // `typecast` for `add` will be separated as a single op partition or
+    // primitive kernel will run into ref impl for bf16 conv with f32 post
+    // binary_add
+    ASSERT_EQ(agraph.get_num_partitions(), 2U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 6U);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 7U);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
+
+    ASSERT_EQ(agraph.get_partitions()[1]->get_ops().size(), 1U);
+
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[0].id, 6U);
+
+    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 7U);
 }
 
 TEST(test_pass_pass, FuseAddIntoSum) {

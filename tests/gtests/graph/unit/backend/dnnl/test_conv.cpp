@@ -5443,6 +5443,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     std::vector<uint8_t> src_data(product(src_shape));
     std::vector<float> weight_data(product(weight_shape));
     std::vector<float> bias_data(product(bias_shape));
+    std::vector<uint16_t> post_add_src1_data(product(bias_shape));
 
     // random generate src, weight data
     // random seed = 7
@@ -5456,6 +5457,10 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     std::uniform_real_distribution<float> distribution3(0.0f, 20.0f);
     std::generate(bias_data.begin(), bias_data.end(),
             [&]() { return distribution3(generator); });
+    std::uniform_real_distribution<float> distribution4(0.0f, 50.0f);
+    std::generate(post_add_src1_data.begin(), post_add_src1_data.end(),
+            [&]() { return static_cast<uint16_t>(distribution4(generator)); });
+
     float scale_src = 1 / 255.f; // map to 0~255
     int64_t zp_src = 110;
 
@@ -5570,7 +5575,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     graph::compiled_partition_t cp(p);
 
     std::vector<const graph::logical_tensor_t *> lt_ins {
-            &src_u8, &weight_f32, &bias_f32};
+            &src_u8, &weight_f32, &bias_bf16};
     std::vector<const graph::logical_tensor_t *> lt_outs {&bias_out_bf16};
 
     ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
@@ -5578,8 +5583,10 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     test_tensor src_u8_ts(src_u8, engine, src_data);
     test_tensor weight_f32_ts(weight_f32, engine, weight_data);
     test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor post_add_src1_bf16_ts(bias_bf16, engine, post_add_src1_data);
     test_tensor dst_ts(bias_out_bf16, engine);
-    cp.execute(strm, {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
+    cp.execute(strm,
+            {src_u8_ts.get(), weight_f32_ts.get(), post_add_src1_bf16_ts.get()},
             {dst_ts.get()});
     strm->wait();
 }
