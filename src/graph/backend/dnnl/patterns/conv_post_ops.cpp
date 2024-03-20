@@ -398,7 +398,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_reshape_post_ops)
                 |        /
 [unary/binary]*[0,MAX_REPETITION)
                 |
-    [typecast_out -> quant_out]*
+            typecast_out
+                |
+            quant_out
 
 Conv: Currently DNNL Backend doesn't support below
 features on GPU:
@@ -496,23 +498,17 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
                             {0, 0}, 0, MAX_REPETITION,
                             in_edges_t {in_edge(0, padd, 0)});
 
-                    // Optional typecast_out + quant_out
-                    auto popt_tcout_qout_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *ptc_out = popt_tcout_qout_graph->append_op(
-                            graph::op_kind::TypeCast);
+                    pm::pb_op_t *ptc_out
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, prep, 0)});
                     // TODO: remove bf16 datatype check when all float point
                     // datatypes are enabled
                     ptc_out->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     ptc_out->append_decision_function(
                             check_output_dtype<graph::data_type::f32>);
-                    pm::pb_op_t *pquant_out = popt_tcout_qout_graph->append_op(
-                            graph::op_kind::Quantize,
+                    pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, ptc_out, 0)});
-                    popt_tcout_qout_graph->create_input_port(0, ptc_out, 0);
-                    popt_tcout_qout_graph->create_output_port(0, pquant_out, 0);
-                    pgraph->append_optional(popt_tcout_qout_graph,
-                            in_edges_t {in_edge(0, prep, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
@@ -611,23 +607,17 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                             {0, 0}, 0, MAX_REPETITION,
                             in_edges_t {in_edge(0, padd, 0)});
 
-                    // Optional typecast_out + quant_out
-                    auto popt_tcout_qout_graph = std::make_shared<pb_graph_t>();
-                    pm::pb_op_t *ptc_out = popt_tcout_qout_graph->append_op(
-                            graph::op_kind::TypeCast);
+                    pm::pb_op_t *ptc_out
+                            = pgraph->append_op(graph::op_kind::TypeCast,
+                                    in_edges_t {in_edge(0, prep, 0)});
                     // TODO: remove bf16 datatype check when all float point
                     // datatypes are enabled
                     ptc_out->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
                     ptc_out->append_decision_function(
                             check_output_dtype<graph::data_type::f32>);
-                    pm::pb_op_t *pquant_out = popt_tcout_qout_graph->append_op(
-                            graph::op_kind::Quantize,
+                    pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, ptc_out, 0)});
-                    popt_tcout_qout_graph->create_input_port(0, ptc_out, 0);
-                    popt_tcout_qout_graph->create_output_port(0, pquant_out, 0);
-                    pgraph->append_optional(popt_tcout_qout_graph,
-                            in_edges_t {in_edge(0, prep, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
