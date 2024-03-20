@@ -43,3 +43,7 @@
               src:per_dim_1+dst:common:2, \
               src:common:4+dst:per_dim_1
 2x16x3x4
+
+# int4 cases
+--reset
+--batch=test_reorder_int4
