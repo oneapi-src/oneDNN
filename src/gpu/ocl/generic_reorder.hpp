@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,19 +52,23 @@ struct generic_reorder_t : public gpu_primitive_t {
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
                     dst_engine->kind() == engine_kind::gpu ? dst_engine
                                                            : src_engine);
+            using namespace data_type;
 
             ok = ok
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && !memory_desc_ndims_ok(src_md(), dst_md())
-                    && IMPLICATION(
-                            utils::one_of(data_type::f16, src_md()->data_type,
-                                    dst_md()->data_type),
+                    && IMPLICATION(utils::one_of(f16, src_md()->data_type,
+                                           dst_md()->data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short));
+                                                    intel_subgroups_short))
+                    && utils::one_of(src_md()->data_type, f32, f16, bf16,
+                            f8_e5m2, f8_e4m3, s32, s8, u8, f64)
+                    && utils::one_of(dst_md()->data_type, f32, f16, bf16,
+                            f8_e5m2, f8_e4m3, s32, s8, u8, f64);
 
             if (!ok) return status::unimplemented;
 

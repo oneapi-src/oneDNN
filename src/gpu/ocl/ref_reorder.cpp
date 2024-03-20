@@ -38,6 +38,13 @@ status_t ref_reorder_t::pd_t::init_conf(engine_t *engine) {
 
     status_t status = status::success;
 
+    if (!IMPLICATION(
+                utils::one_of(src_mdw.data_type(), data_type::s4, data_type::u4)
+                        || utils::one_of(dst_mdw.data_type(), data_type::s4,
+                                data_type::s4),
+                dst_mdw.is_plain() && src_mdw.is_plain()))
+        return status::unimplemented;
+
     const auto &padded_dims = dst_mdw.padded_dims();
     conf.src_quant = {attr(), src_mdw, DNNL_ARG_SRC};
     conf.dst_quant = {attr(), dst_mdw, DNNL_ARG_DST};

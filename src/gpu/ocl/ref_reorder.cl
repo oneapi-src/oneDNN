@@ -79,23 +79,18 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
         dst_scale = dst_scales[SCALE_OFF(DST, d0, d1, d2, d3, d4, d5)];
 #endif
 #if FROM_I4
-        SRC_DATA_T sval = 0;
-        if (src_off % 2) {
-            sval = (src[src_off] & 0xf0) >> 4;
-        } else {
-            sval = src[src_off] & 0x0f;
-        }
-        dst[dst_off] = TO_DST(sval);
+        SRC_DATA_T sval = GET_HALF_BYTE(src, src_off);
+        dst[dst_off] = TO_DST(SRC_TO_REF(sval));
 #elif TO_I4
         if (dst_off % 2) {
-            return;
+            continue;
         } else {
             SRC_DATA_T sval = src[src_off];
-            uchar dval = 0; //dst[dst_off/2];
+            uchar dval = 0;
             dval = dval | TO_DST(sval);
             sval = src[src_off + 1];
             dval = dval | ((TO_DST(sval) << 4));
-            dst[dst_off / 2] = dval;
+            SET_DOUBLE_HALF_BYTE(dst, dst_off, dval);
         }
 #else
         REORDER(dst[dst_off], src[src_off], src_scale, dst_scale, sum_scale,
