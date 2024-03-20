@@ -129,17 +129,31 @@ private:
 
 class dim_mapper_t {
 public:
-    void set_dim(const prb_dim_t &dim, const expr_t &expr = expr_t());
+    void set_dim(const prb_dim_t &dim, const expr_t &expr = expr_t(),
+            bool has_undeflow = false);
     void set_layout_desc(const layout_desc_t &desc) { layout_desc_ = desc; }
-    bool is_empty() const { return exprs_.is_empty(); }
-    bool has(const prb_dim_t &dim) const { return exprs_.has(dim); }
+    bool is_empty() const { return map_.is_empty(); }
+    bool has(const prb_dim_t &dim) const { return map_.has(dim); }
     const expr_t &expr(const prb_dim_t &dim) const;
+    bool has_underflow(const prb_dim_t &dim) const;
     const layout_desc_t &layout_desc() const { return layout_desc_; }
     std::string str() const;
     IR_DEFINE_DUMP()
 
 private:
-    dim_map_t<prb_dim_t, expr_t> exprs_;
+    struct map_data_t {
+        std::string str() const {
+            std::ostringstream oss;
+            oss << expr;
+            if (has_underflow) oss << " (has_underflow)";
+            return oss.str();
+        }
+
+        expr_t expr;
+        bool has_underflow;
+    };
+
+    dim_map_t<prb_dim_t, map_data_t> map_;
     layout_desc_t layout_desc_;
 };
 

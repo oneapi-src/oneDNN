@@ -185,11 +185,14 @@ private:
             auto neg_ph = const_fold(-ph);
             auto neg_pw = const_fold(-pw);
             mapper.set_dim(prb_dims::id,
-                    simplify_rewrite(sd * od_idx + neg_pd + kd_idx * dd_inc));
+                    simplify_rewrite(sd * od_idx + neg_pd + kd_idx * dd_inc),
+                    true);
             mapper.set_dim(prb_dims::ih,
-                    simplify_rewrite(sh * oh_idx + neg_ph + kh_idx * dh_inc));
+                    simplify_rewrite(sh * oh_idx + neg_ph + kh_idx * dh_inc),
+                    true);
             mapper.set_dim(prb_dims::iw,
-                    simplify_rewrite(sw * ow_idx + neg_pw + kw_idx * dw_inc));
+                    simplify_rewrite(sw * ow_idx + neg_pw + kw_idx * dw_inc),
+                    true);
         } else {
             mapper.set_dim(prb_dims::id);
             mapper.set_dim(prb_dims::ih);

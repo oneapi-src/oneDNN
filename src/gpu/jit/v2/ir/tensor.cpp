@@ -135,21 +135,27 @@ std::string layout_desc_t::str() const {
     return oss.str();
 }
 
-void dim_mapper_t::set_dim(const prb_dim_t &dim, const expr_t &expr) {
-    exprs_.set(dim, expr.is_empty() ? index_var(dim) : expr);
+void dim_mapper_t::set_dim(
+        const prb_dim_t &dim, const expr_t &expr, bool has_underflow) {
+    map_.set(dim, {expr.is_empty() ? index_var(dim) : expr, has_underflow});
 }
 
 const expr_t &dim_mapper_t::expr(const prb_dim_t &dim) const {
     if (is_empty()) return index_var(dim);
-    return exprs_[dim];
+    return map_[dim].expr;
+}
+
+bool dim_mapper_t::has_underflow(const prb_dim_t &dim) const {
+    if (is_empty()) return false;
+    return map_[dim].has_underflow;
 }
 
 std::string dim_mapper_t::str() const {
     std::ostringstream oss;
     oss << "dim_mapper:" << std::endl;
-    for (auto &dim : exprs_) {
+    for (auto &dim : map_) {
         oss << "  " << dim.str() << " -> ";
-        oss << exprs_[dim].str() << std::endl;
+        oss << map_[dim].str() << std::endl;
     }
     return oss.str();
 }
@@ -1015,10 +1021,8 @@ mask_desc_t::mask_desc_t(
             const int large_pow2 = (1 << 10);
             block = large_pow2;
         }
-        bool do_zero_cmp
-                = utils::one_of(d, prb_dims::id, prb_dims::ih, prb_dims::iw);
-        dim_masks_.emplace_back(
-                d, expr, simplify_rewrite(dim_sizes[d]), block, do_zero_cmp);
+        dim_masks_.emplace_back(d, expr, simplify_rewrite(dim_sizes[d]), block,
+                dim_mapper.has_underflow(d));
     }
 }
 
