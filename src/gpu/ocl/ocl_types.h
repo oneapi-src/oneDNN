@@ -88,6 +88,7 @@
 #define GPU_OCL_OCL_TYPES_H
 
 #include "gpu/ocl/ocl_math_utils.h"
+#include "gpu/ocl/ocl_utils.h"
 
 #define auto __auto_type
 #define typeof(x) __typeof__(x)
@@ -100,31 +101,6 @@
 #define unroll_16_for unroll_for_by(16)
 
 #define for_ for
-
-#ifdef __has_builtin
-#define HAS_BUILTIN(x) __has_builtin(x)
-#else
-#define HAS_BUILTIN(x) false
-#endif
-
-#ifdef ENABLE_CHECK_ASSUMPTIONS
-// Don't actually inform the compiler about the assumption
-#define ASSUME(x) \
-    if (!(x)) { \
-        printf("Error - GWS indices (%ld,%ld,%ld): Runtime assumption \"%s\" " \
-               "violated\n", \
-                get_global_id(0), get_global_id(1), get_global_id(2), #x); \
-        return; \
-    }
-#elif HAS_BUILTIN(__builtin_assume)
-#define ASSUME(x) __builtin_assume(x)
-#else
-#define ASSUME(x)
-#endif
-
-#define CONCAt2(a, b) a##b
-#define CONCAT2(a, b) CONCAt2(a, b)
-#define CONCAT3(a, b, c) CONCAT2(CONCAT2(a, b), c)
 
 #if defined(DT_F16) || defined(SRC_DT_F16) || defined(SRC0_DT_F16) \
         || defined(SRC1_DT_F16) || defined(DST_DT_F16) || defined(WEI_DT_F16) \
