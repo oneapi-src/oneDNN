@@ -320,7 +320,8 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
                                 (pg * g_num_block_pt + o_g) * g_block, 0};
 
                             sc_brgemm_attrs_t brg_attrs {
-                              {brgemm::attr_key::bs_group, sw_ == 1 ? kw_ : 1},
+                              {brgemm::attr_key::hint_bs_group,
+                                sw_ == 1 ? kw_ : 1},
                               {brgemm::attr_key::max_top_vpad,
                                 utils::divide_and_ceil(pw_b_, sw_)},
                               {brgemm::attr_key::max_bottom_vpad,
@@ -800,7 +801,7 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                 auto hint_B_size = K * N * valid_ker_size;
                 auto hint_C_size = M * N;
                 sc_brgemm_attrs_t brg_attrs {
-                  {brgemm::attr_key::bs_group, sw_ == 1 ? kw_ : 1},
+                  {brgemm::attr_key::hint_bs_group, sw_ == 1 ? kw_ : 1},
                   {brgemm::attr_key::max_bs, valid_ker_size}};
 
                 builtin::brgemm_init_list_update(A_list, B_list,
