@@ -62,68 +62,81 @@ TEST(test_sdp_decomp_execute, F32SdpDecomp) {
             {seq_len * head_dim, size_per_head, 1, head_dim},
             {seq_len * head_dim, size_per_head * seq_len, size_per_head, 1}};
     std::vector<bool> transpose_b = {false, true};
+    std::vector<bool> attention_mask_vec = {false, true};
     for (size_t i = 0; i < KEY_STRIDES.size(); ++i) {
-        graph::graph_t g(eng->kind());
-        utils::construct_dnnl_float_MHA(&g, dnnl::impl::data_type::f32,
-                batch_size, seq_len, num_head, head_dim, transpose_b[i]);
-        g.finalize();
+        for (size_t j = 0; j < attention_mask_vec.size(); ++j) {
+            graph::graph_t g(eng->kind());
+            utils::construct_dnnl_float_MHA(&g, dnnl::impl::data_type::f32,
+                    batch_size, seq_len, num_head, head_dim, transpose_b[i],
+                    attention_mask_vec[j]);
+            g.finalize();
 
-        ASSERT_EQ(g.get_ops().size(), 7U);
+            if (attention_mask_vec[j])
+                ASSERT_EQ(g.get_ops().size(), 7U);
+            else
+                ASSERT_EQ(g.get_ops().size(), 6U);
 
-        graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
+            graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
+            auto part = g.get_partitions()[0];
 
-        // compile
-        graph::partition_t p;
-        p.init(part);
+            // compile
+            graph::partition_t p;
+            p.init(part);
 
-        auto partition_inputs = p.get_inputs();
-        auto partition_outputs = p.get_outputs();
-        ASSERT_EQ(partition_inputs.size(), 5U);
-        ASSERT_EQ(partition_outputs.size(), 1U);
+            auto partition_inputs = p.get_inputs();
+            auto partition_outputs = p.get_outputs();
+            if (attention_mask_vec[j])
+                ASSERT_EQ(partition_inputs.size(), 5U);
+            else
+                ASSERT_EQ(partition_inputs.size(), 4U);
+            ASSERT_EQ(partition_outputs.size(), 1U);
 
-        std::vector<const graph::logical_tensor_t *> inputs, outputs;
-        //mm1 src format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[0].layout.strides);
-        //mm1 wei format tag: adbc, abcd
-        std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
-                partition_inputs[1].layout.strides);
-        //mm2 wei format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[4].layout.strides);
-        for (auto &lt : partition_inputs) {
-            inputs.emplace_back(&lt);
+            std::vector<const graph::logical_tensor_t *> inputs, outputs;
+            //mm1 src format tag: acbd, abcd
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[0].layout.strides);
+            //mm1 wei format tag: adbc, abcd
+            std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
+                    partition_inputs[1].layout.strides);
+            //mm2 wei format tag: acbd, abcd
+            size_t mm2_wei_in_offset = attention_mask_vec[j] ? 4 : 3;
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[mm2_wei_in_offset].layout.strides);
+
+            for (auto &lt : partition_inputs) {
+                inputs.emplace_back(&lt);
+            }
+            for (auto &lt : partition_outputs) {
+                // set output to be strided
+                lt = utils::logical_tensor_init(
+                        lt.id, lt.data_type, graph::layout_type::strided);
+                outputs.emplace_back(&lt);
+            }
+
+            graph::compiled_partition_t cp(p);
+            ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
+                    graph::status::success);
+
+            std::vector<test_tensor> inputs_ts, outputs_ts;
+            for (auto &lt : inputs) {
+                inputs_ts.emplace_back(*lt, eng);
+                inputs_ts.back().fill<float>();
+            }
+
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp.query_logical_tensor(lt->id, &compiled_output);
+                outputs_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs_ts)),
+                    graph::status::success);
+            strm->wait();
         }
-        for (auto &lt : partition_outputs) {
-            // set output to be strided
-            lt = utils::logical_tensor_init(
-                    lt.id, lt.data_type, graph::layout_type::strided);
-            outputs.emplace_back(&lt);
-        }
-
-        graph::compiled_partition_t cp(p);
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
-
-        std::vector<test_tensor> inputs_ts, outputs_ts;
-        for (auto &lt : inputs) {
-            inputs_ts.emplace_back(*lt, eng);
-            inputs_ts.back().fill<float>();
-        }
-
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp.query_logical_tensor(lt->id, &compiled_output);
-            outputs_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs_ts)),
-                graph::status::success);
-        strm->wait();
     }
 }
 
@@ -151,70 +164,82 @@ TEST(test_sdp_decomp_execute, Bf16SdpDecomp) {
             {seq_len * head_dim, size_per_head, 1, head_dim},
             {seq_len * head_dim, size_per_head * seq_len, size_per_head, 1}};
     std::vector<bool> transpose_b = {false, true};
+    std::vector<bool> attention_mask_vec = {false, true};
 
     for (size_t i = 0; i < KEY_STRIDES.size(); ++i) {
-        graph::graph_t g(eng->kind());
-        utils::construct_dnnl_float_MHA(&g, dnnl::impl::data_type::bf16,
-                batch_size, seq_len, num_head, head_dim, transpose_b[i]);
-        g.finalize();
+        for (size_t j = 0; j < attention_mask_vec.size(); ++j) {
+            graph::graph_t g(eng->kind());
+            utils::construct_dnnl_float_MHA(&g, dnnl::impl::data_type::bf16,
+                    batch_size, seq_len, num_head, head_dim, transpose_b[i],
+                    attention_mask_vec[j]);
+            g.finalize();
 
-        ASSERT_EQ(g.get_ops().size(), 7U);
+            if (attention_mask_vec[j])
+                ASSERT_EQ(g.get_ops().size(), 7U);
+            else
+                ASSERT_EQ(g.get_ops().size(), 6U);
 
-        graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
+            graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
+            auto part = g.get_partitions()[0];
 
-        // compile
-        graph::partition_t p;
-        p.init(part);
+            // compile
+            graph::partition_t p;
+            p.init(part);
 
-        auto partition_inputs = p.get_inputs();
-        auto partition_outputs = p.get_outputs();
-        ASSERT_EQ(partition_inputs.size(), 5U);
-        ASSERT_EQ(partition_outputs.size(), 1U);
+            auto partition_inputs = p.get_inputs();
+            auto partition_outputs = p.get_outputs();
+            if (attention_mask_vec[j])
+                ASSERT_EQ(partition_inputs.size(), 5U);
+            else
+                ASSERT_EQ(partition_inputs.size(), 4U);
+            ASSERT_EQ(partition_outputs.size(), 1U);
 
-        std::vector<const graph::logical_tensor_t *> inputs, outputs;
-        //mm1 src format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[0].layout.strides);
-        //mm1 wei format tag: adbc, abcd
-        std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
-                partition_inputs[1].layout.strides);
-        //mm2 wei format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[4].layout.strides);
+            std::vector<const graph::logical_tensor_t *> inputs, outputs;
+            //mm1 src format tag: acbd, abcd
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[0].layout.strides);
+            //mm1 wei format tag: adbc, abcd
+            std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
+                    partition_inputs[1].layout.strides);
+            //mm2 wei format tag: acbd, abcd
+            size_t mm2_wei_in_offset = attention_mask_vec[j] ? 4 : 3;
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[mm2_wei_in_offset].layout.strides);
 
-        for (auto &lt : partition_inputs) {
-            inputs.emplace_back(&lt);
+            for (auto &lt : partition_inputs) {
+                inputs.emplace_back(&lt);
+            }
+            for (auto &lt : partition_outputs) {
+                // set output to be strided
+                lt = utils::logical_tensor_init(
+                        lt.id, lt.data_type, graph::layout_type::strided);
+                outputs.emplace_back(&lt);
+            }
+
+            graph::compiled_partition_t cp(p);
+            ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
+                    graph::status::success);
+
+            std::vector<test_tensor> inputs_ts, outputs_ts;
+            for (auto &lt : inputs) {
+                inputs_ts.emplace_back(*lt, eng);
+                inputs_ts.back().fill<bfloat16_t>();
+            }
+
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp.query_logical_tensor(lt->id, &compiled_output);
+                outputs_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs_ts)),
+                    graph::status::success);
+            strm->wait();
         }
-        for (auto &lt : partition_outputs) {
-            // set output to be strided
-            lt = utils::logical_tensor_init(
-                    lt.id, lt.data_type, graph::layout_type::strided);
-            outputs.emplace_back(&lt);
-        }
-
-        graph::compiled_partition_t cp(p);
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
-
-        std::vector<test_tensor> inputs_ts, outputs_ts;
-        for (auto &lt : inputs) {
-            inputs_ts.emplace_back(*lt, eng);
-            inputs_ts.back().fill<bfloat16_t>();
-        }
-
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp.query_logical_tensor(lt->id, &compiled_output);
-            outputs_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs_ts)),
-                graph::status::success);
-        strm->wait();
     }
 }
 
@@ -238,69 +263,80 @@ TEST(test_sdp_decomp_execute, Int8SdpDecomp) {
             {seq_len * head_dim, size_per_head, 1, head_dim},
             {seq_len * head_dim, size_per_head * seq_len, size_per_head, 1}};
     std::vector<bool> transpose_b = {false, true};
+    std::vector<bool> attention_mask_vec = {false, true};
 
     for (size_t i = 0; i < KEY_STRIDES.size(); ++i) {
-        graph::graph_t g(eng->kind());
-        utils::construct_int8_MHA(
-                &g, batch_size, seq_len, num_head, head_dim, transpose_b[i]);
-        g.finalize();
+        for (size_t j = 0; j < attention_mask_vec.size(); ++j) {
+            graph::graph_t g(eng->kind());
+            utils::construct_int8_MHA(&g, batch_size, seq_len, num_head,
+                    head_dim, transpose_b[i], attention_mask_vec[j]);
+            g.finalize();
 
-        ASSERT_EQ(g.get_ops().size(), 13U);
+            if (attention_mask_vec[j])
+                ASSERT_EQ(g.get_ops().size(), 13U);
+            else
+                ASSERT_EQ(g.get_ops().size(), 12U);
+            graph::pass::pass_base_ptr apass = get_pass("int8_sdp_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
+            auto part = g.get_partitions()[0];
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_sdp_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
+            // compile
+            graph::partition_t p;
+            p.init(part);
 
-        // compile
-        graph::partition_t p;
-        p.init(part);
+            auto partition_inputs = p.get_inputs();
+            auto partition_outputs = p.get_outputs();
+            if (attention_mask_vec[j])
+                ASSERT_EQ(partition_inputs.size(), 5U);
+            else
+                ASSERT_EQ(partition_inputs.size(), 4U);
+            ASSERT_EQ(partition_outputs.size(), 1U);
 
-        auto partition_inputs = p.get_inputs();
-        auto partition_outputs = p.get_outputs();
-        ASSERT_EQ(partition_inputs.size(), 5U);
-        ASSERT_EQ(partition_outputs.size(), 1U);
+            std::vector<const graph::logical_tensor_t *> inputs, outputs;
+            //mm1 src format tag: acbd, abcd
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[0].layout.strides);
+            //mm1 wei format tag: adbc, abcd
+            std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
+                    partition_inputs[1].layout.strides);
+            //mm2 wei format tag: acbd, abcd
+            size_t mm2_wei_in_offset = attention_mask_vec[j] ? 4 : 3;
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[mm2_wei_in_offset].layout.strides);
 
-        std::vector<const graph::logical_tensor_t *> inputs, outputs;
-        //mm1 src format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[0].layout.strides);
-        //mm1 wei format tag: adbc, abcd
-        std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
-                partition_inputs[1].layout.strides);
-        //mm2 wei format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[4].layout.strides);
-        for (auto &lt : partition_inputs) {
-            inputs.emplace_back(&lt);
+            for (auto &lt : partition_inputs) {
+                inputs.emplace_back(&lt);
+            }
+            for (auto &lt : partition_outputs) {
+                // set output to be strided
+                lt = utils::logical_tensor_init(
+                        lt.id, lt.data_type, graph::layout_type::strided);
+                outputs.emplace_back(&lt);
+            }
+
+            graph::compiled_partition_t cp(p);
+            ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
+                    graph::status::success);
+
+            std::vector<test_tensor> inputs_ts, outputs_ts;
+            for (auto &lt : inputs) {
+                inputs_ts.emplace_back(*lt, eng);
+                inputs_ts.back().fill<uint8_t>();
+            }
+
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp.query_logical_tensor(lt->id, &compiled_output);
+                outputs_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs_ts)),
+                    graph::status::success);
+            strm->wait();
         }
-        for (auto &lt : partition_outputs) {
-            // set output to be strided
-            lt = utils::logical_tensor_init(
-                    lt.id, lt.data_type, graph::layout_type::strided);
-            outputs.emplace_back(&lt);
-        }
-
-        graph::compiled_partition_t cp(p);
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
-
-        std::vector<test_tensor> inputs_ts, outputs_ts;
-        for (auto &lt : inputs) {
-            inputs_ts.emplace_back(*lt, eng);
-            inputs_ts.back().fill<uint8_t>();
-        }
-
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp.query_logical_tensor(lt->id, &compiled_output);
-            outputs_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs_ts)),
-                graph::status::success);
-        strm->wait();
     }
 }
 
@@ -327,67 +363,78 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpDecomp) {
             {seq_len * head_dim, size_per_head, 1, head_dim},
             {seq_len * head_dim, size_per_head * seq_len, size_per_head, 1}};
     std::vector<bool> transpose_b = {false, true};
+    std::vector<bool> attention_mask_vec = {false, true};
 
     for (size_t i = 0; i < KEY_STRIDES.size(); ++i) {
-        graph::graph_t g(eng->kind());
-        utils::construct_int8_bf16_MHA(
-                &g, batch_size, seq_len, num_head, head_dim, transpose_b[i]);
-        g.finalize();
+        for (size_t j = 0; j < attention_mask_vec.size(); ++j) {
+            graph::graph_t g(eng->kind());
+            utils::construct_int8_bf16_MHA(&g, batch_size, seq_len, num_head,
+                    head_dim, transpose_b[i], attention_mask_vec[j]);
+            g.finalize();
 
-        ASSERT_EQ(g.get_ops().size(), 19U);
+            if (attention_mask_vec[j])
+                ASSERT_EQ(g.get_ops().size(), 19U);
+            else
+                ASSERT_EQ(g.get_ops().size(), 18U);
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_bf16_sdp_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
+            graph::pass::pass_base_ptr apass = get_pass("int8_bf16_sdp_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
+            auto part = g.get_partitions()[0];
 
-        // compile
-        graph::partition_t p;
-        p.init(part);
+            // compile
+            graph::partition_t p;
+            p.init(part);
 
-        auto partition_inputs = p.get_inputs();
-        auto partition_outputs = p.get_outputs();
-        ASSERT_EQ(partition_inputs.size(), 5U);
-        ASSERT_EQ(partition_outputs.size(), 1U);
+            auto partition_inputs = p.get_inputs();
+            auto partition_outputs = p.get_outputs();
+            if (attention_mask_vec[j])
+                ASSERT_EQ(partition_inputs.size(), 5U);
+            else
+                ASSERT_EQ(partition_inputs.size(), 4U);
+            ASSERT_EQ(partition_outputs.size(), 1U);
 
-        //mm1 src format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[0].layout.strides);
-        //mm1 wei format tag: adbc, abcd
-        std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
-                partition_inputs[1].layout.strides);
-        //mm2 wei format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[4].layout.strides);
+            //mm1 src format tag: acbd, abcd
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[0].layout.strides);
+            //mm1 wei format tag: adbc, abcd
+            std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
+                    partition_inputs[1].layout.strides);
+            //mm2 wei format tag: acbd, abcd
+            size_t mm2_wei_in_offset = attention_mask_vec[j] ? 4 : 3;
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[mm2_wei_in_offset].layout.strides);
 
-        std::vector<const graph::logical_tensor_t *> inputs, outputs;
-        for (auto &lt : partition_inputs) {
-            inputs.emplace_back(&lt);
+            std::vector<const graph::logical_tensor_t *> inputs, outputs;
+            for (auto &lt : partition_inputs) {
+                inputs.emplace_back(&lt);
+            }
+            for (auto &lt : partition_outputs) {
+                outputs.emplace_back(&lt);
+            }
+
+            graph::compiled_partition_t cp(p);
+            ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
+                    graph::status::success);
+
+            std::vector<test_tensor> inputs_ts, outputs_ts;
+            for (auto &lt : inputs) {
+                inputs_ts.emplace_back(*lt, eng);
+                inputs_ts.back().fill<bfloat16_t>();
+            }
+
+            for (auto &lt : partition_outputs) {
+                outputs_ts.emplace_back(lt, eng);
+            }
+
+            ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs_ts)),
+                    graph::status::success);
+
+            strm->wait();
         }
-        for (auto &lt : partition_outputs) {
-            outputs.emplace_back(&lt);
-        }
-
-        graph::compiled_partition_t cp(p);
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
-
-        std::vector<test_tensor> inputs_ts, outputs_ts;
-        for (auto &lt : inputs) {
-            inputs_ts.emplace_back(*lt, eng);
-            inputs_ts.back().fill<bfloat16_t>();
-        }
-
-        for (auto &lt : partition_outputs) {
-            outputs_ts.emplace_back(lt, eng);
-        }
-
-        ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs_ts)),
-                graph::status::success);
-
-        strm->wait();
     }
 }
 
@@ -510,101 +557,104 @@ TEST(test_sdp_decomp_execute, F32SdpCorr) {
             {seq_len * head_dim, size_per_head, 1, head_dim},
             {seq_len * head_dim, size_per_head * seq_len, size_per_head, 1}};
     std::vector<bool> transpose_b = {false, true};
+    std::vector<bool> attention_mask_vec = {false, true};
 
     for (size_t i = 0; i < KEY_STRIDES.size(); ++i) {
-        graph::graph_t g(eng->kind());
-        utils::construct_dnnl_float_MHA(&g, dnnl::impl::data_type::f32,
-                batch_size, seq_len, num_head, head_dim, transpose_b[i]);
-        g.finalize();
+        for (size_t j = 0; j < attention_mask_vec.size(); ++j) {
+            graph::graph_t g(eng->kind());
+            utils::construct_dnnl_float_MHA(&g, dnnl::impl::data_type::f32,
+                    batch_size, seq_len, num_head, head_dim, transpose_b[i],
+                    attention_mask_vec[j]);
+            g.finalize();
 
-        ASSERT_EQ(g.get_ops().size(), 7U);
+            graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
+            auto part = g.get_partitions()[0];
 
-        graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
+            // compile
+            graph::partition_t p;
+            p.init(part);
 
-        // compile
-        graph::partition_t p;
-        p.init(part);
+            auto partition_inputs = p.get_inputs();
+            auto partition_outputs = p.get_outputs();
 
-        auto partition_inputs = p.get_inputs();
-        auto partition_outputs = p.get_outputs();
-        ASSERT_EQ(partition_inputs.size(), 5U);
-        ASSERT_EQ(partition_outputs.size(), 1U);
+            std::vector<const graph::logical_tensor_t *> inputs, outputs;
+            //mm1 src format tag: acbd, abcd
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[0].layout.strides);
+            //mm1 wei format tag: adbc, abcd
+            std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
+                    partition_inputs[1].layout.strides);
+            //mm2 wei format tag: acbd, abcd
+            size_t mm2_wei_in_offset = attention_mask_vec[j] ? 4 : 3;
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[mm2_wei_in_offset].layout.strides);
 
-        std::vector<const graph::logical_tensor_t *> inputs, outputs;
-        //mm1 src format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[0].layout.strides);
-        //mm1 wei format tag: adbc, abcd
-        std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
-                partition_inputs[1].layout.strides);
-        //mm2 wei format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[4].layout.strides);
-        for (auto &lt : partition_inputs) {
-            inputs.emplace_back(&lt);
+            for (auto &lt : partition_inputs) {
+                inputs.emplace_back(&lt);
+            }
+            for (auto &lt : partition_outputs) {
+                // set output to be strided
+                lt = utils::logical_tensor_init(
+                        lt.id, lt.data_type, graph::layout_type::strided);
+                outputs.emplace_back(&lt);
+            }
+
+            graph::compiled_partition_t cp(p);
+            ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
+                    graph::status::success);
+
+            std::vector<test_tensor> inputs_ts, outputs_ts;
+            for (auto &lt : inputs) {
+                inputs_ts.emplace_back(*lt, eng);
+                inputs_ts.back().fill<float>();
+            }
+
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp.query_logical_tensor(lt->id, &compiled_output);
+                outputs_ts.emplace_back(compiled_output, eng);
+            }
+
+            // -------------------------case 1----------------------------------
+            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+            graph::compiled_partition_t cp1(p);
+            ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
+                    graph::status::success);
+            std::vector<test_tensor> outputs1_ts;
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp1.query_logical_tensor(lt->id, &compiled_output);
+                outputs1_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs1_ts)),
+                    graph::status::success);
+            strm->wait();
+
+            // -------------------------case 2----------------------------------
+            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+            graph::compiled_partition_t cp2(p);
+            ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
+                    graph::status::success);
+            std::vector<test_tensor> outputs2_ts;
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp2.query_logical_tensor(lt->id, &compiled_output);
+                outputs2_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs2_ts)),
+                    graph::status::success);
+            strm->wait();
+
+            ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
+                    /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
         }
-        for (auto &lt : partition_outputs) {
-            // set output to be strided
-            lt = utils::logical_tensor_init(
-                    lt.id, lt.data_type, graph::layout_type::strided);
-            outputs.emplace_back(&lt);
-        }
-
-        graph::compiled_partition_t cp(p);
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
-
-        std::vector<test_tensor> inputs_ts, outputs_ts;
-        for (auto &lt : inputs) {
-            inputs_ts.emplace_back(*lt, eng);
-            inputs_ts.back().fill<float>();
-        }
-
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp.query_logical_tensor(lt->id, &compiled_output);
-            outputs_ts.emplace_back(compiled_output, eng);
-        }
-
-        // -------------------------case 1----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
-        graph::compiled_partition_t cp1(p);
-        ASSERT_EQ(
-                p.compile(&cp1, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs1_ts;
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp1.query_logical_tensor(lt->id, &compiled_output);
-            outputs1_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs1_ts)),
-                graph::status::success);
-        strm->wait();
-
-        // -------------------------case 2----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
-        graph::compiled_partition_t cp2(p);
-        ASSERT_EQ(
-                p.compile(&cp2, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs2_ts;
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp2.query_logical_tensor(lt->id, &compiled_output);
-            outputs2_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs2_ts)),
-                graph::status::success);
-        strm->wait();
-
-        ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
-                /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
     }
 }
 
@@ -633,101 +683,104 @@ TEST(test_sdp_decomp_execute, Bf16SdpCorr) {
             {seq_len * head_dim, size_per_head, 1, head_dim},
             {seq_len * head_dim, size_per_head * seq_len, size_per_head, 1}};
     std::vector<bool> transpose_b = {false, true};
+    std::vector<bool> attention_mask_vec = {false, true};
 
     for (size_t i = 0; i < KEY_STRIDES.size(); ++i) {
-        graph::graph_t g(eng->kind());
-        utils::construct_dnnl_float_MHA(&g, dnnl::impl::data_type::bf16,
-                batch_size, seq_len, num_head, head_dim, transpose_b[i]);
-        g.finalize();
+        for (size_t j = 0; j < attention_mask_vec.size(); ++j) {
+            graph::graph_t g(eng->kind());
+            utils::construct_dnnl_float_MHA(&g, dnnl::impl::data_type::bf16,
+                    batch_size, seq_len, num_head, head_dim, transpose_b[i],
+                    attention_mask_vec[j]);
+            g.finalize();
 
-        ASSERT_EQ(g.get_ops().size(), 7U);
+            graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
+            auto part = g.get_partitions()[0];
 
-        graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
+            // compile
+            graph::partition_t p;
+            p.init(part);
 
-        // compile
-        graph::partition_t p;
-        p.init(part);
+            auto partition_inputs = p.get_inputs();
+            auto partition_outputs = p.get_outputs();
 
-        auto partition_inputs = p.get_inputs();
-        auto partition_outputs = p.get_outputs();
-        ASSERT_EQ(partition_inputs.size(), 5U);
-        ASSERT_EQ(partition_outputs.size(), 1U);
+            std::vector<const graph::logical_tensor_t *> inputs, outputs;
+            //mm1 src format tag: acbd, abcd
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[0].layout.strides);
+            //mm1 wei format tag: adbc, abcd
+            std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
+                    partition_inputs[1].layout.strides);
+            //mm2 wei format tag: acbd, abcd
+            size_t mm2_wei_in_offset = attention_mask_vec[j] ? 4 : 3;
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[mm2_wei_in_offset].layout.strides);
 
-        std::vector<const graph::logical_tensor_t *> inputs, outputs;
-        //mm1 src format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[0].layout.strides);
-        //mm1 wei format tag: adbc, abcd
-        std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
-                partition_inputs[1].layout.strides);
-        //mm2 wei format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[4].layout.strides);
-        for (auto &lt : partition_inputs) {
-            inputs.emplace_back(&lt);
+            for (auto &lt : partition_inputs) {
+                inputs.emplace_back(&lt);
+            }
+            for (auto &lt : partition_outputs) {
+                // set output to be strided
+                lt = utils::logical_tensor_init(
+                        lt.id, lt.data_type, graph::layout_type::strided);
+                outputs.emplace_back(&lt);
+            }
+
+            graph::compiled_partition_t cp(p);
+            ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
+                    graph::status::success);
+
+            std::vector<test_tensor> inputs_ts, outputs_ts;
+            for (auto &lt : inputs) {
+                inputs_ts.emplace_back(*lt, eng);
+                inputs_ts.back().fill<bfloat16_t>();
+            }
+
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp.query_logical_tensor(lt->id, &compiled_output);
+                outputs_ts.emplace_back(compiled_output, eng);
+            }
+
+            // -------------------------case 1----------------------------------
+            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+            graph::compiled_partition_t cp1(p);
+            ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
+                    graph::status::success);
+            std::vector<test_tensor> outputs1_ts;
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp1.query_logical_tensor(lt->id, &compiled_output);
+                outputs1_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs1_ts)),
+                    graph::status::success);
+            strm->wait();
+
+            // -------------------------case 2----------------------------------
+            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+            graph::compiled_partition_t cp2(p);
+            ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
+                    graph::status::success);
+            std::vector<test_tensor> outputs2_ts;
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp2.query_logical_tensor(lt->id, &compiled_output);
+                outputs2_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs2_ts)),
+                    graph::status::success);
+            strm->wait();
+
+            ASSERT_TRUE(allclose<bfloat16_t>(outputs1_ts[0], outputs2_ts[0],
+                    /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
         }
-        for (auto &lt : partition_outputs) {
-            // set output to be strided
-            lt = utils::logical_tensor_init(
-                    lt.id, lt.data_type, graph::layout_type::strided);
-            outputs.emplace_back(&lt);
-        }
-
-        graph::compiled_partition_t cp(p);
-        ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
-
-        std::vector<test_tensor> inputs_ts, outputs_ts;
-        for (auto &lt : inputs) {
-            inputs_ts.emplace_back(*lt, eng);
-            inputs_ts.back().fill<bfloat16_t>();
-        }
-
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp.query_logical_tensor(lt->id, &compiled_output);
-            outputs_ts.emplace_back(compiled_output, eng);
-        }
-
-        // -------------------------case 1----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
-        graph::compiled_partition_t cp1(p);
-        ASSERT_EQ(
-                p.compile(&cp1, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs1_ts;
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp1.query_logical_tensor(lt->id, &compiled_output);
-            outputs1_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs1_ts)),
-                graph::status::success);
-        strm->wait();
-
-        // -------------------------case 2----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
-        graph::compiled_partition_t cp2(p);
-        ASSERT_EQ(
-                p.compile(&cp2, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs2_ts;
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp2.query_logical_tensor(lt->id, &compiled_output);
-            outputs2_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs2_ts)),
-                graph::status::success);
-        strm->wait();
-
-        ASSERT_TRUE(allclose<bfloat16_t>(outputs1_ts[0], outputs2_ts[0],
-                /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
     }
 }
 
@@ -753,90 +806,91 @@ TEST(test_sdp_decomp_execute, Int8SdpCorr) {
             {seq_len * head_dim, size_per_head, 1, head_dim},
             {seq_len * head_dim, size_per_head * seq_len, size_per_head, 1}};
     std::vector<bool> transpose_b = {false, true};
+    std::vector<bool> attention_mask_vec = {false, true};
 
     for (size_t i = 0; i < KEY_STRIDES.size(); ++i) {
-        graph::graph_t g(eng->kind());
-        utils::construct_int8_MHA(
-                &g, batch_size, seq_len, num_head, head_dim, transpose_b[i]);
-        g.finalize();
+        for (size_t j = 0; j < attention_mask_vec.size(); ++j) {
+            graph::graph_t g(eng->kind());
+            utils::construct_int8_MHA(&g, batch_size, seq_len, num_head,
+                    head_dim, transpose_b[i], attention_mask_vec[j]);
+            g.finalize();
 
-        ASSERT_EQ(g.get_ops().size(), 13U);
+            graph::pass::pass_base_ptr apass = get_pass("int8_sdp_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
+            auto part = g.get_partitions()[0];
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_sdp_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
+            // compile
+            graph::partition_t p;
+            p.init(part);
 
-        // compile
-        graph::partition_t p;
-        p.init(part);
+            auto partition_inputs = p.get_inputs();
+            auto partition_outputs = p.get_outputs();
 
-        auto partition_inputs = p.get_inputs();
-        auto partition_outputs = p.get_outputs();
-        ASSERT_EQ(partition_inputs.size(), 5U);
-        ASSERT_EQ(partition_outputs.size(), 1U);
+            std::vector<const graph::logical_tensor_t *> inputs, outputs;
+            //mm1 src format tag: acbd, abcd
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[0].layout.strides);
+            //mm1 wei format tag: adbc, abcd
+            std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
+                    partition_inputs[1].layout.strides);
+            //mm2 wei format tag: acbd, abcd
+            size_t mm2_wei_in_offset = attention_mask_vec[j] ? 4 : 3;
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[mm2_wei_in_offset].layout.strides);
 
-        std::vector<const graph::logical_tensor_t *> inputs, outputs;
-        //mm1 src format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[0].layout.strides);
-        //mm1 wei format tag: adbc, abcd
-        std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
-                partition_inputs[1].layout.strides);
-        //mm2 wei format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[4].layout.strides);
-        for (auto &lt : partition_inputs) {
-            inputs.emplace_back(&lt);
+            for (auto &lt : partition_inputs) {
+                inputs.emplace_back(&lt);
+            }
+            for (auto &lt : partition_outputs) {
+                // set output to be strided
+                lt = utils::logical_tensor_init(
+                        lt.id, lt.data_type, graph::layout_type::strided);
+                outputs.emplace_back(&lt);
+            }
+            std::vector<test_tensor> inputs_ts;
+            for (auto &lt : inputs) {
+                inputs_ts.emplace_back(*lt, eng);
+                inputs_ts.back().fill<uint8_t>();
+            }
+            // -------------------------case 1----------------------------------
+            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+            graph::compiled_partition_t cp1(p);
+            ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
+                    graph::status::success);
+            std::vector<test_tensor> outputs1_ts;
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp1.query_logical_tensor(lt->id, &compiled_output);
+                outputs1_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs1_ts)),
+                    graph::status::success);
+            strm->wait();
+
+            // -------------------------case 2----------------------------------
+            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+            graph::compiled_partition_t cp2(p);
+            ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
+                    graph::status::success);
+            std::vector<test_tensor> outputs2_ts;
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp2.query_logical_tensor(lt->id, &compiled_output);
+                outputs2_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs2_ts)),
+                    graph::status::success);
+            strm->wait();
+
+            ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs2_ts[0],
+                    /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
         }
-        for (auto &lt : partition_outputs) {
-            // set output to be strided
-            lt = utils::logical_tensor_init(
-                    lt.id, lt.data_type, graph::layout_type::strided);
-            outputs.emplace_back(&lt);
-        }
-        std::vector<test_tensor> inputs_ts;
-        for (auto &lt : inputs) {
-            inputs_ts.emplace_back(*lt, eng);
-            inputs_ts.back().fill<uint8_t>();
-        }
-        // -------------------------case 1----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
-        graph::compiled_partition_t cp1(p);
-        ASSERT_EQ(
-                p.compile(&cp1, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs1_ts;
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp1.query_logical_tensor(lt->id, &compiled_output);
-            outputs1_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs1_ts)),
-                graph::status::success);
-        strm->wait();
-
-        // -------------------------case 2----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
-        graph::compiled_partition_t cp2(p);
-        ASSERT_EQ(
-                p.compile(&cp2, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs2_ts;
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp2.query_logical_tensor(lt->id, &compiled_output);
-            outputs2_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs2_ts)),
-                graph::status::success);
-        strm->wait();
-
-        ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs2_ts[0],
-                /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
     }
 }
 
@@ -867,90 +921,91 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr) {
             {seq_len * head_dim, size_per_head, 1, head_dim},
             {seq_len * head_dim, size_per_head * seq_len, size_per_head, 1}};
     std::vector<bool> transpose_b = {false, true};
+    std::vector<bool> attention_mask_vec = {false, true};
 
     for (size_t i = 0; i < KEY_STRIDES.size(); ++i) {
-        graph::graph_t g(eng->kind());
-        utils::construct_int8_bf16_MHA(
-                &g, batch_size, seq_len, num_head, head_dim, transpose_b[i]);
-        g.finalize();
+        for (size_t j = 0; j < attention_mask_vec.size(); ++j) {
+            graph::graph_t g(eng->kind());
+            utils::construct_int8_bf16_MHA(&g, batch_size, seq_len, num_head,
+                    head_dim, transpose_b[i], attention_mask_vec[j]);
+            g.finalize();
 
-        ASSERT_EQ(g.get_ops().size(), 19U);
+            graph::pass::pass_base_ptr apass = get_pass("int8_bf16_sdp_fusion");
+            apass->run(g);
+            ASSERT_EQ(g.get_num_partitions(), 1U);
+            auto part = g.get_partitions()[0];
 
-        graph::pass::pass_base_ptr apass = get_pass("int8_bf16_sdp_fusion");
-        apass->run(g);
-        ASSERT_EQ(g.get_num_partitions(), 1U);
-        auto part = g.get_partitions()[0];
+            // compile
+            graph::partition_t p;
+            p.init(part);
 
-        // compile
-        graph::partition_t p;
-        p.init(part);
+            auto partition_inputs = p.get_inputs();
+            auto partition_outputs = p.get_outputs();
 
-        auto partition_inputs = p.get_inputs();
-        auto partition_outputs = p.get_outputs();
-        ASSERT_EQ(partition_inputs.size(), 5U);
-        ASSERT_EQ(partition_outputs.size(), 1U);
+            std::vector<const graph::logical_tensor_t *> inputs, outputs;
+            //mm1 src format tag: acbd, abcd
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[0].layout.strides);
+            //mm1 wei format tag: adbc, abcd
+            std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
+                    partition_inputs[1].layout.strides);
+            //mm2 wei format tag: acbd, abcd
+            size_t mm2_wei_in_offset = attention_mask_vec[j] ? 4 : 3;
+            std::copy(QUERY_VALUE_STRIDES[i].begin(),
+                    QUERY_VALUE_STRIDES[i].begin() + ndims,
+                    partition_inputs[mm2_wei_in_offset].layout.strides);
 
-        std::vector<const graph::logical_tensor_t *> inputs, outputs;
-        //mm1 src format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[0].layout.strides);
-        //mm1 wei format tag: adbc, abcd
-        std::copy(KEY_STRIDES[i].begin(), KEY_STRIDES[i].begin() + ndims,
-                partition_inputs[1].layout.strides);
-        //mm2 wei format tag: acbd, abcd
-        std::copy(QUERY_VALUE_STRIDES[i].begin(),
-                QUERY_VALUE_STRIDES[i].begin() + ndims,
-                partition_inputs[4].layout.strides);
-        for (auto &lt : partition_inputs) {
-            inputs.emplace_back(&lt);
+            for (auto &lt : partition_inputs) {
+                inputs.emplace_back(&lt);
+            }
+            for (auto &lt : partition_outputs) {
+                // set output to be strided
+                lt = utils::logical_tensor_init(
+                        lt.id, lt.data_type, graph::layout_type::strided);
+                outputs.emplace_back(&lt);
+            }
+            std::vector<test_tensor> inputs_ts;
+            for (auto &lt : inputs) {
+                inputs_ts.emplace_back(*lt, eng);
+                inputs_ts.back().fill<uint8_t>();
+            }
+            // -------------------------case 1----------------------------------
+            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+            graph::compiled_partition_t cp1(p);
+            ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
+                    graph::status::success);
+            std::vector<test_tensor> outputs1_ts;
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp1.query_logical_tensor(lt->id, &compiled_output);
+                outputs1_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs1_ts)),
+                    graph::status::success);
+            strm->wait();
+
+            // -------------------------case 2----------------------------------
+            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+            graph::compiled_partition_t cp2(p);
+            ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
+                    graph::status::success);
+            std::vector<test_tensor> outputs2_ts;
+            for (auto &lt : outputs) {
+                graph::logical_tensor_t compiled_output;
+                cp2.query_logical_tensor(lt->id, &compiled_output);
+                outputs2_ts.emplace_back(compiled_output, eng);
+            }
+            ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                              test_tensor::to_graph_tensor(outputs2_ts)),
+                    graph::status::success);
+            strm->wait();
+
+            ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs2_ts[0],
+                    /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
         }
-        for (auto &lt : partition_outputs) {
-            // set output to be strided
-            lt = utils::logical_tensor_init(
-                    lt.id, lt.data_type, graph::layout_type::strided);
-            outputs.emplace_back(&lt);
-        }
-        std::vector<test_tensor> inputs_ts;
-        for (auto &lt : inputs) {
-            inputs_ts.emplace_back(*lt, eng);
-            inputs_ts.back().fill<uint8_t>();
-        }
-        // -------------------------case 1----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
-        graph::compiled_partition_t cp1(p);
-        ASSERT_EQ(
-                p.compile(&cp1, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs1_ts;
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp1.query_logical_tensor(lt->id, &compiled_output);
-            outputs1_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs1_ts)),
-                graph::status::success);
-        strm->wait();
-
-        // -------------------------case 2----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
-        graph::compiled_partition_t cp2(p);
-        ASSERT_EQ(
-                p.compile(&cp2, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs2_ts;
-        for (auto &lt : outputs) {
-            graph::logical_tensor_t compiled_output;
-            cp2.query_logical_tensor(lt->id, &compiled_output);
-            outputs2_ts.emplace_back(compiled_output, eng);
-        }
-        ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs2_ts)),
-                graph::status::success);
-        strm->wait();
-
-        ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs2_ts[0],
-                /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
     }
 }
 

@@ -887,7 +887,7 @@ inline void construct_f32_MHA(dnnl::impl::graph::graph_t *agraph,
 inline void construct_dnnl_float_MHA(dnnl::impl::graph::graph_t *agraph,
         impl::data_type_t dtype = impl::data_type::f32, int batch_size = 1,
         int seq_len = 384, int num_head = 16, int head_dim = 1024,
-        bool transpose = false) {
+        bool transpose = false, bool attention_mask = true) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests;
 
@@ -975,10 +975,15 @@ inline void construct_dnnl_float_MHA(dnnl::impl::graph::graph_t *agraph,
     fscore_div.add_input(matmul_qk_out);
     fscore_div.add_input(fscore_scale);
     fscore_div.add_output(fscore_div_out);
-    fscore_add.add_input(fscore_div_out);
-    fscore_add.add_input(attention_mask_flt);
-    fscore_add.add_output(fscore_add_out);
-    softmax.add_input(fscore_add_out);
+
+    if (attention_mask) {
+        fscore_add.add_input(fscore_div_out);
+        fscore_add.add_input(attention_mask_flt);
+        fscore_add.add_output(fscore_add_out);
+        softmax.add_input(fscore_add_out);
+    } else {
+        softmax.add_input(fscore_div_out);
+    }
     softmax.add_output(softmax_out);
 
     matmul_v.add_input(softmax_out);
@@ -992,9 +997,8 @@ inline void construct_dnnl_float_MHA(dnnl::impl::graph::graph_t *agraph,
     reshape_output.add_output(context_reshape_out);
 
     agraph->add_op(&matmul_qk);
-
     agraph->add_op(&fscore_div);
-    agraph->add_op(&fscore_add);
+    if (attention_mask) agraph->add_op(&fscore_add);
     agraph->add_op(&softmax);
     agraph->add_op(&matmul_v);
     agraph->add_op(&transpose_output);
@@ -1003,7 +1007,8 @@ inline void construct_dnnl_float_MHA(dnnl::impl::graph::graph_t *agraph,
 
 inline void construct_int8_MHA(dnnl::impl::graph::graph_t *agraph,
         int batch_size = 1, int seq_len = 384, int num_head = 16,
-        int head_dim = 1024, bool transpose = false) {
+        int head_dim = 1024, bool transpose = false,
+        bool attention_mask = true) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests;
 
@@ -1141,10 +1146,14 @@ inline void construct_int8_MHA(dnnl::impl::graph::graph_t *agraph,
     fscore_div.add_input(matmul_qk_out);
     fscore_div.add_input(fscore_scale);
     fscore_div.add_output(fscore_div_out);
-    fscore_add.add_input(fscore_div_out);
-    fscore_add.add_input(attention_mask_flt);
-    fscore_add.add_output(fscore_add_out);
-    softmax.add_input(fscore_add_out);
+    if (attention_mask) {
+        fscore_add.add_input(fscore_div_out);
+        fscore_add.add_input(attention_mask_flt);
+        fscore_add.add_output(fscore_add_out);
+        softmax.add_input(fscore_add_out);
+    } else {
+        softmax.add_input(fscore_div_out);
+    }
     softmax.add_output(softmax_out);
     quantize_softmax.add_input(softmax_out);
     quantize_softmax.add_output(softmax_out_q);
@@ -1182,13 +1191,14 @@ inline void construct_int8_MHA(dnnl::impl::graph::graph_t *agraph,
 
 inline void construct_int8_bf16_MHA(dnnl::impl::graph::graph_t *agraph,
         int batch_size = 1, int seq_len = 384, int num_head = 16,
-        int head_dim = 1024, bool transpose = false) {
+        int head_dim = 1024, bool transpose = false,
+        bool attention_mask = true) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests;
 
     // construct a int8 MHA pattern first
-    construct_int8_MHA(
-            agraph, batch_size, seq_len, num_head, head_dim, transpose);
+    construct_int8_MHA(agraph, batch_size, seq_len, num_head, head_dim,
+            transpose, attention_mask);
 
     // change the f32 logical tensor to bf16
     for (auto &op : agraph->get_ops()) {

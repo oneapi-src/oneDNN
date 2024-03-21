@@ -134,6 +134,8 @@ public:
     // shared memory
     memory sub_max_src1_src2, sub_max_dst1_wei2;
 
+    bool attention_mask;
+
 private:
     // Used to record the ops contained in SDP
     std::vector<std::shared_ptr<op_t>> sdp_op;
@@ -264,16 +266,18 @@ public:
         // TODO: It is presupposed that the dims of scale and add's src are certain,
         // which may not always be true.
         sub_mm1_post_scale_md = memory::desc({1, 1, 1, 1}, scale_dt, tag::abcd);
-        auto post_add_shape = ltw(inputs[input_id[3]]).vdims();
-        post_add_strides = ltw(inputs[input_id[3]]).vstrides();
-        sub_mm1_post_add_md
-                = memory::desc({1, 1, post_add_shape[2], post_add_shape[3]},
-                        dt_inter, tag::abcd);
         auto ori_dnnl_pops = sub_matmul1_attr.get_post_ops();
         auto alg = static_cast<algorithm>(
                 ori_dnnl_pops.get()->entry_[0].binary.alg);
         dnnl_pops.append_binary(alg, sub_mm1_post_scale_md);
-        dnnl_pops.append_binary(algorithm::binary_add, sub_mm1_post_add_md);
+        if (attention_mask) {
+            auto post_add_shape = ltw(inputs[input_id[3]]).vdims();
+            post_add_strides = ltw(inputs[input_id[3]]).vstrides();
+            sub_mm1_post_add_md
+                    = memory::desc({1, 1, post_add_shape[2], post_add_shape[3]},
+                            dt_inter, tag::abcd);
+            dnnl_pops.append_binary(algorithm::binary_add, sub_mm1_post_add_md);
+        }
         sub_matmul1_attr.set_post_ops(std::move(dnnl_pops));
         auto sub_mm1_pd = matmul::primitive_desc(p_engine, sub_mm1_src_md,
                 sub_mm1_wei_md, sub_mm1_dst_md, sub_matmul1_attr);
@@ -407,9 +411,12 @@ public:
                 {DNNL_ARG_WEIGHTS, sub_mm1_wei}, {DNNL_ARG_DST, sub_mm1_dst},
                 {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1,
                         sub_mm1_post_scale},
-                {DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1,
-                        sub_mm1_post_add},
                 {DNNL_ARG_SCRATCHPAD, sub_scratchpad}};
+        if (attention_mask) {
+            sub_mm1_args.insert(
+                    {DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1,
+                            sub_mm1_post_add});
+        }
 
         sub_softmax_args
                 = {{DNNL_ARG_SRC, sub_mm1_dst}, {DNNL_ARG_DST, sub_softmax_dst},
@@ -475,7 +482,13 @@ private:
                     || post_op->get_kind() == graph::op_kind::Multiply) {
                 mm1 = cur_op;
                 scale = post_op;
-                add = get_post_op(post_op);
+                if (get_post_op(post_op)->get_kind() == graph::op_kind::Add) {
+                    add = get_post_op(post_op);
+                    attention_mask = true;
+                } else {
+                    add = nullptr;
+                    attention_mask = false;
+                }
             } else
                 mm2 = cur_op;
         }
@@ -487,9 +500,14 @@ private:
         int scale_id = find_input_id(scale->get_input_value(1));
         if (scale_id == -1) scale_id = find_input_id(scale->get_input_value(0));
         input_id.emplace_back(scale_id);
-        int add_id = find_input_id(add->get_input_value(1));
-        if (add_id == -1) add_id = find_input_id(add->get_input_value(0));
-        input_id.emplace_back(add_id);
+        if (add) {
+            int add_id = find_input_id(add->get_input_value(1));
+            if (add_id == -1) add_id = find_input_id(add->get_input_value(0));
+            input_id.emplace_back(add_id);
+        } else {
+            //placeholder
+            input_id.emplace_back(-1);
+        }
         int wei2_id = find_input_id(mm2->get_input_value(1));
         input_id.emplace_back(wei2_id);
         return status::success;
@@ -893,15 +911,18 @@ public:
             // matmul1
             auto &sub_mm1_post_scale_tid
                     = res->mem_map[sdp_cfg_.sub_mm1_post_scale.get()][tid];
-            auto &sub_mm1_post_add_tid
-                    = res->mem_map[sdp_cfg_.sub_mm1_post_add.get()][tid];
             sub_mm1_post_scale_tid.set_data_handle(
                     inputs[sdp_cfg_.input_id[2]].get_data_handle());
-            sub_mm1_post_add_tid.set_data_handle(
-                    static_cast<char *>(
-                            inputs[sdp_cfg_.input_id[3]].get_data_handle())
-                    + bo * sdp_cfg_.post_add_strides[1]
-                            * get_mem_dt_size(sdp_cfg_.sub_mm1_post_add));
+
+            if (sdp_cfg_.attention_mask) {
+                auto &sub_mm1_post_add_tid
+                        = res->mem_map[sdp_cfg_.sub_mm1_post_add.get()][tid];
+                sub_mm1_post_add_tid.set_data_handle(
+                        static_cast<char *>(
+                                inputs[sdp_cfg_.input_id[3]].get_data_handle())
+                        + bo * sdp_cfg_.post_add_strides[1]
+                                * get_mem_dt_size(sdp_cfg_.sub_mm1_post_add));
+            }
 
             // reorder2:
             auto &sub_wei2_user_tid

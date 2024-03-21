@@ -48,10 +48,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion)
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
-                    auto fscore_add = pgraph->append_op(
-                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)});
+                    auto optional_mask = std::make_shared<pb_graph_t>();
+                    auto fscore_add
+                            = optional_mask->append_op(graph::op_kind::Add);
+                    optional_mask->create_input_port(0, fscore_add, 0);
+                    optional_mask->create_output_port(0, fscore_add, 0);
+                    auto mask = pgraph->append_optional(
+                            optional_mask, {in_edge(0, fscore_scale, 0)});
+                    auto softmax = pgraph->append_op(
+                            graph::op_kind::SoftMax, {in_edge(0, mask, 0)});
                     auto matmul_v = pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     auto transpose_output
@@ -83,10 +88,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_sdp_fusion)
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             in_edges_t {in_edge(0, matmul_qk, 0)});
-                    auto fscore_add = pgraph->append_op(graph::op_kind::Add,
-                            in_edges_t {in_edge(0, fscore_scale, 0)});
+                    auto optional_mask = std::make_shared<pb_graph_t>();
+                    auto fscore_add
+                            = optional_mask->append_op(graph::op_kind::Add);
+                    optional_mask->create_input_port(0, fscore_add, 0);
+                    optional_mask->create_output_port(0, fscore_add, 0);
+                    auto mask = pgraph->append_optional(
+                            optional_mask, {in_edge(0, fscore_scale, 0)});
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            in_edges_t {in_edge(0, fscore_add, 0)});
+                            in_edges_t {in_edge(0, mask, 0)});
                     auto quantize_softmax
                             = pgraph->append_op(graph::op_kind::Quantize,
                                     in_edges_t {in_edge(0, softmax, 0)});
@@ -136,10 +146,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
-                    auto fscore_add = pgraph->append_op(
-                            graph::op_kind::Add, {in_edge(0, fscore_scale, 0)});
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, fscore_add, 0)});
+                    auto optional_mask = std::make_shared<pb_graph_t>();
+                    auto fscore_add
+                            = optional_mask->append_op(graph::op_kind::Add);
+                    optional_mask->create_input_port(0, fscore_add, 0);
+                    optional_mask->create_output_port(0, fscore_add, 0);
+                    auto mask = pgraph->append_optional(
+                            optional_mask, {in_edge(0, fscore_scale, 0)});
+                    auto softmax = pgraph->append_op(
+                            graph::op_kind::SoftMax, {in_edge(0, mask, 0)});
                     auto cast_softmax_fp32 = pgraph->append_op(
                             graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
                     auto quantize_softmax
