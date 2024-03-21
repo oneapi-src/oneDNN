@@ -119,7 +119,7 @@ std::string prb_reqs_t::str() const {
     std::ostringstream oss;
     bool is_first = true;
     for (auto &r : reqs_) {
-        if (!is_first) oss << std::endl;
+        if (!is_first) oss << "\n";
         oss << r.expr.to_ir();
         is_first = false;
     }
