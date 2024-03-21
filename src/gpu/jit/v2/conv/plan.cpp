@@ -119,7 +119,8 @@ layout_t make_conv_layout(
 class dim_mapper_manager_t {
 public:
     dim_mapper_manager_t() = default;
-    dim_mapper_manager_t(prop_kind_t prop) : prop_(prop) {
+    dim_mapper_manager_t(prop_kind_t prop, const spec_reqs_t &reqs)
+        : prop_(prop), reqs_(reqs) {
         src_mapper_ = init_src_mapper();
         wei_mapper_ = init_wei_mapper();
         dst_mapper_ = init_dst_mapper();
@@ -162,33 +163,33 @@ private:
     expr_t kw_bwd_d_idx = var_t::make(type_t::s32(), "kw_bwd_d_idx");
 
     dim_mapper_t init_src_mapper() const {
-        auto pd = size_var(prb_dims::pd);
-        auto ph = size_var(prb_dims::ph);
-        auto pw = size_var(prb_dims::pw);
-        auto sd = size_var(prb_dims::sd);
-        auto sh = size_var(prb_dims::sh);
-        auto sw = size_var(prb_dims::sw);
-        auto dd = size_var(prb_dims::dd);
-        auto dh = size_var(prb_dims::dh);
-        auto dw = size_var(prb_dims::dw);
+        auto pd = reqs_.to_expr(prb_dims::pd);
+        auto ph = reqs_.to_expr(prb_dims::ph);
+        auto pw = reqs_.to_expr(prb_dims::pw);
+        auto sd = reqs_.to_expr(prb_dims::sd);
+        auto sh = reqs_.to_expr(prb_dims::sh);
+        auto sw = reqs_.to_expr(prb_dims::sw);
+        auto dd = reqs_.to_expr(prb_dims::dd);
+        auto dh = reqs_.to_expr(prb_dims::dh);
+        auto dw = reqs_.to_expr(prb_dims::dw);
         dim_mapper_t mapper;
         mapper.set_dim(prb_dims::mb);
         mapper.set_dim(prb_dims::g);
         mapper.set_dim(prb_dims::ic);
         if (utils::one_of(
                     prop_, prop_kind::forward, prop_kind::backward_weights)) {
-            auto dd_inc = dd + 1;
-            auto dh_inc = dh + 1;
-            auto dw_inc = dw + 1;
-            auto neg_pd = -pd;
-            auto neg_ph = -ph;
-            auto neg_pw = -pw;
-            mapper.set_dim(
-                    prb_dims::id, sd * od_idx + neg_pd + kd_idx * dd_inc);
-            mapper.set_dim(
-                    prb_dims::ih, sh * oh_idx + neg_ph + kh_idx * dh_inc);
-            mapper.set_dim(
-                    prb_dims::iw, sw * ow_idx + neg_pw + kw_idx * dw_inc);
+            auto dd_inc = const_fold(dd + 1);
+            auto dh_inc = const_fold(dh + 1);
+            auto dw_inc = const_fold(dw + 1);
+            auto neg_pd = const_fold(-pd);
+            auto neg_ph = const_fold(-ph);
+            auto neg_pw = const_fold(-pw);
+            mapper.set_dim(prb_dims::id,
+                    simplify_rewrite(sd * od_idx + neg_pd + kd_idx * dd_inc));
+            mapper.set_dim(prb_dims::ih,
+                    simplify_rewrite(sh * oh_idx + neg_ph + kh_idx * dh_inc));
+            mapper.set_dim(prb_dims::iw,
+                    simplify_rewrite(sw * ow_idx + neg_pw + kw_idx * dw_inc));
         } else {
             mapper.set_dim(prb_dims::id);
             mapper.set_dim(prb_dims::ih);
@@ -233,6 +234,7 @@ private:
     }
 
     prop_kind_t prop_ = prop_kind::undef;
+    spec_reqs_t reqs_;
     dim_mapper_t src_mapper_;
     dim_mapper_t wei_mapper_;
     dim_mapper_t dst_mapper_;
@@ -493,7 +495,7 @@ public:
 
 private:
     void init_dim_mapper_manager() {
-        dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop);
+        dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, desc_.spec_reqs);
     }
 
     void init_tiles() {

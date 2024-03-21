@@ -51,6 +51,10 @@ public:
         return spec_tile_.has(dim) && spec_tile_.at(dim) == value;
     }
 
+    expr_t to_expr(const prb_dim_t &dim) const {
+        return spec_tile_.has(dim) ? spec_tile_.at(dim) : size_var(dim);
+    }
+
     prb_reqs_t reqs() const {
         prb_reqs_t ret;
         for (auto &d : spec_tile_) {
