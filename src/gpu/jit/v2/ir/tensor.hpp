@@ -618,7 +618,7 @@ public:
     const mask_desc_t &mask_desc() const { return mask_desc_; }
     const plane_t &plane() const { return plane_; }
     const type_t &type() const { return layout_.type(); }
-    // Transforms the view to a scattered viersion where elements are strided
+    // Transforms the view to a scattered version where elements are strided
     // by stride_bytes value. This is used to generate scattered messages
     // prefetch.
     view_t scatterize(int stride_bytes, const prover_t &prover) const;
