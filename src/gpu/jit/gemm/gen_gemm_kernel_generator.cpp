@@ -3299,10 +3299,15 @@ bool gemm_kernel_generator_t<hw>::getSubblock(Type T, RegisterBlock &blockDst,
                     // Beware, cheat: with DW-aligned sub-DW types, true block may be downgraded to byte PseudoBlock,
                     //                which requires 2 address registers, though only 1 is used, and only 1 may be allocated.
                     int rblock, cblock;
+                    auto opts = (blockDst.rowFragment || blockDst.colFragment)
+                            ? AllowFragment
+                            : AvoidFragment;
                     (void)getBlockInfo(T, atype, astrategy, blockDst.nr,
                             blockDst.nc, blockDst.remainderR,
-                            blockDst.remainderC, blockDst.writable,
-                            AllowFragment, 0, 0, rblock, cblock, blockDst);
+                            blockDst.remainderC, blockDst.writable, opts, 0, 0,
+                            rblock, cblock, blockDst);
+                    blockDst.flag = blockSrc.flag;
+                    if (blockDst.flag[column] && x1 > 0) stub();
                     blockDst.simplify(T);
                     break;
                 }
