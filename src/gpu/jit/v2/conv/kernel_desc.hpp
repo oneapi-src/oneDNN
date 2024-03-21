@@ -63,6 +63,17 @@ public:
         return ret;
     }
 
+    constraint_set_t as_constraint_set(const kernel_info_t &kernel_info) const {
+        constraint_set_t ret;
+        auto vars = kernel_info.get_vars();
+        for (auto &d : spec_tile_) {
+            auto v = vars.find(d.str());
+            ir_assert(v != vars.end()) << "Could not find variable " << d.str();
+            ret.add_constraint(v->second == spec_tile_.at(d));
+        }
+        return ret;
+    }
+
     std::string str() const { return spec_tile_.str(); }
 
     IR_DEFINE_DUMP()
