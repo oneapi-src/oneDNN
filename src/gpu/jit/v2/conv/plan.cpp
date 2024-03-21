@@ -791,6 +791,9 @@ prb_reqs_t plan_t::reqs() const {
 
 plan_t create_conv_plan(const kernel_desc_t &desc) {
     if (!desc.is_supported()) return plan_t();
+    ir_assert(!desc.spec_reqs.has_strategy())
+            << "Kernel descriptor strategies are required to be specialized "
+               "before plan creation";
     plan_builder_t builder(desc);
     auto plan = builder.build();
     return plan;

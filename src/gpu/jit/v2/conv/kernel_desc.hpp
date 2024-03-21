@@ -42,10 +42,37 @@ class kernel_info_t;
 namespace v2 {
 namespace conv {
 
+enum class spec_strategy_t { none, max, one_d, two_d };
+
+inline std::string to_string(spec_strategy_t mode) {
+    switch (mode) {
+        case spec_strategy_t::none: return "none";
+        case spec_strategy_t::max: return "max";
+        case spec_strategy_t::one_d: return "1d";
+        case spec_strategy_t::two_d: return "2d";
+        default: ir_error_not_expected(); return "invalid";
+    }
+}
+
+inline spec_strategy_t str_to_spec_strategy(const std::string &s) {
+    if (s == "none") return spec_strategy_t::none;
+    if (s == "max") return spec_strategy_t::max;
+    if (s == "1d") return spec_strategy_t::one_d;
+    if (s == "2d") return spec_strategy_t::two_d;
+    return spec_strategy_t::none;
+}
+
+// The class spec_reqs_t represents specialization requirements for problem
+// dimensions. It supports a strategy based mode where specialization can be
+// tailored to a specific strategy. In the strategy mode, a call to
+// specialize(problem_t) is required to finish generation.
 class spec_reqs_t {
 public:
     spec_reqs_t() = default;
-    spec_reqs_t(const prb_tile_t &spec_tile) : spec_tile_(spec_tile) {}
+    spec_reqs_t(const prb_tile_t &spec_tile)
+        : spec_tile_(spec_tile), spec_strategy_(spec_strategy_t::none) {}
+    spec_reqs_t(spec_strategy_t spec_strategy)
+        : spec_strategy_(spec_strategy) {}
 
     bool is_equal(const prb_dim_t &dim, int value) const {
         return spec_tile_.has(dim) && spec_tile_.at(dim) == value;
@@ -74,16 +101,47 @@ public:
         return ret;
     }
 
-    std::string str() const { return spec_tile_.str(); }
+    std::string str() const {
+        if (spec_strategy_ == spec_strategy_t::none)
+            return spec_tile_.str();
+        else
+            return "(" + to_string(spec_strategy_) + ")";
+    }
+
+    void specialize(const problem_t &prb) {
+        if (spec_strategy_ == spec_strategy_t::none) return;
+        switch (spec_strategy_) {
+            case spec_strategy_t::max: spec_tile_ = prb.shape(); break;
+            case spec_strategy_t::one_d:
+                spec_tile_ = str_to_prb_tile(
+                        "id1ih1od1oh1kd1kh1dd0dh0pd0ph0sd1sh1");
+                break;
+            case spec_strategy_t::two_d:
+                spec_tile_ = str_to_prb_tile("id1od1kd1dd0pd0sd1");
+                break;
+            default: spec_tile_ = {}; break;
+        }
+        spec_strategy_ = spec_strategy_t::none;
+        return;
+    }
+
+    bool has_strategy() const {
+        return spec_strategy_ != spec_strategy_t::none;
+    }
 
     IR_DEFINE_DUMP()
 
 private:
     prb_tile_t spec_tile_;
+    spec_strategy_t spec_strategy_;
 };
 
 inline spec_reqs_t str_to_spec_reqs(const std::string &s) {
-    return spec_reqs_t(str_to_prb_tile(s));
+    spec_strategy_t mode = str_to_spec_strategy(s);
+    if (mode == spec_strategy_t::none)
+        return spec_reqs_t(str_to_prb_tile(s));
+    else
+        return spec_reqs_t(mode);
 }
 
 struct loop_nest_entry_t {
