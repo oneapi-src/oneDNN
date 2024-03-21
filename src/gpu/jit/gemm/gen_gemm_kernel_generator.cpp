@@ -13312,10 +13312,7 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
     Txs_int = Tx;
 
     bool int4SpecialPath = Tx_ext.isInt4() && one_of(Tx, Type::f16, Type::f32);
-    if (int4SpecialPath) {
-        if (xo2D && !one_of(Txo, Type::s8, Type::u8)) stub();
-        Txo_int = Txs_int = Type::f16;
-    }
+    if (int4SpecialPath) Txo_int = Txs_int = Type::f16;
 
     int r, c, k;
     int tileR = 0, tileC = 0;
@@ -13464,16 +13461,12 @@ void gemm_kernel_generator_t<hw>::gemmRepack2DOffsetData(Type Text, Type Ts,
                         mul(esize, r, r, Immediate::hf(0x7800));
                     });
         } else {
-            if (s4)
-                map(hw, Type::f16, dst, dst, strategy,
-                        [&](int esize, RegData r, RegData _) {
-                            add(esize, r, r,
-                                    Immediate::hf(0x4800)); // 0x4800 = 8
-                        });
             map(hw, Type::f16, dst, dst, strategy,
                     [&](int esize, RegData r, RegData _) {
-                        mul(esize, r, r,
-                                Immediate::hf(0x1800)); // 0x1800 = 2^(-9)
+                        s4 ? mad(esize, r, Immediate::hf(0x2400), r,
+                                Immediate::hf(0x1800)) // 0x2400 = 8 * 2^(-9)
+                           : mul(esize, r, r,
+                                   Immediate::hf(0x1800)); // 0x1800 = 2^(-9)
                     });
         }
     }
