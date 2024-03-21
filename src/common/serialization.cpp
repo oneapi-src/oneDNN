@@ -182,24 +182,36 @@ void serialize_attr(
         sstream.write("scale:");
         // go through scales for all arguments
         for (const auto &p : attr.scales_.scales_) {
+            // scales: arg
             sstream.write(&p.first);
-            sstream.write(&p.second.data_type_);
+            // scales: mask
             sstream.write(&p.second.mask_);
+            // scales: groups
+            const int ndims = p.second.ndims_;
+            sstream.write(&ndims);
+            if (ndims > 0) sstream.write(p.second.group_dims_, ndims);
+            // scales: data type
+            sstream.write(&p.second.data_type_);
         }
     }
     // zero_points
     if (!attr.zero_points_.has_default_values()) sstream.write("zp:");
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
         if (!attr.zero_points_.has_default_values(arg)) {
+            const auto &zps = attr.zero_points_;
             // zero_points: arg
             sstream.write(&arg);
             int mask = 0;
             data_type_t dt = data_type::s32;
-            attr.zero_points_.get(arg, &mask, &dt);
-            // zero_points: data type
-            sstream.write(&dt);
+            zps.get(arg, &mask, &dt);
             // zero_points: mask
             sstream.write(&mask);
+            // zero points: groups
+            const int ndims = zps.get_groups_ndims(arg);
+            sstream.write(&ndims);
+            if (ndims > 0) sstream.write(zps.get_groups(arg), ndims);
+            // zero_points: data type
+            sstream.write(&dt);
         }
 
     serialize_post_ops(sstream, attr.post_ops_);
