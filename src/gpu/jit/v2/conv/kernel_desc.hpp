@@ -344,11 +344,14 @@ public:
         ir_check(prb.prop() == prop) << "Propagation kind does not match";
         if (check_tags) {
             ir_check(prb.src_tag().matches(src_tag, prb.shape()))
-                    << "Source tag does not match";
+                    << "Source tag  " << prb.src_tag()
+                    << " does not match kernel descriptor tag " << src_tag;
             ir_check(prb.wei_tag().matches(wei_tag, prb.shape()))
-                    << "Weights tag does not match";
+                    << "Weights tag " << prb.wei_tag()
+                    << " does not match kernel descriptor tag " << wei_tag;
             ir_check(prb.dst_tag().matches(dst_tag, prb.shape()))
-                    << "Destination tag does not match";
+                    << "Destination tag " << prb.dst_tag()
+                    << " does not match kernel descriptor tag " << dst_tag;
         }
         ir_check(prb.is_depthwise() == is_dw)
                 << "Mixing depthwise/non-depthwise descriptor and problem";
