@@ -72,19 +72,14 @@ static compute::named_buffer_t get_ss_buffer(
 
 static status_t init_conf_common(const layer_normalization_pd_t *pd,
         reusable_lnorm_params_t *conf, reusable_lnorm_runtime_params_t *rt_conf,
-        const engine_t *engine, const compute::named_buffer_t &input_buf,
-        const compute::named_buffer_t &output_buf,
+        const engine_t *engine, const compute::named_buffer_t &src_buf,
+        const compute::named_buffer_t &dst_buf,
         const compute::named_buffer_t &stat_buf,
         const compute::named_buffer_t &ss_buf) {
     conf->use_scale = pd->use_scale();
     conf->use_shift = pd->use_shift();
-    conf->input_dt = input_buf.data_type;
-    conf->output_dt = output_buf.data_type;
-
-    conf->acc_dt
-            = types::default_accum_data_type(conf->input_dt, data_type::f32);
-    conf->acc_bwd_dt
-            = types::default_accum_data_type(conf->output_dt, data_type::f32);
+    conf->src_dt = src_buf.data_type;
+    conf->dst_dt = dst_buf.data_type;
 
     auto scales = pd->attr()->scales_;
     conf->with_src_scale = !scales.get(DNNL_ARG_SRC).has_default_values();
@@ -92,9 +87,9 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
 
     // We require that the lnorm axis is a single dense block, so that it can
     // be represented by a stride + size alone.
-    size_t ndims = gpu_utils::into<size_t>(input_buf.ndims);
+    size_t ndims = gpu_utils::into<size_t>(src_buf.ndims);
     std::vector<compute::dim_id_t> dims = get_dims(ndims);
-    block_layout_t layout = input_buf.layout();
+    block_layout_t layout = src_buf.layout();
     const block_t *norm_block = [&layout, &dims]() -> const block_t * {
         const block_t *ret = nullptr;
         for (const block_t &block : layout) {
@@ -119,8 +114,8 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     auto lws_strategy
             = compute::default_lws_strategy_t(compute_engine, gpu_attr);
     compute::reusable_dispatch_config_t dispatch_config(compute_engine, dims);
-    CHECK(dispatch_config.register_buffer(input_buf));
-    CHECK(dispatch_config.register_buffer(output_buf));
+    CHECK(dispatch_config.register_buffer(src_buf));
+    CHECK(dispatch_config.register_buffer(dst_buf));
     CHECK(dispatch_config.register_buffer(stat_buf));
     CHECK(dispatch_config.register_buffer(ss_buf));
     compute::reusable_dispatch_t dispatch;
@@ -132,8 +127,8 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     // stat calculation dispatch: all stat dimensions
     compute::reusable_dispatch_config_t calc_stat_dispatch_config(
             compute_engine, stat_buf.get_dim_ids());
-    CHECK(calc_stat_dispatch_config.register_buffer(input_buf));
-    CHECK(calc_stat_dispatch_config.register_buffer(output_buf));
+    CHECK(calc_stat_dispatch_config.register_buffer(src_buf));
+    CHECK(calc_stat_dispatch_config.register_buffer(dst_buf));
     CHECK(calc_stat_dispatch_config.register_buffer(stat_buf));
 
     compute::reusable_dispatch_t dispatch_calc_stat;
@@ -163,8 +158,8 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     // scaleshift dispatch: just the norm axis
     compute::reusable_dispatch_config_t ss_dispatch_config(
             compute_engine, ss_buf.get_dim_ids());
-    CHECK(ss_dispatch_config.register_buffer(output_buf));
-    CHECK(ss_dispatch_config.register_buffer(input_buf));
+    CHECK(ss_dispatch_config.register_buffer(src_buf));
+    CHECK(ss_dispatch_config.register_buffer(dst_buf));
     CHECK(ss_dispatch_config.register_buffer(ss_buf));
 
     compute::reusable_dispatch_t dispatch_ss;
@@ -213,7 +208,10 @@ status_t reusable_layer_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
 
 compute::kernel_ctx_t reusable_lnorm_params_t::get_kernel_ctx() const {
     compute::kernel_ctx_t kernel_ctx;
-    kernel_ctx.set_data_type(input_dt);
+
+    data_type_t acc_dt = types::default_accum_data_type(src_dt, data_type::f32);
+    data_type_t acc_bwd_dt
+            = types::default_accum_data_type(dst_dt, data_type::f32);
 
     compute::data_type_converter_t converter;
     converter.register_type("ACC", acc_dt);
@@ -330,8 +328,8 @@ status_t reusable_layer_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
     compute::named_buffer_t ss_buffer
             = get_ss_buffer(diff_weights_md(), dims.back());
 
-    CHECK(init_conf_common(this, &conf, &rt_conf, engine, diff_dst_buffer,
-            diff_src_buffer, stat_buffer, ss_buffer));
+    CHECK(init_conf_common(this, &conf, &rt_conf, engine, diff_src_buffer,
+            diff_dst_buffer, stat_buffer, ss_buffer));
 
     // The scaleshift kernel (called when conf.use_scale || conf.use_shift)
     // reduces stat dimensions, which requires elementwise-alignment between
