@@ -89,12 +89,13 @@ status_t dnnl::impl::cpu::_ref_rnn_common_t<aprop, src_type, weights_type,
 
     rnn_ = zero<decltype(rnn_)>();
     rnn_.is_brgemm = false;
-    const bool ok = init_conf<class_name>(rnn_, *this->desc(), *this->attr(),
-            this->src_md(0), this->src_md(1), this->src_md(2),
-            this->weights_md(0), this->weights_md(1),
-            this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION), this->dst_md(0),
-            this->dst_md(1), this->dst_md(2), this->arg_md(DNNL_ARG_BIAS));
-    if (!ok) return status::unimplemented;
+    VDISPATCH_RNN(init_conf<class_name>(rnn_, *this->desc(), *this->attr(),
+                          this->src_md(0), this->src_md(1), this->src_md(2),
+                          this->weights_md(0), this->weights_md(1),
+                          this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION),
+                          this->dst_md(0), this->dst_md(1), this->dst_md(2),
+                          this->arg_md(DNNL_ARG_BIAS)),
+            "init_conf failed");
 
     VDISPATCH_RNN(IMPLICATION(rnn_.is_f16_conf(), !rnn_.is_training),
             "f16 training is not yet fully supported");
@@ -173,7 +174,9 @@ status_t dnnl::impl::cpu::_ref_rnn_common_t<aprop, src_type, weights_type,
         }
     }
 
-    CHECK(this->check_layout_consistency(false /*is_brgemm*/));
+    VDISPATCH_RNN(this->check_layout_consistency(false /*is_brgemm*/)
+                    == status::success,
+            "check_layout_consistency failed");
 
     set_conf<class_name>(rnn_, *this->desc(), this->weights_md(0),
             this->weights_md(1), this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION),
@@ -350,13 +353,13 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
 
     rnn_ = zero<decltype(rnn_)>();
     rnn_.is_brgemm = true;
-    const bool ok = init_conf<class_name>(rnn_, *this->desc(), *this->attr(),
-            this->src_md(0), this->src_md(1), this->src_md(2),
-            this->weights_md(0), this->weights_md(1),
-            this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION), this->dst_md(0),
-            this->dst_md(1), this->dst_md(2), this->arg_md(DNNL_ARG_BIAS));
-
-    if (!ok) return status::unimplemented;
+    VDISPATCH_RNN(init_conf<class_name>(rnn_, *this->desc(), *this->attr(),
+                          this->src_md(0), this->src_md(1), this->src_md(2),
+                          this->weights_md(0), this->weights_md(1),
+                          this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION),
+                          this->dst_md(0), this->dst_md(1), this->dst_md(2),
+                          this->arg_md(DNNL_ARG_BIAS)),
+            "init_conf failed");
 
     VDISPATCH_RNN(IMPLICATION(one_of(this->desc()->prop_kind, forward_training,
                                       backward),
@@ -506,7 +509,9 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
             rnn_.weights_projection_comp_offset = 0;
         }
     }
-    CHECK(this->check_layout_consistency(true /*is_brgemm*/));
+    VDISPATCH_RNN(this->check_layout_consistency(true /*is_brgemm*/)
+                    == status::success,
+            "check_layout_consistency failed");
 
     if (rnn_.is_bf32()) {
         const memory_desc_wrapper weights_layer_d(this->weights_layer_md_);
