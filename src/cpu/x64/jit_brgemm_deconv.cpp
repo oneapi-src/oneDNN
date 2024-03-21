@@ -52,8 +52,9 @@ status_t fwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
     dims_t overflow_r;
     dim_t ks = 1;
     for (int i = 0; i < ndims_spatial; i++) {
-        // only unit strides are allowed for bwd-to-fwd conversion
-        if (fwd_deconv_d->strides[i] != 1) return status::unimplemented;
+        VDISPATCH_DECONVOLUTION_IC(fwd_deconv_d->strides[i] == 1,
+                VERBOSE_UNSUPPORTED_FEATURE,
+                "only unit strides are allowed for bwd-to-fwd conversion");
         const dim_t K
                 = fwd_weights_md.dims[fwd_weights_md.ndims - ndims_spatial + i];
         ks *= K;
@@ -66,11 +67,14 @@ status_t fwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
         overflow_r[i] = ((K - 1) * (D + 1) - PR) / S;
     }
 
-    CHECK(conv_desc_init(fwd_conv_d, prop_kind::forward_training,
-            alg_kind::convolution_direct, &fwd_deconv_d->src_desc,
-            &fwd_weights_md, &fwd_deconv_d->bias_desc, &fwd_deconv_d->dst_desc,
-            fwd_deconv_d->strides, fwd_deconv_d->dilates, overflow_l,
-            overflow_r));
+    const status_t desc_init_status = conv_desc_init(fwd_conv_d,
+            prop_kind::forward_training, alg_kind::convolution_direct,
+            &fwd_deconv_d->src_desc, &fwd_weights_md, &fwd_deconv_d->bias_desc,
+            &fwd_deconv_d->dst_desc, fwd_deconv_d->strides,
+            fwd_deconv_d->dilates, overflow_l, overflow_r);
+
+    VDISPATCH_DECONVOLUTION_IC(desc_init_status == status::success,
+            VERBOSE_PRIMITIVE_CREATION_FAIL, "fwd_conv");
 
     // HACK: Set diff_src_desc and diff_dst_desc as a signal to the primitive
     //       descriptor cache that we are using the bwd-via-fwd version of
@@ -94,8 +98,10 @@ status_t bwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
     memory_desc_t src_md_patched;
     const auto src_dt = fwd_deconv_d->dst_desc.data_type;
 
-    CHECK(memory_desc_init_by_md_and_dt(
-            src_md_patched, fwd_deconv_d->dst_desc, src_dt));
+    VDISPATCH_DECONVOLUTION_IC(memory_desc_init_by_md_and_dt(src_md_patched,
+                                       fwd_deconv_d->dst_desc, src_dt)
+                    == status::success,
+            VERBOSE_DESC_CREATION_FAIL, "memory");
     src_md = &src_md_patched;
     dst_md = &fwd_deconv_d->src_desc;
     deconv_weights_d = &fwd_deconv_d->weights_desc;
@@ -103,14 +109,19 @@ status_t bwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
     /* create weights desc for convolution */
     memory_desc_t conv_weights_d;
     const bool with_groups = deconv_weights_d->ndims == src_md->ndims + 1;
-    CHECK(weights_axes_permutation(
-            &conv_weights_d, deconv_weights_d, with_groups));
 
-    CHECK(conv_desc_init(bwd_conv_d, prop_kind::backward_data,
-            alg_kind::convolution_direct, src_md, &conv_weights_d,
-            &fwd_deconv_d->bias_desc, dst_md, fwd_deconv_d->strides,
-            fwd_deconv_d->dilates, fwd_deconv_d->padding[0],
-            fwd_deconv_d->padding[1]));
+    VDISPATCH_DECONVOLUTION_IC(weights_axes_permutation(&conv_weights_d,
+                                       deconv_weights_d, with_groups)
+                    == status::success,
+            VERBOSE_DESC_CREATION_FAIL, "weights");
+
+    const status_t desc_init_status = conv_desc_init(bwd_conv_d,
+            prop_kind::backward_data, alg_kind::convolution_direct, src_md,
+            &conv_weights_d, &fwd_deconv_d->bias_desc, dst_md,
+            fwd_deconv_d->strides, fwd_deconv_d->dilates,
+            fwd_deconv_d->padding[0], fwd_deconv_d->padding[1]);
+    VDISPATCH_DECONVOLUTION_IC(desc_init_status == status::success,
+            VERBOSE_PRIMITIVE_CREATION_FAIL, "bwd_conv");
 
     // HACK: Set src_desc and dst_desc as a signal to the primitive
     //       descriptor cache that we are using the deconv version of bwd conv
@@ -189,7 +200,9 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     == status::success)
                 break;
         }
-        if (it == it.end()) return status::unimplemented;
+        if (it == it.end())
+            VDISPATCH_DECONVOLUTION_IC(false,
+                    "brgemm implementation not found for strided convolution");
     } else {
         CHECK(fwd_conv_desc_create(fwd_deconv_d, &conv_d));
 
@@ -211,13 +224,17 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     == status::success)
                 break;
         }
-        if (it == it.end()) return status::unimplemented;
+        if (it == it.end())
+            VDISPATCH_DECONVOLUTION_IC(false,
+                    "brgemm implementation not found for strided convolution");
     }
 
     if (weights_md_.format_kind == format_kind::any) {
         if (has_strides_) {
-            CHECK(weights_axes_permutation(
-                    &weights_md_, conv_pd_->weights_md(), with_groups()));
+            const status_t desc_init_status = weights_axes_permutation(
+                    &weights_md_, conv_pd_->weights_md(), with_groups());
+            VDISPATCH_DECONVOLUTION_IC(desc_init_status == status::success,
+                    VERBOSE_DESC_CREATION_FAIL, "weights");
             const bool is_signed_input = src_type == s8;
             const bool scale_adjust_required = is_signed_input
                     && !isa_has_s8s8(isa) && !isa_has_int8_vnni(isa);
