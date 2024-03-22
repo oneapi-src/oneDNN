@@ -87,6 +87,20 @@ inline std::string to_string(backend_t backend) {
     }
 }
 
+inline std::string to_string(::sycl::info::device_type dev_type) {
+    using namespace ::sycl::info;
+    switch (dev_type) {
+        case device_type::cpu: return "cpu";
+        case device_type::gpu: return "gpu";
+        case device_type::accelerator: return "accelerator";
+        case device_type::custom: return "custom";
+        case device_type::automatic: return "automatic";
+        case device_type::host: return "host";
+        case device_type::all: return "all";
+        default: return "unknown";
+    }
+}
+
 backend_t get_sycl_gpu_backend();
 
 inline bool is_host(const ::sycl::device &dev) {
