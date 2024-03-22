@@ -84,6 +84,7 @@
 #define VERBOSE_UNSUPPORTED_SPARSE_CFG "unsupported sparse md configuration"
 #define VERBOSE_UNSUPPORTED_FEATURE "unsupported feature for implementation: %s"
 #define VERBOSE_UNSUPPORTED_DEVICE_FEATURE "%s feature unavailable for device"
+#define VERBOSE_UNSUPPORTED_BACKEND "unsupported %s backend"
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
 #define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"
@@ -116,5 +117,10 @@
 #define VERBOSE_DESC_CREATION_FAIL "failed to create %s descriptor"
 #define VERBOSE_SHAPE_RESTRICTION "failed shape restrictions"
 #define VERBOSE_INCOMPATIBLE_GEMM_FMT "incompatible gemm format"
+
+#define VERBOSE_DEVICE_CTX_MISMATCH "device not found in the given context"
+#define VERBOSE_INVALID_SYCL_PLATFORM \
+    "unsupported platform (expected %s got %s)"
+#define VERBOSE_ENGINE_CREATION_FAIL "failed to create %s engine with index %zu"
 
 #endif
