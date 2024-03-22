@@ -17,6 +17,7 @@
 build
 external
 .vs
+.vscode
 .*.sw?
 tags
 *~
