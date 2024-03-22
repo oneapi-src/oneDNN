@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,8 +25,7 @@ namespace x64 {
 
 jit_avx512_core_u8_copy_sum_bn_kern::jit_avx512_core_u8_copy_sum_bn_kern(
         bool s8_case)
-    : jit_generator(jit_name(), nullptr, U8_COPY_KERNEL_CODE_SIZE)
-    , s8_case(s8_case) {}
+    : jit_generator(jit_name()), s8_case(s8_case) {}
 
 void jit_avx512_core_u8_copy_sum_bn_kern::generate() {
 

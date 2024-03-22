@@ -38,7 +38,7 @@ using namespace Xbyak;
 
 template <typename Wmm>
 jit_brdgmm_kernel_base_t<Wmm>::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, abrd.isa_impl)
+    : jit_generator(jit_name(), abrd.isa_impl)
     , brg(abrd)
     , simd_w_(vreg_traits<Vmm>::vlen / brg.typesize_C)
     , max_vmms_(isa_num_vregs(brg.isa_impl))

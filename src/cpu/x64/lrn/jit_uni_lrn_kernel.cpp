@@ -49,8 +49,8 @@ cpu_isa_t get_io_isa(cpu_isa_t isa, data_type_t d_type) {
 template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
-        void *code_ptr, size_t code_size, const char *name)
-    : jit_generator(name, code_ptr, code_size, true, isa)
+        const char *name)
+    : jit_generator(name, isa)
     , emulate_bfloat_(isa == avx512_core && d_type == data_type::bf16
               && !mayiuse(avx512_core_bf16))
     , bf16_emu_(
@@ -67,9 +67,8 @@ jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
 template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
-        const within_config_t &config, void *code_ptr, size_t code_size,
-        const char *name)
-    : jit_uni_lrn_kernel_t(code_ptr, code_size, name) {
+        const within_config_t &config, const char *name)
+    : jit_uni_lrn_kernel_t(name) {
     if (config.dat_tag == nhwc)
         single_pixel_offset_
                 = config.C * sizeof(typename prec_traits<d_type>::type);
@@ -358,9 +357,8 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::move_data_pointers(
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
-        const within_config_t &config, float A, float K, prop_kind_t pk,
-        void *code_ptr, size_t code_size)
-    : Base(config, code_ptr, code_size, jit_name())
+        const within_config_t &config, float A, float K, prop_kind_t pk)
+    : Base(config, jit_name())
     , config_(lrn_config_t::within_config)
     , within_config_(config)
     , alpha_(A)
@@ -396,9 +394,8 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
-        const struct nchw8c_across_t &J, float A, float K, prop_kind_t pk,
-        void *code_ptr, size_t code_size)
-    : Base(code_ptr, code_size, jit_name())
+        const struct nchw8c_across_t &J, float A, float K, prop_kind_t pk)
+    : Base(jit_name())
     , config_(lrn_config_t::nchw8c_across)
     , nchw8c_across_(J)
     , alpha_(A)
@@ -496,9 +493,8 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nchw8c_across_t &J) {
 
 template <>
 jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::jit_uni_lrn_fwd_kernel_t(
-        const struct nchw8c_across_t &J, float A, float K, prop_kind_t pk,
-        void *code_ptr, size_t code_size)
-    : Base(code_ptr, code_size, jit_name())
+        const struct nchw8c_across_t &J, float A, float K, prop_kind_t pk)
+    : Base(jit_name())
     , config_(lrn_config_t::nchw8c_across)
     , nchw8c_across_(J)
     , alpha_(A)
@@ -637,9 +633,8 @@ void jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::generate(
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
-        const struct nhwc_across_t &J, float A, float K, prop_kind_t pk,
-        void *code_ptr, size_t code_size)
-    : Base(code_ptr, code_size, jit_name())
+        const struct nhwc_across_t &J, float A, float K, prop_kind_t pk)
+    : Base(jit_name())
     , config_(lrn_config_t::nhwc_across)
     , nhwc_across_(J)
     , alpha_(A)
@@ -761,9 +756,8 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nhwc_across_t &J) {
 
 template <>
 jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::jit_uni_lrn_fwd_kernel_t(
-        const struct nhwc_across_t &J, float A, float K, prop_kind_t pk,
-        void *code_ptr, size_t code_size)
-    : Base(code_ptr, code_size, jit_name())
+        const struct nhwc_across_t &J, float A, float K, prop_kind_t pk)
+    : Base(jit_name())
     , config_(lrn_config_t::nhwc_across)
     , nhwc_across_(J)
     , alpha_(A)
@@ -1165,9 +1159,8 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::nchw_body_sse41(int tail, int HW,
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
-        const nchw_across_t &J, float A, float K, prop_kind_t pk,
-        void *code_ptr, size_t code_size)
-    : Base(code_ptr, code_size, jit_name())
+        const nchw_across_t &J, float A, float K, prop_kind_t pk)
+    : Base(jit_name())
     , config_(lrn_config_t::nchw_across)
     , nchw_across_(J)
     , alpha_(A)
@@ -1259,9 +1252,8 @@ jit_uni_lrn_fwd_kernel_t<isa, d_type>::~jit_uni_lrn_fwd_kernel_t() = default;
 
 template <>
 jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::jit_uni_lrn_fwd_kernel_t(
-        const nchw_across_t &J, float A, float K, prop_kind_t pk,
-        void *code_ptr, size_t code_size)
-    : Base(code_ptr, code_size, jit_name())
+        const nchw_across_t &J, float A, float K, prop_kind_t pk)
+    : Base(jit_name())
     , config_(lrn_config_t::nchw_across)
     , nchw_across_(J)
     , alpha_(A)
@@ -1439,9 +1431,8 @@ void jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::generate(
 // backward kernel
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_bwd_kernel_t<isa, d_type>::jit_uni_lrn_bwd_kernel_t(
-        const nchw8c_across_t &J, float A, float B, int use_h_parallel,
-        void *code_ptr, size_t code_size)
-    : Base(code_ptr, code_size, jit_name())
+        const nchw8c_across_t &J, float A, float B, int use_h_parallel)
+    : Base(jit_name())
     , config_(lrn_config_t::nchw8c_across)
     , nchw8c_across_(J)
     , nalphabeta_(-2 * A * B)
@@ -1577,9 +1568,8 @@ void jit_uni_lrn_bwd_kernel_t<isa, d_type>::generate(const nchw8c_across_t &J) {
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_bwd_kernel_t<isa, d_type>::jit_uni_lrn_bwd_kernel_t(
-        const within_config_t &config, float A, float B, void *code_ptr,
-        size_t code_size)
-    : Base(config, code_ptr, code_size, jit_name())
+        const within_config_t &config, float A, float B)
+    : Base(config, jit_name())
     , config_(lrn_config_t::within_config)
     , within_config_(config)
     , nalphabeta_(-2.0f * A * B)

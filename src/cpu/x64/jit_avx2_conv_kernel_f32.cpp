@@ -53,9 +53,7 @@ bool tag_is_flat(format_tag_t tag, format_tag_t ncx, format_tag_t nxc, int ic) {
 jit_avx2_conv_fwd_kernel_f32::jit_avx2_conv_fwd_kernel_f32(
         const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx2)
-    , jcp(ajcp)
-    , attr_(attr) {
+    : jit_generator(jit_name(), avx2), jcp(ajcp), attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary) {
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,9 +56,6 @@ private:
     using reg64_t = const Xbyak::Reg64;
     using zmm_t = const Xbyak::Zmm;
     using mask_t = const Xbyak::Opmask;
-    enum {
-        ker_code_size = 1024 * 1024,
-    };
 
     reg64_t aux_reg_load_data = r15;
     reg64_t aux_reg_bcast_data = r14;

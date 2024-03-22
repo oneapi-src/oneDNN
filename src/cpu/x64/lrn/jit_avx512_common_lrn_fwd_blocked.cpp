@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@ jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::
         jit_avx512_common_lrn_kernel_fwd_blocked_t(
                 const struct nChw16c_across_t &J, prop_kind_t prop_kind,
                 int use_h_parallel, float alpha, float beta, float k,
-                int local_size, void *code_ptr, size_t code_size)
-    : jit_avx512_common_lrn_kernel_fwd_t<d_type>(prop_kind, alpha, beta, k,
-            local_size, code_ptr, code_size, jit_name())
+                int local_size)
+    : jit_avx512_common_lrn_kernel_fwd_t<d_type>(
+            prop_kind, alpha, beta, k, local_size, jit_name())
     // some registers needed for conversion from bf16 to f32
     , xmm_size_(4 * sizeof(acc_data_t))
     , zmm_size_(64)

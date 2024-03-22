@@ -475,8 +475,7 @@ void fp8_emulation_e4m3_t::tabulate(const data_type_t dt,
 }
 
 jit_cvt_fp8_t::jit_cvt_fp8_t(f32_convert_mode_t mode)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_fp16)
-    , mode_(mode) {
+    : jit_generator(jit_name(), avx512_core_fp16), mode_(mode) {
     switch (mode) {
         case f8_e5m2_to_f16:
         case f8_e5m2_to_f32:

@@ -942,7 +942,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
 
     jit_softmax_dense_kernel_t(const softmax_pd_t *pd)
         : jit_softmax_kernel_base_t(pd)
-        , jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
+        , jit_generator(jit_name(), isa)
         , src_d_(pd_->invariant_src_md())
         , dst_d_(pd_->dst_md())
         , diff_dst_d_(pd_->diff_dst_md())
@@ -1491,7 +1491,7 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
 
     jit_softmax_strided_kernel_t(const softmax_pd_t *pd)
         : jit_softmax_kernel_base_t(pd)
-        , jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
+        , jit_generator(jit_name(), isa)
         , src_d_(pd_->invariant_src_md())
         , dst_d_(pd_->dst_md())
         // Note: must be aligned with pd_t::init()->init_scratchpad();

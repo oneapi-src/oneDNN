@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ namespace x64 {
 
 jit_sse41_kernel_b0_b_gemm_s8u8s32_kern::
         jit_sse41_kernel_b0_b_gemm_s8u8s32_kern()
-    : jit_generator(jit_name(), nullptr, S8U8S32_COMPUTE_KERNEL_CODE_SIZE) {}
+    : jit_generator(jit_name()) {}
 
 void jit_sse41_kernel_b0_b_gemm_s8u8s32_kern::generate() {
 

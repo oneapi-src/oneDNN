@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ namespace cpu {
 namespace x64 {
 
 jit_avx_kernel_b0_sgemm_kern::jit_avx_kernel_b0_sgemm_kern()
-    : jit_generator(jit_name(), nullptr, F32_COMPUTE_KERNEL_CODE_SIZE) {}
+    : jit_generator(jit_name()) {}
 
 void jit_avx_kernel_b0_sgemm_kern::generate() {
     Xbyak::Label l259c;

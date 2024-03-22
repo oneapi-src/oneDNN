@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -273,7 +273,7 @@ void jit_sse41_gemv_t_f32_kern::generate() {
 
 // Function signature: gemv(*m, *n, *alpha, *a, *lda, *x, *incx, *y, *incy)
 jit_sse41_gemv_t_f32_kern::jit_sse41_gemv_t_f32_kern()
-    : jit_generator(jit_name(), nullptr, 100000)
+    : jit_generator(jit_name())
     , LDA_(is_windows ? rdi : r8)
     , X_(is_windows ? rsi : r9)
     , INCY_(r10)

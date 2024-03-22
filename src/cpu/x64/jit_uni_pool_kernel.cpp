@@ -44,9 +44,7 @@ jit_uni_pool_kernel<isa>::~jit_uni_pool_kernel() = default;
 template <cpu_isa_t isa>
 jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
         const jit_pool_conf_t &ajpp, const memory_desc_t *dst_md)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
-    , jpp(ajpp)
-    , bf16_emu_(nullptr) {
+    : jit_generator(jit_name(), isa), jpp(ajpp), bf16_emu_(nullptr) {
     if (use_bf16_emulation())
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                 bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,

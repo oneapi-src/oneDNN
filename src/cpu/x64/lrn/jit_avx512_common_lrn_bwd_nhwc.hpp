@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,9 +36,8 @@ template <data_type_t d_type>
 class jit_avx512_common_lrn_kernel_bwd_nhwc_t
     : public jit_avx512_common_lrn_kernel_bwd_t<d_type> {
 public:
-    jit_avx512_common_lrn_kernel_bwd_nhwc_t(unsigned C, float alpha, float beta,
-            int local_size, void *code_ptr = nullptr,
-            size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_avx512_common_lrn_kernel_bwd_nhwc_t(
+            unsigned C, float alpha, float beta, int local_size);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_bwd_nhwc_t)
 

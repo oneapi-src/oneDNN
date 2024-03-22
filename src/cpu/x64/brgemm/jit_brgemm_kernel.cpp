@@ -41,7 +41,7 @@ using namespace Xbyak;
 template <typename Wmm>
 struct jit_brgemm_kernel_t : public jit_generator {
     jit_brgemm_kernel_t(const brgemm_t &abrg)
-        : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, abrg.isa_impl)
+        : jit_generator(jit_name(), abrg.isa_impl)
         , brg(abrg)
         , postops_injector_(nullptr)
         , max_effective_vregs(isa_num_vregs(brg.isa_impl)

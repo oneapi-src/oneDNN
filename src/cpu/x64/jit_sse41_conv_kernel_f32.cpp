@@ -41,9 +41,7 @@ using namespace Xbyak;
 jit_sse41_conv_fwd_kernel_f32::jit_sse41_conv_fwd_kernel_f32(
         const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, sse41)
-    , jcp(ajcp)
-    , attr_(attr) {
+    : jit_generator(jit_name(), sse41), jcp(ajcp), attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary) {
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
