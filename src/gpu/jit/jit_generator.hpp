@@ -24,6 +24,7 @@
 
 #include "common/impl_registration.hpp"
 #include "common/nstl.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/jit/emulation.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
@@ -169,28 +170,17 @@ void jit_generator<hw>::dbg_alloc(cl_context context) {
 }
 #endif
 
-inline size_t icache_size(ngen::HW arch) {
-    switch (arch) {
-        case gpu_gen9: return 48 * 1024;
-        case gpu_gen11: return 48 * 1024;
-        case gpu_xe_lp: return 48 * 1024;
-        case gpu_xe_hp: return 48 * 1024;
-        case gpu_xe_hpg: return 96 * 1024;
-        case gpu_xe_hpc: return 80 * 1024;
-        case gpu_xe2: return 96 * 1024;
-        default: return 0;
-    }
-}
-
 template <template <ngen::HW> class KernelT, ngen::HW arch, typename... ArgsT>
-std::unique_ptr<jit::jit_generator_base> make_generator(ArgsT &&...args) {
+std::unique_ptr<jit::jit_generator_base> make_generator(
+        const compute::device_info_t &device_info, ArgsT &&...args) {
 
     auto raw_kernel = new KernelT<arch>(std::forward<ArgsT>(args)...);
-    if (raw_kernel->getRootStreamLength() > icache_size(arch)) {
+    if (raw_kernel->getRootStreamLength() > device_info.icache_size()) {
         ir_warning() << raw_kernel->kernel_name()
                      << " larger than icache, kernel: "
                      << raw_kernel->getRootStreamLength()
-                     << " bytes, icache: " << icache_size(arch) << " bytes\n";
+                     << " bytes, icache: " << device_info.icache_size()
+                     << " bytes\n";
     }
     return std::unique_ptr<jit::jit_generator_base>(raw_kernel);
 }
@@ -215,7 +205,7 @@ compute::kernel_t make_kernel(
 #define CASE(gpu_arch) \
     case gpu_arch: \
         jit_kernel = make_generator<KernelT, gpu_arch>( \
-                std::forward<ArgsT>(args)...); \
+                *device_info, std::forward<ArgsT>(args)...); \
         break;
     switch (arch) {
         REG_GEN9_ISA(CASE(gpu_gen9));

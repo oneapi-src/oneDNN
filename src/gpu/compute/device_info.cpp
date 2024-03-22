@@ -232,6 +232,20 @@ int device_info_t::slm_memory_bank_granularity(gpu_arch_t gpu_arch) {
     return 4;
 }
 
+size_t device_info_t::icache_size() const {
+    switch (gpu_arch_) {
+        case gpu::compute::gpu_arch_t::gen9:
+        case gpu::compute::gpu_arch_t::gen11:
+        case gpu::compute::gpu_arch_t::xe_lp:
+        case gpu::compute::gpu_arch_t::xe_hp: return 48 * 1024;
+        case gpu::compute::gpu_arch_t::xe_hpg: return 96 * 1024;
+        case gpu::compute::gpu_arch_t::xe_hpc: return 80 * 1024;
+        case gpu::compute::gpu_arch_t::xe2: return 96 * 1024;
+        case gpu::compute::gpu_arch_t::unknown: assert(!"not expected");
+    }
+    return 0;
+}
+
 status_t device_info_t::init_attributes_common(engine_t *engine) {
     // TODO: Fix for discrete GPUs. The code below is written for
     // integrated GPUs assuming that last-level cache for GPU is shared
