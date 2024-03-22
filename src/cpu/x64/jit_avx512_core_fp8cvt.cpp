@@ -135,21 +135,38 @@ void fp8_emulation_e4m3_t::prepare_table() {
     }
 }
 
-void fp8_emulation_e5m2_t::vcvt_f8_to_f16(const Xbyak::Xmm &xmm_out,
-        const Xbyak::Operand &op_in, bool do_nan_check) {
+void fp8_emulation_e5m2_t::vcvt_f8_to_f16(
+        const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in) {
     assert(utils::one_of(
             true, op_in.isXMM(), op_in.isYMM(), op_in.isZMM(), op_in.isMEM()));
+    const Xbyak::Ymm ymm_out(xmm_out.getIdx());
+    const Xbyak::Zmm zmm_out(xmm_out.getIdx());
+
     // f16 <- f8_e5m2
     host_->vpmovzxbw(xmm_out, op_in);
     host_->vpsllw(xmm_out, xmm_out, 8);
-    if (do_nan_check) {
-        // Floating point conversions typically set quiet bit for NaN inputs.
-        // Here we add extra conversions to and from f32 to achieve this, but
-        // in practice it should be okay to skip this step.
+    // Floating point conversions typically set quiet bit for NaN inputs.
+    // Here we add extra conversions to and from f32 to achieve this, but
+    // in practice it should be okay to skip this step.
+    if (xmm_out.isZMM()) {
+        const Xbyak::Ymm ymm_aux1(xmm_aux1_.getIdx());
+        const Xbyak::Zmm zmm_aux1(xmm_aux1_.getIdx());
+        // process upper bytes
+        host_->vextractf64x4(ymm_aux1, zmm_out, 1);
+        host_->vcvtph2psx(zmm_aux1, ymm_aux1);
+        host_->vcvtps2phx(ymm_aux1, zmm_aux1);
+        host_->vinsertf64x4(zmm_out, zmm_out, ymm_aux1, 1);
+
+        // process low bytes
+        host_->vextractf64x4(ymm_aux1, zmm_out, 0);
+        host_->vcvtph2psx(zmm_aux1, ymm_aux1);
+        host_->vcvtps2phx(ymm_aux1, zmm_aux1);
+        host_->vinsertf64x4(zmm_out, zmm_out, ymm_aux1, 0);
+    } else {
         // f32 <- f16
-        host_->vcvtph2psx(xmm_out, xmm_out);
+        host_->vcvtph2psx(zmm_out, ymm_out);
         // f16 <- f32
-        host_->vcvtps2phx(xmm_out, xmm_out);
+        host_->vcvtps2phx(ymm_out, zmm_out);
     }
 }
 
@@ -219,8 +236,8 @@ void fp8_emulation_e5m2_t::vcvt_f8_to_f32(
     host_->vcvtph2psx(zmm_out, ymm_out);
 }
 
-void fp8_emulation_e4m3_t::vcvt_f8_to_f16(const Xbyak::Xmm &xmm_out,
-        const Xbyak::Operand &op_in, bool do_nan_check) {
+void fp8_emulation_e4m3_t::vcvt_f8_to_f16(
+        const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in) {
     assert(utils::one_of(
             true, op_in.isXMM(), op_in.isYMM(), op_in.isZMM(), op_in.isMEM()));
 
@@ -270,8 +287,8 @@ void fp8_emulation_e4m3_t::vcvt_f8_to_f16_vnni(const Xbyak::Zmm &zmm_out1,
     // move fp8 values from upper bytes to ymm_aux2
     host_->vextractf64x4(ymm_out2, zmm_out1, 1);
 
-    vcvt_f8_to_f16(zmm_out1, ymm_out1, false);
-    vcvt_f8_to_f16(zmm_out2, ymm_out2, false);
+    vcvt_f8_to_f16(zmm_out1, ymm_out1);
+    vcvt_f8_to_f16(zmm_out2, ymm_out2);
 }
 
 void fp8_emulation_e4m3_t::vcvt_f8_to_f16_vnni_block(int num_rows,
@@ -294,8 +311,8 @@ void fp8_emulation_e4m3_t::vcvt_f8_to_f16_vnni_block(int num_rows,
         // move fp8 values from upper bytes to ymm_out2
         host_->vextractf64x4(ymm_out2, zmm_out1, 1);
 
-        vcvt_f8_to_f16(zmm_out1, ymm_out1, false);
-        vcvt_f8_to_f16(zmm_out2, ymm_out2, false);
+        vcvt_f8_to_f16(zmm_out1, ymm_out1);
+        vcvt_f8_to_f16(zmm_out2, ymm_out2);
 
         host_->vmovups(
                 host_->ptr[reg_data_out + r * zmm_width_in_bytes], zmm_out1);
@@ -315,7 +332,7 @@ void fp8_emulation_e4m3_t::vcvt_f8_to_f32(
     const Xbyak::Zmm zmm_out(xmm_out.getIdx());
 
     // f16 <- f8_e4m3
-    vcvt_f8_to_f16(ymm_mask(xmm_out), op_in, false);
+    vcvt_f8_to_f16(ymm_mask(xmm_out), op_in);
 
     // f32 <- f16
     host_->vcvtph2psx(zmm_out, ymm_out);
@@ -499,7 +516,7 @@ void jit_cvt_fp8_t::generate() {
         case f8_e4m3_to_f16:
             movzx(reg64_aux, byte[reg64_inp]);
             vmovq(xmm_inp, reg64_aux);
-            fp8_emu_->vcvt_f8_to_f16(ymm_out, xmm_inp, false);
+            fp8_emu_->vcvt_f8_to_f16(ymm_out, xmm_inp);
             vmovw(word[reg64_out], xmm_out);
             break;
         case f16_to_f8_e5m2:

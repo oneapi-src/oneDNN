@@ -1770,11 +1770,9 @@ void jit_brgemm_amx_uker_base_t::fp8_to_f16_upconvert(brgemm_iteration_t &bi,
 
     for (int r = 0; r < num_rows; ++r) {
         if (dt == data_type::f8_e5m2)
-            f8_e5m2_emulator_->vcvt_f8_to_f16(
-                    zmm_1_masked, ptr[reg_data_aux], false);
+            f8_e5m2_emulator_->vcvt_f8_to_f16(zmm_1_masked, ptr[reg_data_aux]);
         else if (dt == data_type::f8_e4m3)
-            f8_e4m3_emulator_->vcvt_f8_to_f16(
-                    zmm_1_masked, ptr[reg_data_aux], false);
+            f8_e4m3_emulator_->vcvt_f8_to_f16(zmm_1_masked, ptr[reg_data_aux]);
         else
             assert(!"unsupported data type");
 
