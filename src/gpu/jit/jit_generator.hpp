@@ -219,22 +219,6 @@ compute::kernel_t make_kernel(
     }
 #undef CASE
 
-#ifdef DNNL_DEV_MODE
-    gpu_gen_t actual_arch = ngen::HW::Unknown;
-    switch (device_info->gpu_arch()) {
-        case gpu_arch_t::gen9: actual_arch = gpu_gen9; break;
-        case gpu_arch_t::gen11: actual_arch = gpu_gen11; break;
-        case gpu_arch_t::xe_lp: actual_arch = gpu_xe_lp; break;
-        case gpu_arch_t::xe_hp: actual_arch = gpu_xe_hp; break;
-        case gpu_arch_t::xe_hpg: actual_arch = gpu_xe_hpg; break;
-        case gpu_arch_t::xe_hpc: actual_arch = gpu_xe_hpc; break;
-        case gpu_arch_t::xe2: actual_arch = gpu_xe2; break;
-        case gpu_arch_t::unknown: actual_arch = ngen::HW::Unknown; break;
-    }
-    ir_assert(actual_arch == arch)
-            << "Cannot emulate executing gpu_arch environment";
-#endif
-
     if (!jit_kernel) return kernel_t();
 
     status_t status
