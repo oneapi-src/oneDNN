@@ -124,13 +124,17 @@ status_t sycl_device_info_t::init_attributes(engine_t *engine) {
             // XXX: OpenCL backend get_info() queries below are not yet
             // supported so query OpenCL directly.
             cl_device_id ocl_dev = compat::get_native<cl_device_id>(device);
-            CHECK(gpu::ocl::get_ocl_device_eu_count(ocl_dev, &eu_count_));
+            CHECK(gpu::ocl::get_ocl_device_eu_count(
+                    ocl_dev, gpu_arch_, &eu_count_));
         } else {
             auto slices = device.get_info<compat::ext_intel_gpu_slices>();
             auto sub_slices = device.get_info<
                     compat::ext_intel_gpu_subslices_per_slice>();
             auto eus_per_subslice = device.get_info<::sycl::info::device::
                             ext_intel_gpu_eu_count_per_subslice>();
+            if (gpu_arch_ == gpu::compute::gpu_arch_t::xe2)
+                eus_per_subslice
+                        = 8; /* override incorrect driver information */
             eu_count_ = slices * sub_slices * eus_per_subslice;
         }
     } else {
