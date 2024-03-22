@@ -43,7 +43,7 @@ public:
 
     int grf_size() const { return hw().grf_size(); }
 
-    const constraint_set_t &cset() { return cset_; }
+    const constraint_set_t &cset() const { return cset_; }
 
     void add_constraint(const expr_t &e);
 
