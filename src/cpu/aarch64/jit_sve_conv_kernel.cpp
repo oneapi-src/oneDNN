@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 
 #include "cpu/aarch64/cpu_barrier.hpp"
 
-#include "cpu/aarch64/jit_sve_512_conv_kernel.hpp"
+#include "cpu/aarch64/jit_sve_conv_kernel.hpp"
 #include "cpu/platform.hpp"
 
 #define GET_OFF(field) static_cast<int32_t>(offsetof(jit_conv_call_s, field))
@@ -92,7 +92,8 @@ inline bool is_owb_prefetching(const jit_conv_conf_t &jcp) {
 
 } // namespace
 
-void jit_sve_512_conv_fwd_kernel::prepare_output(int ur_w) {
+template <cpu_isa_t isa>
+void jit_sve_conv_fwd_kernel<isa>::prepare_output(int ur_w) {
 
     auto zreg_out_s = [=](int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
@@ -121,7 +122,8 @@ void jit_sve_512_conv_fwd_kernel::prepare_output(int ur_w) {
         }
 }
 
-void jit_sve_512_conv_fwd_kernel::store_output(int ur_w) {
+template <cpu_isa_t isa>
+void jit_sve_conv_fwd_kernel<isa>::store_output(int ur_w) {
 
     Label no_update_label, store_label, eltwise_label;
 
@@ -163,17 +165,17 @@ void jit_sve_512_conv_fwd_kernel::store_output(int ur_w) {
             if (j == 0) {
                 add_imm(reg_out_ofs, reg_out, aux_output_offset, reg_tmp_imm);
                 prev_out_ofs = aux_output_offset;
-                ldr(zreg_tmp(idx), ptr(reg_out_ofs));
-            } else if (ldr_imm_check(aux_output_offset - prev_out_ofs)) {
-                ldr(zreg_tmp(idx),
-                        ptr(reg_out_ofs,
-                                static_cast<int32_t>(VL_OFS(
-                                        aux_output_offset - prev_out_ofs))));
+                ld1w(zreg_tmp(idx).s, P_ALL_ONE / T_z, ptr(reg_out_ofs));
+            } else if (ldr_imm_check<size_t, isa>(
+                               aux_output_offset - prev_out_ofs)) {
+                add_imm(X_DEFAULT_ADDR, reg_out_ofs,
+                        (aux_output_offset - prev_out_ofs), X_TMP_0);
+                ld1w(zreg_tmp(idx).s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
             } else {
                 add_imm(reg_out_ofs, reg_out_ofs,
                         aux_output_offset - prev_out_ofs, reg_tmp_imm);
                 prev_out_ofs = aux_output_offset;
-                ldr(zreg_tmp(idx), ptr(reg_out_ofs));
+                ld1w(zreg_tmp(idx).s, P_ALL_ONE / T_z, ptr(reg_out_ofs));
             }
         }
         for (int j = 0; j < ur_w; j++) {
@@ -195,13 +197,13 @@ void jit_sve_512_conv_fwd_kernel::store_output(int ur_w) {
     auto bias_load = [=](int bias_offset, int idx) {
         int ofs = bias_offset;
 
-        if ((VL_OFS(ofs) < LDRMAX) && (VL_OFS(ofs) >= (-1 * LDRMAX))
+        if ((VL_OFS(ofs, isa) < LDRMAX) && (VL_OFS(ofs, isa) >= (-1 * LDRMAX))
                 && ((ofs & 0x3f) == 0)) {
-            ldr(zreg_tmp(idx),
-                    ptr(reg_bias, static_cast<int32_t>(VL_OFS(ofs))));
+            add_imm(X_DEFAULT_ADDR, reg_bias, ofs, X_TMP_0);
+            ld1w(zreg_tmp(idx).s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
         } else {
             add_imm(reg_tmp_addr, reg_bias, ofs, reg_tmp_imm);
-            ldr(zreg_tmp(idx), ptr(reg_tmp_addr));
+            ld1w(zreg_tmp(idx).s, P_ALL_ONE / T_z, ptr(reg_tmp_addr));
         }
     };
 
@@ -237,20 +239,21 @@ void jit_sve_512_conv_fwd_kernel::store_output(int ur_w) {
     auto out_str = [=](int j, int k, int aux_output_offset, int prev_out_ofs) {
         int ofs = aux_output_offset;
 
-        if (str_imm_check(ofs)) {
-            str(zreg_out(j, k),
-                    ptr(reg_out, static_cast<int32_t>(VL_OFS(ofs))));
-        } else if ((prev_out_ofs != -1) && str_imm_check(ofs - prev_out_ofs)) {
-            str(zreg_out(j, k),
-                    ptr(reg_tmp_addr,
-                            static_cast<int32_t>(VL_OFS(ofs - prev_out_ofs))));
+        if (str_imm_check<int, isa>(ofs)) {
+            add_imm(X_DEFAULT_ADDR, reg_out, ofs, X_TMP_0);
+            st1w(zreg_out(j, k).s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
+        } else if ((prev_out_ofs != -1)
+                && str_imm_check<int, isa>(ofs - prev_out_ofs)) {
+            add_imm(X_DEFAULT_ADDR, reg_tmp_addr, (ofs - prev_out_ofs),
+                    X_TMP_0);
+            st1w(zreg_out(j, k).s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
         } else {
             if (prev_out_ofs == -1)
                 add_imm(reg_tmp_addr, reg_out, ofs, reg_tmp_imm);
             else
                 add_imm(reg_tmp_addr, reg_tmp_addr, ofs - prev_out_ofs,
                         reg_tmp_imm);
-            str(zreg_out(j, k), ptr(reg_tmp_addr));
+            st1w(zreg_out(j, k).s, P_ALL_ONE / T_z, ptr(reg_tmp_addr));
             prev_out_ofs = aux_output_offset;
         }
         return prev_out_ofs;
@@ -269,7 +272,8 @@ void jit_sve_512_conv_fwd_kernel::store_output(int ur_w) {
     }
 }
 
-void jit_sve_512_conv_fwd_kernel::compute_loop_fma_core(
+template <cpu_isa_t isa>
+void jit_sve_conv_fwd_kernel<isa>::compute_loop_fma_core(
         int ur_w, int pad_l, int pad_r) {
     int kw = jcp.kw;
     int ic_block = jcp.ic_block;
@@ -386,15 +390,14 @@ void jit_sve_512_conv_fwd_kernel::compute_loop_fma_core(
     auto wei_load = [=](int aux_kernel_offset, int reg_idx, int prev_ofs) {
         int ofs = aux_kernel_offset;
 
-        if (ldr_imm_check(ofs)) {
-            ldr(zreg_wei(reg_idx),
-                    ptr(aux_reg_ker, static_cast<int32_t>(VL_OFS(ofs))));
+        if (ldr_imm_check<int, isa>(ofs)) {
+            add_imm(X_DEFAULT_ADDR, aux_reg_ker, ofs, X_TMP_0);
+            ld1w(zreg_wei(reg_idx).s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
         } else {
             int ofs_tmp = ofs - prev_ofs;
-            if ((prev_ofs != -1) && ldr_imm_check(ofs_tmp)) {
-                ldr(zreg_wei(reg_idx),
-                        ptr(reg_prev_wei_addr,
-                                static_cast<int32_t>(VL_OFS(ofs_tmp))));
+            if ((prev_ofs != -1) && ldr_imm_check<int, isa>(ofs_tmp)) {
+                add_imm(X_DEFAULT_ADDR, reg_prev_wei_addr, ofs_tmp, X_TMP_0);
+                ld1w(zreg_wei(reg_idx).s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
             } else {
                 if ((prev_ofs != -1) && (ofs_tmp > 0)) {
                     ofs_tmp = aux_kernel_offset - prev_ofs;
@@ -404,7 +407,8 @@ void jit_sve_512_conv_fwd_kernel::compute_loop_fma_core(
                     add_imm(reg_prev_wei_addr, aux_reg_ker, ofs, reg_tmp_imm);
                 }
 
-                ldr(zreg_wei(reg_idx), ptr(reg_prev_wei_addr));
+                ld1w(zreg_wei(reg_idx).s, P_ALL_ONE / T_z,
+                        ptr(reg_prev_wei_addr));
                 prev_ofs = ofs;
             }
         }
@@ -526,7 +530,9 @@ void jit_sve_512_conv_fwd_kernel::compute_loop_fma_core(
     }
 }
 
-void jit_sve_512_conv_fwd_kernel::compute_loop(int ur_w, int pad_l, int pad_r) {
+template <cpu_isa_t isa>
+void jit_sve_conv_fwd_kernel<isa>::compute_loop(
+        int ur_w, int pad_l, int pad_r) {
 
     if (jcp.ndims == 5) mov(reg_oi_org, reg_oi);
 
@@ -590,7 +596,8 @@ void jit_sve_512_conv_fwd_kernel::compute_loop(int ur_w, int pad_l, int pad_r) {
     if (jcp.ndims == 5) mov(reg_oi, reg_oi_org);
 }
 
-void jit_sve_512_conv_fwd_kernel::generate() {
+template <cpu_isa_t isa>
+void jit_sve_conv_fwd_kernel<isa>::generate() {
     int iw = jcp.iw;
     int ow = jcp.ow;
     int ow_block = jcp.ow_block;
@@ -609,7 +616,14 @@ void jit_sve_512_conv_fwd_kernel::generate() {
     int out_shift = jcp.typesize_out * ur_w
             * (is_dst_layout_nxc() ? jcp.ngroups * jcp.oc : jcp.oc_block);
 
+    const int simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
+
     preamble();
+
+    //TO DO : renaming predicate register (P_ALL_ONE)
+    if (simd_w_ != cpu_sveLen / sizeof(float))
+        set_preg(P_ALL_ONE.s, simd_w_, X_TMP_0, X_TMP_1);
+
     ldr(reg_inp, ptr(abi_param1, GET_OFF(src)));
     ldr(reg_out, ptr(abi_param1, GET_OFF(dst)));
     ldr(reg_ker, ptr(abi_param1, GET_OFF(filt)));
@@ -803,7 +817,8 @@ void jit_sve_512_conv_fwd_kernel::generate() {
     if (jcp.with_eltwise) { eltwise_injector_->prepare_table(); }
 }
 
-bool jit_sve_512_conv_fwd_kernel::post_ops_ok(
+template <cpu_isa_t isa>
+bool jit_sve_conv_fwd_kernel<isa>::post_ops_ok(
         jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
@@ -820,13 +835,14 @@ bool jit_sve_512_conv_fwd_kernel::post_ops_ok(
     return false;
 }
 
-status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
+template <cpu_isa_t isa>
+status_t jit_sve_conv_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
-    if (!mayiuse(sve_512)) { return status::unimplemented; }
+    if (!mayiuse(isa)) { return status::unimplemented; }
 
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
@@ -883,10 +899,12 @@ status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
     const auto dat_tag_ncx = pick(ndims - 3, ncw, nchw, ncdhw);
+    const auto dat_tag_nCx8c = pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
     const auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
     auto curr_src_tag = src_d.matches_one_of_tag(
-            dat_tag_nxc, dat_tag_nCx16c, dat_tag_ncx);
-    auto curr_dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
+            dat_tag_nxc, dat_tag_nCx16c, dat_tag_nCx8c, dat_tag_ncx);
+    auto curr_dst_tag = dst_d.matches_one_of_tag(
+            dat_tag_nxc, dat_tag_nCx16c, dat_tag_nCx8c);
     bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
@@ -897,7 +915,7 @@ status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     bool ok_to_pad_channels
             = true && jcp.ngroups == 1 && src_d.data_type() == data_type::f32;
 
-    const int full_simd_w = cpu_isa_traits<sve_512>::vlen / typesize;
+    int full_simd_w = cpu_isa_traits<isa>::vlen / typesize;
     jcp.simd_w = full_simd_w;
     jcp.oc_block = jcp.simd_w;
     jcp.ic_block = jcp.is_1stconv ? jcp.ic : jcp.simd_w;
@@ -925,17 +943,28 @@ status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
-        if (!eltwise_injector::is_supported(sve_512, jcp.eltwise.alg))
+        if (!eltwise_injector::is_supported(isa, jcp.eltwise.alg))
             return status::unimplemented;
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
     }
 
     format_tag_t src_tag, dst_tag, wei_tag;
 
-    dst_tag = dat_tag_nCx16c;
-    src_tag = jcp.is_1stconv ? dat_tag_ncx : dat_tag_nCx16c;
-    wei_tag = pick(2 * ndims - 6 + with_groups, OIw16i16o, gOIw16i16o,
-            OIhw16i16o, gOIhw16i16o, OIdhw16i16o, gOIdhw16i16o);
+    switch (isa) {
+        case sve_512:
+            dst_tag = dat_tag_nCx16c;
+            src_tag = jcp.is_1stconv ? dat_tag_ncx : dat_tag_nCx16c;
+            wei_tag = pick(2 * ndims - 6 + with_groups, OIw16i16o, gOIw16i16o,
+                    OIhw16i16o, gOIhw16i16o, OIdhw16i16o, gOIdhw16i16o);
+            break;
+        case sve_256:
+            dst_tag = dat_tag_nCx8c;
+            src_tag = jcp.is_1stconv ? dat_tag_ncx : dat_tag_nCx8c;
+            wei_tag = pick(2 * ndims - 6 + with_groups, OIw8i8o, gOIw8i8o,
+                    OIhw8i8o, gOIhw8i8o, OIdhw8i8o, gOIdhw8i8o);
+            break;
+        default: break;
+    }
 
     if (src_md.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(src_md, src_tag));
@@ -955,7 +984,7 @@ status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             CHECK(memory_desc_init_by_tag(bias_md, x));
     }
 
-    if (mayiuse(sve_512) && src_d.data_type() == data_type::f32
+    if (mayiuse(isa) && src_d.data_type() == data_type::f32
             && weights_d.data_type() == data_type::f32
             && dst_d.data_type() == data_type::f32) {
         jcp.ver = ver_fma;
@@ -963,9 +992,19 @@ status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.typesize_out = typesize;
 
         if (jcp.is_1stconv) {
-            wei_tag = with_groups
-                    ? pick(ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
-                    : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
+            switch (isa) {
+                case sve_512:
+                    wei_tag = with_groups
+                            ? pick(ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
+                            : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
+                    break;
+                case sve_256:
+                    wei_tag = with_groups
+                            ? pick(ndims - 3, gOwi8o, gOhwi8o, gOdhwi8o)
+                            : pick(ndims - 3, Owi8o, Ohwi8o, Odhwi8o);
+                    break;
+                default: break;
+            }
         }
     } else {
         return status::unimplemented;
@@ -1012,7 +1051,7 @@ status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return res_ow_block;
     };
 
-    if (jcp.ver == ver_fma && mayiuse(sve_512)) {
+    if (jcp.ver == ver_fma && mayiuse(isa)) {
         // These conditions define a set of shapes with 'ow = 1' which
         // have a very limited optimization space for performance. Try
         // to optimize by using a larger 'nb_oc_blocking' size.
@@ -1151,14 +1190,16 @@ status_t jit_sve_512_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     return status::success;
 }
 
-void jit_sve_512_conv_fwd_kernel::init_scratchpad(
+template <cpu_isa_t isa>
+void jit_sve_conv_fwd_kernel<isa>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
 
     if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
         scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_out);
 }
 
-void jit_sve_512_conv_bwd_data_kernel_f32::prepare_output(int ur_w) {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_data_kernel_f32<isa>::prepare_output(int ur_w) {
     auto zreg_out_s = [=](int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
@@ -1179,7 +1220,8 @@ void jit_sve_512_conv_bwd_data_kernel_f32::prepare_output(int ur_w) {
     }
 }
 
-void jit_sve_512_conv_bwd_data_kernel_f32::store_output(int ur_w) {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_data_kernel_f32<isa>::store_output(int ur_w) {
 
     int num_used_zreg = 32 - ker_reg_base_idx;
 
@@ -1207,17 +1249,18 @@ void jit_sve_512_conv_bwd_data_kernel_f32::store_output(int ur_w) {
 
     auto out_load = [=](int aux_output_offset, int idx, int prev_ofs) {
         int ofs = aux_output_offset;
-        if ((VL_OFS(ofs) < LDRMAX) && (VL_OFS(ofs) >= (-1 * LDRMAX))
+        if ((VL_OFS(ofs, isa) < LDRMAX) && (VL_OFS(ofs, isa) >= (-1 * LDRMAX))
                 && ((ofs & 0x3f) == 0)) {
-            ldr(zreg_tmp(idx), ptr(reg_src, static_cast<int32_t>(VL_OFS(ofs))));
+            ldr(zreg_tmp(idx),
+                    ptr(reg_src, static_cast<int32_t>(VL_OFS(ofs, isa))));
         } else {
             int tmp_ofs = aux_output_offset - prev_ofs;
 
-            if (((tmp_ofs & 0x3f) == 0) && (VL_OFS(tmp_ofs) < LDRWMAX)
+            if (((tmp_ofs & 0x3f) == 0) && (VL_OFS(tmp_ofs, isa) < LDRWMAX)
                     && (tmp_ofs >= 0)) {
                 ldr(zreg_tmp(idx),
                         ptr(reg_tmp_addr,
-                                static_cast<int32_t>(VL_OFS(tmp_ofs))));
+                                static_cast<int32_t>(VL_OFS(tmp_ofs, isa))));
             } else {
                 add_imm(reg_tmp_addr, reg_src, ofs, reg_tmp_imm);
                 ldr(zreg_tmp(idx), ptr(reg_tmp_addr));
@@ -1230,18 +1273,18 @@ void jit_sve_512_conv_bwd_data_kernel_f32::store_output(int ur_w) {
     auto out_str = [=](int j, int k, int aux_output_offset, int prev_ofs) {
         int ofs = aux_output_offset;
 
-        if ((VL_OFS(ofs) < LDRMAX) && (VL_OFS(ofs) >= (-1 * LDRMAX))
+        if ((VL_OFS(ofs, isa) < LDRMAX) && (VL_OFS(ofs, isa) >= (-1 * LDRMAX))
                 && ((ofs & 0x3f) == 0)) {
             str(zreg_out(j, k),
-                    ptr(reg_src, static_cast<int32_t>(VL_OFS(ofs))));
+                    ptr(reg_src, static_cast<int32_t>(VL_OFS(ofs, isa))));
         } else {
             int tmp_ofs = aux_output_offset - prev_ofs;
 
-            if (((tmp_ofs & 0x3f) == 0) && (VL_OFS(tmp_ofs) < LDRWMAX)
+            if (((tmp_ofs & 0x3f) == 0) && (VL_OFS(tmp_ofs, isa) < LDRWMAX)
                     && (tmp_ofs >= 0)) {
                 str(zreg_out(j, k),
                         ptr(reg_tmp_addr,
-                                static_cast<int32_t>(VL_OFS(tmp_ofs))));
+                                static_cast<int32_t>(VL_OFS(tmp_ofs, isa))));
             } else {
                 add_imm(reg_tmp_addr, reg_src, ofs, reg_tmp_imm);
                 str(zreg_out(j, k), ptr(reg_tmp_addr));
@@ -1290,7 +1333,8 @@ void jit_sve_512_conv_bwd_data_kernel_f32::store_output(int ur_w) {
     }
 }
 
-void jit_sve_512_conv_bwd_data_kernel_f32::compute_loop_fma(
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_data_kernel_f32<isa>::compute_loop_fma(
         int ur_w, int l_overflow, int r_overflow) {
     Label kh_label, kd_label;
     int kw = jcp.kw;
@@ -1370,10 +1414,10 @@ void jit_sve_512_conv_bwd_data_kernel_f32::compute_loop_fma(
     auto ker_load = [=](int i, int aux_kernel_offset) {
         int ofs = aux_kernel_offset;
 
-        if ((VL_OFS(ofs) < LDRMAX) && (VL_OFS(ofs) >= (-1 * LDRMAX))
+        if ((VL_OFS(ofs, isa) < LDRMAX) && (VL_OFS(ofs, isa) >= (-1 * LDRMAX))
                 && ((ofs & 0x3f) == 0)) {
             ldr(zreg_ker(i),
-                    ptr(aux_reg_ker, static_cast<int32_t>(VL_OFS(ofs))));
+                    ptr(aux_reg_ker, static_cast<int32_t>(VL_OFS(ofs, isa))));
         } else {
             add_imm(reg_tmp_addr, aux_reg_ker, ofs, reg_tmp_imm);
             ldr(zreg_ker(i), ptr(reg_tmp_addr));
@@ -1531,7 +1575,8 @@ void jit_sve_512_conv_bwd_data_kernel_f32::compute_loop_fma(
     }
 }
 
-void jit_sve_512_conv_bwd_data_kernel_f32::compute_loop_fma_core(
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_data_kernel_f32<isa>::compute_loop_fma_core(
         int ur_w, int l_overflow, int r_overflow, int k_offset) {
     int kw = jcp.kw;
     int ow = jcp.ow;
@@ -1646,9 +1691,10 @@ void jit_sve_512_conv_bwd_data_kernel_f32::compute_loop_fma_core(
     auto wei_load = [=](int aux_kernel_offset, int idx) {
         int ofs = aux_kernel_offset;
 
-        if ((VL_OFS(ofs) < LDRMAX) && (VL_OFS(ofs) >= (-1 * LDRMAX))) {
+        if ((VL_OFS(ofs, isa) < LDRMAX)
+                && (VL_OFS(ofs, isa) >= (-1 * LDRMAX))) {
             ldr(zreg_wei(idx),
-                    ptr(aux_reg_ker, static_cast<int32_t>(VL_OFS(ofs))));
+                    ptr(aux_reg_ker, static_cast<int32_t>(VL_OFS(ofs, isa))));
         } else {
             add_imm(reg_tmp_addr, aux_reg_ker, ofs, reg_tmp_imm);
             ldr(zreg_wei(idx), ptr(reg_tmp_addr));
@@ -1770,7 +1816,8 @@ void jit_sve_512_conv_bwd_data_kernel_f32::compute_loop_fma_core(
     }
 }
 
-inline void jit_sve_512_conv_bwd_data_kernel_f32::compute_loop(
+template <cpu_isa_t isa>
+inline void jit_sve_conv_bwd_data_kernel_f32<isa>::compute_loop(
         int ur_w, int l_overflow, int r_overflow, int k_offset) {
     if (jcp.ndims == 5) mov(reg_oi_org, reg_oi);
 
@@ -1822,7 +1869,8 @@ inline void jit_sve_512_conv_bwd_data_kernel_f32::compute_loop(
     if (jcp.ndims == 5) mov(reg_oi, reg_oi_org);
 }
 
-void jit_sve_512_conv_bwd_data_kernel_f32::generate() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_data_kernel_f32<isa>::generate() {
     int iw = jcp.iw;
     int kw = jcp.kw;
     int ur_w = jcp.ur_w;
@@ -2011,7 +2059,8 @@ void jit_sve_512_conv_bwd_data_kernel_f32::generate() {
     postamble();
 }
 
-status_t jit_sve_512_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
+template <cpu_isa_t isa>
+status_t jit_sve_conv_bwd_data_kernel_f32<isa>::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, memory_desc_t &diff_src_md,
         memory_desc_t &weights_md, memory_desc_t &diff_dst_md, int nthreads) {
     if (!mayiuse(sve_512)) return status::unimplemented;
@@ -2377,17 +2426,21 @@ status_t jit_sve_512_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     return status::success;
 }
 
-void jit_sve_512_conv_bwd_data_kernel_f32::init_scratchpad(
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_data_kernel_f32<isa>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
     UNUSED(scratchpad);
     UNUSED(jcp);
 }
 
 // Initialize static data members
-const int jit_sve_512_conv_bwd_weights_kernel_f32::max_ur_w = 28;
-const int jit_sve_512_conv_bwd_weights_kernel_f32::min_oh_reduce = 9;
+template <dnnl::impl::cpu::aarch64::cpu_isa_t isa>
+const int jit_sve_conv_bwd_weights_kernel_f32<isa>::max_ur_w = 28;
+template <dnnl::impl::cpu::aarch64::cpu_isa_t isa>
+const int jit_sve_conv_bwd_weights_kernel_f32<isa>::min_oh_reduce = 9;
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::od_step_comeback_pointers() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::od_step_comeback_pointers() {
     Label kd_comeback_label;
 
     /* 'depth' loop count bound by 'kd_work_size' */
@@ -2411,7 +2464,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::od_step_comeback_pointers() {
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::oh_step_comeback_pointers() {
     Label kh_comeback_label, kd_comeback_label;
     mov(kj, reg_kh);
     L(kh_comeback_label);
@@ -2433,7 +2487,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers() {
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::compute_ic_block_step(int ur_w,
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::compute_ic_block_step(int ur_w,
         int pad_l, int pad_r, int ic_block_step, int input_offset,
         int kernel_offset, int output_offset, bool input_wraparound) {
 
@@ -2446,13 +2501,13 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_ic_block_step(int ur_w,
     auto load_ker = [=](int zreg_idx, int ofs, int pre_offset_ker) {
         if (str_imm_check(ofs)) {
             ldr(ZReg(zreg_idx),
-                    ptr(reg_kernel, static_cast<int32_t>(VL_OFS(ofs))));
+                    ptr(reg_kernel, static_cast<int32_t>(VL_OFS(ofs, isa))));
         } else {
             if (pre_offset_ker >= 0 && str_imm_check(ofs - pre_offset_ker)) {
                 ldr(ZReg(zreg_idx),
                         ptr(reg_pre_addr_ker,
                                 static_cast<int32_t>(
-                                        VL_OFS(ofs - pre_offset_ker))));
+                                        VL_OFS((ofs - pre_offset_ker), isa))));
             } else {
                 add_imm(reg_pre_addr_ker, reg_kernel, ofs, reg_tmp_imm);
                 ldr(ZReg(zreg_idx), ptr(reg_pre_addr_ker));
@@ -2565,13 +2620,13 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_ic_block_step(int ur_w,
     auto load_out = [&](int zreg_idx, int ofs) {
         if (ldr_imm_check(ofs)) {
             ldr(ZReg(zreg_idx),
-                    ptr(reg_output, static_cast<int32_t>(VL_OFS(ofs))));
+                    ptr(reg_output, static_cast<int32_t>(VL_OFS(ofs, isa))));
         } else {
             if (pre_offset_out >= 0 && ldr_imm_check(ofs - pre_offset_out)) {
                 ldr(ZReg(zreg_idx),
                         ptr(reg_pre_addr_out,
                                 static_cast<int32_t>(
-                                        VL_OFS(ofs - pre_offset_out))));
+                                        VL_OFS((ofs - pre_offset_out), isa))));
             } else {
                 add_imm(reg_pre_addr_out, reg_output, ofs, reg_tmp_imm);
                 ldr(ZReg(zreg_idx), ptr(reg_pre_addr_out));
@@ -2697,13 +2752,13 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_ic_block_step(int ur_w,
     auto store_ker = [=](int zreg_idx, int ofs, int pre_offset_ker) {
         if (str_imm_check(ofs)) {
             str(ZReg(zreg_idx),
-                    ptr(reg_kernel, static_cast<int32_t>(VL_OFS(ofs))));
+                    ptr(reg_kernel, static_cast<int32_t>(VL_OFS(ofs, isa))));
         } else {
             if (pre_offset_ker >= 0 && str_imm_check(ofs - pre_offset_ker)) {
                 str(ZReg(zreg_idx),
                         ptr(reg_pre_addr_ker,
                                 static_cast<int32_t>(
-                                        VL_OFS(ofs - pre_offset_ker))));
+                                        VL_OFS((ofs - pre_offset_ker), isa))));
             } else {
                 add_imm(reg_pre_addr_ker, reg_kernel, ofs, reg_tmp_imm);
                 str(ZReg(zreg_idx), ptr(reg_pre_addr_ker));
@@ -2725,8 +2780,10 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_ic_block_step(int ur_w,
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32 ::
-        compute_oh_step_unroll_ow_icblock(int ic_block_step, int max_ur_w) {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<
+        isa>::compute_oh_step_unroll_ow_icblock(int ic_block_step,
+        int max_ur_w) {
     UNUSED(max_ur_w);
 
     Label kh_label, kd_label;
@@ -2848,7 +2905,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32 ::
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32 ::compute_oh_step_unroll_ow(
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::compute_oh_step_unroll_ow(
         int ic_block_step, int max_ur_w) {
     Label kh_label, ic_block_label, ic_tail_loop_label, ic_tail_label, kd_label;
     const bool src_layout_nxc = is_src_layout_nxc();
@@ -2997,7 +3055,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32 ::compute_oh_step_unroll_ow(
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32 ::compute_oh_step_common(
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::compute_oh_step_common(
         int ic_block_step, int max_ur_w) {
     using namespace nstl;
     Label kh_label, ic_block_label, ic_tail_loop_label, ic_tail_label, kd_label;
@@ -3209,7 +3268,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32 ::compute_oh_step_common(
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32 ::compute_oh_step_disp() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::compute_oh_step_disp() {
     int ic_block_step;
     if (jcp.kernel_kind == expl_bcast)
         ic_block_step = jcp.kw <= 3 ? 4 : (jcp.kw <= 6 ? 2 : 1);
@@ -3253,7 +3313,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32 ::compute_oh_step_disp() {
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::maybe_zero_kernel() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::maybe_zero_kernel() {
     Label skip_zeroing, zeroing_loop;
 
     ldr(reg_tmp, ptr(param, GET_OFF(channel)));
@@ -3284,8 +3345,9 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::maybe_zero_kernel() {
             if (str_imm_check(ic1 * jcp.oc_block * jcp.typesize_out)) {
                 str(ZReg(0),
                         ptr(reg_ker_start_addr,
-                                static_cast<int32_t>(VL_OFS(ic1 * jcp.oc_block
-                                        * jcp.typesize_out))));
+                                static_cast<int32_t>(VL_OFS(
+                                        (ic1 * jcp.oc_block * jcp.typesize_out),
+                                        isa))));
             } else {
                 add_imm(reg_add_tmp, reg_ker_start_addr,
                         ic1 * jcp.oc_block * jcp.typesize_out, reg_tmp_imm);
@@ -3310,7 +3372,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::maybe_zero_kernel() {
     L(skip_zeroing);
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::bias_kernel_2d() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::bias_kernel_2d() {
     assert(jcp.ndims == 4); // only supports 2d
     Label skip_bias, bias_loop;
 
@@ -3339,7 +3402,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::bias_kernel_2d() {
     L(skip_bias);
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::bias_kernel_3d() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::bias_kernel_3d() {
     assert(jcp.ndims == 5); // only supports 3d
     Label skip_bias, bias_loop, skip_load_bias;
 
@@ -3383,7 +3447,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::bias_kernel_3d() {
     L(skip_bias);
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32 ::compute_oh_loop_common() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::compute_oh_loop_common() {
     assert(one_of(jcp.harness, harness_mb_reduction, harness_3d_reduction));
     int b_pad = jcp.b_pad;
     int t_pad = jcp.t_pad;
@@ -3588,7 +3653,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32 ::compute_oh_loop_common() {
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::compute_oh_loop_partial() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::compute_oh_loop_partial() {
     assert(jcp.harness == harness_2d_reduction);
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
@@ -3731,7 +3797,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_oh_loop_partial() {
     L(loop_end_label);
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::compute_od_loop_partial() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::compute_od_loop_partial() {
     assert(jcp.harness == harness_3d_reduction);
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
@@ -3861,7 +3928,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_od_loop_partial() {
     L(loop_end_label);
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::compute_loop() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::compute_loop() {
 
     maybe_zero_kernel();
 
@@ -3874,7 +3942,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::compute_loop() {
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::generate_kernel() {
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::generate_kernel() {
     preamble();
 
     ldr(reg_input, ptr(param, GET_OFF(src)));
@@ -3886,7 +3955,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::generate_kernel() {
     postamble();
 }
 
-status_t jit_sve_512_conv_bwd_weights_kernel_f32::init_conf(
+template <cpu_isa_t isa>
+status_t jit_sve_conv_bwd_weights_kernel_f32<isa>::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &diff_weights_md,
         memory_desc_t &diff_bias_md, memory_desc_t &diff_dst_md, int nthreads) {
@@ -4238,7 +4308,8 @@ status_t jit_sve_512_conv_bwd_weights_kernel_f32::init_conf(
     return status::success;
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::init_scratchpad(
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
     if (jcp.nthr_mb > 1) {
         const int wei_size = jcp.ngroups * rnd_up(jcp.oc, jcp.oc_block)
@@ -4260,7 +4331,8 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::init_scratchpad(
     }
 }
 
-void jit_sve_512_conv_bwd_weights_kernel_f32::balance(const jit_conv_conf_t &j,
+template <cpu_isa_t isa>
+void jit_sve_conv_bwd_weights_kernel_f32<isa>::balance(const jit_conv_conf_t &j,
         int &nthr_, int &nthr_mb_, int &nthr_g_, int &nthr_oc_b_,
         int &nthr_ic_b_, int nthreads) {
     nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
@@ -4338,6 +4410,12 @@ void jit_sve_512_conv_bwd_weights_kernel_f32::balance(const jit_conv_conf_t &j,
 
     assert(nthr_ <= nthreads);
 }
+
+/*struct instantiation*/
+template struct jit_sve_conv_fwd_kernel<sve_512>;
+template struct jit_sve_conv_fwd_kernel<sve_256>;
+template struct jit_sve_conv_bwd_data_kernel_f32<sve_512>;
+template struct jit_sve_conv_bwd_weights_kernel_f32<sve_512>;
 
 } // namespace aarch64
 } // namespace cpu
