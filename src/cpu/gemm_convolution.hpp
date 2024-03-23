@@ -30,6 +30,10 @@
 
 #include "ref_depthwise_injector.hpp"
 
+#if DNNL_X64
+#include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
+#endif
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -68,12 +72,34 @@ struct gemm_convolution_fwd_t : public primitive_t {
             auto const &po = attr()->post_ops_;
 
             auto all_post_ops_supported = [&]() {
-                bool ok = true;
-
                 for (int i = 0; i < po.len(); i++) {
-                    ok = ok && utils::one_of(po.entry_[i].kind, sum, binary, eltwise, depthwise, quantization);
+                    const auto &post_op = po.entry_[i];
+                    if (!utils::one_of(post_op.kind, sum, binary, eltwise,
+                                depthwise, quantization))
+                        return false;
+
+#if DNNL_X64
+                    using namespace cpu::x64;
+                    cpu_isa_t isa = isa_undef;
+                    if (po.entry_[i].kind == binary) {
+                        auto dst_md = this->dst_md();
+                        if (mayiuse(avx512_core))
+                            isa = avx512_core;
+                        else if (mayiuse(avx2))
+                            isa = avx2;
+                        else if (mayiuse(sse41))
+                            isa = sse41;
+                        if ((isa == isa_undef)
+                                || !binary_injector::is_supported(isa,
+                                        binary_injector::get_src1_desc(
+                                                post_op, *dst_md),
+                                        *dst_md, default_strategies())) {
+                            return false;
+                        }
+                    }
+#endif
                 }
-                return ok;
+                return true;
             };
             auto contain = [&](dnnl::impl::primitive_kind_t kind) { return po.find(kind) != -1; };
             auto position = [&](dnnl::impl::primitive_kind_t kind) { return po.find(kind); };
