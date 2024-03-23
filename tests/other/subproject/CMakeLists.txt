@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2021 Intel Corporation
+# Copyright 2018-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@
 cmake_minimum_required(VERSION 2.8.12)
 
 set(PROJECT_NAME "Project")
+
+project(${PROJECT_NAME} C CXX)
 
 # force CPU runtime
 set(DNNL_CPU_RUNTIME "SEQ" CACHE STRING "" FORCE)
