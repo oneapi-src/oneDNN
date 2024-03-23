@@ -203,6 +203,8 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
     // fpmath_mode
     seed = hash_combine(seed, static_cast<size_t>(attr.fpmath_.mode_));
     seed = hash_combine(seed, static_cast<size_t>(attr.fpmath_.apply_to_int_));
+    // deterministic
+    seed = hash_combine(seed, static_cast<size_t>(attr.deterministic_));
     // acc_mode
     seed = hash_combine(seed, static_cast<size_t>(attr.acc_mode_));
 
