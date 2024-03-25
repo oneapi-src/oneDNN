@@ -176,17 +176,11 @@ struct prelu_bwd_kernel_vec_t {
                         diff_weights_ptr(), diff_dst_ptr(), diff_data_ptr(),
                         ithr);
                 break;
-            case broadcasting_strategy_t::per_oc:
-            case broadcasting_strategy_t::per_oc_spatial:
-            case broadcasting_strategy_t::per_mb_spatial:
-            case broadcasting_strategy_t::per_mb_w:
-            case broadcasting_strategy_t::per_w:
-            case broadcasting_strategy_t::shared_axes:
+            default:
                 calculate_shared_axes(data_ptr(), weights_ptr(),
                         diff_weights_ptr(), diff_dst_ptr(), diff_data_ptr(),
                         ithr, item);
                 break;
-            default: return;
         }
     }
 
@@ -443,9 +437,13 @@ private:
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
         dims_t dims_d, dims_w;
         for (int i = 0; i < max_supported_ndims; i++) {
-            dims_d[i] = (data_md().dims()[i] != 0) ? data_md().dims()[i] : 1;
-            dims_w[i] = (weights_md().dims()[i] != 0) ? weights_md().dims()[i]
-                                                      : 1;
+            dims_d[i] = (data_md().dims()[i] != 0 && i < data_md().ndims())
+                    ? data_md().dims()[i]
+                    : 1;
+            dims_w[i]
+                    = (weights_md().dims()[i] != 0 && i < weights_md().ndims())
+                    ? weights_md().dims()[i]
+                    : 1;
         }
 
         const size_t nthr = conf_.n_thr;
