@@ -1,0 +1,377 @@
+# Reorganize the GPU Abstractions
+
+## Background
+
+The current design of the library architecture responsible for GPU was
+built with Intel in mind and therefore is Intel centric. Because of that,
+the basic GPU abstractions (e.g. `compute_engine`, etc) are tightly tied
+to OpenCL and nGEN and other Intel specifics such as information about
+device architecture, stepping, etc. Such design had been working fine
+up until support for NVIDIA (and later AMD) GPUs was introduced. Currently,
+the NVIDIA and AMD specific abstractions are built on top of the basic GPU
+abstractions and therefore have dependencies on OpenCL and nGEN even though
+there is no need in them. Furthermore, oneDNN now has generic SYCL
+kernels that can be used on a variety of different architectures
+that are supported by the SYCL ecosystem. The SYCL kernels also use
+abstractions that are built on top of the basic GPU abstractions and
+therefore have the same issue.
+
+This RFC proposes a new organization of GPU kernels and abstractions
+to clearly separate independent functionality, get rid of unnecessary
+dependencies and have a flexible enough architecture to make adding support
+for new vendors easier.
+
+## Proposal
+
+Reorganize the GPU kernels and abstractions according the the following
+schema: Vendor / Technology
+
+With this schema the GPU directory will have subdirectories that
+correspond to the vendors: `intel`, `nvidia`, `amd`, `generic`, etc.
+Each of the subdirectories may have technology specific sub-subdirectories:
+`sycl`, `ocl`, `jit`, etc.
+
+Pros:
+* The schema provides enough flexibility to enable new vendors and extend
+the already supported ones
+* Clustering the functionality and abstractions around vendors is
+convenient as a vendor can share the same functionality/abstractions across
+different technologies (e.g. the compute layer for Intel vendor)
+* Currently, functionality and abstractions are fully or partially
+clustered around vendors therefore the new schema should not cause a lot of
+confusion among the developers, it should also positively affect the
+implementation cost
+* The schema also provides sufficient configurability, e.g
+the generic vendor can be enabled along with nvidia or amd, or it can be
+enabled individually
+
+```bash
+├── cpu/ # CPU code
+├── sycl/ # A common place for basic CPU and GPU SYCL code, e.g. `sycl_cpu_engine_t`
+└── gpu/ # GPU code. Basic GPU code resides in the GPU directory directly, e.g. `gpu_engine_t`.
+    ├── intel/ # Intel-specific code
+    │   ├── compute/ # Compute layer abstractions
+    │   ├── ocl/ # OpenCL kernels and abstractions
+    │   ├── jit/ # JIT kernels/generators and abstractions
+    │   ├── sycl/ # Intel-specific SYCL functionality/abstractions (e.g. SYCL engine abstraction or SYCL kernels that use Intel specific extensions in the future)
+    │   └── ...
+    ├── nvidia/ # NVIDIA-specific code (cuDNN/cuBLAS based and CUDA specific SYCL kernels)
+    ├── amd/ # AMD-specific code (MIOpen/rocBLAS based and HIP specific SYCL kernels)
+    └── generic/ # Generic GPU kernels (e.g. generic SYCL kernels or runtime agnostic primitives such as concat that uses reorders)
+        └── sycl/ # Generic SYCL kernels and related abstractions
+
+```
+
+### Namespaces and Prefixes
+
+All vendor-specific code should be enclosed in a namespace that has the vendor's name.
+Based on the GPU directory structure described above the following namespaces will be
+introduced:
+* `dnnl::gpu`
+    *  `dnnl::gpu::intel`
+        * `dnnl::gpu::intel::compute`
+        * `dnnl::gpu::intel::ocl`
+        * `dnnl::gpu::intel::jit`
+    * `dnnl::gpu::nvidia`
+    * `dnnl::gpu::amd`
+    * `dnnl::gpu::generic`
+        * `dnnl::gpu::generic::sycl`
+
+Given that the namespaces already prevent name collisions adding the prefixes
+such as `sycl_`, `ocl_`, etc are redundant and therefore the suggestion is to
+drop the prefixes. For example, `dnnl::impl::gpu::ocl::ocl_gpu_engine_t` will
+be converted to `dnnl::impl::gpu::intel::ocl::engine_t`.
+
+### Affected Basic Abstractions
+
+The new schema will require moving a lot of parts of the library around
+and while most of the changes are probably just an implementation detail
+there are a few major changes that are worth describing in this RFC.
+
+#### Engine
+
+The engine abstraction gets affected by the changes the most.
+
+There is a `compute_engine_t` abstraction that serves as a base class for
+`sycl_engine_base_t` and `ocl_gpu_engine_t` classes. The problem is that each
+vendor specific SYCL engine has to be inherited from `sycl_engine_base_t`and
+therefore it cannot be derived from `compute_engine_t`. The solution to the problem
+is to decouple the SYCL specific but vendor agnostic part of the `sycl_engine_base_t`
+class and move it over to a new class. The `ocl_gpu_engine_t` class doesn't have
+this particular problem but it makes sense to also decouple the OpenCL specific but
+vendor agnostic part of it and move it over to the new class.
+
+The new class is defined as follows:
+```cpp
+// Location: src/common
+namespace dnnl::impl {
+
+struct engine_impl_t {
+    virtual ~engine_impl_t() = default;
+};
+
+} // namespace dnnl::impl
+
+// Location: src/gpu/intel/ocl
+namespace dnnl::impl::gpu::intel::ocl {
+
+struct engine_impl_t : public dnnl::impl::engine_impl_t {
+    cl_device_id device;
+    cl_context context;
+};
+
+} // namespace dnnl::impl::gpu::intel::ocl
+
+// Location: src/sycl
+namespace dnnl::impl::sycl {
+
+struct engine_impl_t : public dnnl::impl::engine_impl_t {
+    sycl::device device;
+    sycl::context context;
+    backend_t backend;
+};
+
+} // namespace dnnl::impl::gpu::intel::sycl
+
+```
+
+When it comes to the generic SYCL kernels there are 3 scenarios that should be
+supported:
+* Only generic kernels are enabled
+* NVIDIA and generic kernels are enabled
+* AMD and generic kernels are enabled
+
+According to the oneDNN programming model only 1 GPU engine can be enabled at a time.
+In the second and third scenarios the NVIDIA and AMD specific engines will be used
+for the generic SYCL kernels. In order to support the first scenario a separate, new
+engine is required. As a result the generic SYCL kernels will be used with different
+engines. To make it work there will be added a new `dnnl::impl::gpu::engine_t` class
+that will hold `dnnl::impl::engine_impl_t` that will point to `dnnl::impl::sycl::engine_impl_t`
+in this particular case. The `dnnl::impl::gpu::engine_t` will also provide
+an interface to return a pointer to `dnnl::impl::engine_impl_t` so that the generic
+SYCL kernels can query all SYCL specific information they may need (e.g. supported
+sub-group sizes).
+
+The `dnnl::impl::gpu::engine_t` is defined as follows:
+
+```cpp
+// Location: src/gpu
+namespace dnnl::impl::gpu {
+
+struct engine_t : public dnnl::impl::engine_t {
+    // Returns a pointer to the engine implementation.
+    const dnnl::impl::engine_impl_t *impl() const;
+
+    // Points to either dnnl::impl::sycl::engine_impl_t or dnnl::impl::intel::ocl::engine_impl_t
+    std::unique_ptr<dnnl::impl::engine_impl_t> impl;
+};
+```
+
+The following vendor specific engine classes will replace the currently
+implemented ones.
+
+This class takes over responsibility of `compute_engine_t` class.
+```cpp
+// Location: src/gpu/intel
+namespace dnnl::impl::gpu::intel {
+
+struct engine_t : public dnnl::impl::gpu::engine_t {};
+
+} // namespace dnnl::impl::gpu::intel
+```
+
+This class takes over responsibility of `sycl_engine_base_t` class.
+```cpp
+// Location: src/gpu/intel/sycl
+namespace dnnl::impl::gpu::intel::sycl {
+
+struct engine_t : public dnnl::impl::gpu::intel::engine_t {};
+
+} // namespace dnnl::impl::gpu::intel::sycl
+```
+
+This class takes over responsibility of `ocl_gpu_engine_t` class.
+```cpp
+// Location: src/gpu/intel/ocl
+namespace dnnl::impl::gpu::intel::ocl {
+
+struct engine_t : public dnnl::impl::gpu::intel::engine_t {};
+
+} // namespace dnnl::impl::gpu::intel::ocl
+```
+
+This class takes over responsibility of `sycl_cuda_engine_t` and `sycl_hip_engine_t` classes.
+```cpp
+// Location: src/gpu/nvidia
+namespace dnnl::impl::gpu::nvidia {
+
+struct engine_t : public dnnl::impl::gpu::engine_t {};
+
+} // namespace dnnl::impl::gpu::nvidia
+
+
+// Location: src/gpu/amd
+namespace dnnl::impl::gpu::amd {
+
+struct engine_t : public dnnl::impl::gpu::engine_t {};
+
+} // namespace dnnl::impl::gpu::amd
+```
+
+This class will be used when only generic SYCL kernels are enabled.
+```cpp
+// Location: src/gpu/generic
+namespace dnnl::impl::gpu::generic {
+
+struct engine_t : public dnnl::impl::gpu::engine_t {};
+
+} // namespace dnnl::impl::gpu::generic
+
+```
+
+The present inheritance chains for SYCL and OpenCL GPU engines are
+the following:
+* SYCL Intel and generic: `engine_t` -> `compute_engine_t` -> `sycl_engine_base_t` -> `sycl_gpu_engine_t`
+* SYCL NVIDIA: `engine_t` -> `compute_engine_t` -> `sycl_engine_base_t` -> `sycl_cuda_engine_t`
+* SYCL AMD: `engine_t` -> `compute_engine_t` -> `sycl_engine_base_t` -> `sycl_hip_engine_t`
+* OpenCL (only Intel): `engine_t` -> `compute_engine_t` -> `ocl_gpu_engine_t`
+
+The new inheritance chains for SYCL and OpenCL GPU engines are
+the following:
+* SYCL Generic: `engine_t` -> `gpu::engine_t` -> `gpu::generic::engine_t`
+* SYCL Intel: `engine_t` -> `gpu::engine_t` -> `gpu::intel::engine_t` -> `gpu::intel::sycl::engine_t`
+* SYCL NVIDIA: `engine_t` -> `gpu::engine_t` -> `gpu::nvidia::engine_t`
+* SYCL AMD: `engine_t` -> `gpu::engine_t` -> `gpu::amd::engine_t`
+* OpenCL: `engine_t` -> `gpu::engine_t` ->  `gpu::intel::engine_t` -> `gpu::intel::ocl::engine_t`
+
+Reminder: the `gpu::engine_t` holds an `engine_impl_t` pointer that points to either
+`sycl::engine_impl_t` or `ocl::engine_impl_t`.
+
+#### Stream
+
+Similar to the engine, the following stream abstractions will be introduced.
+
+```cpp
+// Location: src/common
+namespace dnnl::impl {
+
+struct stream_impl_t {
+    virtual ~stream_impl_t() = default;
+};
+
+} // namespace dnnl::impl
+
+// Location: src/gpu/intel/ocl
+namespace dnnl::impl::gpu::intel::ocl {
+
+struct stream_impl_t : public dnnl::impl::stream_impl_t {
+    cl_command_queue queue;
+};
+
+} // namespace dnnl::impl::gpu::intel::ocl
+
+// Location: src/sycl
+namespace dnnl::impl::sycl {
+
+struct stream_impl_t : public dnnl::impl::stream_impl_t {
+    std::unique_ptr<::sycl::queue> queue;
+};
+
+} // namespace dnnl::impl::gpu::intel::sycl
+
+```
+
+The `dnnl::impl::gpu::stream_t` is defined as follows:
+
+```cpp
+// Location: src/gpu
+namespace dnnl::impl::gpu {
+
+struct stream_t : public dnnl::impl::stream_t {
+    // Returns a pointer to the stream implementation.
+    const dnnl::impl::stream_impl_t *impl() const;
+
+    // Points to either dnnl::impl::sycl::stream_impl_t or dnnl::impl::intel::ocl::stream_impl_t
+    std::unique_ptr<dnnl::impl::stream_impl_t> impl;
+};
+```
+
+The following vendor specific stream classes will replace the currently
+implemented ones.
+
+This class takes over responsibility of `compute_stream_t` class.
+```cpp
+// Location: src/gpu/intel
+namespace dnnl::impl::gpu::intel {
+
+struct stream_t : public dnnl::impl::gpu::stream_t {};
+
+} // namespace dnnl::impl::gpu::intel
+```
+
+This class takes over responsibility of `sycl_stream_t` class.
+```cpp
+// Location: src/gpu/intel/sycl
+namespace dnnl::impl::gpu::intel::sycl {
+
+struct stream_t : public dnnl::impl::gpu::intel::stream_t {};
+
+} // namespace dnnl::impl::gpu::intel::sycl
+```
+
+This class takes over responsibility of `ocl_stream_t` class.
+```cpp
+// Location: src/gpu/intel/ocl
+namespace dnnl::impl::gpu::intel::ocl {
+
+struct stream_t : public dnnl::impl::gpu::intel::stream_t {};
+
+} // namespace dnnl::impl::gpu::intel::ocl
+```
+
+This class takes over responsibility of `sycl_cuda_stream_t` and `sycl_hip_stream_t` classes.
+```cpp
+// Location: src/gpu/nvidia
+namespace dnnl::impl::gpu::nvidia {
+
+struct stream_t : public dnnl::impl::gpu::stream_t {};
+
+} // namespace dnnl::impl::gpu::nvidia
+
+
+// Location: src/gpu/amd
+namespace dnnl::impl::gpu::amd {
+
+struct stream_t : public dnnl::impl::gpu::stream_t {};
+
+} // namespace dnnl::impl::gpu::amd
+```
+
+This class will be used when only generic SYCL kernels are enabled.
+```cpp
+// Location: src/gpu/generic
+namespace dnnl::impl::gpu::generic {
+
+struct stream_t : public dnnl::impl::gpu::stream_t {};
+
+} // namespace dnnl::impl::gpu::generic
+
+```
+
+The current inheritance chains for SYCL and OpenCL GPU streams are the following:
+* SYCL Intel and genetic: `stream_t` -> `compute_stream_t` -> `sycl_stream_t`
+* SYCL NVIDIA: `stream_t` -> `compute_stream_t` -> `sycl_stream_t` -> `sycl_cuda_stream_t`
+* SYCL AMD: `stream_t` -> `compute_stream_t` -> `sycl_stream_t` -> `sycl_hip_stream_t`
+* OpenCL: `stream_t` -> `compute_stream_t` -> `ocl_stream_t`
+
+The new inheritance chains for SYCL and OpenCL GPU streams are
+the following:
+* SYCL Generic: `stream_t` -> `gpu::stream_t` -> `gpu::generic::stream_t`
+* SYCL Intel: `stream_t` -> `gpu::stream_t` -> `gpu::intel::stream_t` -> `gpu::intel::sycl::stream_t`
+* SYCL NVIDIA: `stream_t` -> `gpu::stream_t` -> `gpu::nvidia::stream_t`
+* SYCL AMD: `stream_t` -> `gpu::stream_t` -> `gpu::amd::stream_t`
+* OpenCL: `stream_t` -> `gpu::stream_t` ->  `gpu::intel::stream_t` -> `gpu::intel::ocl::stream_t`
+
+Reminder: the `gpu::stream_t` holds an `stream_impl_t` pointer that points to either
+`sycl::stream_impl_t` or `ocl::stream_impl_t`.
+
