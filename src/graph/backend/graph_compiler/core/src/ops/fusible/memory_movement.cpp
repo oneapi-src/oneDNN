@@ -741,7 +741,29 @@ bool tensor_view_op_t::try_penetrate(
 
     if (can_penetrate) {
         if (!inp_short) {
+            // cannot penetrate, if the number of blocking dims will exceed 4
+            // in the penetrated output format
+            if (input_size - output_size + input_format.get_blocks_size() > 4)
+                return false;
+            // cannot penetrate, if long_to_short involves any permutation
+            // e.g. {a, b, c, d} --> {a*b, c, d}
+            // ABCD --> AaBC is OK
+            // BACD --> AaBC is incorrect, since B and A are permuted
             auto &input_code = input_format.format_code_;
+            auto input_p2b = input_code.collect_p2b_mapping();
+            for (size_t out_idx = 0; out_idx < short_size; ++out_idx) {
+                std::vector<int> concat_axis;
+                for (size_t inp_idx = 0; inp_idx < long_size; ++inp_idx) {
+                    if (long_to_short[inp_idx] == out_idx) {
+                        concat_axis.insert(concat_axis.end(),
+                                input_p2b[inp_idx].begin(),
+                                input_p2b[inp_idx].end());
+                    }
+                }
+                if (!std::is_sorted(concat_axis.begin(), concat_axis.end()))
+                    return false;
+            }
+            // start penetrated format inferring
             sc_data_format_t new_format;
             auto &new_code = new_format.format_code_;
             int out_count[sc_data_format_kind_t::MAX_DIMS] = {0};
