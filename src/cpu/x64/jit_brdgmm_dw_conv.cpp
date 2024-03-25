@@ -161,16 +161,16 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const int ndims = src_d.ndims();
     const bool is_3d = ndims == 5;
     // Currently this kernel only supports 2D and 3D convolutions.
-    VDISPATCH_CONV(utils::one_of(ndims, 4, 5),
-            "skipping implementation as it only supports 2d/3d convolutions");
+    VDISPATCH_CONV(utils::one_of(ndims, 4, 5), VERBOSE_UNSUPPORTED_FEATURE,
+            "does not support 2d/3d convolutions");
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    VDISPATCH_CONV(with_groups,
-            "skipping non-grouped convolution in depthwise convolution "
+    VDISPATCH_CONV(with_groups, VERBOSE_UNSUPPORTED_FEATURE,
+            "non-grouped convolution in depthwise convolution "
             "implementation");
     // dilations are not supported
     VDISPATCH_CONV(!(cd.dilates[0] != 0 || cd.dilates[1] != 0
                            || (is_3d && cd.dilates[2] != 0)),
-            "skipping implementation as it does not support dilations");
+            VERBOSE_UNSUPPORTED_FEATURE, "dilations are not supported");
 
     jcp = zero<decltype(jcp)>();
     jcp.ngroups = weights_d.dims()[0];

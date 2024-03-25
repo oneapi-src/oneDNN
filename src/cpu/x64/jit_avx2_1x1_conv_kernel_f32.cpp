@@ -787,8 +787,8 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     }
 
     if (jcp.with_eltwise || jcp.with_binary)
-        VDISPATCH_CONV_IC(jcp.isa >= avx2,
-                "isa does not support eltwise and binary post-ops");
+        VDISPATCH_CONV_IC(jcp.isa >= avx2, VERBOSE_UNSUPPORTED_FEATURE,
+                "eltwise and binary post-ops not implemented on isa");
 
     using namespace injector;
     static constexpr bool sum_at_pos_0_only = true;
@@ -1004,7 +1004,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
                 = static_cast<dim_t>(jcp.mb) * jcp.nb_reduce;
         // prevent too large argument to cpu reducer
         VDISPATCH_CONV_IC(mb_with_nb_reduce <= std::numeric_limits<int>::max(),
-                VERBOSE_BLOCKING_FAIL);
+                VERBOSE_BLOCKING_FAIL, "bad argument for cpu reducer");
     }
 
     return status::success;

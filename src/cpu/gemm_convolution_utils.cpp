@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1144,8 +1144,8 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     format_tag::ncdhw);
     const status_t check_tag_status = set_or_check_tags(default_dat_tag,
             default_dat_tag, src_md.data_type == data_type::s8);
-    VDISPATCH_CONV_IC(
-            check_tag_status == status::success, VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_CONV_IC(check_tag_status == status::success,
+            VERBOSE_UNSUPPORTED_TAG_S, "src");
 
     // Does int8 conv ever need to support ncsp input format
     VDISPATCH_CONV_IC(

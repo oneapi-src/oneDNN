@@ -112,7 +112,8 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
     } else {
         jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
     }
-    VDISPATCH_DECONVOLUTION_IC(jcp.src_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_DECONVOLUTION_IC(
+            jcp.src_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG_S, "src");
 
     if (dst_d.format_kind() == format_kind::any) {
         CHECK(memory_desc_init_by_tag(dst_md, dat_tag));
@@ -120,7 +121,8 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
     } else {
         jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
     }
-    VDISPATCH_DECONVOLUTION_IC(jcp.dst_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_DECONVOLUTION_IC(
+            jcp.dst_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG_S, "dst");
 
     auto set_or_check_wei_format = [&]() {
         using namespace format_tag;
@@ -220,11 +222,11 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
         }
         VDISPATCH_DECONVOLUTION_IC(
                 !(jcp.ic % jcp.ic_block != 0 || jcp.oc % jcp.oc_block != 0),
-                VERBOSE_BLOCKING_FAIL);
+                VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
     }
 
     VDISPATCH_DECONVOLUTION_IC(
-            set_or_check_wei_format(), VERBOSE_UNSUPPORTED_TAG);
+            set_or_check_wei_format(), VERBOSE_UNSUPPORTED_TAG_S, "weights");
 
     jcp.dilate_d = is_3d ? cd.dilates[0] : 0;
     jcp.dilate_h = is_1d ? 0 : cd.dilates[ndims - 4];
@@ -249,8 +251,8 @@ status_t jit_uni_x8s8s32x_deconv_fwd_kernel<isa>::init_conf(
     const bool kernel_outside_src = false || ext_kw <= jcp.l_pad
             || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad || ext_kh <= jcp.b_pad
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
-    VDISPATCH_DECONVOLUTION_IC(!kernel_outside_src, VERBOSE_PADDING_ERROR,
-            "weight and src size mismatch");
+    VDISPATCH_DECONVOLUTION_IC(!kernel_outside_src,
+            VERBOSE_UNSUPPORTED_PAD_FEATURE, "weight and src size mismatch");
 
     CHECK(attr.set_default_formats(&dst_md));
     VDISPATCH_DECONVOLUTION_IC(

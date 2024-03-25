@@ -71,11 +71,11 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
             VDISPATCH_POOLING(
                     memory_desc_matches_one_of_tag(*src_md(), nwc, nhwc, ndhwc)
                             != format_tag::undef,
-                    VERBOSE_UNSUPPORTED_TAG);
+                    VERBOSE_UNSUPPORTED_TAG_S, "src");
             VDISPATCH_POOLING(
                     memory_desc_matches_one_of_tag(*dst_md(), nwc, nhwc, ndhwc)
                             != format_tag::undef,
-                    VERBOSE_UNSUPPORTED_TAG);
+                    VERBOSE_UNSUPPORTED_TAG_S, "dst");
             VDISPATCH_POOLING(
                     attr_.set_default_formats(dst_md(0)) == status::success,
                     VERBOSE_UNSUPPORTED_POSTOP);

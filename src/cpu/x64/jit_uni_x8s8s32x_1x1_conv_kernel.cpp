@@ -706,7 +706,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
 
     VDISPATCH_CONV_IC(
             !((jcp.dst_zero_point || jcp.src_zero_point) && jcp.with_dw_conv),
-            "implementation does not support zero-point");
+            VERBOSE_UNSUPPORTED_FEATURE, "does not support zero-point");
 
     format_tag_t dat_tag = utils::pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
@@ -892,7 +892,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
             && jcp.reduce_dim % jcp.reduce_block == 0;
 
     assert(params_ok && "parameter values are inconsistent");
-    VDISPATCH_CONV_IC(params_ok, VERBOSE_BLOCKING_FAIL);
+    VDISPATCH_CONV_IC(params_ok, VERBOSE_BLOCKING_FAIL, "bad parameters");
 
     jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 

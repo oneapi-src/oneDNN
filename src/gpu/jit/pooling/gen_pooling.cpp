@@ -68,8 +68,8 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_POOLING_SC(
             attr_.set_default_formats(dst_md(0)), VERBOSE_UNSUPPORTED_TAG);
-    VDISPATCH_POOLING(
-            !is_dilated(), VERBOSE_UNSUPPORTED_FEATURE, "is_dilated()");
+    VDISPATCH_POOLING(!is_dilated(), VERBOSE_UNSUPPORTED_FEATURE,
+            "does not support dilations");
     VDISPATCH_POOLING(!utils::one_of(f64, src_data_t, dst_data_t),
             VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_POOLING(

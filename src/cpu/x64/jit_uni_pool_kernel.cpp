@@ -185,7 +185,8 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     const auto fmt_tag = src_d.matches_one_of_tag(
             blocked_fmt_tag, ncsp_fmt_tag, nspc_fmt_tag);
 
-    VDISPATCH_POOLING_IC(dst_d.matches_tag(fmt_tag), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_POOLING_IC(
+            dst_d.matches_tag(fmt_tag), VERBOSE_UNSUPPORTED_TAG_S, "dst");
 
     VDISPATCH_POOLING_IC(
             post_ops_ok(jpp, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
@@ -283,7 +284,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
             !(jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
                     || back_pad >= jpp.kd || bottom_pad >= jpp.kh
                     || right_pad >= jpp.kw),
-            VERBOSE_PADDING_ERROR, "");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE, "");
 
     jpp.ind_dt = ppd->workspace_md() ? ppd->workspace_md()->data_type
                                      : data_type::undef;

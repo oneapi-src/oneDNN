@@ -840,7 +840,7 @@ status_t jit_avx512_core_resampling_bwd_t::pd_t::init(engine_t *engine) {
     format_tag_t dat_tag = memory_desc_matches_one_of_tag(*diff_src_md(), nCw8c,
             nChw8c, nCdhw8c, nCw16c, nChw16c, nCdhw16c, nwc, nhwc, ndhwc);
     VDISPATCH_RESAMPLING(memory_desc_matches_tag(*diff_dst_md(), dat_tag),
-            VERBOSE_UNSUPPORTED_TAG);
+            VERBOSE_UNSUPPORTED_TAG_S, "diff_dst");
 
     return status::success;
 }

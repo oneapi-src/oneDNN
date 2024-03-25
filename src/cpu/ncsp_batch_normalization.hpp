@@ -69,7 +69,7 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
                     VERBOSE_INCONSISTENT_MDS, "src", "dst");
             VDISPATCH_BNORM(
                     memory_desc_matches_one_of_tag(*src_md(), ncdhw, nchw, ncw),
-                    VERBOSE_UNSUPPORTED_TAG);
+                    VERBOSE_UNSUPPORTED_TAG_S, "src");
 
             // BN+Add+Relu fusion is not currently implemented
             VDISPATCH_BNORM(!fuse_norm_add_relu(), VERBOSE_UNSUPPORTED_FEATURE,
@@ -161,10 +161,10 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
                     VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
             VDISPATCH_BNORM(
                     memory_desc_matches_one_of_tag(*src_md(), ncdhw, nchw, ncw),
-                    VERBOSE_UNSUPPORTED_TAG);
+                    VERBOSE_UNSUPPORTED_TAG_S, "src");
             VDISPATCH_BNORM(memory_desc_matches_one_of_tag(
                                     *diff_src_md(), ncdhw, nchw, ncw),
-                    VERBOSE_UNSUPPORTED_TAG);
+                    VERBOSE_UNSUPPORTED_TAG_S, "diff_src");
 
             // BN+Add+Relu fusion is not currently implemented
             VDISPATCH_BNORM(!fuse_norm_add_relu(), VERBOSE_UNSUPPORTED_FEATURE,

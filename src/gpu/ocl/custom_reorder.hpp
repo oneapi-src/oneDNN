@@ -100,7 +100,8 @@ struct custom_reorder_t : public gpu_primitive_t {
                             dst_md()->data_type)),
                     VERBOSE_UNSUPPORTED_DT);
 
-            VDISPATCH_REORDER_SC(init_conf(engine), "init_conf()");
+            VDISPATCH_REORDER_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
             init_scratchpad();
 
             return status::success;

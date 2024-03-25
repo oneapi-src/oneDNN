@@ -240,7 +240,7 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
         }
         VDISPATCH_DECONVOLUTION_IC(
                 !(jcp.ic % jcp.ic_block != 0 || jcp.oc % jcp.oc_block != 0),
-                VERBOSE_BLOCKING_FAIL);
+                VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
     }
 
     VDISPATCH_DECONVOLUTION_IC(
@@ -269,8 +269,8 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     bool kernel_outside_src = false || ext_kw <= jcp.l_pad
             || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad || ext_kh <= jcp.b_pad
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
-    VDISPATCH_DECONVOLUTION_IC(!kernel_outside_src, VERBOSE_PADDING_ERROR,
-            "weights and src size mismatch");
+    VDISPATCH_DECONVOLUTION_IC(!kernel_outside_src,
+            VERBOSE_UNSUPPORTED_PAD_FEATURE, "weights and src size mismatch");
 
     CHECK(attr.set_default_formats(&dst_md));
     VDISPATCH_DECONVOLUTION_IC(
