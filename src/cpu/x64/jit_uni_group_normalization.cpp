@@ -314,7 +314,8 @@ struct kernel_stat_t
         , C_PER_G_(C_ / pd->G())
         , simd_w_(vlen / sizeof(float))
         , axis_simd_tail_(C_ % simd_w_)
-        , unroll_c_(compute_var_ ? 6 : 12) // Vmm3-14
+        , vmm_per_g_(nstl::max(dim_t(1), dim_t(C_PER_G_ / simd_w_)))
+        , unroll_c_(utils::rnd_dn(compute_var_ ? 6 : 12, vmm_per_g_))
         , c_block_(unroll_c_ * simd_w_)
         , nc_blocks_(C_ / c_block_)
         , c_block_tail_((C_ % c_block_) - axis_simd_tail_)
@@ -426,6 +427,7 @@ protected:
     const dim_t C_PER_G_;
     const size_t simd_w_;
     const dim_t axis_simd_tail_;
+    const dim_t vmm_per_g_;
     const dim_t unroll_c_;
     const dim_t c_block_;
     const dim_t nc_blocks_;
@@ -481,7 +483,6 @@ protected:
                 io_[data_type::f32]->load(
                         mean_ptr(ur * simd_w_), Vmm_mean(ur), tail);
             } else {
-                assert(simd_w_ % C_PER_G_ == 0);
                 io_[data_type::f32]->broadcast(
                         mean_ptr(ur * simd_w_ / C_PER_G_), Vmm_mean(ur));
             }
