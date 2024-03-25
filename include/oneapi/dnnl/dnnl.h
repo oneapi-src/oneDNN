@@ -782,11 +782,11 @@ dnnl_status_t DNNL_API dnnl_memory_desc_clone(dnnl_memory_desc_t *memory_desc,
 
 /// Retrieves a binary blob associated with the given memory descriptor
 ///
-/// @param Output blob Pointer to binary blob.
+/// @param blob Output pointer to binary blob.
 ///     If not nullptr, size bytes of the memory descriptor blob are written.
-/// @param Output size Pointer to the size of the binary blob in bytes.
+/// @param size Output pointer to the size of the binary blob in bytes.
 ///     Size is written if blob is nullptr.
-/// @param memory_desc Input memory descriptor to serialize
+/// @param memory_desc input memory descriptor to serialize
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_desc_get_blob(
@@ -794,7 +794,7 @@ dnnl_status_t DNNL_API dnnl_memory_desc_get_blob(
 
 /// Creates a memory descriptor from a memory descriptor binary blob.
 ///
-/// @param Output memory_desc Pointer to a newly allocated memory descriptor.
+/// @param memory_desc Output pointer to a newly allocated memory descriptor.
 /// @param blob Pointer to a memory descriptor binary blob.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
