@@ -123,10 +123,20 @@ Below C APIs will be defined and exposed when the library is built with OpenCL
 GPU runtime.
 
 ```c
-/// This API is a supplement for existing oneDNN engine API.
+/// This API is a supplement for existing oneDNN engine API:
+/// dnnl_status_t DNNL_API dnnl_ocl_interop_engine_create(
+///     dnnl_engine_t *engine, cl_device_id device, cl_context context);
 dnnl_status_t DNNL_API dnnl_graph_ocl_interop_make_engine_with_allocator(
         dnnl_engine_t *engine, cl_device_id device, cl_context context,
         const_dnnl_graph_allocator_t alloc);
+
+/// This API is a supplement for existing oneDNN engine API:
+/// dnnl_status_t DNNL_API dnnl_ocl_interop_engine_create_from_cache_blob(
+///     dnnl_engine_t *engine, cl_device_id device, cl_context context,
+///     size_t size, const uint8_t *cache_blob);
+dnnl_status_t DNNL_API dnnl_graph_ocl_interop_make_engine_from_blob_with_allocator(
+        dnnl_engine_t *engine, cl_device_id device, cl_context context,
+        const_dnnl_graph_allocator_t alloc, size_t size, const uint8_t *cache_blob);
 ```
 
 Corresponding C++ API will be added to a new namespace
@@ -137,11 +147,25 @@ namespace dnnl {
 namespace graph {
 namespace ocl_interop {
 
+/// Create an engine with OpenCL device, context, and allocator.
 inline engine make_engine_with_allocator(
         cl_device_id device, cl_context context, const allocator &alloc) {
     dnnl_engine_t c_engine;
     error::wrap_c_api(dnnl_graph_ocl_interop_make_engine_with_allocator(
                               &c_engine, device, context, alloc.get()),
+            "could not make an engine with allocator for ocl runtime");
+    return engine(c_engine);
+}
+
+/// Create an engine from a cache blob along with OpenCL device, context,
+/// and allocator.
+inline engine make_engine_with_allocator(
+        cl_device_id device, cl_context context, const allocator &alloc,
+        const std::vector<uint8_t> &cache_blob) {
+    dnnl_engine_t c_engine;
+    error::wrap_c_api(dnnl_graph_ocl_interop_make_engine_from_blob_with_allocator(
+                              &c_engine, device, context, alloc.get(),
+                              cache_blob.size(), cache_blob.data()),
             "could not make an engine with allocator for ocl runtime");
     return engine(c_engine);
 }
@@ -253,9 +277,6 @@ enough and can be reused to validate OpenCL GPU.
   (`DNNL_ENABLE_WORKLOAD`) are not supported by Graph API as before. We mention
   them here as the features were initially requested by OpenVINO for primitive
   API.
-- oneDNN OpenCL interop API supports creating engine from a cache blob. This is
-  not considered in this RFC as the requirement and use scenario for graph API
-  is not clear at this moment.
 - GPU vendor other than `INTEL` is not supported by Graph API as before. We can
   extend to support other vendors once the requirement pops up.
 
