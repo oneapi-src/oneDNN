@@ -78,8 +78,9 @@ enum DriverInfoFlags : uint32_t {
     FlagAlphaPtr = 0x400, // Pass alpha by pointer.
     FlagBetaPtr = 0x800, // Pass beta by pointer.
     FlagFixedWGK = 0x1000, // With local k-parallelization, wgK is fixed
-    FlagNondeterministic
-    = 0x4000, // Kernel always produces nondeterministic results
+    FlagZeroTempC
+    = 0x2000, // GEMM kernel expects temporary C buffer to be pre-zeroed and will leave zeros there.
+    FlagNondeterministic = 0x4000, // Kernel produces nondeterministic results.
     FlagMaskFillGoal
     = 0xF0000, // Fraction of available thread slots to fill, in sixteenths
     FlagShiftFillGoal = 16, //   (starting bit)
@@ -148,6 +149,7 @@ struct CommonDriverInfo {
     bool fusedBeta() const { return flags & FlagFusedBeta; }
     bool fusedPostOps() const { return flags & FlagFusedPostOps; }
     bool needsTempC() const { return flags & FlagTempC; }
+    bool zeroTempC() const { return flags & FlagZeroTempC; }
     bool altFusedBeta() const { return flags & FlagAltFusedBeta; }
     bool mayUseAutoAtomic() const { return flags & FlagAutoAtomic; }
     bool shrinkWGK() const { return flags & FlagShrinkWGK; }

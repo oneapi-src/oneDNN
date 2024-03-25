@@ -22,6 +22,10 @@ if(options_cmake_included)
 endif()
 set(options_cmake_included true)
 
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    set(DNNL_IS_MAIN_PROJECT TRUE)
+endif()
+
 # ========
 # Features
 # ========
@@ -60,8 +64,9 @@ option(ONEDNN_ENABLE_GRAPH_DUMP "enables control of dumping graph artifacts via
 
 set(DNNL_LIBRARY_TYPE "SHARED" CACHE STRING
     "specifies whether oneDNN library should be SHARED or STATIC")
-option(DNNL_BUILD_EXAMPLES "builds examples"  ON)
-option(DNNL_BUILD_TESTS "builds tests" ON)
+option(DNNL_BUILD_DOC "builds documentation" ${DNNL_IS_MAIN_PROJECT})
+option(DNNL_BUILD_EXAMPLES "builds examples" ${DNNL_IS_MAIN_PROJECT})
+option(DNNL_BUILD_TESTS "builds tests" ${DNNL_IS_MAIN_PROJECT})
 option(DNNL_BUILD_FOR_CI
     "specifies whether oneDNN library will use special testing environment for
     internal testing processes"

@@ -87,7 +87,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
 
     ocl_conf.src_dt = src_layer_d.data_type();
     ocl_conf.wei_dt = weights_layer_d.data_type();
-    ocl_conf.bia_dt = rnn.aux_data_type;
+    ocl_conf.bia_dt = bias_d.data_type();
     ocl_conf.acc_dt = rnn.acc_data_type;
     ocl_conf.aux_dt = rnn.aux_data_type;
     ocl_conf.diff_dt = rnn.diff_data_type;
@@ -637,9 +637,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_RNN_SC(this->set_default_params(), VERBOSE_UNSUPPORTED_TAG);
     VDISPATCH_RNN(this->with_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
-    VDISPATCH_RNN(
-            IMPLICATION(src_type == data_type::f16 || src_type == data_type::u8,
-                    this->desc()->prop_kind == forward_inference),
+    VDISPATCH_RNN(IMPLICATION(src_type == data_type::u8,
+                          this->desc()->prop_kind == forward_inference),
             VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_RNN(
             compute_engine->mayiuse(compute::device_ext_t::intel_subgroups),
@@ -705,27 +704,10 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     }
 
     // Set weights descriptors to desired format
-    memory_desc_t new_weights_layer_md = *this->weights_md(0);
-    VDISPATCH_RNN_SC(set_expected_desc(rnn_conf, new_weights_layer_md, false),
-            "set_expected_desc()");
-
-    if (this->weights_layer_md_.format_kind == format_kind::any) {
-        this->weights_layer_md_ = new_weights_layer_md;
-    } else if (this->weights_layer_md_.format_kind == format_kind::rnn_packed) {
-        if (dnnl::impl::operator!=(
-                    this->weights_layer_md_, new_weights_layer_md))
-            return status::unimplemented;
-    }
-
-    memory_desc_t new_weights_iter_md = *this->weights_md(1);
-    VDISPATCH_RNN_SC(set_expected_desc(rnn_conf, new_weights_iter_md, true),
-            "set_expected_desc()");
-    if (this->weights_iter_md_.format_kind == format_kind::any) {
-        this->weights_iter_md_ = new_weights_iter_md;
-    } else if (this->weights_iter_md_.format_kind == format_kind::rnn_packed) {
-        if (dnnl::impl::operator!=(this->weights_iter_md_, new_weights_iter_md))
-            return status::unimplemented;
-    }
+    VDISPATCH_RNN_SC(set_weights_desc(this->weights_layer_md_, rnn_conf),
+            "unsupported weights layer memory descriptor");
+    VDISPATCH_RNN_SC(set_weights_desc(this->weights_iter_md_, rnn_conf),
+            "unsupported weights iter memory descriptor");
 
     // Check dimensions consistency
     int ls_multiplier

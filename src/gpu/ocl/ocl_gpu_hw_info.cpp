@@ -27,12 +27,15 @@ namespace gpu {
 namespace ocl {
 
 void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
-        compute::gpu_arch_t &gpu_arch, int &stepping_id, bool &mayiuse_systolic,
+        compute::gpu_arch_t &gpu_arch, int &stepping_id,
+        uint64_t &native_extensions, bool &mayiuse_systolic,
         bool &mayiuse_ngen_kernels) {
     using namespace ngen;
     HW hw = HW::Unknown;
     Product product = {ProductFamily::Unknown, 0};
     jit::jit_generator<HW::Unknown>::detectHWInfo(context, device, hw, product);
+    bool is_xelpg = (product.family == ngen::ProductFamily::ARL
+            || product.family == ngen::ProductFamily::MTL);
 
     gpu_arch = jit::convert_ngen_arch_to_dnnl(hw);
     stepping_id = product.stepping;
@@ -40,6 +43,9 @@ void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
     mayiuse_systolic = false;
     status_t ret
             = get_ocl_device_enabled_systolic_intel(device, mayiuse_systolic);
+    assert(ret == CL_SUCCESS);
+    ret = get_ocl_device_enabled_native_float_atomics(
+            device, native_extensions, is_xelpg);
     assert(ret == CL_SUCCESS);
     MAYBE_UNUSED(ret);
 

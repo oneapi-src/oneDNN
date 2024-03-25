@@ -87,6 +87,7 @@
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
 #define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"
+
 #define VERBOSE_ISA_SPARSE_ENCODING_MISMATCH \
     "sparse encoding is not supported on this isa"
 #define VERBOSE_ISA_DT_MISMATCH \
@@ -95,6 +96,7 @@
 #define VERBOSE_WS_MISMATCH \
     "workspace mismatch between forward and backward primitive " \
     "descriptors"
+
 #define VERBOSE_WS_INIT "workspace initialization failed"
 #define VERBOSE_SCRATCHPAD_INIT "scratchpad initialization unsuccessful"
 
@@ -111,6 +113,8 @@
     "performance heuristics disabled for %s"
 #define VERBOSE_SCRATCHPAD_LIMIT "scratchpad memory limit exceeded"
 #define VERBOSE_PRIMITIVE_CREATION_FAIL "failed to create nested primitive %s"
+#define VERBOSE_DESC_CREATION_FAIL "failed to create %s descriptor"
+#define VERBOSE_SHAPE_RESTRICTION "failed shape restrictions"
 #define VERBOSE_INCOMPATIBLE_GEMM_FMT "incompatible gemm format"
 
 #endif

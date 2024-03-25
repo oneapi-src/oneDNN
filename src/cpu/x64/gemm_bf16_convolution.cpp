@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -292,7 +292,8 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
 
     postamble();
 
-    if (jcp_.with_eltwise) postops_injector_->prepare_table();
+    if (jcp_.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 // operator () specialized for nspc format

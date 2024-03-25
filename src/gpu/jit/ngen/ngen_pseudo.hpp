@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -446,18 +446,20 @@ void barrier(const Targs &...barrierArgs)
     barrierwait();
 }
 
-// Global memory fence.
-void memfence(const InstructionModifier &mod, const RegData &dst, const RegData &header = GRF(0))
+void registerfence(const RegData &dst)
 {
-    if (hardware <= HW::XeHP) {
-        const uint32_t exdesc = static_cast<int>(SharedFunction::dc0) & 0xF;
-        send(8 | mod | NoMask, dst, header, exdesc, 0x219E000);
-    } else
-        memfence(mod, FenceScopeLSC::GPU, FlushTypeLSC::None, dst, header);
+    _lastFenceDst = dst;
+    if (isGen12) {
+        _lastFenceLabel = Label();
+        mark(_lastFenceLabel);
+    }
 }
 
-void memfence(const InstructionModifier &mod, FenceScopeLSC scope, FlushTypeLSC flushing, const RegData &dst, const RegData &header)
+// Global memory fence.
+void memfence(const InstructionModifier &mod, FenceScopeLSC scope, FlushTypeLSC flushing, const RegData &dst = NullRegister(), const RegData &header = GRF(0))
 {
+    registerfence(dst);
+
     if (hardware >= HW::XeHPG) {
         if (flushing == FlushTypeLSC::None && hardware == HW::XeHPG && scope > FenceScopeLSC::Subslice)
             flushing = static_cast<FlushTypeLSC>(6);    /* workaround for DG2 bug */
@@ -466,23 +468,32 @@ void memfence(const InstructionModifier &mod, FenceScopeLSC scope, FlushTypeLSC 
         desc |= static_cast<uint32_t>(scope) << 9;
         desc |= static_cast<uint32_t>(flushing) << 12;
         send(1 | mod | NoMask, SharedFunction::ugm, dst, header, null, 0, desc);
-    } else
-        memfence(mod, dst, header);
+    } else {
+        const uint32_t exdesc = static_cast<int>(SharedFunction::dc0) & 0xF;
+        send(8 | mod | NoMask, dst, header, exdesc, 0x219E000);
+    }
 }
 
-void memfence(const RegData &dst, const RegData &header = GRF(0))
+void memfence(const InstructionModifier &mod, const RegData &dst = NullRegister(), const RegData &header = GRF(0))
 {
-    memfence(InstructionModifier(), dst, header);
+    memfence(mod, FenceScopeLSC::GPU, FlushTypeLSC::None, dst, header);
 }
 
-void memfence(FenceScopeLSC scope, FlushTypeLSC flushing, const RegData &dst, const RegData &header = GRF(0))
+void memfence(FenceScopeLSC scope, FlushTypeLSC flushing, const RegData &dst = NullRegister(), const RegData &header = GRF(0))
 {
     memfence(InstructionModifier(), scope, flushing, dst, header);
 }
 
-// SLM-only memory fence.
-void slmfence(const InstructionModifier &mod, const RegData &dst, const RegData &header = GRF(0))
+void memfence(const RegData &dst = NullRegister(), const RegData &header = GRF(0))
 {
+    memfence(InstructionModifier(), dst, header);
+}
+
+// SLM-only memory fence.
+void slmfence(const InstructionModifier &mod, const RegData &dst = NullRegister(), const RegData &header = GRF(0))
+{
+    registerfence(dst);
+
     if (hardware >= HW::XeHPG)
         send(1 | mod | NoMask, SharedFunction::slm, dst, header, null, 0, 0x210011F);
     else {
@@ -491,7 +502,16 @@ void slmfence(const InstructionModifier &mod, const RegData &dst, const RegData 
     }
 }
 
-void slmfence(const RegData &dst, const RegData &header = GRF(0)) { slmfence(InstructionModifier(), dst, header); }
+void slmfence(const RegData &dst = NullRegister(), const RegData &header = GRF(0)) { slmfence(InstructionModifier(), dst, header); }
+
+// Wait on the last global memory or SLM fence.
+void fencewait()
+{
+    if (isGen12)
+        fencedep(_lastFenceLabel);
+    else
+        mov<uint32_t>(8 | NoMask, null, _lastFenceDst);
+}
 
 // XeHP+ prologues.
 void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127), int paddedSize = 0)
@@ -550,6 +570,7 @@ void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127
 
         if (!_labelLocalIDsLoaded.defined(labelManager))
             mark(_labelLocalIDsLoaded);
+
     }
 }
 

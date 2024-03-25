@@ -33,7 +33,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
             | primitive_attr_t::skip_mask_t::zero_points_runtime_data_type;
 
     bool wei_decomp = (utils::one_of(d->c_type(), f32, f16, bf16)
-                              && utils::one_of(d->a_type(), u8, s8)
+                              && utils::one_of(d->a_type(), u8, s8, u4, s4)
                               && utils::one_of(d->b_type(), f16, f32, bf16))
             && attr()->mayiconvert(d->a_type(), f32);
     bool ok = d->c_desc.ndims <= 4

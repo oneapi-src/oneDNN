@@ -162,7 +162,7 @@ static brgemm_attr_t get_dnnl_brgemm_attrs(const attrs_setting_t &attrs) {
                 dnnl_attrs.var_bs = static_cast<bool>(it.second);
                 break;
             case attr_key::bs_group:
-                dnnl_attrs.bs_group = static_cast<int>(it.second);
+                dnnl_attrs.hint_bs_group = static_cast<int>(it.second);
                 break;
             case attr_key::nkeys:
             default: break;

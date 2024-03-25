@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@
 #include "ngen_core.hpp"
 #include "ngen_auto_swsb.hpp"
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 
 // Forward declarations.
 template <HW hw> class BinaryCodeGenerator;
@@ -48,19 +48,6 @@ static constexpr bool hwLT(HW hw1, HW hw2) { return hw1 < hw2; }
 static constexpr bool hwLE(HW hw1, HW hw2) { return hw1 <= hw2; }
 static constexpr bool hwGE(HW hw1, HW hw2) { return hw1 >= hw2; }
 static constexpr bool hwGT(HW hw1, HW hw2) { return hw1 > hw2; }
-
-// -----------------------------------------------------------------------
-
-enum RegFiles : unsigned {
-    RegFileARF = 0,
-    RegFileGRF = 1,
-    RegFileIMM = 3,
-};
-
-inline unsigned getRegFile(const RegData &rd)          { return rd.isARF() ? RegFileARF : RegFileGRF; }
-inline unsigned getRegFile(const Align16Operand &o)    { return getRegFile(o.getReg()); }
-inline unsigned getRegFile(const ExtendedReg &reg)     { return getRegFile(reg.getBase()); }
-inline unsigned getRegFile(const Immediate &imm)       { return RegFileIMM; }
 
 // -----------------------------------------------------------------------
 // Binary formats, split between pre-Gen12 and post-Gen12.
@@ -187,6 +174,8 @@ protected:
 
     Label _labelLocalIDsLoaded;
     Label _labelArgsLoaded;
+    Label _lastFenceLabel;
+    RegData _lastFenceDst;
 
 private:
     InstructionModifier defaultModifier;
@@ -1295,309 +1284,315 @@ public:
     void wrdep(const GRF &r) {
         wrdep(r-r);
     }
+    void fencedep(Label &fenceLocation) {
+        addFixup(LabelFixup(fenceLocation.getID(labelManager), LabelFixup::JIPOffset));
+        opX(Opcode::directive, DataType::ud, InstructionModifier::createAutoSWSB(), GRF(static_cast<int>(Directive::fencedep)), Immediate::ud(0));
+    }
 
     using _self = BinaryCodeGenerator<hw>;
 #include "ngen_pseudo.hpp"
 };
 
 #define NGEN_FORWARD(hw) \
-NGEN_FORWARD_NO_REQGRF(hw) \
-void requireGRF(int grfs) { ngen::BinaryCodeGenerator<hw>::requireGRF(grfs); }
+NGEN_FORWARD_NO_ELF_OVERRIDES(hw) \
+NGEN_FORWARD_EXTRA_ELF_OVERRIDES(hw) \
+void requireGRF(int grfs) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::requireGRF(grfs); }
 
-#define NGEN_FORWARD_NO_REQGRF(hw) \
-using InstructionStream = typename ngen::BinaryCodeGenerator<hw>::InstructionStream; \
-using ngen::BinaryCodeGenerator<hw>::isGen12; \
-template <typename DT = void, typename... Targs> void add(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template add<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void add3(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template add3<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void addc(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template addc<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void and_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template and_<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void asr(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template asr<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void avg(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template avg<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void bfe(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template bfe<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void bfi1(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template bfi1<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void bfi2(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template bfi2<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void bfn(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template bfn<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void bfrev(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template bfrev<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void cbit(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template cbit<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void cmp(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template cmp<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void cmpn(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template cmpn<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void csel(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template csel<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void dp2(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template dp2<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void dp3(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template dp3<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void dp4(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template dp4<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void dp4a(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template dp4a<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void dpas(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template dpas<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void dpasw(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template dpasw<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void dph(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template dph<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void fbh(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template fbh<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void fbl(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template fbl<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void frc(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template frc<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void line(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template line<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void lrp(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template lrp<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void lzd(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template lzd<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void mac(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template mac<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void macl(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template macl<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void mach(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template mach<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void mad(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template mad<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void madm(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template madm<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void math(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template math<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void mov(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template mov<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void movi(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template movi<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void mul(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template mul<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void not_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template not_<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void or_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template or_<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void pln(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template pln<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void rndd(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template rndd<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void rnde(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template rnde<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void rndu(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template rndu<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void rndz(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template rndz<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void rol(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template rol<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void ror(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template ror<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void sad2(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template sad2<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void sada2(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template sada2<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void sel(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template sel<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void shl(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template shl<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void shr(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template shr<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void smov(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template smov<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void subb(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template subb<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void xor_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template xor_<DT>(std::forward<Targs>(args)...); } \
-template <typename... Targs> void brc(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::brc(std::forward<Targs>(args)...); } \
-template <typename... Targs> void brd(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::brd(std::forward<Targs>(args)...); } \
-template <typename... Targs> void break_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::break_(std::forward<Targs>(args)...); } \
-template <typename... Targs> void call(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::call(std::forward<Targs>(args)...); } \
-template <typename... Targs> void calla(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::calla(std::forward<Targs>(args)...); } \
-template <typename... Targs> void cont(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::cont(std::forward<Targs>(args)...); } \
-template <typename... Targs> void else_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::else_(std::forward<Targs>(args)...); } \
-template <typename... Targs> void endif(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::endif(std::forward<Targs>(args)...); } \
-template <typename... Targs> void goto_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::goto_(std::forward<Targs>(args)...); } \
-template <typename... Targs> void halt(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::halt(std::forward<Targs>(args)...); } \
-template <typename... Targs> void if_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::if_(std::forward<Targs>(args)...); } \
-template <typename... Targs> void illegal(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::illegal(std::forward<Targs>(args)...); } \
-template <typename... Targs> void join(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::join(std::forward<Targs>(args)...); } \
-template <typename... Targs> void jmpi(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::jmpi(std::forward<Targs>(args)...); } \
-template <typename... Targs> void nop(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::nop(std::forward<Targs>(args)...); } \
-template <typename... Targs> void ret(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::ret(std::forward<Targs>(args)...); } \
-template <typename... Targs> void send(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::send(std::forward<Targs>(args)...); } \
-template <typename... Targs> void sendc(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::sendc(std::forward<Targs>(args)...); } \
-template <typename... Targs> void sends(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::sends(std::forward<Targs>(args)...); } \
-template <typename... Targs> void sendsc(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::sendsc(std::forward<Targs>(args)...); } \
-using ngen::BinaryCodeGenerator<hw>::sync; \
-template <typename... Targs> void wait(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::wait(std::forward<Targs>(args)...); } \
-template <typename... Targs> void while_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::while_(std::forward<Targs>(args)...); } \
-template <typename... Targs> void ignoredep(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::ignoredep(std::forward<Targs>(args)...); } \
-template <typename... Targs> void subdep(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::subdep(std::forward<Targs>(args)...); } \
-template <typename... Targs> void wrdep(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::wrdep(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void min_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template min_<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void max_(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template max_<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void bfi(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template bfi<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void cos(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template cos<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void exp(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template exp<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void fdiv(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template fdiv<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void idiv(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template idiv<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void inv(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template inv<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void invm(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template invm<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void iqot(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template iqot<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void irem(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template irem<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void log(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template log<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void pow(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template pow<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void rsqt(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template rsqt<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void rsqtm(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template rsqtm<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void sin(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template sin<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void sqt(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template sqt<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void fdiv_ieee(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template fdiv_ieee<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void inv_ieee(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template inv_ieee<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void sqt_ieee(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template sqt_ieee<DT>(std::forward<Targs>(args)...); } \
-template <typename... Targs> void threadend(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::threadend(std::forward<Targs>(args)...); } \
-template <typename... Targs> void barrierheader(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::barrierheader(std::forward<Targs>(args)...); } \
-template <typename... Targs> void barriermsg(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::barriermsg(std::forward<Targs>(args)...); } \
-template <typename... Targs> void barriersignal(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::barriersignal(std::forward<Targs>(args)...); } \
-template <typename... Targs> void barrierwait(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::barrierwait(std::forward<Targs>(args)...); } \
-template <typename... Targs> void barrier(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::barrier(std::forward<Targs>(args)...); } \
-using ngen::BinaryCodeGenerator<hw>::load; \
-using ngen::BinaryCodeGenerator<hw>::store; \
-using ngen::BinaryCodeGenerator<hw>::atomic; \
-template <typename... Targs> void memfence(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::memfence(std::forward<Targs>(args)...); } \
-template <typename... Targs> void slmfence(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::slmfence(std::forward<Targs>(args)...); } \
-template <typename... Targs> void loadlid(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::loadlid(std::forward<Targs>(args)...); } \
-template <typename... Targs> void loadargs(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::loadargs(std::forward<Targs>(args)...); } \
-template <typename... Targs> void epilogue(int GRFCount, bool hasSLM, const ngen::RegData &r0_info) { ngen::BinaryCodeGenerator<hw>::epilogue(GRFCount, hasSLM, r0_info); } \
-template <typename... Targs> void pushStream(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::pushStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> InstructionStream *popStream(Targs&&... args) { return ngen::BinaryCodeGenerator<hw>::popStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> void appendStream(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::appendStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> void appendCurrentStream(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::appendCurrentStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> void discardStream(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::discardStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> void mark(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::mark(std::forward<Targs>(args)...); } \
-template <typename... Targs> void comment(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::comment(std::forward<Targs>(args)...); } \
-template <typename... Targs> void setDefaultNoMask(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::setDefaultNoMask(std::forward<Targs>(args)...); } \
-template <typename... Targs> void setDefaultAutoSWSB(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::setDefaultAutoSWSB(std::forward<Targs>(args)...); } \
-bool getDefaultNoMask() { return ngen::BinaryCodeGenerator<hw>::getDefaultNoMask(); } \
-bool getDefaultAutoSWSB() { return ngen::BinaryCodeGenerator<hw>::getDefaultAutoSWSB(); } \
-using ngen::BinaryCodeGenerator<hw>::product; \
-ngen::Product getProduct() { return ngen::BinaryCodeGenerator<hw>::getProduct(); } \
-ngen::ProductFamily getProductFamily() { return ngen::BinaryCodeGenerator<hw>::getProductFamily(); } \
-int getStepping() { return ngen::BinaryCodeGenerator<hw>::getStepping(); } \
-void setProduct(ngen::Product product_) { ngen::BinaryCodeGenerator<hw>::setProduct(product_); } \
-void setProductFamily(ngen::ProductFamily family_) { ngen::BinaryCodeGenerator<hw>::setProductFamily(family_); } \
-void setStepping(int stepping_) { ngen::BinaryCodeGenerator<hw>::setStepping(stepping_); } \
-NGEN_FORWARD_EXTRA \
-NGEN_FORWARD_OP_NAMES \
-NGEN_FORWARD_MIN_MAX \
-NGEN_FORWARD_REGISTERS
+#define NGEN_FORWARD_NO_ELF_OVERRIDES(hw) \
+using InstructionStream = typename NGEN_NAMESPACE::BinaryCodeGenerator<hw>::InstructionStream; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::isGen12; \
+template <typename DT = void, typename... Targs> void add(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template add<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void add3(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template add3<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void addc(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template addc<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void and_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template and_<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void asr(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template asr<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void avg(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template avg<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void bfe(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template bfe<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void bfi1(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template bfi1<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void bfi2(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template bfi2<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void bfn(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template bfn<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void bfrev(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template bfrev<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void cbit(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template cbit<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void cmp(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template cmp<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void cmpn(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template cmpn<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void csel(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template csel<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void dp2(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template dp2<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void dp3(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template dp3<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void dp4(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template dp4<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void dp4a(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template dp4a<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void dpas(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template dpas<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void dpasw(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template dpasw<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void dph(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template dph<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void fbh(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template fbh<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void fbl(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template fbl<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void frc(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template frc<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void line(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template line<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void lrp(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template lrp<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void lzd(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template lzd<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void mac(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template mac<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void macl(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template macl<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void mach(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template mach<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void mad(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template mad<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void madm(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template madm<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void math(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template math<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void mov(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template mov<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void movi(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template movi<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void mul(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template mul<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void not_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template not_<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void or_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template or_<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void pln(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template pln<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void rndd(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template rndd<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void rnde(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template rnde<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void rndu(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template rndu<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void rndz(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template rndz<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void rol(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template rol<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void ror(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template ror<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void sad2(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template sad2<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void sada2(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template sada2<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void sel(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template sel<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void shl(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template shl<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void shr(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template shr<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void smov(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template smov<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void subb(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template subb<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void xor_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template xor_<DT>(std::forward<Targs>(args)...); } \
+template <typename... Targs> void brc(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::brc(std::forward<Targs>(args)...); } \
+template <typename... Targs> void brd(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::brd(std::forward<Targs>(args)...); } \
+template <typename... Targs> void break_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::break_(std::forward<Targs>(args)...); } \
+template <typename... Targs> void call(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::call(std::forward<Targs>(args)...); } \
+template <typename... Targs> void calla(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::calla(std::forward<Targs>(args)...); } \
+template <typename... Targs> void cont(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::cont(std::forward<Targs>(args)...); } \
+template <typename... Targs> void else_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::else_(std::forward<Targs>(args)...); } \
+template <typename... Targs> void endif(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::endif(std::forward<Targs>(args)...); } \
+template <typename... Targs> void goto_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::goto_(std::forward<Targs>(args)...); } \
+template <typename... Targs> void halt(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::halt(std::forward<Targs>(args)...); } \
+template <typename... Targs> void if_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::if_(std::forward<Targs>(args)...); } \
+template <typename... Targs> void illegal(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::illegal(std::forward<Targs>(args)...); } \
+template <typename... Targs> void join(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::join(std::forward<Targs>(args)...); } \
+template <typename... Targs> void jmpi(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::jmpi(std::forward<Targs>(args)...); } \
+template <typename... Targs> void nop(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::nop(std::forward<Targs>(args)...); } \
+template <typename... Targs> void ret(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ret(std::forward<Targs>(args)...); } \
+template <typename... Targs> void send(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::send(std::forward<Targs>(args)...); } \
+template <typename... Targs> void sendc(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sendc(std::forward<Targs>(args)...); } \
+template <typename... Targs> void sends(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sends(std::forward<Targs>(args)...); } \
+template <typename... Targs> void sendsc(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sendsc(std::forward<Targs>(args)...); } \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sync; \
+template <typename... Targs> void wait(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::wait(std::forward<Targs>(args)...); } \
+template <typename... Targs> void while_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::while_(std::forward<Targs>(args)...); } \
+template <typename... Targs> void ignoredep(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ignoredep(std::forward<Targs>(args)...); } \
+template <typename... Targs> void subdep(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::subdep(std::forward<Targs>(args)...); } \
+template <typename... Targs> void wrdep(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::wrdep(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void min_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template min_<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void max_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template max_<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void bfi(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template bfi<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void cos(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template cos<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void exp(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template exp<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void fdiv(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template fdiv<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void idiv(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template idiv<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void inv(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template inv<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void invm(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template invm<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void iqot(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template iqot<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void irem(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template irem<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void log(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template log<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void pow(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template pow<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void rsqt(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template rsqt<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void rsqtm(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template rsqtm<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void sin(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template sin<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void sqt(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template sqt<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void fdiv_ieee(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template fdiv_ieee<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void inv_ieee(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template inv_ieee<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void sqt_ieee(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template sqt_ieee<DT>(std::forward<Targs>(args)...); } \
+template <typename... Targs> void threadend(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::threadend(std::forward<Targs>(args)...); } \
+template <typename... Targs> void barrierheader(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::barrierheader(std::forward<Targs>(args)...); } \
+template <typename... Targs> void barriermsg(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::barriermsg(std::forward<Targs>(args)...); } \
+template <typename... Targs> void barriersignal(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::barriersignal(std::forward<Targs>(args)...); } \
+template <typename... Targs> void barrierwait(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::barrierwait(std::forward<Targs>(args)...); } \
+template <typename... Targs> void barrier(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::barrier(std::forward<Targs>(args)...); } \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::load; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::store; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::atomic; \
+template <typename... Targs> void memfence(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::memfence(std::forward<Targs>(args)...); } \
+template <typename... Targs> void slmfence(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::slmfence(std::forward<Targs>(args)...); } \
+template <typename... Targs> void fencewait(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::fencewait(std::forward<Targs>(args)...); } \
+template <typename... Targs> void loadlid(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::loadlid(std::forward<Targs>(args)...); } \
+template <typename... Targs> void loadargs(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::loadargs(std::forward<Targs>(args)...); } \
+template <typename... Targs> void epilogue(int GRFCount, bool hasSLM, const NGEN_NAMESPACE::RegData &r0_info) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::epilogue(GRFCount, hasSLM, r0_info); } \
+template <typename... Targs> void pushStream(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::pushStream(std::forward<Targs>(args)...); } \
+template <typename... Targs> InstructionStream *popStream(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::popStream(std::forward<Targs>(args)...); } \
+template <typename... Targs> void appendStream(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::appendStream(std::forward<Targs>(args)...); } \
+template <typename... Targs> void appendCurrentStream(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::appendCurrentStream(std::forward<Targs>(args)...); } \
+template <typename... Targs> void discardStream(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::discardStream(std::forward<Targs>(args)...); } \
+template <typename... Targs> void mark(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mark(std::forward<Targs>(args)...); } \
+template <typename... Targs> void comment(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::comment(std::forward<Targs>(args)...); } \
+template <typename... Targs> void setDefaultNoMask(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setDefaultNoMask(std::forward<Targs>(args)...); } \
+template <typename... Targs> void setDefaultAutoSWSB(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setDefaultAutoSWSB(std::forward<Targs>(args)...); } \
+bool getDefaultNoMask() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getDefaultNoMask(); } \
+bool getDefaultAutoSWSB() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getDefaultAutoSWSB(); } \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::product; \
+NGEN_NAMESPACE::Product getProduct() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getProduct(); } \
+NGEN_NAMESPACE::ProductFamily getProductFamily() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getProductFamily(); } \
+int getStepping() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getStepping(); } \
+void setProduct(NGEN_NAMESPACE::Product product_) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setProduct(product_); } \
+void setProductFamily(NGEN_NAMESPACE::ProductFamily family_) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setProductFamily(family_); } \
+void setStepping(int stepping_) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setStepping(stepping_); } \
+NGEN_FORWARD_EXTRA(hw) \
+NGEN_FORWARD_OP_NAMES(hw) \
+NGEN_FORWARD_MIN_MAX(hw) \
+NGEN_FORWARD_REGISTERS(hw)
 
-#define NGEN_FORWARD_EXTRA
+#define NGEN_FORWARD_EXTRA(hw)
+#define NGEN_FORWARD_EXTRA_ELF_OVERRIDES(hw)
 
 #ifdef NGEN_NO_OP_NAMES
-#define NGEN_FORWARD_OP_NAMES
+#define NGEN_FORWARD_OP_NAMES(hw)
 #else
-#define NGEN_FORWARD_OP_NAMES \
-template <typename DT = void, typename... Targs> void and(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template and_<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void not(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template not_<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void or(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template or_<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void xor(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template xor_<DT>(std::forward<Targs>(args)...); }
+#define NGEN_FORWARD_OP_NAMES(hw) \
+template <typename DT = void, typename... Targs> void and(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template and_<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void not(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template not_<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void or(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template or_<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void xor(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template xor_<DT>(std::forward<Targs>(args)...); }
 #endif
 
 #ifdef NGEN_WINDOWS_COMPAT
-#define NGEN_FORWARD_MIN_MAX
+#define NGEN_FORWARD_MIN_MAX(hw)
 #else
-#define NGEN_FORWARD_MIN_MAX \
-template <typename DT = void, typename... Targs> void min(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template min<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void max(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template max<DT>(std::forward<Targs>(args)...); }
+#define NGEN_FORWARD_MIN_MAX(hw) \
+template <typename DT = void, typename... Targs> void min(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template min<DT>(std::forward<Targs>(args)...); } \
+template <typename DT = void, typename... Targs> void max(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template max<DT>(std::forward<Targs>(args)...); }
 #endif
 
 #ifdef NGEN_GLOBAL_REGS
-#define NGEN_FORWARD_REGISTERS
+#define NGEN_FORWARD_REGISTERS(hw)
 #else
-#define NGEN_FORWARD_REGISTERS_BASE \
-using ngen::BinaryCodeGenerator<hw>::indirect; \
-using ngen::BinaryCodeGenerator<hw>::r0; using ngen::BinaryCodeGenerator<hw>::r1; using ngen::BinaryCodeGenerator<hw>::r2; using ngen::BinaryCodeGenerator<hw>::r3; \
-using ngen::BinaryCodeGenerator<hw>::r4; using ngen::BinaryCodeGenerator<hw>::r5; using ngen::BinaryCodeGenerator<hw>::r6; using ngen::BinaryCodeGenerator<hw>::r7; \
-using ngen::BinaryCodeGenerator<hw>::r8; using ngen::BinaryCodeGenerator<hw>::r9; using ngen::BinaryCodeGenerator<hw>::r10; using ngen::BinaryCodeGenerator<hw>::r11; \
-using ngen::BinaryCodeGenerator<hw>::r12; using ngen::BinaryCodeGenerator<hw>::r13; using ngen::BinaryCodeGenerator<hw>::r14; using ngen::BinaryCodeGenerator<hw>::r15; \
-using ngen::BinaryCodeGenerator<hw>::r16; using ngen::BinaryCodeGenerator<hw>::r17; using ngen::BinaryCodeGenerator<hw>::r18; using ngen::BinaryCodeGenerator<hw>::r19; \
-using ngen::BinaryCodeGenerator<hw>::r20; using ngen::BinaryCodeGenerator<hw>::r21; using ngen::BinaryCodeGenerator<hw>::r22; using ngen::BinaryCodeGenerator<hw>::r23; \
-using ngen::BinaryCodeGenerator<hw>::r24; using ngen::BinaryCodeGenerator<hw>::r25; using ngen::BinaryCodeGenerator<hw>::r26; using ngen::BinaryCodeGenerator<hw>::r27; \
-using ngen::BinaryCodeGenerator<hw>::r28; using ngen::BinaryCodeGenerator<hw>::r29; using ngen::BinaryCodeGenerator<hw>::r30; using ngen::BinaryCodeGenerator<hw>::r31; \
-using ngen::BinaryCodeGenerator<hw>::r32; using ngen::BinaryCodeGenerator<hw>::r33; using ngen::BinaryCodeGenerator<hw>::r34; using ngen::BinaryCodeGenerator<hw>::r35; \
-using ngen::BinaryCodeGenerator<hw>::r36; using ngen::BinaryCodeGenerator<hw>::r37; using ngen::BinaryCodeGenerator<hw>::r38; using ngen::BinaryCodeGenerator<hw>::r39; \
-using ngen::BinaryCodeGenerator<hw>::r40; using ngen::BinaryCodeGenerator<hw>::r41; using ngen::BinaryCodeGenerator<hw>::r42; using ngen::BinaryCodeGenerator<hw>::r43; \
-using ngen::BinaryCodeGenerator<hw>::r44; using ngen::BinaryCodeGenerator<hw>::r45; using ngen::BinaryCodeGenerator<hw>::r46; using ngen::BinaryCodeGenerator<hw>::r47; \
-using ngen::BinaryCodeGenerator<hw>::r48; using ngen::BinaryCodeGenerator<hw>::r49; using ngen::BinaryCodeGenerator<hw>::r50; using ngen::BinaryCodeGenerator<hw>::r51; \
-using ngen::BinaryCodeGenerator<hw>::r52; using ngen::BinaryCodeGenerator<hw>::r53; using ngen::BinaryCodeGenerator<hw>::r54; using ngen::BinaryCodeGenerator<hw>::r55; \
-using ngen::BinaryCodeGenerator<hw>::r56; using ngen::BinaryCodeGenerator<hw>::r57; using ngen::BinaryCodeGenerator<hw>::r58; using ngen::BinaryCodeGenerator<hw>::r59; \
-using ngen::BinaryCodeGenerator<hw>::r60; using ngen::BinaryCodeGenerator<hw>::r61; using ngen::BinaryCodeGenerator<hw>::r62; using ngen::BinaryCodeGenerator<hw>::r63; \
-using ngen::BinaryCodeGenerator<hw>::r64; using ngen::BinaryCodeGenerator<hw>::r65; using ngen::BinaryCodeGenerator<hw>::r66; using ngen::BinaryCodeGenerator<hw>::r67; \
-using ngen::BinaryCodeGenerator<hw>::r68; using ngen::BinaryCodeGenerator<hw>::r69; using ngen::BinaryCodeGenerator<hw>::r70; using ngen::BinaryCodeGenerator<hw>::r71; \
-using ngen::BinaryCodeGenerator<hw>::r72; using ngen::BinaryCodeGenerator<hw>::r73; using ngen::BinaryCodeGenerator<hw>::r74; using ngen::BinaryCodeGenerator<hw>::r75; \
-using ngen::BinaryCodeGenerator<hw>::r76; using ngen::BinaryCodeGenerator<hw>::r77; using ngen::BinaryCodeGenerator<hw>::r78; using ngen::BinaryCodeGenerator<hw>::r79; \
-using ngen::BinaryCodeGenerator<hw>::r80; using ngen::BinaryCodeGenerator<hw>::r81; using ngen::BinaryCodeGenerator<hw>::r82; using ngen::BinaryCodeGenerator<hw>::r83; \
-using ngen::BinaryCodeGenerator<hw>::r84; using ngen::BinaryCodeGenerator<hw>::r85; using ngen::BinaryCodeGenerator<hw>::r86; using ngen::BinaryCodeGenerator<hw>::r87; \
-using ngen::BinaryCodeGenerator<hw>::r88; using ngen::BinaryCodeGenerator<hw>::r89; using ngen::BinaryCodeGenerator<hw>::r90; using ngen::BinaryCodeGenerator<hw>::r91; \
-using ngen::BinaryCodeGenerator<hw>::r92; using ngen::BinaryCodeGenerator<hw>::r93; using ngen::BinaryCodeGenerator<hw>::r94; using ngen::BinaryCodeGenerator<hw>::r95; \
-using ngen::BinaryCodeGenerator<hw>::r96; using ngen::BinaryCodeGenerator<hw>::r97; using ngen::BinaryCodeGenerator<hw>::r98; using ngen::BinaryCodeGenerator<hw>::r99; \
-using ngen::BinaryCodeGenerator<hw>::r100; using ngen::BinaryCodeGenerator<hw>::r101; using ngen::BinaryCodeGenerator<hw>::r102; using ngen::BinaryCodeGenerator<hw>::r103; \
-using ngen::BinaryCodeGenerator<hw>::r104; using ngen::BinaryCodeGenerator<hw>::r105; using ngen::BinaryCodeGenerator<hw>::r106; using ngen::BinaryCodeGenerator<hw>::r107; \
-using ngen::BinaryCodeGenerator<hw>::r108; using ngen::BinaryCodeGenerator<hw>::r109; using ngen::BinaryCodeGenerator<hw>::r110; using ngen::BinaryCodeGenerator<hw>::r111; \
-using ngen::BinaryCodeGenerator<hw>::r112; using ngen::BinaryCodeGenerator<hw>::r113; using ngen::BinaryCodeGenerator<hw>::r114; using ngen::BinaryCodeGenerator<hw>::r115; \
-using ngen::BinaryCodeGenerator<hw>::r116; using ngen::BinaryCodeGenerator<hw>::r117; using ngen::BinaryCodeGenerator<hw>::r118; using ngen::BinaryCodeGenerator<hw>::r119; \
-using ngen::BinaryCodeGenerator<hw>::r120; using ngen::BinaryCodeGenerator<hw>::r121; using ngen::BinaryCodeGenerator<hw>::r122; using ngen::BinaryCodeGenerator<hw>::r123; \
-using ngen::BinaryCodeGenerator<hw>::r124; using ngen::BinaryCodeGenerator<hw>::r125; using ngen::BinaryCodeGenerator<hw>::r126; using ngen::BinaryCodeGenerator<hw>::r127; \
-using ngen::BinaryCodeGenerator<hw>::r128; using ngen::BinaryCodeGenerator<hw>::r129; using ngen::BinaryCodeGenerator<hw>::r130; using ngen::BinaryCodeGenerator<hw>::r131; \
-using ngen::BinaryCodeGenerator<hw>::r132; using ngen::BinaryCodeGenerator<hw>::r133; using ngen::BinaryCodeGenerator<hw>::r134; using ngen::BinaryCodeGenerator<hw>::r135; \
-using ngen::BinaryCodeGenerator<hw>::r136; using ngen::BinaryCodeGenerator<hw>::r137; using ngen::BinaryCodeGenerator<hw>::r138; using ngen::BinaryCodeGenerator<hw>::r139; \
-using ngen::BinaryCodeGenerator<hw>::r140; using ngen::BinaryCodeGenerator<hw>::r141; using ngen::BinaryCodeGenerator<hw>::r142; using ngen::BinaryCodeGenerator<hw>::r143; \
-using ngen::BinaryCodeGenerator<hw>::r144; using ngen::BinaryCodeGenerator<hw>::r145; using ngen::BinaryCodeGenerator<hw>::r146; using ngen::BinaryCodeGenerator<hw>::r147; \
-using ngen::BinaryCodeGenerator<hw>::r148; using ngen::BinaryCodeGenerator<hw>::r149; using ngen::BinaryCodeGenerator<hw>::r150; using ngen::BinaryCodeGenerator<hw>::r151; \
-using ngen::BinaryCodeGenerator<hw>::r152; using ngen::BinaryCodeGenerator<hw>::r153; using ngen::BinaryCodeGenerator<hw>::r154; using ngen::BinaryCodeGenerator<hw>::r155; \
-using ngen::BinaryCodeGenerator<hw>::r156; using ngen::BinaryCodeGenerator<hw>::r157; using ngen::BinaryCodeGenerator<hw>::r158; using ngen::BinaryCodeGenerator<hw>::r159; \
-using ngen::BinaryCodeGenerator<hw>::r160; using ngen::BinaryCodeGenerator<hw>::r161; using ngen::BinaryCodeGenerator<hw>::r162; using ngen::BinaryCodeGenerator<hw>::r163; \
-using ngen::BinaryCodeGenerator<hw>::r164; using ngen::BinaryCodeGenerator<hw>::r165; using ngen::BinaryCodeGenerator<hw>::r166; using ngen::BinaryCodeGenerator<hw>::r167; \
-using ngen::BinaryCodeGenerator<hw>::r168; using ngen::BinaryCodeGenerator<hw>::r169; using ngen::BinaryCodeGenerator<hw>::r170; using ngen::BinaryCodeGenerator<hw>::r171; \
-using ngen::BinaryCodeGenerator<hw>::r172; using ngen::BinaryCodeGenerator<hw>::r173; using ngen::BinaryCodeGenerator<hw>::r174; using ngen::BinaryCodeGenerator<hw>::r175; \
-using ngen::BinaryCodeGenerator<hw>::r176; using ngen::BinaryCodeGenerator<hw>::r177; using ngen::BinaryCodeGenerator<hw>::r178; using ngen::BinaryCodeGenerator<hw>::r179; \
-using ngen::BinaryCodeGenerator<hw>::r180; using ngen::BinaryCodeGenerator<hw>::r181; using ngen::BinaryCodeGenerator<hw>::r182; using ngen::BinaryCodeGenerator<hw>::r183; \
-using ngen::BinaryCodeGenerator<hw>::r184; using ngen::BinaryCodeGenerator<hw>::r185; using ngen::BinaryCodeGenerator<hw>::r186; using ngen::BinaryCodeGenerator<hw>::r187; \
-using ngen::BinaryCodeGenerator<hw>::r188; using ngen::BinaryCodeGenerator<hw>::r189; using ngen::BinaryCodeGenerator<hw>::r190; using ngen::BinaryCodeGenerator<hw>::r191; \
-using ngen::BinaryCodeGenerator<hw>::r192; using ngen::BinaryCodeGenerator<hw>::r193; using ngen::BinaryCodeGenerator<hw>::r194; using ngen::BinaryCodeGenerator<hw>::r195; \
-using ngen::BinaryCodeGenerator<hw>::r196; using ngen::BinaryCodeGenerator<hw>::r197; using ngen::BinaryCodeGenerator<hw>::r198; using ngen::BinaryCodeGenerator<hw>::r199; \
-using ngen::BinaryCodeGenerator<hw>::r200; using ngen::BinaryCodeGenerator<hw>::r201; using ngen::BinaryCodeGenerator<hw>::r202; using ngen::BinaryCodeGenerator<hw>::r203; \
-using ngen::BinaryCodeGenerator<hw>::r204; using ngen::BinaryCodeGenerator<hw>::r205; using ngen::BinaryCodeGenerator<hw>::r206; using ngen::BinaryCodeGenerator<hw>::r207; \
-using ngen::BinaryCodeGenerator<hw>::r208; using ngen::BinaryCodeGenerator<hw>::r209; using ngen::BinaryCodeGenerator<hw>::r210; using ngen::BinaryCodeGenerator<hw>::r211; \
-using ngen::BinaryCodeGenerator<hw>::r212; using ngen::BinaryCodeGenerator<hw>::r213; using ngen::BinaryCodeGenerator<hw>::r214; using ngen::BinaryCodeGenerator<hw>::r215; \
-using ngen::BinaryCodeGenerator<hw>::r216; using ngen::BinaryCodeGenerator<hw>::r217; using ngen::BinaryCodeGenerator<hw>::r218; using ngen::BinaryCodeGenerator<hw>::r219; \
-using ngen::BinaryCodeGenerator<hw>::r220; using ngen::BinaryCodeGenerator<hw>::r221; using ngen::BinaryCodeGenerator<hw>::r222; using ngen::BinaryCodeGenerator<hw>::r223; \
-using ngen::BinaryCodeGenerator<hw>::r224; using ngen::BinaryCodeGenerator<hw>::r225; using ngen::BinaryCodeGenerator<hw>::r226; using ngen::BinaryCodeGenerator<hw>::r227; \
-using ngen::BinaryCodeGenerator<hw>::r228; using ngen::BinaryCodeGenerator<hw>::r229; using ngen::BinaryCodeGenerator<hw>::r230; using ngen::BinaryCodeGenerator<hw>::r231; \
-using ngen::BinaryCodeGenerator<hw>::r232; using ngen::BinaryCodeGenerator<hw>::r233; using ngen::BinaryCodeGenerator<hw>::r234; using ngen::BinaryCodeGenerator<hw>::r235; \
-using ngen::BinaryCodeGenerator<hw>::r236; using ngen::BinaryCodeGenerator<hw>::r237; using ngen::BinaryCodeGenerator<hw>::r238; using ngen::BinaryCodeGenerator<hw>::r239; \
-using ngen::BinaryCodeGenerator<hw>::r240; using ngen::BinaryCodeGenerator<hw>::r241; using ngen::BinaryCodeGenerator<hw>::r242; using ngen::BinaryCodeGenerator<hw>::r243; \
-using ngen::BinaryCodeGenerator<hw>::r244; using ngen::BinaryCodeGenerator<hw>::r245; using ngen::BinaryCodeGenerator<hw>::r246; using ngen::BinaryCodeGenerator<hw>::r247; \
-using ngen::BinaryCodeGenerator<hw>::r248; using ngen::BinaryCodeGenerator<hw>::r249; using ngen::BinaryCodeGenerator<hw>::r250; using ngen::BinaryCodeGenerator<hw>::r251; \
-using ngen::BinaryCodeGenerator<hw>::r252; using ngen::BinaryCodeGenerator<hw>::r253; using ngen::BinaryCodeGenerator<hw>::r254; using ngen::BinaryCodeGenerator<hw>::r255; \
-using ngen::BinaryCodeGenerator<hw>::null; \
-using ngen::BinaryCodeGenerator<hw>::a0; \
-using ngen::BinaryCodeGenerator<hw>::acc0; using ngen::BinaryCodeGenerator<hw>::acc1; using ngen::BinaryCodeGenerator<hw>::acc2; using ngen::BinaryCodeGenerator<hw>::acc3; \
-using ngen::BinaryCodeGenerator<hw>::acc4; using ngen::BinaryCodeGenerator<hw>::acc5; using ngen::BinaryCodeGenerator<hw>::acc6; using ngen::BinaryCodeGenerator<hw>::acc7; \
-using ngen::BinaryCodeGenerator<hw>::acc8; using ngen::BinaryCodeGenerator<hw>::acc9; \
-using ngen::BinaryCodeGenerator<hw>::mme0; using ngen::BinaryCodeGenerator<hw>::mme1; using ngen::BinaryCodeGenerator<hw>::mme2; using ngen::BinaryCodeGenerator<hw>::mme3; \
-using ngen::BinaryCodeGenerator<hw>::mme4; using ngen::BinaryCodeGenerator<hw>::mme5; using ngen::BinaryCodeGenerator<hw>::mme6; using ngen::BinaryCodeGenerator<hw>::mme7; \
-using ngen::BinaryCodeGenerator<hw>::noacc; using ngen::BinaryCodeGenerator<hw>::nomme; \
-using ngen::BinaryCodeGenerator<hw>::f0; using ngen::BinaryCodeGenerator<hw>::f1; using ngen::BinaryCodeGenerator<hw>::f2; using ngen::BinaryCodeGenerator<hw>::f3; \
-using ngen::BinaryCodeGenerator<hw>::f0_0; using ngen::BinaryCodeGenerator<hw>::f0_1; using ngen::BinaryCodeGenerator<hw>::f1_0; using ngen::BinaryCodeGenerator<hw>::f1_1; \
-using ngen::BinaryCodeGenerator<hw>::ce0; using ngen::BinaryCodeGenerator<hw>::sp; using ngen::BinaryCodeGenerator<hw>::sr0; using ngen::BinaryCodeGenerator<hw>::sr1; \
-using ngen::BinaryCodeGenerator<hw>::cr0; using ngen::BinaryCodeGenerator<hw>::n0; using ngen::BinaryCodeGenerator<hw>::ip; using ngen::BinaryCodeGenerator<hw>::tdr0; \
-using ngen::BinaryCodeGenerator<hw>::tm0; using ngen::BinaryCodeGenerator<hw>::tm1; using ngen::BinaryCodeGenerator<hw>::tm2; using ngen::BinaryCodeGenerator<hw>::tm3; \
-using ngen::BinaryCodeGenerator<hw>::tm4; using ngen::BinaryCodeGenerator<hw>::pm0; using ngen::BinaryCodeGenerator<hw>::tp0; using ngen::BinaryCodeGenerator<hw>::dbg0; \
-using ngen::BinaryCodeGenerator<hw>::fc0; using ngen::BinaryCodeGenerator<hw>::fc1; using ngen::BinaryCodeGenerator<hw>::fc2; using ngen::BinaryCodeGenerator<hw>::fc3; \
-using ngen::BinaryCodeGenerator<hw>::NoDDClr; using ngen::BinaryCodeGenerator<hw>::NoDDChk; \
-using ngen::BinaryCodeGenerator<hw>::AccWrEn; using ngen::BinaryCodeGenerator<hw>::NoSrcDepSet; using ngen::BinaryCodeGenerator<hw>::Breakpoint; using ngen::BinaryCodeGenerator<hw>::sat; \
-using ngen::BinaryCodeGenerator<hw>::NoMask; \
-using ngen::BinaryCodeGenerator<hw>::ExBSO; \
-using ngen::BinaryCodeGenerator<hw>::Serialize; using ngen::BinaryCodeGenerator<hw>::EOT; \
-using ngen::BinaryCodeGenerator<hw>::Atomic; using ngen::BinaryCodeGenerator<hw>::Switch; using ngen::BinaryCodeGenerator<hw>::NoPreempt; \
-using ngen::BinaryCodeGenerator<hw>::anyv; using ngen::BinaryCodeGenerator<hw>::allv; using ngen::BinaryCodeGenerator<hw>::any2h; using ngen::BinaryCodeGenerator<hw>::all2h; \
-using ngen::BinaryCodeGenerator<hw>::any4h; using ngen::BinaryCodeGenerator<hw>::all4h; using ngen::BinaryCodeGenerator<hw>::any8h; using ngen::BinaryCodeGenerator<hw>::all8h; \
-using ngen::BinaryCodeGenerator<hw>::any16h; using ngen::BinaryCodeGenerator<hw>::all16h; using ngen::BinaryCodeGenerator<hw>::any32h; using ngen::BinaryCodeGenerator<hw>::all32h; \
-using ngen::BinaryCodeGenerator<hw>::any; using ngen::BinaryCodeGenerator<hw>::all; \
-using ngen::BinaryCodeGenerator<hw>::x_repl; using ngen::BinaryCodeGenerator<hw>::y_repl; using ngen::BinaryCodeGenerator<hw>::z_repl; using ngen::BinaryCodeGenerator<hw>::w_repl; \
-using ngen::BinaryCodeGenerator<hw>::ze; using ngen::BinaryCodeGenerator<hw>::eq; using ngen::BinaryCodeGenerator<hw>::nz; using ngen::BinaryCodeGenerator<hw>::ne; \
-using ngen::BinaryCodeGenerator<hw>::gt; using ngen::BinaryCodeGenerator<hw>::ge; using ngen::BinaryCodeGenerator<hw>::lt; using ngen::BinaryCodeGenerator<hw>::le; \
-using ngen::BinaryCodeGenerator<hw>::ov; using ngen::BinaryCodeGenerator<hw>::un; using ngen::BinaryCodeGenerator<hw>::eo; \
-using ngen::BinaryCodeGenerator<hw>::M0; using ngen::BinaryCodeGenerator<hw>::M4; using ngen::BinaryCodeGenerator<hw>::M8; using ngen::BinaryCodeGenerator<hw>::M12; \
-using ngen::BinaryCodeGenerator<hw>::M16; using ngen::BinaryCodeGenerator<hw>::M20; using ngen::BinaryCodeGenerator<hw>::M24; using ngen::BinaryCodeGenerator<hw>::M28; \
-using ngen::BinaryCodeGenerator<hw>::sb0; using ngen::BinaryCodeGenerator<hw>::sb1; using ngen::BinaryCodeGenerator<hw>::sb2; using ngen::BinaryCodeGenerator<hw>::sb3; \
-using ngen::BinaryCodeGenerator<hw>::sb4; using ngen::BinaryCodeGenerator<hw>::sb5; using ngen::BinaryCodeGenerator<hw>::sb6; using ngen::BinaryCodeGenerator<hw>::sb7; \
-using ngen::BinaryCodeGenerator<hw>::sb8; using ngen::BinaryCodeGenerator<hw>::sb9; using ngen::BinaryCodeGenerator<hw>::sb10; using ngen::BinaryCodeGenerator<hw>::sb11; \
-using ngen::BinaryCodeGenerator<hw>::sb12; using ngen::BinaryCodeGenerator<hw>::sb13; using ngen::BinaryCodeGenerator<hw>::sb14; using ngen::BinaryCodeGenerator<hw>::sb15; \
-using ngen::BinaryCodeGenerator<hw>::sb16; using ngen::BinaryCodeGenerator<hw>::sb17; using ngen::BinaryCodeGenerator<hw>::sb18; using ngen::BinaryCodeGenerator<hw>::sb19; \
-using ngen::BinaryCodeGenerator<hw>::sb20; using ngen::BinaryCodeGenerator<hw>::sb21; using ngen::BinaryCodeGenerator<hw>::sb22; using ngen::BinaryCodeGenerator<hw>::sb23; \
-using ngen::BinaryCodeGenerator<hw>::sb24; using ngen::BinaryCodeGenerator<hw>::sb25; using ngen::BinaryCodeGenerator<hw>::sb26; using ngen::BinaryCodeGenerator<hw>::sb27; \
-using ngen::BinaryCodeGenerator<hw>::sb28; using ngen::BinaryCodeGenerator<hw>::sb29; using ngen::BinaryCodeGenerator<hw>::sb30; using ngen::BinaryCodeGenerator<hw>::sb31; \
-using ngen::BinaryCodeGenerator<hw>::NoAccSBSet; \
-using ngen::BinaryCodeGenerator<hw>::A32; using ngen::BinaryCodeGenerator<hw>::A32NC; using ngen::BinaryCodeGenerator<hw>::A64; using ngen::BinaryCodeGenerator<hw>::A64NC; \
-using ngen::BinaryCodeGenerator<hw>::SLM; \
-template <typename... Targs> ngen::InstructionModifier ExecutionOffset(Targs&&... args) { return ngen::BinaryCodeGenerator<hw>::ExecutionOffset(std::forward<Targs>(args)...); } \
-template <typename... Targs> ngen::AddressBase Surface(Targs&&... args) { return ngen::BinaryCodeGenerator<hw>::Surface(std::forward<Targs>(args)...); } \
-template <typename... Targs> ngen::AddressBase CC(Targs&&... args) { return ngen::BinaryCodeGenerator<hw>::CC(std::forward<Targs>(args)...); } \
-template <typename... Targs> ngen::AddressBase SC(Targs&&... args) { return ngen::BinaryCodeGenerator<hw>::SC(std::forward<Targs>(args)...); } \
-using ngen::BinaryCodeGenerator<hw>::D8; using ngen::BinaryCodeGenerator<hw>::D16; using ngen::BinaryCodeGenerator<hw>::D32; using ngen::BinaryCodeGenerator<hw>::D64; \
-using ngen::BinaryCodeGenerator<hw>::D8U32; using ngen::BinaryCodeGenerator<hw>::D16U32; \
-using ngen::BinaryCodeGenerator<hw>::D8T; using ngen::BinaryCodeGenerator<hw>::D16T; using ngen::BinaryCodeGenerator<hw>::D32T; using ngen::BinaryCodeGenerator<hw>::D64T; \
-using ngen::BinaryCodeGenerator<hw>::D8U32T; using ngen::BinaryCodeGenerator<hw>::D16U32T; \
-using ngen::BinaryCodeGenerator<hw>::V1; using ngen::BinaryCodeGenerator<hw>::V2; using ngen::BinaryCodeGenerator<hw>::V3; using ngen::BinaryCodeGenerator<hw>::V4; \
-using ngen::BinaryCodeGenerator<hw>::V8; using ngen::BinaryCodeGenerator<hw>::V16; using ngen::BinaryCodeGenerator<hw>::V32; using ngen::BinaryCodeGenerator<hw>::V64; \
-using ngen::BinaryCodeGenerator<hw>::V1T; using ngen::BinaryCodeGenerator<hw>::V2T; using ngen::BinaryCodeGenerator<hw>::V3T; using ngen::BinaryCodeGenerator<hw>::V4T; \
-using ngen::BinaryCodeGenerator<hw>::V8T; using ngen::BinaryCodeGenerator<hw>::V16T; using ngen::BinaryCodeGenerator<hw>::V32T; using ngen::BinaryCodeGenerator<hw>::V64T; \
-using ngen::BinaryCodeGenerator<hw>::transpose; \
-using ngen::BinaryCodeGenerator<hw>::vnni; \
-using ngen::BinaryCodeGenerator<hw>::L1UC_L3UC; using ngen::BinaryCodeGenerator<hw>::L1UC_L3C; using ngen::BinaryCodeGenerator<hw>::L1C_L3UC; using ngen::BinaryCodeGenerator<hw>::L1C_L3C; \
-using ngen::BinaryCodeGenerator<hw>::L1S_L3UC; using ngen::BinaryCodeGenerator<hw>::L1S_L3C; using ngen::BinaryCodeGenerator<hw>::L1IAR_L3C; using ngen::BinaryCodeGenerator<hw>::L1UC_L3WB; \
-using ngen::BinaryCodeGenerator<hw>::L1WT_L3UC; using ngen::BinaryCodeGenerator<hw>::L1WT_L3WB; using ngen::BinaryCodeGenerator<hw>::L1S_L3WB; using ngen::BinaryCodeGenerator<hw>::L1WB_L3WB;
-#define NGEN_FORWARD_REGISTERS_EXTRA1A \
-using ngen::BinaryCodeGenerator<hw>::L1C_L3CC; using ngen::BinaryCodeGenerator<hw>::L1UC_L3CC;
-#define NGEN_FORWARD_REGISTERS_EXTRA1
-#define NGEN_FORWARD_REGISTERS_EXTRA2
-#define NGEN_FORWARD_REGISTERS_EXTRA3
-#define NGEN_FORWARD_REGISTERS NGEN_FORWARD_REGISTERS_BASE NGEN_FORWARD_REGISTERS_EXTRA1A NGEN_FORWARD_REGISTERS_EXTRA1 NGEN_FORWARD_REGISTERS_EXTRA2 NGEN_FORWARD_REGISTERS_EXTRA3
+#define NGEN_FORWARD_REGISTERS_BASE(hw) \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::indirect; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r3; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r5; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r6; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r7; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r9; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r10; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r11; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r12; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r13; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r14; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r15; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r17; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r18; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r19; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r20; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r21; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r22; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r23; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r24; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r25; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r26; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r27; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r28; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r29; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r30; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r31; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r33; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r34; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r35; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r36; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r37; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r38; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r39; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r40; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r41; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r42; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r43; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r44; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r45; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r46; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r47; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r48; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r49; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r50; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r51; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r52; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r53; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r54; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r55; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r56; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r57; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r58; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r59; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r60; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r61; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r62; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r63; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r64; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r65; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r66; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r67; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r68; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r69; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r70; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r71; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r72; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r73; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r74; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r75; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r76; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r77; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r78; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r79; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r80; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r81; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r82; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r83; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r84; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r85; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r86; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r87; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r88; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r89; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r90; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r91; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r92; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r93; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r94; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r95; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r96; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r97; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r98; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r99; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r100; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r101; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r102; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r103; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r104; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r105; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r106; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r107; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r108; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r109; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r110; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r111; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r112; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r113; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r114; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r115; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r116; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r117; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r118; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r119; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r120; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r121; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r122; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r123; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r124; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r125; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r126; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r127; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r128; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r129; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r130; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r131; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r132; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r133; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r134; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r135; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r136; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r137; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r138; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r139; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r140; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r141; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r142; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r143; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r144; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r145; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r146; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r147; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r148; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r149; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r150; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r151; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r152; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r153; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r154; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r155; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r156; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r157; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r158; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r159; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r160; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r161; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r162; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r163; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r164; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r165; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r166; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r167; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r168; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r169; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r170; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r171; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r172; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r173; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r174; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r175; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r176; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r177; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r178; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r179; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r180; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r181; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r182; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r183; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r184; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r185; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r186; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r187; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r188; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r189; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r190; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r191; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r192; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r193; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r194; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r195; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r196; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r197; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r198; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r199; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r200; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r201; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r202; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r203; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r204; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r205; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r206; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r207; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r208; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r209; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r210; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r211; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r212; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r213; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r214; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r215; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r216; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r217; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r218; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r219; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r220; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r221; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r222; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r223; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r224; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r225; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r226; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r227; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r228; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r229; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r230; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r231; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r232; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r233; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r234; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r235; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r236; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r237; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r238; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r239; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r240; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r241; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r242; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r243; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r244; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r245; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r246; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r247; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r248; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r249; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r250; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r251; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r252; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r253; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r254; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r255; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::null; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::a0; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc3; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc5; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc6; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc7; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc9; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme3; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme5; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme6; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme7; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::noacc; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::nomme; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f3; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f0_0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f0_1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f1_0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f1_1; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ce0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sp; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sr0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sr1; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::cr0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::n0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ip; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tdr0; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm3; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::pm0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tp0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::dbg0; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::fc0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::fc1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::fc2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::fc3; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoDDClr; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoDDChk; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::AccWrEn; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoSrcDepSet; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Breakpoint; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sat; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoMask; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ExBSO; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Serialize; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::EOT; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Atomic; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Switch; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoPreempt; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::anyv; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::allv; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any2h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all2h; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any4h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all4h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any8h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all8h; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any16h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all16h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any32h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all32h; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::x_repl; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::y_repl; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::z_repl; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::w_repl; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ze; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::eq; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::nz; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ne; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::gt; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ge; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::lt; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::le; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ov; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::un; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::eo; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M12; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M20; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M24; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M28; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb3; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb5; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb6; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb7; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb9; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb10; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb11; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb12; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb13; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb14; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb15; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb17; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb18; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb19; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb20; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb21; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb22; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb23; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb24; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb25; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb26; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb27; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb28; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb29; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb30; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb31; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoAccSBSet; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::A32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::A32NC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::A64; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::A64NC; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::SLM; \
+template <typename... Targs> NGEN_NAMESPACE::InstructionModifier ExecutionOffset(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ExecutionOffset(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::AddressBase Surface(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Surface(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::AddressBase CC(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::CC(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::AddressBase SC(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::SC(std::forward<Targs>(args)...); } \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D64; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D8U32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D16U32; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D8T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D16T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D32T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D64T; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D8U32T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D16U32T; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V3; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V4; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V64; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V1T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V2T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V3T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V4T; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V8T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V16T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V32T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V64T; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::transpose; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::vnni; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1UC_L3UC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1UC_L3C; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1C_L3UC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1C_L3C; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1S_L3UC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1S_L3C; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1IAR_L3C; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1UC_L3WB; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1WT_L3UC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1WT_L3WB; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1S_L3WB; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1WB_L3WB; \
+using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1C_L3CC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1UC_L3CC;
+#define NGEN_FORWARD_REGISTERS_EXTRA1(hw)
+#define NGEN_FORWARD_REGISTERS_EXTRA2(hw)
+#define NGEN_FORWARD_REGISTERS_EXTRA3(hw)
+#define NGEN_FORWARD_REGISTERS(hw) NGEN_FORWARD_REGISTERS_BASE(hw) NGEN_FORWARD_REGISTERS_EXTRA1(hw) NGEN_FORWARD_REGISTERS_EXTRA2(hw) NGEN_FORWARD_REGISTERS_EXTRA3(hw)
 #endif
 
 template <HW hw>
@@ -1693,8 +1688,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 1);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 1);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType()});
+    dst.fixup(hw, emod.getExecSize(), ewidth, defaultType, -1, 1);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 1);
 
     encodeCommon8(i, op, emod);
     i.common.accessMode = std::is_base_of<Align16Operand, D>::value;
@@ -1726,8 +1722,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 1);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 1);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType()});
+    dst.fixup(hw, emod.getExecSize(), ewidth, defaultType, -1, 1);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 1);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -1755,8 +1752,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 1);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 1);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType()});
+    dst.fixup(hw, emod.getExecSize(), ewidth, defaultType, -1, 1);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 1);
 
     encodeCommon8(i, op, emod);
     i.common.accessMode = std::is_base_of<Align16Operand, D>::value;
@@ -1791,8 +1789,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 1);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 1);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType()});
+    dst.fixup(hw, emod.getExecSize(), ewidth, defaultType, -1, 1);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 1);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -1830,9 +1829,10 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 2);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 2);
-    src1.fixup(hw, emod.getExecSize(), defaultType, 1, 2);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType()});
+    dst.fixup(hw, emod.getExecSize(),  ewidth, defaultType, -1, 2);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 2);
+    src1.fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 2);
 
     encodeCommon8(i, op, emod);
     i.common.accessMode = std::is_base_of<Align16Operand, D>::value;
@@ -1873,9 +1873,10 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 2);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 2);
-    src1.fixup(hw, emod.getExecSize(), defaultType, 1, 2);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType()});
+    dst.fixup(hw,  emod.getExecSize(), ewidth, defaultType, -1, 2);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 2);
+    src1.fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 2);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -1906,9 +1907,10 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 2);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 2);
-    src1.fixup(hw, emod.getExecSize(), defaultType, 1, 2);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType()});
+    dst.fixup(hw,  emod.getExecSize(), ewidth, defaultType, -1, 2);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 2);
+    src1.fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 2);
 
     encodeCommon8(i, op, emod);
     i.common.accessMode = std::is_base_of<Align16Operand, D>::value;
@@ -1944,9 +1946,10 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 2);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 2);
-    src1.fixup(hw, emod.getExecSize(), defaultType, 1, 2);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType()});
+    dst.fixup(hw,  emod.getExecSize(), ewidth, defaultType, -1, 2);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 2);
+    src1.fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 2);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -1994,10 +1997,11 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     Instruction8 i{};
     InstructionModifier emod = mod | defaultModifier | Align16;
 
-    dst.getReg().fixup(hw, emod.getExecSize(), defaultType, -1, 3);
-    src0.getReg().fixup(hw, emod.getExecSize(), defaultType, 0, 3);
-    src1.getReg().fixup(hw, emod.getExecSize(), defaultType, 1, 3);
-    src2.getReg().fixup(hw, emod.getExecSize(), defaultType, 2, 3);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType(), src2.getType()});
+    dst.getReg().fixup(hw,  emod.getExecSize(), ewidth, defaultType, -1, 3);
+    src0.getReg().fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 3);
+    src1.getReg().fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 3);
+    src2.getReg().fixup(hw, emod.getExecSize(), ewidth, defaultType, 2, 3);
 
     encodeCommon8(i, op, emod);
 
@@ -2035,10 +2039,11 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     Instruction8 i{};
     InstructionModifier emod = mod | defaultModifier;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 3);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 3);
-    src1.fixup(hw, emod.getExecSize(), defaultType, 1, 3);
-    src2.fixup(hw, emod.getExecSize(), defaultType, 2, 3);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType(), src2.getType()});
+    dst.fixup(hw,  emod.getExecSize(), ewidth, defaultType, -1, 3);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 3);
+    src1.fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 3);
+    src2.fixup(hw, emod.getExecSize(), ewidth, defaultType, 2, 3);
 
     encodeCommon8(i, op, emod);
 
@@ -2061,10 +2066,11 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     Instruction12 i{};
     InstructionModifier emod = mod | defaultModifier;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 3);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 3);
-    src1.fixup(hw, emod.getExecSize(), defaultType, 1, 3);
-    src2.fixup(hw, emod.getExecSize(), defaultType, 2, 3);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType(), src2.getType()});
+    dst.fixup(hw,  emod.getExecSize(), ewidth, defaultType, -1, 3);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 3);
+    src1.fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 3);
+    src2.fixup(hw, emod.getExecSize(), ewidth, defaultType, 2, 3);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -2110,10 +2116,11 @@ void BinaryCodeGenerator<hw>::opBfn(Opcode op, DataType defaultType, const Instr
     Instruction12 i{};
     InstructionModifier emod = mod | defaultModifier;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 3);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 3);
-    src1.fixup(hw, emod.getExecSize(), defaultType, 1, 3);
-    src2.fixup(hw, emod.getExecSize(), defaultType, 2, 3);
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType(), src2.getType()});
+    dst.fixup(hw,  emod.getExecSize(), ewidth, defaultType, -1, 3);
+    src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 3);
+    src1.fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 3);
+    src2.fixup(hw, emod.getExecSize(), ewidth, defaultType, 2, 3);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -2141,10 +2148,10 @@ void BinaryCodeGenerator<hw>::opDpas(Opcode op, DataType defaultType, const Inst
     Instruction12 i{};
     InstructionModifier emod = mod | defaultModifier;
 
-    dst.fixup(hw, emod.getExecSize(), defaultType, -1, 3);
-    src0.fixup(hw, emod.getExecSize(), defaultType, 0, 3);
-    src1.fixup(hw, emod.getExecSize(), defaultType, 1, 3);
-    src2.fixup(hw, emod.getExecSize(), defaultType, 2, 3);
+    dst.fixup(hw, emod.getExecSize(), 0, defaultType, -1, 3);
+    src0.fixup(hw, emod.getExecSize(), 0, defaultType, 0, 3);
+    src1.fixup(hw, emod.getExecSize(), 0, defaultType, 1, 3);
+    src2.fixup(hw, emod.getExecSize(), 0, defaultType, 2, 3);
 
     encodeCommon12(i, op, emod, dst, tag);
 
@@ -2512,7 +2519,7 @@ BinaryCodeGenerator<hw>::opJmpi(Opcode op, const InstructionModifier &mod, const
 
     encodeCommon8(i, op, emod);
 
-    src0.fixup(hw, emod.getExecSize(), DataType::d, 0, 2);
+    src0.fixup(hw, emod.getExecSize(), 0, DataType::d, 0, 2);
 
     i.binary.dst = encodeBinaryOperand8<true>(dst).bits;
     i.binary.src0 = encodeBinaryOperand8<false>(src0).bits;
@@ -2617,6 +2624,6 @@ void BinaryCodeGenerator<hw>::opNop(Opcode op)
     db(i);
 }
 
-} /* namespace ngen */
+} /* namespace NGEN_NAMESPACE */
 
 #endif /* header guard */

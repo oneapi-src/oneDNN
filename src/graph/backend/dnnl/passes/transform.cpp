@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1099,6 +1099,25 @@ status_t fuse_src_scales(std::shared_ptr<subgraph_t> &sg) {
         auto &next_op = consumers[0].get_op();
         auto offset = consumers[0].get_offset();
         if (offset == 0 || offset == 1) {
+            // Matmul only support applying scale per channel along the last
+            // dimension for DNNL_ARG_WEIGHTS.
+            if (offset == 1 && next_op.get_kind() == op_kind::dnnl_matmul
+                    && scale_op->has_attr(op_attr::qtype)
+                    && scale_op->get_attr<std::string>(op_attr::qtype)
+                            == "per_channel"
+                    && scale_op->has_attr(op_attr::axis)) {
+                int64_t axis = scale_op->get_attr<int64_t>(op_attr::axis);
+                bool trans_flag = next_op.has_attr(op_attr::transpose_b)
+                        ? next_op.get_attr<bool>(op_attr::transpose_b)
+                        : false;
+                int ndims = scale_op->get_input_value(0)
+                                    ->get_logical_tensor()
+                                    .ndims;
+                if ((!trans_flag && axis != ndims - 1 && axis != -1)
+                        || (trans_flag && axis != ndims - 2 && axis != -2)) {
+                    return status::unimplemented;
+                }
+            }
             int64_t key = -1;
             if (next_op.has_attr(op_attr::fusion_info_key)) {
                 key = next_op.get_attr<int64_t>(op_attr::fusion_info_key);

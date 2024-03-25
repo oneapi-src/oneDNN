@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@
 #define CL_DEVICE_IP_VERSION_INTEL 0x4250
 #endif
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 
 
 // Exceptions.
@@ -295,6 +295,6 @@ void OpenCLCodeGenerator<hw>::detectHWInfo(cl_context context, cl_device_id devi
     ELFCodeGenerator<hw>::getBinaryHWInfo(binary, outHW, outProduct);
 }
 
-} /* namespace ngen */
+} /* namespace NGEN_NAMESPACE */
 
 #endif

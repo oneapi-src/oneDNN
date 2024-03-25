@@ -50,7 +50,7 @@ endmacro()
 # this warning on, let's use it too. Applicable for the library sources
 # and interfaces only (tests currently rely on that fact heavily)
 macro(sdl_gnu_src_ccxx_flags var)
-    append(CMAKE_SRC_CCXX_FLAGS "-Wmissing-field-initializers")
+    append(${var} "-Wmissing-field-initializers")
 endmacro()
 
 macro(sdl_gnu_example_ccxx_flags var)

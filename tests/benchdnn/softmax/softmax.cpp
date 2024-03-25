@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,7 +181,8 @@ int fill_data_bwd(data_kind_t data_kind, const prb_t *prb, dnn_mem_t &mem_dt,
         return fill_random_real(mem_dt, mem_fp, nullptr);
     }
 
-    const int range = seed % 2 == 0 ? 8 : 128;
+    // TODO: replace with some better filling mechanism.
+    const int range = ((seed % 2 == 0) || mem_dt.dt() == dnnl_f16) ? 8 : 128;
 
     // to avoid any cancellation error it's better to have d_dst and dst of
     // different signs (refer to ref computations).
@@ -232,7 +234,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 #if DNNL_AARCH64_USE_ACL
     // ACL softmax accumulates in F16, but oneDNN now expects accumulation in
     // F32, this partially reverts 6727bbe8. For more information, see
-    // https://jira.arm.com/browse/ONCPUML-1499
     // https://github.com/oneapi-src/oneDNN/issues/1819
     const float trh = trh_f32;
 #else
@@ -260,7 +261,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
     const auto softmax_add_check
             = [&](const compare::compare_t::driver_check_func_args_t &args) {
-#ifdef DNNL_AARCH64_USE_ACL
+#if DNNL_AARCH64_USE_ACL
                   auto diff_trh = epsilon_dt(args.dt);
 #else
                   auto diff_trh = epsilon_dt(dnnl_f32);

@@ -138,6 +138,8 @@ enum cpu_isa_t : unsigned {
     isa_all = ~0u & ~cpu_isa_hints_utils::hints_mask,
 };
 
+std::string isa2str(cpu_isa_t isa);
+
 enum class cpu_isa_cmp_t {
     // List of infix comparison relations between two cpu_isa_t
     // where we take isa_1 and isa_2 to be two cpu_isa_t instances.
@@ -461,7 +463,34 @@ static inline int isa_num_vregs(cpu_isa_t isa) {
     prefix suffix_if_any)
 /* clang-format on */
 
-inline size_t data_type_vnni_granularity(data_type_t data_type) {
+// Used to get the Multiply-Add Compute (MAC) datatype for primitive support on
+// CPU ISAs with non-native instruction support.
+inline data_type_t get_mac_emu_data_type(const data_type_t data_type,
+        const cpu_isa_t isa, const bool req_emulation = true) {
+    using namespace data_type;
+    if (req_emulation) switch (data_type) {
+            case bf16:
+                if (isa == avx2_vnni_2) return f32;
+                break;
+            case f16:
+                if (utils::one_of(isa, avx2_vnni_2, avx512_core_fp16))
+                    return f32;
+                break;
+            case f8_e5m2:
+            case f8_e4m3:
+                if (isa == avx10_1_512_amx_fp16) return f16;
+                break;
+            case f32:
+            case s32:
+            case s8:
+            case u8:
+            case data_type::undef:
+            default: return data_type;
+        }
+    return data_type;
+}
+
+inline size_t data_type_vnni_granularity(const data_type_t data_type) {
     using namespace data_type;
     switch (data_type) {
         case f32:

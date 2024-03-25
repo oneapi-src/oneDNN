@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2023 Intel Corporation
+# Copyright 2016-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,6 +69,10 @@ macro(platform_gnu_x64_arch_ccxx_flags var)
     set(${var} "-msse4.1")
 endmacro()
 
+macro(platform_clang_x64_arch_ccxx_flags var)
+    set(${var} "-msse4.1")
+endmacro()
+
 macro(platform_gnu_nowarn_ccxx_flags var gnu_version)
     # suppress warning on assumptions made regarding overflow (#146)
     append(${var} "-Wno-strict-overflow")
@@ -80,6 +84,13 @@ macro(platform_gnu_nowarn_ccxx_flags var gnu_version)
         (${gnu_version} VERSION_GREATER 10.0 AND ${gnu_version} VERSION_LESS 11.0))
         append(${var} "-Wno-stringop-overflow")
     endif()
+endmacro()
+
+macro(platform_clang_nowarn_ccxx_flags var)
+    # Clang cannot vectorize some loops with #pragma omp simd and gets
+    # very upset. Tell it that it's okay and that we love it
+    # unconditionally.
+    append(${var} "-Wno-pass-failed")
 endmacro()
 
 if(DNNL_WITH_SYCL)
@@ -243,12 +254,10 @@ elseif(UNIX OR MINGW)
                  append(DEF_ARCH_OPT_FLAGS "-march=native")
              endif()
         elseif(DNNL_TARGET_ARCH STREQUAL "X64")
-             set(DEF_ARCH_OPT_FLAGS "-msse4.1")
+             platform_clang_x64_arch_ccxx_flags(DEF_ARCH_OPT_FLAGS)
         endif()
-        # Clang cannot vectorize some loops with #pragma omp simd and gets
-        # very upset. Tell it that it's okay and that we love it
-        # unconditionally.
-        append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-pass-failed")
+        platform_clang_nowarn_ccxx_flags(CMAKE_CCXX_NOWARN_FLAGS)
+
         if(DNNL_USE_CLANG_SANITIZER MATCHES "Memory(WithOrigin)?")
             if(NOT DNNL_CPU_THREADING_RUNTIME STREQUAL "SEQ")
                 message(WARNING "Clang OpenMP is not compatible with MSan! "

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,10 @@ struct deserialized_lt {
     logical_tensor create() const;
 
     void load(utils::json::json_reader_t *reader);
+    // Outputs the information about lt from operator<< into a string.
+    std::string get_string() const;
 };
+std::ostream &operator<<(std::ostream &s, const deserialized_lt &dlt);
 
 struct deserialized_op {
     size_t id_;
@@ -71,6 +74,8 @@ struct deserialized_op {
     op create() const;
 
     void load(utils::json::json_reader_t *reader);
+    // Outputs the information about op from operator<< into a string.
+    std::string get_string() const;
 
     bool get_attr_string(std::string &attr, const std::string &attr_name) const;
 
@@ -90,6 +95,7 @@ struct deserialized_op {
 
     logical_tensor::dims get_NCX_shape(size_t idx, bool input) const;
 };
+std::ostream &operator<<(std::ostream &s, const deserialized_op &dop);
 
 using op_ref_list_t = std::list<std::reference_wrapper<const deserialized_op>>;
 
@@ -107,6 +113,12 @@ struct deserialized_graph {
     // need to maintain for further use
     std::map<size_t, std::string> lt_2_mtag_;
     std::vector<size_t> graph_inputs_with_mb_;
+
+    // Returns a correspondent element from `ops_` based on a given ID.
+    const deserialized_op &get_op(size_t id) const;
+
+    // Outputs the information about graph from operator<< into a string.
+    std::string get_string() const;
 
 private:
     std::string engine_kind_;
@@ -136,6 +148,7 @@ private:
 
     bool check_tensor_with_mb(size_t tensor_id) const;
 };
+std::ostream &operator<<(std::ostream &s, const deserialized_graph &dg);
 
 } // namespace graph
 

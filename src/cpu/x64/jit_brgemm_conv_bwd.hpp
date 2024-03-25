@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,9 +50,12 @@ struct brgemm_convolution_bwd_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> fwd_pd_;
 
     private:
-        std::string name_
-                = JIT_IMPL_NAME_HELPER("brg_fwd:", isa, "") + std::string("+");
-        void init_name() { name_.append(fwd_pd_->name()); }
+        std::string name_ = JIT_IMPL_NAME_HELPER("brg_conv_bwd:", isa, "");
+
+        void init_name() {
+            name_.append("+");
+            name_.append(fwd_pd_->name());
+        }
     };
 
     brgemm_convolution_bwd_t(const pd_t *apd) : primitive_t(apd) {};

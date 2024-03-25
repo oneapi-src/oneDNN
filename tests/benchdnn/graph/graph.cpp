@@ -373,6 +373,31 @@ std::string case_to_str(const std::string &json_file,
     return s.str();
 }
 
+void skip_unimplemented_ops(const dnnl::graph::partition &partition,
+        const deserialized_graph &dg, res_t *res) {
+    // A list of ops that don't have DNNL backend support so far.
+    static const std::vector<std::string> unimplemented_ops {
+            "Pow", "Select", "StaticReshape", "StaticTranspose"};
+
+    // For an unsupported partition, retrieve all operation IDs, find a
+    // correspondent operation kind in a deserialized_graph and match it against
+    // a list of known unsupported ops.
+    const std::vector<size_t> &partition_op_ids = partition.get_ops();
+    for (const size_t op_id : partition_op_ids) {
+        const std::string &dg_op_kind = dg.get_op(op_id).kind_;
+        const bool has_unimplemented_op = std::any_of(unimplemented_ops.begin(),
+                unimplemented_ops.end(),
+                [&dg_op_kind](const std::string &kind) {
+                    return dg_op_kind == kind;
+                });
+        if (has_unimplemented_op) {
+            res->state = SKIPPED;
+            res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+}
+
 /// @brief check if the current partition is actually an End op
 /// @param parti the current partition
 /// @param end_op_ids a collection of End op's ids
@@ -406,26 +431,23 @@ int doit(const prb_t *prb, res_t *res) {
     }
 
     if (partitions.empty()) {
-        BENCHDNN_PRINT(0, "FAIL: partition empty %d.\n", 0);
+        BENCHDNN_PRINT(0, "%s\n", "Error: partitions are empty");
         return res->state = FAILED, FAIL;
     }
-    BENCHDNN_PRINT(1, "Partition size %zd.\n", partitions.size());
+
+    BENCHDNN_PRINT(3, "[INFO]: n_partitions:%zd; ops_in_partitions:%s\n",
+            partitions.size(), verbose_partitions_n_ops(partitions).c_str());
 
     for (size_t i = 0; i < partitions.size(); ++i) {
-        if (!partitions[i].is_supported()) {
-            BENCHDNN_PRINT(1, "Partition %zd is unsupported!\n", i);
-            // Single end op partition is an unsupported partition in the library
-            if (is_single_end_op_partition(partitions[i], end_opid_v)) {
-                continue;
-            }
-            res->state = SKIPPED;
-            res->reason = CASE_NOT_SUPPORTED;
-            return OK;
-        }
-    }
+        if (partitions[i].is_supported()) continue;
 
-    for (size_t i = 0; i < partitions.size(); ++i) {
-        if (is_single_end_op_partition(partitions[i], end_opid_v)) { continue; }
+        // End operation is not supported in the library, and it's fine to
+        // continue validation as it's a knob without functional meaning.
+        if (is_single_end_op_partition(partitions[i], end_opid_v)) continue;
+
+        skip_unimplemented_ops(partitions[i], dg, res);
+        if (res->state == SKIPPED) return OK;
+
         auto in_out_lts = partitions[i].get_input_ports();
         const auto &outputs = partitions[i].get_output_ports();
         in_out_lts.insert(in_out_lts.end(), outputs.begin(), outputs.end());
@@ -465,6 +487,11 @@ int doit(const prb_t *prb, res_t *res) {
             }
         }
         skip_unimplemented_data_type(in_out_dt, dir, res);
+        if (res->state == SKIPPED) return OK;
+
+        BENCHDNN_PRINT(3, "[INFO]: partition #%zd is unsupported!\n", i);
+        res->state = UNIMPLEMENTED;
+        return FAIL;
     }
 
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
@@ -494,13 +521,8 @@ int doit(const prb_t *prb, res_t *res) {
         set_any_layout(dg, partitions, id_to_set_any_layout);
     }
 
-    // the index offset for current partition compared with the previous partition index
-    size_t idx_offset = 0;
     for (size_t i = 0; i < partitions.size(); ++i) {
-        if (is_single_end_op_partition(partitions[i], end_opid_v)) {
-            idx_offset += 1;
-            continue;
-        }
+        if (is_single_end_op_partition(partitions[i], end_opid_v)) { continue; }
 
         auto inputs = partitions[i].get_input_ports();
         auto outputs = partitions[i].get_output_ports();
@@ -519,12 +541,14 @@ int doit(const prb_t *prb, res_t *res) {
                                partitions[i].compile(inputs, outputs, eng)),
                 WARN, res);
 
-        record_queried_logical_tensors(outputs, c_partitions[i - idx_offset],
-                id_to_queried_logical_tensors);
+        record_queried_logical_tensors(
+                outputs, c_partitions.back(), id_to_queried_logical_tensors);
     }
     if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
-    idx_offset = 0;
+    // `idx_offset` points to the correspondent `compiled_partition`, if any
+    // of `partitions` were skipped expectedly and not compiled.
+    size_t idx_offset = 0;
     for (size_t i = 0; i < partitions.size(); ++i) {
         if (is_single_end_op_partition(partitions[i], end_opid_v)) {
             idx_offset += 1;
@@ -542,8 +566,9 @@ int doit(const prb_t *prb, res_t *res) {
 
         ref_partition_t ref_partition(dg, partitions[i], inputs, outputs);
         // Construct memory for both perf & corr modes
-        ref_partition.init_ref(
-                bench_mode, graph_in_ports, partition_mem_map_v[i], res);
+        SAFE(ref_partition.init_ref(
+                     graph_in_ports, partition_mem_map_v[i], res),
+                WARN);
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
             // correctness mode, run ref partition
@@ -614,8 +639,9 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
             // args for correctness check of the last op
-            ref_partition.check_partition_correctness(
-                    partition_mem_map_v[i], res);
+            SAFE(ref_partition.check_partition_correctness(
+                         partition_mem_map_v[i], res),
+                    WARN);
         }
     }
 

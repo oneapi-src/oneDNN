@@ -98,6 +98,7 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
         if (!ok) return status::unimplemented;
 
         // If scales are present, convert them and any bias to binary post-ops.
+        //   Exception: 2D scales.
         // Also convert bias to binary post-op if dst zp are present.
         const auto *wei_scales = &attr()->scales_.get(DNNL_ARG_WEIGHTS);
         const auto *src_scales = &attr()->scales_.get(DNNL_ARG_SRC);
@@ -117,17 +118,20 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
 
         if (!wei_scales->has_default_values()) {
             const auto &mask = wei_scales->mask_;
-            ok = ok && (mask == 0 || mask == (1 << (d->c_desc.ndims - 1)));
+            if (mask == 0 || math::is_pow2(mask)) {
+                ok = ok && (mask == 0 || mask == (1 << (d->c_desc.ndims - 1)));
 
-            dim_t dims = {(mask > 0) ? d->m() : 1};
-            CHECK(memory_desc_init_by_tag(wei_scales_md, 1, &dims,
-                    wei_scales->data_type_, format_tag::a));
+                dim_t dims = {(mask > 0) ? d->m() : 1};
+                CHECK(memory_desc_init_by_tag(wei_scales_md, 1, &dims,
+                        wei_scales->data_type_, format_tag::a));
 
-            auto status = post_ops_.prepend_binary(binary_mul, &wei_scales_md);
-            if (status != status::success) return status;
+                auto status
+                        = post_ops_.prepend_binary(binary_mul, &wei_scales_md);
+                if (status != status::success) return status;
 
-            binary_srcs_.insert(binary_srcs_.begin(),
-                    binary_src_t {binary_src_t::scales, DNNL_ARG_WEIGHTS});
+                binary_srcs_.insert(binary_srcs_.begin(),
+                        binary_src_t {binary_src_t::scales, DNNL_ARG_WEIGHTS});
+            }
         }
         if (!src_scales->has_default_values()) {
             ok = ok && (src_scales->mask_ == 0);

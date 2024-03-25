@@ -472,6 +472,7 @@ details on how to use and set these quantization parameters.
    - No support for AUGRU.
    - No support for Peephole LSTM and Projection LSTM.
    - Int8 support is provided for LSTM only.
+   - Int8 workloads require weights layouts to be #dnnl_format_tag_any.
    - Bias and cell state of bf16 data type is not supported.
 
 ## Example

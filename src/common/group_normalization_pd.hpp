@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,11 +59,14 @@ struct group_normalization_pd_t : public primitive_desc_t {
 
     dim_t MB() const { return src_md()->dims[0]; }
     dim_t C() const { return src_md()->dims[1]; }
+    dim_t G() const { return stat_md()->dims[1]; }
     dim_t D() const { return ndims() >= 5 ? src_md()->dims[ndims() - 3] : 1; }
     dim_t H() const { return ndims() >= 4 ? src_md()->dims[ndims() - 2] : 1; }
     dim_t W() const { return src_md()->dims[ndims() - 1]; }
 
     int ndims() const { return src_md()->ndims; }
+
+    const memory_desc_t *stat_md() const { return &stat_md_; }
 
     bool stats_is_src() const {
         return desc_.flags & normalization_flags::use_global_stats;
@@ -160,8 +163,6 @@ struct group_normalization_fwd_pd_t : public group_normalization_pd_t {
             int index = 0, bool user_input = false) const override {
         return index == 0 ? &scaleshift_md_ : &glob_zero_md;
     }
-
-    const memory_desc_t *stat_md() const { return &stat_md_; }
 
     int n_inputs() const override {
         return 1 + 2 * stats_is_src() + use_scale() + use_shift()

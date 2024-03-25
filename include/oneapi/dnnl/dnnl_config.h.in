@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -191,6 +191,7 @@
 #cmakedefine01 BUILD_XEHP
 #cmakedefine01 BUILD_XEHPG
 #cmakedefine01 BUILD_XEHPC
+#cmakedefine01 BUILD_XE2
 // GeMM kernels ISA controls
 #cmakedefine01 BUILD_GEMM_KERNELS_ALL
 #cmakedefine01 BUILD_GEMM_KERNELS_NONE

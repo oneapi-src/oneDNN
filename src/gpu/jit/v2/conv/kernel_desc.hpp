@@ -42,6 +42,35 @@ class kernel_info_t;
 namespace v2 {
 namespace conv {
 
+class spec_reqs_t {
+public:
+    spec_reqs_t() = default;
+    spec_reqs_t(const prb_tile_t &spec_tile) : spec_tile_(spec_tile) {}
+
+    bool is_equal(const prb_dim_t &dim, int value) const {
+        return spec_tile_.has(dim) && spec_tile_.at(dim) == value;
+    }
+
+    prb_reqs_t reqs() const {
+        prb_reqs_t ret;
+        for (auto &d : spec_tile_) {
+            ret.add(size_var(d) == spec_tile_.at(d));
+        }
+        return ret;
+    }
+
+    std::string str() const { return spec_tile_.str(); }
+
+    IR_DEFINE_DUMP()
+
+private:
+    prb_tile_t spec_tile_;
+};
+
+inline spec_reqs_t str_to_spec_reqs(const std::string &s) {
+    return spec_reqs_t(str_to_prb_tile(s));
+}
+
 struct loop_nest_entry_t {
     prb_dim_t dim;
     int idx = -1;
@@ -232,6 +261,47 @@ struct store_desc_t {
 
 store_desc_t str_to_store_desc(const std::string &s);
 
+struct prefetch_desc_t {
+    int dist = 0;
+    bool a = false;
+    bool b = false;
+
+    std::string str() const {
+        if (!a && !b) return "x0";
+        std::ostringstream oss;
+        oss << "x" << dist;
+        if (a && b) return oss.str();
+        oss << "." << (a ? "a" : "b");
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
+
+    bool operator==(const prefetch_desc_t &other) const {
+        return (dist == other.dist) && (a == other.a) && (b == other.b);
+    }
+
+    bool operator!=(const prefetch_desc_t &other) const {
+        return !operator==(other);
+    }
+
+    size_t get_hash() const { return ir_utils::get_hash(dist, a, b); }
+
+    void serialize(std::ostream &out) const {
+        ir_utils::serialize(dist, out);
+        ir_utils::serialize(a, out);
+        ir_utils::serialize(b, out);
+    }
+
+    void deserialize(std::istream &in) {
+        ir_utils::deserialize(dist, in);
+        ir_utils::deserialize(a, in);
+        ir_utils::deserialize(b, in);
+    }
+};
+
+prefetch_desc_t str_to_prefetch_desc(const std::string &s);
+
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group = false);
 layout_desc_t make_conv_algo_layout_desc(
@@ -250,6 +320,7 @@ public:
     layout_tag_t src_tag;
     layout_tag_t wei_tag;
     layout_tag_t dst_tag;
+    spec_reqs_t spec_reqs;
     hw_t hw;
     fma_kind_t fma = fma_kind_t::undef;
     int simd = 0;
@@ -259,6 +330,7 @@ public:
     loop_nest_t loop_nest;
     load_desc_t load;
     store_desc_t store;
+    prefetch_desc_t prefetch;
     prb_reqs_t reqs;
     bool is_finalized = false;
 
@@ -297,7 +369,7 @@ public:
                 && (regs == other.regs) && (iter_tile == other.iter_tile)
                 && (thread_group_tile == other.thread_group_tile)
                 && (loop_nest == other.loop_nest) && (load == other.load)
-                && (store == other.store)
+                && (prefetch == other.prefetch) && (store == other.store)
                 && (is_finalized == other.is_finalized);
     }
 
@@ -308,7 +380,7 @@ public:
     size_t get_hash() const {
         return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag, hw,
                 fma, simd, regs, iter_tile, thread_group_tile, loop_nest, load,
-                store, is_finalized);
+                prefetch, store, is_finalized);
     }
 
     void serialize(std::ostream &out) const {
@@ -326,6 +398,7 @@ public:
         ir_utils::serialize(thread_group_tile, out);
         ir_utils::serialize(loop_nest, out);
         ir_utils::serialize(load, out);
+        ir_utils::serialize(prefetch, out);
         ir_utils::serialize(store, out);
         ir_utils::serialize(reqs, out);
     }
@@ -344,6 +417,7 @@ public:
         ir_utils::deserialize(thread_group_tile, in);
         ir_utils::deserialize(loop_nest, in);
         ir_utils::deserialize(load, in);
+        ir_utils::deserialize(prefetch, in);
         ir_utils::deserialize(store, in);
         ir_utils::deserialize(reqs, in);
         is_finalized = true;

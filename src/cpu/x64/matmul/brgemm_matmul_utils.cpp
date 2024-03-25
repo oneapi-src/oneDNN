@@ -1291,11 +1291,17 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                 VERBOSE_UNSUPPORTED_MEM_STRIDE);
     }
 
-    const bool lda_is_big_2pow
+    bool prefer_copy_a
             = (bm_conf_utils.is_bf16() || bm_conf_utils.is_bf16_with_int_wei()
-                      || (bgmmc.is_amx && bm_conf_utils.is_f16()))
+                      || bgmmc.is_amx)
             && (bgmmc.isa != avx2_vnni_2) // no perf study yet.
             && bgmmc.lda_big_pow2() && bgmmc.M >= 1024;
+
+    // Avoid copying A for small N gives better performance.
+    // TODO: Expand for other precisions and cases.
+    if (bgmmc.is_amx && bm_conf_utils.is_int8())
+        prefer_copy_a &= bgmmc.N >= 256;
+
     const bool is_copy_a_required
             = (bgmmc.is_amx
                       && ((bgmmc.K % bgmmc.required_k_granularity != 0)
@@ -1303,7 +1309,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             || (bm_conf_utils.is_f16() && isa == avx512_core_fp16)
             || (bgmmc.wei_zp_type != brgemm_broadcast_t::none
                     && !bm_conf_utils.with_weights_decompression())
-            || bgmmc.transposed_A || lda_is_big_2pow;
+            || bgmmc.transposed_A || prefer_copy_a;
     bgmmc.use_buffer_a = is_copy_a_required;
 
     // Supported computation with copy only part of A related to K_tail if

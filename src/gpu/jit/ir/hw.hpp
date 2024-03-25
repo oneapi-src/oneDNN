@@ -85,6 +85,8 @@ public:
                 device_info->max_wg_size(/*large_grf_mode=*/false));
         large_grf_support_ = compute_engine->mayiuse_large_grf_mode();
         systolic_support_ = device_info->mayiuse_systolic();
+        with_atomic_fp64_
+                = device_info->mayiuse_float_atomic_add(data_type::f64);
 
 #ifdef DNNL_DEV_MODE
         gpu_arch_t old_arch = gpu_arch;
@@ -98,6 +100,7 @@ public:
     }
 
     bool is_undef() const { return hw_ == ngen::HW::Unknown; }
+    bool has_fp64_atomic_support() const { return with_atomic_fp64_; }
     ngen::HW to_ngen() const { return hw_; }
     int stepping_id() const { return stepping_id_; }
     int eu_count() const { return eu_count_; }
@@ -198,6 +201,7 @@ private:
     int max_wg_size_ = 0;
     bool large_grf_support_ = false;
     bool systolic_support_ = false;
+    bool with_atomic_fp64_ = false;
 };
 
 inline hw_t str_to_hw(const std::string &s) {

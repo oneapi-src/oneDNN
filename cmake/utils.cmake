@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2023 Intel Corporation
+# Copyright 2018-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,10 +22,6 @@ if(utils_cmake_included)
 endif()
 set(utils_cmake_included true)
 include("cmake/options.cmake")
-
-if ("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
-    set(DNNL_IS_MAIN_PROJECT TRUE)
-endif()
 
 # Common configuration for tests / test cases on Windows
 function(maybe_configure_windows_test name kind)

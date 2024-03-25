@@ -59,12 +59,14 @@ struct gemm_matmul_t : public gpu_primitive_t {
 
             auto map_gemm_zp = [&](int arg, int gemm_arg, bool reshape = false,
                                        int diff_dims = 0) {
-                if (!attr()->zero_points_.has_default_values(arg)) {
+                auto &zp = attr()->zero_points_;
+                if (!zp.has_default_values(arg)) {
                     int mask = 0;
-                    CHECK(attr()->zero_points_.get(arg, &mask));
+                    CHECK(zp.get(arg, &mask));
                     if (reshape) mask = mask >> diff_dims;
-                    CHECK(gemm_attr.zero_points_.set(arg, mask, 0, nullptr,
-                            attr()->zero_points_.get_data_type(arg)));
+                    CHECK(gemm_attr.zero_points_.set(arg, mask,
+                            zp.get_groups_ndims(arg), zp.get_groups(arg),
+                            zp.get_data_type(arg)));
                 }
                 return status::success;
             };

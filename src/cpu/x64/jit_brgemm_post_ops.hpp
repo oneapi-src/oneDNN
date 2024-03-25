@@ -1087,7 +1087,8 @@ private:
 
         postamble();
 
-        if (postops_injector_) postops_injector_->prepare_table();
+        if (postops_injector_)
+            postops_injector_->prepare_table(/* generate = */ true);
     }
 };
 

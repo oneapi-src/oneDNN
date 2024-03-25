@@ -60,7 +60,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgconv:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brg_conv_fwd:", isa, ""),
                 brgemm_convolution_fwd_t);
 
         status_t init(engine_t *engine);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 
 #include "npack/neo_packager.hpp"
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 
 // ELF binary format generator class.
 template <HW hw>
@@ -76,6 +76,12 @@ protected:
                      GlobalAccessType access = GlobalAccessType::Default)
     {
         interface_.newArgument(name, type, exttype, access);
+    }
+    void newArgument(const std::string &name, Subregister reg,
+                     ExternalArgumentType exttype = ExternalArgumentType::Scalar,
+                     GlobalAccessType access = GlobalAccessType::Default)
+    {
+        interface_.newArgument(name, reg, exttype, access);
     }
     void newArgument(const std::string &name, ExternalArgumentType exttype,
                      GlobalAccessType access = GlobalAccessType::Default)
@@ -273,49 +279,46 @@ private:
     };
 };
 
-#define NGEN_FORWARD_ELF(hw) NGEN_FORWARD_NO_REQGRF(hw) \
-template <typename... Targs> void externalName(Targs&&... args) { ngen::ELFCodeGenerator<hw>::externalName(std::forward<Targs>(args)...); } \
-const std::string &getExternalName() const { return ngen::ELFCodeGenerator<hw>::getExternalName(); } \
-int getSIMD() const { return ngen::ELFCodeGenerator<hw>::getSIMD(); } \
-int getGRFCount() const { return ngen::ELFCodeGenerator<hw>::getGRFCount(); } \
-size_t getSLMSize() const { return ngen::ELFCodeGenerator<hw>::getSLMSize(); } \
-template <typename... Targs> void require32BitBuffers(Targs&&... args) { ngen::ELFCodeGenerator<hw>::require32BitBuffers(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireArbitrationMode(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireArbitrationMode(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireBarrier(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireBarrier(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireGlobalAtomics(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireGlobalAtomics(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireGRF(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireGRF(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireLocalID(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireLocalID(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireLocalSize(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireLocalSize(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireNonuniformWGs(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireNonuniformWGs(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireNoPreemption(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireNoPreemption(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireScratch(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireScratch(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireSIMD(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireSIMD(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireSLM(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireSLM(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireStatelessWrites(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireStatelessWrites(std::forward<Targs>(args)...); } \
-void requireType(ngen::DataType type) { ngen::ELFCodeGenerator<hw>::requireType(type); } \
-template <typename DT = void> void requireType() { ngen::BinaryCodeGenerator<hw>::template requireType<DT>(); } \
-template <typename... Targs> void requireWalkOrder(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireWalkOrder(std::forward<Targs>(args)...); } \
-template <typename... Targs> void requireWorkgroup(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireWorkgroup(std::forward<Targs>(args)...); } \
-template <typename... Targs> void finalizeInterface(Targs&&... args) { ngen::ELFCodeGenerator<hw>::finalizeInterface(std::forward<Targs>(args)...); } \
-template <typename... Targs> void newArgument(Targs&&... args) { ngen::ELFCodeGenerator<hw>::newArgument(std::forward<Targs>(args)...); } \
-template <typename... Targs> ngen::Subregister getArgument(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getArgument(std::forward<Targs>(args)...); } \
-template <typename... Targs> ngen::Subregister getArgumentIfExists(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getArgumentIfExists(std::forward<Targs>(args)...); } \
-template <typename... Targs> int getArgumentSurface(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getArgumentSurface(std::forward<Targs>(args)...); } \
-template <typename... Targs> int getArgumentSurfaceIfExists(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getArgumentSurfaceIfExists(std::forward<Targs>(args)...); } \
-template <typename... Targs> ngen::GRF getLocalID(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getLocalID(std::forward<Targs>(args)...); } \
-template <typename... Targs> ngen::RegData getSIMD1LocalID(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getSIMD1LocalID(std::forward<Targs>(args)...); } \
-template <typename... Targs> ngen::Subregister getLocalSize(Targs&&... args) { return ngen::ELFCodeGenerator<hw>::getLocalSize(std::forward<Targs>(args)...); } \
-void epilogue(const ngen::RegData &r0_info = ngen::RegData()) { ngen::ELFCodeGenerator<hw>::epilogue(r0_info); } \
-NGEN_FORWARD_ELF_EXTRA \
-NGEN_FORWARD_ELF_EXTRA2
+#define NGEN_FORWARD_ELF(hw) \
+NGEN_FORWARD_NO_ELF_OVERRIDES(hw) \
+NGEN_FORWARD_ELF_EXTRA(hw) \
+template <typename... Targs> void externalName(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::externalName(std::forward<Targs>(args)...); } \
+const std::string &getExternalName() const { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getExternalName(); } \
+int getSIMD() const { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getSIMD(); } \
+int getGRFCount() const { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getGRFCount(); } \
+size_t getSLMSize() const { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getSLMSize(); } \
+template <typename... Targs> void require32BitBuffers(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::require32BitBuffers(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireArbitrationMode(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireArbitrationMode(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireBarrier(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireBarrier(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireBarriers(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireBarriers(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireDPAS(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireDPAS(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireGlobalAtomics(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireGlobalAtomics(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireGRF(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireGRF(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireLocalID(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireLocalID(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireLocalSize(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireLocalSize(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireNonuniformWGs(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireNonuniformWGs(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireNoPreemption(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireNoPreemption(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireScratch(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireScratch(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireSIMD(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireSIMD(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireSLM(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireSLM(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireStatelessWrites(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireStatelessWrites(std::forward<Targs>(args)...); } \
+void requireType(NGEN_NAMESPACE::DataType type) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireType(type); } \
+template <typename DT = void> void requireType() { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template requireType<DT>(); } \
+template <typename... Targs> void requireWalkOrder(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireWalkOrder(std::forward<Targs>(args)...); } \
+template <typename... Targs> void requireWorkgroup(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireWorkgroup(std::forward<Targs>(args)...); } \
+template <typename... Targs> void finalizeInterface(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::finalizeInterface(std::forward<Targs>(args)...); } \
+template <typename... Targs> void newArgument(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::newArgument(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::Subregister getArgument(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getArgument(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::Subregister getArgumentIfExists(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getArgumentIfExists(std::forward<Targs>(args)...); } \
+template <typename... Targs> int getArgumentSurface(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getArgumentSurface(std::forward<Targs>(args)...); } \
+template <typename... Targs> int getArgumentSurfaceIfExists(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getArgumentSurfaceIfExists(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::GRF getLocalID(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getLocalID(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::RegData getSIMD1LocalID(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getSIMD1LocalID(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::Subregister getLocalSize(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getLocalSize(std::forward<Targs>(args)...); } \
+void prologue() { NGEN_NAMESPACE::ELFCodeGenerator<hw>::prologue(); } \
+void epilogue(const NGEN_NAMESPACE::RegData &r0_info = NGEN_NAMESPACE::RegData()) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::epilogue(r0_info); }
 
-#define NGEN_FORWARD_ELF_EXTRA \
-template <typename... Targs> void requireDPAS(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireDPAS(std::forward<Targs>(args)...); } \
-void prologue() { ngen::ELFCodeGenerator<hw>::prologue(); }
-
-#define NGEN_FORWARD_ELF_EXTRA2 \
-template <typename... Targs> void requireBarriers(Targs&&... args) { ngen::ELFCodeGenerator<hw>::requireBarriers(std::forward<Targs>(args)...); }
-
+#define NGEN_FORWARD_ELF_EXTRA(hw)
 
 template <HW hw>
 std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary()
@@ -433,6 +436,6 @@ inline void ELFCodeGenerator<hw>::getBinaryHWInfo(const std::vector<uint8_t> &bi
         outHW = getCore(outProduct.family);
 }
 
-} /* namespace ngen */
+} /* namespace NGEN_NAMESPACE */
 
 #endif /* NGEN_ELF_HPP */

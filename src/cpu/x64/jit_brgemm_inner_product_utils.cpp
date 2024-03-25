@@ -95,6 +95,18 @@ int jit_brgemm_ip_conf_t::get_os_block(
         const bool enable_128_os_blocking
                 = use_128_block_for_amx || is_gigantic_shape;
         max_os_block = enable_128_os_blocking ? 128 : 64;
+
+        const int max_oc_block = 64;
+        int min_nb_os = div_up(jbgp.os, max_os_block);
+        int min_nb_oc = div_up(jbgp.oc, max_oc_block);
+        const int n_blks_per_thr = 50;
+
+        // Shapes that have many blocks per thread don't need to sacrifice
+        // os-block size, because there is enough blocks to balance the threads
+        // and amortize the tail cost.
+        if (min_nb_os * min_nb_oc > jbgp.nthr * n_blks_per_thr)
+            min_os_block = max_os_block;
+
         // Work done by each thread is given by:
         //     (nb_oc / nb_oc_blocking) * (nb_os / nb_os_blocking)
         // As a first approximation we take nb_oc_blocking = nb_os_blocking = 1
@@ -106,8 +118,7 @@ int jit_brgemm_ip_conf_t::get_os_block(
         // of os_block such that the work amount per thread ~ 2
         if (is_f32_compute && jbgp.nb_oc != 0) {
             const bool small_work_amt_per_thread
-                    = div_up(jbgp.os, max_os_block) * jbgp.nb_oc
-                    < 1.8f * jbgp.nthr;
+                    = min_nb_os * jbgp.nb_oc < 1.8f * jbgp.nthr;
             if (small_work_amt_per_thread)
                 max_os_block = saturate(16, max_os_block,
                         div_up(jbgp.os * jbgp.nb_oc, 2 * jbgp.nthr));
@@ -644,20 +655,23 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
     jbgp.adjusted_batch_size
             = div_up(rnd_up(jbgp.gemm_batch_size * sc_size, 4096), sc_size);
 
-    if (is_amx_xf16 || jbgp.is_bf32) {
-        if (adjust_thread_balance()) {
-            // Adjust oc_block to improve thread balancing
-            jbgp.oc_block = get_adjusted_oc_block();
-            jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
-            jbgp.nb_oc_blocking = get_nb_oc_blocking(true);
+    if ((is_amx_xf16 || jbgp.is_bf32) && adjust_thread_balance()) {
+        // Adjust oc_block to improve thread balancing
+        jbgp.oc_block = get_adjusted_oc_block();
+        jbgp.nb_oc = div_up(jbgp.oc, jbgp.oc_block);
+        jbgp.nb_oc_blocking = get_nb_oc_blocking(true);
 
-            // Adjust os_block to improve thread balancing
-            if (jbgp.oc <= 16
-                    || types::data_type_size(jbgp.src_dt) * jbgp.mb * jbgp.ic
-                            <= (size_t)platform::get_per_core_cache_size(2)) {
-                jbgp.os_block = get_os_block(false, true);
-                jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
-            }
+        size_t l2_per_core = platform::get_per_core_cache_size(2);
+        size_t src_sz = types::data_type_size(jbgp.src_dt) * jbgp.mb * jbgp.ic;
+
+        // Reduce amount of cache for bad leading dimension.
+        const dim_t bad_ld = 1024;
+        if (jbgp.ic % bad_ld == 0) l2_per_core /= 2;
+
+        // Adjust os_block to improve thread balancing
+        if (jbgp.oc <= 16 || src_sz <= l2_per_core) {
+            jbgp.os_block = get_os_block(false, true);
+            jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
         }
     }
 
@@ -1624,9 +1638,8 @@ void jit_brgemm_ip_fwd_conf_t::choose_loop_order() {
     const bool is_f32 = everyone_is(f32, src_dt, wei_dt, dst_dt);
     const bool is_f32_compute = is_f32 && !is_bf32;
 
-    // Optimize loop order for f32, if buffer is not required.
-    const bool ocb_inner_most = is_f32_compute;
-    if (ocb_inner_most) {
+    // Optimize loop order for f32
+    if (is_f32_compute) {
         loop_order = osc_occ_icc_osb_ocb;
 
         // Use icc loop as outer-most to save bandwidth when os is small.
@@ -1669,10 +1682,13 @@ void jit_brgemm_ip_fwd_conf_t::choose_loop_order() {
     float eff_occ_osc = eff(os_span_occ_osc, oc_span_occ_osc, ic_span);
     bool do_occ_osc = eff_occ_osc > 1.15 * eff_osc_occ;
 
-    // Enable occ_osc_... for f32 and with small os-blocks.
-    // TODO: Expand to other precisions and other blocks sizes.
     const bool is_avx2 = is_superset(isa, avx2);
-    if ((os_block < 32 || do_occ_osc) && is_f32_compute && is_avx2)
+    const bool is_f32_avx2 = is_f32_compute && is_avx2;
+    const bool is_xf16 = one_of(wei_dt, bf16, f16) || is_bf32;
+    const bool is_int8 = one_of(src_dt, u8, s8) && wei_dt == s8;
+    const bool is_compute_amx = (is_xf16 || is_int8) && is_amx;
+
+    if ((os_block < 32 || do_occ_osc) && (is_compute_amx || is_f32_avx2))
         loop_order = icc_occ_osc_ocb_osb;
 }
 

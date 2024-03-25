@@ -443,8 +443,9 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
     } else {
         fprintf(stderr, "graph: ERROR: Unsupported opkind: `%s`, exiting...\n",
                 kind.c_str());
-        exit(2);
+        SAFE_V(FAIL);
     }
+    return dnnl::graph::op::kind::LastSymbol;
 }
 
 dnnl::graph::op::attr attrstr2kind(const std::string &attr_name) {
@@ -511,8 +512,9 @@ dnnl::graph::op::attr attrstr2kind(const std::string &attr_name) {
         fprintf(stderr,
                 "graph: ERROR: Unsupported attribute: `%s`, exiting...\n",
                 attr_name.c_str());
-        exit(2);
+        SAFE_V(FAIL);
     }
+    return dnnl::graph::op::attr::undef;
 }
 
 class op_kind_hash_t {
@@ -657,8 +659,9 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
     } else {
         fprintf(stderr, "graph: ERROR: Unsupported opkind: `%d`, exiting...\n",
                 static_cast<int>(kind));
-        exit(2);
+        SAFE_V(FAIL);
     }
+    return dnnl_driver_t::others;
 }
 
 bool is_nxc_lt_arg(const std::string &kind, const int exec_arg) {
@@ -800,6 +803,25 @@ void change_format_to_ncx(dims_t &dims) {
     const auto ndims = static_cast<int>(dims.size());
     dims.insert(dims.begin() + 1, dims[ndims - 1]);
     dims.erase(dims.end() - 1);
+}
+
+std::string verbose_partitions_n_ops(
+        const std::vector<dnnl::graph::partition> &partitions) {
+    std::string s;
+    for (const auto &partition : partitions) {
+        s += " {" + std::to_string(partition.get_ops_num()) + "}";
+    }
+    return s;
+}
+
+std::string lt_dims2str(const dnnl::graph::logical_tensor::dims &dims) {
+    if (dims.empty()) return std::string();
+
+    std::stringstream ss;
+    std::copy(
+            dims.begin(), dims.end(), std::ostream_iterator<int64_t>(ss, "x"));
+    auto res = ss.str();
+    return res.substr(0, res.length() - 1);
 }
 
 void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation) {

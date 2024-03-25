@@ -125,8 +125,8 @@ struct acl_reorder_fwd_t : public primitive_t {
                     format_tag::BA8b4a, format_tag::BA4b4a, format_tag::Ab4a,
                     format_tag::Ab8a, format_tag::Acdb8a, format_tag::Acdb4a);
             ACL_CHECK_SUPPORT(format_tag::undef == dst_tag,
-                    "Only Ab4a, Ab8a, BA8b4a and BA4b4a destination formats "
-                    "supported");
+                    "Only Ab4a/Ab8a, BA8b4a/BA4b4a and Acdb8a/Acdb4a "
+                    "destination formats supported");
 
             if (dst_tag == format_tag::BA4b4a || dst_tag == format_tag::Acdb4a
                     || dst_tag == format_tag::Ab4a) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -425,7 +425,7 @@ void jit_uni_reduction_kernel_t<isa, Vmm>::generate() {
     postamble();
 
     if (conf_.with_eltwise && postops_injector_)
-        postops_injector_->prepare_table();
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 template struct jit_uni_reduction_kernel_t<avx512_core_fp16>;

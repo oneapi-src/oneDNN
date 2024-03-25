@@ -857,6 +857,107 @@ TEST(test_matmul_compile, MatmulBiasAddUnsupportedBroadcast) {
     }
 }
 
+TEST(test_matmul_compile, MatmulInt8WeightScaleSupport) {
+    graph::engine_t *engine = get_engine();
+
+    std::vector<int64_t> src_shape = {3, 3, 8, 4};
+    std::vector<int64_t> weight_shape = {3, 3, 4, 2};
+    std::vector<int64_t> bias_shape {2};
+    std::vector<int64_t> dst_shape = {3, 3, 8, 2};
+    size_t scales_wei_sizes = dst_shape.back();
+    std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+    std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+
+    std::vector<size_t> axes = {0, 1, 2, 3};
+    for (auto &axis : axes) {
+        graph::op_t dqdata_op(1, graph::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {0});
+        dqdata_op.set_attr<std::vector<float>>(graph::op_attr::scales, {1});
+        dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+        graph::op_t dqweight_op(2, graph::op_kind::Dequantize, "dqweight_op");
+        dqweight_op.set_attr<std::string>(graph::op_attr::qtype, "per_channel");
+        dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(graph::op_attr::axis, axis);
+
+        graph::op_t matmul_op(3, graph::op_kind::MatMul, "matmul_op");
+        matmul_op.set_attr<bool>(graph::op_attr::transpose_a, false);
+        matmul_op.set_attr<bool>(graph::op_attr::transpose_b, false);
+
+        graph::op_t qout_op(4, graph::op_kind::Quantize, "qout_op");
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {0});
+        qout_op.set_attr<std::vector<float>>(graph::op_attr::scales, {1});
+        qout_op.set_attr<int64_t>(graph::op_attr::axis, 3);
+
+        // prepare logical tensor
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t bias_f32 = utils::logical_tensor_init(
+                6, bias_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_f32 = utils::logical_tensor_init(
+                7, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_s8 = utils::logical_tensor_init(
+                8, dst_shape, graph::data_type::s8);
+
+        dqdata_op.add_input(src_u8);
+        dqdata_op.add_output(src_f32_dq);
+
+        dqweight_op.add_input(weight_s8);
+        dqweight_op.add_output(weight_f32_dq);
+
+        matmul_op.add_input(src_f32_dq);
+        matmul_op.add_input(weight_f32_dq);
+        matmul_op.add_input(bias_f32);
+        matmul_op.add_output(dst_f32);
+
+        qout_op.add_input(dst_f32);
+        qout_op.add_output(dst_s8);
+
+        graph::graph_t g(engine->kind());
+        g.add_op(&dqdata_op);
+        g.add_op(&dqweight_op);
+        g.add_op(&matmul_op);
+        g.add_op(&qout_op);
+        g.finalize();
+
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine->kind() == graph::engine_kind::gpu
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
+        apass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
+        auto part = g.get_partitions()[0];
+
+        // compile
+        graph::partition_t p;
+        p.init(part);
+        graph::compiled_partition_t cp(p);
+
+        std::vector<const graph::logical_tensor_t *> lt_ins {
+                &src_u8, &weight_s8, &bias_f32};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
+        // Matmul only support applying scale per channel along the last
+        // dimension for DNNL_ARG_WEIGHTS.
+        if (axis == weight_shape.size() - 1) {
+            ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                    graph::status::success);
+        } else {
+            ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                    graph::status::unimplemented);
+        }
+    }
+}
+
 TEST(test_matmul_execute_subgraph_int8, MatmulNdx2d) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]

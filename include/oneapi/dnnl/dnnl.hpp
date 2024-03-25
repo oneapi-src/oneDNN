@@ -2837,6 +2837,17 @@ struct memory : public handle<dnnl_memory_t> {
         /// @param md The C API memory descriptor.
         desc(dnnl_memory_desc_t md) : handle<dnnl_memory_desc_t>(md) {}
 
+        /// Construct a memory descriptor from a binary blob.
+        ///
+        /// @param blob A binary blob previously queried from a memory descriptor.
+        desc(const std::vector<uint8_t> &blob) {
+            dnnl_memory_desc_t md = nullptr;
+            error::wrap_c_api(
+                    dnnl_memory_desc_create_with_blob(&md, blob.data()),
+                    "could not create a memory descriptor from blob");
+            reset(md);
+        }
+
         /// Constructs a memory descriptor for a region inside an area
         /// described by this memory descriptor.
         //
@@ -3124,6 +3135,21 @@ struct memory : public handle<dnnl_memory_t> {
         ///     including the padding area.
         size_t get_size() const { return dnnl_memory_desc_get_size(get()); }
 #endif
+
+        /// Returns a binary blob associated with the given memory descriptor
+        /// @returns The memory descriptor blob associated with the memory descriptor
+        std::vector<uint8_t> get_blob() {
+            size_t size;
+            dnnl_status_t status
+                    = dnnl_memory_desc_get_blob(nullptr, &size, get());
+            error::wrap_c_api(
+                    status, "could not get memory descriptor blob size");
+
+            std::vector<uint8_t> out_blob(size);
+            status = dnnl_memory_desc_get_blob(out_blob.data(), &size, get());
+            error::wrap_c_api(status, "could not get memory descriptor blob");
+            return out_blob;
+        }
 
         /// Checks whether the memory descriptor is zero (empty).
         /// @returns @c true if the memory descriptor describes an empty
@@ -3984,6 +4010,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     correspondence between the tensor dimensions and the scales array.
     ///     The set i-th dimension indicates a number of groups of scaling
     ///     factors used for that logical dimension in a memory indicated by @p arg.
+    /// @param data_type Scaling factors data_type.
     void set_scales(int arg, int mask, const memory::dims &groups,
             memory::data_type data_type = memory::data_type::f32) {
         error::wrap_c_api(dnnl_primitive_attr_set_scales(get(), arg, mask,
@@ -4028,6 +4055,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     correspondence between the tensor dimensions and the zero_points array.
     ///     The set i-th dimension indicates a number of groups of zero point
     ///     factors used for that logical dimension in a memory indicated by @p arg.
+    /// @param data_type Zero point factors data_type.
     void set_zero_points(int arg, int mask, const memory::dims &groups,
             memory::data_type data_type = memory::data_type::s32) {
         error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg, mask,

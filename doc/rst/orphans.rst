@@ -36,7 +36,9 @@ Orphans
     example_concat.cpp.rst
     example_convolution.cpp.rst
     example_cpu_cnn_training_f32.c.rst
+    example_cpu_matmul_csr.cpp.rst
     example_cpu_matmul_quantization.cpp.rst
+    example_cpu_matmul_weights_compression.cpp.rst
     example_cpu_rnn_inference_f32.cpp.rst
     example_cpu_rnn_inference_int8.cpp.rst
     example_cpu_sgemm_and_matmul.cpp.rst
@@ -64,6 +66,7 @@ Orphans
     example_softmax.cpp.rst
     example_sum.cpp.rst
     example_sycl_interop_buffer.cpp.rst
+    example_weights_decompression_matmul.cpp.rst
     page_augru_example_cpp.rst
     page_augru_example_cpp_short.rst
     page_batch_normalization_example_cpp.rst
@@ -75,6 +78,8 @@ Orphans
     page_concat_example_cpp_short.rst
     page_convolution_example_cpp.rst
     page_convolution_example_cpp_short.rst
+    page_cpu_matmul_csr_cpp
+    page_cpu_matmul_weights_compression_cpp
     page_cpu_matmul_quantization_cpp.rst
     page_cpu_matmul_quantization_cpp_short.rst
     page_cpu_sgemm_and_matmul_cpp.rst
@@ -128,3 +133,5 @@ Orphans
     page_sum_example_cpp.rst
     page_sum_example_cpp_short.rst
     page_todo.rst
+    page_weights_decompression_matmul_cpp.rst
+    page_weights_decompression_matmul_cpp_short.rst

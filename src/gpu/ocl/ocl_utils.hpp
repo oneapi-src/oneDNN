@@ -27,6 +27,7 @@
 #include "common/c_types_map.hpp"
 #include "common/cpp_compat.hpp"
 #include "common/verbose.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 #include "gpu/compute/utils.hpp"
 
@@ -440,6 +441,9 @@ status_t get_ocl_device_eu_count(cl_device_id device, int32_t *eu_count);
 
 status_t get_ocl_device_enabled_systolic_intel(
         cl_device_id device, bool &systolic_enabled);
+
+status_t get_ocl_device_enabled_native_float_atomics(
+        cl_device_id device, uint64_t &native_extensions, bool is_xelpg);
 
 status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
 
