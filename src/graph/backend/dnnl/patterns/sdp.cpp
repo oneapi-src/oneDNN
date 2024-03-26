@@ -37,6 +37,68 @@ using FCreatePattern = graph::pass::FCreatePattern;
 // To be more specific,
 // we use "sdp", the acronym of "scaled_dot_product"
 // to replace former name "mha"
+
+/*
+ [query]    [key]
+      \     /
+[cond] MatMul [mask]
+     \   |   /
+       Select   [scale]
+            \   /
+             Div   [add in]
+               \   /
+                Add
+                 |
+               Softmax   [value]
+                    \     /
+                     MatMul
+                       |
+                StaticTranspose
+                       |
+                    Reorder
+                       |
+                    [output]
+*/
+void create_gpt_sdp(
+        const std::shared_ptr<pb_graph_t> &pgraph, bool is_bf16, bool is_int8) {
+    auto matmul_qk = create_dequant_matmul(pgraph, nullptr, is_bf16, is_int8);
+    auto select = pgraph->append_op(
+            graph::op_kind::Select, {in_edge(1, matmul_qk, 0)});
+    auto div = pgraph->append_op(
+            graph::op_kind::Divide, {in_edge(0, select, 0)});
+    auto add = pgraph->append_op(graph::op_kind::Add, {in_edge(0, div, 0)});
+    auto softmax
+            = pgraph->append_op(graph::op_kind::SoftMax, {in_edge(0, add, 0)});
+
+    pm::pb_node_t *matmul_v_input = softmax;
+
+    if (is_bf16) {
+        // This means [0,3) TypeCast ops after softmax
+        // For int8-bf16 pattern, there is 1 TypeCast op after softmax
+        // For bf16 pattern, there is 2 TypeCast ops after softmax
+        auto extra_casts = append_siso_repetition_subgraph(
+                pgraph, graph::op_kind::TypeCast, softmax, 0, 3);
+        matmul_v_input = extra_casts;
+    }
+
+    if (is_int8) {
+        auto quantize_softmax = pgraph->append_op(
+                graph::op_kind::Quantize, {in_edge(0, matmul_v_input, 0)});
+        matmul_v_input = quantize_softmax;
+    }
+
+    auto matmul_v
+            = create_dequant_matmul(pgraph, matmul_v_input, is_bf16, is_int8);
+    auto transpose_output = pgraph->append_op(
+            graph::op_kind::StaticTranspose, {in_edge(0, matmul_v, 0)});
+    auto reorder_output = pgraph->append_alternation(
+            {graph::op_kind::Reorder, graph::op_kind::StaticReshape},
+            {in_edge(0, transpose_output, 0)});
+    if (is_int8) {
+        append_optional_typecast_quantize(pgraph, reorder_output, is_bf16);
+    }
+}
+
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(sdp)
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion)
@@ -45,6 +107,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
+
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
@@ -55,8 +118,11 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion)
                     optional_mask->create_output_port(0, fscore_add, 0);
                     auto mask = pgraph->append_optional(
                             optional_mask, {in_edge(0, fscore_scale, 0)});
-                    auto softmax = pgraph->append_op(
-                            graph::op_kind::SoftMax, {in_edge(0, mask, 0)});
+
+                    // Optional select for distilbert
+                    auto p_select2 = optional_select(pgraph, mask, 2);
+                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
+                            {in_edge(0, p_select2, 0)});
                     auto matmul_v = pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     auto transpose_output
@@ -85,6 +151,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_sdp_fusion)
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             in_edges_t {in_edge(0, dequantize_query, 0),
                                     in_edge(1, dequantize_key, 0)});
+
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             in_edges_t {in_edge(0, matmul_qk, 0)});
@@ -95,8 +162,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_sdp_fusion)
                     optional_mask->create_output_port(0, fscore_add, 0);
                     auto mask = pgraph->append_optional(
                             optional_mask, {in_edge(0, fscore_scale, 0)});
+
+                    // Optional select for distilbert
+                    auto p_select2 = optional_select(pgraph, mask, 2);
+
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            in_edges_t {in_edge(0, mask, 0)});
+                            in_edges_t {in_edge(0, p_select2, 0)});
                     auto quantize_softmax
                             = pgraph->append_op(graph::op_kind::Quantize,
                                     in_edges_t {in_edge(0, softmax, 0)});
@@ -143,9 +214,11 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_query, 0),
                                     in_edge(1, cast_key, 0)});
+
                     auto fscore_scale = pgraph->append_alternation(
                             {graph::op_kind::Divide, graph::op_kind::Multiply},
                             {in_edge(0, matmul_qk, 0)});
+
                     auto optional_mask = std::make_shared<pb_graph_t>();
                     auto fscore_add
                             = optional_mask->append_op(graph::op_kind::Add);
@@ -153,8 +226,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
                     optional_mask->create_output_port(0, fscore_add, 0);
                     auto mask = pgraph->append_optional(
                             optional_mask, {in_edge(0, fscore_scale, 0)});
-                    auto softmax = pgraph->append_op(
-                            graph::op_kind::SoftMax, {in_edge(0, mask, 0)});
+
+                    // Optional select for distilbert
+                    auto p_select2 = optional_select(pgraph, mask, 2);
+
+                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
+                            {in_edge(0, p_select2, 0)});
                     auto cast_softmax_fp32 = pgraph->append_op(
                             graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
                     auto quantize_softmax
@@ -194,6 +271,50 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
                     sdp_base_t<true, memory::data_type::bf16>>();
         });
 
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_gpt_sdp)
+        .set_priority(22.0f)
+        .set_kind(partition_kind_t::sdp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_gpt_sdp(pgraph, /*bf16=*/false, /*int8=*/false);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<sdp_base_t<>>();
+        });
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bfloat16_gpt_sdp)
+        .set_priority(22.0f)
+        .set_kind(partition_kind_t::sdp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_gpt_sdp(pgraph, /*bf16=*/true, /*int8=*/false);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<sdp_base_t<>>();
+        });
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_fp32_gpt_sdp)
+        .set_priority(22.0f)
+        .set_kind(partition_kind_t::quantized_sdp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_gpt_sdp(pgraph, /*bf16=*/false, /*int8=*/true);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<sdp_base_t<true, memory::data_type::f32>>();
+        });
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_gpt_sdp)
+        .set_priority(22.0f)
+        .set_kind(partition_kind_t::quantized_sdp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    create_gpt_sdp(pgraph, /*bf16=*/true, /*int8=*/true);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<
+                    sdp_base_t<true, memory::data_type::bf16>>();
+        });
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
