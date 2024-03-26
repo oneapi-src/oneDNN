@@ -126,6 +126,18 @@ status_t DNNL_API dnnl_graph_ocl_interop_make_engine_with_allocator(
     (*engine)->set_allocator(const_cast<allocator_t *>(alloc));
     return status::success;
 }
+
+status_t DNNL_API
+dnnl_graph_ocl_interop_make_engine_from_cache_blob_with_allocator(
+        engine_t **engine, cl_device_id device, cl_context context,
+        const allocator_t *alloc, size_t size, const uint8_t *cache_blob) {
+    auto ret = dnnl_ocl_interop_engine_create_from_cache_blob(
+            engine, device, context, size, cache_blob);
+    if (ret != status::success) return ret;
+
+    (*engine)->set_allocator(const_cast<allocator_t *>(alloc));
+    return status::success;
+}
 #endif
 
 void dnnl_graph_allocator::monitor_t::record_allocate(

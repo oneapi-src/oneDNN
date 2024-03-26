@@ -65,10 +65,39 @@ dnnl_status_t DNNL_API dnnl_graph_ocl_interop_allocator_create(
         dnnl_graph_allocator_t *allocator, dnnl_graph_ocl_allocate_f ocl_malloc,
         dnnl_graph_ocl_deallocate_f ocl_free);
 
-/// This API is a supplement for existing onednn engine API.
+/// This API is a supplement for existing oneDNN engine API:
+/// dnnl_status_t DNNL_API dnnl_ocl_interop_engine_create(
+///     dnnl_engine_t *engine, cl_device_id device, cl_context context);
+///
+/// @param engine Output engine.
+/// @param device Underlying OpenCL device to use for the engine.
+/// @param context Underlying OpenCL context to use for the engine.
+/// @param alloc Underlying allocator to use for the engine.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
 dnnl_status_t DNNL_API dnnl_graph_ocl_interop_make_engine_with_allocator(
         dnnl_engine_t *engine, cl_device_id device, cl_context context,
         const_dnnl_graph_allocator_t alloc);
+
+/// This API is a supplement for existing oneDNN engine API:
+/// dnnl_status_t DNNL_API dnnl_ocl_interop_engine_create_from_cache_blob(
+///     dnnl_engine_t *engine, cl_device_id device, cl_context context,
+///     size_t size, const uint8_t *cache_blob);
+///
+/// @param engine Output engine.
+/// @param device The OpenCL device that this engine will encapsulate.
+/// @param context The OpenCL context (containing the device) that this
+///     engine will use for all operations.
+/// @param alloc Underlying allocator to use for the engine.
+/// @param size Size of the cache blob in bytes.
+/// @param cache_blob Cache blob of size @p size.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API
+dnnl_graph_ocl_interop_make_engine_from_cache_blob_with_allocator(
+        dnnl_engine_t *engine, cl_device_id device, cl_context context,
+        const_dnnl_graph_allocator_t alloc, size_t size,
+        const uint8_t *cache_blob);
 
 /// Execute a compiled partition with OpenCL runtime.
 ///

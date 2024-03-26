@@ -61,12 +61,24 @@ inline allocator make_allocator(dnnl_graph_ocl_allocate_f ocl_malloc,
     return allocator(c_allocator);
 }
 
-inline engine make_engine_with_allocator(const cl_device_id &adevice,
-        const cl_context &acontext, const allocator &alloc) {
+inline engine make_engine_with_allocator(
+        cl_device_id adevice, cl_context acontext, const allocator &alloc) {
     dnnl_engine_t c_engine;
     error::wrap_c_api(dnnl_graph_ocl_interop_make_engine_with_allocator(
                               &c_engine, adevice, acontext, alloc.get()),
             "could not make an engine with allocator");
+    return engine(c_engine);
+}
+
+inline engine make_engine_with_allocator(cl_device_id device,
+        cl_context context, const allocator &alloc,
+        const std::vector<uint8_t> &cache_blob) {
+    dnnl_engine_t c_engine;
+    error::wrap_c_api(
+            dnnl_graph_ocl_interop_make_engine_from_cache_blob_with_allocator(
+                    &c_engine, device, context, alloc.get(), cache_blob.size(),
+                    cache_blob.data()),
+            "could not make an engine with allocator from cache blob");
     return engine(c_engine);
 }
 
