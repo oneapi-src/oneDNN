@@ -307,26 +307,26 @@ void kernel_desc_t::set(const std::string &s) {
 }
 
 void kernel_desc_t::set_defaults() {
-    if (loop_nest.is_empty()) {
+    if (loop_desc.is_empty()) {
         switch (prop) {
             case prop_kind::forward_training:
             case prop_kind::forward_inference:
-                loop_nest.add(prb_dims::kw);
-                loop_nest.add(prb_dims::kh);
-                loop_nest.add(prb_dims::kd);
-                loop_nest.add(prb_dims::ic);
+                loop_desc.add(prb_dims::kw);
+                loop_desc.add(prb_dims::kh);
+                loop_desc.add(prb_dims::kd);
+                loop_desc.add(prb_dims::ic);
                 break;
             case prop_kind::backward_data:
-                loop_nest.add(prb_dims::kw);
-                loop_nest.add(prb_dims::kh);
-                loop_nest.add(prb_dims::kd);
-                loop_nest.add(prb_dims::oc);
+                loop_desc.add(prb_dims::kw);
+                loop_desc.add(prb_dims::kh);
+                loop_desc.add(prb_dims::kd);
+                loop_desc.add(prb_dims::oc);
                 break;
             case prop_kind::backward_weights:
-                loop_nest.add(prb_dims::mb);
-                loop_nest.add(prb_dims::ow);
-                loop_nest.add(prb_dims::oh);
-                loop_nest.add(prb_dims::od);
+                loop_desc.add(prb_dims::mb);
+                loop_desc.add(prb_dims::ow);
+                loop_desc.add(prb_dims::oh);
+                loop_desc.add(prb_dims::od);
                 break;
             default: ir_error_not_expected(); break;
         }
@@ -356,7 +356,7 @@ std::string kernel_desc_t::str() const {
     oss << "Registers:          " << regs << std::endl;
     oss << "Iteration tile:     " << iter_tile << std::endl;
     oss << "Thread group tile:  " << thread_group_tile << std::endl;
-    oss << "Loop nest:          " << loop_nest << std::endl;
+    oss << "Loop desc:          " << loop_desc << std::endl;
     oss << "Load:               " << load.str() << std::endl;
     oss << "Prefetch:           " << prefetch.str() << std::endl;
     oss << "Store:              " << store.str() << std::endl;
@@ -482,11 +482,11 @@ ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
     iface.add_arg("--tg", "Threadgroup tile (e.g. ow4oc4).",
             MAKE_GETTER(desc->thread_group_tile.str()),
             MAKE_SETTER(thread_group_tile, str_to_prb_tile(value)));
-    iface.add_arg("--loop-nest",
-            "Loop nest, ordered from innermost to outermost (e.g. "
-            "kw,kh,kd,ic).",
-            MAKE_GETTER(desc->loop_nest.str()),
-            MAKE_SETTER(loop_nest, str_to_loop_nest(value)));
+    iface.add_arg("--loop-desc",
+            "Loop description, variables ordered from innermost to outermost "
+            "(e.g. kw,kh,kd,ic).",
+            MAKE_GETTER(desc->loop_desc.str()),
+            MAKE_SETTER(loop_desc, str_to_loop_desc(value)));
     iface.add_arg("--load",
             "Load type (block, scattered [default], 2d) for A and B, e.g. "
             "a:2d,b:block.",
