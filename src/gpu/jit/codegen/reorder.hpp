@@ -264,6 +264,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool dst_q = ngen_is_qw(dst_type);
     bool dst_f = (dst_type == ngen::DataType::f);
     bool dst_bf8 = (dst_type == ngen::DataType::bf8);
+    bool dst_hf8 = (dst_type == ngen::DataType::hf8);
     bool dst_hf = (dst_type == ngen::DataType::hf);
     bool dst_bf = (dst_type == ngen::DataType::bf);
     bool dst_df = (dst_type == ngen::DataType::df);
@@ -275,6 +276,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool src_hf = (src_type == ngen::DataType::hf);
     bool src_bf = (src_type == ngen::DataType::bf);
     bool src_bf8 = (src_type == ngen::DataType::bf8);
+    bool src_hf8 = (src_type == ngen::DataType::hf8);
     bool src_df = (src_type == ngen::DataType::df);
     bool src_xf = src_bf || src_f || src_hf || src_df;
     bool f_to_xf = (src_f && (dst_bf || dst_hf));
@@ -402,6 +404,114 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             plan(mov, esize, t2(1), t1(2));
             plan(mov, esize, t1_as_hf(2), t2(1));
             plan(mov, esize, d_as_w(dst_stride), t1(2));
+        }
+        return;
+    }
+    // hf8 -> f16
+    if (src_hf8 && dst_hf) {
+        int step = get_step();
+        const int src_stride_bytes = src_stride;
+        const int dst_stride_bytes = 2 * dst_stride;
+        const int step_nregs
+                = utils::div_up(step * ((int)sizeof(ngen::half)), grf_size);
+        auto tmp1 = lex_scope.alloc_reg_buf_data(step_nregs);
+        auto tmp2 = lex_scope.alloc_reg_buf_data(step_nregs);
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+
+            auto s = src.subregister(i, esize, src_stride_bytes);
+            auto d = dst.subregister(i, esize, dst_stride_bytes);
+            host->eshl(esize,
+                    tmp1.subregister(0, ngen::DataType::uw)(dst_stride),
+                    s.reinterpret(0, ngen::DataType::ub)(src_stride), 8);
+            host->eshl(esize,
+                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
+                    s.reinterpret(0, ngen::DataType::ub)(src_stride), 7);
+            host->and_(esize,
+                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
+                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
+                    0x3F80);
+            host->cmp(esize | host->eq | host->f0[0], host->null.uw(),
+                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
+                    0x3F80);
+            host->mul(esize,
+                    tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
+                    tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
+                    ngen::Immediate::hf(0x5c00));
+            host->mov(esize | host->f0[0],
+                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
+                    0x7C01);
+            host->csel(esize | host->gt,
+                    tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
+                    tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
+                    -tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
+                    tmp1.subregister(0, ngen::DataType::hf)(dst_stride));
+            host->mov(esize, d.reinterpret(0, ngen::DataType::uw)(dst_stride),
+                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride));
+        }
+        return;
+    }
+
+    if (src_hf && dst_hf8) {
+        int step = get_step();
+        const int src_stride_bytes = 2 * src_stride;
+        const int dst_stride_bytes = dst_stride;
+        const int step_nregs
+                = utils::div_up(step * ((int)sizeof(ngen::half)), grf_size);
+        auto tmp1 = lex_scope.alloc_reg_buf_data(step_nregs);
+        auto tmp2 = lex_scope.alloc_reg_buf_data(step_nregs);
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+
+            auto s = src.subregister(i, esize, src_stride_bytes);
+            auto d = dst.subregister(i, esize, dst_stride_bytes);
+
+            host->mov(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
+                    s.reinterpret(0, ngen::DataType::uw)(src_stride));
+            // get sign bits
+            host->and_(esize | host->nz | host->f1[1], host->null.uw(),
+                    s.reinterpret(0, ngen::DataType::uw)(1), 0x8000);
+            // multiply by hf 128 to force overflow of exponent
+            host->mul(esize, tmp1.subregister(0, ngen::DataType::hf)(1),
+                    tmp1.subregister(0, ngen::DataType::hf)(1),
+                    ngen::Immediate::hf(0x5800));
+            // multiply by 2^(-15) to undo mul, preserving overflows,
+            // shift and underflow for hf8
+            host->mul(esize, tmp1.subregister(0, ngen::DataType::hf)(1),
+                    tmp1.subregister(0, ngen::DataType::hf)(1),
+                    ngen::Immediate::hf(0x0200));
+            // check for NaN, inf.
+            host->and_(esize | host->ze | host->f0[0], host->null.uw(),
+                    ~tmp1.subregister(0, ngen::DataType::uw)(1), 0x7C00);
+            // check for zero mantissa.
+            host->and_(esize | host->ze | host->f1[0], host->null.uw(),
+                    tmp1.subregister(0, ngen::DataType::uw)(1), 0x7F);
+            // round.
+            host->add(esize | host->f1[0],
+                    tmp1.subregister(0, ngen::DataType::uw)(1),
+                    tmp1.subregister(0, ngen::DataType::uw)(1), -0x40);
+            host->eshr(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
+                    tmp1.subregister(0, ngen::DataType::uw)(src_stride), 7);
+            host->add(esize | host->f1[0],
+                    tmp1.subregister(0, ngen::DataType::uw)(1),
+                    tmp1.subregister(0, ngen::DataType::uw)(1), 1);
+            host->mov(esize | host->f0[0],
+                    tmp1.subregister(0, ngen::DataType::uw)(1), 0x7F);
+            // handle sign.
+            host->or_(esize | host->f1[1],
+                    tmp1.subregister(0, ngen::DataType::uw)(1),
+                    tmp1.subregister(0, ngen::DataType::uw)(1), 0x80);
+
+            host->mov(esize, tmp2.subregister(0, ngen::DataType::ub)(2),
+                    tmp1.subregister(0, ngen::DataType::uw)(1));
+            host->mov(esize, tmp2.subregister(0, ngen::DataType::ub)(1),
+                    tmp2.subregister(0, ngen::DataType::ub)(2));
+            host->mov(esize, d.reinterpret(0, ngen::DataType::ub)(dst_stride),
+                    tmp2.subregister(0, ngen::DataType::ub)(1));
         }
         return;
     }

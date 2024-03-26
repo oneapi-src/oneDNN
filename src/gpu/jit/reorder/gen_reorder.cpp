@@ -66,8 +66,8 @@ status_t gen_reorder_t::pd_t::init(
                         || zp_cfg.is_common_dst_zero_point);
     };
     auto is_bf16_or_f32_or_bf8 = [](data_type_t dt) {
-        return utils::one_of(
-                dt, data_type::bf16, data_type::f32, data_type::f8_e5m2);
+        return utils::one_of(dt, data_type::bf16, data_type::f32,
+                data_type::f8_e5m2, data_type::f8_e4m3);
     };
     bool any_hf8 = utils::one_of(data_type::f8_e4m3, dst_dt, src_dt);
     auto skip_mask = dnnl_primitive_attr::skip_mask_t::post_ops
@@ -77,11 +77,11 @@ status_t gen_reorder_t::pd_t::init(
     VDISPATCH_REORDER(
             src_engine == dst_engine && src_engine->kind() == engine_kind::gpu,
             VERBOSE_BAD_ENGINE_KIND);
-    VDISPATCH_REORDER(
-            utils::one_of(src_dt, f32, f16, bf16, f8_e5m2, s32, s8, u8, f64),
+    VDISPATCH_REORDER(utils::one_of(src_dt, f32, f16, bf16, f8_e5m2, f8_e4m3,
+                              s32, s8, u8, f64),
             VERBOSE_UNSUPPORTED_DT);
-    VDISPATCH_REORDER(
-            utils::one_of(dst_dt, f32, f16, bf16, f8_e5m2, s32, s8, u8, f64),
+    VDISPATCH_REORDER(utils::one_of(dst_dt, f32, f16, bf16, f8_e5m2, f8_e4m3,
+                              s32, s8, u8, f64),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_REORDER(
             IMPLICATION(src_dt == data_type::f16 || dst_dt == data_type::f16,
@@ -107,7 +107,8 @@ status_t gen_reorder_t::pd_t::init(
     VDISPATCH_REORDER(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
     VDISPATCH_REORDER(scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
     VDISPATCH_REORDER(zps_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
-    VDISPATCH_REORDER(!any_hf8, VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_REORDER(IMPLICATION(any_hf8, utils::one_of(f16, src_dt, dst_dt)),
+            VERBOSE_UNSUPPORTED_DT);
 
     memory_desc_wrapper src_mdw {src_md()};
     memory_desc_wrapper dst_mdw {dst_md()};
