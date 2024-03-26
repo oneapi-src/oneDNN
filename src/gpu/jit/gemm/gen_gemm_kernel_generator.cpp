@@ -6612,6 +6612,18 @@ void gemm_kernel_generator_t<hw>::incDecAddr(const A &addr, I inc,
 }
 
 template <HW hw>
+void gemm_kernel_generator_t<hw>::incAddrStrided(const vector<GRFRange> &addr,
+        bool column, int k, const SubregisterPair &ld, const LDIncrements &incs,
+        const vector<RegisterBlock> &layout, const MatrixAddressing &atype,
+        const MatrixAddressingStrategy &astrategy,
+        const CommonStrategy &strategy, CommonState &state) {
+    bool release = false;
+    auto inc = lookupIncrement(incs, ld, k, strategy, state, &release);
+    incAddr(addr, inc, layout, atype, astrategy, strategy, state);
+    if (release) state.ra.safeRelease(inc);
+}
+
+template <HW hw>
 void gemm_kernel_generator_t<hw>::setAddrRemainder(Type T, const GRFRange &addr,
         const RegisterBlock &block, const Subregister &remR,
         const Subregister &remC, const MatrixAddressing &atype,
@@ -14261,7 +14273,7 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     auto kb_loadMain = strategy.kb_load, kb_loadRem = state.kb_loadRem;
     auto ka_pfStride = strategy.ka_pfStride;
     auto kb_pfStride = strategy.kb_pfStride;
-    auto kInterleaveChunk = strategy.kInterleaveChunk();
+    auto kInterleaveChunk = strategy.kInterleaveChunk(problem);
     bool slmA = strategy.slmA;
     bool slmB = strategy.slmB;
     bool slmASums = state.slmASums;
@@ -14285,6 +14297,11 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     int kaq_load = aqGroupK * state.kaq;
     int kbq_load = bqGroupK * state.kbq;
     bool readA = true, readB = true;
+
+    if (kInterleaveChunk) {
+        kaq_load = std::min(kaq_load, kInterleaveChunk);
+        kbq_load = std::min(kbq_load, kInterleaveChunk);
+    }
 
     auto &A_global = strategy.slmA ? state.Ai : problem.A;
     auto &B_global = strategy.slmB ? state.Bi : problem.B;
@@ -14585,12 +14602,16 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     auto nothing = [&](Iteration h) {};
     auto never = [&](Iteration h) { return false; };
 
-    auto kInc = [&](Iteration h, int k_inc) {
-        if (!kInterleaveChunk
-                || (h % kInterleaveChunk + k_inc) < kInterleaveChunk)
-            return k_inc;
-        else
-            return kInterleaveChunk * (strategy.wg[LoopK] - 1) + k_inc;
+    auto kInc = [&](Iteration h, int k_inc, int group = 1) {
+        if (kInterleaveChunk) {
+            k_inc *= group;
+            if (k_inc > kInterleaveChunk)
+                k_inc = kInterleaveChunk * strategy.wg[LoopK];
+            else if ((h % kInterleaveChunk + k_inc) >= kInterleaveChunk)
+                k_inc += kInterleaveChunk * (strategy.wg[LoopK] - 1);
+            k_inc /= group;
+        }
+        return k_inc;
     };
 
     // Dummy task to extend k unroll if needed.
@@ -14931,31 +14952,34 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     int delaySLMInc = delayABInc ? (unrollKSLM >> 1) : 0;
 
     // SLM quantization parameter address increment.
+    auto doIncAq = [&](Iteration h) {
+        auto kaInc = kInc(h, state.kaqStride, problem.aqGroupK);
+        if (ao2D)
+            incAddrStrided(state.A_offsetAddrs, true, kaInc, state.ldao,
+                    state.ldaoIncrements, state.A_offsetLayout, problem.AO,
+                    state.A_offsetStrategy, strategy, state);
+        if (as2D)
+            incAddrStrided(state.A_scaleAddrs, true, kaInc, state.ldaScale,
+                    state.ldasIncrements, state.A_scaleLayout, problem.A_scale,
+                    state.A_scaleStrategy, strategy, state);
+    };
+
+    auto doIncBq = [&](Iteration h) {
+        auto kbInc = kInc(h, state.kbqStride, problem.bqGroupK);
+        if (bo2D)
+            incAddrStrided(state.B_offsetAddrs, false, kbInc, state.ldbo,
+                    state.ldboIncrements, state.B_offsetLayout, problem.BO,
+                    state.B_offsetStrategy, strategy, state);
+        if (bs2D)
+            incAddrStrided(state.B_scaleAddrs, false, kbInc, state.ldbScale,
+                    state.ldbsIncrements, state.B_scaleLayout, problem.B_scale,
+                    state.B_scaleStrategy, strategy, state);
+    };
+
     if (slmDequantize2D)
         ls.schedule(reqSLMLoadQ.delay(delaySLMInc), [&](Iteration h) {
-            if (slmDequantize2DA) {
-                if (ao2D)
-                    incAddr(state.A_offsetAddrs, state.ldao_kaq, 0,
-                            state.kaqStride, state.A_offsetLayout, problem.AO,
-                            state.A_offsetStrategy, strategy, state);
-                if (as2D)
-                    incAddr(state.A_scaleAddrs, state.ldaScale_kaq, 0,
-                            state.kaqStride, state.A_scaleLayout,
-                            problem.A_scale, state.A_scaleStrategy, strategy,
-                            state);
-            }
-            if (slmDequantize2DB) {
-                if (bo2D)
-                    incAddr(state.B_offsetAddrs, state.ldbo_kbq,
-                            state.kbqStride, 0, state.B_offsetLayout,
-                            problem.BO, state.B_offsetStrategy, strategy,
-                            state);
-                if (bs2D)
-                    incAddr(state.B_scaleAddrs, state.ldbScale_kbq,
-                            state.kbqStride, 0, state.B_scaleLayout,
-                            problem.B_scale, state.B_scaleStrategy, strategy,
-                            state);
-            }
+            if (slmDequantize2DA) doIncAq(h);
+            if (slmDequantize2DB) doIncBq(h);
         });
 
     // SLM load address increments.
@@ -15012,29 +15036,8 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     // A/B quantization parameter address increment.
     auto reqIncAq = every(kaq_load);
     auto reqIncBq = every(kbq_load);
-    if (readA && dequantize2DA)
-        ls.schedule(reqIncAq, [&](Iteration h) {
-            if (ao2D)
-                incAddr(state.A_offsetAddrs, state.ldao_kaq, 0, state.kaqStride,
-                        state.A_offsetLayout, problem.AO,
-                        state.A_offsetStrategy, strategy, state);
-            if (as2D)
-                incAddr(state.A_scaleAddrs, state.ldaScale_kaq, 0,
-                        state.kaqStride, state.A_scaleLayout, problem.A_scale,
-                        state.A_scaleStrategy, strategy, state);
-        });
-
-    if (readB && dequantize2DB)
-        ls.schedule(reqIncBq, [&](Iteration h) {
-            if (bo2D)
-                incAddr(state.B_offsetAddrs, state.ldbo_kbq, state.kbqStride, 0,
-                        state.B_offsetLayout, problem.BO,
-                        state.B_offsetStrategy, strategy, state);
-            if (bs2D)
-                incAddr(state.B_scaleAddrs, state.ldbScale_kbq, state.kbqStride,
-                        0, state.B_scaleLayout, problem.B_scale,
-                        state.B_scaleStrategy, strategy, state);
-        });
+    if (readA && dequantize2DA) ls.schedule(reqIncAq, doIncAq);
+    if (readB && dequantize2DB) ls.schedule(reqIncBq, doIncBq);
 
     // A address increment.
     int delayAInc = (delayABInc && A_copies > 1) ? (ka_loadMain >> 1) : 0;
@@ -16693,23 +16696,6 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
     for (bool isA : {true, false})
         gemmMake2DQuantizationLayouts(isA, problem, strategy, state);
 
-    auto calcQInc
-            = [&](int stride, const Subregister &ld, Subregister &ld_kxq) {
-                  if (stride == 1)
-                      ld_kxq = ld;
-                  else {
-                      ld_kxq = state.ra.alloc_sub<uint32_t>();
-                      mulConstant(1, ld_kxq, ld, stride);
-                  }
-              };
-
-    if (ao2D) calcQInc(state.kaqStride, state.inputs.ldao, state.ldao_kaq);
-    if (as2D)
-        calcQInc(state.kaqStride, state.inputs.ldaScale, state.ldaScale_kaq);
-    if (bo2D) calcQInc(state.kbqStride, state.inputs.ldbo, state.ldbo_kbq);
-    if (bs2D)
-        calcQInc(state.kbqStride, state.inputs.ldbScale, state.ldbScale_kbq);
-
     // Grab flag registers now for named barriers. TODO: unlock these.
     if (strategy.needsNamedBarriersM(problem))
         state.barrierM = state.raVFlag.allocSubreg0();
@@ -17110,11 +17096,6 @@ void gemm_kernel_generator_t<hw>::gemmAccumulateCTeardown(
 
     deduplicateScalar(state.lda, state);
     deduplicateScalar(state.ldb, state);
-
-    state.ra.safeRelease(state.ldao_kaq);
-    state.ra.safeRelease(state.ldbo_kbq);
-    state.ra.safeRelease(state.ldaScale_kaq);
-    state.ra.safeRelease(state.ldbScale_kbq);
 
     state.raVFlag.safeRelease(state.barrierM);
     state.raVFlag.safeRelease(state.barrierN);
@@ -19295,7 +19276,7 @@ void gemm_kernel_generator_t<hw>::gemmOffsetAk(const Subregister &h,
             emad(1, effA, effA, state.inputs.lda, h, strategy, state);
             break;
         case MatrixLayout::T:
-            emad(1, effA, effA, h, Ta_ext, strategy, state);
+            eaddScaled(1, effA, effA, h, Ta_ext, strategy, state);
             break;
         case MatrixLayout::Pc:
             emad(1, effA, effA, h, globalA.packSize * Ta_ext, strategy, state);
@@ -19338,7 +19319,7 @@ void gemm_kernel_generator_t<hw>::gemmOffsetBk(const Subregister &h,
             emad(1, effB, effB, state.inputs.ldb, h, strategy, state);
             break;
         case MatrixLayout::N:
-            emad(1, effB, effB, h, Tb_ext, strategy, state);
+            eaddScaled(1, effB, effB, h, Tb_ext, strategy, state);
             break;
         case MatrixLayout::Pr:
             emad(1, effB, effB, h, globalB.packSize * Tb_ext, strategy, state);
@@ -20435,6 +20416,11 @@ void gemm_kernel_generator_t<hw>::gemmScaleInputs(const GEMMProblem &problem,
         scale(problem.Tb_scale, inputs.offsetBScale, inputs.offsetBq);
     }
 
+    state.ldao = inputs.ldao;
+    state.ldbo = inputs.ldbo;
+    state.ldaScale = inputs.ldaScale;
+    state.ldbScale = inputs.ldbScale;
+
     state.ra.safeRelease(inputs.ldaq);
     state.ra.safeRelease(inputs.ldbq);
     state.ra.safeRelease(inputs.offsetAq);
@@ -21031,7 +21017,8 @@ void gemm_kernel_generator_t<hw>::gemm(
     if (strategy.kParallelVariable)
         noop(); /* h0 already calculated */
     else if (strategy.kParallelLocal && strategy.kInterleave) {
-        mulConstant(1, state.h0, state.lidK, strategy.kInterleaveChunk());
+        mulConstant(
+                1, state.h0, state.lidK, strategy.kInterleaveChunk(problem));
         if (strategy.kParallel)
             emad(1, state.h0, state.h0, idK, state.inputs.k0, strategy, state);
     } else if (strategy.kParallel)
@@ -21074,7 +21061,7 @@ void gemm_kernel_generator_t<hw>::gemm(
 
         if (strategy.kInterleave) {
             // k <- floor(k / (chunk * k local size)) * chunk + min(k % (chunk * k local size), chunk)
-            auto chunk = strategy.kInterleaveChunk();
+            auto chunk = strategy.kInterleaveChunk(problem);
             auto wgChunk = chunk * strategy.wg[LoopK];
             if (!is_zero_or_pow2(wgChunk)) stub();
             auto temp1 = state.ra.alloc_sub<uint32_t>();
@@ -21264,6 +21251,8 @@ void gemm_kernel_generator_t<hw>::gemmCalcIncrements(const GEMMProblem &problem,
         int kb_load, bool doA, bool doB) {
     gemmFreeIncrements(problem, strategy, state, doA, doB);
 
+    bool doAq = doA, doBq = doB;
+
     doA &= (problem.A.layout == MatrixLayout::N);
     doB &= (problem.B.layout == MatrixLayout::T);
 
@@ -21274,7 +21263,7 @@ void gemm_kernel_generator_t<hw>::gemmCalcIncrements(const GEMMProblem &problem,
         auto &increments = isA ? state.ldaIncrements : state.ldbIncrements;
         auto &base = isA ? state.lda : state.ldb;
         if (strategy.kInterleave) {
-            int chunk = strategy.kInterleaveChunk();
+            int chunk = strategy.kInterleaveChunk(problem);
             if (inc < chunk)
                 calcIncrement(increments, base, inc, strategy, state);
             calcIncrement(increments, base,
@@ -21294,26 +21283,63 @@ void gemm_kernel_generator_t<hw>::gemmCalcIncrements(const GEMMProblem &problem,
         if (strategy.prefetchB && !strategy.B_prefetch.address2D)
             calcInterleavedIncrement(false, strategy.kb_pfStride);
     }
+
+    bool ao2D = (problem.aoPtrDims == 2);
+    bool bo2D = (problem.boPtrDims == 2);
+    bool as2D = problem.aScale2D;
+    bool bs2D = problem.bScale2D;
+
+    auto calcInterleavedQIncrement = [&](bool isA, SubregisterPair &base,
+                                             LDIncrements &increments) {
+        auto inc = isA ? state.kaqStride : state.kbqStride;
+        auto group = isA ? problem.aqGroupK : problem.bqGroupK;
+        if (strategy.kInterleave) {
+            int chunk = strategy.kInterleaveChunk(problem);
+            if (group < chunk) {
+                calcIncrement(increments, base, inc, strategy, state);
+                calcIncrement(increments, base,
+                        (inc * group + chunk * (strategy.wg[LoopK] - 1))
+                                / group,
+                        strategy, state);
+            } else
+                calcIncrement(increments, base,
+                        chunk * strategy.wg[LoopK] / group, strategy, state);
+        } else
+            calcIncrement(increments, base, inc, strategy, state);
+    };
+
+    if (doAq && ao2D)
+        calcInterleavedQIncrement(true, state.ldao, state.ldaoIncrements);
+    if (doAq && as2D)
+        calcInterleavedQIncrement(true, state.ldaScale, state.ldasIncrements);
+    if (doBq && bo2D)
+        calcInterleavedQIncrement(false, state.ldbo, state.ldboIncrements);
+    if (doBq && bs2D)
+        calcInterleavedQIncrement(false, state.ldbScale, state.ldbsIncrements);
 }
 
 // Free cached multiples of lda/ldb.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmFreeIncrements(const GEMMProblem &problem,
         const GEMMStrategy &strategy, GEMMState &state, bool doA, bool doB) {
-    if (doA) {
-        for (auto &inc : state.ldaIncrements)
+    auto freeIncrements = [&](SubregisterPair &base, LDIncrements &increments) {
+        for (auto &inc : increments)
             safeRelease(inc.second, state);
-        deduplicateScalar(state.lda, state);
-        state.ra.claim(state.lda.getReg(0));
-        state.ldaIncrements.clear();
+        deduplicateScalar(base, state);
+        state.ra.claim(base.getReg(0));
+        increments.clear();
+    };
+
+    if (doA) {
+        freeIncrements(state.lda, state.ldaIncrements);
+        freeIncrements(state.ldao, state.ldaoIncrements);
+        freeIncrements(state.ldaScale, state.ldasIncrements);
     }
 
     if (doB) {
-        for (auto &inc : state.ldbIncrements)
-            safeRelease(inc.second, state);
-        deduplicateScalar(state.ldb, state);
-        state.ra.claim(state.ldb.getReg(0));
-        state.ldbIncrements.clear();
+        freeIncrements(state.ldb, state.ldbIncrements);
+        freeIncrements(state.ldbo, state.ldboIncrements);
+        freeIncrements(state.ldbScale, state.ldbsIncrements);
     }
 }
 
@@ -21912,12 +21938,20 @@ CommonDriverInfo gemm_kernel_generator_t<hw>::driverInfo(
     return info;
 }
 
-int GEMMStrategy::kInterleaveChunk() const {
+int GEMMStrategy::kInterleaveChunk(const GEMMProblem &problem) const {
     if (!kInterleave) return 0;
 
     int chunk = lcm(ka_inc(), kb_inc());
     if (prefetchA) chunk = lcm(chunk, ka_pfStride);
     if (prefetchB) chunk = lcm(chunk, kb_pfStride);
+    if (problem.quantized2DA()) {
+        if (problem.aqGroupK % wg[LoopK]) stub();
+        chunk = lcm(chunk, std::max(1, problem.aqGroupK / wg[LoopK]));
+    }
+    if (problem.quantized2DB()) {
+        if (problem.bqGroupK % wg[LoopK]) stub();
+        chunk = lcm(chunk, std::max(1, problem.bqGroupK / wg[LoopK]));
+    }
     return chunk;
 }
 
@@ -22370,7 +22404,7 @@ int GEMMStrategy::kAlign(const GEMMProblem &problem) const {
 
     if (kParallelLocal && kInterleave) {
         /* Ensure k0 is aligned to prefetch strides */
-        align = lcm(align, kInterleaveChunk());
+        align = lcm(align, kInterleaveChunk(problem));
     }
 
     if (problem.quantized2DA()) align = lcm(align, problem.aqGroupK);

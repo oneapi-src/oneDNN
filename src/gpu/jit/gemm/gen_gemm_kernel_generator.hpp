@@ -1262,7 +1262,7 @@ struct GEMMStrategy : public GEMMStrategyPOD {
     int ka_inc() const { return slmA ? unrollKSLM : ka_load; }
     int kb_inc() const { return slmB ? unrollKSLM : kb_load; }
 
-    int kInterleaveChunk() const;
+    int kInterleaveChunk(const GEMMProblem &problem) const;
 
     bool needsMNLocalIDs() const {
         return xParallel || (slmBuffers > 0) || cooperativePF || kParallelLocal
@@ -1454,10 +1454,11 @@ struct GEMMState : public CommonState {
     ngen::Subregister remFusedStorage; // d
     ngen::Subregister diagA, diagB, diagC; // d
     SubregisterPair lda, ldb;
+    SubregisterPair ldao, ldbo, ldaScale, ldbScale;
     LDIncrements ldaIncrements, ldbIncrements; // Cached lda * ka, ldb * kb
+    LDIncrements ldaoIncrements, ldboIncrements;
+    LDIncrements ldasIncrements, ldbsIncrements;
     LDMultiples ldaMultiples, ldbMultiples, ldcMultiples[2];
-    ngen::Subregister ldao_kaq, ldaScale_kaq; // ud
-    ngen::Subregister ldbo_kbq, ldbScale_kbq; // ud
     ngen::Subregister k, K; // d
     ngen::Subregister kNoBarrierStart, kNoBarrierEnd; // d
     ngen::FlagRegister flagAP;
@@ -2388,6 +2389,12 @@ protected:
             const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             const CommonStrategy &strategy, CommonState &state, bool decrement);
+    void incAddrStrided(const std::vector<ngen::GRFRange> &addr, bool column,
+            int k, const SubregisterPair &ld, const LDIncrements &incs,
+            const std::vector<RegisterBlock> &layout,
+            const MatrixAddressing &atype,
+            const MatrixAddressingStrategy &astrategy,
+            const CommonStrategy &strategy, CommonState &state);
 
     void extendIndexVec(int n, CommonState &state);
     ngen::Subregister accessIndexVec(int n, CommonState &state);
