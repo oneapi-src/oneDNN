@@ -1934,8 +1934,9 @@ status_t fuse_post_typecast_to_predecessor(std::shared_ptr<subgraph_t> &sg) {
             // bf16-int8 mix precision case
             auto &next_next_op = tc_out->get_consumers()[0].get_op();
             out->remove_consumer(next_op, 0);
-            tc_out->remove_consumer(next_next_op, 0);
-            next_next_op.connect_input(0, out);
+            auto offset = tc_out->get_consumers()[0].get_offset();
+            tc_out->remove_consumer(next_next_op, offset);
+            next_next_op.connect_input(offset, out);
             out->set_data_type(tc_out->get_logical_tensor().data_type);
             fusion_groups.emplace_back(std::vector<op_t *> {&next_op});
         } else {
