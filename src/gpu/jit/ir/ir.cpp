@@ -490,6 +490,14 @@ stmt_t inject_alloc_stmts(const stmt_t &stmt, const std::vector<stmt_t> &allocs,
     return injector.mutate(stmt);
 }
 
+stmt_t inject_alloc_stmts(const stmt_t &stmt, const buffer_manager_t &buf_mgr) {
+    std::vector<stmt_t> allocs;
+    for (auto &e : buf_mgr.entries()) {
+        allocs.push_back(e.second.create_alloc_stmt());
+    }
+    return inject_alloc_stmts(stmt, allocs, /*put_innermost=*/true);
+}
+
 stmt_t inject_let_stmts(const stmt_t &stmt, const std::vector<stmt_t> &lets) {
     stmt_t ret = stmt;
     for (auto it = lets.rbegin(); it != lets.rend(); ++it) {

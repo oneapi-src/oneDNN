@@ -97,6 +97,7 @@ public:
     buffer_manager_t(ir_context_t &ir_ctx) : ir_ctx_(&ir_ctx) {}
 
     ir_context_t &ir_ctx() const { return *ir_ctx_; }
+    const std::map<std::string, entry_t> &entries() const { return entries_; }
     std::map<std::string, entry_t> &entries() { return entries_; }
 
     expr_t get(const std::string &name, int size = 0) {
@@ -164,7 +165,7 @@ public:
         entries_.erase(e.name());
     }
 
-    template <typename FilterFuncT>
+    template <typename FilterFuncT = bool (*)(const expr_t &)>
     stmt_t inject_allocs(const stmt_t &_stmt,
             const FilterFuncT &filter = default_filter) const {
         auto stmt = _stmt;
@@ -284,6 +285,10 @@ private:
 //   as possible
 stmt_t inject_alloc_stmts(const stmt_t &stmt, const std::vector<stmt_t> &allocs,
         bool put_innermost = false);
+
+// Similar to the previous function but allocations are taken from the buffer
+// manager, allocations are injected at innermost possible scope.
+stmt_t inject_alloc_stmts(const stmt_t &stmt, const buffer_manager_t &buf_mgr);
 
 // Returns a new statement with injected let statements, `stmt` is nested to
 // all let statements.
