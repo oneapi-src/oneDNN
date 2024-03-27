@@ -343,7 +343,7 @@ bool skip_start(res_t *res, int idx) {
     return false;
 }
 
-#if defined(_WIN32) && !defined(__GNUC__)
+#if defined(_WIN32)
 #include <windows.h>
 #define PATH_MAX MAX_PATH
 static char *dirname(char *path) {

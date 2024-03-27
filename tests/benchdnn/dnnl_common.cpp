@@ -858,7 +858,7 @@ bool is_f64_supported(const dnnl_engine_t &engine) {
     return false;
 }
 
-#if defined(_WIN32) && !defined(__GNUC__)
+#if defined(_WIN32)
 #include "windows.h"
 
 static size_t get_cpu_ram_size() {
