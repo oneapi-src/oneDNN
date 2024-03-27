@@ -305,8 +305,9 @@ class send_mask_t {
 public:
     send_mask_t() = default;
 
-    void add_mask(const offset_t &off, const expr_t &bound, bool do_zero_cmp) {
-        entries_.emplace_back(off, bound, do_zero_cmp);
+    void add_mask(
+            const offset_t &off, const expr_t &bound, bool has_underflow) {
+        entries_.emplace_back(off, bound, has_underflow);
     }
 
     expr_t to_expr() const {
@@ -315,7 +316,8 @@ public:
         for (auto &e : entries_) {
             auto cmp = (e.off.load() < e.off.make_broadcast(e.bound));
             ret = (ret.is_empty() ? cmp : (ret & cmp));
-            if (e.do_zero_cmp) ret &= (e.off.load() >= e.off.make_broadcast(0));
+            if (e.has_underflow)
+                ret &= (e.off.load() >= e.off.make_broadcast(0));
         }
         return ret;
     }
@@ -323,11 +325,11 @@ public:
 private:
     struct entry_t {
         entry_t() = default;
-        entry_t(const offset_t &off, const expr_t &bound, bool do_zero_cmp)
-            : off(off), bound(bound), do_zero_cmp(do_zero_cmp) {}
+        entry_t(const offset_t &off, const expr_t &bound, bool has_underflow)
+            : off(off), bound(bound), has_underflow(has_underflow) {}
         offset_t off;
         expr_t bound;
-        bool do_zero_cmp = false;
+        bool has_underflow = false;
     };
 
     std::vector<entry_t> entries_;
@@ -410,7 +412,7 @@ public:
             params.allow_reuse = true;
             auto off = get_offset(
                     expr_t(0), dm.base, dm.slot_incs, shift, params);
-            ret.add_mask(off, let_ctx_.get(dm.bound), dm.do_zero_cmp);
+            ret.add_mask(off, let_ctx_.get(dm.bound), dm.has_underflow);
         }
         return ret;
     }

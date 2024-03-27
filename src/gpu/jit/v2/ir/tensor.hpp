@@ -522,7 +522,7 @@ class dim_mask_desc_t {
 public:
     dim_mask_desc_t() = default;
     dim_mask_desc_t(const prb_dim_t &dim, const expr_t &expr,
-            const expr_t &bound, int block, bool do_zero_cmp);
+            const expr_t &bound, int block, bool has_underflow);
     bool is_identity() const { return is_zero(c) && is_one(a) && y.is_empty(); }
 
     template <typename T>
@@ -537,7 +537,7 @@ public:
     prb_dim_t dim;
     expr_t bound;
     int block = 0;
-    bool do_zero_cmp = false;
+    bool has_underflow = false;
 
     expr_t base;
     expr_t a, b, c;

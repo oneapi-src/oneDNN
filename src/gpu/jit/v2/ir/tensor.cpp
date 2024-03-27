@@ -945,8 +945,12 @@ std::string layout_iterator_t::str() const {
 }
 
 dim_mask_desc_t::dim_mask_desc_t(const prb_dim_t &dim, const expr_t &expr,
-        const expr_t &bound, int block, bool do_zero_cmp)
-    : dim(dim), bound(bound), block(block), do_zero_cmp(do_zero_cmp), base(0) {
+        const expr_t &bound, int block, bool has_underflow)
+    : dim(dim)
+    , bound(bound)
+    , block(block)
+    , has_underflow(has_underflow)
+    , base(0) {
     ir_assert(math::is_pow2(block));
     init_abc_xy(expr);
 }
@@ -990,7 +994,7 @@ std::string dim_mask_desc_t::str() const {
     if (!y.is_empty()) dummy_coord[y_dim] = y;
     auto expr = simplify_rewrite(to_expr(dummy_coord));
     std::ostringstream oss;
-    oss << expr << " < " << bound << " (zero_cmp: " << do_zero_cmp << ")"
+    oss << expr << " < " << bound << " (has_underflow: " << has_underflow << ")"
         << std::endl;
     oss << "base:  " << base << std::endl;
     oss << "block: " << block;
