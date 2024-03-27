@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ status_t dnnl_sycl_interop_engine_create(
         engine_t **engine, const void *dev, const void *ctx) {
     using namespace dnnl::impl;
     bool args_ok = !utils::any_null(engine, dev, ctx);
-    if (!args_ok) return status::invalid_arguments;
+    VERROR_ENGINE(args_ok, status::invalid_arguments, VERBOSE_NULL_ARG);
 
     auto &sycl_dev = *static_cast<const ::sycl::device *>(dev);
     auto &sycl_ctx = *static_cast<const ::sycl::context *>(ctx);
@@ -40,14 +40,16 @@ status_t dnnl_sycl_interop_engine_create(
     else if (sycl_dev.is_cpu() || dnnl::impl::sycl::is_host(sycl_dev))
         kind = engine_kind::cpu;
     else
-        return status::invalid_arguments;
+        VERROR_ENGINE(
+                false, status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
-    if (kind == engine_kind::cpu) return status::invalid_arguments;
+    VERROR_ENGINE(kind != engine_kind::cpu, status::invalid_arguments,
+            VERBOSE_BAD_ENGINE_KIND);
 #endif
 
     auto ef = dnnl::impl::sycl::get_engine_factory(kind);
-    if (!ef) return status::invalid_arguments;
+    VERROR_ENGINE(ef, status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
 
     size_t index;
     CHECK(dnnl::impl::sycl::get_sycl_device_index(&index, sycl_dev));
