@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,8 +45,8 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <alg_kind_t alg_kind, prop_kind_t prop_kind>
-float activation(float s, float alpha, float cliping);
+float activation(alg_kind_t alg_kind, prop_kind_t prop_kind, float s,
+        float alpha, float cliping);
 
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t scratch_type, impl::data_type_t acc_type>
@@ -88,22 +88,6 @@ struct rnn_postgemm_dispatcher {
                 break;
             case alg_kind::vanilla_rnn:
                 postgemm_func = &class_name::rnn_postgemm;
-                switch (pd->activation_kind()) {
-                    case alg_kind::eltwise_relu:
-                        activation_func
-                                = &activation<alg_kind::eltwise_relu, aprop>;
-                        break;
-                    case alg_kind::eltwise_tanh:
-                        activation_func
-                                = &activation<alg_kind::eltwise_tanh, aprop>;
-                        break;
-                    case alg_kind::eltwise_logistic:
-                        activation_func
-                                = &activation<alg_kind::eltwise_logistic,
-                                        aprop>;
-                        break;
-                    default: assert(!"Unsupported activation function"); break;
-                }
                 break;
             case alg_kind::vanilla_gru:
             case alg_kind::vanilla_augru:
@@ -233,7 +217,6 @@ struct rnn_postgemm_dispatcher {
     }
 
 private:
-    float (*activation_func)(float s, float alpha, float cliping);
     rnn_postgemm_sig(rnn_postgemm);
     rnn_postgemm_sig(lstm_postgemm);
     rnn_postgemm_sig(lstm_projection_postgemm);
