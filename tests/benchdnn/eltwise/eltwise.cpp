@@ -335,6 +335,20 @@ bool eltwise_alg_returns_nan_or_inf(const attr_t &attr) {
     return false;
 }
 
+bool miopen_check_correctness(const prb_t *prb,
+        const compare::compare_t::driver_check_func_args_t &args) {
+    if (!is_amd_gpu()) return false;
+
+    // MIOpen generates outputs that are 1ulp in some cases
+    // this extra case needs to be addressed
+    if ((prb->alg == alg_t::ELU || prb->alg == alg_t::LOGISTIC
+                || prb->alg == alg_t::SRELU)
+            && ((prb->dir & FLAG_FWD) && (prb->dt == dnnl_f16))) {
+        return args.diff <= epsilon_dt(args.dt);
+    }
+    return false;
+}
+
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     const float trh
@@ -359,7 +373,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
                     return args.diff <= args.trh;
                 if (prb->attr.post_ops.binary_index() != -1)
                     return args.diff <= args.trh;
-                return false;
+                return miopen_check_correctness(prb, args);
             };
     cmp.set_driver_check_function(eltwise_add_check);
 }
