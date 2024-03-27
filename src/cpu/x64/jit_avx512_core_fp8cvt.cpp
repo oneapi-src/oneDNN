@@ -350,7 +350,7 @@ void fp8_emulation_e5m2_t::vcvt_f32_to_f8(
     const Xbyak::Ymm ymm_out(xmm_out.getIdx());
 
     // f16 <- f32
-    host_->vcvtps2phx(ymm_mask(xmm_out), op_in);
+    host_->vcvtps2phx(op_in.isXMM() ? xmm_out : ymm_mask(xmm_out), op_in);
     // f8_e5m2 <- f16 (RNE)
     vcvt_f16_to_f8(xmm_out, ymm_out);
 }
