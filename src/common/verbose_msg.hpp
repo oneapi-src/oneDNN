@@ -118,8 +118,7 @@
 #define VERBOSE_INCOMPATIBLE_GEMM_FMT "incompatible gemm format"
 
 #define VERBOSE_DEVICE_CTX_MISMATCH "device not found in the given context"
-#define VERBOSE_INVALID_SYCL_PLATFORM \
-    "unsupported platform (expected %s got %s)"
+#define VERBOSE_INVALID_PLATFORM "unsupported %s platform (expected %s got %s)"
 #define VERBOSE_ENGINE_CREATION_FAIL "failed to create %s engine with index %zu"
 
 #endif
