@@ -64,8 +64,9 @@ extern bdnn_state_t convert_state(const dnnl_status_t &s);
                 if (ss->state == res_state_t::SKIPPED) { \
                     ss->reason = bs.reason; \
                 } \
-                BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s\n", \
-                        __PRETTY_FUNCTION__, __LINE__, #f, e.what()); \
+                BENCHDNN_PRINT(0, \
+                        "Error: Function '%s' at (%s:%d) returned '%s'\n", \
+                        __FUNCTION__, __FILE__, __LINE__, e.what()); \
                 fflush(0); \
                 if (s == CRIT) exit(2); \
             } \
@@ -185,6 +186,13 @@ dnnl::graph::logical_tensor::layout_type str2layout(
         const std::string &layout_type);
 
 void change_format_to_ncx(dims_t &dims);
+
+// For a given vector of partitions provide a string with number of ops in
+// every partition in format: `{N} {M} ...`.
+std::string verbose_partitions_n_ops(
+        const std::vector<dnnl::graph::partition> &partitions);
+// Returns logical dims as a string object in dims_t format
+std::string lt_dims2str(const dnnl::graph::logical_tensor::dims &dims);
 
 template <typename First, typename... Rest>
 void change_format_to_ncx(First &first, Rest &...rest) {

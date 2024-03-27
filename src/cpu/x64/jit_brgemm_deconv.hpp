@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,10 +81,12 @@ struct brgemm_deconvolution_fwd_t : public primitive_t {
         bool has_strides_ = false;
 
     private:
-        std::string name_
-                = JIT_IMPL_NAME_HELPER("brg_conv:", isa, "") + std::string("+");
+        std::string name_ = JIT_IMPL_NAME_HELPER("brg_deconv:", isa, "");
 
-        void init_name() { name_.append(conv_pd_->name()); }
+        void init_name() {
+            name_.append("+");
+            name_.append(conv_pd_->name());
+        }
     };
 
     brgemm_deconvolution_fwd_t(const pd_t *apd) : primitive_t(apd) {};

@@ -8,6 +8,7 @@
 --dir=FWD_D,FWD_I
 --flags=,G,C,H,CH,GCH
 --batch=shapes_all
+--batch=shapes_sd
 
 # Different data type combinations
 --inplace=false
@@ -26,7 +27,7 @@
 --dir=FWD_I
 --attr-scales=src:common:64
 --flags=,CH
---batch=shapes_all
+--batch=shapes_sd
 
 --dt=s8:s8
 --dir=FWD_I

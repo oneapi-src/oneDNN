@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ void parse_key_value(std::vector<std::map<size_t, std::string>> &res_v,
             if (key_val_case.count(key_num) || single_key_val.empty()) {
                 fprintf(stderr, "graph: Parser: repeat id `%zd`, exiting...\n",
                         key_num);
-                exit(2);
+                SAFE_V(FAIL);
             }
             key_val_case.emplace(stoll(key_str), val_str);
         }
@@ -124,7 +124,7 @@ std::vector<float> string_to_f32_vec(const std::string &val_str) {
             fprintf(stderr,
                     "graph: Parser: invalid attr value `%s`, exiting...\n",
                     val_str.c_str());
-            exit(2);
+            SAFE_V(FAIL);
         }
     }
     return f32_vec;
@@ -143,7 +143,7 @@ dims_t string_to_shape(const std::string &shape_str) {
             fprintf(stderr,
                     "graph: Parser: invalid shape value `%s`, exiting...\n",
                     shape_str.c_str());
-            exit(2);
+            SAFE_V(FAIL);
         }
     }
     return shape;

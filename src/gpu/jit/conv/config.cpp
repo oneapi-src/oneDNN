@@ -693,6 +693,11 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     if (!matches_tag(dst_md, dst_tag) && is_small_oc_g1)
         user_dst_tag = (user_dst_req.empty() ? "axb" : user_dst_req);
 
+    // Avoid reorder for small shapes
+    if (prb.g == 1 && prb.ic < 4 && prb.oc < 4 && prb.mb < 4 && prb.ksp == 1) {
+        src_tag = user_src_tag;
+        dst_tag = user_dst_tag;
+    }
     maybe_set_plain_weights(
             cfg, src_axb && dst_axb, user_wei_req, wei_tag, user_wei_tag);
 
@@ -836,10 +841,9 @@ bool data_types_ok(const conv_problem_t &prb, const hw_t &hw) {
     bool is_hf8 = utils::one_of(data_type::f8_e4m3, src, wei, dst, bia);
     if (!prb.is_f64_conv() && utils::one_of(data_type::f64, src, wei, dst, bia))
         return false;
-    bool is_xelpg = hw == ngen::HW::XeHPG && !hw.systolic_support();
     if (prb.is_f64_conv()
             && (utils::one_of(hw.to_ngen(), ngen::HW::XeLP, ngen::HW::XeHPG)
-                    && !is_xelpg))
+                    && !hw.has_fp64_atomic_support()))
         return false;
     if (is_bf8
             && !(utils::one_of(hw, ngen::HW::XeHPC) && hw.systolic_support()))

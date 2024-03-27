@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ status_t cvt_mem_desc_to_layout_desc(const memory_desc_t &md_,
         const int ld_ndims_start = ld.ndims;
         if (blocks[d] != 1) {
             stride_t stride = 1;
-            int tail = tails[d];
+            dim_t tail = tails[d];
             for (int iblk = bd.inner_nblks - 1; iblk >= 0; --iblk) {
                 if (bd.inner_idxs[iblk] == d) {
                     const dim_t inner_tail = tail % bd.inner_blks[iblk];

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,8 +72,6 @@ enum RestrictionTags : char {
     ReqNoBatch = 'v',
     ReqBatchMultiDim = 'W',
     ReqNoBatchMultiDim = 'w',
-    ReqABOffset = 'O',
-    ReqNoABOffset = 'o',
     ReqSumA = 'Q',
     ReqNoSumA = 'q',
     ReqSumB = 'P',
@@ -82,6 +80,8 @@ enum RestrictionTags : char {
     ReqNoSystolic = 'i',
     ReqCustom1 = 'D',
     ReqNoCustom1 = 'd',
+    ReqXe2Block2D = 'G',
+    ReqNoXe2Block2D = 'g',
 };
 
 enum HWTags : char {

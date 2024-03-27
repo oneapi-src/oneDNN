@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 #include <cstdint>
 
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 namespace npack {
 
 static constexpr uint32_t OPENCL_DEV_BINARY_TYPE = 0xFF000005;
@@ -67,6 +67,6 @@ typedef struct {
 } SElf64SectionHeader;
 
 } /* namespace npack */
-} /* namespace ngen */
+} /* namespace NGEN_NAMESPACE */
 
 #endif /* header guard */

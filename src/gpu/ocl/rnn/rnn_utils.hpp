@@ -364,8 +364,7 @@ dim_t set_workspace_offsets(const conf_t &rnn, dim_t &ws_gates_offset,
         dim_t &ws_h_state_offset, dim_t &ws_c_state_offset,
         dim_t &ws_grid_comp_onfset, dim_t &ws_bias_offset);
 dim_t get_workspace_size(const conf_t &rnn);
-status_t set_expected_desc(
-        conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
+status_t set_weights_desc(memory_desc_t &weights_md, const conf_t &rnn);
 status_t set_good_strides(
         dim_t ld_, memory_desc_t &weights_md, format_tag_t tag);
 const memory_storage_t &get_storage(const memory_storage_t *storage);
@@ -939,8 +938,8 @@ struct scratch_t : public data_helper_t {
 
     sub_buffer_t diff_states(
             dim_t layer, dim_t dir, dim_t state, dim_t iter) const {
-        int aux_elsz = conf_.aux_data_type == data_type::f16 ? sizeof(cl_half)
-                                                             : sizeof(float);
+        int aux_elsz = type_size(conf_.aux_data_type);
+
         if (!diff_states_) return {};
         auto off
                 = calc_off_diff_state(layer, dir, state, iter, 0, 0) * aux_elsz;

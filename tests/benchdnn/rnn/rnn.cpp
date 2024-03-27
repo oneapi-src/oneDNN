@@ -617,10 +617,13 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             query_md_dims(src_iter_c_d), query_md_data_type(src_iter_c_d), "",
             src_iter_c_strides);
 
-    auto weights_layer_d = dnn_mem_t::init_md(
-            5, weights_layer_dims, prb.cfg[WEIGHTS_LAYER].dt, prb.tag[1]);
-    auto weights_iter_d = dnn_mem_t::init_md(
-            5, weights_iter_dims, prb.cfg[WEIGHTS_ITER].dt, prb.tag[1]);
+    // Forward and backward support different layouts for weights. When
+    // testing backward, we cannot reliably use the supplied weights tag.
+    bool has_service_prim = prb.prop == dnnl_backward;
+    auto weights_layer_d = dnn_mem_t::init_md(5, weights_layer_dims,
+            prb.cfg[WEIGHTS_LAYER].dt, has_service_prim ? "any" : prb.tag[1]);
+    auto weights_iter_d = dnn_mem_t::init_md(5, weights_iter_dims,
+            prb.cfg[WEIGHTS_ITER].dt, has_service_prim ? "any" : prb.tag[1]);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> attention_d {};
     if (prb.is_augru())
@@ -764,38 +767,35 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
     skip_unimplemented_sum_po(prb.attr, res, dnnl_rnn, prb.cfg[SRC_LAYER].dt);
     skip_unimplemented_prelu_po(prb.attr, res, dnnl_rnn);
 
+    if (is_cpu()) {
 #if !defined(DNNL_X64) || DNNL_X64 == 0 \
         || DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    // int8 is not supported altogether since RNN relies on packed IGEMM
-    // FIXME: this will disable int8 RNN testing if the library is built with
-    //        Intel MKL that does have packed IGEMM
-    if (prb.is_int8()) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
+        // int8 is not supported altogether since RNN relies on packed IGEMM
+        // FIXME: this will disable int8 RNN testing if the library is built with
+        //        Intel MKL that does have packed IGEMM
+        if (prb.is_int8()) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
 #endif
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    static auto isa = dnnl_get_effective_cpu_isa();
-    // f16 is not implemented on any x64 platform yet.
-    const bool is_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16;
-    // bf16 is currently supported only on avx512_core[+] platforms
-    const bool is_bf16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_bf16
-            && !dnnl::is_superset(isa, dnnl_cpu_isa_avx512_core);
-    if (is_f16_not_ok || is_bf16_not_ok) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-#endif
+        // f16 training is not yet fully supported.
+        const bool is_f16_not_ok
+                = prb.cfg[SRC_LAYER].dt == dnnl_f16 && !(dir & FLAG_INF);
+        if (is_f16_not_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
 
 #ifdef DNNL_AARCH64_USE_ACL
-    const bool is_acl_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16
-            && dnnl::impl::cpu::platform::has_data_type_support(dnnl_f16);
-    if (is_acl_f16_not_ok) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
+        const bool is_acl_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16
+                && dnnl::impl::cpu::platform::has_data_type_support(dnnl_f16);
+        if (is_acl_f16_not_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
 #endif
+    }
 
     // int8 weights reorder does not support non trivial strides;
     // only LSTM and GRU cell kinds support int8 so far;
@@ -818,10 +818,16 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+        if (is_gpu() && prb.tag[1] != tag::any) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 
     // LSTM w/ projection is not supported for bf16
-    if (prb.is_lstm_projection() && prb.cfg[SRC_LAYER].dt == dnnl_bf16) {
+    if (prb.is_lstm_projection()
+            && (prb.cfg[SRC_LAYER].dt == dnnl_bf16
+                    || prb.cfg[SRC_LAYER].dt == dnnl_f16)) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }

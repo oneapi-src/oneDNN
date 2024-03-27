@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 #ifndef COMMON_MATH_UTILS_HPP
 #define COMMON_MATH_UTILS_HPP
 
+#include <type_traits>
+
 #include <math.h>
 #include <stdint.h>
 
@@ -27,6 +29,22 @@
 namespace dnnl {
 namespace impl {
 namespace math {
+
+// Algorithm is picked from https://en.wikipedia.org/wiki/Primality_test
+template <typename T>
+inline bool is_prime(T n) {
+    static_assert(std::is_integral<T>::value == true, "Not an integral type");
+
+    if (n <= 1 || n % 2 == 0 || n % 3 == 0 || n % 5 == 0) return false;
+
+    const T sqrtn = static_cast<T>(std::sqrt(n));
+    // It is enough to check prime divisors up to `sqrt(n)`.
+    // All potential prime divisors are represented with `6*i + k` for k={1, 5}.
+    for (T i = 1; 6 * i + 5 <= sqrtn; i++) {
+        if ((n % (6 * i + 1) == 0) || (n % (6 * i + 5) == 0)) return false;
+    }
+    return true;
+}
 
 template <typename T>
 inline T gcd(T a, T b) {

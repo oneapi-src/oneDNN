@@ -1,0 +1,22 @@
+# Proxy for Stable Diffusion (image sizes are reduced to avoid accuracy issues
+# caused by reduction [iw,hc,ic] -> [g]
+g10mb2ic320ih2iw2
+g10mb2ic320ih2iw2
+g20mb2ic640ih2iw2
+g20mb2ic640ih2iw2
+g40mb2ic1280ih2iw2
+g40mb2ic1280ih8iw8
+g80mb2ic2560ih8iw8
+g80mb2ic2560ih2iw2
+g60mb2ic1920ih2iw2
+g60mb2ic1920ih2iw2
+g40mb2ic1280ih2iw2
+g30mb2ic960ih2iw2
+g30mb2ic960ih2iw2
+g20mb2ic640ih2iw2
+g16mb1ic512ih2iw2
+g16mb1ic512ih2iw2
+g16mb1ic512ih2iw2
+g8mb1ic256ih2iw2
+g8mb1ic256ih4iw4
+g4mb1ic128ih2iw2

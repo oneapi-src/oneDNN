@@ -74,13 +74,13 @@ ref_primitive_t::ref_primitive_t(const deserialized_op &op) {
         } \
     }
 
-void ref_primitive_t::init_prb(
+int ref_primitive_t::init_prb(
         ::std::unordered_set<size_t> &bf16_rewrite, res_t *res) {
 #define CASE_INIT_PRB(driver) \
     case dnnl_driver_t::driver: { \
         ::driver::settings_t setting \
                 = get_setting<::driver::settings_t>(op_, bf16_rewrite, res); \
-        if (res->state == INVALID_ARGUMENTS) return; \
+        if (res->state == INVALID_ARGUMENTS) return FAIL; \
         auto pprb = ::std::make_shared<::driver::prb_t>(setting); \
         prb_wrapper_ \
                 = ::std::make_shared<prb_wrapper_t<::driver::prb_t>>(pprb); \
@@ -90,6 +90,8 @@ void ref_primitive_t::init_prb(
 #define CASE_INIT_CUSTOM_PRB CASE_INIT_PRB(custom);
 
     SWITCH_DRIVER(CASE_INIT_PRB, CASE_INIT_CUSTOM_PRB);
+
+    return OK;
 }
 
 int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {

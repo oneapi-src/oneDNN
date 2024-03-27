@@ -103,7 +103,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.is_int8 = !one_of(rnn.dt_conf, all_f32, all_f16, all_bf16);
 
     rnn.aux_data_type
-            = rnn.dt_conf == all_f16 ? data_type::f16 : data_type::f32;
+            = acc_data_t == data_type::f16 ? data_type::f16 : data_type::f32;
     rnn.diff_data_type = data_type::f32;
 
     rnn.acc_data_type = acc_data_t;
@@ -268,7 +268,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             rnn.dst_data_type = bf16;
             rnn.output_data_type = bf16;
             break;
-        default: assert(!"unimplemented");
+        default: gpu_error_not_expected();
     }
 }
 
@@ -290,13 +290,11 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     const bool is_fwd = rnn.is_fwd;
     const bool is_bwd = !rnn.is_fwd;
 
-    int sizeof_states_dt
-            = rnn.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half);
-    int aux_elsz = rnn.aux_data_type == data_type::f16 ? sizeof(cl_half)
-                                                       : sizeof(float);
+    dim_t aux_elsz
+            = gpu_utils::into<dim_t>(types::data_type_size(rnn.aux_data_type));
     rnn.ws_states_elsz = types::data_type_size(rd.src_layer_desc.data_type);
 
-    rnn.scratch_gates_elsz = aux_elsz;
+    rnn.scratch_gates_elsz = types::data_type_size(rnn.acc_data_type);
     rnn.scratch_diff_gates_elsz = is_bwd
             ? (rnn.dt_conf == all_bf16 ? sizeof(bfloat16_t) : aux_elsz)
             : 0;
@@ -306,9 +304,9 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     // diff states to copmute bwd pass (training only)
     // intermediate results from the gates
     rnn.states_ws_ld = get_good_ld(rnn.arch_ld,
-            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof_states_dt);
-    rnn.gates_ws_ld = get_good_ld(rnn.arch_ld, rnn.gates_ld,
-            rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(cl_float));
+            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)),
+            rnn.ws_states_elsz);
+    rnn.gates_ws_ld = get_good_ld(rnn.arch_ld, rnn.gates_ld, aux_elsz);
     // Disable associativity check on some large problems to reduce memory
     // usage. Can be removed when further improvements are made to
     // copy_diff_src_layer
@@ -584,19 +582,29 @@ status_t rnn_utils::set_good_strides(
     return status::success;
 }
 
-status_t rnn_utils::set_expected_desc(
-        conf_t &rnn, memory_desc_t &weights_md, bool is_iter) {
+status_t rnn_utils::set_weights_desc(
+        memory_desc_t &weights_md, const conf_t &rnn) {
     using namespace format_tag;
-    CHECK(memory_desc_init_by_tag(weights_md, rnn.is_fwd ? ldigo : ldgoi));
+    if (weights_md.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(weights_md, rnn.is_fwd ? ldigo : ldgoi));
 
-    // Adjust strides for good leading dimension in GEMM
-    CHECK(set_good_strides(
-            rnn.arch_ld, weights_md, rnn.is_fwd ? ldigo : ldgoi));
+        // Adjust strides for good leading dimension in GEMM
+        CHECK(set_good_strides(
+                rnn.arch_ld, weights_md, rnn.is_fwd ? ldigo : ldgoi));
 
-    // set we need extra memory
-    if (rnn.is_fwd && !one_of(rnn.dt_conf, all_f32, all_f16, all_bf16)) {
-        weights_md.extra.flags = memory_extra_flags::rnn_u8s8_compensation;
-        weights_md.extra.compensation_mask = 27; // ldigo 11011;
+        // set we need extra memory
+        if (rnn.is_fwd && rnn.is_int8) {
+            weights_md.extra.flags = memory_extra_flags::rnn_u8s8_compensation;
+            weights_md.extra.compensation_mask = 27; // ldigo 11011;
+        }
+        return status::success;
+    } else if (weights_md.format_kind != format_kind::blocked) {
+        // This implementation only supports blocked memory
+        return status::unimplemented;
+    } else if (rnn.is_fwd && rnn.is_int8) {
+        // Int8 RNN requires extra memory on weights buffers for the
+        // compensations
+        return status::unimplemented;
     }
     return status::success;
 }

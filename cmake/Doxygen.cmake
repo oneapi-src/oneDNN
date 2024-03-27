@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2023 Intel Corporation
+# Copyright 2016-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,10 +21,6 @@ if(Doxygen_cmake_included)
     return()
 endif()
 set(Doxygen_cmake_included true)
-
-if(NOT DNNL_IS_MAIN_PROJECT)
-    return()
-endif()
 
 find_package(Doxygen)
 if(DOXYGEN_FOUND)

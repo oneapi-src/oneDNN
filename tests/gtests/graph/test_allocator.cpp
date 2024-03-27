@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,28 +60,6 @@ void sycl_free_wrapper(
         sycl_deps_ptr->wait();
     }
     free(ptr, *static_cast<const ::sycl::context *>(context));
-}
-
-simple_sycl_allocator *get_allocator(const ::sycl::context *ctx) {
-    static simple_sycl_allocator aallocator(ctx);
-    return &aallocator;
-}
-
-void *sycl_allocator_malloc(
-        size_t size, size_t alignment, const void *dev, const void *ctx) {
-    simple_sycl_allocator *aallocator
-            = get_allocator(static_cast<const ::sycl::context *>(ctx));
-    return aallocator->malloc(size, static_cast<const ::sycl::device *>(dev));
-}
-
-void sycl_allocator_free(
-        void *ptr, const void *device, const void *ctx, void *event) {
-    // Device is not used in this example, but it may be useful for some users
-    // application.
-    UNUSED(device);
-    simple_sycl_allocator *aallocator
-            = get_allocator(static_cast<const ::sycl::context *>(ctx));
-    aallocator->release(ptr, *static_cast<::sycl::event *>(event));
 }
 #endif
 

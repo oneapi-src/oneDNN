@@ -18,7 +18,6 @@
 
 #include "gpu/jit/v2/conv/model.hpp"
 #include "gpu/jit/v2/conv/plan.hpp"
-#include "gpu/jit/v2/conv/plan_registry.hpp"
 #include "gpu/jit/v2/conv/planner/bench.hpp"
 #include "gpu/jit/v2/conv/planner/mkl_iface.hpp"
 #include "gpu/jit/v2/conv/planner/model_fit.hpp"
@@ -69,7 +68,8 @@ Optional arguments:
     kernel_desc_t::show_help();
 }
 
-void init_params(int argc, const char **argv) {
+void init_params(
+        int argc, const char **argv, const bench_manager_t &bench_mger) {
     std::ostringstream oss;
     for (int i = 1; i < argc; i++)
         oss << " " << argv[i];
@@ -118,32 +118,33 @@ void init_params(int argc, const char **argv) {
     auto iface = params.desc.cli_iface();
     iface.parse(cmd_args, &params.desc);
     params.desc.set_defaults();
+    params.desc.hw = hw_t(bench_mger.get_engine().get());
 }
 
 void planner_main(int argc, const char **argv) {
-    init_params(argc, argv);
+    bench_manager_t bench_mger;
+    init_params(argc, argv, bench_mger);
     switch (params.mode) {
         case planner_mode_t::trace: {
-            auto plan = create_conv_plan(params.desc);
+            auto plan = create_conv_plan_and_finalize_desc(params.desc);
             std::cout << std::endl;
             std::cout << ir_utils::add_tag("plan", plan.str()) << std::endl;
             break;
         }
         case planner_mode_t::bench: {
-            bench(params.desc);
+            bench(bench_mger, params.desc);
             break;
         }
         case planner_mode_t::auto_search: {
-            auto_search();
+            auto_search(bench_mger);
             break;
         }
         case planner_mode_t::search: {
-            search(params.desc);
+            search(bench_mger, params.desc);
             break;
         }
         default: ir_error_not_expected();
     }
-    dump_plan_registry();
 }
 
 } // namespace planner

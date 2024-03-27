@@ -258,10 +258,9 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     dst_d_sz = OD * dst_h_sz;
 
     const auto src_type = pd()->src_md(0)->data_type;
-
-    const auto last_ic_block = (isa == avx512_core_fp16 && src_type == f16)
-            ? 1
-            : data_type_vnni_granularity(src_type);
+    const data_type_t last_ic_block_dt
+            = get_mac_emu_data_type(src_type, isa, isa == avx512_core_fp16);
+    const auto last_ic_block = data_type_vnni_granularity(last_ic_block_dt);
 
     wei_ic_stride = jcp.wei_plain ? jcp.oc_without_padding : jcp.oc_block;
     wei_ocb_stride = jcp.wei_plain

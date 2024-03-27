@@ -937,7 +937,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         if (exp_injector_) exp_injector_->prepare_table();
         if (log_injector_) log_injector_->prepare_table();
         if (with_eltwise_ && postops_injector_)
-            postops_injector_->prepare_table();
+            postops_injector_->prepare_table(/* generate = */ true);
     }
 
     jit_softmax_dense_kernel_t(const softmax_pd_t *pd)
@@ -1486,7 +1486,7 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
         if (exp_injector_) exp_injector_->prepare_table();
         if (log_injector_) log_injector_->prepare_table();
         if (with_eltwise_ && postops_injector_)
-            postops_injector_->prepare_table();
+            postops_injector_->prepare_table(/* generate = */ true);
     }
 
     jit_softmax_strided_kernel_t(const softmax_pd_t *pd)

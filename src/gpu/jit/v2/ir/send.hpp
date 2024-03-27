@@ -309,6 +309,19 @@ struct send_2d_hint_t {
         height = h_blk;
         return true;
     }
+
+    std::string str() const {
+        std::ostringstream oss;
+        oss << width << "x" << height;
+        if (vnni || transpose) {
+            oss << ".";
+            if (vnni) oss << "v";
+            if (transpose) oss << "t";
+        }
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
 };
 
 struct send_params_t {
@@ -332,6 +345,18 @@ struct send_params_t {
         hint_2d = send_2d_hint_t();
         init_max_entry_reg_size();
     }
+
+    std::string str() const {
+        std::ostringstream oss;
+        oss << "send_params:" << std::endl;
+        oss << "  hw:                 " << hw << std::endl;
+        oss << "  kind:               " << to_string(kind) << std::endl;
+        if (hint_2d) oss << "  hint_2d:            " << hint_2d << std::endl;
+        oss << "  max_entry_reg_size: " << max_entry_reg_size;
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
 };
 
 struct send_1d_desc_t {

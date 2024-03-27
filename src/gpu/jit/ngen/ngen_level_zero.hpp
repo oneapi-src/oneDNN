@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@
 #include "ngen_elf.hpp"
 #include "ngen_interface.hpp"
 
-namespace ngen {
+namespace NGEN_NAMESPACE {
 
 // Exceptions.
 class level_zero_error : public std::runtime_error {
@@ -156,6 +156,6 @@ void LevelZeroCodeGenerator<hw>::detectHWInfo(ze_context_handle_t context, ze_de
     ELFCodeGenerator<hw>::getBinaryHWInfo(binary, outHW, outProduct);
 }
 
-} /* namespace ngen */
+} /* namespace NGEN_NAMESPACE */
 
 #endif

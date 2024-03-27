@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "strategy_parser.hpp"
+#include "kernel_catalog.hpp"
 #include "utils.hpp"
 
 #include <cctype>
@@ -303,6 +304,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.fmaBoustrophedon = true;
         else if (mod == "ch")
             strategy.checkAdd32 = true;
+        else if (mod == "nch")
+            strategy.checkAdd32 = false;
         else if (mod == "ws")
             strategy.wgInSS = true;
         else if (mod == "wc")
@@ -358,10 +361,12 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
             strategy.kParallelLocal = strategy.kInterleave = true;
         else if (mod == "fb")
             strategy.fuseBeta = true;
-        else if (mod == "fp")
-            strategy.fusePostOps = true;
         else if (mod == "afb")
             strategy.fuseBeta = strategy.altFusedBeta = true;
+        else if (mod == "fp")
+            strategy.fusePostOps = true;
+        else if (mod == "zt")
+            strategy.zeroTempC = true;
         else if (mod == "fg") {
             float fillGoal;
             s >> fillGoal;
@@ -400,6 +405,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
         else if (mod == "rrs")
             strategy.arbitrationMode
                     = ngen::ThreadArbitrationMode::RoundRobinOnStall;
+        else if (mod == "l2d")
+            strategy.optAlignAB = GEMMStrategy::AlignBlock2D;
         else if (mod == "nq") {
             strategy.A.noExtraPad = strategy.A_prefetch.noExtraPad = true;
             strategy.B.noExtraPad = strategy.B_prefetch.noExtraPad = true;
@@ -512,7 +519,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
     }
 }
 
-void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy) {
+void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy,
+        const char *tags) {
     auto *gemmAStrategy = &strategy.A, *gemmBStrategy = &strategy.B;
 
     // 2D block accesses use 2D addressing where supported.
@@ -528,6 +536,23 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy) {
             && !isPacked(problem.B.layout);
     strategy.C_prefetch.address2D |= isBlock2D(strategy.C_prefetch.accessType)
             && !isPacked(problem.C.layout);
+
+    // Notify kernel generator to downgrade block 2D prefetches if block 2D cannot be used.
+    if (tags && strategy.optAlignAB != GEMMStrategy::AlignBlock2D) {
+        bool block2DA = false, block2DB = false;
+        while (*tags) {
+            block2DA |= (*tags == kcatalog::ReqBlock2DA);
+            block2DB |= (*tags == kcatalog::ReqBlock2DB);
+            tags++;
+        }
+
+        strategy.A_prefetch.preflight(hw);
+        strategy.B_prefetch.preflight(hw);
+        if (!block2DA && strategy.A_prefetch.address2D)
+            strategy.A_prefetch.address2D = false;
+        if (!block2DB && strategy.B_prefetch.address2D)
+            strategy.B_prefetch.address2D = false;
+    }
 
     // No need to use split remainder handling for 2D block accesses as there's no penalty for masking.
     if (isBlock2D(strategy.A.accessType)

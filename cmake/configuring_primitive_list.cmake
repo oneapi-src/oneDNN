@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ if (DNNL_ENABLE_PRIMITIVE_GPU_ISA STREQUAL "ALL")
 else()
     foreach(isa ${DNNL_ENABLE_PRIMITIVE_GPU_ISA})
         string(TOUPPER ${isa} uisa)
-        if(NOT "${uisa}" MATCHES "^(GEN9|GEN11|XELP|XEHP|XEHPG|XEHPC)$")
+        if(NOT "${uisa}" MATCHES "^(GEN9|GEN11|XELP|XEHP|XEHPG|XEHPC|XE2)$")
             message(FATAL_ERROR "Unsupported primitive GPU ISA: ${uisa}")
         endif()
         set(BUILD_${uisa} TRUE)

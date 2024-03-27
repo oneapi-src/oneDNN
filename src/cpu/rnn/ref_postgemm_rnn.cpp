@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,40 +31,29 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::math;
 using namespace rnn_utils;
 
-template <>
-float activation<alg_kind::eltwise_relu, prop_kind::forward>(
-        float s, float alpha, float cliping) {
-    return relu_fwd<float>(s, alpha);
-}
+float activation(alg_kind_t alg_kind, prop_kind_t prop_kind, float s,
+        float alpha, float cliping) {
+    using namespace dnnl::impl::alg_kind;
 
-template <>
-float activation<alg_kind::eltwise_relu, prop_kind::backward>(
-        float s, float alpha, float cliping) {
-    return relu_bwd<float>(s, alpha);
-}
-
-template <>
-float activation<alg_kind::eltwise_tanh, prop_kind::forward>(
-        float s, float alpha, float cliping) {
-    return tanh_fwd<float>(s);
-}
-
-template <>
-float activation<alg_kind::eltwise_tanh, prop_kind::backward>(
-        float s, float alpha, float cliping) {
-    return one_m_square<float>(s);
-}
-
-template <>
-float activation<alg_kind::eltwise_logistic, prop_kind::forward>(
-        float s, float alpha, float cliping) {
-    return logistic_fwd<float>(s);
-}
-
-template <>
-float activation<alg_kind::eltwise_logistic, prop_kind::backward>(
-        float s, float alpha, float cliping) {
-    return x_m_square<float>(s);
+    if (prop_kind == prop_kind::forward
+            || prop_kind == prop_kind::forward_inference) {
+        switch (alg_kind) {
+            case eltwise_relu: return relu_fwd<float>(s, alpha);
+            case eltwise_tanh: return tanh_fwd<float>(s);
+            case eltwise_logistic: return logistic_fwd<float>(s);
+            default: assert(!"unsupported algorithm");
+        }
+    } else if (prop_kind == prop_kind::backward) {
+        switch (alg_kind) {
+            case eltwise_relu: return relu_bwd<float>(s, alpha);
+            case eltwise_tanh: return one_m_square<float>(s);
+            case eltwise_logistic: return x_m_square<float>(s);
+            default: assert(!"unsupported algorithm");
+        }
+    } else {
+        assert(!"unsupported propagation kind");
+    }
+    return NAN;
 }
 
 constexpr float linear(float s, float alpha, float clipping) {
@@ -118,7 +107,8 @@ rnn_postgemm_sig(
         (rnn_postgemm_fwd_t<src_type, scratch_type, acc_type>::rnn_postgemm)) {
     const float *scales = this->pd_->attr()->rnn_tparams_.scales_;
     const auto act_f = [this](float a, float alpha, float clipping) {
-        return gates_t(this->activation_func(a, alpha, clipping));
+        return gates_t(activation(this->pd_->activation_kind(),
+                this->pd_->get_prop_kind(), a, alpha, clipping));
     };
     const auto linear_f = [](float a, float alpha, float clipping) {
         return gates_t(linear(a, alpha, clipping));
@@ -178,7 +168,8 @@ rnn_postgemm_sig(
         (rnn_postgemm_bwd_t<src_type, scratch_type, acc_type>::rnn_postgemm)) {
     const float *scales = this->pd_->attr()->rnn_tparams_.scales_;
     const auto act_f = [this](float a, float alpha, float clipping) {
-        return this->activation_func(a, alpha, 0);
+        return activation(this->pd_->activation_kind(),
+                this->pd_->get_prop_kind(), a, alpha, 0);
     };
     const auto linear_f = [](float a, float alpha, float clipping) {
         return linear(a, alpha, 0);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,6 +39,8 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     graph_dims_ = lt.shape_;
     graph_strides_ = lt.stride_;
 
+    const auto &g_eng = get_graph_engine().operator const dnnl::engine &();
+
     // We create memory for graph path in two steps:
     // 1. Create memory objects.
     // 2. Do memory copy if needed.
@@ -58,7 +60,7 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
 
         // create graph memory
         dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
-        mem_ = dnn_mem_t(md.get(), ::get_test_engine());
+        mem_ = dnn_mem_t(md.get(), g_eng.get());
 
         const auto prim_to_graph_memcpy = [](dnn_mem_t &graph_mem,
                                                   const dnn_mem_t &prim_mem) {
@@ -69,8 +71,7 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
 
         // Not do reorder for boolean data tensor
         if (!is_boolean && prim_dt != c_data_type) {
-            dnn_mem_t c_mem(
-                    ndims, mem.dims(), c_data_type, mtag, ::get_test_engine());
+            dnn_mem_t c_mem(ndims, mem.dims(), c_data_type, mtag, g_eng.get());
             SAFE_V(c_mem.reorder(mem));
             prim_to_graph_memcpy(mem_, c_mem);
         } else {
@@ -79,9 +80,9 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     } else {
         if (is_fake_output) {
             dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
-            mem_ = dnn_mem_t(md.get(), ::get_test_engine());
+            mem_ = dnn_mem_t(md.get(), g_eng.get());
         } else {
-            mem_ = dnn_mem_t(mem.md_, c_data_type, mtag, ::get_test_engine());
+            mem_ = dnn_mem_t(mem.md_, c_data_type, mtag, g_eng.get());
         }
     }
 }

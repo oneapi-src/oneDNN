@@ -1078,7 +1078,14 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         update_blocks();
 
         eff = est_eff();
-        if (eff > best_brgb.eff || best_brgb.eff == 0) best_brgb = *this;
+        // Minimum allowed blocking efficiency. Value was picked empirically.
+        // Currently threshold is enabled for f32 only, due to its perf being
+        // highly sensitive for inefficient blockings.
+        constexpr float min_eff = 0.00001f;
+        const bool is_f32 = utils::everyone_is(f32, src_dt, wei_dt, dst_dt);
+        if ((eff > best_brgb.eff || best_brgb.eff == 0)
+                && IMPLICATION(is_f32, eff >= min_eff))
+            best_brgb = *this;
     }
 }
 
@@ -1494,10 +1501,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     VDISPATCH_CONV_IC(!jcp.is_bf32, VERBOSE_UNSUPPORTED_DT);
 
+    const data_type_t last_oc_block_dt
+            = get_mac_emu_data_type(jcp.wei_dt, isa, isa == avx512_core_fp16);
     brg_blocking_t::last_oc_block_size
-            = (jcp.wei_dt == f16 && isa == avx512_core_fp16)
-            ? 1
-            : data_type_vnni_granularity(jcp.wei_dt);
+            = data_type_vnni_granularity(last_oc_block_dt);
 
     // TODO: optimize grouped convolutions with small oc
     const bool is_grouped_small_oc
@@ -1528,21 +1535,25 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             "skipping implementation as it does not support small 3d shapes "
             "with small oc");
 
-    // TODO: optimize 2d/3d shapes with small iw for f32
-    const auto is_small_iw = jcp.iw < 64;
-    const auto is_2d_or_3d = jcp.ih > 1 || jcp.id > 1;
     const bool is_f32
             = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
-    VDISPATCH_CONV_IC(!(is_f32 && is_small_iw && is_2d_or_3d),
-            "skipping implementation due to performance reason for 2d/3d "
-            "shapes with small iw");
 
-    // Disable 2 shapes that cause performance regression
+    // Disable 4 shapes that cause performance regression
     const auto is_regression_shape = jcp.id == 1 && jcp.od == 1
             && ((jcp.ic == 128 && jcp.oc == 256 && jcp.ih == 101 && jcp.oh == 49
                         && jcp.iw == 85 && jcp.ow == 41)
                     || (jcp.ic == 3 && jcp.oc == 128 && jcp.ih == 207
-                            && jcp.oh == 101 && jcp.iw == 175 && jcp.ow == 85));
+                            && jcp.oh == 101 && jcp.iw == 175 && jcp.ow == 85)
+                    || (jcp.ic == 512 && jcp.oc == 1024
+                            && everyone_is(8, jcp.ih, jcp.iw)
+                            && everyone_is(4, jcp.oh, jcp.ow)
+                            && everyone_is(4, jcp.kh, jcp.kw)
+                            && everyone_is(2, jcp.stride_h, jcp.stride_w))
+                    || (jcp.ic == 1024 && jcp.oc == 2048
+                            && everyone_is(4, jcp.ih, jcp.iw)
+                            && everyone_is(2, jcp.oh, jcp.ow)
+                            && everyone_is(4, jcp.kh, jcp.kw)
+                            && everyone_is(2, jcp.stride_h, jcp.stride_w)));
     VDISPATCH_CONV_IC(!(is_f32 && is_regression_shape),
             "implementation skipped due to low performance");
 
@@ -2024,6 +2035,11 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             "heuristic to skip amx implementation for given data dimensions");
 
     if (jcp.req_cal_comp_pad) {
+        VDISPATCH_CONV_IC(!(is_amx(jcp.isa)
+                                  && static_cast<dim_t>(jcp.ngroups) * jcp.nb_ic
+                                                  * jcp.ic_block * jcp.iw
+                                          > 4096),
+                "heuristic to skip amx implementation because of buffer size");
         const auto comp_buffer_iw = jcp.exec_type == exec_trans ? jcp.iw : 1;
         jcp.ker_ranges_size = precalculate_comp_pad_kernels(jcp);
         jcp.comp_a_buffer_size = static_cast<dim_t>(jcp.ngroups) * jcp.nb_ic

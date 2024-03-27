@@ -136,7 +136,7 @@ struct tile_info_t {
 
     std::vector<int> iter_tiles() const {
         if (!any(flags & tile_flags_t::iter)) return {1};
-        return pow_range(8, 32, 2);
+        return pow_range(8, 64, 2);
     }
 
     std::vector<int> thread_group_tiles() const {
@@ -313,10 +313,9 @@ std::vector<tile_scheme_t> get_tile_schemes() {
 
 class kernel_search_manager_t {
 public:
-    kernel_search_manager_t(const kernel_desc_t &base_desc)
-        : base_desc_(base_desc) {
-        eng_ = engine(engine::kind::gpu, 0);
-    }
+    kernel_search_manager_t(
+            const bench_manager_t &bench_mger, const kernel_desc_t &base_desc)
+        : bench_mger_(bench_mger), base_desc_(base_desc) {}
 
     void search() {
         std::cout << "Starting kernel search" << std::endl;
@@ -326,7 +325,7 @@ public:
             auto &d = descs[i];
             std::cout << "Running benchmark for descriptor: " << d.cmd_str()
                       << std::endl;
-            auto bd = bench(d);
+            auto bd = bench(bench_mger_, d);
             if (!bd) std::cout << "Benchmarking failed" << std::endl;
             if (!bd) continue;
             auto model = model_fit(bd);
@@ -337,7 +336,6 @@ public:
 
 private:
     std::vector<kernel_desc_t> gen_descs() const {
-        hw_t hw(eng_.get());
         std::unordered_set<kernel_desc_t, ir_utils::hasher_t<kernel_desc_t>>
                 descs;
         for (auto &s : get_tile_schemes()) {
@@ -345,7 +343,6 @@ private:
             auto tiling_descs = tile_set.create_tiling_descs();
             for (auto &td : tiling_descs) {
                 auto d = base_desc_;
-                d.hw = hw;
                 d.thread_group_tile = td.thread_group;
                 d.iter_tile = td.iter;
                 if (!is_supported(d)) continue;
@@ -370,26 +367,29 @@ private:
         return true;
     }
 
-    engine eng_;
+    const bench_manager_t &bench_mger_;
     kernel_desc_t base_desc_;
 };
 
-void search(const kernel_desc_t &desc) {
-    kernel_search_manager_t mger(desc);
+void search(const bench_manager_t &bench_mger, const kernel_desc_t &desc) {
+    kernel_search_manager_t mger(bench_mger, desc);
     mger.search();
 }
 
-void auto_search() {
+void auto_search(const bench_manager_t &bench_mger) {
     // clang-format off
     std::vector<const char *> recipes = {
         "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128",
-        "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:block --store c:2d",
+        "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:2d --store c:2d",
+        "--prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256 --load a:2d,b:2d --store c:2d --prefetch x3",
+        "--prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256",
     };
     // clang-format on
     for (const char *r : recipes) {
         kernel_desc_t desc;
         desc.set(r);
-        search(desc);
+        desc.hw = hw_t(bench_mger.get_engine().get());
+        search(bench_mger, desc);
     }
 }
 

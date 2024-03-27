@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ struct kernel_t : public jit_uni_group_normalization_fwd_t::kernel_base_t,
         , src_d_(pd->src_md())
         , dst_d_(pd->dst_md())
         , C_(pd->src_md()->dims[1])
+        , C_PER_G_(pd->C() / pd->G())
         , simd_w_(vlen / sizeof(float))
         , axis_simd_full_(C_ / simd_w_)
         , axis_simd_tail_(C_ % simd_w_)
@@ -184,6 +185,7 @@ protected:
     io::jit_io_multi_dt_helper_t<Vmm> io_;
     const memory_desc_wrapper src_d_, dst_d_;
     const dim_t C_;
+    const dim_t C_PER_G_;
     const size_t simd_w_;
     const dim_t axis_simd_full_;
     const dim_t axis_simd_tail_;
@@ -200,8 +202,16 @@ protected:
         }
         io_[src_d_.data_type()]->load(src_ptr(offt_elems), vmm_dst, tail);
 
-        io_[f32]->load(mean_ptr(offt_elems), vmm_mean, tail);
-        io_[f32]->load(var_ptr(offt_elems), vmm_inv_sqrtvar, tail);
+        if (C_PER_G_ == 1) {
+            // Instance normalization
+            io_[f32]->load(mean_ptr(offt_elems), vmm_mean, tail);
+            io_[f32]->load(var_ptr(offt_elems), vmm_inv_sqrtvar, tail);
+        } else {
+            // Group normalization
+            size_t stat_offt = offt_elems / C_PER_G_;
+            io_[f32]->broadcast(mean_ptr(stat_offt), vmm_mean);
+            io_[f32]->broadcast(var_ptr(stat_offt), vmm_inv_sqrtvar);
+        }
 
         // calculate inv_sqrtvar
         uni_vaddps(vmm_inv_sqrtvar, vmm_inv_sqrtvar, vmm_eps);
@@ -301,6 +311,7 @@ struct kernel_stat_t
         , src_d_(pd->src_md())
         , compute_var_(compute_var)
         , C_(pd->src_md()->dims[1])
+        , C_PER_G_(C_ / pd->G())
         , simd_w_(vlen / sizeof(float))
         , axis_simd_tail_(C_ % simd_w_)
         , unroll_c_(compute_var_ ? 6 : 12) // Vmm3-14
@@ -349,7 +360,7 @@ struct kernel_stat_t
 
                 add(reg_src_start,
                         c_block_ * types::data_type_size(src_d_.data_type()));
-                add(reg_mean, c_block_ * sizeof(float));
+                add_mean(c_block_);
                 if (compute_var_) add(reg_var, c_block_ * sizeof(float));
                 add(reg_nc_block, 1);
 
@@ -362,7 +373,7 @@ struct kernel_stat_t
             compute_stat_block(unroll_c_tail_);
             add(reg_src_start,
                     c_block_tail_ * types::data_type_size(src_d_.data_type()));
-            add(reg_mean, c_block_tail_ * sizeof(float));
+            add_mean(c_block_tail_);
             if (compute_var_) add(reg_var, c_block_tail_ * sizeof(float));
         }
 
@@ -412,6 +423,7 @@ protected:
     const memory_desc_wrapper src_d_;
     bool compute_var_;
     const dim_t C_;
+    const dim_t C_PER_G_;
     const size_t simd_w_;
     const dim_t axis_simd_tail_;
     const dim_t unroll_c_;
@@ -465,8 +477,14 @@ protected:
 #undef PARAM_OFF
         for (size_t ur = 0; ur < unroll; ur++) {
             uni_vpxor(Vmm_var(ur), Vmm_var(ur), Vmm_var(ur));
-            io_[data_type::f32]->load(
-                    mean_ptr(ur * simd_w_), Vmm_mean(ur), tail);
+            if (C_PER_G_ == 1) {
+                io_[data_type::f32]->load(
+                        mean_ptr(ur * simd_w_), Vmm_mean(ur), tail);
+            } else {
+                assert(simd_w_ % C_PER_G_ == 0);
+                io_[data_type::f32]->broadcast(
+                        mean_ptr(ur * simd_w_ / C_PER_G_), Vmm_mean(ur));
+            }
         }
 
         mov(reg_src, reg_src_start);
@@ -501,6 +519,12 @@ protected:
             compute_var_block(unroll, tail);
         else
             compute_mean_block(unroll, tail);
+    }
+    void add_mean(int c_block) {
+        // If the kernel is configured to compute variance,
+        // mean is already reduced from [MB, C] into [MB, G]
+        if (compute_var_) c_block /= C_PER_G_;
+        add(reg_mean, c_block * sizeof(float));
     }
 
     Vmm Vmm_mean(size_t ur = 0) { return Vmm(3 + ur); }
@@ -608,7 +632,8 @@ status_t jit_uni_group_normalization_fwd_t::execute_forward(
     const dim_t D = pd()->D();
     const dim_t H = pd()->H();
     const dim_t W = pd()->W();
-    const dim_t C_PER_G = 1;
+    const dim_t G = pd()->G();
+    const dim_t C_PER_G = C / G;
     const dim_t SP = D * H * W;
 
     const bool calculate_stats = !pd()->stats_is_src();
@@ -618,18 +643,24 @@ status_t jit_uni_group_normalization_fwd_t::execute_forward(
         auto reduce = [&](float *stat, const float *tmp_stat) {
             for (dim_t n = 0; n < N; ++n) {
                 const float *loc_stat = tmp_stat + n * nthr * C;
-                for (dim_t c = 0; c < C; ++c)
-                    stat[c] = loc_stat[c];
+                for (dim_t g = 0; g < G; ++g)
+                    stat[g] = 0.f;
 
-                for (int ithr_sp = 1; ithr_sp < nthr; ++ithr_sp) {
+                for (int ithr_sp = 0; ithr_sp < nthr; ++ithr_sp) {
+                    for (dim_t g = 0; g < G; ++g) {
+                        float s = stat[g];
+                        const dim_t c_start = g * C_PER_G;
+                        for (dim_t c = 0; c < C_PER_G; ++c)
+                            s += loc_stat[c_start + c];
+                        stat[g] = s;
+                    }
+                    // Increase loc_stat to reduce the chunk for the next ithr_sp
                     loc_stat += C;
-                    for (dim_t c = 0; c < C; ++c)
-                        stat[c] += loc_stat[c];
                 }
 
-                for (dim_t c = 0; c < C; ++c)
-                    stat[c] /= C_PER_G * SP;
-                stat += C;
+                for (dim_t g = 0; g < G; ++g)
+                    stat[g] /= C_PER_G * SP;
+                stat += G;
             }
         };
         // compute mean
@@ -654,7 +685,7 @@ status_t jit_uni_group_normalization_fwd_t::execute_forward(
             balance211(SP, nthr, ithr, SP_start, SP_end);
             const dim_t block_size = SP_end - SP_start;
             for (dim_t n = 0; n < N; ++n) {
-                float *local_mean = mean + n * C;
+                float *local_mean = mean + n * G;
                 float *local_var = stat_reduction + n * nthr * C + ithr * C;
                 const size_t s_off
                         = (size_t)n * SP * C_padded + SP_start * C_padded;
@@ -679,9 +710,8 @@ status_t jit_uni_group_normalization_fwd_t::execute_forward(
                     + data_off * dst_d.data_type_size();
             const dim_t block_size = SP_end - SP_start;
 
-            (*kernel_)(src_ptr, dst_ptr, scale, shift, &mean[n * C_padded],
-                    &variance[n * C_padded], src_scales, dst_scales,
-                    block_size);
+            (*kernel_)(src_ptr, dst_ptr, scale, shift, &mean[n * G],
+                    &variance[n * G], src_scales, dst_scales, block_size);
         }
     });
 

@@ -1308,6 +1308,18 @@
 #define TO_DST4(x) cvt_hf_to_f8_e4m3(convert_half4(x))
 #define TO_DST8(x) cvt_hf_to_f8_e4m3(convert_half8(x))
 #define TO_DST16(x) cvt_hf_to_f8_e4m3(convert_half16(x))
+#elif DST_DT_U4
+#define TO_DST(x) cvt_f32_to_u4(convert_float(x))
+#define TO_DST2(x) cvt_f32_to_u4(convert_float2(x))
+#define TO_DST4(x) cvt_f32_to_u4(convert_float4(x))
+#define TO_DST8(x) cvt_f32_to_u4(convert_float8(x))
+#define TO_DST16(x) cvt_f32_to_u4(convert_float16(x))
+#elif DST_DT_S4
+#define TO_DST(x) cvt_f32_to_s4(convert_float(x))
+#define TO_DST2(x) cvt_f32_to_s4(convert_float2(x))
+#define TO_DST4(x) cvt_f32_to_s4(convert_float4(x))
+#define TO_DST8(x) cvt_f32_to_s4(convert_float8(x))
+#define TO_DST16(x) cvt_f32_to_s4(convert_float16(x))
 #elif DST_DT_U8
 #define TO_DST(x) convert_uchar_sat_rte(x)
 #define TO_DST2(x) convert_uchar2_sat_rte(x)

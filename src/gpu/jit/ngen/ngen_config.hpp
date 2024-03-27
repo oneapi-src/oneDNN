@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,10 +21,12 @@
 #include "common/bfloat16.hpp"
 #include "common/float16.hpp"
 
-namespace ngen {
+#define NGEN_NAMESPACE ngen
+
+namespace NGEN_NAMESPACE {
 using bfloat16 = dnnl::impl::bfloat16_t;
 using half = dnnl::impl::float16_t;
-} // namespace ngen
+} // namespace NGEN_NAMESPACE
 
 #define NGEN_BFLOAT16_TYPE
 #define NGEN_HALF_TYPE

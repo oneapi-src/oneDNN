@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -232,7 +232,7 @@
 #define REG_XEHPC_ISA(...)
 #endif
 
-#if BUILD_PRIMITIVE_GPU_ISA_ALL || BUILD_XEHPC
+#if BUILD_PRIMITIVE_GPU_ISA_ALL || BUILD_XE2
 #define REG_XE2_ISA(...) __VA_ARGS__
 #else
 #define REG_XE2_ISA(...)

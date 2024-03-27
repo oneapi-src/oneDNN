@@ -331,10 +331,12 @@ optimizations are available with [Intel Extension for Tensorflow].
 Submit questions, feature requests, and bug reports on the
 [GitHub issues] page.
 
-You may reach out to project maintainers privately
-at dnnl.maintainers@intel.com.
+You can also contact oneDNN developers via [UXL Foundation Slack] using
+[#onednn] channel.
 
 [Github issues]: https://github.com/oneapi-src/oneDNN/issues
+[UXL Foundation Slack]: https://slack-invite.uxlfoundation.org/
+[#onednn]: https://uxlfoundation.slack.com/channels/onednn
 
 # Contributing
 
@@ -349,7 +351,9 @@ and [coding standards].
 patch.
 * Submit a [pull request].
 
-For additional details, see [contribution guidelines](CONTRIBUTING.md).
+For additional details, see [contribution guidelines](CONTRIBUTING.md). You can
+also contact oneDNN developers and maintainers via [UXL Foundation Slack] using
+[#onednn] channel.
 
 This project is intended to be a safe, welcoming space for collaboration, and
 contributors are expected to adhere to the

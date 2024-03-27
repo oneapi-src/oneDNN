@@ -25,6 +25,7 @@
 #include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
+#include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 #define GET_OFF(field) offsetof(brgemm_kernel_params_t, field)
@@ -99,6 +100,17 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                     || with_binary_per_w_bcast_ || with_binary_batch_bcast_
                     || with_binary_no_bcast_;
         }
+        if (brg.is_fp8_via_convert()
+                && one_of(data_type::f8_e5m2, brg.dt_a, brg.dt_b, brg.dt_d))
+            f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(this,
+                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
+                    fp8_tmp_mask, fp8_tmp_reg);
+        if (brg.is_fp8_via_convert()
+                && one_of(data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_d))
+            f8_e4m3_emulator_ = utils::make_unique<fp8_emulation_e4m3_t>(this,
+                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
+                    fp8_emu_xmm_4(), fp8_emu_xmm_5(), fp8_tmp_reg);
+
         use_ils_ = brg.brgattr.use_interleave_stores;
     }
 
@@ -110,6 +122,9 @@ private:
     static constexpr cpu_isa_t po_isa_ = avx512_core_fp16;
     using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_>;
     std::unique_ptr<po_injector_t> postops_injector_;
+
+    std::unique_ptr<fp8_emulation_base_t> f8_e5m2_emulator_;
+    std::unique_ptr<fp8_emulation_base_t> f8_e4m3_emulator_;
 
     using reg64_t = const Xbyak::Reg64;
     enum {
@@ -152,7 +167,7 @@ private:
     const reg64_t reg_zp_comp_b = rbx;
     const reg64_t reg_zp_c_values = rbx;
     const reg64_t reg_ptr_sum_zp = rbx;
-    const reg64_t reg_bf32_stride = rsi;
+    const reg64_t reg_converted_stride = rsi;
     const reg64_t reg_zp_comp_pad_a = rsi;
 
     constexpr static int abi_param1_offs_ = 0;
@@ -365,14 +380,23 @@ private:
 
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
-    Xbyak::Opmask bf32_col_mask = Xbyak::Opmask(4);
+    Xbyak::Opmask fp_col_mask = Xbyak::Opmask(4);
 
     // Zmm map below
     const Xbyak::Zmm &zmm_tmp_1() const noexcept { return this->zmm0; }
     const Xbyak::Zmm &zmm_tmp_2() const noexcept { return this->zmm1; }
     const Xbyak::Zmm &zmm_tmp_3() const noexcept { return this->zmm2; }
 
-    const Xbyak::Zmm zmm_bf32_pemute = zmm6;
+    /* fp8 emulation */
+    Xmm fp8_emu_xmm_1() const noexcept { return Xmm(1); }
+    Xmm fp8_emu_xmm_2() const noexcept { return Xmm(2); }
+    Xmm fp8_emu_xmm_3() const noexcept { return Xmm(3); }
+    Xmm fp8_emu_xmm_4() const noexcept { return Xmm(6); }
+    Xmm fp8_emu_xmm_5() const noexcept { return Xmm(7); }
+    Xbyak::Opmask fp8_tmp_mask = Xbyak::Opmask(6);
+    const reg64_t fp8_tmp_reg = rax;
+
+    const Xbyak::Zmm zmm_bf32_permute = zmm6;
     const Xbyak::Zmm zmm_zp_comp_a = zmm6;
     const Xbyak::Zmm zmm_zp_c = zmm7;
     const Xbyak::Zmm zmm_lbound = zmm8;
@@ -400,6 +424,8 @@ private:
     Xbyak::Zmm zmm_mask(const Xbyak::Zmm &zmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
     Xbyak::Ymm ymm_mask(const Xbyak::Ymm &ymm_in, bool mask_flag, bool store,
+            Xbyak::Opmask ktail_mask) const;
+    Xbyak::Xmm xmm_mask(const Xbyak::Xmm &xmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
 
     void cvt2ps(data_type_t type_in, const Xbyak::Zmm &zmm_in,
@@ -459,6 +485,13 @@ private:
     void bf32_downconvert(brgemm_iteration_t &bi, int num_rows,
             int tile_num_col_bytes, reg64_t reg_data, int offset,
             reg64_t reg_data_stride, reg64_t reg_buf);
+    void fp8_to_f16_upconvert(brgemm_iteration_t &bi, int num_rows,
+            int tile_num_col_bytes, reg64_t reg_data, int offset,
+            reg64_t reg_data_stride, reg64_t reg_buf, data_type_t dt);
+
+    void fp8_to_f16_upconvert_to_vnni(brgemm_iteration_t &bi, int num_rows,
+            int tile_num_col_bytes, reg64_t reg_data, int offset,
+            reg64_t reg_data_stride, reg64_t reg_buf, data_type_t dt);
 
     void bf32_downconvert_to_vnni(brgemm_iteration_t &bi, int num_rows,
             int tile_num_col_bytes, reg64_t reg_data, int offset,
@@ -760,6 +793,12 @@ Xbyak::Ymm jit_brgemm_amx_uker_base_t::ymm_mask(const Xbyak::Ymm &ymm_in,
                      : ymm_in;
 }
 
+Xbyak::Xmm jit_brgemm_amx_uker_base_t::xmm_mask(const Xbyak::Xmm &xmm_in,
+        bool mask_flag, bool store, Xbyak::Opmask ktail_mask) const {
+    return mask_flag ? (store ? xmm_in | ktail_mask : xmm_in | ktail_mask | T_z)
+                     : xmm_in;
+}
+
 void jit_brgemm_amx_uker_base_t::cvt2ps(data_type_t type_in,
         const Xbyak::Zmm &zmm_in, const Xbyak::Operand &op, bool mask_flag,
         bool store, Xbyak::Opmask ktail_mask) {
@@ -772,6 +811,12 @@ void jit_brgemm_amx_uker_base_t::cvt2ps(data_type_t type_in,
             vpslld(zmm, zmm, 16);
             break;
         case data_type::f16: vcvtph2ps(zmm, op); break;
+        case data_type::f8_e5m2:
+            f8_e5m2_emulator_->vcvt_f8_to_f32(zmm, op);
+            break;
+        case data_type::f8_e4m3:
+            f8_e4m3_emulator_->vcvt_f8_to_f32(zmm, op);
+            break;
         case data_type::s8: vpmovsxbd(zmm, op); break;
         case data_type::u8: vpmovzxbd(zmm, op); break;
         default: assert(!"unsupported data type");
@@ -1340,9 +1385,11 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(
     maybe_saturation(zmm);
 
     auto ymm = Xbyak::Ymm(idx);
+    auto xmm = Xbyak::Xmm(idx);
     auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
     const Xbyak::Zmm r_zmm = zmm_mask(zmm, true, true, k_mask);
     const Xbyak::Ymm r_ymm = ymm_mask(ymm, true, true, k_mask);
+    const Xbyak::Xmm r_xmm = xmm_mask(xmm, true, true, k_mask);
 
     switch (brg.dt_d) {
         case data_type::f32:
@@ -1354,6 +1401,14 @@ void jit_brgemm_amx_uker_base_t::store_vector_with_post_ops(
         case data_type::f16:
             vcvtps2ph(ymm, zmm, _op_mxcsr);
             vmovdqu16(addr, r_ymm);
+            break;
+        case data_type::f8_e5m2:
+            f8_e5m2_emulator_->vcvt_f32_to_f8(xmm, zmm);
+            vmovdqu8(addr, r_xmm);
+            break;
+        case data_type::f8_e4m3:
+            f8_e4m3_emulator_->vcvt_f32_to_f8(xmm, zmm);
+            vmovdqu8(addr, r_xmm);
             break;
         case data_type::s8: vpmovsdb(addr, r_zmm); break;
         case data_type::u8: vpmovusdb(addr, r_zmm); break;
@@ -1598,7 +1653,7 @@ void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(
     auto reg_base = is_A ? reg_A : reg_B;
     auto reg_stride = is_A ? reg_stride_lda : reg_stride_ldb;
 
-    if (brg.is_bf32)
+    if (brg.is_input_convert())
         // try_load_nt is not supported in maybe_pre_process_data as there is
         // no guarantee that the data is cache line aligned.
         maybe_pre_process_data(bi, t1, reg_base, offset, reg_stride, mk);
@@ -1668,6 +1723,11 @@ void jit_brgemm_amx_uker_base_t::tdpbxxd(brgemm_iteration_t &bi, int bdb_idx,
         tdpbf16ps(x1, x2, x3);
     } else if (brg.dt_a == data_type::f16 && brg.dt_b == data_type::f16) {
         tdpfp16ps(x1, x2, x3);
+    } else if (brg.is_fp8) {
+        if (brg.is_fp8_via_convert())
+            tdpfp16ps(x1, x2, x3);
+        else
+            assert(!"Not supported!");
     } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::u8) {
         tdpbuud(x1, x2, x3);
     } else if (brg.dt_a == data_type::u8 && brg.dt_b == data_type::s8) {
@@ -1683,6 +1743,44 @@ void jit_brgemm_amx_uker_base_t::tdpbxxd(brgemm_iteration_t &bi, int bdb_idx,
     maybe_tilestore(bi, bdb_idx, ldb_idx, false, do_post_tilestore);
 }
 
+// This method up-converts the data from bf8 to f16 and saves at reg_buf.
+// Generally used by matrix_A, where no vnni transformation of data is needed.
+void jit_brgemm_amx_uker_base_t::fp8_to_f16_upconvert(brgemm_iteration_t &bi,
+        int num_rows, int tile_num_col_bytes, reg64_t reg_data, int offset,
+        reg64_t reg_data_stride, reg64_t reg_buf, data_type_t dt) {
+    const auto rd_block = bi.rdi->block(0);
+    const int max_num_cols
+            = nstl::min<int>(tile_num_col_bytes / sizeof(float16_t), rd_block);
+    const int col_tail = max_num_cols % 32;
+    auto zmm_1 = zmm_tmp_1();
+    auto zmm_1_masked = col_tail ? zmm_1 | fp_col_mask | T_z : zmm_1;
+
+    assert(max_num_cols > 0);
+
+    if (col_tail) {
+        const int tail_mask = (1 << col_tail) - 1;
+        auto reg_tmp_32 = reg_tmp_gpr.cvt32();
+        mov(reg_tmp_32, tail_mask);
+        kmovd(fp_col_mask, reg_tmp_32);
+    }
+
+    // Note: using the same register used in col_tail, so order is important
+    const auto reg_data_aux = reg_tmp_gpr;
+    lea(reg_data_aux, ptr[reg_data + offset]);
+
+    for (int r = 0; r < num_rows; ++r) {
+        if (dt == data_type::f8_e5m2)
+            f8_e5m2_emulator_->vcvt_f8_to_f16(zmm_1_masked, ptr[reg_data_aux]);
+        else if (dt == data_type::f8_e4m3)
+            f8_e4m3_emulator_->vcvt_f8_to_f16(zmm_1_masked, ptr[reg_data_aux]);
+        else
+            assert(!"unsupported data type");
+
+        vmovups(ptr[reg_buf + r * zmm_width_in_bytes], zmm_1);
+        add(reg_data_aux, reg_data_stride);
+    }
+}
+
 // This method down-converts the data from f32 to bf16 and saves at reg_buf.
 // Generally used by matrix_A, where no vnni transformation of data is needed.
 void jit_brgemm_amx_uker_base_t::bf32_downconvert(brgemm_iteration_t &bi,
@@ -1694,7 +1792,7 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert(brgemm_iteration_t &bi,
     const auto col_tail = max_num_cols % simd_w;
     auto zmm_1 = zmm_tmp_1();
     auto zmm_2 = zmm_tmp_2();
-    auto zmm_2_masked = col_tail ? zmm_2 | bf32_col_mask | T_z : zmm_2;
+    auto zmm_2_masked = col_tail ? zmm_2 | fp_col_mask | T_z : zmm_2;
 
     assert(max_num_cols > 0);
 
@@ -1702,7 +1800,7 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert(brgemm_iteration_t &bi,
         const int tail_mask = (1 << col_tail) - 1;
         auto reg_tmp_32 = reg_tmp_gpr.cvt32();
         mov(reg_tmp_32, tail_mask);
-        kmovw(bf32_col_mask, reg_tmp_32);
+        kmovw(fp_col_mask, reg_tmp_32);
     }
 
     // Note: using the same register used in col_tail, so order is important
@@ -1719,11 +1817,49 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert(brgemm_iteration_t &bi,
         } else {
             auto ymm_1 = Ymm(zmm_1.getIdx());
             auto ymm_1_masked
-                    = max_num_cols == 16 ? ymm_1 : ymm_1 | bf32_col_mask | T_z;
+                    = max_num_cols == 16 ? ymm_1 : ymm_1 | fp_col_mask | T_z;
             vcvtneps2bf16(ymm_1_masked, ptr[reg_data_aux]);
             vmovups(ptr[reg_buf + r * zmm_width_in_bytes], ymm_1);
         }
         add(reg_data_aux, reg_data_stride);
+    }
+}
+
+// This method up-converts and transforms the data from fp8_vnni to f16_vnni
+// format. Generally used by matrix_B.
+void jit_brgemm_amx_uker_base_t::fp8_to_f16_upconvert_to_vnni(
+        brgemm_iteration_t &bi, int num_rows, int tile_num_col_bytes,
+        reg64_t reg_data, int offset, reg64_t reg_data_stride, reg64_t reg_buf,
+        data_type_t dt) {
+    const int num_cols_ele = tile_num_col_bytes / 2; // 32 for full tile
+    const int num_N = num_cols_ele / 2; // 16 for full tile
+    const auto zmm_2 = zmm_tmp_2();
+
+    assert(num_N > 0 && "bad tile parameters");
+    MAYBE_UNUSED(num_N);
+
+    const auto rd_block = bi.rdi->block(0);
+    const auto reg_data_aux = reg_tmp_gpr;
+    lea(reg_data_aux, ptr[reg_data + offset]);
+
+    const int vnni_granularity = 2;
+    const int r_end = utils::div_up(rd_block, vnni_granularity);
+    assert(r_end <= num_rows && "bad tile parameters");
+
+    if (dt == data_type::f8_e5m2)
+        f8_e5m2_emulator_->vcvt_f8_to_f16_vnni_block(
+                r_end, reg_data_aux, reg_data_stride, reg_buf);
+    else if (dt == data_type::f8_e4m3)
+        f8_e4m3_emulator_->vcvt_f8_to_f16_vnni_block(
+                r_end, reg_data_aux, reg_data_stride, reg_buf);
+    else
+        assert(!"unsupported data type");
+
+    // zero rest of the tile data
+    if (r_end < num_rows) {
+        vpxord(zmm_2, zmm_2, zmm_2);
+        for (int r = r_end; r < num_rows; ++r)
+            vmovups(ptr[reg_buf + r * zmm_width_in_bytes], zmm_2);
     }
 }
 
@@ -1743,7 +1879,7 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert_to_vnni(
 
     auto load = [&](Zmm zmm, Address addr) {
         if (col_tail)
-            vmovups(zmm | bf32_col_mask | T_z, addr);
+            vmovups(zmm | fp_col_mask | T_z, addr);
         else
             vmovups(zmm, addr);
     };
@@ -1752,7 +1888,7 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert_to_vnni(
         const int tail_mask = (1 << col_tail) - 1;
         auto reg_tmp_32 = reg_tmp_gpr.cvt32();
         mov(reg_tmp_32, tail_mask);
-        kmovw(bf32_col_mask, reg_tmp_32);
+        kmovw(fp_col_mask, reg_tmp_32);
     }
 
     // Note: using the same register used in col_tail, so order is important
@@ -1775,7 +1911,7 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert_to_vnni(
         }
 
         vcvtne2ps2bf16(zmm_1, zmm_2, zmm_1);
-        vpermw(zmm_1, zmm_bf32_pemute, zmm_1);
+        vpermw(zmm_1, zmm_bf32_permute, zmm_1);
         vmovups(ptr[reg_buf + r * zmm_width_in_bytes], zmm_1);
         lea(reg_data_aux,
                 ptr[reg_data_aux + vnni_granularity * reg_data_stride]);
@@ -1795,6 +1931,10 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
 
     const auto &tloop = imap_[bi.apply_postops];
     auto should_save_transform = [&](matrix_kind_t mk) {
+        // For fp8 via conversion we use temporal buffer heavily for conversion.
+        // Therefore saved data may be overwritten
+        // TODO: remove this restriction
+        if (brg.is_fp8_via_convert()) return false;
         // save if there is a reuse
         if (mk == matrix_A) {
             return tloop.ldis.size() > 1;
@@ -1802,6 +1942,8 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
             return tloop.bdis.size() > 1;
         }
     };
+
+    const auto dt = mk == matrix_A ? brg.dt_a : brg.dt_b;
 
     const bool is_A = mk == matrix_A;
     auto &transform_buf = is_A ? transform_buf_map_A_ : transform_buf_map_B_;
@@ -1823,7 +1965,7 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
     if (transform_buf.find(key) != transform_buf.end()) {
         auto buf_idx = transform_buf[key];
         auto offt = matrix_offset + buf_idx * tile_size;
-        tileloadd(t1, ptr[reg_buf + reg_bf32_stride + offt]);
+        tileloadd(t1, ptr[reg_buf + reg_converted_stride + offt]);
         return;
     }
 
@@ -1836,22 +1978,30 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
     }
 
     if (buf_offt) add(reg_buf, buf_offt);
-    mov(reg_bf32_stride, zmm_width_in_bytes);
+    mov(reg_converted_stride, zmm_width_in_bytes);
 
     const int max_tiles = amx::get_max_tiles(amx::get_target_palette());
     JIT_ASSERT(t1.getIdx() >= 0 && t1.getIdx() < max_tiles);
     const auto num_rows = palette_.rows[t1.getIdx()];
     const auto num_col_bytes = palette_.cols[t1.getIdx()];
     if (is_A) {
-        bf32_downconvert(bi, num_rows, num_col_bytes, reg_base, offset,
-                reg_stride, reg_buf);
+        if (brg.is_bf32)
+            bf32_downconvert(bi, num_rows, num_col_bytes, reg_base, offset,
+                    reg_stride, reg_buf);
+        else
+            fp8_to_f16_upconvert(bi, num_rows, num_col_bytes, reg_base, offset,
+                    reg_stride, reg_buf, dt);
     } else {
-        bf32_downconvert_to_vnni(bi, num_rows, num_col_bytes, reg_base, offset,
-                reg_stride, reg_buf);
+        if (brg.is_bf32)
+            bf32_downconvert_to_vnni(bi, num_rows, num_col_bytes, reg_base,
+                    offset, reg_stride, reg_buf);
+        else
+            fp8_to_f16_upconvert_to_vnni(bi, num_rows, num_col_bytes, reg_base,
+                    offset, reg_stride, reg_buf, dt);
     }
 
     // load into tmm from the transformed data.
-    tileloadd(t1, ptr[reg_buf + reg_bf32_stride]);
+    tileloadd(t1, ptr[reg_buf + reg_converted_stride]);
 
     // reset buf pointer.
     if (buf_offt) sub(reg_buf, buf_offt);
@@ -2400,7 +2550,7 @@ void jit_brgemm_amx_uker_base_t::generate() {
     // if beta == 1 and C datatype is f32 it is better to perform addition by
     // reading tiles directly from C instead of by reading/writing by vectors
     may_load_accumulators_ = one_of(brg.alpha, 0, 1) && brg.beta == 1.f
-            && brg.dt_c == brg.dt_d && !brg.is_bf32
+            && brg.dt_c == brg.dt_d && !brg.is_input_convert()
             && IMPLICATION(
                     brg.is_f32 || brg.is_bf16, brg.dt_c == data_type::f32)
             && IMPLICATION(brg.is_int8, brg.dt_c == data_type::s32)
@@ -2417,13 +2567,17 @@ void jit_brgemm_amx_uker_base_t::generate() {
     assert(IMPLICATION(are_post_ops_applicable_ || need_to_apply_alpha_beta_
                     || brg.brgattr.bd_mask_level,
             !brg.is_blocked && !brg.brgattr.var_bs));
-    assert(IMPLICATION(brg.brgattr.var_bs, !brg.is_bf32));
+    assert(IMPLICATION(brg.brgattr.var_bs, !brg.is_input_convert()));
     read_params();
     prepare_bd_mask();
+
     Label permute_index_table;
-    if (brg.is_bf32) {
+    if (brg.is_input_convert()) {
+        // save tiles description for later use
         brgemm_init_tiles(brg, (char *)(&palette_));
-        vmovups(zmm_bf32_pemute, ptr[rip + permute_index_table]);
+        // load permute indices
+        if (brg.is_bf32)
+            vmovups(zmm_bf32_permute, ptr[rip + permute_index_table]);
     }
 
     mov(reg_stride_lda, lda());
@@ -2470,7 +2624,13 @@ void jit_brgemm_amx_uker_base_t::generate() {
 
     postamble();
 
-    if (brg.with_eltwise) postops_injector_->prepare_table();
+    if (brg.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
+
+    if (brg.is_fp8_via_convert()) {
+        if (f8_e5m2_emulator_) f8_e5m2_emulator_->prepare_table();
+        if (f8_e4m3_emulator_) f8_e4m3_emulator_->prepare_table();
+    }
 
     if (brg.is_bf32) {
         align(64);

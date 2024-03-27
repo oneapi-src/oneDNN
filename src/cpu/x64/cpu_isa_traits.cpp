@@ -157,6 +157,11 @@ struct isa_info_t {
     cpu_isa_t isa;
 };
 
+std::string isa2str(cpu_isa_t isa) {
+    std::string s = JIT_IMPL_NAME_HELPER("", isa, "");
+    return s;
+}
+
 static isa_info_t get_isa_info_t(void) {
     // descending order due to mayiuse check
 #define HANDLE_CASE(cpu_isa) \

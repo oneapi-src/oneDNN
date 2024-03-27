@@ -891,7 +891,8 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::generate() {
     L(label_done);
     postamble();
 
-    if (jcp.with_eltwise) postops_injector_->prepare_table();
+    if (jcp.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::tile_configure(char *tcfg_buff) {

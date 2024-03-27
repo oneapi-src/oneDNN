@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -805,7 +805,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
     if (jcp.ndims == 5) add(rsp, stack_space_needed_);
     postamble();
 
-    if (jcp.with_eltwise) postops_injector_->prepare_table();
+    if (jcp.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 void jit_avx512_core_bf16_fwd_kernel::init_scratchpad(

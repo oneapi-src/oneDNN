@@ -172,12 +172,31 @@ lru_cache_t &get_test_cache() {
 
 int test_persistent_cache_api(
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim, res_t *res) {
+
+    auto pd = query_pd(prim);
+
+    // 0. check memory descriptor serialization API
+    // Limiting to weights md should have good md kind coverage and
+    // limit overhead
+    {
+        dnnl_memory_desc_t new_md;
+        size_t sz = 0;
+        auto wei_md = query_md(pd, dnnl_query_weights_md);
+        dnnl_memory_desc_get_blob(nullptr, &sz, wei_md);
+
+        std::vector<uint8_t> md_blob(sz);
+        dnnl_memory_desc_get_blob(md_blob.data(), &sz, wei_md);
+        dnnl_memory_desc_create_with_blob(&new_md, md_blob.data());
+
+        if (dnnl_memory_desc_equal(wei_md, new_md) == 0)
+            return res->state = FAILED, FAIL;
+    }
+
+    // Start testing persistent cache API.
     if (!is_gpu() || (is_gpu() && DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL)) {
         return OK;
     }
 
-    auto pd = query_pd(prim);
-    // Start testing persistent cache API.
     // 1. Disable primitive cache to make sure that the next primitive will
     // be created from the cache blob and not fetched from the primitive cache.
     const auto old_capacity = set_primitive_cache_capacity_without_clearing(0);

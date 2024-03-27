@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -318,7 +318,6 @@ void params_generator_t::append_params(std::vector<blocking_params_t> &vec,
         const std::vector<level_tile_set_t> &level_tile_sets,
         blocking_checker_t &chk, int tune_level, int simd_size) {
     blocking_generator_t bg(simd_size, chk, level_tile_sets);
-    auto blockings = bg.blockings();
     for (auto &b : bg.blockings()) {
         vec.emplace_back(b);
         if (tune_level > 0) vec.emplace_back(b, /* bufs_hint = */ 0);

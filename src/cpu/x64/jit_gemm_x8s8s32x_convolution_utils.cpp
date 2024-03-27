@@ -685,7 +685,8 @@ void jit_pp_ker_t::generate() {
 
     postamble();
 
-    if (jcp_.with_eltwise) postops_injector_->prepare_table();
+    if (jcp_.with_eltwise)
+        postops_injector_->prepare_table(/* generate = */ true);
 }
 
 bool mayiuse_jit_pp_kernel(data_type_t dst_dt) noexcept {

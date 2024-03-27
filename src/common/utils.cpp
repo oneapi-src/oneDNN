@@ -379,7 +379,9 @@ thread_local dnnl::threadpool_interop::threadpool_iface *active_threadpool
 
 void DNNL_API activate_threadpool(
         dnnl::threadpool_interop::threadpool_iface *tp) {
-    assert(!active_threadpool);
+    // The assert here is put to prevent from activating a test threadpool while
+    // the library one was left activating(not deactivated)
+    assert(IMPLICATION(active_threadpool, active_threadpool == tp));
     if (!active_threadpool) active_threadpool = tp;
 }
 
