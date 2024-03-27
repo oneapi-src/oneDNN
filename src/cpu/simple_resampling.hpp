@@ -88,14 +88,14 @@ struct simple_resampling_fwd_t : public primitive_t {
                 VDISPATCH_RESAMPLING(!(memory_desc_matches_one_of_tag(
                                                *dst_md(0), ncw, nchw, ncdhw)
                                              == format_tag::undef),
-                        VERBOSE_UNSUPPORTED_TAG);
+                        VERBOSE_UNSUPPORTED_TAG_S, "dst");
             }
 
             format_tag_t dat_tag = memory_desc_matches_one_of_tag(*src_md(),
                     nCw8c, nChw8c, nCdhw8c, nCw16c, nChw16c, nCdhw16c, ncw,
                     nchw, ncdhw, nwc, nhwc, ndhwc);
             VDISPATCH_RESAMPLING(memory_desc_matches_tag(*dst_md(), dat_tag),
-                    VERBOSE_UNSUPPORTED_TAG);
+                    VERBOSE_UNSUPPORTED_TAG_S, "dst");
 
             return status::success;
         }
@@ -141,7 +141,7 @@ struct simple_resampling_bwd_t : public primitive_t {
                     nCdhw16c, ncw, nchw, ncdhw, nwc, nhwc, ndhwc);
             VDISPATCH_RESAMPLING(
                     memory_desc_matches_tag(*diff_dst_md(), dat_tag),
-                    VERBOSE_UNSUPPORTED_TAG);
+                    VERBOSE_UNSUPPORTED_TAG_S, "diff_dst");
 
             return status::success;
         }

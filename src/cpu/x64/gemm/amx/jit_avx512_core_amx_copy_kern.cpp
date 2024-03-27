@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -496,7 +496,7 @@ void jit_avx512_core_amx_copy_kern::generate() {
 
 jit_avx512_core_amx_copy_kern::jit_avx512_core_amx_copy_kern(
         bool is_a, bool is_trans, int isize)
-    : jit_generator(jit_name(), nullptr, 800000)
+    : jit_generator(jit_name())
     , is_a_(is_a)
     , is_trans_(is_trans)
     , size_(isize)

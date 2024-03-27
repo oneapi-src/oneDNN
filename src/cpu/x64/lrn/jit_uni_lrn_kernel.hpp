@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,10 +86,9 @@ template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
 class jit_uni_lrn_kernel_t<Derived<isa, d_type>> : public jit_generator {
 public:
-    jit_uni_lrn_kernel_t(void *code_ptr = nullptr,
-            size_t code_size = MAX_CODE_SIZE, const char *name = jit_name());
-    jit_uni_lrn_kernel_t(const within_config_t &J, void *code_ptr = nullptr,
-            size_t code_size = MAX_CODE_SIZE, const char *name = jit_name());
+    jit_uni_lrn_kernel_t(const char *name = jit_name());
+    jit_uni_lrn_kernel_t(
+            const within_config_t &J, const char *name = jit_name());
 
     ~jit_uni_lrn_kernel_t();
 
@@ -133,18 +132,14 @@ class jit_uni_lrn_fwd_kernel_t
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_fwd_kernel_t)
 
-    jit_uni_lrn_fwd_kernel_t(const within_config_t &J, float A, float K,
-            prop_kind_t pk, void *code_ptr = nullptr,
-            size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_t(const nchw8c_across_t &J, float A, float K,
-            prop_kind_t pk, void *code_ptr = nullptr,
-            size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_t(const nhwc_across_t &J, float A, float K,
-            prop_kind_t pk, void *code_ptr = nullptr,
-            size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_t(const nchw_across_t &J, float A, float K,
-            prop_kind_t pk, void *code_ptr = nullptr,
-            size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_uni_lrn_fwd_kernel_t(
+            const within_config_t &J, float A, float K, prop_kind_t pk);
+    jit_uni_lrn_fwd_kernel_t(
+            const nchw8c_across_t &J, float A, float K, prop_kind_t pk);
+    jit_uni_lrn_fwd_kernel_t(
+            const nhwc_across_t &J, float A, float K, prop_kind_t pk);
+    jit_uni_lrn_fwd_kernel_t(
+            const nchw_across_t &J, float A, float K, prop_kind_t pk);
     ~jit_uni_lrn_fwd_kernel_t();
 
 private:
@@ -219,12 +214,9 @@ class jit_uni_lrn_bwd_kernel_t
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_bwd_kernel_t)
 
-    jit_uni_lrn_bwd_kernel_t(const nchw8c_across_t &J, float A, float B,
-            int use_h_parallel, void *code_ptr = nullptr,
-            size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_bwd_kernel_t(const within_config_t &J, float A, float B,
-            void *code_ptr = nullptr,
-            size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_uni_lrn_bwd_kernel_t(
+            const nchw8c_across_t &J, float A, float B, int use_h_parallel);
+    jit_uni_lrn_bwd_kernel_t(const within_config_t &J, float A, float B);
 
 private:
     using Base = jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<isa, d_type>>;

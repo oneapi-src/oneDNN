@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,10 +27,9 @@ template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
         jit_avx512_common_lrn_kernel_bwd_blocked_t(
                 const struct nChw16c_across_t &J, float alpha, float beta,
-                int local_size, int use_h_parallel, void *code_ptr,
-                size_t code_size)
+                int local_size, int use_h_parallel)
     : jit_avx512_common_lrn_kernel_bwd_t<d_type>(
-            alpha, beta, local_size, code_ptr, code_size, jit_name())
+            alpha, beta, local_size, jit_name())
     , xmm_size_ {4 * sizeof(acc_data_t)}
     , zmm_size_ {64}
     , buffer_block_ {xmm_size_ + zmm_size_ + xmm_size_}

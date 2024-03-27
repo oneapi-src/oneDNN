@@ -365,7 +365,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
 
     jit_brgemm_kernel_post_ops(const jit_brgemm_conv_conf_t &ajcp,
             const brgemm_t &abrg, const primitive_attr_t &aattr)
-        : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, abrg.isa_impl)
+        : jit_generator(jit_name(), abrg.isa_impl)
         , brg(abrg)
         , jcp(ajcp)
         , attr(aattr)

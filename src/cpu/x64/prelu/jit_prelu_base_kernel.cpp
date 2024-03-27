@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ namespace x64 {
 jit_prelu_base_kernel_t::jit_prelu_base_kernel_t(const cpu_isa_t &isa, int vlen,
         const prelu::bcast &bcast, const memory_desc_wrapper &tensor_md,
         size_t number_vmm_single_compute, const char *name)
-    : jit_generator(name, nullptr, MAX_CODE_SIZE, true, isa)
+    : jit_generator(name, isa)
     , isa_(isa)
     , simd_w_(vlen / sizeof(float))
     , bcast_(bcast)

@@ -127,10 +127,11 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
             VDISPATCH_LNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_LNORM(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
-            VDISPATCH_LNORM(src_d.is_blocking_desc(), VERBOSE_BLOCKING_FAIL);
+            VDISPATCH_LNORM(src_d.is_blocking_desc(), VERBOSE_BLOCKING_FAIL,
+                    "blocking descriptor fail");
             // plain format, last logical dim is last physical
             VDISPATCH_LNORM(src_d.blocking_desc().strides[ndims() - 1] == 1,
-                    VERBOSE_BLOCKING_FAIL);
+                    VERBOSE_BLOCKING_FAIL, "bad stride value");
 
             CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
@@ -277,10 +278,11 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_LNORM(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
-            VDISPATCH_LNORM(src_d.is_blocking_desc(), VERBOSE_BLOCKING_FAIL);
+            VDISPATCH_LNORM(src_d.is_blocking_desc(), VERBOSE_BLOCKING_FAIL,
+                    "blocking descriptor fail");
             // plain format, last logical dim is last physical
             VDISPATCH_LNORM(src_d.blocking_desc().strides[ndims() - 1] == 1,
-                    VERBOSE_BLOCKING_FAIL);
+                    VERBOSE_BLOCKING_FAIL, "bad stride value");
 
             CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 

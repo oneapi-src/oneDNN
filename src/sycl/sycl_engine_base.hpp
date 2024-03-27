@@ -45,9 +45,10 @@ public:
 
     status_t init() override {
         backend_ = get_sycl_backend(device_);
-        if (!utils::one_of(backend_, backend_t::host, backend_t::opencl,
-                    backend_t::level0, backend_t::nvidia, backend_t::amd))
-            return status::invalid_arguments;
+        VCHECK_ENGINE(
+                utils::one_of(backend_, backend_t::host, backend_t::opencl,
+                        backend_t::level0, backend_t::nvidia, backend_t::amd),
+                status::invalid_arguments, VERBOSE_UNSUPPORTED_BACKEND, "sycl");
 
         CHECK(check_device(kind(), device_, context_));
         CHECK(gpu::compute::compute_engine_t::init());

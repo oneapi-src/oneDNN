@@ -75,7 +75,8 @@ struct ref_inner_product_int8_fwd_t : public primitive_t {
                     attr()->post_ops_.check_sum_consistency(dst_type,
                             /* is_int8 */ true),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_INNER_PRODUCT(attr_scales_ok(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_INNER_PRODUCT(
                     ref_post_ops_t::primitive_kind_ok(attr()->post_ops_),
                     VERBOSE_UNSUPPORTED_POSTOP);

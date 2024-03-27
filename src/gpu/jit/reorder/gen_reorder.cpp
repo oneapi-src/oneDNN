@@ -139,9 +139,9 @@ status_t gen_reorder_t::pd_t::init(
     };
 
     VDISPATCH_REORDER(
-            check_layout(src_layout), "unsupported src tensor layout");
+            check_layout(src_layout), VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "src");
     VDISPATCH_REORDER(
-            check_layout(dst_layout), "unsupported dst tensor layout");
+            check_layout(dst_layout), VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "dst");
     VDISPATCH_REORDER(compute_engine->mayiuse_ngen_kernels(),
             VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "ngen_kernels");
     auto *gpu_attr

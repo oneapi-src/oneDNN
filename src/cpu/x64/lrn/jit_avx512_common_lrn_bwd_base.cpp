@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -210,9 +210,8 @@ void jit_avx512_common_lrn_kernel_bwd_t<f16>::store_tail(int tail_value,
 
 template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_avx512_common_lrn_kernel_bwd_t(
-        float alpha, float beta, int local_size, void *code_ptr,
-        size_t code_size, const char *name)
-    : jit_generator(name, code_ptr, code_size, true, avx512_core_bf16)
+        float alpha, float beta, int local_size, const char *name)
+    : jit_generator(name, avx512_core_bf16)
     , local_size_ {local_size - !(local_size % 2)}
     , z_prev_ {[this]() {
         std::vector<int> v(this->local_size_ / 2);

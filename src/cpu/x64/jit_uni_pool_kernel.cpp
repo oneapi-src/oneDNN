@@ -44,9 +44,7 @@ jit_uni_pool_kernel<isa>::~jit_uni_pool_kernel() = default;
 template <cpu_isa_t isa>
 jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
         const jit_pool_conf_t &ajpp, const memory_desc_t *dst_md)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
-    , jpp(ajpp)
-    , bf16_emu_(nullptr) {
+    : jit_generator(jit_name(), isa), jpp(ajpp), bf16_emu_(nullptr) {
     if (use_bf16_emulation())
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                 bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
@@ -185,7 +183,8 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     const auto fmt_tag = src_d.matches_one_of_tag(
             blocked_fmt_tag, ncsp_fmt_tag, nspc_fmt_tag);
 
-    VDISPATCH_POOLING_IC(dst_d.matches_tag(fmt_tag), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_POOLING_IC(
+            dst_d.matches_tag(fmt_tag), VERBOSE_UNSUPPORTED_TAG_S, "dst");
 
     VDISPATCH_POOLING_IC(
             post_ops_ok(jpp, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
@@ -283,7 +282,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
             !(jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
                     || back_pad >= jpp.kd || bottom_pad >= jpp.kh
                     || right_pad >= jpp.kw),
-            VERBOSE_PADDING_ERROR, "");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE, "");
 
     jpp.ind_dt = ppd->workspace_md() ? ppd->workspace_md()->data_type
                                      : data_type::undef;

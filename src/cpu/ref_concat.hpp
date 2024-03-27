@@ -54,7 +54,8 @@ struct ref_concat_t : public primitive_t {
                         VERBOSE_UNSUPPORTED_MEM_STRIDE);
 
                 status = cpu_concat_pd_t::init(&tent_dst_md_);
-                if (status != status::success) return status::unimplemented;
+                VDISPATCH_CONCAT(status == status::success,
+                        VERBOSE_PRIMITIVE_CREATION_FAIL, "concat");
             }
 
             const auto &sc = attr()->scales_;

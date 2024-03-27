@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,6 @@ private:
     using reg64_t = const Xbyak::Reg64;
     enum {
         ker_reg_base_idx = 28,
-        ker_code_size = 1024 * 1024,
     };
 
     reg64_t param = abi_param1; //L: RDI, W: RCX
@@ -260,8 +259,7 @@ template <typename Vmm>
 struct _jit_avx512_core_bf16_bwd_data_kernel : public jit_generator {
 
     _jit_avx512_core_bf16_bwd_data_kernel(const jit_conv_conf_t &ajcp)
-        : jit_generator(
-                jit_name(), nullptr, ker_code_size, true, avx512_core_bf16)
+        : jit_generator(jit_name(), avx512_core_bf16)
         , jcp(ajcp)
         , bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa))
@@ -281,7 +279,6 @@ private:
     using reg64_t = const Xbyak::Reg64;
     enum {
         ker_reg_base_idx = 31,
-        ker_code_size = 1024 * 1024,
     };
 
     reg64_t param = abi_param1;
@@ -472,8 +469,7 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(
             const jit_conv_conf_t &ajcp)
-        : jit_generator(
-                jit_name(), nullptr, ker_code_size, true, avx512_core_bf16)
+        : jit_generator(jit_name(), avx512_core_bf16)
         , jcp(ajcp)
         , bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa)) {
@@ -521,7 +517,6 @@ private:
         sizeof_cacheline = 64,
         full_spat_opt_working_set_size = 48 * 1024,
         full_spat_max_working_set_size = 128 * 1024,
-        ker_code_size = 1024 * 1024,
     };
     static const int max_ur_w;
 

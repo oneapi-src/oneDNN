@@ -1062,9 +1062,7 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::generate() {
 jit_avx512_core_amx_fwd_kernel_t::jit_avx512_core_amx_fwd_kernel_t(
         const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
-    , jcp(ajcp)
-    , attr_(attr) {
+    : jit_generator(jit_name(), avx512_core_amx), jcp(ajcp), attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
         using namespace binary_injector;
         const auto &rhs_addr_reg = bin_injector_helper_reg_1;
@@ -2323,12 +2321,14 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     VDISPATCH_CONV_IC(!(jcp.l_pad >= gen_kw || jcp.r_pad >= gen_kw
                               || jcp.t_pad >= gen_kh || jcp.b_pad >= gen_kh
                               || jcp.f_pad >= gen_kd || jcp.back_pad >= gen_kd),
-            VERBOSE_PADDING_ERROR, "padding size unsupported (overflow)");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "padding size unsupported (overflow)");
 
     const int max_pad = 28; // akin to maximum jcp.ur_w value in other jits
     // TODO: relax this restriction
     VDISPATCH_CONV_IC(!(jcp.l_pad > max_pad || jcp.r_pad > max_pad),
-            VERBOSE_PADDING_ERROR, "exceeds max padding restrictions");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "exceeds max padding restrictions");
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     jcp.dst_dt = cd.dst_desc.data_type;
@@ -2422,7 +2422,8 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
     }
     bool args_ok = jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0;
-    VDISPATCH_CONV_IC(args_ok, VERBOSE_BLOCKING_FAIL);
+    VDISPATCH_CONV_IC(
+            args_ok, VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
 
     const int vnni_width = is_bf16_convolution ? 2 : 4;
     jcp.ic_block_int = jcp.ic_block * vnni_width; // 32 for bf16, 64 for int8
@@ -2559,7 +2560,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.max_tiles = amx::get_max_tiles(target_palette);
     jcp.full_tile_width = amx::get_max_rows(target_palette);
     VDISPATCH_CONV_IC(!(jcp.max_tiles != 8 || jcp.full_tile_width != 16),
-            VERBOSE_BLOCKING_FAIL);
+            VERBOSE_BLOCKING_FAIL, "bad blocking parameters");
 
     // Pack n rows per tile, such that:
     // ow + (ow + gen_kw - 1) * (n - 1) <= jcp.full_tile_width
@@ -2659,7 +2660,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     // Note: currently unsupported, results in seg-fault
     const int l_pad_output = nstl::min(jcp.ow, div_up(jcp.l_pad, jcp.stride_w));
     VDISPATCH_CONV_IC(!(!jcp.is_relo && (l_pad_output > jcp.ow_block)),
-            VERBOSE_BLOCKING_FAIL);
+            VERBOSE_BLOCKING_FAIL, "bad padding dimensions for blocking");
 
     // Relevant to 'zero_point padding buffer' (pbuff) jit kernel
     if (jcp.req_zero_point_buffer) {
@@ -2703,7 +2704,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         jcp.zp_pbuff_outer_compute = jcp.mb > 1 || is_3d;
 
         const bool params_ok = ((jcp.ow_pad - (int)jcp.ow_mid) <= max_pad * 2);
-        VDISPATCH_CONV_IC(params_ok, VERBOSE_PADDING_ERROR, "");
+        VDISPATCH_CONV_IC(params_ok, VERBOSE_UNSUPPORTED_PAD_FEATURE, "");
     }
 
     // Set default parameters for driver code, but mostly required for
@@ -3792,7 +3793,8 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     VDISPATCH_CONV_IC(!(jcp.l_pad >= gen_kw || jcp.r_pad >= gen_kw
                               || jcp.t_pad >= gen_kh || jcp.b_pad >= gen_kh
                               || jcp.f_pad >= gen_kd || jcp.back_pad >= gen_kd),
-            VERBOSE_PADDING_ERROR, "padding size unsupported (overflow)");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "padding size unsupported (overflow)");
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
     if (is_deconv) {
@@ -3855,7 +3857,8 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
     }
     bool args_ok = jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0;
-    VDISPATCH_CONV_IC(args_ok, VERBOSE_BLOCKING_FAIL);
+    VDISPATCH_CONV_IC(
+            args_ok, VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
 
     const int vnni_width = is_xf16 ? 2 : 4;
     jcp.oc_block_int = jcp.oc_block * vnni_width; // 32 for xf16, 64 for int8
@@ -3916,7 +3919,7 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.max_tiles = amx::get_max_tiles(target_palette);
     jcp.full_tile_width = amx::get_max_rows(target_palette);
     VDISPATCH_CONV_IC(!(jcp.max_tiles != 8 || jcp.full_tile_width != 16),
-            VERBOSE_BLOCKING_FAIL);
+            VERBOSE_BLOCKING_FAIL, "bad blocking parameters");
 
     jcp.tile_width = nstl::min(jcp.full_tile_width, jcp.iw);
     jcp.iw_blocks = div_up(jcp.iw, jcp.tile_width);
@@ -5319,7 +5322,7 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
     jcp.full_tile_width = amx::get_max_rows(target_palette);
 
     VDISPATCH_CONV_IC(!(jcp.max_tiles != 8 || jcp.full_tile_width != 16),
-            VERBOSE_BLOCKING_FAIL);
+            VERBOSE_BLOCKING_FAIL, "bad blocking parameters");
 
     const bool is_2d = (ndims == 4);
     const bool is_3d = (ndims == 5);
@@ -5360,8 +5363,8 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
             && jcp.oc <= diff_dst_d.padded_dims()[1]
             && jcp.ic <= diff_weights_d.padded_dims()[with_groups + 1]
             && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
-    VDISPATCH_CONV_IC(
-            args_ok, VERBOSE_PADDING_ERROR, "weight and src size mismatch");
+    VDISPATCH_CONV_IC(args_ok, VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "weight and src size mismatch");
 
     bool use_full_spat_loop = jcp.ndims < 5 && jcp.ih == jcp.oh
             && jcp.iw == jcp.ow && everyone_is(1, jcp.stride_h, jcp.stride_w)

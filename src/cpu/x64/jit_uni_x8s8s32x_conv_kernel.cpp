@@ -57,9 +57,7 @@ template <cpu_isa_t isa, typename Vmm>
 _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::_jit_uni_x8s8s32x_fwd_kernel(
         const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
-    , jcp(ajcp)
-    , attr_(attr) {
+    : jit_generator(jit_name(), isa), jcp(ajcp), attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;
@@ -1329,9 +1327,10 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
 
     VDISPATCH_CONV_IC(
             !((jcp.dst_zero_point || jcp.src_zero_point) && jcp.is_fused_conv),
+            VERBOSE_UNSUPPORTED_FEATURE,
             "fused depthwise convolution does not support zero-point");
 
-    VDISPATCH_CONV_IC(!(is_3d && jcp.is_depthwise),
+    VDISPATCH_CONV_IC(!(is_3d && jcp.is_depthwise), VERBOSE_UNSUPPORTED_FEATURE,
             "unsupported depthwise implementation for 3D convolution");
 
     if (jcp.is_depthwise) {
@@ -1358,7 +1357,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
         }
         VDISPATCH_CONV_IC(
                 !(jcp.ic % jcp.ic_block != 0 || jcp.oc % jcp.oc_block != 0),
-                VERBOSE_BLOCKING_FAIL);
+                VERBOSE_BLOCKING_FAIL, "bad blocking parameters");
     }
 
     jcp.is_resrc_depthwise = true && jcp.is_depthwise && jcp.stride_w < jcp.kw
@@ -1431,7 +1430,8 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
         return weights_md == want_wei_md;
     };
 
-    VDISPATCH_CONV_IC(set_or_check_wei_format(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_CONV_IC(
+            set_or_check_wei_format(), VERBOSE_UNSUPPORTED_TAG_S, "weights");
     format_tag_t dat_tag = utils::pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
 
@@ -1441,7 +1441,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     } else {
         jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
     }
-    VDISPATCH_CONV_IC(jcp.src_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_CONV_IC(jcp.src_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG_S, "src");
 
     if (dst_d.format_kind() == format_kind::any) {
         CHECK(memory_desc_init_by_tag(dst_md, dat_tag));
@@ -1449,7 +1449,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     } else {
         jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
     }
-    VDISPATCH_CONV_IC(jcp.dst_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_CONV_IC(jcp.dst_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG_S, "dst");
 
     if (jcp.with_bias) {
         if (bias_d.format_kind() == format_kind::any)
@@ -1594,7 +1594,8 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
 
     bool args_ok = true && jcp.oc % jcp.oc_block == 0
             && IMPLICATION(!jcp.is_1stconv, jcp.ic % jcp.ic_block == 0);
-    VDISPATCH_CONV_IC(args_ok, VERBOSE_BLOCKING_FAIL);
+    VDISPATCH_CONV_IC(
+            args_ok, VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
 
     pick_loop_order(jcp);
 

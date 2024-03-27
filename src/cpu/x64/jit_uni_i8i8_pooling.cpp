@@ -231,7 +231,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
 
     jit_uni_i8i8_pooling_fwd_ker_t(
             const jit_pool_conf_t &jpp_, const memory_desc_t *dst_md)
-        : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
+        : jit_generator(jit_name(), isa)
         , jpp(jpp_)
         , postops_injector_(nullptr) {
 
@@ -1310,7 +1310,7 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
             !(jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
                     || back_pad >= jpp.kd || bottom_pad >= jpp.kh
                     || right_pad >= jpp.kw),
-            VERBOSE_PADDING_ERROR, "");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE, "");
 
     jpp.alg = pd.alg_kind;
 

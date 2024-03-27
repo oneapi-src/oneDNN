@@ -977,7 +977,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         compute_blocking_heuristic_amx(bgmmc, bm_conf_utils, best_blocking);
 
         VCONDCHECK_BG(best_blocking.get_blocking_scores() != 0.0f,
-                VERBOSE_BLOCKING_FAIL);
+                VERBOSE_BLOCKING_FAIL, "");
 
         best_blocking.update_configuration(bgmmc);
 
@@ -1195,7 +1195,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // required granularity for k dimension
     bgmmc.required_k_granularity
             = bgmmc.is_amx ? data_type_vnni_granularity(bgmmc.wei_dt) : 1;
-    VCONDCHECK_BG(bgmmc.required_k_granularity > 0, VERBOSE_BLOCKING_FAIL);
+    VCONDCHECK_BG(bgmmc.required_k_granularity > 0, VERBOSE_BLOCKING_FAIL, "");
     bgmmc.wei_k_blk = data_type_vnni_simd_elems<avx512_core>(bgmmc.wei_dt);
 
     VCHECK_BG(bm_conf_utils.set_or_check_tags(src_md, dst_md, bias_md),
@@ -1354,7 +1354,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // - K_blk, batch_size
     // - nthr_K
     VCHECK_BG(compute_blocking_heuristic(bgmmc, bm_conf_utils),
-            VERBOSE_BLOCKING_FAIL);
+            VERBOSE_BLOCKING_FAIL, "");
 
     if (bgmmc.wei_n_blk > bgmmc.N_blk
             && IMPLICATION(
@@ -1370,7 +1370,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                 = bm_conf_utils.wei_down_convert_to_vnni();
     }
 
-    VCHECK_BG(bm_conf_utils.set_B_flags(weights_md), VERBOSE_BLOCKING_FAIL);
+    VCHECK_BG(bm_conf_utils.set_B_flags(weights_md), VERBOSE_BLOCKING_FAIL, "");
 
     bgmmc.M_tail = bgmmc.is_runtime_M ? 0 : bgmmc.M % bgmmc.M_blk;
     bgmmc.N_tail = bgmmc.is_runtime_N ? 0 : bgmmc.N % bgmmc.N_blk;
