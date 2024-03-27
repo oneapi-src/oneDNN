@@ -1,1 +1,0 @@
-This is a patch to test the IP-Review system
