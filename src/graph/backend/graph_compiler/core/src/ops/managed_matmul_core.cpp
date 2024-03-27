@@ -117,12 +117,14 @@ body_generator_ptr managed_matmul_core_op_t::create_generator() {
     sc_dim M = A_dims.front(); // A is always 2D
     sc_dim K = A_dims.back(); // A is always 2D
     sc_dim N = B_dims.back(); // B is always 2D
-    bool is_int8 = info_.inputs_[0]->details_.dtype_ == datatypes::u8
-            || info_.inputs_[0]->details_.dtype_ == datatypes::s8;
+    bool is_valid_int8
+            = (info_.inputs_[0]->details_.dtype_ == datatypes::u8
+                      || info_.inputs_[0]->details_.dtype_ == datatypes::s8)
+            && info_.inputs_[1]->details_.dtype_ == datatypes::s8;
     if (!is_dynamic() && M <= 5 && K >= 4096
             && N >= 4096 // TODO(niuxiaoguang): K, N shapes are from gpt-j-6B
             // and llama on SPR. Change them when necessary.
-            && num_threads <= 32 && is_int8) {
+            && num_threads <= 32 && is_valid_int8) {
         attrs_["dispatch_avx"] = true;
     }
 
