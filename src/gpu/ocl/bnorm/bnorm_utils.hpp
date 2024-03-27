@@ -59,6 +59,7 @@
         } \
     } while (0)
 #endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {

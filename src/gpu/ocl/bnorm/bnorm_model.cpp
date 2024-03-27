@@ -29,6 +29,56 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::gpu::gpu_utils;
 using namespace dnnl::impl::gpu::ocl::bn_utils;
 
+int get_nhwc_vect_size(int ic, int max_vect_size, int simd) {
+    int vect_size = max_vect_size;
+    while (true) {
+        if (ic / (vect_size * simd)) return vect_size;
+        vect_size /= 2;
+    }
+    return 1;
+}
+int get_nhwc_sp_block_size(
+        int sp, int ic_dim, int eu_count, int threads_per_eu, int simd) {
+
+    float efficiency_thr = 0.0f;
+    float efficiency_peak_eu_thr = 0.0f;
+    int block_size_thr = 1;
+    int block_size_peak_eu_thr = 1;
+    int curr_block_size = sp;
+    int nthr_mul = 1;
+    const int ic_nsg = ic_dim / simd; // number of subgroups by ic dim
+
+    // The search is based on threads wave efficiency.
+    // Higher priority for cases with peak EUs utilization.
+    while (nthr_mul <= 32) {
+        const int nthr = nthr_mul * eu_count;
+        curr_block_size = div_up(sp * ic_nsg, nthr);
+        const int nblock = div_up(sp, curr_block_size);
+        const int nthr_gen = nblock * ic_nsg;
+
+        const float curr_efficiency_eus
+                = (float)nthr_gen / rnd_up(nthr_gen, eu_count);
+        const float curr_efficiency_thr
+                = (float)nthr_gen / rnd_up(nthr_gen, eu_count * threads_per_eu);
+
+        if (curr_efficiency_thr > efficiency_thr) {
+            efficiency_thr = curr_efficiency_thr;
+            block_size_thr = curr_block_size;
+        }
+        if (curr_efficiency_eus == 1
+                && curr_efficiency_thr > efficiency_peak_eu_thr) {
+            efficiency_peak_eu_thr = curr_efficiency_thr;
+            block_size_peak_eu_thr = curr_block_size;
+        }
+        nthr_mul++;
+    }
+    if (efficiency_peak_eu_thr > 0.0f) return block_size_peak_eu_thr;
+    return block_size_thr;
+}
+int get_nhwc_calc_stat_ic(int ic, int ic_block, int sg_size) {
+    return div_up(ic, ic_block) * sg_size;
+}
+
 void init_hw_params(hw_params_t &hw_params, engine_t *engine) {
     const bool large_grf_mode = false;
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);

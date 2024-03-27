@@ -96,54 +96,6 @@ static void adjust_lws_calc_kernel(int ic_block, nhwc_bnorm_params_t &conf,
     dispatch.set_lws(tuned_lws);
 }
 
-static int get_nhwc_vect_size(int ic, int max_vect_size, int simd = 16) {
-    int vect_size = max_vect_size;
-    while (true) {
-        if (ic / (vect_size * simd)) return vect_size;
-        vect_size /= 2;
-    }
-    return 1;
-}
-
-static int get_nhwc_sp_block_size(
-        int sp, int ic_dim, int eu_count, int threads_per_eu, int simd = 16) {
-
-    float efficiency_thr = 0.0f;
-    float efficiency_peak_eu_thr = 0.0f;
-    int block_size_thr = 1;
-    int block_size_peak_eu_thr = 1;
-    int curr_block_size = sp;
-    int nthr_mul = 1;
-    const int ic_nsg = ic_dim / simd; // number of subgroups by ic dim
-
-    // The search is based on threads wave efficiency.
-    // Higher priority for cases with peak EUs utilization.
-    while (nthr_mul <= 32) {
-        const int nthr = nthr_mul * eu_count;
-        curr_block_size = div_up(sp * ic_nsg, nthr);
-        const int nblock = div_up(sp, curr_block_size);
-        const int nthr_gen = nblock * ic_nsg;
-
-        const float curr_efficiency_eus
-                = (float)nthr_gen / rnd_up(nthr_gen, eu_count);
-        const float curr_efficiency_thr
-                = (float)nthr_gen / rnd_up(nthr_gen, eu_count * threads_per_eu);
-
-        if (curr_efficiency_thr > efficiency_thr) {
-            efficiency_thr = curr_efficiency_thr;
-            block_size_thr = curr_block_size;
-        }
-        if (curr_efficiency_eus == 1
-                && curr_efficiency_thr > efficiency_peak_eu_thr) {
-            efficiency_peak_eu_thr = curr_efficiency_thr;
-            block_size_peak_eu_thr = curr_block_size;
-        }
-        nthr_mul++;
-    }
-    if (efficiency_peak_eu_thr > 0.0f) return block_size_peak_eu_thr;
-    return block_size_thr;
-}
-
 static int get_reduce_sub_group_count(
         const int reduce_stat_nblocks, const int sub_group_size) {
     int reduce_sub_group_count = 1;
@@ -152,10 +104,6 @@ static int get_reduce_sub_group_count(
         reduce_sub_group_count = reduce_sub_group_count * 2;
     }
     return reduce_sub_group_count;
-}
-
-inline int get_calc_stat_ic(int ic, int ic_block, int sg_size) {
-    return div_up(ic, ic_block) * sg_size;
 }
 
 status_t nhwc_bnorm_kernel_dispatching(kernel_kind_t kernel,
@@ -173,8 +121,8 @@ status_t nhwc_bnorm_kernel_dispatching(kernel_kind_t kernel,
             = rnd_dn(conf.sp, conf.update_sp_block()) / conf.update_sp_block();
     conf.reduce_stat_nblocks = conf.stat_sp_nblocks;
 
-    const int calc_stat_ic
-            = get_calc_stat_ic(conf.ic, conf.ic_block(), conf.sub_group_size);
+    const int calc_stat_ic = get_nhwc_calc_stat_ic(
+            conf.ic, conf.ic_block(), conf.sub_group_size);
 
     switch (kernel) {
         case default_fwd_ker:
@@ -237,7 +185,7 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
     assert(conf.ic % conf.sub_group_size == 0);
     while (p.ic_block <= conf.ic) {
         if (conf.ic % p.ic_block == 0) {
-            const int calc_stat_ic = get_calc_stat_ic(
+            const int calc_stat_ic = get_nhwc_calc_stat_ic(
                     conf.ic, p.ic_block, conf.sub_group_size);
             p.stat_sp_block = get_nhwc_sp_block_size(conf.sp, calc_stat_ic,
                     hw_params.eu_count, hw_params.threads_per_eu,
@@ -300,8 +248,8 @@ static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
             || (conf.ic_block_param().is_overridden()
                     && conf.ic_block() > conf.ic))
         conf.set_ic_block(best_params.ic_block);
-    conf.calc_stat_ic
-            = get_calc_stat_ic(conf.ic, conf.ic_block(), conf.sub_group_size);
+    conf.calc_stat_ic = get_nhwc_calc_stat_ic(
+            conf.ic, conf.ic_block(), conf.sub_group_size);
     SAVE_PARAM(stat_sp_block, best_params.stat_sp_block);
     SAVE_PARAM(update_sp_block, conf.stat_sp_block());
     SAVE_PARAM(update_sp_unroll, 1);
