@@ -127,8 +127,6 @@ private:
             char *result_ptr, const char *reduce_ptr, size_t size) const;
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_matmul];
-    brgemm_containers::brgemm_palette_container_t brgemm_palettes_ {
-            max_num_brg_kernels_matmul};
 
     std::unique_ptr<jit_brgemm_matmul_copy_b_t> copy_B_kernel_;
     std::unique_ptr<jit_brgemm_matmul_copy_a_t> copy_A_kernel_;

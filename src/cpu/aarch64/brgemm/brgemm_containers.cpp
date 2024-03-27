@@ -93,13 +93,6 @@ status_t brgemm_kernel_container_t::insert(int idx, const brgemm_t *brg) {
     return status::success;
 }
 
-bool brgemm_palette_container_t::insert(int idx, const brgemm_t *brg) {
-    S_t kernel_palette;
-    const auto ret = set_.insert(kernel_palette);
-    refs_[idx] = &(*ret.first);
-    return ret.second;
-}
-
 } // namespace brgemm_containers
 } // namespace aarch64
 } // namespace cpu

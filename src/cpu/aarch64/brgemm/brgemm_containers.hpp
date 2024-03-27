@@ -95,28 +95,6 @@ private:
     std::map<const brgemm_t *, const brgemm_kernel_t *> brgemm_map_;
 };
 
-struct brgemm_palette_container_t {
-    typedef std::array<char, 64> S_t;
-
-    brgemm_palette_container_t() {}
-    brgemm_palette_container_t(size_t ns) { resize(ns); }
-    void resize(size_t ns) { refs_.resize(ns); }
-
-    inline const char *operator[](int idx) const { return refs_[idx]->data(); }
-
-    bool insert(int idx, const brgemm_t *brg);
-    bool insert(int idx, const brgemm_t &brg) { return insert(idx, &brg); }
-
-    inline void maybe_tile_configure(int &idx, int new_idx) const {
-        if (idx == new_idx) return;
-        idx = new_idx;
-    }
-
-private:
-    std::vector<const S_t *> refs_;
-    std::set<S_t> set_;
-};
-
 } // namespace brgemm_containers
 
 } // namespace aarch64
@@ -124,6 +102,6 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // CPU_X64_BRGEMM_BRGEMM_CONTAINERS_HPP
+#endif // CPU_AARCH64_BRGEMM_BRGEMM_CONTAINERS_HPP
 
 //vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
