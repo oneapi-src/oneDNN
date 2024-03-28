@@ -382,8 +382,10 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 prb->ndims - 1, prb->dims.data(), dnnl_f32, prb->stat_tag);
     }
 
+    attr_args_t attr_args;
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args_t()));
+            create_dnnl_attr(prb->attr, attr_args));
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (prb->dir & FLAG_FWD) {
@@ -419,6 +421,11 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_sum_po(
             prb->attr, res, dnnl_layer_normalization, prb->dt[0]);
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_layer_normalization);
+
+    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -508,6 +515,26 @@ std::vector<int> supported_exec_args(dir_t dir) {
     return (dir & FLAG_FWD) ? exec_fwd_args : exec_bwd_args;
 };
 
+fill_cfg_t binary_po_fill_cfg(
+        int exec_arg, const dnn_mem_t &mem, const attr_t &attr) {
+    fill_cfg_t cfg;
+    const int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+            - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+    const bool is_post_ops_arg = (exec_arg & post_ops_range);
+    if (is_post_ops_arg) {
+        // LNorm output values are in [-1.f; 1.f] range. Using small values
+        // leads to the cancellation effect. Config secures only positive and
+        // big enough values are used.
+        const int bin_po_idx
+                = exec_arg / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
+        assert(bin_po_idx < attr.post_ops.len());
+        const auto alg = attr.post_ops.entry[bin_po_idx].kind;
+        cfg = fill_cfg_t(mem.dt(), 4.f, 16.f, /* int = */ true, alg,
+                "lnorm_binary_post_op");
+    }
+    return cfg;
+}
+
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         dnnl_primitive_t prim, const prb_t *prb, res_t *res,
         dnnl_primitive_t prim_ref) {
@@ -547,8 +574,12 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 }
                 break;
             default:
-                SAFE(init_ref_memory_args_default_case(
-                             exec_arg, mem, ref_mem, prb->attr, res),
+                const auto &binary_fill_cfg
+                        = binary_po_fill_cfg(exec_arg, mem, prb->attr);
+                std::unordered_map<int, fill_cfg_t> fill_cfg_map {
+                        {DNNL_ARG_SRC_1, binary_fill_cfg}};
+                SAFE(init_ref_memory_args_default_case(exec_arg, mem, ref_mem,
+                             prb->attr, res, fill_cfg_map),
                         WARN);
                 break;
         }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,7 +42,9 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
 
     const float src_scale_val = has_src_scale ? src_scale.get_elem(0) : 1.f;
     const float dst_scale_val = has_dst_scale ? dst_scale.get_elem(0) : 1.f;
-    const float output_scale = src_scale_val / dst_scale_val;
+    const float r_dst_scale_val = 1.0f / dst_scale_val;
+
+    auto v_po_masks = prb->attr.post_ops.get_po_masks();
 
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         float smean = mean.get_elem(n);
@@ -54,7 +56,12 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
             float beta = use_sh ? sh.get_elem(c) : 0;
             auto off = n * prb->c + c;
             float res = gamma * (src.get_elem(off) - smean) + beta;
-            dst_ptr[off] = res * output_scale;
+
+            const auto v_po_vals = prepare_po_vals(dst, args, v_po_masks, off);
+            res *= src_scale_val;
+            maybe_post_ops(prb->attr, res, 0.f, v_po_vals);
+            res *= r_dst_scale_val;
+            dst_ptr[off] = res;
         }
     });
 }
