@@ -31,10 +31,8 @@
 #endif
 
 #if INPUT_DT_BF16
-#define TO_INPUT(x) cvt_f32_to_bf16(x)
 #define TO_REF(x) cvt_bf16_to_f32(x)
 #else
-#define TO_INPUT(x) (x)
 #define TO_REF(x) (float)(x)
 #endif
 
