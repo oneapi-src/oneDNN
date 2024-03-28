@@ -1031,7 +1031,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
                     = TO_INPUT(tmp);
             diff_bias_acc[1] += tmp;
             scratch_cell[off_scratch_cell(batch, states_ws_ld, i, j)]
-                    = TO_INPUT(dG1 * h);
+                    = TO_SRC(dG1 * h);
         }
 #else
 #error "Wrong Cell Kind"
