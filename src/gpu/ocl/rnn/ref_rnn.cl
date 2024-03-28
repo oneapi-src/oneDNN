@@ -726,9 +726,9 @@ ref_rnn_elemwise_fwd(__global ACC_DATA_T *scratch_gates_,
         /* TODO from CPU: Can be optimized for fwd_training by using
         ws_gates instead of scratch_gates in p2 */
         scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 0, j)]
-                = TO_INPUT(G0);
+                = TO_ACC(G0);
         scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
-                = TO_INPUT(G1);
+                = TO_ACC(G1);
         float tmp = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
         h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_WS_STATE(tmp * G1);
         if (!RECOMPUTE_GATES && IS_TRAINING) {
@@ -736,7 +736,7 @@ ref_rnn_elemwise_fwd(__global ACC_DATA_T *scratch_gates_,
             ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)] = G1;
         }
     } else if (n_part == 2) {
-        float G0 = TO_REF(scratch_gates[cell_scratch_mem(
+        float G0 = convert_float(scratch_gates[cell_scratch_mem(
                 scratch_gates_ld, dhc, i, 0, j)]);
         float G2 = tanh_fwd_tm(
                 scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 2, j)]
