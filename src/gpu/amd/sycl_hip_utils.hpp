@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@
 #include <hip/hip_runtime.h>
 #include <rocblas/rocblas.h>
 
-#include "dnnl_sycl.hpp"
+#include "dnnl_sycl.h"
 
 #include "common/engine.hpp"
 #include "common/utils.hpp"
