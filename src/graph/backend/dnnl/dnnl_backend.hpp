@@ -36,7 +36,6 @@
 #include "graph/backend/dnnl/common.hpp"
 #include "graph/backend/dnnl/internal_ops.hpp"
 #include "graph/backend/dnnl/layout_id_mgr.hpp"
-#include "graph/backend/dnnl/patterns/data_type_check_pass.hpp"
 #include "graph/backend/dnnl/utils.hpp"
 
 namespace dnnl {
@@ -175,7 +174,8 @@ public:
         // FIXME(xx): Here we only changes the passes in registry. If json file
         // existed, pm will run passes according to the json file, the env var
         // will not take effect.
-        // - priority > 20.f: large fusion pattern
+        // - priority == 50.f: data type check pass (fixed highest priority)
+        // - 50.f > priority > 20.f: large fusion pattern
         // - 20.f >= priority > 8.f: normal fusion pattern
         // - priority <= 8.f: debug fusion pattern (single op fusion)
         const float priority_ths = (policy == graph::partition_policy::fusion
