@@ -501,7 +501,7 @@ void vanilla_lstm_store(__global AUX_DATA_T *ws_gates, int gates_ws_ld,
             + g_i * g_z;
     float Ht = g_o * tanh_fwd_tm(Ct, tm_cscale);
 
-    h_states_t_l[cell_ws_state(states_ws_ld, n, c)] = TO_INPUT(Ht);
+    h_states_t_l[cell_ws_state(states_ws_ld, n, c)] = TO_WS_STATE(Ht);
     c_states_t_l[cell_ws_state(states_ws_ld, n, c)] = Ct;
 }
 
@@ -522,7 +522,7 @@ void store_vanilla_rnn(__global AUX_DATA_T *ws_gates, int gates_ws_ld,
     if (!RECOMPUTE_GATES && IS_TRAINING) {
         ws_gates[cell_ws_gates(gates_ws_ld, dhc, n, 0, c)] = g;
     }
-    h_states_t_l[cell_ws_state(states_ws_ld, n, c)] = TO_INPUT(g);
+    h_states_t_l[cell_ws_state(states_ws_ld, n, c)] = TO_WS_STATE(g);
 }
 
 #if CELL_KIND == LBR_GRU
@@ -702,7 +702,7 @@ ref_rnn_elemwise_fwd(__global ACC_DATA_T *scratch_gates_,
     float Ht = G0 * TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)])
             + (1 - G0) * G2;
 
-    h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_INPUT(Ht);
+    h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_WS_STATE(Ht);
 
     if (!RECOMPUTE_GATES && IS_TRAINING) {
         ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)] = G0;
@@ -730,7 +730,7 @@ ref_rnn_elemwise_fwd(__global ACC_DATA_T *scratch_gates_,
         scratch_gates[cell_scratch_mem(scratch_gates_ld, dhc, i, 1, j)]
                 = TO_INPUT(G1);
         float tmp = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
-        h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_INPUT(tmp * G1);
+        h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_WS_STATE(tmp * G1);
         if (!RECOMPUTE_GATES && IS_TRAINING) {
             ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 0, j)] = G0;
             ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)] = G1;
@@ -744,7 +744,7 @@ ref_rnn_elemwise_fwd(__global ACC_DATA_T *scratch_gates_,
                 tm_scales[2]);
         float tmp = TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)]);
         h_states_t_l[cell_ws_state(states_ws_ld, i, j)]
-                = TO_INPUT(tmp * G0 + (1.0f - G0) * G2);
+                = TO_WS_STATE(tmp * G0 + (1.0f - G0) * G2);
         if (!RECOMPUTE_GATES && IS_TRAINING) {
             ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 2, j)] = G2;
         }
