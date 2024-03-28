@@ -334,6 +334,7 @@ struct conf_t {
     data_type_t aux_data_type;
     data_type_t input_data_type;
     data_type_t output_data_type;
+    data_type_t src_data_type;
     data_type_t dst_data_type;
     data_type_t diff_data_type;
     data_type_t wei_layer_type;
@@ -441,7 +442,7 @@ struct user_data_t : public data_helper_t {
                    "perform merge_gemm_layer";
 
         gpu_assert(IMPLICATION(!conf.copy_src_layer && conf.n_iter > 1,
-                (offsets_.src_layer[0] * type_size(conf_.input_data_type)) % 8
+                (offsets_.src_layer[0] * type_size(conf_.src_data_type)) % 8
                         == 0))
                 << "[ERROR]: GEMM interface assumes inputs buffers are well "
                    "aligned";
@@ -485,7 +486,7 @@ struct user_data_t : public data_helper_t {
 
         // src_layer dimension order: iter, mini-batch, channel
         const auto iter_stride
-                = offsets_.src_layer[0] * type_size(conf_.input_data_type);
+                = offsets_.src_layer[0] * type_size(conf_.src_data_type);
         dim_t offset = iter * iter_stride;
         auto cell_size = iter_stride;
         auto n_cells = all_iter ? conf_.n_iter - iter : 1;

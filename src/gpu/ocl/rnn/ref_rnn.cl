@@ -883,19 +883,19 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 
         scratch_diff_gates[cell_scratch_mem(
                 scratch_diff_gates_ld, dhc, i, 0, j)]
-                = TO_INPUT(dG0);
+                = TO_SRC(dG0);
         diff_bias_acc[0] += dG0;
         scratch_diff_gates[cell_scratch_mem(
                 scratch_diff_gates_ld, dhc, i, 1, j)]
-                = TO_INPUT(dG1);
+                = TO_SRC(dG1);
         diff_bias_acc[1] += dG1;
         scratch_diff_gates[cell_scratch_mem(
                 scratch_diff_gates_ld, dhc, i, 2, j)]
-                = TO_INPUT(dG2);
+                = TO_SRC(dG2);
         diff_bias_acc[2] += dG2;
         scratch_diff_gates[cell_scratch_mem(
                 scratch_diff_gates_ld, dhc, i, 3, j)]
-                = TO_INPUT(dG3);
+                = TO_SRC(dG3);
         diff_bias_acc[3] += dG3;
 
 #elif CELL_KIND == LBR_GRU
@@ -933,24 +933,24 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 
         scratch_diff_gates[cell_scratch_mem(
                 scratch_diff_gates_ld, dhc, i, 0, j)]
-                = TO_INPUT(dG0);
+                = TO_SRC(dG0);
         diff_bias_acc[0] += dG0;
         scratch_diff_gates[cell_scratch_mem(
                 scratch_diff_gates_ld, dhc, i, 1, j)]
-                = TO_INPUT(dG1);
+                = TO_SRC(dG1);
         diff_bias_acc[1] += dG1;
         scratch_diff_gates[cell_scratch_mem(
                 scratch_diff_gates_ld, dhc, i, 2, j)]
-                = TO_INPUT(dG2);
+                = TO_SRC(dG2);
         diff_bias_acc[2] += dG2;
 
         scratch_gate_r[cell_scratch_mem(scratch_diff_gates_ld, dhc, i, 0, j)]
-                = TO_INPUT(dG0);
+                = TO_SRC(dG0);
         scratch_gate_r[cell_scratch_mem(scratch_diff_gates_ld, dhc, i, 1, j)]
-                = TO_INPUT(dG1);
+                = TO_SRC(dG1);
         float tmp = dG2 * ws_gates[cell_ws_gates(gates_ws_ld, dhc, i, 1, j)];
         scratch_gate_r[cell_scratch_mem(scratch_diff_gates_ld, dhc, i, 2, j)]
-                = TO_INPUT(tmp);
+                = TO_SRC(tmp);
         diff_bias_acc[3] += tmp;
 
 #elif CELL_KIND == VANILLA_RNN
@@ -971,13 +971,13 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         float tmp = = dH * activation_bwd(g, tm_scales[0], 0.);
         scratch_diff_gates[cell_scratch_mem(
                 scratch_diff_gates_ld, dhc, i, 0, j)]
-                = TO_INPUT(tmp);
+                = TO_SRC(tmp);
         diff_bias_acc[0] += tmp;
 #else
         float tmp = dH * activation_bwd(g, alpha, 0.);
         scratch_diff_gates[cell_scratch_mem(
                 scratch_diff_gates_ld, dhc, i, 0, j)]
-                = TO_INPUT(tmp);
+                = TO_SRC(tmp);
         diff_bias_acc[0] += tmp;
 #endif
 #elif CELL_KIND == VANILLA_GRU
@@ -1005,11 +1005,11 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 
             scratch_diff_gates[cell_scratch_mem(
                     scratch_diff_gates_ld, dhc, i, 0, j)]
-                    = TO_INPUT(dG0);
+                    = TO_SRC(dG0);
             diff_bias_acc[0] += dG0;
             scratch_diff_gates[cell_scratch_mem(
                     scratch_diff_gates_ld, dhc, i, 2, j)]
-                    = TO_INPUT(dG2);
+                    = TO_SRC(dG2);
             diff_bias_acc[2] += dG2;
         } else if (n_part == 2) {
             __global SRC_DATA_T *scratch_cell
@@ -1028,7 +1028,7 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
                     * h * x_m_square(dG1);
             scratch_diff_gates[cell_scratch_mem(
                     scratch_diff_gates_ld, dhc, i, 1, j)]
-                    = TO_INPUT(tmp);
+                    = TO_SRC(tmp);
             diff_bias_acc[1] += tmp;
             scratch_cell[off_scratch_cell(batch, states_ws_ld, i, j)]
                     = TO_SRC(dG1 * h);

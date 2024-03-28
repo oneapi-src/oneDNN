@@ -236,6 +236,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     rnn.use_workspace = rnn.is_training;
 
+    rnn.src_data_type = src_layer_d.data_type();
     switch (rnn.dt_conf) {
         case all_f32:
         case f32u8f32f32:
@@ -292,7 +293,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     dim_t aux_elsz
             = gpu_utils::into<dim_t>(types::data_type_size(rnn.aux_data_type));
-    rnn.ws_states_elsz = types::data_type_size(rd.src_layer_desc.data_type);
+    rnn.ws_states_elsz = types::data_type_size(rnn.src_data_type);
 
     rnn.scratch_gates_elsz = types::data_type_size(rnn.acc_data_type);
     rnn.scratch_diff_gates_elsz = is_bwd
