@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,7 +104,16 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
             const auto d_off = dst_d.off_l(n * C + c);
             float s = io::load_float_value(src_d.data_type(), src, s_off);
             float d = sm * (s - v_mean) + shift_val;
-            d *= src_scales[0] * dst_scales[0];
+            d *= src_scales[0];
+
+            // post-ops
+            ref_post_ops_t::args_t args;
+            args.ctx = &ctx;
+            args.l_offset = n * C + c;
+            args.dst_md = pd()->dst_md();
+            ref_post_ops->execute(d, args);
+
+            d *= dst_scales[0];
             io::store_float_value(dst_d.data_type(), d, dst, d_off);
         }
 
