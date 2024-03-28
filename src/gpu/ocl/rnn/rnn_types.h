@@ -33,7 +33,7 @@
 #if INPUT_DT_BF16
 #define TO_REF(x) cvt_bf16_to_f32(x)
 #else
-#define TO_REF(x) (float)(x)
+#define TO_REF(x) convert_float(x)
 #endif
 
 #if DT_F16 && !IS_FWD
