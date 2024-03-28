@@ -840,6 +840,8 @@
 #endif
 #if SRC_DT_BF16
 #define TO_SRC(x) cvt_f32_to_bf16(x)
+#elif SRC_DT_F16
+#define TO_SRC(x) convert_half(x)
 #elif SRC_DT_BF8
 #define TO_SRC(x) cvt_hf_to_f8_e5m2(convert_half(x))
 #elif SRC_DT_HF8
