@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Arm Ltd. and affiliates
+* Copyright 2021-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,6 +104,9 @@ status_t convert_to_acl_act(alg_kind_t eltwise_alg, float alpha, float beta,
             // Switching order of alpha and beta makes the two equivalent.
             act_info = ActivationLayerInfo(
                     act_func::LU_BOUNDED_RELU, beta, alpha);
+            break;
+        case eltwise_gelu_erf:
+            act_info = ActivationLayerInfo(act_func::GELU);
             break;
         default: act_info = ActivationLayerInfo(); return status::unimplemented;
     }
