@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #===============================================================================
+set(gpu_rt_pattern "(SYCL|DPCPP|OCL)")
 set(sycl_rt_pattern "(SYCL|DPCPP)")
 
 function(register_graph_api_test_suite test_suite_name exe_name)
     if(${test_suite_name} MATCHES "_usm")
-        if(DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
+        if(DNNL_GPU_RUNTIME MATCHES ${gpu_rt_pattern})
             add_test(${test_suite_name}_gpu ${exe_name} --engine=gpu)
             maybe_configure_windows_test(${test_suite_name}_gpu TEST)
         endif()

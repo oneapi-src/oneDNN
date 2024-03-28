@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     set_test_engine_kind(to_engine_kind(engine_str));
     const graph::engine_kind_t engine_kind = get_test_engine_kind();
 
-#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_SYCL
+#if !defined(DNNL_GPU_RUNTIME) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_NONE
     if (engine_kind == graph::engine_kind::gpu) {
         std::cout << "GPU runtime is not enabled" << std::endl;
         return 0;
