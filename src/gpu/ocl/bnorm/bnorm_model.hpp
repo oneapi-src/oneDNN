@@ -93,7 +93,7 @@ void init_ker_desc(model_params_t &p, nhwc_bnorm_params_t &conf,
         const hw_params_t &hw_params, kernel_desc_t &desc,
         const kernel_kind_t kernel);
 void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
-        const hw_params_t &hw_params);
+        const hw_params_t &hw_params, bool reusable = false);
 void dump_params(std::vector<model_params_t> &params);
 
 int get_nhwc_vect_size(int ic, int max_vect_size, int simd = 16);
@@ -107,6 +107,10 @@ status_t make_kernel_perf_estimation(model_params_t &p,
         nhwc_bnorm_params_t &conf, kernel_desc_t &desc, hw_params_t &hw_params);
 status_t make_perf_estimations(
         model_params_t &p, nhwc_bnorm_params_t &conf, hw_params_t &hw_params);
+
+status_t get_params_by_model(nhwc_bnorm_params_t &conf,
+        const batch_normalization_pd_t *pd, hw_params_t &hw_params,
+        bool reusable_version);
 
 } // namespace bn_model
 } // namespace ocl

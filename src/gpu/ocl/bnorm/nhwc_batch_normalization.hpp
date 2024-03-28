@@ -39,12 +39,14 @@ enum kernel_kind_t {
     reduce_aux_finalize_ker,
     default_bwd_ker,
     calc_stats_ker,
-    reduce_stats_bwd_ker
+    reduce_stats_bwd_ker,
+    reusable_reduce_stats_fwd_ker
 };
 
 struct nhwc_bnorm_params_t : public bn_lookup_table::params_t {
     bool use_workaround = false;
     float expected_time_ms;
+    compute::range_t calc_adj_lws;
 };
 
 status_t nhwc_bnorm_kernel_dispatching(kernel_kind_t kernel,

@@ -46,8 +46,7 @@ nhwc_reusable_reduce_fwd_reg(__global float *reduce_scratchpad,
     const int c = group_c * SG_SIZE + simd_id;
     float sum = 0.0f;
 
-    const int reduce_chunk
-            = reduce_stat_nblocks / reduce_ic_sub_groups; // ???? assert ???
+    const int reduce_chunk = reduce_stat_nblocks / reduce_ic_sub_groups;
     const int reduce_scratchpad_off
             = scratchpad_off + c + ic_sub_group * reduce_chunk * ic_size;
     reduce_scratchpad += reduce_scratchpad_off;
@@ -83,8 +82,7 @@ nhwc_reusable_reduce_fwd_1pass(__global float *reduce_temp,
     sum_sq.s1 = 0;
 
     const int offs_sq = reduce_stat_nblocks * ic_size;
-    const int reduce_chunk
-            = reduce_stat_nblocks / reduce_ic_sub_groups; // ???? assert ???
+    const int reduce_chunk = reduce_stat_nblocks / reduce_ic_sub_groups;
     const int offs = c + ic_sub_group * reduce_chunk * ic_size;
 
     unroll_16_for(int i = 0; i < reduce_chunk; i++) {

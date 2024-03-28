@@ -93,13 +93,12 @@ nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
         int use_fused_atomics_reduction, __local float *local_sum) {
     const int c = get_global_id(0);
     const int sp_block_idx = get_global_id(1);
-    const int simd_id = get_sub_group_local_id(); // ??? for atomics only ???
 
     const int ic_block_offset = (c / SG_SIZE) * ic_block;
     const int src_off
             = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
-    // exp reduce_temp layout: reduce_stat_nblocks rows x ic columns
+    // reduce_temp layout: reduce_stat_nblocks rows x ic columns
     const int reduce_off = ic_block_offset + sp_block_idx * ic_size;
 
     src += src_off;
@@ -160,17 +159,13 @@ nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
 
 __attribute__((intel_reqd_sub_group_size(16))) __kernel void
 nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
-        __global float *reduce_temp,
-        volatile __global atomic_float *variance, // ????? atomic ???????
+        __global float *reduce_temp, volatile __global atomic_float *variance,
         off_t ic_size, off_t ic_block, off_t sp_size, off_t stat_sp_block,
         off_t reduce_stat_nblocks, int use_fused_atomics_reduction,
         __local float *local_sum) {
 
-    KERNEL_PRINT_HEAD;
-
     const int c = get_global_id(0);
     const int sp_block_idx = get_global_id(1);
-    const int simd_id = get_sub_group_local_id(); // ??? for atomics only ???
 
     const int ic_block_offset = (c / SG_SIZE) * ic_block;
     const int src_off
