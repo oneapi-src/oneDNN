@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ void generate(jit_generator &code, Xbyak_aarch64::XReg reg_ctx,
     code.ldr(x_sense, ptr(x_addr_sense));
 
     code.add_imm(x_addr_ctx, reg_ctx, BAR_CTR_OFF, x_tmp_addr);
-    if (mayiuse(sve_512)) {
+    if (mayiuse(sve_512) || mayiuse(sve_256)) {
         code.prfm(PLDL1KEEP, ptr(x_addr_ctx));
         code.prfm(PLDL1KEEP, ptr(x_addr_ctx));
     }

@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2022 Intel Corporation
-* Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,12 +40,12 @@ struct vmm_size_t<sve_512> {
     static constexpr std::size_t bytes = 64u;
 };
 
-/*
 template <>
 struct vmm_size_t<sve_256> {
     static constexpr std::size_t bytes = 32u;
 };
 
+/*
 template <>
 struct vmm_size_t<sve_128> {
     static constexpr std::size_t bytes = 16u;

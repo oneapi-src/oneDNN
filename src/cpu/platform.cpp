@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
-* Copyright 2020 FUJITSU LIMITED
+* Copyright 2024 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -265,6 +265,7 @@ int get_vector_register_size() {
     using namespace aarch64;
     if (mayiuse(asimd)) return cpu_isa_traits<asimd>::vlen;
     if (mayiuse(sve_512)) return cpu_isa_traits<sve_512>::vlen;
+    if (mayiuse(sve_256)) return cpu_isa_traits<sve_256>::vlen;
 #endif
     return 0;
 }

@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@
 #include "cpu/aarch64/cpu_reducer.hpp"
 #include "cpu/cpu_convolution_pd.hpp"
 
-#include "cpu/aarch64/jit_sve_512_conv_kernel.hpp"
+#include "cpu/aarch64/jit_sve_conv_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,18 +36,18 @@ namespace cpu {
 namespace aarch64 {
 
 template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type>
-struct jit_sve_512_convolution_fwd_t : public primitive_t {
+        impl::data_type_t dst_type = src_type, cpu_isa_t isa = isa_undef>
+struct jit_sve_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", sve_512, ""),
-                jit_sve_512_convolution_fwd_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", isa, ""),
+                jit_sve_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd()
+            bool ok = true && mayiuse(isa) && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, wei_type, dst_type, dst_type,
                             data_type::undef)
@@ -56,13 +56,13 @@ struct jit_sve_512_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_sve_512_conv_fwd_kernel::init_conf(jcp_,
+            status_t status = jit_sve_conv_fwd_kernel<isa>::init_conf(jcp_,
                     *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
                     dnnl_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_sve_512_conv_fwd_kernel::init_scratchpad(scratchpad, jcp_);
+            jit_sve_conv_fwd_kernel<isa>::init_scratchpad(scratchpad, jcp_);
 
             return status;
         }
@@ -70,7 +70,7 @@ struct jit_sve_512_convolution_fwd_t : public primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_sve_512_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    jit_sve_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -78,7 +78,7 @@ struct jit_sve_512_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
-                new jit_sve_512_conv_fwd_kernel(pd()->jcp_, *pd()->attr())));
+                new jit_sve_conv_fwd_kernel<isa>(pd()->jcp_, *pd()->attr())));
         return kernel_->create_kernel();
     }
 
@@ -105,20 +105,21 @@ private:
     void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<jit_sve_512_conv_fwd_kernel> kernel_;
+    std::unique_ptr<jit_sve_conv_fwd_kernel<isa>> kernel_;
 };
 
 template <impl::data_type_t diff_dst_type,
         impl::data_type_t wei_type = diff_dst_type,
-        impl::data_type_t diff_src_type = diff_dst_type>
-struct jit_sve_512_convolution_bwd_data_t : public primitive_t {
+        impl::data_type_t diff_src_type = diff_dst_type,
+        cpu_isa_t isa = isa_undef>
+struct jit_sve_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", sve_512, ""),
-                jit_sve_512_convolution_bwd_data_t);
+                jit_sve_convolution_bwd_data_t);
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
@@ -128,13 +129,13 @@ struct jit_sve_512_convolution_bwd_data_t : public primitive_t {
                     && attr()->has_default_values() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_sve_512_conv_bwd_data_kernel_f32::init_conf(
+            status_t status = jit_sve_conv_bwd_data_kernel_f32<isa>::init_conf(
                     jcp_, *desc(), diff_src_md_, weights_md_, diff_dst_md_,
                     dnnl_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_sve_512_conv_bwd_data_kernel_f32::init_scratchpad(
+            jit_sve_conv_bwd_data_kernel_f32<isa>::init_scratchpad(
                     scratchpad, jcp_);
 
             return status::success;
@@ -143,15 +144,15 @@ struct jit_sve_512_convolution_bwd_data_t : public primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_sve_512_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    jit_sve_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
 
     status_t init(engine_t *engine) override {
-        CHECK(safe_ptr_assign(
-                kernel_, new jit_sve_512_conv_bwd_data_kernel_f32(pd()->jcp_)));
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_sve_conv_bwd_data_kernel_f32<isa>(pd()->jcp_)));
         return kernel_->create_kernel();
     }
 
@@ -173,13 +174,14 @@ private:
     void execute_backward_data_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<jit_sve_512_conv_bwd_data_kernel_f32> kernel_;
+    std::unique_ptr<jit_sve_conv_bwd_data_kernel_f32<isa>> kernel_;
 };
 
 template <impl::data_type_t src_type,
         impl::data_type_t diff_dst_type = src_type,
-        impl::data_type_t diff_weights_type = src_type>
-struct jit_sve_512_convolution_bwd_weights_t : public primitive_t {
+        impl::data_type_t diff_weights_type = src_type,
+        cpu_isa_t isa = isa_undef>
+struct jit_sve_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
@@ -187,7 +189,7 @@ struct jit_sve_512_convolution_bwd_weights_t : public primitive_t {
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", sve_512, ""),
-                jit_sve_512_convolution_bwd_weights_t);
+                jit_sve_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
@@ -198,7 +200,7 @@ struct jit_sve_512_convolution_bwd_weights_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             status_t status
-                    = jit_sve_512_conv_bwd_weights_kernel_f32::init_conf(jcp_,
+                    = jit_sve_conv_bwd_weights_kernel_f32<isa>::init_conf(jcp_,
                             *desc(), src_md_, diff_weights_md_, diff_bias_md_,
                             diff_dst_md_, dnnl_get_max_threads());
             if (status != status::success) return status;
@@ -206,7 +208,7 @@ struct jit_sve_512_convolution_bwd_weights_t : public primitive_t {
             init_balancers();
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_sve_512_conv_bwd_weights_kernel_f32::init_scratchpad(
+            jit_sve_conv_bwd_weights_kernel_f32<isa>::init_scratchpad(
                     scratchpad, jcp_);
 
             auto reducer_bia_scratchpad = memory_tracking::registrar_t(
@@ -230,7 +232,7 @@ struct jit_sve_512_convolution_bwd_weights_t : public primitive_t {
         }
     };
 
-    jit_sve_512_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+    jit_sve_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
@@ -259,7 +261,7 @@ private:
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
 
-    jit_sve_512_conv_bwd_weights_kernel_f32 *kernel_;
+    jit_sve_conv_bwd_weights_kernel_f32<isa> *kernel_;
     cpu_accumulator_1d_t<diff_weights_type> *acc_ker_;
     cpu_reducer_t<diff_weights_type> *reducer_bias_;
 };
