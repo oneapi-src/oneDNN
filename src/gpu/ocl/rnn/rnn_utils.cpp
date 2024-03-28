@@ -59,7 +59,8 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d, data_type_t acc_data_t,
+        const memory_desc_wrapper &dst_layer_d,
+        const memory_desc_wrapper &bias_d, data_type_t acc_data_t,
         const device_info_t &device_info) {
 
     bool is_xe_hpc = device_info.gpu_arch() == gpu_arch_t::xe_hpc;
@@ -237,6 +238,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.use_workspace = rnn.is_training;
 
     rnn.src_data_type = src_layer_d.data_type();
+    rnn.bias_data_type = bias_d.data_type();
     switch (rnn.dt_conf) {
         case all_f32:
         case f32u8f32f32:

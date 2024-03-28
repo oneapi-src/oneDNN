@@ -87,7 +87,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
 
     ocl_conf.src_dt = rnn.src_data_type;
     ocl_conf.wei_dt = weights_layer_d.data_type();
-    ocl_conf.bia_dt = bias_d.data_type();
+    ocl_conf.bia_dt = rnn.bias_data_type;
     ocl_conf.acc_dt = rnn.acc_data_type;
     ocl_conf.aux_dt = rnn.aux_data_type;
     ocl_conf.diff_dt = rnn.diff_data_type;
@@ -654,7 +654,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
     init_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->src_md(1),
             this->weights_md(0), this->weights_md(1), this->dst_md(0),
-            acc_data_t, device_info);
+            this->desc()->bias_desc, acc_data_t, device_info);
 
     if (rnn_conf.is_int8) {
         auto has_trivial_strides = [](const memory_desc_wrapper &md) {

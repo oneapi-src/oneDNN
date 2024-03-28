@@ -339,6 +339,7 @@ struct conf_t {
     data_type_t diff_data_type;
     data_type_t wei_layer_type;
     data_type_t wei_iter_type;
+    data_type_t bias_data_type;
 };
 bool is_ldigo(const memory_desc_wrapper &md);
 bool is_ldgoi(const memory_desc_wrapper &md);
@@ -350,7 +351,8 @@ void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d, data_type_t acc_data_type,
+        const memory_desc_wrapper &dst_layer_d,
+        const memory_desc_wrapper &bias_d, data_type_t acc_data_type,
         const compute::device_info_t &device_info);
 void init_test_mode(conf_t &rnn, const primitive_attr_t &attr);
 void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
@@ -561,7 +563,7 @@ struct user_data_t : public data_helper_t {
         if (bias().data_handle() == nullptr) return {};
 
         // bia dimension order: lay, dir, gates, dhc
-        auto t_size = type_size(conf_.aux_data_type);
+        auto t_size = type_size(conf_.bias_data_type);
         auto layer_stride = offsets_.bias[0] * t_size;
         auto dir_stride = offsets_.bias[1] * t_size;
         auto cell_size = dir_stride;
