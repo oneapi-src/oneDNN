@@ -98,14 +98,16 @@ struct cudnn_convolution_fwd_t : public primitive_t {
 
             if (check_for_zero_dims()) return status::success;
 
+            const bool use_scales_dst = !attr()->scales_.has_default_values()
+                    && dst_md_.data_type == s8;
             const bool use_temp_dst = attr()->post_ops_.len() > 0;
-            if (use_temp_dst) {
+            if (use_temp_dst || use_scales_dst) {
                 dst_md_temp_ = dst_md_;
                 if (dst_md_.data_type == s8) { dst_md_temp_.data_type = f32; }
             }
 
             impl_.reset(new cudnn_convolution_impl_fwd_t());
-            return impl_->init(engine, this, use_temp_dst);
+            return impl_->init(engine, this, use_temp_dst, use_scales_dst);
         }
         bool with_scratchpad() const { return impl_->with_scratchpad(); }
         std::shared_ptr<cudnn_convolution_impl_base_t> impl_;
@@ -113,6 +115,11 @@ struct cudnn_convolution_fwd_t : public primitive_t {
 
         bool use_temp_dst() const {
             if (impl_.get()) return impl_->use_temp_dst();
+            return false;
+        }
+
+        bool use_scales_dst() const {
+            if (impl_.get()) return impl_->use_scales_dst();
             return false;
         }
 
@@ -161,23 +168,31 @@ struct cudnn_convolution_fwd_t : public primitive_t {
     };
 
     status_t init_temp_dst(engine_t *engine) {
+        const auto impl = pd()->impl_.get();
         auto sycl_engine = utils::downcast<sycl_cuda_engine_t *>(engine);
         memory_storage_t *scratch_ptr = nullptr;
         auto wrap = memory_desc_wrapper(pd()->dst_md_temp_);
-        CHECK(sycl_engine->create_memory_storage(
-                &scratch_ptr, memory_flags_t::alloc, wrap.size(), nullptr));
-        scratch_storage.reset(scratch_ptr);
+        if (impl && impl->use_temp_dst()) {
+            CHECK(sycl_engine->create_memory_storage(
+                    &scratch_ptr, memory_flags_t::alloc, wrap.size(), nullptr));
+            scratch_storage.reset(scratch_ptr);
 
-        CHECK(sycl_engine->create_memory_storage(
-                &scratch_ptr, memory_flags_t::alloc, wrap.size(), nullptr));
-        scratch_storage_2.reset(scratch_ptr);
+            CHECK(sycl_engine->create_memory_storage(
+                    &scratch_ptr, memory_flags_t::alloc, wrap.size(), nullptr));
+            scratch_storage_2.reset(scratch_ptr);
+        }
+        if (impl && impl->use_scales_dst()) {
+            CHECK(sycl_engine->create_memory_storage(
+                    &scratch_ptr, memory_flags_t::alloc, wrap.size(), nullptr));
+            scratch_storage_3.reset(scratch_ptr);
+        }
 
         return status::success;
     }
 
     virtual status_t init(engine_t *engine) override {
-        const auto impl = pd()->impl_.get();
-        if (impl && impl->use_temp_dst()) { init_temp_dst(engine); }
+        init_temp_dst(engine);
+
         return status::success;
     }
 
@@ -200,6 +215,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<memory_storage_t> scratch_storage;
     std::shared_ptr<memory_storage_t> scratch_storage_2;
+    std::shared_ptr<memory_storage_t> scratch_storage_3;
 };
 
 struct cudnn_convolution_bwd_data_t : public primitive_t {
