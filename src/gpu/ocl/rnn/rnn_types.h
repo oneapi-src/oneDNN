@@ -36,10 +36,6 @@
 #define TO_REF(x) convert_float(x)
 #endif
 
-#if DT_F16 && !IS_FWD
-#error "FP16 is not supported for BWD"
-#endif
-
 #if AUX_DT_F16
 #define TO_AUX(x) convert_half(x)
 #elif AUX_DT_F32

@@ -649,7 +649,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                                   && weights_layer_dt == src_layer_dt)
                           || (aprop == prop_kind::backward
                                   && one_of(weights_layer_dt, data_type::f32,
-                                          data_type::bf16)
+                                          data_type::f16, data_type::bf16)
                                   && weights_layer_dt == src_layer_dt)),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_RNN(weights_iter_dt == weights_layer_dt, VERBOSE_UNSUPPORTED_DT);
