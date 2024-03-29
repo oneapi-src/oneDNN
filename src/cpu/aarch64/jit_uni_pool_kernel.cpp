@@ -158,8 +158,9 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                             && !(jpp.alg == pooling_max
                                     && block_size > L3_cache_size_per_core)));
 
-    ncsp_fmt_tag = ((forward_ncsp_allowed || backward_ncsp_allowed)
-                           && utils::one_of(isa, sve_512, sve_256) && ndims <= 5)
+    ncsp_fmt_tag
+            = ((forward_ncsp_allowed || backward_ncsp_allowed)
+                      && utils::one_of(isa, sve_512, sve_256) && ndims <= 5)
             ? utils::pick(ndims - 3, ncw, nchw, ncdhw)
             : format_tag::undef;
 
