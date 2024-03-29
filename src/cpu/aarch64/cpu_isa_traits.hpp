@@ -126,7 +126,7 @@ static inline bool is_superset(cpu_isa_t isa_1, cpu_isa_t isa_2) {
 }
 
 template <cpu_isa_t>
-struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
+struct cpu_isa_traits {}; /* ::vlen -> 32 (for sve2) */
 
 template <>
 struct cpu_isa_traits<isa_all> {

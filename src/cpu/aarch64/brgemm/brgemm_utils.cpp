@@ -126,7 +126,7 @@ int calculate_ldb_params(brgemm_t *brg, const int try_ld_block2) {
     if (brg->ldb2 == 0) brg->ld_block2 = nstl::max(1, brg->ldb2_tail);
     brg->embd_bcst = brg->is_f32
             && (brg->ldb2_tail <= 1 && brg->ldb2 == 0)
-            /*only avx512 or more can bcast*/
+            /*only sve512 or more can bcast*/
             && is_superset(brg->isa_impl, sve_512);
 
     const int adj_ld_block2

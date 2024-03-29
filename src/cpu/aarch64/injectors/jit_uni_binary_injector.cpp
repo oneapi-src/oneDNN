@@ -1397,7 +1397,7 @@ void jit_uni_binary_injector_t<isa>::inject_binary(
         Xbyak_aarch64::PReg mask = host_->P_ALL_ONE;
         if (with_tail_fusable_to_binary_op) {
             assert(rhs_arg_static_params_.is_opmask_set()
-                    && "Opmask is not set for tail loading avx512");
+                    && "Opmask is not set for tail loading sve512");
             const auto &tail_opmask = rhs_arg_static_params_.tail_opmask;
             mask = tail_opmask;
             host_->mov(dst.s, mask / Xbyak_aarch64::T_z, dst.s);

@@ -235,7 +235,7 @@ void jit_brdgmm_kernel_base_t::apply_post_ops(
     const int v_substep = vnni_substep();
 
     // collect vmm_idx's to apply post ops.
-    // incase of avx2_vnni_2 tails, it is possible we do not need apply post-ops
+    // incase of sve2_vnni_2 tails, it is possible we do not need apply post-ops
     // to last vnni_substep
     for_(int v_i = 0; v_i < v_substep; ++v_i)
     for_(int m_i = 0; m_i < m_blocks; ++m_i)
@@ -547,7 +547,7 @@ void jit_brdgmm_kernel_base_t::load_a(
 void jit_brdgmm_kernel_base_t::load_b(
         ZReg vmmb, int n_i, int v_i, bool has_n_tail) {
     // for B matrix we assume memory is padded and it is safe to load simd
-    // elements. is_tail only used during avx_ne_convert tail optimization.
+    // elements. is_tail only used during sve_ne_convert tail optimization.
     const int n_blocks
             = has_n_tail && n_block2_tail() > 0 ? n_block2_tail() : n_block2();
     const bool is_tail_block = has_n_tail && (n_i + 1 == n_blocks);

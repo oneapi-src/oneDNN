@@ -341,7 +341,7 @@ brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
             : brgemm_broadcast_t::per_tensor;
 }
 
-struct matmul_avx512_blocking_params_t {
+struct matmul_sve512_blocking_params_t {
     struct matmul_params_t {
 
         matmul_params_t(int m, int n, int k, int od)
@@ -353,7 +353,7 @@ struct matmul_avx512_blocking_params_t {
         const int batch;
     };
 
-    matmul_avx512_blocking_params_t(const matmul_params_t &m, const int nthr)
+    matmul_sve512_blocking_params_t(const matmul_params_t &m, const int nthr)
         : mp(m)
         , m_chunks(1)
         , m_blk(1)
@@ -367,8 +367,8 @@ struct matmul_avx512_blocking_params_t {
         , nthr_k(1)
         , nthr(nthr) {}
 
-    matmul_avx512_blocking_params_t &operator=(
-            const matmul_avx512_blocking_params_t &brgemm_params) {
+    matmul_sve512_blocking_params_t &operator=(
+            const matmul_sve512_blocking_params_t &brgemm_params) {
         m_chunks = brgemm_params.m_chunks;
         m_blk = brgemm_params.m_blk;
         m_tail = brgemm_params.m_tail;
@@ -490,10 +490,10 @@ struct matmul_avx512_blocking_params_t {
     }
 };
 
-float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
+float compute_blocking_heuristic_sve512(brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils,
-        const matmul_avx512_blocking_params_t::matmul_params_t &matmul,
-        matmul_avx512_blocking_params_t &best_blocking) {
+        const matmul_sve512_blocking_params_t::matmul_params_t &matmul,
+        matmul_sve512_blocking_params_t &best_blocking) {
 
     const int nthr = bgmmc.nthr;
 
@@ -559,7 +559,7 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
     for_(int n_chunk_size = n_chunks_start; n_chunk_size >= 1; --n_chunk_size)
     for (int m_blk = max_m_blk; m_blk >= min_m_blk; --m_blk) {
 
-        matmul_avx512_blocking_params_t cur_params(matmul, nthr);
+        matmul_sve512_blocking_params_t cur_params(matmul, nthr);
         cur_params.update_params(
                 1, m_blk, n_chunk_size, n_blk, 1, k_blk, nthr_k);
 
@@ -572,10 +572,10 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
     return best_imbalance;
 }
 
-float compute_blocking_heuristic_avx2(brgemm_matmul_conf_t &bgmmc,
+float compute_blocking_heuristic_sve2(brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils,
-        const matmul_avx512_blocking_params_t::matmul_params_t &matmul,
-        matmul_avx512_blocking_params_t &best_blocking) {
+        const matmul_sve512_blocking_params_t::matmul_params_t &matmul,
+        matmul_sve512_blocking_params_t &best_blocking) {
 
     const int nthr = bgmmc.nthr;
 
@@ -616,7 +616,7 @@ float compute_blocking_heuristic_avx2(brgemm_matmul_conf_t &bgmmc,
     for_(int n_chunk_size = n_chunks_start; n_chunk_size >= 1; --n_chunk_size)
     for (int m_blk = max_m_blk; m_blk >= min_m_blk; --m_blk) {
 
-        matmul_avx512_blocking_params_t cur_params(matmul, nthr);
+        matmul_sve512_blocking_params_t cur_params(matmul, nthr);
         cur_params.update_params(
                 1, m_blk, n_chunk_size, n_blk, 1, k_blk, nthr_k);
 
@@ -674,12 +674,12 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         // Batch_Size:
         // - unused.
 
-        const matmul_avx512_blocking_params_t::matmul_params_t matmul(
+        const matmul_sve512_blocking_params_t::matmul_params_t matmul(
                 bgmmc.M, bgmmc.N, bgmmc.K, bgmmc.batch);
 
-        matmul_avx512_blocking_params_t best_blocking(matmul, bgmmc.nthr);
+        matmul_sve512_blocking_params_t best_blocking(matmul, bgmmc.nthr);
 
-        const float best_imbalance = compute_blocking_heuristic_avx512(
+        const float best_imbalance = compute_blocking_heuristic_sve512(
                 bgmmc, bm_conf_utils, matmul, best_blocking);
 
         if (best_imbalance == 1.f) return status::unimplemented;
@@ -688,12 +688,12 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
     } else {
         assert(one_of(bm_conf_utils.get_isa(), sve_256));
 
-        const matmul_avx512_blocking_params_t::matmul_params_t matmul(
+        const matmul_sve512_blocking_params_t::matmul_params_t matmul(
                 bgmmc.M, bgmmc.N, bgmmc.K, bgmmc.batch);
 
-        matmul_avx512_blocking_params_t best_blocking(matmul, bgmmc.nthr);
+        matmul_sve512_blocking_params_t best_blocking(matmul, bgmmc.nthr);
 
-        const float best_imbalance = compute_blocking_heuristic_avx2(
+        const float best_imbalance = compute_blocking_heuristic_sve2(
                 bgmmc, bm_conf_utils, matmul, best_blocking);
 
         if (best_imbalance == 1.f) return status::unimplemented;
@@ -907,7 +907,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     }
 
     // BF32 'Hint' Heuristic:
-    // Under the following conditions, F32 through AVX512_CORE performs better
+    // Under the following conditions, F32 through SVE512_CORE performs better
     // than using BF32 arithmetic.
     VCONDCHECK_BG(!(bgmmc.is_bf32 && (bgmmc.M < 8)
                           && ((bgmmc.wei_tag == abcd)

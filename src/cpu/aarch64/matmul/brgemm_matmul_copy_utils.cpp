@@ -106,7 +106,7 @@ private:
     ZReg vmm_comp_mul = ZReg(is_ymm_ ? 14 : 30); // 1s
     ZReg vmm_comp_add = ZReg(is_ymm_ ? 15 : 31); // 128
 
-    // Allows to shift A data by 128 for s8s8 problem for AVX512 in copy
+    // Allows to shift A data by 128 for s8s8 problem for SVE512 in copy
     // routine, not in compute kernel. It's disabled for now, as it
     // requires setting some hint to brgemm kernel to avoid double shifting
     const bool allow_input_shift_for_s8s8 = false;
@@ -615,7 +615,7 @@ private:
     reg32_t regw_tmp = w15;
     reg64_t imm_addr64 = abi_not_param1;
 
-    // Note: for the AVX2 implementation, reserve Ymm(8) and Ymm(9) as
+    // Note: for the SVE2 implementation, reserve Ymm(8) and Ymm(9) as
     // temporary compute registers.
     ZReg vmm_comp_mul = Xbyak_aarch64::ZReg(max_vmm_regs_ - 1);
     ZReg vmm_comp_acc = Xbyak_aarch64::ZReg(max_vmm_regs_ - 2);
@@ -705,9 +705,9 @@ status_t create_brgemm_matmul_copy_b(
     const bool is_bf16
             = everyone_is(data_type::bf16, conf->src_dt, conf->wei_dt);
     const bool is_f32 = everyone_is(data_type::f32, conf->src_dt, conf->wei_dt);
-    // Note: f16 support through avx512_core_fp16 sets src_dt and wei_dt as f32
+    // Note: f16 support through sve512_core_fp16 sets src_dt and wei_dt as f32
     // to imply upconverting. So, the assumption is `is_f1`6 below evaluates to
-    // `false` on avx512_core_fp16.
+    // `false` on sve512_core_fp16.
     const bool is_f16 = everyone_is(data_type::f16, conf->src_dt, conf->wei_dt);
     assert(is_f32);
     assert(!(is_bf16 || is_f16));
