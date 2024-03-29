@@ -681,12 +681,10 @@ size_t jit_brgemm_amx_uker_base_t::A_offset(
     const auto bs_offs = (brg.type == brgemm_static_offs)
             ? brg.brgattr.static_offsets[bi.bsi->idx].offset.A
             : 0;
-    auto rd_block = bi.rdi->block(0);
-    if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
     const auto bdb_offs
             = ununroll_bd_loop ? bi.bdi->rel_pos(bdb) : bi.bdi->pos(bdb);
     return bdb_offs * LDA2_size_ + bs_offs
-            + bi.rdi->pos(0) * rd_block * brg.typesize_A;
+            + bi.rdi->pos(0) * brg.rd_block * brg.typesize_A;
 }
 
 size_t jit_brgemm_amx_uker_base_t::B_offset(
@@ -695,9 +693,7 @@ size_t jit_brgemm_amx_uker_base_t::B_offset(
             ? brg.brgattr.static_offsets[bi.bsi->idx].offset.B
             : 0;
 
-    auto rd_block = bi.rdi->block(0);
-    if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
-    const auto rdb_B_offset = bi.rdi->pos(0) * rd_block * LDB_size_;
+    const auto rdb_B_offset = bi.rdi->pos(0) * brg.rd_block * LDB_size_;
 
     const auto ldb_B_offset = bi.ldi->pos(0) * ld_block_B_size_ * brg.ld_step;
 
