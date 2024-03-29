@@ -597,12 +597,13 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
     bool src_is_u8 = src_layer_dt == data_type::u8;
     bool src_is_f16 = src_layer_dt == data_type::f16;
-    if (src_is_u8 && !src_is_f16)
+    if (src_is_u8)
         acc_data_t = data_type::s32;
-    else if (!src_is_u8 && src_is_f16)
+    else if (src_is_f16 && aprop == prop_kind::forward_inference)
         acc_data_t = data_type::f16;
-    else if (!src_is_u8 && !src_is_f16)
+    else
         acc_data_t = data_type::f32;
+
     src_type = src_layer_dt;
     weights_type = weights_layer_dt;
 
