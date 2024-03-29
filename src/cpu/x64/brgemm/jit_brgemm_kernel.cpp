@@ -199,9 +199,9 @@ private:
     const reg64_t reg_zp_a_val = reg_rdb_loop;
 
     const reg64_t reg_buf = reg_rdb_loop;
-    const reg64_t reg_compensation = reg_bias;
-    const reg64_t reg_aux_compensation = reg_aux_bias;
     const reg64_t reg_buf_aux = abi_param1;
+    const reg64_t reg_compensation = reg_rdb_loop;
+    const reg64_t reg_aux_compensation = reg_rdb_loop;
 
     const reg64_t reg_D = reg_aux_A;
     const reg64_t reg_aux_D = reg_BS_loop;
