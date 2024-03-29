@@ -237,14 +237,14 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
                 : TO_WS_STATE(0.0f);
     }
 #if WITH_SRC_ITER_C
-    __global AUX_DATA_T *src_c = (__global AUX_DATA_T *)(src_c_base);
+    __global SRC_C_DATA_T *src_c = (__global SRC_C_DATA_T *)(src_c_base);
     __global AUX_DATA_T *dst_c = dst_c_base;
     if (s < dhc) {
         int ws_c_state_offset = off_ws_c_state(n_layer, n_dir, n_iter, batch,
                 states_ws_ld, lay, dir, -1, b, s);
         dst_c[ws_c_state_offset] = src_c_base
-                ? src_c[src_i_c_off(src_iter_c_strides, lay, dir, b, s)]
-                : TO_WS_STATE(0.0f);
+                ? TO_AUX(src_c[src_i_c_off(src_iter_c_strides, lay, dir, b, s)])
+                : TO_AUX(0.0f);
     }
 #endif
 
@@ -400,7 +400,7 @@ __kernel void ref_rnn_copy_res_iter(
     }
 #if WITH_DST_ITER_C
     __global AUX_DATA_T *src_c = src_c_base;
-    __global AUX_DATA_T *dst_c = (__global AUX_DATA_T *)(dst_c_base);
+    __global DST_C_DATA_T *dst_c = (__global DST_C_DATA_T *)(dst_c_base);
     if (dst_c_base && s < dhc) {
         dst_c[dst_i_c_off(c_strides, lay, dir, b, s)]
                 = src_c[off_ws_c_state(n_layer, n_dir, n_iter, batch,

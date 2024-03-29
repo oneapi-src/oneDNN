@@ -192,9 +192,11 @@ struct ocl_conf_t {
     int direction_kind = 0;
 
     data_type_t src_dt = data_type::undef;
+    data_type_t src_c_dt = data_type::undef;
     data_type_t wei_dt = data_type::undef;
     data_type_t bia_dt = data_type::undef;
     data_type_t dst_dt = data_type::undef;
+    data_type_t dst_c_dt = data_type::undef;
     data_type_t acc_dt = data_type::undef;
     data_type_t aux_dt = data_type::undef;
     data_type_t input_dt = data_type::undef;
@@ -352,6 +354,7 @@ void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &dst_layer_d,
+        const memory_desc_wrapper &dst_iter_d,
         const memory_desc_wrapper &bias_d, data_type_t acc_data_type,
         const compute::device_info_t &device_info);
 void init_test_mode(conf_t &rnn, const primitive_attr_t &attr);
