@@ -112,6 +112,21 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.copy_diff_dst_layer = rnn.copy_diff_dst_layer;
     ocl_conf.copy_diff_src_layer = rnn.copy_diff_src_layer;
 
+    if (!rnn.is_fwd) {
+        if (!utils::everyone_is(ocl_conf.diff_dt, diff_src_layer_d.data_type(),
+                    diff_dst_layer_d.data_type()))
+            return status::unimplemented;
+        if (!utils::one_of(diff_src_iter_d.data_type(), ocl_conf.diff_dt,
+                    data_type::undef)
+                || !utils::one_of(diff_src_iter_c_d.data_type(),
+                        ocl_conf.diff_dt, data_type::undef)
+                || !utils::one_of(diff_dst_iter_d.data_type(), ocl_conf.diff_dt,
+                        data_type::undef)
+                || !utils::one_of(diff_dst_iter_c_d.data_type(),
+                        ocl_conf.diff_dt, data_type::undef))
+            return status::unimplemented;
+    }
+
     off.src_layer = gpu::get_outer_strides(src_layer_d);
     ocl_conf.inner_layouts.src_layer = gpu::get_inner_layout(src_layer_d);
     off.src_iter = gpu::get_outer_strides(src_iter_d);
@@ -659,7 +674,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
     init_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->src_md(1),
             this->weights_md(0), this->weights_md(1), this->dst_md(0),
-            this->dst_md(1), this->desc()->bias_desc, acc_data_t, device_info);
+            this->dst_md(1), this->diff_dst_md(0), this->desc()->bias_desc,
+            acc_data_t, device_info);
 
     if (rnn_conf.is_int8) {
         auto has_trivial_strides = [](const memory_desc_wrapper &md) {

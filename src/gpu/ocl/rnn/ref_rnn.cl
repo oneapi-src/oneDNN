@@ -123,7 +123,7 @@ float activation_bwd(float s, float alpha, float cliping) {
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
-        __global char *src_base, __global DIFF_DATA_T *scratch_diff_states,
+        __global char *src_base, __global AUX_DATA_T *scratch_diff_states,
         int lr, int rl, int batch, int dhc, int slc, int n_iter, int n_layer,
         int n_dir, int n_states, int states_ws_ld, int scratch_diff_states_ld,
         int64x3_t strides) {
@@ -159,7 +159,7 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
     const int s = get_global_id(0);
     if (s >= dhc || b >= batch || it >= n_iter) return;
 
-    __global DIFF_DATA_T *dst = scratch_diff_states;
+    __global AUX_DATA_T *dst = scratch_diff_states;
 
 #if DIRECTION_KIND == CONCAT
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
@@ -201,7 +201,7 @@ ref_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
 
 __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
         __global AUX_DATA_T *dst_c_base, __global char *src_base,
-        __global char *src_c_base, __global char *scratch_diff_states,
+        __global char *src_c_base, __global AUX_DATA_T *scratch_diff_states,
         int batch, int dhc, int sic, int n_iter, int n_layer, int n_dir,
         int n_states, int states_ws_ld,
 #if IS_FWD
@@ -251,7 +251,7 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
 #else // BWD
 
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)(src_base);
-    __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)scratch_diff_states;
+    __global AUX_DATA_T *dst = scratch_diff_states;
 
     if (s < dhc)
         dst[off_scratch_diff_states(n_layer, n_dir, n_states, n_iter, batch,
@@ -275,8 +275,8 @@ __kernel void ref_rnn_copy_init_iter(__global WS_STATE_DATA_T *dst_base,
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 ref_rnn_copy_res_layer(
         __global WS_STATE_DATA_T *src_base, __global char *dst_base,
-        __global char *scratch_diff_states, int lr, int rl, int batch, int dhc,
-        int slc, int n_iter, int n_layer, int n_dir, int n_states,
+        __global AUX_DATA_T *scratch_diff_states, int lr, int rl, int batch,
+        int dhc, int slc, int n_iter, int n_layer, int n_dir, int n_states,
         int states_ws_ld, int scratch_diff_states_ld, int64x3_t strides
 #if IS_FWD
         ,
@@ -343,7 +343,7 @@ ref_rnn_copy_res_layer(
 #else // BWD
 
     if (s >= slc || b >= batch || it >= n_iter) return;
-    __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)(scratch_diff_states);
+    __global AUX_DATA_T *src = scratch_diff_states;
     __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)(dst_base);
     int dir = 0;
 
@@ -366,7 +366,7 @@ ref_rnn_copy_res_layer(
 __kernel void ref_rnn_copy_res_iter(
         __global WS_STATE_DATA_T *src_base, __global AUX_DATA_T *src_c_base,
         __global char *dst_base, __global char *dst_c_base,
-        __global char *scratch_diff_states, int batch, int dhc, int sic,
+        __global AUX_DATA_T *scratch_diff_states, int batch, int dhc, int sic,
         int n_iter, int n_layer, int n_dir, int n_states, int states_ws_ld,
         int scratch_diff_states_ld, int64x4_t strides
 #if (IS_FWD && WITH_DST_ITER_C) || (!IS_FWD && WITH_SRC_ITER_C)
@@ -410,7 +410,7 @@ __kernel void ref_rnn_copy_res_iter(
 
 #else // BWD
 
-    __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)(scratch_diff_states);
+    __global AUX_DATA_T *src = scratch_diff_states;
     __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)(dst_base);
     __global DIFF_DATA_T *dst_c = (__global DIFF_DATA_T *)(dst_c_base);
     if (dst_base && s < sic) {
@@ -763,6 +763,7 @@ ref_rnn_elemwise_fwd(__global ACC_DATA_T *scratch_gates_,
 #define DIFF_BIAS_DATA_T DIFF_DATA_T
 #endif
 
+#if !IS_FWD
 // The scratch_diff_gates and scratch_gates buffers may refer to the
 // same memory when sizeof(SRC_DATA_T) == sizeof(AUX_DATA_T) or when
 // scratch_gates is unused in order to reduce memory usage
@@ -797,7 +798,6 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 #endif
         MAYBE_ATOMIC DIFF_BIAS_DATA_T *diff_bias_base,
         int64x4_t diff_bias_strides) {
-#if !IS_FWD
     const int i_ = get_global_id(1) * ELEMWISE_BWD_BATCH_BLOCK; // batch
     const int j = get_global_id(0); // dhc
 
@@ -1044,8 +1044,11 @@ ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         diff_bias[k * dhc + j] += diff_bias_acc[k];
 #endif
     }
-#endif // !IS_FWD
 }
+#else
+__kernel void ref_rnn_elemwise_bwd() {}
+#endif // !IS_FWD
+
 #if CELL_COMP_ENABLED
 #define DHC_TG get_local_size(0)
 #define DHC_LOCAL (CELL_DHC_THR * DHC_TG)
