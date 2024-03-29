@@ -1,6 +1,6 @@
+# Proposal for block level APIs
 
-
-# Overview
+## Overview
 
 In order to implement DNN operations, it is generally useful to rely
 on a set of highly optimized basic building blocks that are then
@@ -30,7 +30,7 @@ own applications and/or contributed back behind the oneDNN graph API.
 As a starter, we will expose only simple transforms and brgemm
 routines.
 
-# Memory descriptors, memory objects and/or pointers ?
+## Memory descriptors, memory objects and/or pointers ?
 
 In general, we need to express memory shapes and memory objects, and
 for this block level API, we will have are three considerations:
@@ -40,7 +40,7 @@ for this block level API, we will have are three considerations:
   hardware-specific layouts,
 - runtime overheads.
 
-## Arbitrary strides between A and B blocks
+### Arbitrary strides between A and B blocks
 
 To make the API flexible, we want to allow arbitrary strides between A
 and B blocks. This is unfortunately not possible if we encapsulate all
@@ -72,7 +72,7 @@ blocks are passed.  To guarentee these are of equal size, and simplify
 pointer arithmetic logic inside generated kernels, we will take an
 array of pairs of pointers.
 
-## Support for hardware-specific layouts
+### Support for hardware-specific layouts
 
 To speedup computation for low accuracy datatype, various hardware
 require the data to be packed in a certain way:
@@ -88,7 +88,7 @@ acceleration. This packing can happen in one of two places:
 - ahead of execution time (pre-packing) when one of the matrix is
   constant.
 
-### How to express HW specific layouts
+#### How to express HW specific layouts
 
 There are two main ways oneDNN can expose those layouts:
 - through layout tags. This has the advantage of being very simple,
@@ -112,15 +112,15 @@ handling of metadata and extra information is expected from oneDNN
 block level APIs.
 
 
-| Option             | Pros                                                            | Cons                                                   |
-| layout tags        | - simple to use                                                 | - contains only innerblock shape and order information |
-|                    |                                                                 | - no metadata (e.g. zero-point related compensation)   |
-| memory descriptors | - relies on existing mechanism exposed for oneDNN primitive API | - potential overheads                                  |
-|                    | - can contain informations other than shapes/strides            | - extra code on user side to create these objects      |
-|                    |   (e.g. compensation information)                               |                                                        |
+<!-- | Option             | Pros                                                            | Cons                                                   | -->
+<!-- | layout tags        | - simple to use                                                 | - contains only innerblock shape and order information | -->
+<!-- |                    |                                                                 | - no metadata (e.g. zero-point related compensation)   | -->
+<!-- | memory descriptors | - relies on existing mechanism exposed for oneDNN primitive API | - potential overheads                                  | -->
+<!-- |                    | - can contain informations other than shapes/strides            | - extra code on user side to create these objects      | -->
+<!-- |                    |   (e.g. compensation information)                               |                                                        | -->
 
 
-### Query mecanism for layout
+#### Query mecanism for layout
 
 Another question is how to inform user about which layout to use for a
 given brgemm problem.  Similar to oneDNN primitive API, we will expose
@@ -154,10 +154,11 @@ object for two reasons:
 
 In order to make the case where brgemm objects are recreated for the
 sole purpose of packing data, brgemm obect creation will be split in
-two steps (brgemm_desc and brgemm classes) to avoid jitting overheads.
+two steps (brgemm::desc and brgemm classes) to avoid jitting
+overheads.  This will introduce some overhead for brgemm objects
+creation though (potential extra copies upon brgemm constructor call).
 
-
-### Other considerations
+#### Other considerations
 
 The recommendation as a starting point is to make query mandatory: no
 layout forcing on user side. This simplifies the configurations
@@ -170,7 +171,7 @@ Given the small number of layouts, we will expose a layout tag enum
 (next section will address the lack of need for metadata handling by
 oneDNN brgemm).
 
-# Low precision handling.
+## Low precision handling.
 
 The API will be limited to support downconversion/upconversion before
 computation in a similar way that
@@ -192,9 +193,9 @@ The main drivers behind this choice are:
   abstraction that can impact performance. Also, there is little to no
   performance gain to expect from this level of fusion.
 
-# Hardware specific discussions
+## Hardware specific discussions
 
-## ISA selection
+### ISA selection
 
 Here two options: 
 - the user can specify for which ISA the kernel can be generated,
@@ -208,7 +209,7 @@ effective, and can be used by the user to control the maximum isa
 level used by block level APIs.
 
 
-## Handling of architectural state 
+### Handling of architectural state 
 
 Matrix accelerators typically require to set an architectural state
 (e.g. Intel AMX or ARM SME).
@@ -226,7 +227,7 @@ A few elements about those architectural states:
 
 
 There are two options here:
-- expose two APIs, `brgemm::setup_hw_context()` and
+- expose two APIs, `brgemm::set_hw_context()` and
   `brgemm::release_hw_context()`. Those can be scheduled/hoisted as
   the user see fit, but the setup function will have to be called
   before the brgemm::execute call for each given brgemm object. The
@@ -250,7 +251,7 @@ user, by making those upon first created brgemm object that would need
 to use the matrix acceleration engine. This will ensure this call
 happens before any call to hardware instruction requiring it.
 
-# Handling of attributes
+## Handling of attributes
 
 First, here is the list of attributes we plan on exposing:
 - fp_math mode, in order for user to control input conversions semantics;
@@ -291,7 +292,7 @@ API calls. Like for primitive level API, those would be opaque, and
 attributes would be set/get using dedicated setters and getters.
 
 
-# Managing jitting overheads and caching support
+## Managing jitting overheads and caching support
 
 To implement a single matrix multiplication operation, the block-level
 API user will typically need to rely on multiple kernels.
@@ -336,14 +337,14 @@ here are a few ways to mitigate the lack of kernel-level cache:
   tails/first K-block, and rely on a single block-level kernel.
 
 
-# Transforms and transpose
+## Transforms and transpose
 
 Transormation rountines, for example to pack data in a certain layout,
 are typically hard to implement without using intrinsics or assembly.
 To facilitate packing, we will expose an out-of-place transform
 functionality.
 
-# All-in-all
+## All-in-all
 
 ```c++
 
@@ -363,19 +364,19 @@ struct brgemm {
         // Vanilla version of brgemm with no post-op or destination conversion.
         desc(dim_t M, dim_t N, dim_t K,
                 data_type dtA, dim_t ldA,
-		        data_type dtB, dim_t ldB, 
-		        data_type dtC, dim_t ldC,
+                data_type dtB, dim_t ldB, 
+                data_type dtC, dim_t ldC,
                 float alpha, float beta);
 
         // Advanced version with postop and datatype conversion when D type
-		// is different than C type.
+        // is different than C type.
         desc(dim_t M, dim_t N, dim_t K,
                 data_type dtA, dim_t ldA,
-		        data_type dtB, dim_t ldB, 
-		        data_type dtC, dim_t ldC,
-		        data_type dtD, dim_t ldD,
+                data_type dtB, dim_t ldB, 
+                data_type dtC, dim_t ldC,
+                data_type dtD, dim_t ldD,
                 float alpha, float beta, 
-		        const brgemm_attr &attr);
+                const brgemm_attr &attr);
 
         // Queries for expected layouts and temporary memory
         packing_tag get_A_tag() const;
@@ -384,46 +385,46 @@ struct brgemm {
     }
 
     brgemm_t(const brgemm_desc_t &bd); 
-	
+    
     // HW context handling.
     // This currently mimics AMX (need to clarify for SME): 
-	// - Release is static
-	// - No release necessary between different calls to set_hw_context
-	void set_hw_context() const;
-	static void release_hw_context() const;
+    // - Release is static
+    // - No release necessary between different calls to set_hw_context
+    void set_hw_context() const;
+    static void release_hw_context() const;
 
     // Execution function for the vanilla brgemm variant.
     // we take pointers to A and B as a vector of pairs, guarentees they are the same size
-	// The batch size is the size of the vector.
+    // The batch size is the size of the vector.
     // pointers are void*, datatypes are specified in constructor
-	// Computes C = \beta C + \alpha \sum_i A_i \cdot B_i
+    // Computes C = \beta C + \alpha \sum_i A_i \cdot B_i
     void execute(const std::vector<std::pair<void *, void *>> &A_B,
-        void *C, void *scratch = nullptr);
+            void *C, void *scratch = nullptr);
 
     // Execution function for the advanced brgemm variant
-	// Here the C matrix is just an input to accumulation
+    // Here the C matrix is just an input to accumulation
     // final result after postop/conversion will be in D
-	// Computes D = \beta C + \alpha \sum_i A_i \cdot B_i + bias
+    // Computes D = \beta C + \alpha \sum_i A_i \cdot B_i + bias
     void execute(const std::vector<std::pair<void *, void *>> A_B, 
-        const void *C, void *D, void *scratch = nullptr,
-        void **post_ops_args = nullptr);
+            const void *C, void *D, void *scratch = nullptr,
+            void **post_ops_args = nullptr);
 }
 
 struct transform_t {
     struct desc {
-	    desc(dim_t M, dim_t N, data_type dt, 
-		        packing_tag tag_src, dim_t ld_src, 
-				packing_tag tag_dst, dim_t ld_dst);
+        desc(dim_t M, dim_t N, data_type dt, 
+                packing_tag tag_src, dim_t ld_src,
+                packing_tag tag_dst, dim_t ld_dst);
 	}
-	transform_t(const desc &td);
-	execute(void *dst, const void *src);
+    transform_t(const desc &td);
+    execute(void *dst, const void *src);
 }
 
 } // namespace block
 } // namespace dnnl
 ```
 
-# References
+## References
 
 
 [High-Performance Deep Learning via a Single Building Block](https://arxiv.org/abs/1906.06440)
