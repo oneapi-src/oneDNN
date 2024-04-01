@@ -305,7 +305,7 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
         arg_list.append(variance);
         arg_list.append(into<dim_t>(0));
         arg_list.append(0);
-        arg_list.append(AUX_INIT_STAGE);
+        arg_list.append(aux_init_stage);
 
         auto nd_range = pd()->dispatch_reduce_aux.nd_range();
         status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
@@ -350,7 +350,7 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
             arg_list.append(memory_storage_t::empty_storage());
             arg_list.append(rt_conf.sp_size);
             arg_list.append(0);
-            arg_list.append(AUX_FINALIZE_STAGE);
+            arg_list.append(aux_finalize_stage);
             auto nd_range = pd()->dispatch_reduce_aux.nd_range();
             status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
             if (status != status::success) return status;
@@ -398,7 +398,7 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
             arg_list.append(memory_storage_t::empty_storage());
             arg_list.append(rt_conf.sp_size);
             arg_list.append(0);
-            arg_list.append(AUX_FINALIZE_STAGE);
+            arg_list.append(aux_finalize_stage);
 
             auto nd_range = pd()->dispatch_reduce_aux.nd_range();
             status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
@@ -449,7 +449,7 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
             arg_list.append(variance);
             arg_list.append(rt_conf.sp_size);
             arg_list.append(1);
-            arg_list.append(AUX_FINALIZE_STAGE);
+            arg_list.append(aux_finalize_stage);
             auto nd_range = pd()->dispatch_reduce_aux.nd_range();
             status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
             if (status != status::success) return status;

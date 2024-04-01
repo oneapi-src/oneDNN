@@ -66,6 +66,9 @@ namespace gpu {
 namespace ocl {
 namespace bn_utils {
 
+constexpr int aux_init_stage = 1;
+constexpr int aux_finalize_stage = 0;
+
 float get_ss_utilization(
         int max_ss, const compute::range_t &gws, const compute::range_t &lws);
 float get_thr_utilization(int eu_count, int threads_per_eu, int sg_size,

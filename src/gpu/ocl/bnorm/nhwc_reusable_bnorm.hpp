@@ -35,9 +35,6 @@
 #include "gpu/ocl/bnorm/bnorm_utils.hpp"
 #include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
 
-#define AUX_INIT_STAGE 1
-#define AUX_FINALIZE_STAGE 0
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -71,10 +68,7 @@ struct nhwc_reusable_bnorm_compile_params_t {
 
     static nhwc_reusable_bnorm_compile_params_t deserialize(
             const serialized_t &s) {
-        nhwc_reusable_bnorm_compile_params_t t {};
-        deserializer_t d(s);
-        d.pop(t);
-        return t;
+        return deserializer_t(s).pop<nhwc_reusable_bnorm_compile_params_t>();
     }
 
     compute::kernel_ctx_t get_kernel_ctx() const;
