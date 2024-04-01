@@ -802,17 +802,38 @@ bool tensor_view_op_t::try_penetrate(
         } else {
             sc_data_format_t new_format;
             auto &new_code = new_format.format_code_;
-            for (int i = 0; i < static_cast<int>(output_plain_shapes.size());
-                    i++) {
-                new_code.set(i, i);
+            // reconstruct long_to_short to short_to_long
+            std::unordered_map<size_t, std::vector<size_t>> short_to_long;
+            for (const auto &pair : long_to_short) {
+                short_to_long[pair.second].push_back(pair.first);
             }
-            int inp_plain_idx = input_format.format_code_.norig_dims();
-            int inp_blk_size = input_format.format_code_.ndims()
-                    - input_format.format_code_.norig_dims();
-            for (int i = 0; i < inp_blk_size; i++) {
-                new_code.set(i + static_cast<int>(output_plain_shapes.size()),
-                        inp_blk_map[input_format.format_code_.get(
-                                i + inp_plain_idx)]);
+            // sort short_to_long mapping
+            for (size_t i = 0; i < input_size; i++) {
+                std::sort(short_to_long[i].begin(), short_to_long[i].end());
+            }
+            // setting output format code according to input format code
+            // and input-output-dimension-mapping
+            int format_code_offset = 0;
+            int axis_count[sc_data_format_kind_t::MAX_DIMS] = {0};
+            for (int i = 0;
+                    i < static_cast<int>(input_format.format_code_.ndims());
+                    i++) {
+                int input_dim = input_format.format_code_.get(i);
+                axis_count[input_dim]++;
+                std::vector<size_t> output_dims = short_to_long[input_dim];
+                if (axis_count[input_dim] > 1) {
+                    // blocking dimension
+                    new_code.set(i + format_code_offset,
+                            static_cast<int>(output_dims.back()));
+                } else {
+                    // plain dimension
+                    for (int idx = 0;
+                            idx < static_cast<int>(output_dims.size()); ++idx) {
+                        new_code.set(i + format_code_offset + idx,
+                                static_cast<int>(output_dims[idx]));
+                    }
+                    format_code_offset += short_to_long[input_dim].size() - 1;
+                }
             }
             new_code.set(sc_data_format_kind_t::MAX_DIMS,
                     input_format.format_code_.get(
