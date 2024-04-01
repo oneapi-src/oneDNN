@@ -180,8 +180,9 @@ struct nhwc_reusable_batch_normalization_fwd_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
-        // Due to usage of atomics-based reduction is rt parameter, we do create
-        // whole set of kernels.
+        // Since selection of reduction kind occures at run-rime,
+        // all kind of reduction kernels (trhu sratchpad or atomic-based)
+        // must be build at once
 
         std::vector<const char *> kernel_names = {
                 "nhwc_reusable_update_fwd", nullptr, nullptr, nullptr, nullptr};
