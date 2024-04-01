@@ -2499,13 +2499,6 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
                 mov(reg_rdb_loop, brg.rdb);
                 L_aligned(rdb_loop_label, 64);
                 {
-                    const bool is_rd_tail = false;
-                    gemm_microkernel(bd_block2, is_bdb_tail, ld_block2,
-                            is_rd_tail, is_ld_tail, vpad, rows_for_rd_tail);
-
-                    add(reg_aux_A, rdb_A_offset());
-                    add(reg_aux_B, rdb_B_offset());
-
                     if (brg.with_grouped_wei_decomp && (brg.wei_decomp_scales_stride != 0 ||
                                                         brg.wei_decomp_zero_points_stride != 0)) {
                         auto reg_local_ic = reg_aux_D;
@@ -2529,10 +2522,6 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
                         mov(ptr[rsp + reg_ldb_loop_offs_], reg_ldb_loop);
                         mov(ptr[rsp + reg_reg_a_offset_offs_], reg_a_offset); // preserve rdx for idiv
 
-                        mov(reg_local_ic, ptr[rsp + reg_aux_ic_offs_]);
-                        add(reg_local_ic, brg.rd_block);
-                        mov(ptr[rsp + reg_aux_ic_offs_], reg_local_ic);
-
                         if (brg.with_wei_decomp_scales && brg.wei_decomp_scales_stride != 0) {
                             ic_group_shift(reg_aux_wei_scales_offs_, reg_aux2_wei_scales_offs_,
                                            brg.wei_decomp_scales_group_size, brg.wei_decomp_scales_stride * sizeof(float));
@@ -2548,11 +2537,22 @@ void jit_brgemm_kernel_t<isa, Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
                                            brg.src_scales_group_size, sizeof(float));
                         }
 
+                        mov(reg_local_ic, ptr[rsp + reg_aux_ic_offs_]);
+                        add(reg_local_ic, brg.rd_block);
+                        mov(ptr[rsp + reg_aux_ic_offs_], reg_local_ic);
+
                         mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
                         mov(reg_aux_D, ptr[rsp + reg_aux2_D_offs_]);
                         mov(reg_ldb_loop, ptr[rsp + reg_ldb_loop_offs_]);
                         mov(reg_a_offset, ptr[rsp + reg_reg_a_offset_offs_]);
                     }
+
+                    const bool is_rd_tail = false;
+                    gemm_microkernel(bd_block2, is_bdb_tail, ld_block2,
+                            is_rd_tail, is_ld_tail, vpad, rows_for_rd_tail);
+
+                    add(reg_aux_A, rdb_A_offset());
+                    add(reg_aux_B, rdb_B_offset());
 
                     dec(reg_rdb_loop);
                     cmp(reg_rdb_loop, 0);

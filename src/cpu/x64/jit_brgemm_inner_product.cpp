@@ -397,9 +397,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             int wei_zero_points_offset = 0;
             int src_scales_offset = 0;
             if (jbgp.weights_decompression) {
-                wei_scales_offset = (ic / jbgp.wei_scales_ic_group_size) * wei_scales_d.dims()[0] + wei_scales_oc_stride * oc;
-                wei_zero_points_offset = ((ic / jbgp.wei_zero_points_ic_group_size) * wei_zero_points_d.dims()[0] + wei_zero_points_oc_stride * oc) * wei_zero_points_dt_size;
-                src_scales_offset = n * div_up(jbgp.ic, jbgp.src_quant_group_size) + (ic / jbgp.src_quant_group_size);
+                wei_scales_offset = wei_scales_oc_stride * oc;
+                wei_zero_points_offset = wei_zero_points_oc_stride * oc * wei_zero_points_dt_size;
+                src_scales_offset = n * div_up(jbgp.ic, jbgp.src_quant_group_size);
             }
 
             auto ptr_D = dst + dst_off;
@@ -423,10 +423,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
 
                 brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
                         addr_batch, (void *)ptr_C, (void *)ptr_D, post_ops_data,
-                        scratch, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, 0);
+                        scratch, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, ic);
             } else {
                 brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
-                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, 0);
+                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, ic);
             }
         }
 
@@ -500,9 +500,9 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
             int wei_zero_points_offset = 0;
             int src_scales_offset = 0;
             if (jbgp.weights_decompression) {
-                wei_scales_offset = (ic / jbgp.wei_scales_ic_group_size) * wei_scales_d.dims()[0] + wei_scales_oc_stride * oc;
-                wei_zero_points_offset = ((ic / jbgp.wei_zero_points_ic_group_size) * wei_zero_points_d.dims()[0] + wei_zero_points_oc_stride * oc) * wei_zero_points_dt_size;
-                src_scales_offset = n * div_up(jbgp.ic, jbgp.src_quant_group_size) + (ic / jbgp.src_quant_group_size);
+                wei_scales_offset = wei_scales_oc_stride * oc;
+                wei_zero_points_offset = wei_zero_points_oc_stride * oc * wei_zero_points_dt_size;
+                src_scales_offset = n * div_up(jbgp.ic, jbgp.src_quant_group_size);
             }
 
             auto brg_kernel_ic_tail = brg_kernels_[brg_ker_ic_tail_idx].get();
@@ -524,10 +524,10 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
                         nullptr, false, 1, false, false, dst_scales};
 
                 brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1, addr_batch,
-                        (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, 0);
+                        (void *)ptr_C, (void *)ptr_D, post_ops_data, scratch, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, ic);
             } else {
                 brgemm_kernel_execute(brg_kernel_ic_tail, 1, addr_batch,
-                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, 0);
+                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr, wei_scales + wei_scales_offset, wei_zero_points + wei_zero_points_offset, src_dscales + src_scales_offset, ic);
             }
         }
     };
