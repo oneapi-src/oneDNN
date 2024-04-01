@@ -164,7 +164,7 @@ int calculate_max_bcast_block(brgemm_t *brg, const int adj_ld_block2) {
         max_bcast_block = nstl::min(max_bcast_block, bf16_emu_reg_count);
     }
 
-    // non-VNNI INT8 dot product required 2 temp vectors
+    
     if (brg->is_int8 && !brg->has_int8_vnni) max_bcast_block -= 2;
 
     max_bcast_block /= adj_ld_block2;

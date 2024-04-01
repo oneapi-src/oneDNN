@@ -614,10 +614,6 @@ private:
 
     static constexpr int sizeof_reg64 = 8;
     /*
-     * Instructions from SSE/sve used to compute binary result like vaddps where
-     * second operand is memory, require mem operand to be 16/32 byte explicitly
-     * aligned. (Intel Manual chapter 2.4).
-     * Rule is relaxed from sve2 (Intel Manual chapter 14.9).
      * When using benchdnn zmalloc_protect doesn't guarantee that tensor memory
      * address is 64 byte aligned, which can cause segmentation fault.
      */

@@ -141,12 +141,6 @@ status_t DNNL_API brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
 ///     Only BRGEMM kernel will be executed even if post-ops are added to BRGEMM
 ///     descriptor
 ///
-/// @note
-///     In row major mode matrix B (matrix A for column major) is expected to be
-///     in a VNNI-friendly format, which requires 4 consecutive elements of K
-///     dimension for int8 data type, 2 elements for bfloat16 data type and no
-///     requirements for f32 and f16 data types.
-///
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch
 /// @param batch Array of batch elements containing pointers to matrices

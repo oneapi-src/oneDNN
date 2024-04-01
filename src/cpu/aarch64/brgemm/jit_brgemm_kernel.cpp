@@ -273,7 +273,7 @@ private:
     const ZReg &z_zp_a_shift() const noexcept { return this->z2; }
     const ZReg &z_inp_shift() const noexcept { return this->z1; }
 
-    // Required in every dot product for INT8 non-VNNI computation.
+    
     ZReg int8_ones_words() const noexcept { return ZReg(max_vregs - 1); }
     ZReg int8_dot_product_temp() const noexcept { return ZReg(max_vregs - 2); }
 
