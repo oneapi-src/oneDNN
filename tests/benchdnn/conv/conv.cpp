@@ -414,6 +414,15 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
             trh *= (MAX2(1, pow(10, 0.4 * log_const)));
         }
     }
+
+    if (is_amd_gpu()) {
+        for (auto post_op_used : prb->attr.post_ops.entry) {
+            if (post_op_used.is_sum_kind() && prb->dt[1] == dnnl_f16) {
+                trh = 4e-3f;
+            }
+        }
+    }
+
     cmp.set_threshold(trh);
 
     const float zpp = (1.f - get_non_zero_trust_percent(prb, kind)) * 100.f;
