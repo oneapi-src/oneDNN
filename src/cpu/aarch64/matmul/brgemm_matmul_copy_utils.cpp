@@ -99,7 +99,7 @@ private:
     reg64_t reg_zp_ab_comp_ptr = imm_addr64;
     reg64_t reg_zp_b_neg_val_ptr = reg_K_blk;
 
-    // Required in every dot product for INT8 non-VNNI computation.
+    
     ZReg vmm_ones_words = ZReg(28);
     ZReg vmm_dot_product_temp = ZReg(29);
 
@@ -272,8 +272,7 @@ private:
     reg64_t reg_loop_k = x1;
     reg64_t reg_loop_m = x2;
     reg64_t imm_addr64 = x3;
-    // Note: this must be assigned to rcx as it's used in shl instruction,
-    // clashes with abi_param1 on Windows OS
+
     reg64_t reg_opmask_shift_compute = x4;
 
     Xbyak_aarch64::ZReg vidx1 = z31;
@@ -376,17 +375,14 @@ protected:
     reg64_t regq_tmp = x14;
     reg64_t imm_addr64 = x15;
 
-    // Required in every dot product for INT8 non-VNNI computation.
     ZReg vmm_ones_words = ZReg(24);
     ZReg vmm_dot_product_temp = ZReg(25);
 
-    // ZMM stuff
     ZReg vreg_idx_lo_256 = z26;
     ZReg vreg_idx_hi_256 = z27;
     ZReg vreg_idx_lo_128 = z28;
     ZReg vreg_idx_hi_128 = z29;
 
-    // Shared
     ZReg vmm_comp_mul = z30;
     ZReg vmm_zero = z31;
 
@@ -615,7 +611,7 @@ private:
     reg32_t regw_tmp = w15;
     reg64_t imm_addr64 = abi_not_param1;
 
-    // Note: for the SVE2 implementation, reserve Ymm(8) and Ymm(9) as
+    // Note: for the SVE256 implementation, reserve ZReg(8) and ZReg(9) as
     // temporary compute registers.
     ZReg vmm_comp_mul = Xbyak_aarch64::ZReg(max_vmm_regs_ - 1);
     ZReg vmm_comp_acc = Xbyak_aarch64::ZReg(max_vmm_regs_ - 2);
@@ -642,7 +638,7 @@ private:
     }
 
     ZReg tmp_vmm(int i) {
-        // If compensation compute is required - last 6 zmms are reserved for it
+        // If compensation compute is required - last 6 zregs are reserved for it
         assert(i >= 0 && IMPLICATION(!is_ymm_, i < max_tmp_idx)
                 && IMPLICATION(is_ymm_, i < 2));
         return ZReg(n_blk_step_ + i);
@@ -705,9 +701,7 @@ status_t create_brgemm_matmul_copy_b(
     const bool is_bf16
             = everyone_is(data_type::bf16, conf->src_dt, conf->wei_dt);
     const bool is_f32 = everyone_is(data_type::f32, conf->src_dt, conf->wei_dt);
-    // Note: f16 support through sve512_core_fp16 sets src_dt and wei_dt as f32
-    // to imply upconverting. So, the assumption is `is_f1`6 below evaluates to
-    // `false` on sve512_core_fp16.
+   
     const bool is_f16 = everyone_is(data_type::f16, conf->src_dt, conf->wei_dt);
     assert(is_f32);
     assert(!(is_bf16 || is_f16));

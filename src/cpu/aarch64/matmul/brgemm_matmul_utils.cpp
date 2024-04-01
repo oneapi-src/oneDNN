@@ -572,7 +572,7 @@ float compute_blocking_heuristic_sve512(brgemm_matmul_conf_t &bgmmc,
     return best_imbalance;
 }
 
-float compute_blocking_heuristic_sve2(brgemm_matmul_conf_t &bgmmc,
+float compute_blocking_heuristic_sve_256(brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils,
         const matmul_sve512_blocking_params_t::matmul_params_t &matmul,
         matmul_sve512_blocking_params_t &best_blocking) {
@@ -693,7 +693,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
 
         matmul_sve512_blocking_params_t best_blocking(matmul, bgmmc.nthr);
 
-        const float best_imbalance = compute_blocking_heuristic_sve2(
+        const float best_imbalance = compute_blocking_heuristic_sve_256(
                 bgmmc, bm_conf_utils, matmul, best_blocking);
 
         if (best_imbalance == 1.f) return status::unimplemented;
@@ -907,7 +907,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     }
 
     // BF32 'Hint' Heuristic:
-    // Under the following conditions, F32 through SVE512_CORE performs better
+    // Under the following conditions, F32 through SVE512 performs better
     // than using BF32 arithmetic.
     VCONDCHECK_BG(!(bgmmc.is_bf32 && (bgmmc.M < 8)
                           && ((bgmmc.wei_tag == abcd)
