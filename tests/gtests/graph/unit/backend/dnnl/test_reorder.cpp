@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -449,7 +449,7 @@ TEST(test_reorder_execute, Int8ReorderAdd) {
     }
 }
 
-TEST(test_reorder_compile, ReorderBlockLayoutInput) {
+TEST(test_reorder_compile, ReorderBlockLayoutInput_GPU) {
     using dims = graph::dnnl_impl::dims;
 
     /*    | 

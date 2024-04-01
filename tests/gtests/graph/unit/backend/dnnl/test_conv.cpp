@@ -950,7 +950,7 @@ TEST(test_conv_execute, Convolution3DNxcOix) {
     }
 }
 
-TEST(test_conv_execute, ConvolutionF16F16F16) {
+TEST(test_conv_execute, ConvolutionF16F16F16_GPU) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *eng = get_engine();
@@ -2671,7 +2671,7 @@ TEST(test_conv_execute, ConvAddEltwise) {
     }
 }
 
-TEST(test_conv_execute_subgraph_fp32, ConvDepthwise) {
+TEST(test_conv_execute_subgraph_fp32, ConvDepthwise_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -3389,7 +3389,7 @@ TEST(test_conv_execute_subgraph_int8, Conv2dSumRelu) {
 }
 
 TEST(test_conv_execute_subgraph_int8,
-        Conv2dSumReluWithDifferentSrc1AndDstTypeOnGPU) {
+        Conv2dSumReluWithDifferentSrc1AndDstType_GPU) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();

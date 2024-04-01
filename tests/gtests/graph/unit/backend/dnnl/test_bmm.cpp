@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32) {
+TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -134,7 +134,7 @@ TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32) {
     }
 }
 
-TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32NonContiguous) {
+TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32NonContiguous_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -265,7 +265,7 @@ TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32NonContiguous) {
     }
 }
 
-TEST(test_bmm_execute_subgraph_int8, BmmDivU8u8f32) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivU8u8f32_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -384,7 +384,7 @@ TEST(test_bmm_execute_subgraph_int8, BmmDivU8u8f32) {
     strm->wait();
 }
 
-TEST(test_bmm_execute_subgraph_int8, BmmDivAddU8u8f32) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivAddU8u8f32_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -518,7 +518,7 @@ TEST(test_bmm_execute_subgraph_int8, BmmDivAddU8u8f32) {
     strm->wait();
 }
 
-TEST(test_bmm_execute_subgraph_int8, BmmX8x8bf16) {
+TEST(test_bmm_execute_subgraph_int8, BmmX8x8bf16_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -662,7 +662,7 @@ TEST(test_bmm_execute_subgraph_int8, BmmX8x8bf16) {
     }
 }
 
-TEST(test_bmm_execute_subgraph_int8, BmmDivX8x8bf16) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivX8x8bf16_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -823,7 +823,7 @@ TEST(test_bmm_execute_subgraph_int8, BmmDivX8x8bf16) {
     }
 }
 
-TEST(test_bmm_execute_subgraph_int8, BmmDivBlockedX8x8bf16) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivBlockedX8x8bf16_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -989,7 +989,7 @@ TEST(test_bmm_execute_subgraph_int8, BmmDivBlockedX8x8bf16) {
     }
 }
 
-TEST(test_bmm_execute_subgraph_int8, BmmDivAddX8x8bf16) {
+TEST(test_bmm_execute_subgraph_int8, BmmDivAddX8x8bf16_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,23 +51,36 @@ int main(int argc, char *argv[]) {
 
     auto engine_str = find_cmd_option(argv, argv + argc, "--engine=");
     set_test_engine_kind(to_engine_kind(engine_str));
+    const graph::engine_kind_t engine_kind = get_test_engine_kind();
 
 #if DNNL_GPU_RUNTIME != DNNL_RUNTIME_SYCL
-    if (get_test_engine_kind() == graph::engine_kind::gpu) {
+    if (engine_kind == graph::engine_kind::gpu) {
         std::cout << "GPU runtime is not enabled" << std::endl;
         return 0;
     }
 #endif
+
+#if !defined(DNNL_CPU_RUNTIME) || DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
+    if (engine_kind == graph::engine_kind::cpu) {
+        std::cout << "CPU runtime is not enabled" << std::endl;
+        return 0;
+    }
+#endif
+
     (void)(::testing::GTEST_FLAG(death_test_style) = "threadsafe");
     ::testing::InitGoogleTest(&argc, argv);
     std::string filter_str = ::testing::GTEST_FLAG(filter);
-    if (get_test_engine_kind() == graph::engine_kind::cpu) {
+    if (engine_kind == graph::engine_kind::cpu) {
         // Exclude non-CPU tests
         ::testing::GTEST_FLAG(filter) = filter_str + ":-*_GPU*";
-    } else if (get_test_engine_kind() == graph::engine_kind::gpu) {
+    } else if (engine_kind == graph::engine_kind::gpu) {
         // Exclude non-GPU tests
         ::testing::GTEST_FLAG(filter) = filter_str + ":-*_CPU*";
+    } else {
+        std::cout << "unsupported engine kind" << std::endl;
+        return 0;
     }
+
     result = RUN_ALL_TESTS();
 
     return result;
