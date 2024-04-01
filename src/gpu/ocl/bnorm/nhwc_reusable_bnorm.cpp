@@ -83,7 +83,7 @@ static status_t final_set_rt_params(nhwc_bnorm_params_t &bn_conf,
 
 static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
         nhwc_reusable_bnorm_compile_params_t &cmpl_conf,
-        nhwc_reusable_bnorm_runtime_params_t &rt_conf, offsets_t &off,
+        nhwc_reusable_bnorm_runtime_params_t &rt_conf,
         compute::dispatch_t &dispatch_calc_stat,
         compute::dispatch_t &dispatch_reduce_stat,
         compute::dispatch_t &dispatch, compute::dispatch_t &dispatch_reduce_aux,
@@ -91,8 +91,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
 
     // This implementation is temporarly unavailable by default
     // TODO: remove the guard after performance tuning
-    if (!dev_getenv("BN_ENABLE_NHWC_REUSABLE_IMPL", 0))
-        return status::unimplemented;
+    if (!dev_getenv("enable_bn_nhwc_reusable", 0)) return status::unimplemented;
 
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper data_mdw(
@@ -102,7 +101,6 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     CHECK(init_reusable_confs_basic(cmpl_conf, rt_conf, pd, data_mdw));
     // basic init bn_conf
     init_conf_basic(bn_conf, pd);
-    set_offsets(data_mdw, off.src_off);
 
     // TODO: create flags() accessor that returns the correct type
     bn_conf.flags = (normalization_flags_t)pd->desc()->flags;
@@ -128,7 +126,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     if (bn_conf.ic % 8 == 0 && bn_conf.ic % 16
             && (bn_conf.fuse_norm_relu || bn_conf.data_type == data_type::s8))
         return status::unimplemented;
-    // IC tail processing performnce boost is not obvious on arch < xe_hpc
+    // IC tail processing performance boost is not obvious on arch < xe_hpc
     if (bn_conf.ic % 8 == 0 && bn_conf.ic % 16
             && gpu_arch < compute::gpu_arch_t::xe_hpc)
         return status::unimplemented;
@@ -140,8 +138,6 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     // TODO: implement it, possible perf boost could be ~ 2x
     if (bn_conf.ic % 8 == 0 && bn_conf.ic % 16 && cmpl_conf.use_stats_one_pass)
         cmpl_conf.use_stats_one_pass = false;
-
-    // Compiler issue workaround - now with w/a permanently
 
     bn_conf.sub_group_size = 16;
     // reshape to xc
@@ -220,9 +216,8 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
 status_t nhwc_reusable_batch_normalization_fwd_t::pd_t::init_conf(
         engine_t *engine) {
-    return init_conf_common(bn_conf, cmpl_conf, rt_conf, off,
-            dispatch_calc_stat, dispatch_reduce_stat, dispatch,
-            dispatch_reduce_aux, this, engine);
+    return init_conf_common(bn_conf, cmpl_conf, rt_conf, dispatch_calc_stat,
+            dispatch_reduce_stat, dispatch, dispatch_reduce_aux, this, engine);
 }
 
 compute::kernel_ctx_t
@@ -300,6 +295,7 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
 
     if (cmpl_conf.calculate_stats && rt_conf.use_fused_atomics_reduction) {
         // Atomics-based reduction requires zeroing mean and variance
+        // TODO:  try compute_stream_t::fill instead
         compute::kernel_arg_list_t arg_list;
         arg_list.append(mean);
         arg_list.append(variance);

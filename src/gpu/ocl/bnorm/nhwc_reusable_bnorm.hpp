@@ -170,7 +170,7 @@ struct nhwc_reusable_batch_normalization_fwd_t : public gpu_primitive_t {
         nhwc_reusable_bnorm_compile_params_t cmpl_conf;
         nhwc_reusable_bnorm_runtime_params_t rt_conf;
         nhwc_bnorm_params_t bn_conf;
-        offsets_t off;
+
         compute::dispatch_t dispatch_calc_stat;
         compute::dispatch_t dispatch_reduce_stat;
         compute::dispatch_t dispatch;
