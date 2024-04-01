@@ -266,14 +266,11 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
     std::unique_ptr<memory_storage_t> tmp_variance = nullptr;
     std::unique_ptr<memory_storage_t> tmp_reduce = nullptr;
 
-    auto &mean_ = cmpl_conf.calculate_stats
-            ? CTX_OUT_CLEAN_STORAGE(DNNL_ARG_MEAN, status)
-            : CTX_IN_STORAGE(DNNL_ARG_MEAN);
-    CHECK(status);
+    auto &mean_ = cmpl_conf.calculate_stats ? CTX_OUT_STORAGE(DNNL_ARG_MEAN)
+                                            : CTX_IN_STORAGE(DNNL_ARG_MEAN);
     auto &variance_ = cmpl_conf.calculate_stats
-            ? CTX_OUT_CLEAN_STORAGE(DNNL_ARG_VARIANCE, status)
+            ? CTX_OUT_STORAGE(DNNL_ARG_VARIANCE)
             : CTX_IN_STORAGE(DNNL_ARG_VARIANCE);
-    CHECK(status);
 
     if (cmpl_conf.calculate_stats) {
         tmp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
