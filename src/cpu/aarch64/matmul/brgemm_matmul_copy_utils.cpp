@@ -99,7 +99,6 @@ private:
     reg64_t reg_zp_ab_comp_ptr = imm_addr64;
     reg64_t reg_zp_b_neg_val_ptr = reg_K_blk;
 
-    
     ZReg vmm_ones_words = ZReg(28);
     ZReg vmm_dot_product_temp = ZReg(29);
 
@@ -701,7 +700,7 @@ status_t create_brgemm_matmul_copy_b(
     const bool is_bf16
             = everyone_is(data_type::bf16, conf->src_dt, conf->wei_dt);
     const bool is_f32 = everyone_is(data_type::f32, conf->src_dt, conf->wei_dt);
-   
+
     const bool is_f16 = everyone_is(data_type::f16, conf->src_dt, conf->wei_dt);
     assert(is_f32);
     assert(!(is_bf16 || is_f16));
