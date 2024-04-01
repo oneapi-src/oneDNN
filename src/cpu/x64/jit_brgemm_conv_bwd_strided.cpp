@@ -56,7 +56,9 @@ static bool impl_supports_datatype(data_type_t data_type) {
         case data_type::f32:
         case data_type::s32:
         case data_type::s8:
-        case data_type::u8: return true;
+        case data_type::u8:
+        case data_type::f8_e5m2:
+        case data_type::f8_e4m3: return true;
         default: return false;
     }
 }
@@ -103,6 +105,12 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
                     with_bias(), one_of(bias_md_.data_type, f32, s32, s8, u8))
             && is_deconv /* only deconv uses int8 */;
 
+    const bool is_fp8_supported = one_of(wei_type, f8_e5m2, f8_e4m3)
+            && one_of(diff_dst_type, f8_e5m2, f8_e4m3)
+            && one_of(diff_src_type, wei_type, f32, f8_e5m2, f8_e4m3)
+            && IMPLICATION(
+                    with_bias(), one_of(bias_md_.data_type, f32, wei_type));
+
     VDISPATCH_CONV(is_bwd_d(), VERBOSE_BAD_PROPKIND);
     VDISPATCH_CONV(
             impl_supports_datatype(diff_src_type), VERBOSE_UNSUPPORTED_DT);
@@ -110,7 +118,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
     VDISPATCH_CONV(
             impl_supports_datatype(diff_dst_type), VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_CONV(one_of(true, is_f32_supported, is_xf16_supported,
-                           is_int8_supported),
+                           is_int8_supported, is_fp8_supported),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
             VERBOSE_BAD_ALGORITHM);
