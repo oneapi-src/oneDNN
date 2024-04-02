@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 #include "common/utils.hpp"
+
+#include "cpu/primitive_attr_postops.hpp"
 
 #include "cpu/cpu_layer_normalization_pd.hpp"
 
@@ -61,11 +63,20 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
                 scratchpad.book(key_nested, reorder_pd_->scratchpad_registry());
             }
         }
+        bool post_ops_ok() const {
+            return ref_post_ops_t::primitive_kind_ok(attr()->post_ops_);
+        }
     };
 
     status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
+
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
+        CHECK(ref_post_ops->init(pd()->dst_md()));
+
         return status::success;
     }
 
@@ -123,6 +134,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::shared_ptr<primitive_t> reorder_;
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
 struct simple_layer_normalization_bwd_t : public primitive_t {
