@@ -43,6 +43,7 @@ struct stat_and_data_kernel_t {
     virtual void operator()(const void *src, void *dst, const float *scale,
             const float *shift, float *mean, float *var,
             const float *src_scales, const float *dst_scales,
+            const void *post_ops_binary_rhs_arg_vec,
             const size_t block_size) const {};
 
     virtual status_t create_kernel() { return status::success; }
@@ -93,57 +94,7 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("jit:uni", jit_uni_layer_normalization_fwd_t);
 
-        status_t init(engine_t *engine) {
-            using namespace data_type;
-            using skip_mask_t = primitive_attr_t::skip_mask_t;
-            const memory_desc_wrapper src_d(src_md());
-
-            VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
-            VDISPATCH_LNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
-            VDISPATCH_LNORM(
-                    utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8),
-                    VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_LNORM(
-                    utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8),
-                    VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_LNORM(
-                    IMPLICATION(utils::one_of(bf16, src_md()->data_type,
-                                        dst_md()->data_type),
-                            mayiuse(avx512_core) || mayiuse(avx2_vnni_2)),
-                    VERBOSE_ISA_DT_MISMATCH);
-            VDISPATCH_LNORM(
-                    IMPLICATION(utils::one_of(f16, src_md()->data_type,
-                                        dst_md()->data_type),
-                            mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)),
-                    VERBOSE_ISA_DT_MISMATCH);
-            VDISPATCH_LNORM(
-                    stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_LNORM(check_scale_shift_data_type(),
-                    VERBOSE_UNSUPPORTED_FEATURE,
-                    "unsupported scale or shift data type");
-            VDISPATCH_LNORM(
-                    attr()->has_default_values(skip_mask_t::scales_runtime),
-                    VERBOSE_UNSUPPORTED_ATTR);
-            VDISPATCH_LNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
-            VDISPATCH_LNORM(
-                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
-            VDISPATCH_LNORM(src_d.is_blocking_desc(), VERBOSE_BLOCKING_FAIL,
-                    "blocking descriptor fail");
-            // plain format, last logical dim is last physical
-            VDISPATCH_LNORM(src_d.blocking_desc().strides[ndims() - 1] == 1,
-                    VERBOSE_BLOCKING_FAIL, "bad stride value");
-
-            CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
-
-            if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
-                CHECK(reorder_primitive_desc_create(reorder_pd_, engine,
-                        stats_are_src() ? stat_md() : &reordered_stat_md_,
-                        stats_are_src() ? &reordered_stat_md_ : stat_md()));
-            }
-
-            init_scratchpad();
-            return status::success;
-        }
+        status_t init(engine_t *engine);
 
         bool use_tmp_stats() const { return reorder_pd_ || stats_are_tmp(); }
 
