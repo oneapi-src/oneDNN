@@ -107,6 +107,8 @@ TEST_F(attr_quantization_test_t, TestBinary) {
 }
 
 TEST_F(attr_quantization_test_t, TestConcat) {
+    // Operator is not supported in the AMD backend
+    SKIP_IF_HIP(true, "Concat operator is not supported in HIP");
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
     CHECK_OK(concat::primitive_desc(eng, 1, {md, md}));
 
@@ -122,6 +124,8 @@ TEST_F(attr_quantization_test_t, TestConcat) {
 TEST_F(attr_quantization_test_t, TestConv) {
     // Datatype u8 is not supported in the Nvidia backend
     SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
+    // src, wei and dst needs to have same datatype. Just s8 it is supported.
+    SKIP_IF_HIP(true, "Unsupported datatype for HIP");
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::s8, tag::any};
     memory::desc dst_md {{1, 32, 7, 7}, data_type::s32, tag::any};
@@ -175,6 +179,8 @@ TEST_F(attr_quantization_test_t, TestConv) {
 TEST_F(attr_quantization_test_t, TestConvGroup) {
     // Datatype u8 is not supported in the Nvidia backend
     SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
+    // src, wei and dst needs to have same datatype. Just s8 it is supported.
+    SKIP_IF_HIP(true, "Unsupported datatype for HIP");
     const int g = 2;
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{g, 32 / g, 16 / g, 3, 3}, data_type::s8, tag::any};
@@ -231,6 +237,8 @@ TEST_F(attr_quantization_test_t, TestConvGroup) {
 }
 
 TEST_F(attr_quantization_test_t, TestDeconv) {
+    // src, wei and dst needs to have same datatype. Just s8 it is supported.
+    SKIP_IF_HIP(true, "Unsupported datatype for HIP");
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::s8, tag::any};
     memory::desc dst_md {{1, 32, 7, 7}, data_type::s8, tag::any};
@@ -276,6 +284,8 @@ TEST_F(attr_quantization_test_t, TestDeconv) {
 }
 
 TEST_F(attr_quantization_test_t, TestDeconvGroup) {
+    // src, wei and dst needs to have same datatype. Just s8 it is supported.
+    SKIP_IF_HIP(true, "Unsupported datatype for HIP");
     const int g = 2;
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{g, 32 / g, 16 / g, 3, 3}, data_type::s8, tag::any};
@@ -323,6 +333,9 @@ TEST_F(attr_quantization_test_t, TestDeconvGroup) {
 
 TEST_F(attr_quantization_test_t, TestEltwise) {
     for (auto dt : {data_type::f32, data_type::s8}) {
+        // s8 is not supported in HIP
+        if (is_amd_gpu(get_test_engine()) && dt == data_type::s8) continue;
+
         memory::desc md {{1, 16, 3, 3}, dt, tag::abcd};
 
         CHECK_OK(eltwise_forward::primitive_desc(
@@ -342,6 +355,8 @@ TEST_F(attr_quantization_test_t, TestEltwise) {
 TEST_F(attr_quantization_test_t, TestInnerProduct) {
     // Datatype u8 is not supported in the Nvidia backend
     SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
+    // src, wei needs to be s8 and dst be s32.
+    SKIP_IF_HIP(true, "Unsupported datatype for HIP");
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{32, 16, 7, 7}, data_type::s8, tag::any};
     memory::desc dst_md {{1, 32}, data_type::s32, tag::any};
@@ -360,6 +375,7 @@ TEST_F(attr_quantization_test_t, TestInnerProduct) {
 
 TEST_F(attr_quantization_test_t, TestLNorm) {
     SKIP_IF_CUDA(true, "Layer normalization primitive not supported for CUDA");
+    SKIP_IF_HIP(true, "Layer normalization primitive not supported for HIP");
 
     memory::desc md {{1, 16, 16}, data_type::s8, tag::abc};
     memory::desc stat_md {{1, 16}, data_type::f32, tag::ab};
@@ -476,6 +492,8 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmulBatch) {
 }
 
 TEST_F(attr_quantization_test_t, TestPool) {
+    // Datatype s8 is not supported in the Nvidia backend
+    SKIP_IF_HIP(true, "Unsupported datatype for AMD");
     memory::desc src_md {{1, 16, 8, 8}, data_type::s8, tag::abcd};
     memory::desc dst_md {{1, 16, 4, 4}, data_type::s8, tag::abcd};
 
@@ -497,6 +515,7 @@ TEST_F(attr_quantization_test_t, TestPool) {
 
 TEST_F(attr_quantization_test_t, TestPReLU) {
     SKIP_IF_CUDA(true, "Unsupported primitive not supported for CUDA");
+    SKIP_IF_HIP(true, "Unsupported primitive not supported for HIP");
     memory::desc data_md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     memory::desc weights_md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
 
@@ -527,6 +546,7 @@ CPU_TEST_F(attr_quantization_test_t, TestReorder) {
 
 TEST_F(attr_quantization_test_t, TestRNN) {
     SKIP_IF_CUDA(true, "RNN primitive not supported for CUDA");
+    SKIP_IF_HIP(true, "RNN primitive not supported for HIP");
     // Int8 RNN relies on packed API solely which is available only for X64.
 #if !DNNL_X64
     return;
@@ -581,6 +601,7 @@ TEST_F(attr_quantization_test_t, TestRNN) {
 
 TEST_F(attr_quantization_test_t, TestShuffle) {
     SKIP_IF_CUDA(true, "Shuffle primitive not supported for CUDA");
+    SKIP_IF_HIP(true, "Shuffle primitive not supported for HIP");
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
 
     CHECK_OK(shuffle_forward::primitive_desc pd(
@@ -613,6 +634,7 @@ TEST_F(attr_quantization_test_t, TestSoftmax) {
 }
 
 TEST_F(attr_quantization_test_t, TestSum) {
+    SKIP_IF_HIP(true, "Unsupported operator for HIP");
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
     CHECK_OK(sum::primitive_desc(eng, {1.f, 1.f}, {md, md}));
     CHECK_UNIMPL(sum::primitive_desc(

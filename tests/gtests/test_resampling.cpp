@@ -223,6 +223,8 @@ protected:
                 tag, dnnl_abc, dnnl_abcd, dnnl_acb, dnnl_acdb);
     }
     void SetUp() override {
+        SKIP_IF_HIP(
+                true, "Resampling operator is not supported by hip backend");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         SKIP_IF_CUDA(p.aalgorithm == algorithm::resampling_nearest,
                 "nearet algorithm is not supported for cudnn backend");
@@ -358,11 +360,17 @@ protected:
 using resampling_test_float = resampling_test_t<float>;
 
 #define EXPAND_SIZES_3D(...) \
-    5, { __VA_ARGS__ }
+    5, { \
+        __VA_ARGS__ \
+    }
 #define EXPAND_SIZES_2D(mb, c, ih, iw, oh, ow, fh, fw) \
-    4, { mb, c, 1, ih, iw, 1, oh, ow, 1.f, fh, fw }
+    4, { \
+        mb, c, 1, ih, iw, 1, oh, ow, 1.f, fh, fw \
+    }
 #define EXPAND_SIZES_1D(mb, c, iw, ow, fw) \
-    3, { mb, c, 1, 1, iw, 1, 1, ow, 1.f, 1.f, fw }
+    3, { \
+        mb, c, 1, 1, iw, 1, 1, ow, 1.f, 1.f, fw \
+    }
 
 TEST_P(resampling_test_float, TestsResampleF32) {}
 
