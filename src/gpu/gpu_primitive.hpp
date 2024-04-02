@@ -133,11 +133,11 @@ struct gpu_primitive_t : public primitive_t {
     }
 
     status_t create_kernel(engine_t *engine, compute::kernel_t *kernel,
-            jit::jit_generator_base *jitter) {
+            jit::jit_generator_base *jitter, bool register_kernel = true) {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         CHECK(compute_engine->create_kernel(kernel, jitter, cache_blob()));
-        CHECK(register_kernels({*kernel}));
+        if (register_kernel) CHECK(register_kernels({*kernel}));
         return status::success;
     }
 
