@@ -18,8 +18,8 @@
 #ifndef RV64_NCHW_POOLING_HPP
 #define RV64_NCHW_POOLING_HPP
 
-#include "cpu/cpu_pooling_pd.hpp"
 #include "common/primitive.hpp"
+#include "cpu/cpu_pooling_pd.hpp"
 
 namespace dnnl {
 namespace impl {
