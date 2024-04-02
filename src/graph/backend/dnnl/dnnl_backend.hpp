@@ -183,13 +183,17 @@ public:
                 ? std::numeric_limits<float>::max()
                 : policy == graph::partition_policy::fusion ? 20.0f
                                                             : 8.0f;
-        graph::pass::pass_registry_t filtered_registry;
-        for (auto &pass : get_pass_registry().get_passes()) {
-            if (pass->get_priority() > priority_ths) continue;
-            filtered_registry.register_pass(pass);
-        }
 
-        graph::pass::pass_manager_t pm(filtered_registry);
+        const auto &dnnl_pass_filter
+                = [priority_ths](const graph::pass::pass_base_ptr &pass,
+                          partition_policy_t policy) -> bool {
+            UNUSED(policy);
+            return pass->get_priority() <= priority_ths;
+        };
+
+        auto &pass_registry = get_pass_registry();
+        graph::pass::pass_manager_t pm(pass_registry);
+
 #ifdef DNNL_ENABLE_GRAPH_DUMP
         std::string pass_config_json = "dnnl_graph_passes.json";
         std::ifstream fs(pass_config_json.c_str());
@@ -207,9 +211,9 @@ public:
                 pm.print_passes(pass_config_json);
             }
         }
-        pm.run_passes(agraph, &fs, policy);
+        pm.run_passes(agraph, &fs, policy, dnnl_pass_filter);
 #else
-        pm.run_passes(agraph, "", policy);
+        pm.run_passes(agraph, "", policy, dnnl_pass_filter);
 #endif
         return status::success;
     }
