@@ -45,6 +45,7 @@ TEST(primitive_cache_mt_test, TestGeneralCase) {
 }
 
 TEST(primitive_cache_mt_test, TestNestedCase) {
+    SKIP_IF_HIP(true, "Sum operator is not supported by HIP");
     using tag = memory::format_tag;
     using dt = memory::data_type;
 

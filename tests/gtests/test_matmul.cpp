@@ -264,7 +264,8 @@ protected:
         aa.po_eltwise = true;
         aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_sum = true;
-        aa.scales = true;
+        // scales are not supported by HIP
+        aa.scales = !is_amd_gpu(eng);
         bool is_int8 = impl::utils::one_of(src_md.get_data_type(),
                 memory::data_type::s8, memory::data_type::u8);
         if (is_int8) aa.zp = true;
