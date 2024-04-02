@@ -4,10 +4,10 @@
 
 In order to implement DNN operations, it is generally useful to rely
 on a set of highly optimized basic building blocks that are then
-composed together. Such a set is defined and discussed in [reference,
-reference], and is currently used in oneDNN CPU backend to implement
-Matmul, Convolution, Inner product and RNN primitives.  In particular,
-the main operation batch-reduce GEneral Matrix Multiply operation (aka
+composed together. Such a set is defined and discussed in [^1][^2],
+and is currently used in oneDNN CPU backend to implement Matmul,
+Convolution, Inner product and RNN primitives.  In particular, the
+main operation batch-reduce GEneral Matrix Multiply operation (aka
 brgemm), is a very flexible operation that can be used in a variety of
 DNN operators. It is defined as folllow:
 
@@ -17,9 +17,9 @@ D = \beta C + \alpha \sum_i A_i \cdot B_i + bias
 ```
 
 with 
-- $A_i$ a set of matrices of dimension $MxK$
-- $B_i$ a set of matrices of dimension $KxN$ 
-- D and C matrices of dimension $MxN$
+- $A_i$ a set of matrices of dimension $M \times K$
+- $B_i$ a set of matrices of dimension $K \times N$
+- D and C matrices of dimension $M \times N$
 - bias a vector of dimension $N$.
 
 This proposal discusses exposing these sequential, basic building
@@ -34,8 +34,8 @@ routines.
 
 In general, we need to express memory shapes and memory objects, and
 for this block level API, we will have are three considerations:
-- allowing arbitrary strides between blocks (A,B in particular) for
-  maximum flexibility,
+- allowing arbitrary strides between blocks ($A_i$, $B_i$ in
+  particular) for maximum flexibility,
 - Support for metadata (e.g. zero-point handling) and
   hardware-specific layouts,
 - runtime overheads.
@@ -68,7 +68,7 @@ To make the public brgemm API simpler, we propose to expose only the array
 of pointers flavor.
 
 For the brgemm API specifically, an array of equal sizes for A and B
-blocks are passed.  To guarentee these are of equal size, and simplify
+blocks are passed.  To guarantee these are of equal size, and simplify
 pointer arithmetic logic inside generated kernels, we will take an
 array of pairs of pointers.
 
@@ -137,7 +137,7 @@ determination. However, it requires the user to pass a brgemm object
 or a layout tag around when the data pre-packing logic is separate to
 the operator implementation.
 
-The second option could be simpler only if the information necesary to
+The second option could be simpler only if the information necessary to
 make layout determination is readily available and does not require to
 pass extra information around (otherwise it would be equivalent to
 pass layout tag / brgemm object around).  Current internal
@@ -218,7 +218,7 @@ A few elements about those architectural states:
 - there is a per-core setting, which is typically costly in terms of
   cycle count.
 - this state is block size dependent, so executing two brgemm kernels
-  with different shapre require an expensive reconfiguration between
+  with different shapes require an expensive reconfiguration between
   each.
 - when matrix accelerator is armed, the max frequency for the core is
   altered, so performance of sequential/vector code can be impacted.
@@ -394,7 +394,7 @@ struct brgemm {
     static void release_hw_context() const;
 
     // Execution function for the vanilla brgemm variant.
-    // we take pointers to A and B as a vector of pairs, guarentees they are the same size
+    // we take pointers to A and B as a vector of pairs, guarantees they are the same size
     // The batch size is the size of the vector.
     // pointers are void*, datatypes are specified in constructor
     // Computes C = \beta C + \alpha \sum_i A_i \cdot B_i
@@ -427,15 +427,11 @@ struct transform_t {
 ## References
 
 
-[High-Performance Deep Learning via a Single Building Block](https://arxiv.org/abs/1906.06440)
-
-[Tensor Processing Primitives: A Programming Abstraction for Efficiency and Portability in Deep Learning & HPC Workloads](https://arxiv.org/abs/2104.05755)
-
-[ARM BFDOT instruction](https://developer.arm.com/documentation/ddi0602/2021-06/SVE-Instructions/BFDOT--vectors---BFloat16-floating-point-dot-product-)
-
-[ARM SME instruction](https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/scalable-matrix-extension-armv9-a-architecture)
-
-[Intel optimization guide](https://www.intel.com/content/www/us/en/content-details/671488/intel-64-and-ia-32-architectures-optimization-reference-manual-volume-1.html)
+[^1]: [High-Performance Deep Learning via a Single Building Block](https://arxiv.org/abs/1906.06440)
+[^2]: [Tensor Processing Primitives: A Programming Abstraction for Efficiency and Portability in Deep Learning & HPC Workloads](https://arxiv.org/abs/2104.05755)
+[^3]: [ARM BFDOT instruction](https://developer.arm.com/documentation/ddi0602/2021-06/SVE-Instructions/BFDOT--vectors---BFloat16-floating-point-dot-product-)
+[^4]: [ARM SME instruction](https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/scalable-matrix-extension-armv9-a-architecture)
+[^5]: [Intel optimization guide](https://www.intel.com/content/www/us/en/content-details/671488/intel-64-and-ia-32-architectures-optimization-reference-manual-volume-1.html)
 
 
 
