@@ -309,8 +309,6 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
             ? sizeof(float) * cmpl_conf.vect_size * rt_conf.sg_size
                     * rt_conf.calc_adj_lws[1]
             : 0;
-    DPRINT_RT(
-            "%s:%s:%d calc_slm_size = %ld (bytes)\n", PRINTHEAD, calc_slm_size);
 
     if (cmpl_conf.calculate_stats && !cmpl_conf.use_stats_one_pass) {
         const dim_t local_sum_size = sizeof(float) * rt_conf.sg_size
