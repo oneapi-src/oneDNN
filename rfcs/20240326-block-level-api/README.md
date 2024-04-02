@@ -11,7 +11,6 @@ main operation batch-reduce GEneral Matrix Multiply operation (aka
 brgemm), is a very flexible operation that can be used in a variety of
 DNN operators. It is defined as folllow:
 
-![](brgemm_pic.png)
 ```math
 D = \beta C + \alpha \sum_i A_i \cdot B_i + bias
 ```
@@ -43,9 +42,18 @@ for this block level API, we will have are three considerations:
 ### Arbitrary strides between A and B blocks
 
 To make the API flexible, we want to allow arbitrary strides between A
-and B blocks. This is unfortunately not possible if we encapsulate all
-A blocks (resp B blocks) of a brgemm operation in a dnnl::memory
-object, since this will force a fixed stride between each block.
+and B blocks as showed in the picture:
+![](brgemm_pic.png)
+
+This is necessary on multiple occasions, a few examples being:
+- for convolutions, where blocks can overlap depending on covolution strides
+- for LSTM/GRU where weights for each gate can live in separate memory addresses.
+- for models with embedding lookup, where vectors can be passed as separate blocks.
+
+Using arbitrary strides between blocks is unfortunately not possible
+if we encapsulate all $A_i$ blocks (resp $B_i$ blocks) of a brgemm
+operation in a dnnl::memory object, since this will force a fixed
+stride between each block.
 
 Another option would be to take an array of dnnl::memory objects, each
 containing a single block of A/B. This would require the user to call
@@ -110,15 +118,6 @@ innerblock component of existing memory::desc objects.
 The recommendation here would be to go with layout tags only if no
 handling of metadata and extra information is expected from oneDNN
 block level APIs.
-
-
-<!-- | Option             | Pros                                                            | Cons                                                   | -->
-<!-- | layout tags        | - simple to use                                                 | - contains only innerblock shape and order information | -->
-<!-- |                    |                                                                 | - no metadata (e.g. zero-point related compensation)   | -->
-<!-- | memory descriptors | - relies on existing mechanism exposed for oneDNN primitive API | - potential overheads                                  | -->
-<!-- |                    | - can contain informations other than shapes/strides            | - extra code on user side to create these objects      | -->
-<!-- |                    |   (e.g. compensation information)                               |                                                        | -->
-
 
 #### Query mecanism for layout
 
