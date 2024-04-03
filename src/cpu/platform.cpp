@@ -117,8 +117,8 @@ bool has_data_type_support(data_type_t data_type) {
 #if defined(USE_CBLAS) && defined(BLAS_HAS_SBGEMM) && defined(__MMA__)
             return true;
 #endif
-#elif DNNL_AARCH64_USE_ACL
-            return arm_compute::CPUInfo::get().has_bf16();
+#elif DNNL_AARCH64
+            return aarch64::mayiuse_bf16();
 #else
             return false;
 #endif
