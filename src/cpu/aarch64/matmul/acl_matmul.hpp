@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Arm Ltd. and affiliates
+* Copyright 2021-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,13 +85,18 @@ struct acl_matmul_t : public primitive_t {
                     = utils::everyone_is(data_type::f16, src_md()->data_type,
                               weights_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(data_type::f16);
+            const bool is_bf16_ok
+                    = utils::everyone_is(data_type::bf16, src_md()->data_type,
+                              weights_md()->data_type, dst_md()->data_type)
+                    && platform::has_data_type_support(data_type::bf16);
 
             // we need to save this state as it can change inside set_default_formats()
             weights_format_kind_ = weights_md_.format_kind;
 
             VDISPATCH_MATMUL(
                     is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
-            VDISPATCH_MATMUL(utils::one_of(true, is_fp32_ok, is_fp16_ok),
+            VDISPATCH_MATMUL(
+                    utils::one_of(true, is_fp32_ok, is_fp16_ok, is_bf16_ok),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
             VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
