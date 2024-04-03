@@ -43,6 +43,7 @@ enum class kernel_arg_kind_t {
 enum class scalar_type_t {
     undef,
     _char,
+    _hfloat8,
     _bfloat8,
     _bfloat16,
     _float,
@@ -72,6 +73,7 @@ inline std::string to_string(scalar_type_t type) {
     switch (type) {
         CASE(undef);
         CASE(_char);
+        CASE(_hfloat8);
         CASE(_bfloat8);
         CASE(_bfloat16);
         CASE(_float);

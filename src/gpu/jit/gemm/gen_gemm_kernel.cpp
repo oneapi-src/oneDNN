@@ -189,8 +189,7 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(
         problem_.binaryTrans = {};
 
         if (problem_.Ta == Type::f16) problem_.Ts = Type::f32;
-        if (problem_.Ta == Type::bf8 || problem_.Tb == Type::bf8)
-            problem_.Ts = Type::f32;
+        if (problem_.Ta.isF8() || problem_.Tb.isF8()) problem_.Ts = Type::f32;
 
         for (size_t i = 0; i < po_count; i++) {
             const auto &entry = post_ops[i];

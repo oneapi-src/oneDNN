@@ -264,7 +264,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool dst_q = ngen_is_qw(dst_type);
     bool dst_f = (dst_type == ngen::DataType::f);
     bool dst_bf8 = (dst_type == ngen::DataType::bf8);
-    bool dst_hf8 = (dst_type == ngen::DataType::hf8);
+    bool dst_hf8 = (dst_type == ngen_hf8());
     bool dst_hf = (dst_type == ngen::DataType::hf);
     bool dst_bf = (dst_type == ngen::DataType::bf);
     bool dst_df = (dst_type == ngen::DataType::df);
@@ -276,7 +276,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool src_hf = (src_type == ngen::DataType::hf);
     bool src_bf = (src_type == ngen::DataType::bf);
     bool src_bf8 = (src_type == ngen::DataType::bf8);
-    bool src_hf8 = (src_type == ngen::DataType::hf8);
+    bool src_hf8 = (src_type == ngen_hf8());
     bool src_df = (src_type == ngen::DataType::df);
     bool src_xf = src_bf || src_f || src_hf || src_df;
     bool f_to_xf = (src_f && (dst_bf || dst_hf));

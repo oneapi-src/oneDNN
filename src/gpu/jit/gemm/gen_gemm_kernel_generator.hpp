@@ -74,6 +74,7 @@ public:
         u64 = 0x018A0803,
         s64 = 0x018B0803,
         bf8 = 0x010E0100,
+        hf8 = 0x010F0100,
         bf16 = 0x010C0201,
         tf32 = 0x010D0402,
     };
@@ -95,6 +96,9 @@ public:
     constexpr bool isInt4() const { return uint32_t(val) & 0x20000000; }
     constexpr bool isInt8() const {
         return (val == Type::u8) || (val == Type::s8);
+    }
+    constexpr bool isF8() const {
+        return (val == Type::bf8 || val == Type::hf8);
     }
     constexpr bool isSigned() const {
         return (uint32_t(val) & 0x810000) != 0x800000;
@@ -154,7 +158,7 @@ public:
                 DataType::df, DataType::invalid, DataType::ub, DataType::b,
                 DataType::uw, DataType::w, DataType::ud, DataType::d,
                 DataType::uq, DataType::q, DataType::bf, DataType::tf32,
-                DataType::bf8, DataType::invalid};
+                DataType::bf8, DataType::ub};
         return table[(uint32_t(val) >> 16) & 0xF];
     }
 
@@ -2956,6 +2960,7 @@ inline char precisionChar(Type T) {
     switch (T.baseType()) {
         case Type::f16: return 'H';
         case Type::bf8: return 'Q';
+        case Type::hf8: return 'q';
         case Type::f32: return 'S';
         case Type::u4: return 'f';
         case Type::s4: return 'F';
@@ -2977,6 +2982,7 @@ static inline Type charPrecision(char c) {
     switch (c) {
         case 'H': return Type::f16;
         case 'Q': return Type::bf8;
+        case 'q': return Type::hf8;
         case 'S': return Type::f32;
         case 'f': return Type::u4;
         case 'F': return Type::s4;
