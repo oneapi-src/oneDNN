@@ -1939,6 +1939,7 @@ const primitive_kind_t group_normalization = dnnl_group_normalization;
 // Internal only primitive kinds.
 const primitive_kind_t internal_only_start = (primitive_kind_t)(1 << 12);
 const primitive_kind_t zero_pad = internal_only_start;
+const primitive_kind_t sdpa = (primitive_kind_t)(internal_only_start + 1);
 } // namespace primitive_kind
 
 using query_t = dnnl_query_t;

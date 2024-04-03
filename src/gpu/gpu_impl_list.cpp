@@ -45,6 +45,7 @@ const impl_list_item_t *gpu_impl_list_t::get_implementation_list(
             CASE(reduction);
             CASE(resampling);
             CASE(rnn);
+            CASE(sdpa);
             CASE(shuffle);
             CASE(softmax);
             CASE(zero_pad);

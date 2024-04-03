@@ -23,6 +23,7 @@
 #include "common/engine.hpp"
 #include "common/impl_list_item.hpp"
 #include "common/impl_registration.hpp"
+#include "common/sdpa_types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -51,6 +52,7 @@ DECLARE_IMPL_LIST(prelu);
 DECLARE_IMPL_LIST(reduction);
 DECLARE_IMPL_LIST(resampling);
 DECLARE_IMPL_LIST(rnn);
+DECLARE_IMPL_LIST(sdpa);
 DECLARE_IMPL_LIST(shuffle);
 DECLARE_IMPL_LIST(softmax);
 DECLARE_IMPL_LIST(zero_pad);

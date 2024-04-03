@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/gemm_types.hpp"
+#include "common/sdpa_types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -616,6 +617,7 @@ struct op_desc_t {
         resampling_desc_t resampling;
         zero_pad_desc_t zero_pad;
         reduction_desc_t reduction;
+        sdpa_desc_t sdpa;
     };
 
 #define DECL_CTOR_AND_CONVERTERS(c_type) \
@@ -648,6 +650,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(resampling_desc_t);
     DECL_CTOR_AND_CONVERTERS(zero_pad_desc_t);
     DECL_CTOR_AND_CONVERTERS(reduction_desc_t);
+    DECL_CTOR_AND_CONVERTERS(sdpa_desc_t);
 
     // concat_desc_t and sum_desc_t have data members which have non-trivial
     // special member functions hence the default destructor is implicitly

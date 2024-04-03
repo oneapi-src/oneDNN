@@ -766,6 +766,19 @@ inline bool operator==(const zero_pad_desc_t &lhs, const zero_pad_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind);
     return ret;
 }
+
+inline bool operator==(const sdpa_desc_t &lhs, const sdpa_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(q_desc)
+            && COMPARE_DESC_MEMBERS(k_desc)
+            && COMPARE_DESC_MEMBERS(v_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(attn_mask_desc)
+            && COMPARE_DESC_MEMBERS(scale_dt)
+            && COMPARE_DESC_MEMBERS(invert_scale);
+    return ret;
+}
+
 // clang-format on
 
 #undef COMPARE_DESC_MEMBERS
@@ -1078,6 +1091,7 @@ inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {
         CASE_OP_DESC(reduction);
         CASE_OP_DESC(resampling);
         CASE_OP_DESC(rnn);
+        CASE_OP_DESC(sdpa);
         CASE_OP_DESC(shuffle);
         CASE_OP_DESC(softmax);
 

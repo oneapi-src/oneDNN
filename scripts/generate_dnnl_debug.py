@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ################################################################################
-# Copyright 2018-2023 Intel Corporation
+# Copyright 2018-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,6 +98,8 @@ def source(body):
 
 #include "oneapi/dnnl/dnnl_debug.h"
 #include "oneapi/dnnl/dnnl_types.h"
+
+#include "common/c_types_map.hpp"
 
 %s
 """
@@ -249,6 +251,8 @@ def func_to_str(enum, values):
     func += func_to_str_decl(enum) + " {\n"
     for v in values:
         func += '%sif (v == %s) return "%s";\n' % (indent, v, sanitize_value(v))
+    if (enum == "dnnl_primitive_kind_t"):
+        func += '%sif (v == dnnl::impl::primitive_kind::sdpa) return "sdpa";\n' % indent
     func += '%sassert(!"unknown %s");\n' % (indent, abbrev)
     func += '%sreturn "unknown %s";\n}\n' % (indent, abbrev)
     return func
