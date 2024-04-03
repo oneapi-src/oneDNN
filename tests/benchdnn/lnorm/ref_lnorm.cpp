@@ -44,7 +44,8 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const float dst_scale_val = has_dst_scale ? dst_scale.get_elem(0) : 1.f;
     const float r_dst_scale_val = 1.0f / dst_scale_val;
 
-    auto v_po_masks = prb->attr.post_ops.get_po_masks();
+    auto v_po_masks = prb->attr.post_ops.get_po_masks(
+            prb->ndims, dnnl_layer_normalization);
 
     benchdnn_parallel_nd(prb->n, [&](int64_t n) {
         float smean = mean.get_elem(n);

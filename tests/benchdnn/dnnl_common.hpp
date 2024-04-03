@@ -854,8 +854,8 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
             const int exec_sc_arg = DNNL_ARG_ATTR_SCALES | exec_arg;
             dims_t dims = {};
             int64_t ndims = 1;
-            const auto mask
-                    = sc.get_mask(exec_arg, prim_kind, wei_md, has_groups);
+            const auto mask = sc.get_mask(
+                    exec_arg, prim_kind, query_md_ndims(wei_md), has_groups);
 
             if (mask > 0) {
                 const auto &md = query_md(const_pd, exec_arg);
@@ -902,7 +902,8 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
             const auto &e = zp.get(exec_arg);
             int64_t ndims = 1;
             dims_t dims = {};
-            const auto mask = zp.get_mask(exec_arg, prim_kind, wei_md);
+            const auto mask
+                    = zp.get_mask(exec_arg, prim_kind, query_md_ndims(wei_md));
 
             if (mask > 0) {
                 const auto &md = query_md(const_pd, exec_arg);

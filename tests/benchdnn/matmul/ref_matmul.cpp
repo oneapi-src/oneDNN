@@ -46,7 +46,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     float src_scale = has_src_scale ? src_scales.get_elem(0) : 1.f;
     float dst_scale = has_dst_scale ? 1.f / dst_scales.get_elem(0) : 1.f;
     const int wei_scale_mask = prb->attr.scales.get_mask(
-            DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.md_);
+            DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.ndims());
 
     const bool has_src_zp = !prb->attr.zero_points.get(DNNL_ARG_SRC).is_def();
     const bool has_wei_zp
@@ -56,7 +56,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const int src_zp_mask = attr_t::get_default_mask(
             prb->attr.zero_points.get(DNNL_ARG_SRC).policy);
     const int wei_zp_mask = prb->attr.zero_points.get_mask(
-            DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.md_);
+            DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.ndims());
     const int dst_zp_mask = attr_t::get_default_mask(
             prb->attr.zero_points.get(DNNL_ARG_DST).policy);
 
