@@ -100,7 +100,7 @@ bool Type::isSubsetOf(Type T) const {
     if (*this == T) return true;
 
     if (isInteger() && T == bf16) return false;
-    if (isInteger() && T == bf8) return false;
+    if (isInteger() && T.isF8()) return false;
 
     return (size() < T.size());
 }
@@ -10371,6 +10371,7 @@ template <HW hw>
 void gemm_kernel_generator_t<hw>::convert(const GRFMultirange &range, Type Told,
         Type Tnew, const CommonStrategy &strategy, CommonState &state) {
     if (Told == Tnew) return;
+    if (Told == Type::hf8 || Tnew == Type::hf8) stub();
 
     if (hw == HW::Gen9 && Told == Type::f32 && !Tnew.isFP()) {
         // Gen9: round to nearest before downconvert (not done by mov).
@@ -19471,9 +19472,9 @@ void gemm_kernel_generator_t<hw>::gemmAutoTypeConversions(
         GEMMProblem &problem, const GEMMStrategy &strategy) {
     auto &Ta = problem.Ta, &Tb = problem.Tb, &Tc = problem.Tc;
 
-    if (Ta == Type::bf8) Ta = Type::f16;
-    if (Tb == Type::bf8) Tb = Type::f16;
-    if (Tc == Type::bf8) Tc = Type::f16;
+    if (Ta.isF8()) Ta = Type::f16;
+    if (Tb.isF8()) Tb = Type::f16;
+    if (Tc.isF8()) Tc = Type::f16;
 
     // Weights decompression
     if (utils::one_of(Ta, Type::u8, Type::s8)
@@ -25491,6 +25492,20 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
         }
     }
 
+    if (Ts_real == Type::hf8) {
+        saveF0 = state.ra.alloc_sub<uint32_t>();
+        mov(1, saveF0, f0);
+    }
+    if (Td_real == Type::hf8) {
+        if (FlagRegister::count(hw) < 4) stub();
+        saveF0 = state.ra.alloc_sub<uint32_t>();
+        mov(1, saveF0, f0);
+        saveF1 = state.ra.alloc_sub<uint32_t>();
+        mov(1, saveF1, f1);
+        saveF2 = state.ra.alloc_sub<uint32_t>();
+        mov(1, saveF2, f2);
+    }
+
     auto allocTemp = [&]() {
         if (preswizzle && copyTemp.isInvalid())
             copyTemp = state.ra.alloc_range(2);
@@ -25590,12 +25605,10 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                 nelems_real = std::min(nelems_real,
                                         nes_real); // Special case: mixed mode packed downconversion limited to 1 GRF.
 
-                            bool src_bf8
-                                    = (Ts_real.ngen() == ngen::DataType::bf8);
-                            bool dst_bf8
-                                    = (Td_real.ngen() == ngen::DataType::bf8);
-                            bool bf8_align = src_bf8 || dst_bf8;
-                            if (bf8_align) allocTemp();
+                            bool src_f8 = Ts_real.isF8();
+                            bool dst_f8 = Td_real.isF8();
+                            bool f8_align = src_f8 ^ dst_f8;
+                            if (f8_align) allocTemp();
 
                             // Check if separate conversions are needed due to size changes.
                             auto sconvertCP = (Ts_real.size() / Td_real.size())
@@ -25622,7 +25635,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                       && dcrosspack
                                                               != sconvertCP
                                                       && hw > HW::Gen9))
-                                    && !bf8_align;
+                                    && !f8_align;
                             if (sconvert && preserveSrc) stub();
                             bool salign = sconvert && Ts_real.isInteger()
                                     && (Ts_real.size() < Td_real.size())
@@ -25648,7 +25661,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                       && Td_real.size() > 2
                                                       && (sreg.getOffset() & 1)
                                                       && hw >= HW::XeHP))
-                                    && !bf8_align;
+                                    && !f8_align;
                             auto dregConverted = dconvert
                                     ? dreg.reinterpret(0, Ts_real.ngen())(
                                             dconvertCP)
@@ -25661,57 +25674,168 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                 if (!sconvert && !dconvert)
                                     mmodMov = mmodMov | sat;
                             }
-                            auto cvt_bf8_to_x = [&]() {
-                                mov(nelems_real | modMov, copyTemp[0].ub(),
-                                        sreg.ub()(scrosspack));
-                                shl(nelems_real, copyTemp[1].w(),
-                                        copyTemp[0].b(), 8);
-                                if (Td_real == Type::f16) {
-                                    mov(nelems_real | modMov,
-                                            dreg.uw()(dcrosspack),
-                                            copyTemp[1].uw());
-                                } else if (Td_real == Type::f32) {
-                                    mov(nelems_real | modMov,
-                                            copyTemp[0].sub(0, Td_real.ngen())(
-                                                    1),
-                                            copyTemp[1].hf());
-                                    mov(nelems_real | modMov,
-                                            dreg.ud()(dcrosspack),
-                                            copyTemp[0].ud());
-                                } else
+                            auto cvt_f8_to_x = [&]() {
+                                if (Ts_real == Type::bf8) {
+                                    mov(nelems_real | modMov, copyTemp[0].ub(),
+                                            sreg.ub()(scrosspack));
+                                    shl(nelems_real, copyTemp[1].w(),
+                                            copyTemp[0].b(), 8);
+                                    if (Td_real == Type::f16) {
+                                        mov(nelems_real | modMov,
+                                                dreg.uw()(dcrosspack),
+                                                copyTemp[1].uw());
+                                    } else if (Td_real == Type::f32) {
+                                        mov(nelems_real | modMov,
+                                                copyTemp[0].sub(
+                                                        0, Td_real.ngen())(1),
+                                                copyTemp[1].hf());
+                                        mov(nelems_real | modMov,
+                                                dreg.ud()(dcrosspack),
+                                                copyTemp[0].ud());
+                                    } else
+                                        stub();
+                                } else if (Ts_real == Type::hf8) {
+                                    if (!one_of(Td_real, Type::f16, Type::f32))
+                                        stub();
+                                    if (scrosspack > 2) {
+                                        mov(nelems_real | modMov,
+                                                copyTemp[1].ub(),
+                                                sreg.ub()(scrosspack));
+                                        eshl(nelems_real, copyTemp[0].uw(),
+                                                copyTemp[1].ub(), 8, strategy,
+                                                state);
+                                        eshl(nelems_real, copyTemp[1].uw(),
+                                                copyTemp[1].ub(), 7, strategy,
+                                                state);
+                                    } else {
+                                        eshl(nelems_real, copyTemp[0].uw(),
+                                                sreg.ub()(scrosspack), 8,
+                                                strategy, state);
+                                        eshl(nelems_real, copyTemp[1].uw(),
+                                                sreg.ub()(scrosspack), 7,
+                                                strategy, state);
+                                    }
+                                    and_(nelems_real, copyTemp[1].uw(),
+                                            copyTemp[1].uw(), 0x3F80);
+                                    cmp(nelems_real | eq | f0[0], null.uw(),
+                                            copyTemp[1].uw(),
+                                            Immediate(0x3F80));
+                                    mul(nelems_real, copyTemp[1].hf(),
+                                            copyTemp[1].hf(),
+                                            Immediate::hf(0x5c00));
+                                    mov(nelems_real | modMov | f0[0],
+                                            copyTemp[1].uw(),
+                                            Immediate(0x7C01));
+                                    csel(nelems_real | gt, copyTemp[1].hf(),
+                                            copyTemp[1].hf(), -copyTemp[1].hf(),
+                                            copyTemp[0].hf());
+                                    if (Td_real == Type::f16) {
+                                        mov(nelems_real | modMov,
+                                                dreg.uw()(dcrosspack),
+                                                copyTemp[1].uw());
+                                    } else {
+                                        mov(nelems_real | modMov,
+                                                copyTemp[1].sub(0,
+                                                        ngen::DataType::uw)(2),
+                                                copyTemp[1].uw());
+                                        mov(nelems_real | modMov,
+                                                copyTemp[1].f(),
+                                                copyTemp[1].sub(0,
+                                                        ngen::DataType::hf)(2));
+                                        mov(nelems_real | modMov,
+                                                dreg.ud()(dcrosspack),
+                                                copyTemp[1].ud());
+                                    }
+                                } else {
                                     stub();
+                                }
                             };
 
-                            auto cvt_x_to_bf8 = [&]() {
-                                auto tmp0 = copyTemp[0].sub(0, Ts_real.ngen());
-                                moveToIntPipe(tmp0);
-                                moveToIntPipe(sreg);
-                                mov(nelems_real | modMov, tmp0(1),
-                                        sreg(scrosspack));
-
-                                if (Ts_real.ngen() == ngen::DataType::hf) {
-
-                                    auto tmp1 = copyTemp[1].bf8();
-                                    mov(nelems_real | modMov, tmp1, tmp0.hf());
-                                    mov(nelems_real | modMov,
-                                            dreg.ub()(dcrosspack), tmp1.ub());
-
-                                } else if (Ts_real.ngen()
-                                        == ngen::DataType::f) {
-
+                            auto cvt_x_to_f8 = [&]() {
+                                if (Td_real == Type::bf8) {
+                                    auto tmp0 = copyTemp[0].sub(
+                                            0, Ts_real.ngen());
+                                    moveToIntPipe(tmp0);
+                                    moveToIntPipe(sreg);
+                                    mov(nelems_real | modMov, tmp0(1),
+                                            sreg(scrosspack));
+                                    if (Ts_real.ngen() == ngen::DataType::hf) {
+                                        auto tmp1 = copyTemp[1].bf8();
+                                        mov(nelems_real | modMov, tmp1,
+                                                tmp0.hf());
+                                        mov(nelems_real | modMov,
+                                                dreg.ub()(dcrosspack),
+                                                tmp1.ub());
+                                    } else if (Ts_real.ngen()
+                                            == ngen::DataType::f) {
+                                        auto tmp1 = copyTemp[1].sub(
+                                                0, ngen::DataType::hf);
+                                        movePipes(tmp0);
+                                        movePipes(sreg);
+                                        mov(nelems_real | modMov, tmp1(1),
+                                                tmp0(1));
+                                        mov(nelems_real | modMov, tmp0.bf8()(1),
+                                                tmp1(1));
+                                        mov(nelems_real | modMov,
+                                                dreg.ub()(dcrosspack),
+                                                tmp0.ub()(1));
+                                    } else
+                                        stub();
+                                } else if (Td_real == Type::hf8) {
+                                    auto tmp0 = copyTemp[0].sub(
+                                            0, ngen::DataType::ub);
+                                    moveToIntPipe(tmp0);
+                                    moveToIntPipe(sreg);
+                                    if (!one_of(Ts_real, Type::f16, Type::f32))
+                                        stub();
                                     auto tmp1 = copyTemp[1].sub(
-                                            0, ngen::DataType::hf);
-                                    movePipes(tmp0);
-                                    movePipes(sreg);
-                                    mov(nelems_real | modMov, tmp1(1), tmp0(1));
-                                    mov(nelems_real | modMov, tmp0.bf8(),
-                                            tmp1(1));
-
+                                            0, ngen::DataType::uw);
+                                    if (Ts_real == Type::f32) {
+                                        mov(nelems_real | modMov, tmp1.ud()(1),
+                                                sreg.ud()(scrosspack));
+                                        mov(nelems_real | modMov, tmp1.hf()(2),
+                                                tmp1.f()(1));
+                                        mov(nelems_real | modMov, tmp1(1),
+                                                tmp1(2));
+                                    } else {
+                                        mov(nelems_real | modMov, tmp1(1),
+                                                sreg(scrosspack));
+                                    }
+                                    // get sign bits
+                                    and_(nelems_real | nz | f2[0], null.uw(),
+                                            tmp1(1), Immediate(0x8000));
+                                    // multiply by hf 128 to force overflow of exponent
+                                    mul(nelems_real, tmp1.hf()(1), tmp1.hf()(1),
+                                            Immediate::hf(0x5800));
+                                    // multiply by 2^(-15) to undo mul, preserving overflows,
+                                    // shift and underflow for hf8
+                                    mul(nelems_real, tmp1.hf()(1), tmp1.hf()(1),
+                                            Immediate::hf(0x0200));
+                                    // check for NaN, inf.
+                                    and_(nelems_real | ze | f0[0], null.uw(),
+                                            ~tmp1(1), 0x7C00);
+                                    // round.
+                                    add(nelems_real, tmp1(1), tmp1(1),
+                                            Immediate(-0x40));
+                                    // check for zero mantissa.
+                                    and_(nelems_real | nz | f1[0], null.uw(),
+                                            tmp1(1), 0x3FF);
+                                    eshr(nelems_real, tmp1(1), tmp1(1), 7,
+                                            strategy, state);
+                                    add(nelems_real | f1[0], tmp1(1), tmp1(1),
+                                            Immediate(1));
+                                    mov(nelems_real | modMov | f0[0], tmp1(1),
+                                            Immediate(0x7F));
+                                    or_(nelems_real | f2[0], tmp1(1), tmp1(1),
+                                            Immediate(0x80));
+                                    mov(nelems_real | modMov, tmp0(2), tmp1(1));
+                                    mov(nelems_real | modMov, tmp0(1), tmp0(2));
                                     mov(nelems_real | modMov,
                                             dreg.ub()(dcrosspack),
                                             tmp0.ub()(1));
-                                } else
+                                } else {
                                     stub();
+                                }
                             };
 
                             if (!skip) switch (phase) {
@@ -25723,12 +25847,11 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                             rnde(nelems_real, sreg(scrosspack),
                                                     sreg(scrosspack));
                                         }
-                                        if (bf8_align) {
-                                            if (src_bf8) {
-                                                cvt_bf8_to_x();
-                                            } else if (dst_bf8) {
-                                                cvt_x_to_bf8();
-                                            }
+                                        if (f8_align) {
+                                            if (src_f8)
+                                                cvt_f8_to_x();
+                                            else if (dst_f8)
+                                                cvt_x_to_f8();
                                         } else if (sconvert) {
                                             if (salign) {
                                                 allocTemp();
@@ -25816,7 +25939,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                                 ? base(1)
                                                                 : base(0, wd,
                                                                         1));
-                                            } else if (!salign && !bf8_align) {
+                                            } else if (!salign && !f8_align) {
                                                 emov(telems | mmodMov,
                                                         dregConverted,
                                                         sregConverted, strategy,
@@ -25886,7 +26009,15 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
     } /* phase loop */
 
     if (releaseEmuFlag) state.raVFlag.safeRelease(state.emulate.flag);
-
+    if (saveF2.isValid()) {
+        mov(1, f2, saveF2);
+        state.ra.safeRelease(saveF2);
+    }
+    if (saveF1.isValid()) {
+        mov(1, f1, saveF1);
+        state.ra.safeRelease(saveF1);
+        state.emulate.flag = invalid;
+    }
     if (saveF0.isValid()) {
         mov(1, f0, saveF0);
         state.ra.safeRelease(saveF0);

@@ -55,6 +55,7 @@ struct gen_gemm_kernel_desc_t {
             case Type::s64: return compute::scalar_type_t::_long;
             case Type::u64: return compute::scalar_type_t::_ulong;
             case Type::bf8: return compute::scalar_type_t::_bfloat8;
+            case Type::hf8: return compute::scalar_type_t::_hfloat8;
             case Type::bf16: return compute::scalar_type_t::_bfloat16;
             case Type::f16: return compute::scalar_type_t::_half;
             case Type::f32: return compute::scalar_type_t::_float;
@@ -86,6 +87,7 @@ protected:
             case data_type::f16: return Type::f16;
             case data_type::bf16: return Type::bf16;
             case data_type::f8_e5m2: return Type::bf8;
+            case data_type::f8_e4m3: return Type::hf8;
             case data_type::s32: return Type::s32;
             case data_type::u8: return Type::u8;
             case data_type::s8: return Type::s8;

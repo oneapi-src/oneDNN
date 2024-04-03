@@ -315,7 +315,6 @@ enum class DataType : uint8_t {
     v  = 0x4E,
     vf = 0x4F,
     bf8 = 0x0C,
-    hf8 = 0x0D,
     tf32 = 0x50,
     u4 = 0x1C,
     s4 = 0x1D,

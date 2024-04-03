@@ -139,12 +139,15 @@ struct gen_gemm_t : public gpu_gemm_t {
                 ok = ok && d->b_type() == bf16
                         && utils::one_of(d->c_type(), bf16, f32)
                         && utils::one_of(d->acc_type, bf16, f32);
-            } else if (!wei_decomp) {
-                ok = ok && utils::one_of(d->a_type(), f32, f16, f8_e5m2)
+            } else if (!wei_decomp_) {
+                ok = ok
+                        && utils::one_of(
+                                d->a_type(), f32, f16, f8_e5m2, f8_e4m3)
                         && d->b_type() == d->a_type()
                         && utils::one_of(d->acc_type, d->a_type(), f32)
-                        && IMPLICATION(utils::one_of(f8_e5m2, d->a_type(),
-                                               d->b_type(), d->c_type()),
+                        && IMPLICATION(
+                                utils::one_of(f8_e5m2, f8_e4m3, d->a_type(),
+                                        d->b_type(), d->c_type()),
                                 arch_ >= arch_t::xe_hpc);
             }
 
@@ -152,8 +155,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
                     && IMPLICATION(with_bias(),
-                            utils::one_of(
-                                    d->bias_type(), f32, bf16, f16, f8_e5m2)
+                            utils::one_of(d->bias_type(), f32, bf16, f16,
+                                    f8_e5m2, f8_e4m3)
                                     && (d->bias_desc.ndims <= 3)
                                     && utils::one_of(bias_cmask(), 0, 1, 2, 3))
                     && compute_engine->mayiuse_ngen_kernels()
