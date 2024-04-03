@@ -35,27 +35,27 @@ using namespace ngen;
 
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::sum_fwd(
-        int simd, ngen::GRF &acc, ngen::GRF &val) {
+        int simd, const ngen::GRF &acc, const ngen::GRF &val) {
     eadd(h, simd, acc, acc, val);
 }
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::max_fwd(
-        int simd, ngen::GRF &acc, ngen::GRF &val) {
+        int simd, const ngen::GRF &acc, const ngen::GRF &val) {
     h.max_(simd, acc, acc, val);
 }
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::min_fwd(
-        int simd, ngen::GRF &acc, ngen::GRF &val) {
+        int simd, const ngen::GRF &acc, const ngen::GRF &val) {
     h.min_(simd, acc, acc, val);
 }
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::mul_fwd(
-        int simd, ngen::GRF &acc, ngen::GRF &val) {
+        int simd, const ngen::GRF &acc, const ngen::GRF &val) {
     emul(h, simd, acc, acc, val);
 }
 
 template <gpu_gen_t hw>
-void jit_reduction_injector_f32<hw>::initialize(ngen::GRF &reg) {
+void jit_reduction_injector_f32<hw>::initialize(const ngen::GRF &reg) {
     int simd = ngen::GRF::bytes(hw) / reg.getBytes();
     switch (alg_) {
         case dnnl_reduction_sum:
@@ -74,7 +74,7 @@ void jit_reduction_injector_f32<hw>::initialize(ngen::GRF &reg) {
 
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::eload(int simd, int dt_size,
-        ngen::GRF &dst, ngen::GRF &addr, bool block_load) {
+        const ngen::GRF &dst, const ngen::GRF &addr, bool block_load) {
     if (hw >= ngen::HW::XeHPG) {
         // LSC load
         if (block_load) {
@@ -99,14 +99,14 @@ void jit_reduction_injector_f32<hw>::eload(int simd, int dt_size,
 }
 
 template <gpu_gen_t hw>
-void jit_reduction_injector_f32<hw>::compute(
-        ngen::GRF &src_ptr, ngen::GRF &acc, dim_t stride, dim_t iters) {
+void jit_reduction_injector_f32<hw>::compute(const ngen::GRF &src_ptr,
+        const ngen::GRF &acc, dim_t stride, dim_t iters) {
     _compute(src_ptr, acc, stride, iters, false);
 }
 
 template <gpu_gen_t hw>
-void jit_reduction_injector_f32<hw>::compute(
-        ngen::Subregister &src_ptr, ngen::GRF &acc, dim_t stride, dim_t iters) {
+void jit_reduction_injector_f32<hw>::compute(const ngen::Subregister &src_ptr,
+        const ngen::GRF &acc, dim_t stride, dim_t iters) {
     _compute(src_ptr, acc, stride, iters, true);
 }
 
@@ -117,8 +117,8 @@ void jit_reduction_injector_f32<hw>::compute(
 // stride: Number of elements to increment the pointer by between iterations
 // iters: Number of reduction iterations
 template <gpu_gen_t hw>
-void jit_reduction_injector_f32<hw>::_compute(ngen::RegData &src_ptr,
-        ngen::GRF &acc, dim_t stride, dim_t iters, bool block_load) {
+void jit_reduction_injector_f32<hw>::_compute(const ngen::RegData &src_ptr,
+        const ngen::GRF &acc, dim_t stride, dim_t iters, bool block_load) {
     using namespace alg_kind;
 
     int dt_size = acc.getBytes();

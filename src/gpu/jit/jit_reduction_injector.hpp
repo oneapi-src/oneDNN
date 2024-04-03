@@ -47,18 +47,19 @@ struct jit_reduction_injector_f32 {
     }
 
     // Scattered version of the reduction: requires 2 full GRFs to store initial addresses
-    void compute(ngen::GRF &src_ptr, ngen::GRF &acc, dim_t stride, dim_t iters);
-
-    // Block-load version of the reduction: require only a qword subregister to store initial address
-    void compute(ngen::Subregister &src_ptr, ngen::GRF &acc, dim_t stride,
+    void compute(const ngen::GRF &src_ptr, const ngen::GRF &acc, dim_t stride,
             dim_t iters);
 
+    // Block-load version of the reduction: require only a qword subregister to store initial address
+    void compute(const ngen::Subregister &src_ptr, const ngen::GRF &acc,
+            dim_t stride, dim_t iters);
+
 private:
-    void initialize(ngen::GRF &reg);
-    void eload(int simd, int dt_size, ngen::GRF &dst, ngen::GRF &addr,
-            bool block_load);
-    void _compute(ngen::RegData &src_ptr, ngen::GRF &acc, dim_t stride,
-            dim_t iters, bool block_load);
+    void initialize(const ngen::GRF &reg);
+    void eload(int simd, int dt_size, const ngen::GRF &dst,
+            const ngen::GRF &addr, bool block_load);
+    void _compute(const ngen::RegData &src_ptr, const ngen::GRF &acc,
+            dim_t stride, dim_t iters, bool block_load);
 
     // Emulation functions
     void emov(jit_generator<hw> &host, const ngen::InstructionModifier &mod,
@@ -83,10 +84,10 @@ private:
     jit_generator<hw> &h;
     reg_allocator_t &ra;
 
-    void sum_fwd(int simd, ngen::GRF &acc, ngen::GRF &val);
-    void max_fwd(int simd, ngen::GRF &acc, ngen::GRF &val);
-    void min_fwd(int simd, ngen::GRF &acc, ngen::GRF &val);
-    void mul_fwd(int simd, ngen::GRF &acc, ngen::GRF &val);
+    void sum_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
+    void max_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
+    void min_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
+    void mul_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
 };
 
 } // namespace jit
