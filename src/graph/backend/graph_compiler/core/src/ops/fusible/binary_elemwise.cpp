@@ -443,13 +443,19 @@ void binary_elementwise_op_impl_t::infer_binding_axis(
         binding_axis_map &bdax_map) {
     // search known axis from any input of cur fusbile op
     auto known_axis_map = search_known_input_axis(this, bdax_map);
-    if (!bdax_map.get(get_outputs()[0]).empty()) return;
+    auto &outaxis = bdax_map.get(get_outputs()[0]);
+    int bc_input_idx = get_broadcast_input();
+    int ref_idx = bc_input_idx > -1 ? (1 - bc_input_idx) : 0;
+    if (!outaxis.empty()) {
+        COMPILE_ASSERT(known_axis_map.size() == get_inputs().size(),
+                "all input axis should be bound")
+        if (outaxis == known_axis_map[ref_idx]) { return; }
+    }
 
     if (known_axis_map.size() < get_inputs().size()) {
         int unknown_idx
                 = known_axis_map.find(0) != known_axis_map.end() ? 1 : 0;
         // check broadcast
-        int bc_input_idx = get_broadcast_input();
         if (bc_input_idx >= 0) {
             bool keep_dims = get_inputs()[bc_input_idx]
                                      ->details_.get_blocking_dims()
@@ -505,9 +511,7 @@ void binary_elementwise_op_impl_t::infer_binding_axis(
         }
     }
     // set outputs slice range
-    int bc_idx = get_broadcast_input();
-    bdax_map.get(get_outputs()[0])
-            = known_axis_map[bc_idx > -1 ? (1 - bc_idx) : 0];
+    outaxis = known_axis_map[ref_idx];
 
     // set the other unknown slice range by achieved known_ranges_list
     set_unknown_binding_axis(this, known_axis_map, bdax_map);

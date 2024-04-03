@@ -18,6 +18,7 @@
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_OPS_TEMPLATES_CONV_FWD_HPP
 
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -138,6 +139,13 @@ public:
 
   void schedule_loops(context_ptr ctx, const conv_fwd_config_t &config,
     stmt body, std::vector<for_loop> &fors) const override;
+  void bind_output_loop_axis(const for_loop &loop,
+    const std::vector<std::string> &axis, bool is_block = false) const;
+  void bind_output_loop_axis(
+    const for_loop &loop, const std::string axis, bool is_block = false) const {
+    this->bind_output_loop_axis(
+      loop, std::vector<std::string> {axis}, is_block);
+  }
 
   std::vector<int> get_os_factors();
 

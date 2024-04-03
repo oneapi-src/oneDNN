@@ -741,7 +741,29 @@ bool tensor_view_op_t::try_penetrate(
 
     if (can_penetrate) {
         if (!inp_short) {
+            // cannot penetrate, if the number of blocking dims will exceed 4
+            // in the penetrated output format
+            if (input_size - output_size + input_format.get_blocks_size() > 4)
+                return false;
+            // cannot penetrate, if long_to_short involves any permutation
+            // e.g. {a, b, c, d} --> {a*b, c, d}
+            // ABCD --> AaBC is OK
+            // BACD --> AaBC is incorrect, since B and A are permuted
             auto &input_code = input_format.format_code_;
+            auto input_p2b = input_code.collect_p2b_mapping();
+            for (size_t out_idx = 0; out_idx < short_size; ++out_idx) {
+                std::vector<int> concat_axis;
+                for (size_t inp_idx = 0; inp_idx < long_size; ++inp_idx) {
+                    if (long_to_short[inp_idx] == out_idx) {
+                        concat_axis.insert(concat_axis.end(),
+                                input_p2b[inp_idx].begin(),
+                                input_p2b[inp_idx].end());
+                    }
+                }
+                if (!std::is_sorted(concat_axis.begin(), concat_axis.end()))
+                    return false;
+            }
+            // start penetrated format inferring
             sc_data_format_t new_format;
             auto &new_code = new_format.format_code_;
             int out_count[sc_data_format_kind_t::MAX_DIMS] = {0};
@@ -780,17 +802,38 @@ bool tensor_view_op_t::try_penetrate(
         } else {
             sc_data_format_t new_format;
             auto &new_code = new_format.format_code_;
-            for (int i = 0; i < static_cast<int>(output_plain_shapes.size());
-                    i++) {
-                new_code.set(i, i);
+            // reconstruct long_to_short to short_to_long
+            std::unordered_map<size_t, std::vector<size_t>> short_to_long;
+            for (const auto &pair : long_to_short) {
+                short_to_long[pair.second].push_back(pair.first);
             }
-            int inp_plain_idx = input_format.format_code_.norig_dims();
-            int inp_blk_size = input_format.format_code_.ndims()
-                    - input_format.format_code_.norig_dims();
-            for (int i = 0; i < inp_blk_size; i++) {
-                new_code.set(i + static_cast<int>(output_plain_shapes.size()),
-                        inp_blk_map[input_format.format_code_.get(
-                                i + inp_plain_idx)]);
+            // sort short_to_long mapping
+            for (size_t i = 0; i < input_size; i++) {
+                std::sort(short_to_long[i].begin(), short_to_long[i].end());
+            }
+            // setting output format code according to input format code
+            // and input-output-dimension-mapping
+            int format_code_offset = 0;
+            int axis_count[sc_data_format_kind_t::MAX_DIMS] = {0};
+            for (int i = 0;
+                    i < static_cast<int>(input_format.format_code_.ndims());
+                    i++) {
+                int input_dim = input_format.format_code_.get(i);
+                axis_count[input_dim]++;
+                std::vector<size_t> output_dims = short_to_long[input_dim];
+                if (axis_count[input_dim] > 1) {
+                    // blocking dimension
+                    new_code.set(i + format_code_offset,
+                            static_cast<int>(output_dims.back()));
+                } else {
+                    // plain dimension
+                    for (int idx = 0;
+                            idx < static_cast<int>(output_dims.size()); ++idx) {
+                        new_code.set(i + format_code_offset + idx,
+                                static_cast<int>(output_dims[idx]));
+                    }
+                    format_code_offset += short_to_long[input_dim].size() - 1;
+                }
             }
             new_code.set(sc_data_format_kind_t::MAX_DIMS,
                     input_format.format_code_.get(

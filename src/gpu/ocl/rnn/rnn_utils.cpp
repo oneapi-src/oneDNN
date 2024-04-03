@@ -59,7 +59,10 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d, data_type_t acc_data_t,
+        const memory_desc_wrapper &dst_layer_d,
+        const memory_desc_wrapper &dst_iter_d,
+        const memory_desc_wrapper &diff_dst_layer_d,
+        const memory_desc_wrapper &bias_d, data_type_t acc_data_t,
         const device_info_t &device_info) {
 
     bool is_xe_hpc = device_info.gpu_arch() == gpu_arch_t::xe_hpc;
@@ -104,7 +107,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     rnn.aux_data_type
             = acc_data_t == data_type::f16 ? data_type::f16 : data_type::f32;
-    rnn.diff_data_type = data_type::f32;
+    rnn.diff_data_type = diff_dst_layer_d.data_type();
 
     rnn.acc_data_type = acc_data_t;
     rnn.acc_data_type_elsz = types::data_type_size(acc_data_t);
@@ -236,40 +239,17 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     rnn.use_workspace = rnn.is_training;
 
-    switch (rnn.dt_conf) {
-        case all_f32:
-        case f32u8f32f32:
-            rnn.input_data_type = f32;
-            rnn.dst_data_type = f32;
-            rnn.output_data_type = f32;
-            break;
-        case all_f16:
-            rnn.input_data_type = f16;
-            rnn.dst_data_type = f16;
-            rnn.output_data_type = f16;
-            break;
-        case u8u8u8u8:
-            rnn.input_data_type = u8;
-            rnn.dst_data_type = u8;
-            rnn.output_data_type = u8;
-            break;
-        case u8u8u8f32:
-            rnn.input_data_type = u8;
-            rnn.dst_data_type = f32;
-            rnn.output_data_type = u8;
-            break;
-        case f32u8f32u8:
-            rnn.input_data_type = f32;
-            rnn.dst_data_type = u8;
-            rnn.output_data_type = f32;
-            break;
-        case all_bf16:
-            rnn.input_data_type = bf16;
-            rnn.dst_data_type = bf16;
-            rnn.output_data_type = bf16;
-            break;
-        default: gpu_error_not_expected();
-    }
+    rnn.src_data_type = src_layer_d.data_type();
+    rnn.input_data_type = src_iter_d.data_type();
+    rnn.bias_data_type = bias_d.data_type();
+    rnn.dst_data_type = dst_layer_d.data_type();
+    rnn.output_data_type = dst_iter_d.data_type();
+
+    // Assign types for optional parameters for improved kernel reuse.
+    if (rnn.input_data_type == data_type::undef)
+        rnn.input_data_type = rnn.src_data_type;
+    if (rnn.output_data_type == data_type::undef)
+        rnn.output_data_type = rnn.dst_data_type;
 }
 
 void rnn_utils::init_test_mode(conf_t &rnn, const primitive_attr_t &attr) {
@@ -292,12 +272,11 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     dim_t aux_elsz
             = gpu_utils::into<dim_t>(types::data_type_size(rnn.aux_data_type));
-    rnn.ws_states_elsz = types::data_type_size(rd.src_layer_desc.data_type);
+    rnn.ws_states_elsz = types::data_type_size(rnn.src_data_type);
 
     rnn.scratch_gates_elsz = types::data_type_size(rnn.acc_data_type);
-    rnn.scratch_diff_gates_elsz = is_bwd
-            ? (rnn.dt_conf == all_bf16 ? sizeof(bfloat16_t) : aux_elsz)
-            : 0;
+    rnn.scratch_diff_gates_elsz
+            = is_bwd ? types::data_type_size(rnn.src_data_type) : 0;
 
     // Set workspace sizes to store:
     // states to copmute a pass

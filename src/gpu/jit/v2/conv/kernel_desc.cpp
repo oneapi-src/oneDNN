@@ -16,10 +16,12 @@
 
 #include "gpu/jit/v2/conv/kernel_desc.hpp"
 
+#include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/jit/codegen/kernel.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
+#include "gpu/jit/utils/utils.hpp"
 #include "gpu/jit/v2/conv/kernel.hpp"
 #include "gpu/jit/v2/conv/plan.hpp"
 #include "gpu/jit/v2/conv/problem.hpp"
@@ -307,13 +309,26 @@ void kernel_desc_t::set(const std::string &s) {
 void kernel_desc_t::set_defaults() {
     if (loop_nest.is_empty()) {
         switch (prop) {
-            case prop_kind::forward:
+            case prop_kind::forward_training:
+            case prop_kind::forward_inference:
                 loop_nest.add(prb_dims::kw);
                 loop_nest.add(prb_dims::kh);
                 loop_nest.add(prb_dims::kd);
                 loop_nest.add(prb_dims::ic);
                 break;
-            default: break;
+            case prop_kind::backward_data:
+                loop_nest.add(prb_dims::kw);
+                loop_nest.add(prb_dims::kh);
+                loop_nest.add(prb_dims::kd);
+                loop_nest.add(prb_dims::oc);
+                break;
+            case prop_kind::backward_weights:
+                loop_nest.add(prb_dims::mb);
+                loop_nest.add(prb_dims::ow);
+                loop_nest.add(prb_dims::oh);
+                loop_nest.add(prb_dims::od);
+                break;
+            default: ir_error_not_expected(); break;
         }
     }
 }

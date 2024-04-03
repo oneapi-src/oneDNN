@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ using namespace dnnl::impl::gpu::ocl;
 status_t dnnl_ocl_interop_engine_create(
         engine_t **engine, cl_device_id device, cl_context context) {
     bool args_ok = !utils::any_null(engine, device, context);
-    if (!args_ok) return status::invalid_arguments;
+    VERROR_ENGINE(args_ok, status::invalid_arguments, VERBOSE_NULL_ARG);
 
     ocl_engine_factory_t f(engine_kind::gpu);
 
@@ -66,7 +66,7 @@ status_t dnnl_ocl_interop_engine_create_from_cache_blob(engine_t **engine,
         const uint8_t *cache_blob) {
     bool args_ok = !utils::any_null(engine, device, context, cache_blob)
             && size != 0;
-    if (!args_ok) return status::invalid_arguments;
+    VERROR_ENGINE(args_ok, status::invalid_arguments, VERBOSE_NULL_ARG);
 
     ocl_engine_factory_t f(engine_kind::gpu);
 

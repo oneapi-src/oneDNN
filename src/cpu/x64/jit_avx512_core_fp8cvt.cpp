@@ -149,6 +149,9 @@ void fp8_emulation_e5m2_t::vcvt_f8_to_f16(
     // Here we add extra conversions to and from f32 to achieve this, but
     // in practice it should be okay to skip this step.
     if (xmm_out.isZMM()) {
+        assert(!utils::one_of(xmm_out.getIdx(), xmm_aux1_.getIdx(),
+                xmm_aux2_.getIdx(), xmm_aux3_.getIdx()));
+
         const Xbyak::Ymm ymm_aux1(xmm_aux1_.getIdx());
         const Xbyak::Zmm zmm_aux1(xmm_aux1_.getIdx());
         // process upper bytes

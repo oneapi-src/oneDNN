@@ -69,6 +69,14 @@ bool is_const_expr(const expr_t &e) {
 class linear_normalize_expander_t : public ir_mutator_t {
 public:
     object_t _mutate(const binary_op_t &_obj) override {
+        auto op_kind = _obj.as<binary_op_t>().op_kind;
+        if (op_kind == op_kind_t::_sub) {
+            auto &op = _obj.as<binary_op_t>();
+            auto a = mutate(op.a);
+            auto b = mutate(op.b * -1);
+            return simplify_rewrite(a + b);
+        }
+
         auto obj = ir_mutator_t::_mutate(_obj);
         auto &op = obj.as<binary_op_t>();
         if (op.op_kind != op_kind_t::_mul) return obj;

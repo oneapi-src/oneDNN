@@ -262,6 +262,7 @@ public:
     static int slm_memory_bank_count(gpu_arch_t gpu_arch);
     static int slm_memory_bank_granularity(gpu_arch_t gpu_arch);
     size_t llc_cache_size() const { return llc_cache_size_; }
+    size_t icache_size() const;
 
     const runtime_version_t &runtime_version() const {
         return runtime_version_;

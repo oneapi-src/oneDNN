@@ -93,55 +93,8 @@ static void adjust_lws_calc_kernel(int ic_block, nhwc_bnorm_params_t &conf,
     }
     tuned_lws[1] = best_val;
 
+    conf.calc_adj_lws = tuned_lws;
     dispatch.set_lws(tuned_lws);
-}
-
-static int get_nhwc_vect_size(int ic, int max_vect_size, int simd = 16) {
-    int vect_size = max_vect_size;
-    while (true) {
-        if (ic / (vect_size * simd)) return vect_size;
-        vect_size /= 2;
-    }
-    return 1;
-}
-
-static int get_nhwc_sp_block_size(
-        int sp, int ic_dim, int eu_count, int threads_per_eu, int simd = 16) {
-
-    float efficiency_thr = 0.0f;
-    float efficiency_peak_eu_thr = 0.0f;
-    int block_size_thr = 1;
-    int block_size_peak_eu_thr = 1;
-    int curr_block_size = sp;
-    int nthr_mul = 1;
-    const int ic_nsg = ic_dim / simd; // number of subgroups by ic dim
-
-    // The search is based on threads wave efficiency.
-    // Higher priority for cases with peak EUs utilization.
-    while (nthr_mul <= 32) {
-        const int nthr = nthr_mul * eu_count;
-        curr_block_size = div_up(sp * ic_nsg, nthr);
-        const int nblock = div_up(sp, curr_block_size);
-        const int nthr_gen = nblock * ic_nsg;
-
-        const float curr_efficiency_eus
-                = (float)nthr_gen / rnd_up(nthr_gen, eu_count);
-        const float curr_efficiency_thr
-                = (float)nthr_gen / rnd_up(nthr_gen, eu_count * threads_per_eu);
-
-        if (curr_efficiency_thr > efficiency_thr) {
-            efficiency_thr = curr_efficiency_thr;
-            block_size_thr = curr_block_size;
-        }
-        if (curr_efficiency_eus == 1
-                && curr_efficiency_thr > efficiency_peak_eu_thr) {
-            efficiency_peak_eu_thr = curr_efficiency_thr;
-            block_size_peak_eu_thr = curr_block_size;
-        }
-        nthr_mul++;
-    }
-    if (efficiency_peak_eu_thr > 0.0f) return block_size_peak_eu_thr;
-    return block_size_thr;
 }
 
 static int get_reduce_sub_group_count(
@@ -152,10 +105,6 @@ static int get_reduce_sub_group_count(
         reduce_sub_group_count = reduce_sub_group_count * 2;
     }
     return reduce_sub_group_count;
-}
-
-inline int get_calc_stat_ic(int ic, int ic_block, int sg_size) {
-    return div_up(ic, ic_block) * sg_size;
 }
 
 status_t nhwc_bnorm_kernel_dispatching(kernel_kind_t kernel,
@@ -173,8 +122,8 @@ status_t nhwc_bnorm_kernel_dispatching(kernel_kind_t kernel,
             = rnd_dn(conf.sp, conf.update_sp_block()) / conf.update_sp_block();
     conf.reduce_stat_nblocks = conf.stat_sp_nblocks;
 
-    const int calc_stat_ic
-            = get_calc_stat_ic(conf.ic, conf.ic_block(), conf.sub_group_size);
+    const int calc_stat_ic = get_nhwc_calc_stat_ic(
+            conf.ic, conf.ic_block(), conf.sub_group_size);
 
     switch (kernel) {
         case default_fwd_ker:
@@ -221,104 +170,20 @@ status_t nhwc_bnorm_kernel_dispatching(kernel_kind_t kernel,
             dispatch.set_kernel_attr_suffix("AUX");
             dispatch.generate();
         } break;
+        case reusable_reduce_stats_fwd_ker: {
+            const int reduce_sub_group_count = get_reduce_sub_group_count(
+                    conf.reduce_stat_nblocks, conf.sub_group_size);
+            const int stat_ic = reduce_sub_group_count * conf.sub_group_size;
+            conf.stat_ic = stat_ic;
+            dispatch.define_dim("REDUCE_STAT_IC", 0, stat_ic);
+            dispatch.define_dim(
+                    "REDUCE_IC_GROUP", 1, div_up(conf.ic, conf.sub_group_size));
+            CHECK(dispatch.vectorize_dim(
+                    "REDUCE_STAT_IC", conf.sub_group_size));
+            dispatch.set_kernel_attr_suffix("REDUCE");
+            dispatch.generate();
+        } break;
         default: assert(!"Wrong kernel"); return status::runtime_error;
-    }
-    return status::success;
-}
-
-// Get the best set of bnorm parameters based on performance model
-static status_t get_params_by_model(nhwc_bnorm_params_t &conf,
-        const batch_normalization_pd_t *pd, hw_params_t &hw_params) {
-
-    // Create set of possible parameters
-    std::vector<model_params_t> params;
-    model_params_t p;
-    p.ic_block = conf.sub_group_size;
-    assert(conf.ic % conf.sub_group_size == 0);
-    while (p.ic_block <= conf.ic) {
-        if (conf.ic % p.ic_block == 0) {
-            const int calc_stat_ic = get_calc_stat_ic(
-                    conf.ic, p.ic_block, conf.sub_group_size);
-            p.stat_sp_block = get_nhwc_sp_block_size(conf.sp, calc_stat_ic,
-                    hw_params.eu_count, hw_params.threads_per_eu,
-                    conf.sub_group_size);
-            p.vect_size = get_nhwc_vect_size(p.ic_block, conf.max_vect_size());
-            p.use_fused_atomics_reduction = 0;
-            params.push_back(p);
-            if (hw_params.gpu_arch >= compute::gpu_arch_t::xe_hpc
-                    && !pd->attr()->deterministic_) {
-                // atomics-based reduction on PVC+ only, perforformance reasons
-                p.use_fused_atomics_reduction = 1;
-                params.push_back(p);
-            }
-        }
-        p.ic_block += conf.sub_group_size;
-    }
-    dump_params(params);
-
-    // find the best set
-    float best_expected_time = FLT_MAX;
-    model_params_t best_params;
-    for (auto &p : params) {
-
-        // initialize kernel descriptors
-        init_kernel_descriptors(p, conf, hw_params);
-        // make estimations on execution time
-        CHECK(make_perf_estimations(p, conf, hw_params));
-
-        float exp_time = 0.0f;
-        for (auto &desc : p.kernel_descs) {
-            exp_time += desc.ncalls * desc.time_ns;
-            exp_time += hw_params.host_overheads_per_kernel * desc.ncalls;
-
-            DPRINT("%s:%s:%d p: %d %d %d : %s: %.1f(%.1f) \n", PRINTHEAD,
-                    p.use_fused_atomics_reduction, p.ic_block, p.stat_sp_block,
-                    to_string(desc.kernel).c_str(), desc.time_ns,
-                    desc.time_ns * desc.ncalls);
-        }
-        DPRINT("%s:%s:%d p: %d %d %d : total expected ns = %.1f ( %.4f ms)\n",
-                PRINTHEAD, p.use_fused_atomics_reduction, p.ic_block,
-                p.stat_sp_block, exp_time, exp_time * 1e-6);
-
-        if (exp_time < best_expected_time) {
-            best_params = p;
-            best_expected_time = exp_time;
-        }
-    }
-
-#define SAVE_PARAM(name, val) \
-    if (!conf.name##_param().is_overridden()) conf.set_##name(val);
-
-    // save best params to conf
-    conf.expected_time_ms = best_expected_time * 1e-6;
-    // Some parameters can be set by tuning procedure or taken from table.
-    // Other parametes to be set by model.
-    SAVE_PARAM(use_fused_atomics_reduction,
-            best_params.use_fused_atomics_reduction);
-    if (!conf.ic_block_param().is_overridden()
-            // guard for tuning, to use default value if overrrided one is wrong
-            || (conf.ic_block_param().is_overridden()
-                    && conf.ic_block() > conf.ic))
-        conf.set_ic_block(best_params.ic_block);
-    conf.calc_stat_ic
-            = get_calc_stat_ic(conf.ic, conf.ic_block(), conf.sub_group_size);
-    SAVE_PARAM(stat_sp_block, best_params.stat_sp_block);
-    SAVE_PARAM(update_sp_block, conf.stat_sp_block());
-    SAVE_PARAM(update_sp_unroll, 1);
-
-#undef SAVE_PARAM
-
-    conf.vect_size = get_nhwc_vect_size(
-            conf.ic_block(), conf.max_vect_size(), conf.sub_group_size);
-    // Guard for tuning and lookup table -
-    // to use the default value if overrrided one is wrong
-    const bool bad_update_sp_unroll
-            = conf.update_sp_block() % conf.update_sp_unroll()
-            || (conf.sp % conf.update_sp_block()) % conf.update_sp_unroll();
-    if (conf.update_sp_unroll_param().is_overridden() && bad_update_sp_unroll) {
-        conf.set_update_sp_unroll(1);
-    } else {
-        assert(!bad_update_sp_unroll);
     }
     return status::success;
 }
@@ -399,7 +264,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
     // Get non-overridden parameters, performance modeling way
     hw_params_t hw_params;
     init_hw_params(hw_params, engine);
-    CHECK(get_params_by_model(conf, pd, hw_params));
+    CHECK(get_params_by_model(conf, pd, hw_params, false));
 
     // For performance debuging and analisys
     std::string prb_str = get_prb_desc_str(pd);

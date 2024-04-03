@@ -16,7 +16,7 @@
 
 #include "cpu/aarch64/acl_convolution_utils.hpp"
 #include "common/utils.hpp"
-#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl.h"
 
 namespace dnnl {
 namespace impl {

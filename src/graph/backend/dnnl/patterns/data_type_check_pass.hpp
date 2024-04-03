@@ -17,6 +17,7 @@
 #ifndef GRAPH_BACKEND_DNNL_PATTERNS_DATA_TYPE_CHECK_PASS_HPP
 #define GRAPH_BACKEND_DNNL_PATTERNS_DATA_TYPE_CHECK_PASS_HPP
 
+#include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/platform.hpp"
 #include "graph/backend/fake/pattern_utils.hpp"
 
@@ -28,6 +29,16 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 namespace pattern {
+
+namespace {
+bool is_reorder_type(op_kind_t op_kind) {
+    using namespace dnnl::impl::graph::op_kind;
+    static const std::unordered_set<int> reorder_ops {Reorder, Quantize,
+            Dequantize, DynamicDequantize, DynamicQuantize, TypeCast};
+
+    return (reorder_ops.find(op_kind) != reorder_ops.end());
+}
+} // namespace
 
 /*!
  * \brief dtype_check_pass_t generates a pass for checking unimplemented data 
@@ -60,8 +71,8 @@ public:
         }
         if (unsupported_dt.empty()) return impl::status::success;
 
-        dnnl::impl::graph::fake_impl::pattern_utils_t fake_pu;
         std::vector<op_t *> matched_op_list;
+        std::vector<std::vector<op_t *>> reorder_fusion_list;
 
         // NOTE(zhitao): Currenrly there is no special handling for patterns
         // which owns unsupported data type internally for older platforms
@@ -69,32 +80,69 @@ public:
         // e.g. int8-bf16 patterns such as dequant->tc->matmul->tc->quant.
 
         for (const std::shared_ptr<op_t> &aop : agraph.get_ops()) {
-            bool meet_dtype_to_check {false};
+            const auto &op_kind = aop->get_kind();
+
+            bool meet_unsupported_dt {false};
+            bool meet_reorder {false};
+
             for (size_t i = 0; i < aop->num_inputs(); ++i) {
-                const logical_tensor_t &oport
+                const logical_tensor_t &iport
                         = aop->get_input_value(i)->get_logical_tensor();
                 if (std::any_of(unsupported_dt.begin(), unsupported_dt.end(),
-                            [&oport](data_type_t dt) {
-                                return dt == oport.data_type;
+                            [&iport](data_type_t dt) {
+                                return dt == iport.data_type;
                             })) {
-                    meet_dtype_to_check = true;
+                    if (is_reorder_type(op_kind)) {
+                        meet_reorder = true;
+                        break;
+                    }
+                    meet_unsupported_dt = true;
                     break;
                 }
             }
-            for (size_t i = 0; i < aop->num_outputs(); ++i) {
-                const logical_tensor_t &oport
-                        = aop->get_output_value(i)->get_logical_tensor();
-                if (std::any_of(unsupported_dt.begin(), unsupported_dt.end(),
-                            [&oport](data_type_t dt) {
-                                return dt == oport.data_type;
-                            })) {
-                    meet_dtype_to_check = true;
-                    break;
+
+            if (!meet_reorder && !meet_unsupported_dt) {
+                for (size_t i = 0; i < aop->num_outputs(); ++i) {
+                    const logical_tensor_t &oport
+                            = aop->get_output_value(i)->get_logical_tensor();
+                    if (std::any_of(unsupported_dt.begin(),
+                                unsupported_dt.end(), [&oport](data_type_t dt) {
+                                    return dt == oport.data_type;
+                                })) {
+                        if (is_reorder_type(op_kind)) {
+                            meet_reorder = true;
+                            break;
+                        }
+                        meet_unsupported_dt = true;
+                        break;
+                    }
                 }
             }
-            if (meet_dtype_to_check) matched_op_list.emplace_back(aop.get());
+
+            if (meet_reorder) {
+                std::vector<op_t *> candidate_fusion(1, aop.get());
+                reorder_fusion_list.emplace_back(candidate_fusion);
+            }
+
+            if (meet_unsupported_dt) matched_op_list.emplace_back(aop.get());
         }
-        if (!matched_op_list.empty()) fake_pu.fuse(agraph, matched_op_list);
+
+        // For quantization patterns, if dnnl backend does not support the
+        // fused op, the graph will be fused into separate single op fusions.
+        if (!reorder_fusion_list.empty()) {
+            pattern_utils_t dnnl_pu;
+            const auto quantize_kernel_creater = []() -> kernel_ptr {
+                return std::make_shared<quantize_dequantize_t>();
+            };
+            dnnl_pu.init_partition(agraph, reorder_fusion_list,
+                    quantize_kernel_creater,
+                    dnnl::impl::graph::partition_kind_t::misc_post_ops);
+        }
+
+        if (!matched_op_list.empty()) {
+            dnnl::impl::graph::fake_impl::pattern_utils_t fake_pu;
+            fake_pu.fuse(agraph, matched_op_list);
+        }
 
         return impl::status::success;
     }

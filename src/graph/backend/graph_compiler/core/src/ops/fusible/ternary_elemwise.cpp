@@ -371,7 +371,14 @@ void select_op_t::infer_binding_axis(binding_axis_map &bdax_map) {
             get_inputs().size() == 3, "Select op is expected to have 3 inputs");
     // search known axis from any input of cur fusbile op
     auto known_axis_map = search_known_input_axis(this, bdax_map);
-    if (!bdax_map.get(get_outputs()[0]).empty()) return;
+    auto &outaxis = bdax_map.get(get_outputs()[0]);
+    int maxtensor_idx = get_ref_input_index(true);
+    int ref_idx = maxtensor_idx > -1 ? maxtensor_idx : 1;
+    if (!outaxis.empty()) {
+        COMPILE_ASSERT(known_axis_map.size() == get_inputs().size(),
+                "all input axis should be bound")
+        if (outaxis == known_axis_map[ref_idx]) { return; }
+    }
 
     // if unkown slice ranges exist.
     if (known_axis_map.size() < get_inputs().size()) {
@@ -380,7 +387,6 @@ void select_op_t::infer_binding_axis(binding_axis_map &bdax_map) {
         known_idx[1] = known_axis_map.find(1) != known_axis_map.end() ? 1 : 0;
         known_idx[2] = known_axis_map.find(2) != known_axis_map.end() ? 1 : 0;
         // check broadcast
-        int maxtensor_idx = get_ref_input_index(true);
         if (maxtensor_idx >= 0) {
             if (known_idx[maxtensor_idx] == 1) {
                 for (int i = 0; i < 3; i++) {
@@ -478,9 +484,7 @@ void select_op_t::infer_binding_axis(binding_axis_map &bdax_map) {
         }
     }
     // set outputs axis binding
-    int maxtensor_idx = get_ref_input_index(true);
-    bdax_map.get(get_outputs()[0])
-            = known_axis_map[maxtensor_idx > -1 ? maxtensor_idx : 1];
+    outaxis = known_axis_map[ref_idx];
     // set the other unknown axis binding by achieved known_axis_map
     set_unknown_binding_axis(this, known_axis_map, bdax_map);
 }

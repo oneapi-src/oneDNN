@@ -172,6 +172,8 @@ void serialize_attr(
     // fpmath_mode
     sstream.write(&attr.fpmath_.mode_);
     sstream.write(&attr.fpmath_.apply_to_int_);
+    // deterministic
+    sstream.write(&attr.deterministic_);
     // acc_mode
     sstream.write(&attr.acc_mode_);
 

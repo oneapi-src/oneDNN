@@ -17,13 +17,11 @@
 #ifndef GPU_OCL_OCL_MATH_UTILS_H
 #define GPU_OCL_OCL_MATH_UTILS_H
 
+#include "gpu/ocl/ocl_utils.h"
+
 // Due to JIT compilation and a lack of bitwise operations in implementations,
 // this warning has a high false-positive rate.
 #pragma clang diagnostic ignored "-Wconstant-logical-operand"
-
-#define CONCAt2(a, b) a##b
-#define CONCAT2(a, b) CONCAt2(a, b)
-#define CONCAT3(a, b, c) CONCAT2(CONCAT2(a, b), c)
 
 int div_up(int a, unsigned int b) {
     return (a + b - 1) / b;

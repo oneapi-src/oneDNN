@@ -1593,11 +1593,19 @@ public:
     }
 
     object_t _mutate(const let_t &obj) override {
+        // Attempt to inline
+        expr_t value;
+        if (cset_.is_single_value(obj.var, value)) {
+            auto body = substitute(obj.body, obj.var,
+                    cast_t::make(obj.var.as<var_t>().type, value));
+            return mutate(body);
+        }
+
         // External variable.
         if (obj.value.is_empty()) return ir_mutator_t::_mutate(obj);
 
         // Substitute constants.
-        auto value = simplify(obj.value);
+        value = simplify(obj.value);
         if (is_const(value)) {
             // Constants are not necessarily the same type as the assigned
             // variable
@@ -1612,11 +1620,10 @@ public:
 
         auto cset_old = cset_;
         cset_.add_constraint(obj.var == value);
-        auto new_obj = let_t::make(obj.var, value, obj.body);
-        new_obj = ir_mutator_t::_mutate(new_obj.as<let_t>());
+        auto body = mutate(obj.body);
         cset_ = cset_old;
 
-        return std::move(new_obj);
+        return let_t::make(obj.var, value, body);
     }
 
     object_t _mutate(const for_t &obj) override {

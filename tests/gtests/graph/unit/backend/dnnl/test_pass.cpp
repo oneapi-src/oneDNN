@@ -4890,6 +4890,46 @@ TEST(test_pass_pass, SaveLoadJson) {
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 8U);
 }
 
+TEST(test_pass_pass, TestPassFilterFunc) {
+    /*   \   /
+          Matmul
+           |
+          biasAdd
+    */
+    graph_t agraph;
+    graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
+    graph::op_t add_op(1, graph::op_kind::BiasAdd, "add_op");
+
+    std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
+    matmul_op.add_input(lt_vec[0]);
+    matmul_op.add_input(lt_vec[1]);
+    matmul_op.add_output(lt_vec[2]);
+    add_op.add_input(lt_vec[2]);
+    add_op.add_input(lt_vec[3]);
+    add_op.add_output(lt_vec[4]);
+
+    ASSERT_EQ(agraph.add_op(&matmul_op), graph::status::success);
+    ASSERT_EQ(agraph.add_op(&add_op), graph::status::success);
+    agraph.finalize();
+    ASSERT_EQ(agraph.num_ops(), 2U);
+
+    auto &backend_ptr
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::impl::graph::pass::pass_manager_t(
+            backend_ptr.get_pass_registry());
+    partition_policy_t policy = graph::partition_policy::debug;
+
+    const auto pass_filter_fn = [](const graph::pass::pass_base_ptr &pass,
+                                        partition_policy_t policy) -> bool {
+        const float priority_ths
+                = policy == graph::partition_policy::fusion ? 20.0f : 8.0f;
+        return pass->get_priority() <= priority_ths;
+    };
+
+    pm.run_passes(agraph, "no_config", policy, pass_filter_fn);
+    ASSERT_EQ(agraph.get_num_partitions(), 2U);
+}
+
 TEST(test_pass_pass, InputJsonIsValid) {
     /*   \   /
           conv

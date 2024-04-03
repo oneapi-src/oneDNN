@@ -331,8 +331,8 @@ struct mixed_parti_t : fusion_partition_t {
 
     // get outer loops of which body(stmts) contains only one stmt or two with
     // the second one is empty fanchor
-    std::vector<for_loop> get_outer_loops(
-            fusion_anchor_ptr fanchor = nullptr) const;
+    std::vector<for_loop> get_outer_loops(fusion_anchor_ptr fanchor = nullptr,
+            bool skip_def_node = false) const;
 
     void try_split_outermost_loop(int64_t block) const;
     void try_split_outermost_loop_on_num_threads(int64_t num_groups);

@@ -45,7 +45,7 @@ public:
 
     status_t init() override {
         backend_ = get_sycl_backend(device_);
-        VCHECK_ENGINE(
+        VERROR_ENGINE(
                 utils::one_of(backend_, backend_t::host, backend_t::opencl,
                         backend_t::level0, backend_t::nvidia, backend_t::amd),
                 status::invalid_arguments, VERBOSE_UNSUPPORTED_BACKEND, "sycl");

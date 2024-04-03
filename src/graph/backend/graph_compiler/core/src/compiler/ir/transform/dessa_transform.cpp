@@ -195,7 +195,7 @@ struct ssa_analysis_viewer_t : public ssa_viewer_t {
         }
         // If the var is defined not inside any loop, a copy will
         // be made when coalescing, and orignal var is preserved
-        bool from_loop = curr_loop_phi_.size() > 0;
+        bool from_loop = !curr_loop_phi_.empty();
         get_coalesce_data(var)->from_loop_ = from_loop;
         // process loop phi define
         if (init.defined() && init.isa<ssa_phi>()) {

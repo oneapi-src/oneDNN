@@ -126,26 +126,28 @@ status_t check_device(
             break;
         }
     }
-    if (!found) return status::invalid_arguments;
+    VERROR_ENGINE(
+            found, status::invalid_arguments, VERBOSE_DEVICE_CTX_MISMATCH);
 
     // Check engine kind and device consistency.
     cl_device_type dev_type;
     OCL_CHECK(clGetDeviceInfo(
             dev, CL_DEVICE_TYPE, sizeof(dev_type), &dev_type, nullptr));
-    if ((eng_kind == engine_kind::cpu)
-            && (dev_type & CL_DEVICE_TYPE_CPU) == 0) {
-        return status::invalid_arguments;
-    }
-    if ((eng_kind == engine_kind::gpu)
-            && (dev_type & CL_DEVICE_TYPE_GPU) == 0) {
-        return status::invalid_arguments;
-    }
+    VERROR_ENGINE(!((eng_kind == engine_kind::cpu)
+                          && (dev_type & CL_DEVICE_TYPE_CPU) == 0),
+            status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
+    VERROR_ENGINE(!((eng_kind == engine_kind::gpu)
+                          && (dev_type & CL_DEVICE_TYPE_GPU) == 0),
+            status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
 
     // Check that the platform is an Intel platform.
     cl_platform_id platform;
     OCL_CHECK(clGetDeviceInfo(
             dev, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr));
-    if (!is_intel_platform(platform)) return status::invalid_arguments;
+
+    VERROR_ENGINE(is_intel_platform(platform), status::invalid_arguments,
+            VERBOSE_INVALID_PLATFORM, "ocl", "intel",
+            get_platform_name(platform).c_str());
 
     return status::success;
 }

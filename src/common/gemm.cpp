@@ -19,7 +19,7 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "oneapi/dnnl/dnnl_threadpool.hpp"
+#include "oneapi/dnnl/dnnl_threadpool.h"
 #include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #endif
 

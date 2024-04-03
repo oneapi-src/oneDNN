@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -223,6 +223,25 @@ TEST(GCCore_CPU_graph_reshape_cpp, TestConstOptimize) {
         graph_driver(g);
         lower_graph(get_default_context(), g, {});
     }
+}
+
+TEST(GCCore_CPU_graph_reshape_cpp, TestConstOptimizeInputPermuted) {
+    sc_graph_t g;
+    auto in0 = g.make_input(
+            {graph_tensor::make({3, 25}, sc_data_format_t(format_kinds::BA))});
+    auto reshape = g.make("static_reshape", in0->get_outputs(), {},
+            {{"shape", sc_dims {75}}, {"special_zero", false}});
+    g.make_output(reshape->get_outputs());
+
+    constant_optimization(g, get_test_ctx());
+    std::stringstream ss;
+    print_graph(g, ss, true);
+    const char *expected_graph = R"(graph(v0: f32[25, 3]) -> [v1: f32[75]] {
+  [v2: f32[3, 25]] = reorder(v0)
+  [v1: f32[75]] = tensor_view(v2)
+}
+)";
+    EXPECT_EQ(ss.str(), expected_graph);
 }
 
 TEST(GCCore_CPU_graph_reshape_cpp, TestSingleOptimize) {

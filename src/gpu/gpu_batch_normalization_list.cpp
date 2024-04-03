@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 
 #include "gpu/ocl/bnorm/gen9_batch_normalization.hpp"
 #include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
+#include "gpu/ocl/bnorm/nhwc_reusable_bnorm.hpp"
 #include "gpu/ocl/bnorm/ref_batch_normalization.hpp"
 #include "gpu/ocl/bnorm/reusable_bnorm.hpp"
 #include "gpu/ocl/bnorm/simple_bnorm.hpp"
@@ -33,6 +34,7 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_BNORM_P({
     {{forward}, {
+        INSTANCE(ocl::nhwc_reusable_batch_normalization_fwd_t)
         INSTANCE(ocl::nhwc_batch_normalization_fwd_t)
         INSTANCE(ocl::gen9_batch_normalization_fwd_t)
         INSTANCE(ocl::simple_batch_normalization_fwd_t)

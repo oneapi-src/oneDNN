@@ -135,7 +135,7 @@ inline status_t get_sycl_device_index(
         *index = SIZE_MAX;
         // TODO: remove this work around once Level-Zero is fixed
         if (backend == backend_t::level0) return status::success;
-        VCHECK_ENGINE(false, status::invalid_arguments,
+        VERROR_ENGINE(false, status::invalid_arguments,
                 VERBOSE_INVALID_ENGINE_IDX, SIZE_MAX,
                 to_string(dev_type).c_str(), devices.size());
     }

@@ -85,15 +85,17 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
 
     using namespace rnn_utils;
 
-    ocl_conf.src_dt = src_layer_d.data_type();
+    ocl_conf.src_dt = rnn.src_data_type;
+    ocl_conf.src_c_dt = src_iter_c_d.data_type();
     ocl_conf.wei_dt = weights_layer_d.data_type();
-    ocl_conf.bia_dt = bias_d.data_type();
+    ocl_conf.bia_dt = rnn.bias_data_type;
     ocl_conf.acc_dt = rnn.acc_data_type;
     ocl_conf.aux_dt = rnn.aux_data_type;
     ocl_conf.diff_dt = rnn.diff_data_type;
     ocl_conf.input_dt = rnn.input_data_type;
     ocl_conf.output_dt = rnn.output_data_type;
     ocl_conf.dst_dt = rnn.dst_data_type;
+    ocl_conf.dst_c_dt = dst_iter_c_d.data_type();
 
     ocl_conf.is_fwd = rnn.is_fwd;
 
@@ -109,6 +111,21 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.copy_src_layer = rnn.copy_src_layer;
     ocl_conf.copy_diff_dst_layer = rnn.copy_diff_dst_layer;
     ocl_conf.copy_diff_src_layer = rnn.copy_diff_src_layer;
+
+    if (!rnn.is_fwd) {
+        if (!utils::everyone_is(ocl_conf.diff_dt, diff_src_layer_d.data_type(),
+                    diff_dst_layer_d.data_type()))
+            return status::unimplemented;
+        if (!utils::one_of(diff_src_iter_d.data_type(), ocl_conf.diff_dt,
+                    data_type::undef)
+                || !utils::one_of(diff_src_iter_c_d.data_type(),
+                        ocl_conf.diff_dt, data_type::undef)
+                || !utils::one_of(diff_dst_iter_d.data_type(), ocl_conf.diff_dt,
+                        data_type::undef)
+                || !utils::one_of(diff_dst_iter_c_d.data_type(),
+                        ocl_conf.diff_dt, data_type::undef))
+            return status::unimplemented;
+    }
 
     off.src_layer = gpu::get_outer_strides(src_layer_d);
     ocl_conf.inner_layouts.src_layer = gpu::get_inner_layout(src_layer_d);
@@ -400,12 +417,14 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
 
     def_data_type(kernel_ctx, src_dt, "WS_STATE");
     def_data_type(kernel_ctx, src_dt, "SRC");
+    def_data_type(kernel_ctx, src_c_dt, "SRC_C");
     def_data_type(kernel_ctx, wei_dt, "WEI_LAYER");
     def_data_type(kernel_ctx, wei_dt, "WEI_ITER");
     def_data_type(kernel_ctx, acc_dt, "ACC");
     def_data_type(kernel_ctx, aux_dt, "AUX");
     def_data_type(kernel_ctx, bia_dt, "BIAS");
     def_data_type(kernel_ctx, dst_dt, "DST");
+    def_data_type(kernel_ctx, dst_c_dt, "DST_C");
     def_data_type(kernel_ctx, input_dt, "INPUT");
     def_data_type(kernel_ctx, output_dt, "OUTPUT");
     def_data_type(kernel_ctx, diff_dt, "DIFF");
@@ -593,12 +612,13 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
     bool src_is_u8 = src_layer_dt == data_type::u8;
     bool src_is_f16 = src_layer_dt == data_type::f16;
-    if (src_is_u8 && !src_is_f16)
+    if (src_is_u8)
         acc_data_t = data_type::s32;
-    else if (!src_is_u8 && src_is_f16)
+    else if (src_is_f16 && aprop == prop_kind::forward_inference)
         acc_data_t = data_type::f16;
-    else if (!src_is_u8 && !src_is_f16)
+    else
         acc_data_t = data_type::f32;
+
     src_type = src_layer_dt;
     weights_type = weights_layer_dt;
 
@@ -618,8 +638,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     VDISPATCH_RNN(
             IMPLICATION(src_type == data_type::bf16, bias_dt == data_type::f32),
             VERBOSE_UNSUPPORTED_DT);
-    VDISPATCH_RNN(src_layer_dt == src_type, VERBOSE_INCONSISTENT_DT,
-            "src_layer_dt", "src_type");
     VDISPATCH_RNN(((aprop == prop_kind::forward && src_layer_dt == data_type::u8
                            && weights_layer_dt == data_type::s8
                            && cell_kind == alg_kind::vanilla_lstm)
@@ -629,22 +647,20 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                                   && weights_layer_dt == src_layer_dt)
                           || (aprop == prop_kind::backward
                                   && one_of(weights_layer_dt, data_type::f32,
-                                          data_type::bf16)
+                                          data_type::f16, data_type::bf16)
                                   && weights_layer_dt == src_layer_dt)),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_RNN(weights_iter_dt == weights_layer_dt, VERBOSE_UNSUPPORTED_DT);
-    VDISPATCH_RNN(everyone_is(weights_type, weights_iter_dt, weights_layer_dt),
-            VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_RNN_SC(this->set_default_params(), VERBOSE_UNSUPPORTED_TAG);
     VDISPATCH_RNN(this->with_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
-    VDISPATCH_RNN(IMPLICATION(src_type == data_type::u8,
+    VDISPATCH_RNN(IMPLICATION(src_layer_dt == data_type::u8,
                           this->desc()->prop_kind == forward_inference),
             VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_RNN(
             compute_engine->mayiuse(compute::device_ext_t::intel_subgroups),
             VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
     VDISPATCH_RNN(
-            IMPLICATION(src_type == data_type::f16,
+            IMPLICATION(src_layer_dt == data_type::f16,
                     true
                             && compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)
@@ -654,6 +670,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
     init_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->src_md(1),
             this->weights_md(0), this->weights_md(1), this->dst_md(0),
+            this->dst_md(1), this->diff_dst_md(0), this->desc()->bias_desc,
             acc_data_t, device_info);
 
     if (rnn_conf.is_int8) {

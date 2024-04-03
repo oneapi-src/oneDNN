@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/graph/binding_axis.hpp>
 #include <compiler/ir/graph/fusion_anchor.hpp>
 #include <runtime/config.hpp>
 #include <util/any_map.hpp>
@@ -507,6 +508,10 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         0, 1, 0, oh_, 0, ow_, oc_);
     }
     lp->attr().set(stmt_attr_key::no_loop_fuse, true);
+    bind_loop_axis(owner_->get_outputs()[0], ln, 0);
+    bind_loop_axis(owner_->get_outputs()[0], lg,
+      is_group_conv_ ? std::vector<int> {1} : std::vector<int> {});
+    bind_loop_axis(owner_->get_outputs()[0], lp, is_group_conv_ + 2);
   } else {
     expr oh_b, oh_e;
     for_loop lt;
@@ -539,6 +544,7 @@ bool gen_conv_fwd_rl_t::generate(context_ptr ctx,
         }
       }
     }
+    bind_loop_axis(owner_->get_outputs()[0], lt, is_group_conv_ + 2);
   }
   return true;
 }

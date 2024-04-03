@@ -82,14 +82,14 @@ size_t dnnl_engine_get_count(engine_kind_t kind) {
 status_t dnnl_engine_create(
         engine_t **engine, engine_kind_t kind, size_t index) {
     using namespace dnnl::impl;
-    VCHECK_ENGINE(engine != nullptr, invalid_arguments, VERBOSE_NULL_ARG);
+    VERROR_ENGINE(engine != nullptr, invalid_arguments, VERBOSE_NULL_ARG);
 
     // engine_factory creation can fail with an exception
     try {
         auto ef = get_engine_factory(kind, get_default_runtime(kind));
-        VCHECK_ENGINE(ef != nullptr, invalid_arguments,
+        VERROR_ENGINE(ef != nullptr, invalid_arguments,
                 VERBOSE_INVALID_ENGINE_KIND, dnnl_engine_kind2str(kind));
-        VCHECK_ENGINE(index < ef->count(), invalid_arguments,
+        VERROR_ENGINE(index < ef->count(), invalid_arguments,
                 VERBOSE_INVALID_ENGINE_IDX, ef->count(),
                 dnnl_engine_kind2str(kind), index);
 

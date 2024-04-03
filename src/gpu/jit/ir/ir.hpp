@@ -43,7 +43,7 @@ public:
 
     int grf_size() const { return hw().grf_size(); }
 
-    const constraint_set_t &cset() { return cset_; }
+    const constraint_set_t &cset() const { return cset_; }
 
     void add_constraint(const expr_t &e);
 
@@ -701,7 +701,8 @@ public:
     static bool is_relation_constraint(const expr_t &e) {
         auto *binary_op = e.as_ptr<binary_op_t>();
         if (!binary_op) return false;
-        if (!is_var(binary_op->a)) return false;
+        if (!(binary_op->a.is<var_t>() || binary_op->a.is<const_var_t>()))
+            return false;
         if (!is_const(binary_op->b)) return false;
         if (!is_cmp_op(binary_op->op_kind)) return false;
         return true;
