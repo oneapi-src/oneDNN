@@ -25470,7 +25470,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
 
     const int nphases = 2, qCXMin = -1, qCXMax = -1;
 
-    Subregister saveF0;
+    Subregister saveF0, saveF1, saveF2;
     bool releaseEmuFlag = false;
     bool preswizzle = (hw >= HW::XeHP);
     GRFRange copyTemp;
