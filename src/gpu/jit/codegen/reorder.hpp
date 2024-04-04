@@ -259,6 +259,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     int dst_type_size = ngen::getBytes(dst_type);
     int src_stride_bytes = src_stride * src_type_size;
     int dst_stride_bytes = dst_stride * dst_type_size;
+    int max_type_size = std::max(src_type_size, dst_type_size);
     bool dst_b = ngen_is_b(dst_type);
     bool dst_d = ngen_is_dw(dst_type);
     bool dst_q = ngen_is_qw(dst_type);
@@ -408,12 +409,22 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         return;
     }
     // hf8 -> f16
-    if (src_hf8 && dst_hf) {
+    if (src_hf8) {
         int step = get_step();
         const int src_stride_bytes = src_stride;
         const int dst_stride_bytes = 2 * dst_stride;
         const int step_nregs
                 = utils::div_up(step * ((int)sizeof(ngen::half)), grf_size);
+        const bool do_post_reorder = !dst_hf;
+        const int nregs = utils::div_up(width
+                        * std::max((int)sizeof(ngen::half), max_type_size)
+                        * std::max(src_stride, dst_stride),
+                grf_size);
+        if (do_post_reorder) {
+            auto tmp_dst = lex_scope.alloc_reg_buf_data(nregs).format(
+                    0, ngen::DataType::hf);
+            dst = std::move(tmp_dst);
+        }
         auto tmp1 = lex_scope.alloc_reg_buf_data(step_nregs);
         auto tmp2 = lex_scope.alloc_reg_buf_data(step_nregs);
         for (int i = 0; i < width; i += step) {
@@ -451,10 +462,14 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             host->mov(esize, d.reinterpret(0, ngen::DataType::uw)(dst_stride),
                     tmp2.subregister(0, ngen::DataType::uw)(dst_stride));
         }
+        if (do_post_reorder) {
+            emit_reorder_1d_tile(
+                    hw, host, scope, width, dst, dst_stride, _dst, dst_stride);
+        }
         return;
     }
 
-    if (src_hf && dst_hf8) {
+    if (dst_hf8) {
         int step = get_step();
         const int src_stride_bytes = 2 * src_stride;
         const int dst_stride_bytes = dst_stride;
@@ -462,6 +477,19 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 = utils::div_up(step * ((int)sizeof(ngen::half)), grf_size);
         auto tmp1 = lex_scope.alloc_reg_buf_data(step_nregs);
         auto tmp2 = lex_scope.alloc_reg_buf_data(step_nregs);
+        const bool do_pre_reorder = !src_hf;
+        const int nregs = utils::div_up(width
+
+                        * std::max((int)sizeof(ngen::half), max_type_size)
+                        * std::max(src_stride, dst_stride),
+                grf_size);
+        if (do_pre_reorder) {
+            auto tmp_src = lex_scope.alloc_reg_buf_data(nregs).format(
+                    0, ngen::DataType::hf);
+            emit_reorder_1d_tile(hw, host, scope, width, src, src_stride,
+                    tmp_src, src_stride);
+            src = std::move(tmp_src);
+        }
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -469,12 +497,19 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
-
-            host->mov(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
-                    s.reinterpret(0, ngen::DataType::uw)(src_stride));
+            if (src_stride > 1 && s.getByteOffset() > 1) {
+                host->mov(esize,
+                        tmp1.subregister(0, ngen::DataType::uw)(src_stride),
+                        s.reinterpret(0, ngen::DataType::uw)(src_stride));
+                host->mov(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
+                        tmp1.subregister(0, ngen::DataType::uw)(src_stride));
+            } else {
+                host->mov(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
+                        s.reinterpret(0, ngen::DataType::uw)(src_stride));
+            }
             // get sign bits
-            host->and_(esize | host->nz | host->f1[1], host->null.uw(),
-                    s.reinterpret(0, ngen::DataType::uw)(1), 0x8000);
+            host->and_(esize | host->nz | host->f2[0], host->null.uw(),
+                    tmp1.subregister(0, ngen::DataType::uw)(1), 0x8000);
             // multiply by hf 128 to force overflow of exponent
             host->mul(esize, tmp1.subregister(0, ngen::DataType::hf)(1),
                     tmp1.subregister(0, ngen::DataType::hf)(1),
@@ -487,22 +522,21 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             // check for NaN, inf.
             host->and_(esize | host->ze | host->f0[0], host->null.uw(),
                     ~tmp1.subregister(0, ngen::DataType::uw)(1), 0x7C00);
-            // check for zero mantissa.
-            host->and_(esize | host->ze | host->f1[0], host->null.uw(),
-                    tmp1.subregister(0, ngen::DataType::uw)(1), 0x7F);
             // round.
-            host->add(esize | host->f1[0],
-                    tmp1.subregister(0, ngen::DataType::uw)(1),
+            host->add(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
                     tmp1.subregister(0, ngen::DataType::uw)(1), -0x40);
+            // check for zero mantissa.
+            host->and_(esize | host->nz | host->f1[0], host->null.uw(),
+                    tmp1.subregister(0, ngen::DataType::uw)(1), 0x3FF);
             host->eshr(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
-                    tmp1.subregister(0, ngen::DataType::uw)(src_stride), 7);
+                    tmp1.subregister(0, ngen::DataType::uw)(1), 7);
             host->add(esize | host->f1[0],
                     tmp1.subregister(0, ngen::DataType::uw)(1),
                     tmp1.subregister(0, ngen::DataType::uw)(1), 1);
             host->mov(esize | host->f0[0],
                     tmp1.subregister(0, ngen::DataType::uw)(1), 0x7F);
             // handle sign.
-            host->or_(esize | host->f1[1],
+            host->or_(esize | host->f2[0],
                     tmp1.subregister(0, ngen::DataType::uw)(1),
                     tmp1.subregister(0, ngen::DataType::uw)(1), 0x80);
 
@@ -519,7 +553,6 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     // x <-> bf8
     if (src_bf8 || dst_bf8) {
         int step = get_step();
-        int max_type_size = std::max(src_type_size, dst_type_size);
         ngen::DataType src_raw
                 = src_bf8 ? ngen::DataType::ub : ngen::DataType::w;
         ngen::DataType dst_raw
