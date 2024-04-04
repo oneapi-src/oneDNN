@@ -112,8 +112,20 @@ public:
         for (int i = 0; i < total_write_owords; i += max_write_owords) {
             int reg_idx = i / (grf_bytes / oword_bytes);
             int write_size = std::min(max_write_owords, total_write_owords - i);
-            store(1, ngen::aligned_block_oword(write_size), A64,
-                    dst_addr[i / max_write_owords].uq(), acc[reg_idx].f());
+            bool force_legacy = gpu_utils::dev_getenv(
+                    "jit_reduction_force_legacy_load", false);
+            if (!force_legacy && hw >= ngen::HW::XeHPG) {
+                // LSC store
+                ngen::DataSpecLSC lscspec = ngen::block(
+                        ngen::DataSizeLSC::D32, simd * regs_per_write);
+                lscspec |= ngen::CacheSettingsLSC::L1UC_L3WB;
+                store.ugm(1, lscspec, A64, dst_addr[i / max_write_owords].uq(),
+                        acc[reg_idx].f());
+            } else {
+                // legacy store
+                store(1, ngen::aligned_block_oword(write_size), A64,
+                        dst_addr[i / max_write_owords].uq(), acc[reg_idx].f());
+            }
         }
 
         epilogue();

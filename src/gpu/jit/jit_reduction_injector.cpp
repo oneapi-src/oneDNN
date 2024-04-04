@@ -76,7 +76,9 @@ void jit_reduction_injector_f32<hw>::initialize(
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::eload(
         int simd, int dt_size, const ngen::GRF &dst, const ngen::GRF &addr) {
-    if (hw >= ngen::HW::XeHPG) {
+    bool force_legacy
+            = gpu_utils::dev_getenv("jit_reduction_force_legacy_load", false);
+    if (!force_legacy && hw >= ngen::HW::XeHPG) {
         // LSC load
         ngen::DataSpecLSC lscspec = ngen::block(ngen::DataSizeLSC::D32, simd);
         lscspec |= ngen::CacheSettingsLSC::L1C_L3C;
