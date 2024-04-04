@@ -62,6 +62,7 @@ public:
 
         int grf_size = ngen::GRF::bytes(hw);
         int bytes_per_store = 16;
+        int uw_size = sizeof(uint16_t);
         int ud_size = sizeof(uint32_t);
         int uq_size = sizeof(uint64_t);
 
@@ -76,16 +77,21 @@ public:
             mov(16, z, 0);
         }
 
-        auto idx_vec = ra_.alloc().uw();
-        mov(8, idx_vec, ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
+        auto idx_vec = ra_.alloc().uw(0);
+        mov(8, idx_vec(1), ngen::Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
+        mov(8, idx_vec(2), idx_vec(1));
+        for (int i = 16; i < grf_size / uw_size; i += 16) {
+            mov(8, idx_vec.uw(i)(2), idx_vec(2));
+        }
 
         reg_buf_t dst, src0, src1;
         for (int i = 0; i < bytes_per_thr; i += 8) {
             auto off_sub_vec
                     = get_subregister(hw, ngen::DataType::ud, off_vec, i)(1);
             this->eadd3(8, ngen_operand_t(reg_buf_data_t(dst, off_sub_vec)),
+                    ngen_operand_t(reg_buf_data_t(
+                            src1, idx_vec.uw((i % grf_size) * 2)(2))),
                     ngen_operand_t(reg_buf_data_t(src0, off0)),
-                    ngen_operand_t(reg_buf_data_t(src1, idx_vec)),
                     ngen_operand_t(i));
             if (use_a64) {
                 auto ptr_sub_vec = get_subregister(
