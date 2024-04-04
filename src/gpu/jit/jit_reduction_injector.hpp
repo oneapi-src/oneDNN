@@ -46,20 +46,17 @@ struct jit_reduction_injector_f32 {
         assert(jit_reduction_injector_f32_is_supported(alg_));
     }
 
-    // Scattered version of the reduction: requires 2 full GRFs to store initial addresses
+    // src_ptr: GRF whose 1st qword subregister holds the first address to be loaded from
+    // acc: Potentially uninitialized register to store values in (exactly one register filled per call)
+    // stride: Number of elements to increment the pointer by between iterations
+    // iters: Number of reduction iterations
     void compute(const ngen::GRF &src_ptr, const ngen::GRF &acc, dim_t stride,
             dim_t iters);
 
-    // Block-load version of the reduction: require only a qword subregister to store initial address
-    void compute(const ngen::Subregister &src_ptr, const ngen::GRF &acc,
-            dim_t stride, dim_t iters);
-
 private:
     void initialize(const ngen::GRF &reg);
-    void eload(int simd, int dt_size, const ngen::GRF &dst,
-            const ngen::GRF &addr, bool block_load);
-    void _compute(const ngen::RegData &src_ptr, const ngen::GRF &acc,
-            dim_t stride, dim_t iters, bool block_load);
+    void eload(
+            int simd, int dt_size, const ngen::GRF &dst, const ngen::GRF &addr);
 
     // Emulation functions
     void emov(jit_generator<hw> &host, const ngen::InstructionModifier &mod,
