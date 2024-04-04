@@ -174,6 +174,16 @@ struct ncsp_convolution_fwd_t : public primitive_t {
             name_ = "ncsp:" + suffix + "+";
             name_.append(
                     is_matmul_ ? matmul_pd_->name() : nspc_conv_pd_->name());
+            if (!is_matmul_) {
+                name_.append("+src_reorder->");
+                name_.append(src_reorder_pd_->name());
+                if (with_sum_) {
+                    name_.append("+dst_pre_reorder->");
+                    name_.append(dst_pre_reorder_pd_->name());
+                }
+                name_.append("+dst_post_reorder->");
+                name_.append(dst_post_reorder_pd_->name());
+            }
         }
         void init_scratchpad();
     };
@@ -243,6 +253,12 @@ struct ncsp_convolution_bwd_weights_t : public primitive_t {
             name_ = "ncsp:" + suffix + "->";
             name_.append(is_matmul_ ? matmul_wei_diff_pd_->name()
                                     : nspc_conv_pd_->name());
+            if (!is_matmul_) {
+                name_.append("+src_reorder->");
+                name_.append(src_reorder_pd_->name());
+                name_.append("+dst_reorder->");
+                name_.append(dst_reorder_pd_->name());
+            }
             if (is_matmul_) {
                 name_.append("+");
                 name_.append("reduction->");
@@ -316,6 +332,12 @@ struct ncsp_convolution_bwd_data_t : public primitive_t {
             name_ = "ncsp:" + suffix + "->";
             name_.append(is_matmul_ ? matmul_diff_src_pd_->name()
                                     : nspc_conv_pd_->name());
+            if (!is_matmul_) {
+                name_.append("+src_reorder->");
+                name_.append(src_reorder_pd_->name());
+                name_.append("+dst_reorder->");
+                name_.append(dst_reorder_pd_->name());
+            }
         }
     };
     ncsp_convolution_bwd_data_t(const pd_t *cpd) : primitive_t(cpd) {};
