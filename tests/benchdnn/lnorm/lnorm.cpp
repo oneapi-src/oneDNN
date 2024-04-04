@@ -423,7 +423,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             prb->attr, res, dnnl_layer_normalization, prb->dt[0]);
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_layer_normalization);
 
-    if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
+    if (is_gpu() && prb->attr.post_ops.len() != 0) {
+        // GPU does not support post-ops
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
