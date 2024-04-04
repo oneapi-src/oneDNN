@@ -58,7 +58,8 @@ struct nhwc_reusable_bnorm_compile_params_t {
     }
 
 #if __cplusplus >= 202002L
-    bool operator==(const reusable_bnorm_params_t &) const = default;
+    bool operator==(
+            const nhwc_reusable_bnorm_compile_params_t &) const = default;
 #endif
 
     serialized_t serialize() const {
