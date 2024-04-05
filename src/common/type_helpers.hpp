@@ -116,6 +116,8 @@ inline T max_value(data_type_t data_type) {
         CASE(s32);
         CASE(s8);
         CASE(u8);
+        CASE(s4);
+        CASE(u4);
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
@@ -138,6 +140,8 @@ inline float max_value(data_type_t data_type) {
         CASE(bf16);
         CASE(s8);
         CASE(u8);
+        CASE(s4);
+        CASE(u4);
         // INT_MAX is not representable in float. The nearest float to it is
         // INT_MAX + 1 = 2^31 (0x4f000000). Regular conversion instructions such
         // as `cvtps2dq` or `cvtss2si` will convert this number to INT_MIN

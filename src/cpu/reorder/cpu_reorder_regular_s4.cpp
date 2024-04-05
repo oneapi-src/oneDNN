@@ -22,11 +22,14 @@ namespace cpu {
 
 // clang-format off
 
-const impl_list_map_t &regular_f32_s4_impl_list_map() {
+const impl_list_map_t &regular_s4_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
-        // f32 -> s4
         {{f32, s4, 0}, {
             REG_SR(f32, any, s4, any, fmt_order::any, spec::reference)
+            nullptr,
+        }},
+        {{s4, f32, 0}, {
+            REG_SR(s4, any, f32, any, fmt_order::any, spec::reference)
             nullptr,
         }},
     });

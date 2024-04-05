@@ -125,6 +125,14 @@ struct data_traits<uint8_t> {
     static constexpr data_type_t data_type = data_type::u8;
 };
 template <>
+struct data_traits<int4_t> {
+    static constexpr data_type_t data_type = data_type::s4;
+};
+template <>
+struct data_traits<uint4_t> {
+    static constexpr data_type_t data_type = data_type::u4;
+};
+template <>
 struct data_traits<bool> {
     static constexpr data_type_t data_type = data_type::boolean;
 };

@@ -48,7 +48,7 @@ struct uint4_t {
         raw_ = val_uint8 & 0xF;
     }
 
-    explicit operator float() const { return (float)raw_; }
+    operator float() const { return (float)raw_; }
 
     uint8_t insert(uint8_t src, int4_extract_t half) const {
         return insert_half_byte(src, raw_, half);
@@ -77,7 +77,7 @@ struct int4_t {
         raw_ = negative ? (val_int8 & 0xF) | 0x8 : val_int8 & 0x7;
     }
 
-    explicit operator float() const {
+    operator float() const {
         float sign = (raw_ & (1 << 3)) ? -1.f : 1.f;
         return sign * (float)(sign == -1 ? (~raw_ & 0xF) + 1 : raw_);
     }
