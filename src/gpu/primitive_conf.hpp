@@ -1137,6 +1137,7 @@ inline void def_data_type(
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=int -D%s_DT_S32", str, str));
             break;
+        case data_type::undef: break;
         default:
             gpu_error_not_expected()
                     << "Unexpected data type " << dnnl_dt2str(dt);
