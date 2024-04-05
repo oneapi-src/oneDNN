@@ -15,23 +15,27 @@
 *******************************************************************************/
 #include "gpu/ocl/bnorm/nhwc_reusable.h"
 
-__kernel void nhwc_reusable_reduce_aux(__global float *dst1,
-        __global float *dst2, off_t sp_size, int use_stats_one_pass,
-        int init_stage) {
+__kernel void nhwc_reusable_reduce_aux(__global float *ptr1,
+        __global float *ptr2, float eps, off_t sp_size, int use_stats_one_pass,
+        int init_stage, int is_fwd) {
     const int c = get_global_id(0);
     if (init_stage) {
         // initialization
-        dst1[c] = 0.0f;
-        dst2[c] = 0.0f;
+        ptr1[c] = 0.0f;
+        ptr2[c] = 0.0f;
     } else {
         // finalization
-        if (use_stats_one_pass) {
-            dst1[c] /= sp_size;
-            float tmp_var
-                    = max(0.0f, (dst2[c] / sp_size) - (dst1[c] * dst1[c]));
-            dst2[c] = tmp_var;
+        if (is_fwd) {
+            if (use_stats_one_pass) {
+                ptr1[c] /= sp_size;
+                float tmp_var
+                        = max(0.0f, (ptr2[c] / sp_size) - (ptr1[c] * ptr1[c]));
+                ptr2[c] = tmp_var;
+            } else {
+                ptr1[c] /= sp_size;
+            }
         } else {
-            dst1[c] /= sp_size;
+            ptr1[c] *= 1.0f / sqrt(ptr2[c] + eps);
         }
     }
 }
@@ -112,5 +116,47 @@ nhwc_reusable_reduce_fwd_1pass(__global float *reduce_temp,
         float tmp_var
                 = max(0.0f, (sum_sq.s0 / sp_size) - (tmp_mean * tmp_mean));
         variance[c] = tmp_var;
+    }
+}
+
+__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+nhwc_reusable_reduce_stat(__global float *temp_reduce,
+        __global float *temp_reduce_shift, __global float *diff_scale,
+        __global float *diff_shift, __global float *variance, float eps,
+        off_t ic_size, off_t reduce_ic_sub_groups, off_t reduce_stat_nblocks,
+        __local float *local_gamma, __local float *local_beta) {
+    const int ic_sub_group = get_global_id(0) / SG_SIZE;
+    const int group_c = get_global_id(1);
+    const int simd_id = get_sub_group_local_id();
+    const int c = group_c * SG_SIZE + simd_id;
+
+    float diff_gamma = 0.0f;
+    float diff_beta = 0.0f;
+
+    const int reduce_chunk = reduce_stat_nblocks / reduce_ic_sub_groups;
+    const int scratchpad_off
+            = ic_size + c + ic_sub_group * reduce_chunk * ic_size;
+
+    temp_reduce += scratchpad_off;
+    temp_reduce_shift += scratchpad_off;
+
+    unroll_16_for(int i = 0; i < reduce_chunk; i++) {
+        diff_gamma += temp_reduce[i * ic_size];
+        diff_beta += temp_reduce_shift[i * ic_size];
+    }
+    if (ic_sub_group > 0) {
+        local_gamma[ic_sub_group * SG_SIZE + simd_id] = diff_gamma;
+        local_beta[ic_sub_group * SG_SIZE + simd_id] = diff_beta;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (ic_sub_group == 0) {
+        unroll_16_for(int i = 1; i < reduce_ic_sub_groups; i++) {
+            diff_gamma += local_gamma[i * SG_SIZE + simd_id];
+            diff_beta += local_beta[i * SG_SIZE + simd_id];
+        }
+        float sqrt_variance = 1.0f / sqrt(variance[c] + eps);
+
+        diff_scale[c] = diff_gamma * sqrt_variance;
+        diff_shift[c] = diff_beta;
     }
 }

@@ -68,6 +68,10 @@ namespace bn_utils {
 
 constexpr int aux_init_stage = 1;
 constexpr int aux_finalize_stage = 0;
+constexpr int aux_use_one_pass = 1;
+constexpr int aux_use_regular = 0;
+constexpr int aux_fwd = 1;
+constexpr int aux_bwd = 0;
 
 float get_ss_utilization(
         int max_ss, const compute::range_t &gws, const compute::range_t &lws);

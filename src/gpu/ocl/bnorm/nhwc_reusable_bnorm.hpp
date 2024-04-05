@@ -53,7 +53,8 @@ struct nhwc_reusable_bnorm_compile_params_t {
                 "nhwc_reusable_update_fwd", "nhwc_reusable_calc_mean",
                 "nhwc_reusable_calc_var", "nhwc_reusable_reduce_fwd_reg",
                 "nhwc_reusable_calc_mean_var", "nhwc_reusable_reduce_fwd_1pass",
-                "nhwc_reusable_reduce_aux"};
+                "nhwc_reusable_reduce_aux", "nhwc_reusable_update_bwd",
+                "nhwc_reusable_calc_stat", "nhwc_reusable_reduce_stat"};
         return kernel_names;
     }
 
@@ -236,7 +237,103 @@ private:
     compute::kernel_t reduce_aux_kernel_;
 };
 
-// TODO: BWD part
+struct nhwc_reusable_batch_normalization_bwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
+    struct pd_t : public gpu_batch_normalization_bwd_pd_t {
+        pd_t(const batch_normalization_desc_t *adesc,
+                const primitive_attr_t *attr,
+                const batch_normalization_fwd_pd_t *hint_fwd_pd)
+            : gpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+
+        DECLARE_COMMON_PD_T(
+                "ocl:nhwc_reusable", nhwc_reusable_batch_normalization_bwd_t);
+
+        status_t init(engine_t *engine) {
+            using namespace data_type;
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+
+            VDISPATCH_BNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_BNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_BNORM(utils::one_of(src_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BNORM(IMPLICATION(f16 == src_md()->data_type,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_BNORM(src_md()->data_type == diff_src_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "diff_src");
+            VDISPATCH_BNORM(
+                    diff_src_md()->data_type == diff_dst_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "diff_src", "diff_dst");
+            VDISPATCH_BNORM(check_scale_shift_data_type(),
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "unsupported scale, shift or datatype configuration");
+            VDISPATCH_BNORM(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_BNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_BNORM(memory_desc_wrapper(diff_src_md())
+                            == memory_desc_wrapper(diff_dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
+            VDISPATCH_BNORM(compute_engine->mayiuse(
+                                    compute::device_ext_t::intel_subgroups),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
+
+            if (fuse_norm_relu() || fuse_norm_add_relu()) {
+                VDISPATCH_BNORM_SC(init_default_ws(8), VERBOSE_WS_INIT);
+                VDISPATCH_BNORM(compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
+            }
+
+            VDISPATCH_BNORM_SC(init_conf(engine), "init_conf()");
+            init_scratchpad();
+
+            return status::success;
+        }
+
+        status_t init_conf(engine_t *engine);
+        void init_scratchpad();
+
+        nhwc_reusable_bnorm_compile_params_t cmpl_conf;
+        nhwc_reusable_bnorm_runtime_params_t rt_conf;
+        nhwc_bnorm_params_t bn_conf;
+        offsets_t off;
+        compute::dispatch_t dispatch_calc_stat;
+        compute::dispatch_t dispatch_reduce_stat;
+        compute::dispatch_t dispatch;
+        compute::dispatch_t dispatch_reduce_aux;
+    };
+
+    status_t init(engine_t *engine) override {
+        if (pd()->has_zero_dim_memory()) return status::success;
+
+        std::vector<const char *> kernel_names = {"nhwc_reusable_update_bwd",
+                "nhwc_reusable_calc_stat", "nhwc_reusable_reduce_stat",
+                "nhwc_reusable_reduce_aux"};
+
+        std::vector<compute::kernel_t> kernels;
+        CHECK(create_kernels(engine, kernels, kernel_names, pd()->cmpl_conf));
+
+        update_kernel_ = kernels[0];
+        calculate_stats_kernel_ = kernels[1];
+        reduce_stats_kernel_ = kernels[2];
+        reduce_aux_kernel_ = kernels[3];
+
+        return status::success;
+    }
+
+    status_t execute(const exec_ctx_t &ctx) const override {
+        return execute_backward(ctx);
+    }
+
+private:
+    status_t execute_backward(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    compute::kernel_t update_kernel_;
+    compute::kernel_t calculate_stats_kernel_;
+    compute::kernel_t reduce_stats_kernel_;
+    compute::kernel_t reduce_aux_kernel_;
+};
 
 } // namespace ocl
 } // namespace gpu

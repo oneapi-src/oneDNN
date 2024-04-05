@@ -116,7 +116,6 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
         // store results
         if (use_fused_atomics_reduction) {
             const int dst_off = ic_block_offset + sg * VECT_SIZE * SG_SIZE;
-            if (DPRINT) { printf("vect: dst_off = %d\n", dst_off); }
             nhwc_reusable_bwd_calc_fused_reduction(diff_scale, diff_shift,
                     dst_off, (float *)(&diff_gamma), (float *)(&diff_beta),
                     local_sums, VECT_SIZE, calc_slm_size);
@@ -156,12 +155,6 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
         // reduce
         for (int sp = 0; sp < sp_idx_bnd; ++sp) {
             const int tn_idx = sg_idx + sp * ic_size;
-
-            if (DPRINT) {
-                printf("tails: sg = %d : sp = %d : tn_idx = %d\n", sg, sp,
-                        tn_idx);
-            }
-
 #if FUSE_BN_RELU
             const char ws_vect = LOAD_CHAR_1x16(&ws[tn_idx]);
 #endif

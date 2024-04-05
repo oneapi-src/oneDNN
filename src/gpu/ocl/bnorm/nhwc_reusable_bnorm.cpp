@@ -296,9 +296,11 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
         compute::kernel_arg_list_t arg_list;
         arg_list.append(mean);
         arg_list.append(variance);
+        arg_list.append(0.f);
         arg_list.append(into<dim_t>(0));
-        arg_list.append(0);
+        arg_list.append(aux_use_regular);
         arg_list.append(aux_init_stage);
+        arg_list.append(aux_fwd);
 
         auto nd_range = pd()->dispatch_reduce_aux.nd_range();
         status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
@@ -339,9 +341,12 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
             compute::kernel_arg_list_t arg_list;
             arg_list.append(mean);
             arg_list.append(memory_storage_t::empty_storage());
+            arg_list.append(0.f);
             arg_list.append(rt_conf.sp_size);
-            arg_list.append(0);
+            arg_list.append(aux_use_regular);
             arg_list.append(aux_finalize_stage);
+            arg_list.append(aux_fwd);
+
             auto nd_range = pd()->dispatch_reduce_aux.nd_range();
             status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
             if (status != status::success) return status;
@@ -387,9 +392,11 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
             compute::kernel_arg_list_t arg_list;
             arg_list.append(variance);
             arg_list.append(memory_storage_t::empty_storage());
+            arg_list.append(0.f);
             arg_list.append(rt_conf.sp_size);
-            arg_list.append(0);
+            arg_list.append(aux_use_regular);
             arg_list.append(aux_finalize_stage);
+            arg_list.append(aux_fwd);
 
             auto nd_range = pd()->dispatch_reduce_aux.nd_range();
             status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
@@ -438,9 +445,12 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
             compute::kernel_arg_list_t arg_list;
             arg_list.append(mean);
             arg_list.append(variance);
+            arg_list.append(0.f);
             arg_list.append(rt_conf.sp_size);
-            arg_list.append(1);
+            arg_list.append(aux_use_one_pass);
             arg_list.append(aux_finalize_stage);
+            arg_list.append(aux_fwd);
+
             auto nd_range = pd()->dispatch_reduce_aux.nd_range();
             status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
             if (status != status::success) return status;
@@ -485,7 +495,149 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
     return parallel_for(ctx, nd_range, update_kernel_, arg_list);
 }
 
-// TODO: BWD part
+status_t nhwc_reusable_batch_normalization_bwd_t::pd_t::init_conf(
+        engine_t *engine) {
+    return init_conf_common(bn_conf, cmpl_conf, rt_conf, dispatch_calc_stat,
+            dispatch_reduce_stat, dispatch, dispatch_reduce_aux, this, engine);
+}
+
+void nhwc_reusable_batch_normalization_bwd_t::pd_t::init_scratchpad() {
+    size_t elsize = types::data_type_size(data_type::f32);
+    size_t size = rnd_up(rt_conf.ic_size, bn_conf.sub_group_size)
+            * (1 + rt_conf.reduce_stat_nblocks);
+    auto scratchpad = scratchpad_registry().registrar();
+    scratchpad.book(memory_tracking::names::key_bnorm_reduction, size, elsize,
+            OCL_BUFFER_ALIGNMENT);
+    scratchpad.book(memory_tracking::names::key_bnorm_reduction_shift, size,
+            elsize, OCL_BUFFER_ALIGNMENT);
+}
+
+status_t nhwc_reusable_batch_normalization_bwd_t::execute_backward(
+        const exec_ctx_t &ctx) const {
+    status_t status = status::success;
+    const auto &cmpl_conf = pd()->cmpl_conf;
+    const auto &rt_conf = pd()->rt_conf;
+
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
+    auto &variance = CTX_IN_STORAGE(DNNL_ARG_VARIANCE);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &scale = CTX_IN_STORAGE(DNNL_ARG_SCALE);
+    auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
+
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &diff_src_add = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_1);
+    auto &diff_scale_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE);
+    auto &diff_shift_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SHIFT);
+
+    std::unique_ptr<memory_storage_t> temp_reduce;
+    std::unique_ptr<memory_storage_t> temp_reduce_shift;
+    temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
+            key_bnorm_reduction);
+    temp_reduce_shift = ctx.get_scratchpad_grantor().get_memory_storage(
+            key_bnorm_reduction_shift);
+
+    auto &diff_scale = !cmpl_conf.use_scale ? *temp_reduce : diff_scale_;
+    auto &diff_shift = !cmpl_conf.use_shift ? *temp_reduce_shift : diff_shift_;
+
+    if (rt_conf.use_fused_atomics_reduction) {
+        compute::kernel_arg_list_t arg_list;
+        arg_list.append(diff_scale);
+        arg_list.append(diff_shift);
+        arg_list.append(0.f);
+        arg_list.append(into<dim_t>(0));
+        arg_list.append(aux_use_regular);
+        arg_list.append(aux_init_stage);
+        arg_list.append(aux_bwd);
+
+        auto nd_range = pd()->dispatch_reduce_aux.nd_range();
+        status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
+        if (status != status::success) return status;
+    }
+
+    const dim_t calc_slm_size = rt_conf.use_fused_atomics_reduction
+            ? sizeof(float) * cmpl_conf.vect_size * rt_conf.sg_size
+                    * rt_conf.calc_adj_lws[1]
+            : 0;
+
+    compute::kernel_arg_list_t calc_stats_arg_list;
+    calc_stats_arg_list.append(src);
+    calc_stats_arg_list.append(mean);
+    calc_stats_arg_list.append(diff_dst);
+    calc_stats_arg_list.append(ws);
+    calc_stats_arg_list.append(*temp_reduce);
+    calc_stats_arg_list.append(*temp_reduce_shift);
+    calc_stats_arg_list.append(diff_scale);
+    calc_stats_arg_list.append(diff_shift);
+    calc_stats_arg_list.append(rt_conf.ic_size);
+    calc_stats_arg_list.append(rt_conf.ic_block);
+    calc_stats_arg_list.append(rt_conf.sp_size);
+    calc_stats_arg_list.append(rt_conf.stat_sp_block);
+    calc_stats_arg_list.append(rt_conf.reduce_stat_nblocks);
+    calc_stats_arg_list.append(into<int>(rt_conf.use_fused_atomics_reduction));
+    calc_stats_arg_list.append(2 * calc_slm_size, nullptr);
+    calc_stats_arg_list.append(calc_slm_size);
+
+    auto calc_stats_nd_range = pd()->dispatch_calc_stat.nd_range();
+    status = parallel_for(ctx, calc_stats_nd_range, calculate_stats_kernel_,
+            calc_stats_arg_list);
+    if (status != status::success) return status;
+
+    if (rt_conf.use_fused_atomics_reduction) {
+        compute::kernel_arg_list_t arg_list;
+        arg_list.append(diff_scale);
+        arg_list.append(variance);
+        arg_list.append(rt_conf.eps);
+        arg_list.append(into<dim_t>(0));
+        arg_list.append(aux_use_regular);
+        arg_list.append(aux_finalize_stage);
+        arg_list.append(aux_bwd);
+
+        auto nd_range = pd()->dispatch_reduce_aux.nd_range();
+        status = parallel_for(ctx, nd_range, reduce_aux_kernel_, arg_list);
+        if (status != status::success) return status;
+    } else {
+        const dim_t local_sum_size = sizeof(float) * rt_conf.sg_size
+                * rt_conf.reduce_ic_sub_groups;
+
+        compute::kernel_arg_list_t arg_list;
+        arg_list.append(*temp_reduce);
+        arg_list.append(*temp_reduce_shift);
+        arg_list.append(diff_scale);
+        arg_list.append(diff_shift);
+        arg_list.append(variance);
+        arg_list.append(rt_conf.eps);
+        arg_list.append(rt_conf.ic_size);
+        arg_list.append(rt_conf.reduce_ic_sub_groups);
+        arg_list.append(rt_conf.reduce_stat_nblocks);
+        arg_list.append(local_sum_size, nullptr);
+        arg_list.append(local_sum_size, nullptr);
+
+        auto nd_range = pd()->dispatch_reduce_stat.nd_range();
+        status = parallel_for(ctx, nd_range, reduce_stats_kernel_, arg_list);
+        if (status != status::success) return status;
+    }
+
+    compute::kernel_arg_list_t arg_list;
+    arg_list.append(src);
+    arg_list.append(mean);
+    arg_list.append(variance);
+    arg_list.append(diff_dst);
+    arg_list.append(scale);
+    arg_list.append(ws);
+    arg_list.append(diff_src);
+    arg_list.append(diff_scale);
+    arg_list.append(diff_shift);
+    arg_list.append(rt_conf.eps);
+    arg_list.append(diff_src_add);
+    arg_list.append(rt_conf.ic_size);
+    arg_list.append(rt_conf.ic_block);
+    arg_list.append(rt_conf.sp_size);
+    arg_list.append(rt_conf.update_sp_block);
+
+    auto nd_range = pd()->dispatch.nd_range();
+    return parallel_for(ctx, nd_range, update_kernel_, arg_list);
+}
 
 } // namespace ocl
 } // namespace gpu
