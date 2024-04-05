@@ -166,17 +166,17 @@ struct acl_matmul_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->weights_format_kind_ == format_kind::any) {
-            return execute_forward_fixed_format(ctx);
+            return execute_forward<true>(ctx);
         } else {
-            return execute_forward_non_fixed_format(ctx);
+            return execute_forward<false>(ctx);
         }
     }
 
 private:
     // To guard the const execute_forward(), the mutex must be 'mutable'
     mutable std::mutex mtx;
-    status_t execute_forward_non_fixed_format(const exec_ctx_t &ctx) const;
-    status_t execute_forward_fixed_format(const exec_ctx_t &ctx) const;
+    template <bool IsFixedFormat>
+    status_t execute_forward(const exec_ctx_t &ctx) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 }; // acl_matmul_t
