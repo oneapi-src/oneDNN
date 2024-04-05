@@ -164,15 +164,15 @@ struct attr_info_t {
 
         const auto &src0_scales = attr->scales_.get(DNNL_ARG_SRC_0);
         attr_info.with_src0_scale = !src0_scales.has_default_values();
-        assert(src0_scales.mask_ == 0);
+        gpu_assert(src0_scales.mask_ == 0);
 
         const auto &src1_scales = attr->scales_.get(DNNL_ARG_SRC_1);
         attr_info.with_src1_scale = !src1_scales.has_default_values();
-        assert(src1_scales.mask_ == 0);
+        gpu_assert(src1_scales.mask_ == 0);
 
         const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
         attr_info.with_src_scales = !src_scales.has_default_values();
-        assert(src_scales.mask_ == 0);
+        gpu_assert(src_scales.mask_ == 0);
 
         const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
         attr_info.with_wei_scales = !wei_scales.has_default_values();
@@ -180,7 +180,7 @@ struct attr_info_t {
 
         const auto &dst_scales = attr->scales_.get(DNNL_ARG_DST);
         attr_info.with_dst_scales = !dst_scales.has_default_values();
-        assert(dst_scales.mask_ == 0);
+        gpu_assert(dst_scales.mask_ == 0);
 
         // zero points
         const auto &zp = attr->zero_points_;
@@ -1137,7 +1137,10 @@ inline void def_data_type(
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=int -D%s_DT_S32", str, str));
             break;
-        default: assert(!"unsupported data type"); break;
+        default:
+            gpu_error_not_expected()
+                    << "Unexpected data type " << dnnl_dt2str(dt);
+            break;
     }
 }
 
@@ -1422,7 +1425,7 @@ inline int append_post_ops_to_arg_list_base(const exec_args_t &args,
         if (e.is_binary()) {
             auto arg = args.at(
                     DNNL_ARG_ATTR_MULTIPLE_POST_OP(po_idx) | DNNL_ARG_SRC_1);
-            assert(arg.is_const);
+            gpu_assert(arg.is_const);
 
             auto &binary_arg = arg.mem
                     ? *(arg.mem->memory_storage())
@@ -1431,7 +1434,7 @@ inline int append_post_ops_to_arg_list_base(const exec_args_t &args,
         } else if (e.is_prelu()) {
             auto arg = args.at(
                     DNNL_ARG_ATTR_MULTIPLE_POST_OP(po_idx) | DNNL_ARG_WEIGHTS);
-            assert(arg.is_const);
+            gpu_assert(arg.is_const);
             auto &prelu_wei_arg = arg.mem
                     ? *(arg.mem->memory_storage())
                     : dnnl::impl::memory_storage_t::empty_storage();
@@ -1482,7 +1485,7 @@ inline bool post_ops_preserves_zeroes(
 inline status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
         const attr_info_t &attr_info, const post_ops_t &post_ops,
         const memory_desc_t &dst_md) {
-    assert(attr_info.initialized);
+    gpu_assert(attr_info.initialized);
 
     kernel_ctx.define_int("WITH_POST_OP", post_ops.len() > 0);
 
