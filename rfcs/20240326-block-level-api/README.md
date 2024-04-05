@@ -12,10 +12,10 @@ brgemm), is a very flexible operation that can be used in a variety of
 DNN operators. It is defined as folllow:
 
 ```math
-D = \beta C + \alpha \sum_i A_i \cdot B_i + bias
+C = \beta C + \alpha \sum_i A_i \cdot B_i + bias
 ```
 
-with 
+with
 - $A_i$ a set of matrices of dimension $M \times K$
 - $B_i$ a set of matrices of dimension $K \times N$
 - D and C matrices of dimension $M \times N$
@@ -49,6 +49,16 @@ This is necessary on multiple occasions, a few examples being:
 - for convolutions, where blocks can overlap depending on covolution strides
 - for LSTM/GRU where weights for each gate can live in separate memory addresses.
 - for models with embedding lookup, where vectors can be passed as separate blocks.
+
+> ** _Note:_** for LLM optimizations, and "pure" matrix
+> multiplication, batch-reduction is typically not necessary unless A
+> and B are large and require K-blocking. This can be observed in
+> current IPEX implementations using libxsmm for
+> [FlashAttention](https://github.com/intel/intel-extension-for-pytorch/blob/e4a645649744bf03fa2c3d90b771d48a8dc204fc/csrc/cpu/aten/kernels/FlashAttentionKrnl.cpp#L1101),
+> [Multi-Head
+> Attention](https://github.com/intel/intel-extension-for-pytorch/blob/e4a645649744bf03fa2c3d90b771d48a8dc204fc/csrc/cpu/aten/kernels/MultiHeadAttentionKrnl.cpp#L382)
+> and [Weights-only-Quantization
+> Matmul](https://github.com/intel/intel-extension-for-pytorch/blob/e4a645649744bf03fa2c3d90b771d48a8dc204fc/csrc/cpu/aten/kernels/WoqTppKrnl.cpp#L1415).
 
 Using arbitrary strides between blocks is unfortunately not possible
 if we encapsulate all $A_i$ blocks (resp $B_i$ blocks) of a brgemm
@@ -345,6 +355,8 @@ functionality.
 
 ## All-in-all
 
+### Interface proposal
+
 ```c++
 
 // namespace name to be defined, leaving it general enough for additional block level APIs
@@ -361,7 +373,7 @@ transposed;
 struct brgemm {
     struct desc {
         // Vanilla version of brgemm with no post-op or destination conversion.
-        desc(dim_t M, dim_t N, dim_t K,
+        desc(dim_t batch, dim_t M, dim_t N, dim_t K,
                 data_type dtA, dim_t ldA,
                 data_type dtB, dim_t ldB, 
                 data_type dtC, dim_t ldC,
@@ -369,7 +381,7 @@ struct brgemm {
 
         // Advanced version with postop and datatype conversion when D type
         // is different than C type.
-        desc(dim_t M, dim_t N, dim_t K,
+        desc(dim_t batch, dim_t M, dim_t N, dim_t K,
                 data_type dtA, dim_t ldA,
                 data_type dtB, dim_t ldB, 
                 data_type dtC, dim_t ldC,
@@ -383,7 +395,7 @@ struct brgemm {
         size_t get_scratchpad_size() const;
     }
 
-    brgemm_t(const brgemm_desc_t &bd); 
+    brgemm(const desc &bd); 
     
     // HW context handling.
     // This currently mimics AMX (need to clarify for SME): 
@@ -409,19 +421,111 @@ struct brgemm {
             void **post_ops_args = nullptr);
 }
 
-struct transform_t {
+struct transform {
     struct desc {
         desc(dim_t M, dim_t N, data_type dt, 
                 packing_tag tag_src, dim_t ld_src,
                 packing_tag tag_dst, dim_t ld_dst);
 	}
-    transform_t(const desc &td);
-    execute(void *dst, const void *src);
+    transform(const desc &td);
+    execute(const void *src, void *dst);
 }
 
 } // namespace block
 } // namespace dnnl
 ```
+### Simple example for bf16 matmul with f32 accumulation and relu fusion.
+
+```c++
+int matmul_with_relu(const void *src, const void *weights, void *dst) {
+  // Here we will create a bf16 matmul operation, with f32 accumulation,
+  // and downconversion to bf16 at the end
+  // We assume a copy based implementation: we copy just B for example simplification
+  // For the D matrix, we will write to destination directly.
+
+    // we assume divisibility to simplify example
+    // BK is here just for the purpose of example, in practice it should be much larger.
+    dim_t BM = 16, BN = 16, BK = 32;
+    assert(M % BM == 0);
+    assert(N % BN == 0);
+    assert(K % BK == 0);
+
+    post_ops po;
+    po.append_eltwise(algorithm::eltwise_relu, 0.f, 0.f);
+    primitive_attr attr;
+    attr.set_postops(po);
+
+    float alpha = 1.0f;
+    float beta = 0.0f; // beta is 0 as we do a single call
+    brgemm::desc bdesc(K / BK, BM, BN, BK,
+            data_type::bf16, K, // type/ld for A/src
+            data_type::bf16, BN, // type/ld for B/weights
+            data_type::f32, BN, // type/ld for C, temporary buffer
+            data_type::bf16, N, // type/ld for D/dst
+            alpha, beta, attr);
+
+    assert(bdesc.get_A_tag() == packing_tag::plain);
+    transform::desc tBdesc(K, BN, bf16, packing_tag::plain, N, bdesc.get_B_tag(), BN);
+
+    // Here we jit the block level kernels
+    brgemm bg(bdesc);
+    transform tB(tBdesc);
+
+    // we do parallelisation based on M/N slicing
+    // each thread gets a single output block
+    parallel_for(range(M/BM, N/BN),
+            [&](range r){
+            std::vector<std::pair> A_B;
+            A_B.reserve(K/BK);
+
+            // We allocate temporary buffers
+            // If allocator has thread-local pools, this is fine
+            void *c_buff = myalloc(BM * BN * sizeof(float));
+            void *packedB = myalloc(K * BN * sizeof(bfloat16_t));
+            void *scratch = myalloc(bdesc.get_scratchpad_size());
+
+            // pack B
+            tB.execute(weights + r[1] * BN * sizeof(bfloat16_t), packedB);
+
+            // we set up the arguments for the execution
+            for (int k = 0; k < K; k+=BK) {
+                A_B.emplace_back(src + (r[0] * BM * K + k) * sizeof(bfloat16_t), 
+                        packedB + k * BN * sizeof(bfloat16_t));
+            }
+
+            // we run it
+            bg.execute(A_B, c_buff, dst + (r[0] * BM * N + r[1] * BN) * sizeof(bfloat16_t), scratch);
+    });
+
+
+}
+
+
+```
+
+## A note on other block level libraries
+
+As part of this proposal, it can be interesting to look at other block level libraries used in Frameworks to accelerate AI, as those could be integration points for the oneDNN block level APIs. In particular we looked at:
+- fbgemm, developped by Meta and used in PyTorch for quantized/low-precision computation acceleration
+- XNNpack, developped by Google and used in Tensorflow lite, PyTorch and ONNXruntime.
+- MLAS , developped by Microsoft and used in ONNXruntime and openVINO.
+
+### XNNpack
+
+XNNpack relies on indirect gemm abstraction [^6] [^7], which computes $C += A \cdot B$, but where A is passed as an array of pointers to independent columns.
+The benefit of such approach compared to brgemm makes it usable to fold gather operation into matmul operation (e.g. to implement embedding lookups).
+The downside is that it does not fold some accumulations while accumulators are in register (e.g. when computing convolution).
+Unfortunately, brgemm would not be very efficient if we were to integrate it behind the indirect gemm abstraction for integration to XNNpack (would require separate call for each pointer).
+
+### FBGEMM
+
+fbgemm relies on single gemm abstraction, with dedicated packA/packB routines, as well as post-gemm routines [^8]. 
+If we are to integrate oneDNN block API behind fbgemm, that would be possible with the current proposal.
+
+
+### MLAS
+
+WIP
 
 ## References
 
@@ -431,6 +535,6 @@ struct transform_t {
 [^3]: [ARM BFDOT instruction](https://developer.arm.com/documentation/ddi0602/2021-06/SVE-Instructions/BFDOT--vectors---BFloat16-floating-point-dot-product-)
 [^4]: [ARM SME instruction](https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/scalable-matrix-extension-armv9-a-architecture)
 [^5]: [Intel optimization guide](https://www.intel.com/content/www/us/en/content-details/671488/intel-64-and-ia-32-architectures-optimization-reference-manual-volume-1.html)
-
-
-
+[^6]: [The indirect convolution algorithm](https://arxiv.org/abs/1907.02129)
+[^7]: [XNNpack microkernels](https://github.com/google/XNNPACK/blob/8b30931dba3d4f23f0da035fa5330a45b5ade5bf/doc/microkernel-naming-conventions.md?plain=1#L57)
+[^8]: [FBGEMM microkernls](https://arxiv.org/abs/2101.05615)
