@@ -1633,7 +1633,8 @@ prb_tile_t conv_config_t::shape(bool pad) const {
     return ret;
 }
 
-tensor_config_t get_tensor_config(const conv_config_t &cfg) {
+tensor_config_t get_tensor_config(
+        const conv_config_t &cfg, const memory_desc_t *zp_src) {
     const auto &prb = cfg.prb();
     tensor_config_t tensor_cfg;
     conv_arg_helper_t h(prb);
@@ -1654,7 +1655,7 @@ tensor_config_t get_tensor_config(const conv_config_t &cfg) {
         tensor_cfg.require_zero_out("wei");
         if (prb.with_bias) tensor_cfg.require_zero_out("bia");
     }
-    init_extra_tensors(cfg.zp_cfg(), *prb.conv_pd->attr(),
+    init_extra_tensors(cfg.zp_cfg(), *prb.conv_pd->attr(), zp_src,
             *prb.conv_pd->invariant_dst_md(), (prb.is_fwd) ? prb.ic : prb.oc,
             (prb.is_fwd) ? prb.oc : prb.ic, tensor_cfg);
     return tensor_cfg;

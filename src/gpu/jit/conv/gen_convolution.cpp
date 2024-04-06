@@ -19,6 +19,9 @@
 #include <iostream>
 #include <utility>
 
+#include "common/primitive_desc_iface.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
+
 #include "common/impl_registration.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
@@ -41,6 +44,8 @@ struct conv_pd_data_t {
     conv_config_t pd_cfg;
     tensor_config_t tensor_cfg;
     std::vector<kernel_info_t> kernel_infos;
+    std::shared_ptr<dnnl_primitive_desc> zp_pd;
+    std::shared_ptr<primitive_t> zp_prim;
 };
 
 class gen_convolution_t {
@@ -66,7 +71,79 @@ public:
             CHECK(init_pd_time_cfg(
                     prb, pd->data->pd_cfg, engine, pd, &pd->attr_));
 
-            pd->data->tensor_cfg = get_tensor_config(pd->data->pd_cfg);
+            if (pd->data->pd_cfg.zp_cfg().needs_src_precalc) {
+                memory::dims I {prb.id, prb.ih, prb.iw};
+                memory::dims O {prb.od, prb.oh, prb.ow};
+                memory::dims K {prb.kd, prb.kh, prb.kw};
+                memory::dims S {prb.sd, prb.sh, prb.sw};
+                memory::dims D {prb.dd, prb.dh, prb.dw};
+                memory::dims P {prb.pd, prb.ph, prb.pw};
+                const int off = 5 - prb.ndims;
+                const auto *w = pd->invariant_wei_md();
+                { // restore the original layout of the prb values
+                    const auto *s = pd->invariant_src_md();
+                    const auto *d = pd->invariant_dst_md();
+                    auto has_dim = [&](int i) {
+                        return (s->dims[2 + i] > 1) || (d->dims[2 + i] > 1)
+                                || (w->dims[2 + i + prb.with_groups] > 1);
+                    };
+                    auto move_back = [&](int i, int off) {
+                        if (off == 0) return;
+                        I[i - off] = O[i - off] = K[i - off] = S[i - off] = 1;
+                        D[i - off] = P[i - off] = 0;
+                        std::swap(I[i - off], I[i]);
+                        std::swap(O[i - off], O[i]);
+                        std::swap(K[i - off], K[i]);
+                        std::swap(S[i - off], S[i]);
+                        std::swap(D[i - off], D[i]);
+                        std::swap(P[i - off], P[i]);
+                    };
+                    bool has_d = (off <= 0) && has_dim(0 - off);
+                    bool has_h = (off <= 1) && has_dim(1 - off);
+                    bool has_w = (off <= 2) && has_dim(2 - off);
+                    if (!has_d && !has_h && !has_w) has_w = true;
+                    move_back(1, has_d * (!has_h == has_w));
+                    move_back(2, !has_w * (!has_h + 1));
+                }
+                memory::dims S1 {1, 1, 1};
+                memory::dims P1 {0, 0, 0};
+                memory::dims dims_src {1, prb.g * prb.ic};
+                memory::dims dims_dst {1, prb.g * prb.oc};
+
+                for (int i = off; i < int(K.size()); i++) {
+                    const auto KD = (K[i] - 1) * (D[i] + 1) + 1;
+                    dims_src.emplace_back(std::min(KD, I[i]));
+                    dims_dst.emplace_back(ir_utils::max_unique_pad_states(
+                            O[i], I[i], KD, P[i], S[i], true));
+                    P1[i] = dims_dst.back() - dims_src.back() - 1 + KD - P[i];
+                }
+                memory::desc src(dims_src, memory::data_type::s8,
+                        memory::format_tag::any);
+                memory::desc dst(dims_dst, memory::data_type::s32,
+                        memory::format_tag::any);
+
+                // create a nested conv and allocate a nested scratchpad for it
+                primitive_attr_t attr;
+                int mask = 0;
+                CHECK(pd->attr_.zero_points_.get(DNNL_ARG_SRC, &mask));
+                attr.zero_points_.set(DNNL_ARG_SRC, mask);
+                attr.post_ops_.append_eltwise(
+                        1.f, alg_kind_t::dnnl_eltwise_linear, -1.f, 0.f);
+                dnnl_primitive_desc *zp_pd;
+                CHECK(dnnl_convolution_forward_primitive_desc_create(&zp_pd,
+                        engine, dnnl_prop_kind_t::dnnl_forward_inference,
+                        dnnl_alg_kind_t::dnnl_convolution_direct, src.get(), w,
+                        nullptr, dst.get(), S1.data() + off, D.data() + off,
+                        P.data() + off, P1.data() + off, &attr));
+                pd->data->zp_pd.reset(zp_pd, dnnl_primitive_desc_destroy);
+                auto scratchpad = pd->scratchpad_registry().registrar();
+                scratchpad.book(memory_tracking::names::key_nested_multiple,
+                        pd->data->zp_pd->impl()->scratchpad_registry());
+            }
+
+            pd->data->tensor_cfg = get_tensor_config(pd->data->pd_cfg,
+                    (pd->data->zp_pd) ? pd->data->zp_pd->impl()->src_md()
+                                      : nullptr);
             pd->data->kernel_infos.reserve(max_kernels);
             CHECK(init_kernel_infos(pd));
 
@@ -97,6 +174,8 @@ public:
         bool ok = false;
         int max_tries = 100;
         conv_config_t cfg;
+        layout_t zp_dst;
+        if (data.zp_pd) zp_dst = layout_t(data.zp_pd->impl()->dst_md(), false);
         for (int try_iter = 0; try_iter < max_tries; try_iter++) {
             try {
                 cfg = data.pd_cfg;
@@ -125,7 +204,7 @@ public:
                                     : grf_mode_t::small;
                             tmp_kernels.push_back(make_kernel<conv_kernel_t>(
                                     primitive, /*register_kernel=*/false,
-                                    engine, cfg, info, nd_ranges_[i],
+                                    engine, cfg, info, nd_ranges_[i], zp_dst,
                                     grf_mode));
                             break;
                         }
@@ -166,6 +245,15 @@ public:
                                             cfg.is_dpas_or_dpasw_fma(),
                                             grf_mode_t::matches));
                             break;
+
+                        case kernel_id_t::zp_precalc:
+                            ir_assert(data.zp_pd);
+                            if (!data.zp_prim)
+                                CHECK(data.zp_pd->impl()->create_primitive(
+                                        data.zp_prim, engine));
+                            tmp_kernels.emplace_back();
+                            continue;
+
                         default: ir_error_not_expected();
                     }
                     if (!tmp_kernels[i]) return status::runtime_error;
@@ -234,6 +322,34 @@ public:
 
                     CHECK(primitive->parallel_for(
                             ctx, nd_ranges_[i], kernels_[i], arg_list));
+                } else if (info.id() == kernel_id_t::zp_precalc) {
+                    auto scratchpad_arg = [&](std::unique_ptr<memory_t> &retn,
+                                                  const std::string &name,
+                                                  const memory_desc_t *md) {
+                        auto s = ctx.get_scratchpad_grantor()
+                                         .get_memory_storage(info.key(name));
+                        return safe_ptr_assign(retn,
+                                new memory_t(ctx.stream()->engine(), md,
+                                        std::move(s)));
+                    };
+                    ir_assert(data.zp_prim);
+                    std::unique_ptr<memory_t> zp_src, zp_dst;
+                    CHECK(scratchpad_arg(zp_src, "src_zero_points",
+                            data.zp_pd->impl()->src_md()));
+                    CHECK(scratchpad_arg(
+                            zp_dst, "dst", data.zp_pd->impl()->dst_md()));
+
+                    exec_args_t e_args;
+                    auto src_zp_idx = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC;
+                    e_args[src_zp_idx] = ctx.args().at(src_zp_idx);
+                    e_args[DNNL_ARG_WEIGHTS] = ctx.args().at(DNNL_ARG_WEIGHTS);
+                    e_args[DNNL_ARG_SRC] = memory_arg_t {zp_src.get(), true};
+                    e_args[DNNL_ARG_DST] = memory_arg_t {zp_dst.get(), false};
+                    exec_ctx_t e_ctx(ctx, std::move(e_args));
+                    const auto nm = memory_tracking::names::key_nested_multiple;
+                    nested_scratchpad_t ns(ctx, nm, data.zp_prim);
+                    e_ctx.set_scratchpad_grantor(ns.grantor());
+                    CHECK(data.zp_prim->execute(e_ctx));
                 }
                 nsubmitted++;
                 if (nsubmitted == nkernels) break;
@@ -258,79 +374,108 @@ private:
     static status_t init_kernel_infos(T *pd) {
         auto &data = *pd->data;
         auto &cfg = data.pd_cfg;
+        const bool needs_zp_precalc = cfg.zp_cfg().needs_src_precalc;
 
         auto scratchpad = pd->scratchpad_registry().registrar();
         auto &conv_info = create_kernel_info(pd, kernel_id_t::convolution);
+        auto &zp_precalc_info = (needs_zp_precalc)
+                ? create_kernel_info(pd, kernel_id_t::zp_precalc)
+                : conv_info;
 
         // Initialize kernel arguments.
-        uint32_t scratchpad_key = 1;
+        int scratchpad_key = 0;
         for (auto &t : data.tensor_cfg.tensors()) {
-            int compute_arg_key = t.arg_key;
-            int user_arg_key = t.arg_key;
-            size_t compute_size = t.compute_layout.size();
-            auto compute_buf = make_buffer(t.name);
-            auto user_buf = (t.needs_reorder ? make_buffer(t.name + "_user")
-                                             : compute_buf);
+            const bool src_zp_precalc
+                    = needs_zp_precalc && (t.name == "src_zero_points");
 
-            if (user_arg_key == -1) {
+            const auto compute_buf = make_buffer(t.name);
+            size_t compute_size = t.compute_layout.size();
+            int compute_arg_key = t.arg_key;
+
+            auto add_compute_arg = [&](kernel_info_t &ki, const expr_t &buf,
+                                           bool is_input) {
+                if (t.needs_reorder || src_zp_precalc)
+                    ki.register_scratchpad_arg(
+                            buf, compute_arg_key, is_input, compute_size);
+                else
+                    ki.register_user_arg(buf, compute_arg_key, is_input);
+            };
+
+            if (compute_arg_key == -1) {
                 ir_assert(!t.needs_reorder);
                 ir_assert(!t.needs_zero_out);
                 ir_error_not_expected();
                 continue;
             }
 
-            if (t.needs_reorder) {
-                compute_arg_key = int(scratchpad_key);
-                scratchpad.book(scratchpad_key, compute_size, 1,
-                        ocl::OCL_BUFFER_ALIGNMENT);
-                conv_info.register_scratchpad_arg(compute_buf, compute_arg_key,
-                        /*is_input=*/t.is_input && !t.is_output, compute_size);
-                scratchpad_key++;
+            if (t.needs_reorder || src_zp_precalc) {
+                int user_arg_key = compute_arg_key;
+                auto user_buf = make_buffer(t.name + "_user");
+                compute_arg_key = ++scratchpad_key;
 
-                if (t.is_input) {
+                if (!src_zp_precalc && t.is_input) {
                     auto &reorder_info
                             = create_kernel_info(pd, kernel_id_t::pre_reorder);
                     reorder_info.register_user_arg(user_buf, user_arg_key,
                             /*is_input=*/true);
-                    reorder_info.register_scratchpad_arg(compute_buf,
-                            compute_arg_key,
-                            /*is_input=*/false, compute_size);
+                    add_compute_arg(reorder_info, compute_buf, false);
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
                             cfg.exec_cfg(), t.user_layout, t.compute_layout));
                 }
-                if (t.is_output) {
+                if (!src_zp_precalc && t.is_output) {
                     auto &reorder_info
                             = create_kernel_info(pd, kernel_id_t::post_reorder);
-                    reorder_info.register_scratchpad_arg(compute_buf,
-                            compute_arg_key,
-                            /*is_input=*/true, compute_size);
+                    add_compute_arg(reorder_info, compute_buf, true);
                     reorder_info.register_user_arg(user_buf, user_arg_key,
                             /*is_input=*/false);
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
                             cfg.exec_cfg(), t.compute_layout, t.user_layout));
                 }
+                if (src_zp_precalc) {
+                    ++scratchpad_key;
+                    scratchpad.book(uint32_t(scratchpad_key), compute_size, 1,
+                            ocl::OCL_BUFFER_ALIGNMENT);
+
+                    auto &zero_out_info
+                            = create_kernel_info(pd, kernel_id_t::zero_out);
+                    zero_out_info.register_scratchpad_arg(compute_buf,
+                            scratchpad_key, /*is_input=*/false, compute_size);
+                    auto size_var = var_t::make(type_t::u32(), "size");
+                    zero_out_info.register_internal_arg(
+                            size_var, uint32_t(compute_size));
+                    zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
+                            cfg.simd(), int(compute_size)));
+
+                    zp_precalc_info.register_scratchpad_arg(compute_buf,
+                            scratchpad_key, /*is_input=*/true, compute_size);
+                    const auto &dim = ir_utils::max_unique_pad_states;
+                    const auto &prb = cfg.prb();
+                    const int KDD = (prb.kd - 1) * (prb.dd + 1) + 1;
+                    const int KDH = (prb.kh - 1) * (prb.dh + 1) + 1;
+                    const int KDW = (prb.kw - 1) * (prb.dw + 1) + 1;
+                    compute_size = int64_t(compute_size) * sizeof(int32_t)
+                            * dim(prb.od, prb.id, KDD, prb.pd, prb.sd, true)
+                            * dim(prb.oh, prb.ih, KDH, prb.ph, prb.sh, true)
+                            * dim(prb.ow, prb.iw, KDW, prb.pw, prb.sw, true)
+                            * utils::rnd_up(prb.g * prb.oc, cfg.simd())
+                            / std::min(KDD, prb.id) / std::min(KDH, prb.ih)
+                            / std::min(KDW, prb.iw) / (prb.g * prb.ic);
+                    add_compute_arg(zp_precalc_info, make_buffer("dst"), false);
+                }
+                scratchpad.book(uint32_t(compute_arg_key), compute_size, 1,
+                        ocl::OCL_BUFFER_ALIGNMENT);
             }
             if (t.needs_zero_out) {
                 auto &zero_out_info
                         = create_kernel_info(pd, kernel_id_t::zero_out);
-                if (t.needs_reorder) {
-                    zero_out_info.register_scratchpad_arg(compute_buf,
-                            compute_arg_key,
-                            /*is_input=*/false, compute_size);
-                } else {
-                    zero_out_info.register_user_arg(compute_buf,
-                            compute_arg_key,
-                            /*is_input=*/false);
-                }
+                add_compute_arg(zero_out_info, compute_buf, false);
                 auto size_var = var_t::make(type_t::u32(), "size");
                 zero_out_info.register_internal_arg(
                         size_var, uint32_t(compute_size));
                 zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
                         cfg.simd(), int(compute_size)));
             }
-            if (!t.needs_reorder)
-                conv_info.register_user_arg(user_buf, user_arg_key,
-                        /*is_input=*/t.is_input && !t.is_output);
+            add_compute_arg(conv_info, compute_buf, t.is_input && !t.is_output);
         }
 
         return status::success;
@@ -356,6 +501,7 @@ private:
                 case kernel_id_t::zero_out:
                     nd_ranges_[i] = info.nd_range();
                     break;
+                case kernel_id_t::zp_precalc: break;
                 default: ir_error_not_expected();
             }
         }
@@ -367,7 +513,6 @@ private:
         auto &buf_name = info.arg_var(0).as<var_t>().name;
         if (buf_name == "wei") return cfg.can_skip_wei_zero_out();
         if (buf_name == "bia") return cfg.can_skip_bia_zero_out();
-        ir_error_not_expected();
         return false;
     }
 

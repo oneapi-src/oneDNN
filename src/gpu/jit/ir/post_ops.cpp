@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,8 +96,9 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
 
     if (po_vm_.can_use_simple_src_zps() && zp_cfg.do_src_compensation) {
         if (zp_cfg.is_runtime_src_zero_points) {
-            uint32_t mask = (!zp_cfg.is_common_src_zero_point) ? 1 << 1 : 0;
-            auto view = po_vm_.create_view(type_t::s32(), mask);
+            bool per_oc = !zp_cfg.is_common_src_zero_point
+                    || zp_cfg.needs_src_precalc;
+            auto view = po_vm_.create_src_zp_view((per_oc) ? 1 << 1 : 0);
             auto buf = kernel_info.find_arg("src_zero_points");
             auto in = add_input_tensor(view, buf);
             post_ops_.emplace_back(c, c - in);

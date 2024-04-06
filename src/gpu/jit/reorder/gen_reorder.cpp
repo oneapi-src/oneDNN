@@ -166,8 +166,8 @@ status_t gen_reorder_t::pd_t::init_kernel_info() {
             cfg->dst_layout().user(), cfg->dst_layout().user());
 
     // TODO: set input/output channels here to enable per-channel ZPs/scales
-    init_extra_tensors(
-            cfg->zp_cfg(), *attr(), *dst_md(), /*ic=*/1, /*oc=*/1, tensor_cfg);
+    init_extra_tensors(cfg->zp_cfg(), *attr(), nullptr, *dst_md(), /*ic=*/1,
+            /*oc=*/1, tensor_cfg);
 
     kernel_info = std::make_shared<kernel_info_t>();
     auto nd_range = reorder_kernel_t<>::nd_range(cfg->exec_cfg(),
