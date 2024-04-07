@@ -32,6 +32,7 @@ namespace cpu {
 namespace x64 {
 
 struct bf16_emulation_t;
+struct fp8_emulation_base_t;
 
 namespace io {
 
@@ -86,6 +87,32 @@ public:
     Xbyak::Zmm bf16_emu_reserv_4_ = Xbyak::Zmm(31);
 };
 
+class io_emu_fp8_conf_t {
+public:
+    io_emu_fp8_conf_t() = default;
+    io_emu_fp8_conf_t(const Xbyak::Zmm &fp8_emu_reserv_1,
+            const Xbyak::Zmm &fp8_emu_reserv_2,
+            const Xbyak::Zmm &fp8_emu_reserv_3,
+            const Xbyak::Zmm &fp8_emu_reserv_4,
+            const Xbyak::Zmm &fp8_emu_reserv_5, const Xbyak::Opmask &kmask_aux,
+            const Xbyak::Reg64 &reg_tmp);
+    io_emu_fp8_conf_t(int fp8_emu_reserv_1_idx, int fp8_emu_reserv_2_idx,
+            int fp8_emu_reserv_3_idx, int fp8_emu_reserv_4_idx,
+            int fp8_emu_reserv_5_idx, int kmask_aux_idx_,
+            const Xbyak::Reg64 &reg_tmp);
+    io_emu_fp8_conf_t(const io_emu_fp8_conf_t &other) = default;
+
+    io_emu_fp8_conf_t &operator=(const io_emu_fp8_conf_t &other) = default;
+
+    Xbyak::Zmm fp8_emu_reserv_1_ = Xbyak::Zmm(27);
+    Xbyak::Zmm fp8_emu_reserv_2_ = Xbyak::Zmm(28);
+    Xbyak::Zmm fp8_emu_reserv_3_ = Xbyak::Zmm(29);
+    Xbyak::Zmm fp8_emu_reserv_4_ = Xbyak::Zmm(30);
+    Xbyak::Zmm fp8_emu_reserv_5_ = Xbyak::Zmm(31);
+    Xbyak::Opmask kmask_aux_ = Xbyak::Opmask(2);
+    Xbyak::Reg64 reg_tmp_ = Xbyak::util::rax;
+};
+
 class io_saturation_conf_t {
 public:
     io_saturation_conf_t(const int vreg_zero_saturation_idx,
@@ -137,6 +164,8 @@ public:
             const utils::optional_t<io_saturation_conf_t> &saturation_conf
             = utils::nullopt,
             const utils::optional_t<io_gather_conf_t> &gather_conf
+            = utils::nullopt,
+            const utils::optional_t<io_emu_fp8_conf_t> &fp8_conf
             = utils::nullopt);
     jit_io_helper_t(jit_io_helper_t &&) = default;
     jit_io_helper_t &operator=(jit_io_helper_t &&) = default;
@@ -154,6 +183,7 @@ public:
     void init_full_mask();
     void init_saturate_f32() const;
     void init_bf16();
+    void prepare_table_fp8();
     void gather(const Xbyak::Reg64 &src_reg, const Vmm &indices_vmm,
             const Vmm &dst_vmm, const bool tail);
     void broadcast(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
@@ -190,6 +220,7 @@ private:
             const bool tail);
     void load_bf16(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
     void load_f16(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
+    void load_f8(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
     void load_i8(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
     void saturate(const Vmm &vmm);
     void store_byte_by_byte(const Vmm &src_vmm, const Xbyak::Address &dst_addr,
@@ -198,6 +229,7 @@ private:
             const bool tail);
     void store_bf16(const Vmm &src_vmm, const Xbyak::Address &dst_addr);
     void store_f16(const Vmm &src_vmm, const Xbyak::Address &dst_addr);
+    void store_f8(const Vmm &src_vmm, const Xbyak::Address &dst_addr);
     void store_i8(const Vmm &src_vmm, const Xbyak::Address &dst_addr);
     void convert_to_f32(const Vmm &dst_vmm, const Xbyak::Xmm &src_vmm,
             const data_type_t src_data_type);
@@ -207,12 +239,15 @@ private:
     const data_type_t data_type_;
     const bool bf16_supported_;
     const bool f16_supported_;
+    const bool fp8_supported_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
+    std::unique_ptr<fp8_emulation_base_t> fp8_emu_;
     const io_conf_t io_conf_;
     const utils::optional_t<io_tail_conf_t> tail_conf_;
     const utils::optional_t<io_emu_bf16_conf_t> bf16_conf_;
     const utils::optional_t<io_saturation_conf_t> saturation_conf_;
     const utils::optional_t<io_gather_conf_t> gather_conf_;
+    const utils::optional_t<io_emu_fp8_conf_t> fp8_conf_;
 };
 
 template <typename Vmm>
@@ -229,6 +264,8 @@ public:
             = utils::nullopt,
             const saturation_map_t &saturation_confs = saturation_map_t {},
             const utils::optional_t<io_gather_conf_t> &gather_conf
+            = utils::nullopt,
+            const utils::optional_t<io_emu_fp8_conf_t> &fp8_conf
             = utils::nullopt);
     virtual ~jit_io_multi_dt_helper_t();
     void prepare_tail_mask();
@@ -238,6 +275,7 @@ public:
     void init_bf16();
 
     std::shared_ptr<jit_io_helper_t<Vmm>> at(const data_type_t dt) const;
+    bool empty() const;
     std::shared_ptr<jit_io_helper_t<Vmm>> operator[](
             const data_type_t dt) const;
 
