@@ -17,11 +17,12 @@
 #include "oneapi/dnnl/dnnl_types.h"
 
 // Must be included before emulation.hpp
-#include "common/utils.hpp"
 #include "gpu/jit/ngen/ngen.hpp"
 
 #include "common/impl_registration.hpp"
 #include "common/nstl.hpp"
+#include "common/utils.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/jit/emulation.hpp"
 #include "gpu/jit/jit_reduction_injector.hpp"
 #include "gpu/jit/ngen/ngen_core.hpp"
@@ -55,8 +56,8 @@ void jit_reduction_injector_f32<hw>::mul_fwd(
 }
 
 template <gpu_gen_t hw>
-void jit_reduction_injector_f32<hw>::initialize(const ngen::GRF &reg) {
-    int simd = ngen::GRF::bytes(hw) / reg.getBytes();
+void jit_reduction_injector_f32<hw>::initialize(
+        int simd, const ngen::GRF &reg) {
     switch (alg_) {
         case dnnl_reduction_sum:
         case dnnl_reduction_mean: emov(h, simd, reg, 0.0f); break;
@@ -79,55 +80,92 @@ void jit_reduction_injector_f32<hw>::eload(
         // LSC load
         ngen::DataSpecLSC lscspec = ngen::block(ngen::DataSizeLSC::D32, simd);
         lscspec |= ngen::CacheSettingsLSC::L1C_L3C;
-        h.load.ugm(1, dst.ud(), lscspec, h.A64, addr);
+        h.load.ugm(1, dst, lscspec, h.A64, addr);
     } else {
         // Legacy load
-        h.load(1, dst.ud(), ngen::aligned_block_oword(4), h.A64, addr);
+        int load_size = simd * dt_size;
+        int load_owords = load_size / 16;
+        h.load(1, dst, ngen::aligned_block_oword(load_owords), h.A64, addr);
     }
 }
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::compute(const ngen::GRF &src_ptr,
-        const ngen::GRF &acc, dim_t stride, dim_t iters) {
+        const ngen::GRFRange &acc, dim_t stride, dim_t iters) {
     using namespace alg_kind;
 
     assert(src_ptr.getType() == ngen::DataType::uq);
 
-    int dt_size = acc.getBytes();
-    int simd = GRF::bytes(hw) / dt_size;
+    int dt_size = sizeof(float);
+    int reg_size = ngen::GRF::bytes(hw);
+    int elems_per_reg = reg_size / dt_size;
+    int nregs = acc.getLen();
 
-    ngen::GRF load_addr = ra.alloc().uq();
-    emov(h, simd, load_addr.ud(), 0); // fill with zeros
-    emov(h, 1, load_addr, src_ptr);
+    int regs_per_inst = std::min(nregs, []() {
+        int reg_size = ngen::GRF::bytes(hw);
+        compute::gpu_arch_t gpu_arch = convert_ngen_arch_to_dnnl(hw);
+        int max_exec_size = compute::device_info_t::max_exec_size(gpu_arch);
+        return max_exec_size / reg_size;
+    }());
+
+    int nloads = utils::div_up(nregs, regs_per_inst);
+    ngen::GRFRange load_addr = ra.alloc_range(nloads);
+    emov(h, 1, load_addr[0].uq(), src_ptr.uq());
+    for (int i = 1; i < nloads; i++) {
+        eadd(h, 1, load_addr[i].uq(), src_ptr.uq(),
+                i * reg_size * regs_per_inst);
+    }
 
     // Set up GRFs used for loop indices
     ngen::Subregister loop_index = ra.alloc_sub(ngen::DataType::d);
-    ngen::GRF val = ra.alloc().f();
+    ngen::GRFRange val = ra.alloc_range(nregs);
     ngen::FlagRegister loop_flag = ra.alloc_flag(true);
 
-    initialize(acc);
+    for (int i = 0; i < nregs; i += regs_per_inst) {
+        int inst_nregs = std::min(regs_per_inst, nregs - i);
+        int simd = inst_nregs * elems_per_reg;
+        initialize(simd, acc[i].f());
+    }
 
     // Initialize loop
     ngen::Label loop_start;
     emov(h, 1, loop_index, 0);
     h.mark(loop_start);
 
-    // Load data
-    eload(simd, dt_size, val, load_addr);
+    // Load data - coalesce calls when possible
+    for (int i = 0; i < nregs; i += regs_per_inst) {
+        int inst_nregs = std::min(regs_per_inst, nregs - i);
+        int simd = inst_nregs * elems_per_reg;
+        eload(simd, dt_size, val[i].f(), load_addr[i / regs_per_inst]);
+    }
 
     // Accumulate
-    switch (alg_) {
-        case dnnl_reduction_sum:
-        case dnnl_reduction_mean: sum_fwd(simd, acc, val); break;
-        case dnnl_reduction_max: max_fwd(simd, acc, val); break;
-        case dnnl_reduction_min: min_fwd(simd, acc, val); break;
-        case dnnl_reduction_mul: mul_fwd(simd, acc, val); break;
-        default: gpu_assert(false) << "unsupported reduction algorithm";
+    for (int i = 0; i < nregs; i += regs_per_inst) {
+        int inst_nregs = std::min(regs_per_inst, nregs - i);
+        int simd = inst_nregs * elems_per_reg;
+        switch (alg_) {
+            case dnnl_reduction_sum:
+            case dnnl_reduction_mean:
+                sum_fwd(simd, acc[i].f(), val[i].f());
+                break;
+            case dnnl_reduction_max:
+                max_fwd(simd, acc[i].f(), val[i].f());
+                break;
+            case dnnl_reduction_min:
+                min_fwd(simd, acc[i].f(), val[i].f());
+                break;
+            case dnnl_reduction_mul:
+                mul_fwd(simd, acc[i].f(), val[i].f());
+                break;
+            default: gpu_assert(false) << "unsupported reduction algorithm";
+        }
     }
 
     // Iterate
-    eadd(h, 1, load_addr, load_addr, stride * dt_size);
     eadd(h, 1, loop_index, loop_index, 1);
     h.cmp(1 | h.lt | loop_flag, loop_index, iters);
+    for (int i = 0; i < nloads; i++) {
+        eadd(h, 1, load_addr[i].uq(), load_addr[i].uq(), stride * dt_size);
+    }
     h.jmpi(1 | loop_flag, loop_start);
 
     // Release used registers

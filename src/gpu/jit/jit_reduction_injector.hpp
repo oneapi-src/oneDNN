@@ -47,14 +47,14 @@ struct jit_reduction_injector_f32 {
     }
 
     // src_ptr: GRF whose 1st qword subregister holds the first address to be loaded from
-    // acc: Potentially uninitialized register to store values in (exactly one register filled per call)
+    // acc: Potentially uninitialized GRFRange to store values in
     // stride: Number of elements to increment the pointer by between iterations
     // iters: Number of reduction iterations
-    void compute(const ngen::GRF &src_ptr, const ngen::GRF &acc, dim_t stride,
-            dim_t iters);
+    void compute(const ngen::GRF &src_ptr, const ngen::GRFRange &acc,
+            dim_t stride, dim_t iters);
 
 private:
-    void initialize(const ngen::GRF &reg);
+    void initialize(int simd, const ngen::GRF &reg);
     void eload(
             int simd, int dt_size, const ngen::GRF &dst, const ngen::GRF &addr);
 

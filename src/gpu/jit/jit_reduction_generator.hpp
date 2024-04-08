@@ -18,14 +18,15 @@
 #define GPU_JIT_REDUCTION_GENERATOR_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/jit/codegen/register_allocator.hpp"
-#include "gpu/jit/codegen/register_scope.hpp"
 #include "gpu/jit/emulation.hpp"
 #include "gpu/jit/jit_generator.hpp"
 #include "gpu/jit/jit_reduction_injector.hpp"
 #include "gpu/jit/ngen/ngen_core.hpp"
 #include "gpu/jit/ngen/ngen_interface.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -41,7 +42,7 @@ class jit_reduction_generator_t : public jit_generator<hw> {
 
 public:
     jit_reduction_generator_t(const compute::device_info_t &device_info,
-            alg_kind_t alg, dim_t stride, dim_t iters)
+            alg_kind_t alg, dim_t stride, dim_t iters, int nregs)
         : ra(hw, "ngen_jit_reduction")
         , emu_strategy(hw, device_info.stepping_id()) {
         constexpr auto GlobalPtr = ExternalArgumentType::GlobalPtr;
@@ -55,7 +56,7 @@ public:
         newArgument("dst_ptr", GlobalPtr);
         setDefaultAutoSWSB();
         requireSIMD(simd);
-        requireLocalID(1);
+
         requireLocalSize();
         externalName("ngen_jit_reduction");
         finalizeInterface();
@@ -68,47 +69,52 @@ public:
         ngen::Subregister tg_idx1 = r0.ud(6);
         ngen::Subregister tg_size0 = getLocalSize(0).uw();
         ngen::Subregister tg_size1 = getLocalSize(1).uw();
-        ngen::GRF lid = getLocalID(0);
         ngen::Subregister src_ptr = getArgument("src_ptr").uq();
         ngen::Subregister dst_ptr = getArgument("dst_ptr").uq();
         ra.claim(src_ptr);
         ra.claim(dst_ptr);
         ra.claim(tg_size0);
         ra.claim(tg_size1);
-        ra.claim(lid);
 
-        // SRC offset: (tg_idx0 * simd + tg_idx1 * stride * iters + lid) * sizeof(float)
-        // DST offset: (tg_idx0 * simd + tg_idx1 * stride + lid) * sizeof(float)
-        // - Use the tg_idx0 * simd + lid terms in common for both
-        ngen::GRF off_generic = ra.alloc().ud();
-        emov(simd, off_generic, lid); // uw -> ud
-        emad(simd, off_generic, off_generic, tg_idx0, simd);
+        // SRC offset: (tg_idx0*simd*nregs + tg_idx1*stride*iters) * sizeof(float)
+        // DST offset: (tg_idx0*simd*nregs + tg_idx1*stride) * sizeof(float)
+        const int max_write_size = device_info.max_exec_size();
+        int nwrites = utils::div_up(regs_per_thr * grf_bytes, max_write_size);
+        int regs_per_write = max_write_size / grf_bytes;
 
-        ngen::GRF src_off = ra.alloc().ud();
-        ngen::GRF src_addr = ra.alloc_range(2)[0].uq();
-        emad(simd, src_off, off_generic, tg_idx1, stride * iters);
-        emul(simd, src_off, src_off, dt_size);
-        // Change src_off stride before adding to src_ptr
-        emov(simd, src_addr, 0);
-        emov(simd, src_addr.ud(0)(2), src_off);
-        eadd(simd, src_addr, src_addr, src_ptr);
+        ngen::Subregister inner_off = ra.alloc_sub(ngen::DataType::ud);
+        ngen::Subregister outer_off = ra.alloc_sub(ngen::DataType::ud);
+        emul(1, inner_off, tg_idx0, simd * nregs * dt_size);
+        emul(1, outer_off, tg_idx1, stride * dt_size);
 
-        ngen::GRF acc = ra.alloc().f();
+        ngen::GRF src_addr = ra.alloc().uq();
+        ngen::GRFRange dst_addr = ra.alloc_range(nwrites);
+        emad(1, src_addr, inner_off, outer_off, iters);
+        eadd(1, src_addr, src_addr, src_ptr);
+        eadd3(1, dst_addr[0].uq(), dst_ptr, inner_off, outer_off);
+        for (int i = 1; i < nwrites; i++) {
+            eadd(1, dst_addr[i].uq(), dst_addr[0].uq(),
+                    i * grf_bytes * regs_per_write);
+        }
+        ra.release(inner_off);
+        ra.release(outer_off);
+
+        ngen::GRFRange acc = ra.alloc_range(nregs);
         jit_reduction_injector_f32<hw> reduce(
                 *this, alg, ra, device_info.stepping_id());
         reduce.compute(src_addr, acc, stride, iters);
 
-        finalize(alg, acc, iters);
+        finalize(simd, alg, acc, iters);
 
-        ngen::GRF dst_off = ra.alloc().ud();
-        ngen::GRF dst_addr = ra.alloc_range(2)[0].uq();
-        emad(simd, dst_off, off_generic, tg_idx1, stride);
-        emul(simd, dst_off, dst_off, dt_size);
-        // Change dst_off stride before adding dst_ptr
-        emov(simd, dst_addr, 0);
-        emov(simd, dst_addr.ud(0)(2), dst_off);
-        eadd(simd, dst_addr, dst_addr, dst_ptr);
-        store(simd, ngen::scattered_byte(4), A64, dst_addr, acc);
+        constexpr int oword_bytes = 16;
+        const int max_write_owords = max_write_size / oword_bytes;
+        int total_write_owords = regs_per_thr * grf_bytes / oword_bytes;
+        for (int i = 0; i < total_write_owords; i += max_write_owords) {
+            int reg_idx = i / (grf_bytes / oword_bytes);
+            int write_size = std::min(max_write_owords, total_write_owords - i);
+            store(1, ngen::aligned_block_oword(write_size), A64,
+                    dst_addr[i / max_write_owords].uq(), acc[reg_idx].f());
+        }
 
         epilogue();
     }
@@ -261,13 +267,16 @@ protected:
         }
     }
 
-    void finalize(alg_kind_t alg, const ngen::GRF &acc, dim_t iters) {
-        int simd = ngen::GRF::bytes(hw) / acc.getBytes();
-        switch (alg) {
-            case alg_kind::reduction_mean:
-                mul(simd, acc, acc, 1.0f / iters);
-                break;
-            default: break;
+    void finalize(
+            int simd, alg_kind_t alg, const ngen::GRFRange &acc, dim_t iters) {
+        int nregs = acc.getLen();
+        for (int i = 0; i < nregs; i++) {
+            switch (alg) {
+                case alg_kind::reduction_mean:
+                    mul(simd, acc[i].f(), acc[i].f(), 1.0f / iters);
+                    break;
+                default: break;
+            }
         }
     }
 

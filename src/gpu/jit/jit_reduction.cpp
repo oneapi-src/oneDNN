@@ -20,9 +20,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/compiler_workarounds.hpp"
-
 #include "common/utils.hpp"
 #include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/jit/jit_reduction.hpp"
 
@@ -58,21 +58,29 @@ status_t jit_reduction_t::pd_t::init_conf(engine_t *engine) {
     assert(reduction_size);
     assert(reduction_stride);
 
-    // Only allow cases where inner size aligns with register size
-    compute::compute_engine_t &compute_engine
+    dim_t dst_nelems = dst_mdw.nelems();
+    dim_t inner_nelems = reduction_stride;
+    int dt_size = into<int>(sizeof(float));
+
+    // TODO: Use gpu_attr to override threads_per_eu
+    auto &compute_engine
             = *utils::downcast<compute::compute_engine_t *>(engine);
-    ngen::HW hw = convert_dnnl_arch_to_ngen(
-            compute_engine.device_info()->gpu_arch());
-    size_t reg_size = gpu_utils::into<size_t>(ngen::GRF::bytes(hw));
-    size_t dst_nelems = gpu_utils::into<size_t>(dst_mdw.nelems());
-    size_t inner_nelems = gpu_utils::into<size_t>(reduction_stride);
-    if (inner_nelems * sizeof(float) % reg_size != 0)
+    const compute::device_info_t &device_info = *compute_engine.device_info();
+    int reg_size = device_info.grf_size();
+    int elems_per_reg = reg_size / dt_size;
+    int default_nregs
+            = utils::max_div(into<int>(inner_nelems / elems_per_reg), 16);
+
+    nregs = dev_getenv("jit_reduction_nregs", into<int>(default_nregs));
+
+    // Only allow cases where inner size aligns with register size
+    if ((inner_nelems * dt_size) % (reg_size * nregs) != 0)
         return status::unimplemented;
 
     // valid case, now compute the nd_range_t
-    size_t outer_nelems = dst_nelems / inner_nelems;
-    compute::range_t gws(inner_nelems, outer_nelems);
-    compute::range_t lws(reg_size / sizeof(float), 1);
+    dim_t outer_nelems = dst_nelems / inner_nelems;
+    compute::range_t gws(into<size_t>(inner_nelems / nregs), into<size_t>(outer_nelems));
+    compute::range_t lws(into<size_t>(reg_size) / sizeof(float), 1);
     nd_range = {gws, lws};
 
     return status::success;
