@@ -30,11 +30,21 @@ namespace gpu {
 namespace {
 using namespace dnnl::impl::prop_kind;
 
+#ifdef DNNL_DEV_MODE
+#define NHWC_REUSABLE_FWD_INSTANCE \
+    INSTANCE(ocl::nhwc_reusable_batch_normalization_fwd_t)
+#define NHWC_REUSABLE_BWD_INSTANCE \
+    INSTANCE(ocl::nhwc_reusable_batch_normalization_bwd_t)
+#else
+#define NHWC_REUSABLE_FWD_INSTANCE
+#define NHWC_REUSABLE_BWD_INSTANCE
+#endif
+
 // clang-format off
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_BNORM_P({
     {{forward}, {
-        INSTANCE(ocl::nhwc_reusable_batch_normalization_fwd_t)
+        NHWC_REUSABLE_FWD_INSTANCE
         INSTANCE(ocl::nhwc_batch_normalization_fwd_t)
         INSTANCE(ocl::gen9_batch_normalization_fwd_t)
         INSTANCE(ocl::simple_batch_normalization_fwd_t)
@@ -43,7 +53,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        INSTANCE(ocl::nhwc_reusable_batch_normalization_bwd_t)
+        NHWC_REUSABLE_BWD_INSTANCE
         INSTANCE(ocl::nhwc_batch_normalization_bwd_t)
         INSTANCE(ocl::gen9_batch_normalization_bwd_t)
         INSTANCE(ocl::simple_batch_normalization_bwd_t)
