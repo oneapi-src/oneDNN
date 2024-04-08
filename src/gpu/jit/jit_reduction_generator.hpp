@@ -148,6 +148,14 @@ protected:
     }
     void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
             const ngen::RegData &src0, const ngen::RegData &src1) {
+        // src1 does not support bytes
+        if (src1.getType() == ngen::DataType::b) {
+            ngen::Subregister src1_w = ra.alloc_sub(ngen::DataType::w);
+            emov(mod, src1_w, src1);
+            eadd(mod, dst, src0, src1_w);
+            ra.release(src1_w);
+            return;
+        }
         EmulationState state;
         state.temp[0] = ra.alloc();
         state.temp[1] = ra.alloc();
@@ -169,20 +177,87 @@ protected:
     void emad(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
             const ngen::RegData &src0, const ngen::RegData &src1,
             const ngen::RegData &src2) {
-        // XXX: mad needs emulation on older hardware < XeLP
-        mad(mod, dst, src0, src1, src2);
+        // mad is only supported for dw/w types
+        auto supported = [](const ngen::RegData &data) -> bool {
+            return EmulationImplementation::isDW(data)
+                    || EmulationImplementation::isW(data);
+        };
+        bool src2_supported = EmulationImplementation::isW(src2);
+        if (supported(dst) && supported(src0) && supported(src1)
+                && src2_supported) {
+            mad(mod, dst, src0, src1, src2);
+        } else {
+            // emulate with separate mul/add
+            if (src0 == dst) {
+                ngen::Subregister tmp = ra.alloc_sub(dst.getType());
+                emul(mod, tmp, src1, src2);
+                eadd(mod, dst, tmp, src0);
+                ra.release(tmp);
+            } else {
+                emul(mod, dst, src1, src2);
+                eadd(mod, dst, dst, src0);
+            }
+        }
     }
     void emad(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
             const ngen::RegData &src0, const ngen::RegData &src1,
             const ngen::Immediate &src2) {
-        // If src2 is too large (>word), move into a register first
-        if (ngen::getBytes(src2.getType()) > 2) {
-            ngen::Subregister tmp = ra.alloc_sub(src2.getType());
-            mov(1, tmp, src2);
-            emad(mod, dst, src0, src1, tmp);
-            ra.release(tmp);
-        } else {
+        auto supported = [](const ngen::RegData &data) -> bool {
+            return EmulationImplementation::isDW(data)
+                    || EmulationImplementation::isW(data);
+        };
+        bool src2_supported = EmulationImplementation::isW(src2);
+        bool imm_supported
+                = ngen::getBytes(src2.getType()) <= 2 && src2_supported;
+        bool mad_supported = supported(dst) && supported(src0)
+                && supported(src1) && imm_supported;
+        if (mad_supported) {
             mad(mod, dst, src0, src1, src2);
+        } else {
+            // emulate with separate mul/add
+            if (src0 == dst) {
+                ngen::Subregister tmp = ra.alloc_sub(dst.getType());
+                emul(mod, tmp, src1, src2);
+                eadd(mod, dst, tmp, src0);
+                ra.release(tmp);
+            } else {
+                emul(mod, dst, src1, src2);
+                eadd(mod, dst, dst, src0);
+            }
+        }
+    }
+    void eadd3(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0, const ngen::RegData &src1,
+            const ngen::Immediate &src2) {
+        // add3 only supports dw/w types - emulate other options with 2 adds
+        auto supported = [](const ngen::RegData &data) -> bool {
+            return EmulationImplementation::isDW(data)
+                    || EmulationImplementation::isW(data);
+        };
+        bool src2_supported = utils::one_of(src2.getType(), ngen::DataType::uw,
+                ngen::DataType::w, ngen::DataType::ud, ngen::DataType::d);
+        if (supported(dst) && supported(src0) && supported(src1)
+                && src2_supported) {
+            add3(mod, dst, src0, src1, src2);
+        } else {
+            eadd(mod, dst, src0, src1);
+            eadd(mod, dst, dst, src2);
+        }
+    }
+    void eadd3(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
+            const ngen::RegData &src0, const ngen::RegData &src1,
+            const ngen::RegData &src2) {
+        // add3 only supports dw/w types - emulate other options with 2 adds
+        auto supported = [](const ngen::RegData &data) -> bool {
+            return EmulationImplementation::isDW(data)
+                    || EmulationImplementation::isW(data);
+        };
+        if (supported(dst) && supported(src0) && supported(src1)
+                && supported(src2)) {
+            add3(mod, dst, src0, src1, src2);
+        } else {
+            eadd(mod, dst, src0, src1);
+            eadd(mod, dst, dst, src2);
         }
     }
 
