@@ -103,6 +103,7 @@ struct brgemm_matmul_conf_t {
     bool s8s8_compensation_required;
     bool packed_sparse_weights;
     bool is_oscale_per_n;
+    bool with_wei_decompression;
     brgemm_broadcast_t src_zp_type;
     brgemm_broadcast_t wei_zp_type;
     brgemm_broadcast_t dst_zp_type;

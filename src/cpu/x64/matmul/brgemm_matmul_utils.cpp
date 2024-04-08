@@ -1182,6 +1182,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     }
     bgmmc.is_bf32 = bm_conf_utils.is_bf32();
     bgmmc.is_bf16_with_int_wei = bm_conf_utils.is_bf16_with_int_wei();
+    bgmmc.with_wei_decompression = bm_conf_utils.with_weights_decompression();
 
     // Make BRGeMM compute MatMul as if it were in bfloat16, while down-convert
     // happens during copy-buffer computations
@@ -1235,7 +1236,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.dst_zp_type = get_zp_type(attr, DNNL_ARG_DST);
 
     VCONDCHECK_BG(
-            IMPLICATION(!bm_conf_utils.is_int8(),
+            IMPLICATION(!(bm_conf_utils.is_int8()
+                                || bm_conf_utils.with_weights_decompression()),
                     everyone_is(brgemm_broadcast_t::none, bgmmc.src_zp_type,
                             bgmmc.wei_zp_type, bgmmc.dst_zp_type)),
             VERBOSE_UNSUPPORTED_ZP_CFG);

@@ -104,7 +104,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     VDISPATCH_MATMUL(
             attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::scales_runtime_data_type
-                            | primitive_attr_t::skip_mask_t::zero_points_runtime
+                            | primitive_attr_t::skip_mask_t::
+                                    zero_points_runtime_data_type
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt
                             | primitive_attr_t::skip_mask_t::fpmath_mode,
@@ -156,6 +157,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K);
         if (idx < 0) continue;
         brgemm_desc_t &brg = brg_descs_[idx];
+        if (bgmmc_.with_wei_decompression && bgmmc_.has_zero_point_b)
+            brg.skip_zp_b_compensation = true;
         auto LDA = i_K && bgmmc_.use_buffer_a_tail_only
                 ? (dim_t)bgmmc_.wei_k_blk
                 : bgmmc_.LDA;
@@ -730,6 +733,7 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
     ctx.zp_a_compensation_ptr = (void *)brgmm_ctx.get_zp_a_compensation_ptr(
             ithr, b_idx, n_blk_idx);
     ctx.zp_a_neg_value_ptr = (void *)brgmm_ctx.get_zp_a_neg_val_ptr();
+    ctx.zp_b_value_ptr = (void *)brgmm_ctx.get_zp_b_val_ptr();
     ctx.dynamic_src_stride = brgmm_ctx.copy_B_wei_stride();
 
     int gb = 0;
@@ -853,6 +857,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 : nullptr;
 
         zero_point_a_negative_val_ = -src_zp;
+        zero_point_b_val_ = wei_zp;
         zero_point_b_negative_val_ = -wei_zp;
         zero_point_mixed_ab_compensation_component_
                 = bgmmc.K * zero_point_a_negative_val_;
@@ -1341,6 +1346,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         return &zero_point_b_negative_val_;
     }
 
+    const int32_t *get_zp_b_val_ptr() const { return &zero_point_b_val_; }
+
     const int32_t *get_zp_ab_mixed_comp_ptr() const {
         return &zero_point_mixed_ab_compensation_component_;
     }
@@ -1653,6 +1660,7 @@ private:
     int32_t *reorder_zp_a_comp_ptr_;
 
     int32_t zero_point_a_negative_val_;
+    int32_t zero_point_b_val_;
     int32_t zero_point_b_negative_val_;
     int32_t zero_point_mixed_ab_compensation_component_;
     int32_t zero_point_c_val_;
