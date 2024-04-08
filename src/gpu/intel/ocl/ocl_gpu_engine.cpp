@@ -174,8 +174,8 @@ cl_int maybe_print_debug_info(
     return err_;
 };
 
-inline status_t preprocess_headers(
-        std::stringstream &pp_code, const char *code) {
+inline status_t preprocess_headers(std::stringstream &pp_code, const char *code,
+        const compute::kernel_ctx_t &kernel_ctx) {
     std::stringstream code_stream(code);
 
     for (std::string line; std::getline(code_stream, line);) {
@@ -190,7 +190,10 @@ inline status_t preprocess_headers(
                     = second_quote_pos - first_quote_pos - 1;
             const auto header_name
                     = line.substr(first_quote_pos + 1, kernel_name_len);
-            CHECK(preprocess_headers(pp_code, get_kernel_header(header_name)));
+            const char *header_source
+                    = kernel_ctx.get_custom_header(header_name);
+            if (!header_source) header_source = get_kernel_header(header_name);
+            CHECK(preprocess_headers(pp_code, header_source, kernel_ctx));
         } else {
             pp_code << line << std::endl;
         }
@@ -246,7 +249,7 @@ status_t ocl_gpu_engine_t::build_program_from_source(
     // `clCompileProgram` `clBuildProgram` doesn't take headers. Because of
     // that, a manual preprocessing of `include` header directives in the
     // OpenCL kernels is required.
-    CHECK(preprocess_headers(pp_code, code_string));
+    CHECK(preprocess_headers(pp_code, code_string, kernel_ctx));
     std::string pp_code_str = pp_code.str();
     const char *pp_code_str_ptr = pp_code_str.c_str();
 
@@ -262,7 +265,8 @@ status_t ocl_gpu_engine_t::build_program_from_source(
     err = clBuildProgram(program, 1, &dev, options.c_str(), nullptr, nullptr);
     OCL_CHECK(maybe_print_debug_info(err, program, dev));
 
-    CHECK(fuse_microkernels(ctx, dev, program, pp_code_str_ptr));
+    if (kernel_ctx.has_custom_headers())
+        CHECK(fuse_microkernels(ctx, dev, program, pp_code_str_ptr));
 
     return status::success;
 }
