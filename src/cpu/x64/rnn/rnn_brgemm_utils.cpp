@@ -1348,6 +1348,8 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
             = tmp_matmul_conf_for_reorder.N
             * tmp_matmul_conf_for_reorder.b_dt_sz;
     tmp_matmul_conf_for_reorder.transposed_B = false;
+    tmp_matmul_conf_for_reorder.is_bf16_with_int_wei = false;
+    tmp_matmul_conf_for_reorder.with_wei_decompression = false;
     CHECK(matmul::create_brgemm_matmul_copy_b(
             diff_wei.srcatch_gates_reorder_kernel_,
             &tmp_matmul_conf_for_reorder));
