@@ -90,6 +90,7 @@
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
 #define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"
+#define VERBOSE_UNSUPPORTED_FORMAT_KIND "unsupported format kind"
 
 #define VERBOSE_ISA_SPARSE_ENCODING_MISMATCH \
     "sparse encoding is not supported on this isa"
