@@ -778,6 +778,11 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
             return;
         }
 #endif
+        // cpu backward only supports `any` or `abx` layouts for weights
+        if (IMPLICATION(prb.prop == dnnl_backward, prb.tag[1] != tag::abx)) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
 
         // f16 training is not yet fully supported.
         const bool is_f16_not_ok

@@ -95,7 +95,7 @@
 
 --alg=VANILLA_RNN,VANILLA_LSTM,VANILLA_GRU,LBR_GRU,VANILLA_AUGRU,LBR_AUGRU
 --cfg=f32,bf16,bf16f32
---tag=any:any:any,abc:abdec:abc,bac:abdec:bac,abc:any:bac
+--tag=any:any:any,abc:abdec:abc,bac:abdec:bac,abc:any:bac,abc:abcde:abc,bac:abcde:bac
 --trivial-strides=true
 --prop=BWD_DW
 --batch=shapes_small
