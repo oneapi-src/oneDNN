@@ -64,6 +64,7 @@ private:
 protected:
     void SetUp() override {
         SKIP_IF_CUDA(true, "Layer normalization not supported by CUDA.");
+        SKIP_IF_HIP(true, "Layer normalization not supported by HIP.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         SKIP_IF(unsupported_data_type(p.src_dt)

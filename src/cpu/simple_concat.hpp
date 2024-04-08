@@ -62,10 +62,10 @@ struct simple_concat_t : public primitive_t {
                         VERBOSE_UNSUPPORTED_TAG);
                 VDISPATCH_CONCAT(types::blocking_desc_is_equal(
                                          *i_d.md_, *o_d.md_, ignore_strides),
-                        VERBOSE_BLOCKING_FAIL);
+                        VERBOSE_BLOCKING_FAIL, "blocking descriptor mismatch");
                 VDISPATCH_CONCAT(types::blocking_desc_is_equal(
                                          *i_d.md_, *dst_d.md_, ignore_strides),
-                        VERBOSE_BLOCKING_FAIL);
+                        VERBOSE_BLOCKING_FAIL, "blocking descriptor mismatch");
                 VDISPATCH_CONCAT(!i_d.is_additional_buffer(),
                         "memory format does not have additional buffer");
             }

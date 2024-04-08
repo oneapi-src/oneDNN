@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -320,7 +320,8 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
                                 (pg * g_num_block_pt + o_g) * g_block, 0};
 
                             sc_brgemm_attrs_t brg_attrs {
-                              {brgemm::attr_key::bs_group, sw_ == 1 ? kw_ : 1},
+                              {brgemm::attr_key::hint_bs_group,
+                                sw_ == 1 ? kw_ : 1},
                               {brgemm::attr_key::max_top_vpad,
                                 utils::divide_and_ceil(pw_b_, sw_)},
                               {brgemm::attr_key::max_bottom_vpad,
@@ -395,7 +396,11 @@ void gen_conv_dw_fwd_t::compute_conv_logical_padding(CONV_ARG_LIST) const {
       }
     }
   }
-
+  // loop axis bind(NGCHW)
+  bind_loop_axis(owner_->get_outputs()[0], lpbs, 0);
+  bind_loop_axis(owner_->get_outputs()[0], lph, 3);
+  bind_loop_axis(owner_->get_outputs()[0], lpw, 4);
+  bind_loop_axis(owner_->get_outputs()[0], lpg, 1);
   loops = {lpbs, lph, lpw, lpg};
 }
 
@@ -796,7 +801,7 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
                 auto hint_B_size = K * N * valid_ker_size;
                 auto hint_C_size = M * N;
                 sc_brgemm_attrs_t brg_attrs {
-                  {brgemm::attr_key::bs_group, sw_ == 1 ? kw_ : 1},
+                  {brgemm::attr_key::hint_bs_group, sw_ == 1 ? kw_ : 1},
                   {brgemm::attr_key::max_bs, valid_ker_size}};
 
                 builtin::brgemm_init_list_update(A_list, B_list,
@@ -1136,6 +1141,11 @@ void gen_conv_dw_fwd_t::compute_conv_physical_padding(CONV_ARG_LIST) const {
       }
     }
   }
+  bind_loop_axis(owner_->get_outputs()[0], ln, 0);
+  bind_loop_axis(owner_->get_outputs()[0], ld,
+    is_3d_ ? std::vector<int> {3} : std::vector<int> {});
+  bind_loop_axis(owner_->get_outputs()[0], lp, is_3d_ + reuse_aux_buffer + 3);
+  bind_loop_axis(owner_->get_outputs()[0], lg, 1);
   loops = {ln, ld, lp, lg};
 }
 

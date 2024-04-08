@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,6 +115,7 @@ public:
                 init_nd_ranges(primitive, cfg);
 
                 auto &kernel_infos = data.kernel_infos;
+                std::vector<compute::kernel_t> tmp_kernels;
                 for (int i = 0; i < int(kernel_infos.size()); i++) {
                     auto &info = kernel_infos[i];
                     switch (info.id()) {
@@ -122,8 +123,9 @@ public:
                             grf_mode_t grf_mode = (cfg.regs() == 256)
                                     ? grf_mode_t::large
                                     : grf_mode_t::small;
-                            kernels_.push_back(make_kernel<conv_kernel_t>(
-                                    primitive, engine, cfg, info, nd_ranges_[i],
+                            tmp_kernels.push_back(make_kernel<conv_kernel_t>(
+                                    primitive, /*register_kernel=*/false,
+                                    engine, cfg, info, nd_ranges_[i],
                                     grf_mode));
                             break;
                         }
@@ -132,10 +134,11 @@ public:
                                     tensor_cfg.user_layout(info.arg_name(1)),
                                     tensor_cfg.compute_layout(
                                             info.arg_name(1)));
-                            kernels_.push_back(
+                            tmp_kernels.push_back(
                                     make_kernel<reorder_kernel_t>(primitive,
-                                            engine, reorder_cfg, "conv_reorder",
-                                            info, cfg.is_dpas_or_dpasw_fma(),
+                                            /*register_kernel=*/false, engine,
+                                            reorder_cfg, "conv_reorder", info,
+                                            cfg.is_dpas_or_dpasw_fma(),
                                             grf_mode_t::matches));
                             break;
                         }
@@ -143,29 +146,33 @@ public:
                             reorder_config_t reorder_cfg(cfg.exec_cfg(),
                                     tensor_cfg.compute_layout(info.arg_name(0)),
                                     tensor_cfg.user_layout(info.arg_name(0)));
-                            kernels_.push_back(
+                            tmp_kernels.push_back(
                                     make_kernel<reorder_kernel_t>(primitive,
-                                            engine, reorder_cfg, "conv_reorder",
-                                            info, cfg.is_dpas_or_dpasw_fma(),
+                                            /*register_kernel=*/false, engine,
+                                            reorder_cfg, "conv_reorder", info,
+                                            cfg.is_dpas_or_dpasw_fma(),
                                             grf_mode_t::matches));
                             break;
                         }
                         case kernel_id_t::zero_out:
                             if (can_skip_zero_out(info, cfg)) {
-                                kernels_.emplace_back();
+                                tmp_kernels.emplace_back();
                                 continue;
                             }
-                            kernels_.push_back(make_kernel<zero_out_kernel_t>(
-                                    primitive, engine, cfg.exec_cfg(), info,
-                                    cfg.is_dpas_or_dpasw_fma(),
-                                    grf_mode_t::matches));
+                            tmp_kernels.push_back(
+                                    make_kernel<zero_out_kernel_t>(primitive,
+                                            /*register_kernel=*/false, engine,
+                                            cfg.exec_cfg(), info,
+                                            cfg.is_dpas_or_dpasw_fma(),
+                                            grf_mode_t::matches));
                             break;
                         default: ir_error_not_expected();
                     }
-                    if (!kernels_[i]) return status::runtime_error;
+                    if (!tmp_kernels[i]) return status::runtime_error;
                 }
                 ok = true;
                 primitive->set_version(try_iter);
+                kernels_ = std::move(tmp_kernels);
                 break;
             } catch (ngen::out_of_registers_exception &err) {
                 if (handle_exception(
@@ -181,6 +188,8 @@ public:
             }
         }
         if (!ok) return status::runtime_error;
+        ir_assert(kernels_.size() == data.kernel_infos.size());
+        primitive->register_kernels(kernels_);
 
         conv_tiler_t::after_create_hook(cfg, primitive);
         return status::success;

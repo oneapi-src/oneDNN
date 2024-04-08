@@ -46,6 +46,7 @@ protected:
         p = ::testing::TestWithParam<shuffle_test_params_t>::GetParam();
 
         SKIP_IF_CUDA(true, "Shuffle primitive not supported by CUDA");
+        SKIP_IF_HIP(true, "Shuffle primitive not supported by HIP");
 
         SKIP_IF(unsupported_data_type(p.src_dt, p.dst_dt),
                 "Engine does not support this data type.");

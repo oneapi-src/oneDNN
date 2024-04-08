@@ -50,11 +50,28 @@
         } \
     } while (0)
 #endif
+#ifndef DPRINT_RT
+#define DPRINT_RT(fmt, ...) \
+    do { \
+        if (get_verbose_dev_mode(verbose_t::debuginfo) >= 4) { \
+            printf(fmt, __VA_ARGS__); \
+            fflush(0); \
+        } \
+    } while (0)
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 namespace bn_utils {
+
+constexpr int aux_init_stage = 1;
+constexpr int aux_finalize_stage = 0;
+constexpr int aux_use_one_pass = 1;
+constexpr int aux_use_regular = 0;
+constexpr int aux_fwd = 1;
+constexpr int aux_bwd = 0;
 
 float get_ss_utilization(
         int max_ss, const compute::range_t &gws, const compute::range_t &lws);

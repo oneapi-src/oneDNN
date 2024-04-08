@@ -74,7 +74,15 @@ struct generic_reorder_t : public gpu_primitive_t {
                                                     intel_subgroups_short)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
 
-            VDISPATCH_REORDER_SC(init_conf(engine), "init_conf()");
+            VDISPATCH_REORDER_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
+            using namespace data_type;
+            VDISPATCH_REORDER(utils::one_of(src_md()->data_type, f32, f16, bf16,
+                                      f8_e5m2, f8_e4m3, s32, s8, u8, f64),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_REORDER(utils::one_of(dst_md()->data_type, f32, f16, bf16,
+                                      f8_e5m2, f8_e4m3, s32, s8, u8, f64),
+                    VERBOSE_UNSUPPORTED_DT);
             init_scratchpad();
 
             return status::success;

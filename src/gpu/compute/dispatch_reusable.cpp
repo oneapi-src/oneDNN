@@ -15,7 +15,9 @@
 *******************************************************************************/
 
 #include "gpu/compute/dispatch_reusable.hpp"
+#include "common/c_types_map.hpp"
 #include "gpu/block_structure.hpp"
+#include "gpu/compute/data_type_converter.hpp"
 #include "gpu/compute/utils.hpp"
 #include "gpu/utils.hpp"
 
@@ -327,18 +329,18 @@ struct gws_mapped_block_t : public gpu::block_t {
     stride_t gws_stride;
 };
 
-void reusable_dispatch_config_t::compute_terms(
-        size_t buffer_idx, const gws_bin_mapping_t &mapper) {
-
+std::vector<gws_indexing_term_t> gws_bin_mapping_t::condense_terms(
+        size_t buf_idx) const {
+    std::vector<gws_indexing_term_t> ret;
     for (size_t gws_idx = 0; gws_idx < range_t::max_ndims; gws_idx++) {
-        const std::vector<block_bin_t> &bins = mapper.get_bins(gws_idx);
+        const std::vector<block_bin_t> &bins = map[gws_idx];
 
         std::vector<gws_mapped_block_t> gws_blocks;
         stride_t gws_stride = 1;
         for (size_t i = 0; i < bins.size(); i++) {
             const block_bin_t &bin = bins[i];
-            if (!bin.is_broadcasted(buffer_idx)) {
-                block_t block = bin.combined_block(buffer_idx);
+            if (!bin.is_broadcasted(buf_idx)) {
+                block_t block = bin.combined_block(buf_idx);
                 gws_blocks.emplace_back(block, gws_idx, gws_stride);
             };
             gws_stride *= static_cast<dim_t>(bin.size());
@@ -359,11 +361,10 @@ void reusable_dispatch_config_t::compute_terms(
                 block.block *= next_block.block;
             } else {
                 // Create a term and reset the block
-                size_t gws_size = mapper.gws()[gws_idx];
-                gws_op_t op = get_op(gws_size, block.gws_stride, block);
+                gws_op_t op = get_op(gws_[gws_idx], block.gws_stride, block);
 
-                term_list.add_buffer_term(buffer_idx, op, gws_idx, block.block,
-                        block.gws_stride, block.stride);
+                ret.emplace_back(op, gws_idx, block.block, block.gws_stride,
+                        block.stride);
 
                 // Update values for the next block
                 block = next_block;
@@ -371,35 +372,18 @@ void reusable_dispatch_config_t::compute_terms(
         }
 
         // Create the final term
-        size_t gws_size = mapper.gws()[gws_idx];
-        gws_op_t op = get_op(gws_size, block.gws_stride, block);
+        gws_op_t op = get_op(gws_[gws_idx], block.gws_stride, block);
 
-        term_list.add_buffer_term(buffer_idx, op, gws_idx, block.block,
-                block.gws_stride, block.stride);
+        ret.emplace_back(
+                op, gws_idx, block.block, block.gws_stride, block.stride);
     }
 
-    if (term_list.buf_idxs[buffer_idx].empty()) {
+    if (ret.empty()) {
         // Size-1 buffer needs to have a zero term
-        term_list.add_buffer_term(buffer_idx, gws_op_t::ZERO, 0, 0, 0, 0);
+        ret.emplace_back(gws_op_t::ZERO, 0, 0, 0, 0);
     }
+    return ret;
 }
-
-// - innermost bin in each GWS dim: doesn't need division
-// - outermost bin in each GWS dim: doesn't need mod
-// - number of div/mod: 1 bin -> 0, 2 bins -> 2, 3 bins -> 4, 4 bins -> 6
-// -   = 2*(num-1) -> 2*(N_0-1) + 2*(N_1-1) + 2*(N_2-1) = 2*(N_0+N_1+N_2-3) = 2*(N-3)
-// With N bins, there are at most 2*(N-3) divisions/mods
-// - Every buffer that combines bins reduces that by 2, but only if N > 3
-
-// 1 [x] Remove all blocks that aren't dispatched
-// 2 [x] Subdivide buffers as needed
-// 3 [x] Merge blocks when possible (result: block bins)
-//      (these can be skipped?)     4 [ ] For each buffer, further combine terms if possible
-//                                  5 [ ] Create global "term blocks" based on per-buffer groupings
-//                                        - AB and BC groupings lead to the ABC term block that has to be mapped at once
-//                                        - sg: can only combine if sg is at lowest stride
-// 6 [ ] Map term blocks/bins to gws dimensions to minimize divs/mods
-//    - subgroup block(s) at gws stride 1
 
 // XXX: Mapping blocks into the gws cannot happen until all necessary dim indices
 // have been requested and all buffers have been registered. Only then can the terms
@@ -451,16 +435,22 @@ status_t reusable_dispatch_config_t::generate(
         if (!bin.is_in_lws()) gws_map.add(bin);
     }
 
-    for (size_t i = 0; i < buffers.size(); i++) {
-        compute_terms(i, gws_map);
+    std::vector<std::vector<size_t>> buffer_term_map(buffers.size());
+    gws_term_list_t term_list;
+    for (size_t buf_idx = 0; buf_idx < buffers.size(); buf_idx++) {
+        std::vector<gws_indexing_term_t> terms
+                = gws_map.condense_terms(buf_idx);
+        for (const gws_indexing_term_t &term : terms) {
+            buffer_term_map[buf_idx].emplace_back(term_list.append(term));
+        }
     }
 
     if (term_list.terms.size() >= MAX_INDEXING_TERMS) {
         return status::unimplemented;
     }
 
-    dispatch = reusable_dispatch_t(
-            buffers, term_list, gws_map.nd_range(lws_strategy), subgroup);
+    dispatch = reusable_dispatch_t(buffers, term_list,
+            gws_map.nd_range(lws_strategy), subgroup, buffer_term_map);
 
     return status::success;
 }
@@ -513,9 +503,18 @@ void dispatch_compile_params_t::def_kernel_macros(
                 gpu_utils::into<dim_t>(term.gws_idx));
     }
 
+    // Define data types for conversion (Ignore the default suffix)
+    std::string conv_suff = (suffix == std::string("DEFAULT"))
+            ? ""
+            : utils::format("_%s", suffix);
+
     // For each buffer, define the sum that leads to the offset calculation
+    data_type_converter_t converter;
     for (size_t i = 0; i < num_buffers; i++) {
         const char *name = buffer_names[i];
+        if (buffer_types[i] != data_type::undef) {
+            converter.register_type(name + conv_suff, buffer_types[i]);
+        }
         std::string equation;
         for (size_t j = 0; j < buffer_num_terms[i]; j++) {
             equation += utils::format("%s_GET_ID%d(rt_params)", gws_prefix,
@@ -526,6 +525,7 @@ void dispatch_compile_params_t::def_kernel_macros(
         kernel_ctx.add_option(utils::format("-DGWS_%s_%s_OFF(rt_params)=%s",
                 name, suffix, equation.c_str()));
     }
+    converter.def_kernel_macros(kernel_ctx);
 
     kernel_ctx.define_int(
             utils::format("GWS_WITH_SG_%s", suffix), subgroup.used() ? 1 : 0);

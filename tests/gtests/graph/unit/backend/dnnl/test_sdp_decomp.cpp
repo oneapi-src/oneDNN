@@ -42,7 +42,7 @@ static inline void custom_setenv(
 #endif
 }
 
-TEST(test_sdp_decomp_execute, F32SdpDecomp) {
+TEST(test_sdp_decomp_execute, F32SdpDecomp_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -140,7 +140,7 @@ TEST(test_sdp_decomp_execute, F32SdpDecomp) {
     }
 }
 
-TEST(test_sdp_decomp_execute, Bf16SdpDecomp) {
+TEST(test_sdp_decomp_execute, Bf16SdpDecomp_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -243,7 +243,7 @@ TEST(test_sdp_decomp_execute, Bf16SdpDecomp) {
     }
 }
 
-TEST(test_sdp_decomp_execute, Int8SdpDecomp) {
+TEST(test_sdp_decomp_execute, Int8SdpDecomp_CPU) {
     // for sdp decompose test
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
@@ -340,7 +340,7 @@ TEST(test_sdp_decomp_execute, Int8SdpDecomp) {
     }
 }
 
-TEST(test_sdp_decomp_execute, Int8Bf16SdpDecomp) {
+TEST(test_sdp_decomp_execute, Int8Bf16SdpDecomp_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -439,7 +439,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpDecomp) {
 }
 
 // Test multiple thread execute
-TEST(test_sdp_decomp_execute, MultithreaSdpDecomp) {
+TEST(test_sdp_decomp_execute, MultithreaSdpDecomp_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -538,7 +538,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecomp) {
 }
 
 // Test correctness
-TEST(test_sdp_decomp_execute, F32SdpCorr) {
+TEST(test_sdp_decomp_execute, F32SdpCorr_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -659,7 +659,7 @@ TEST(test_sdp_decomp_execute, F32SdpCorr) {
 }
 
 // Test correctness
-TEST(test_sdp_decomp_execute, Bf16SdpCorr) {
+TEST(test_sdp_decomp_execute, Bf16SdpCorr_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -785,7 +785,7 @@ TEST(test_sdp_decomp_execute, Bf16SdpCorr) {
 }
 
 // Test correctness
-TEST(test_sdp_decomp_execute, Int8SdpCorr) {
+TEST(test_sdp_decomp_execute, Int8SdpCorr_CPU) {
     // for sdp decompose test
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
@@ -895,7 +895,7 @@ TEST(test_sdp_decomp_execute, Int8SdpCorr) {
 }
 
 // Test correctness
-TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr) {
+TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr_CPU) {
     // for sdp decompose test
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
@@ -1010,7 +1010,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr) {
 }
 
 // Test correctness
-TEST(test_sdp_decomp_execute, MultithreaSdpDecompCorr) {
+TEST(test_sdp_decomp_execute, MultithreaSdpDecompCorr_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 

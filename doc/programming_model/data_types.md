@@ -34,7 +34,7 @@ oneDNN supports training and inference with the following data types:
 | Usage mode | CPU                                                      | GPU                                           |
 |:-----------|:---------------------------------------------------------|:----------------------------------------------|
 | Inference  | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, s4/u4, boolean | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, f64 |
-| Training   | f32, bf16, f16                                           | f32, bf16, f64                                |
+| Training   | f32, bf16, f16                                           | f32, bf16, f16, f64                           |
 
 @note
     Using lower precision arithmetic may require changes in the deep learning

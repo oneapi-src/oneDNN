@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,8 +18,6 @@
 #define CPU_X64_GEMM_BF16_COMMON_S16_HPP
 
 #include "cpu/x64/jit_generator.hpp"
-
-#define S16_COPY_KERNEL_CODE_SIZE (4096L * 8)
 
 namespace dnnl {
 namespace impl {

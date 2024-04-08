@@ -153,6 +153,7 @@ While CPU supports.
 
 Note: This pattern also accepts fp32 as weight input
 */
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_matmul_post_ops_cpu)
         .set_priority(9.9f)
         .set_engine_kind(engine_kind::cpu)
@@ -205,7 +206,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_matmul_post_ops_cpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
         });
-
+#endif
 /*
 MatMul: Currently DNNL Backend doesn't support below
 features on GPU:
@@ -214,6 +215,7 @@ While CPU supports.
 
 Note: This pattern also accepts fp32 as weight input
 */
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_matmul_post_ops_gpu)
         .set_priority(9.9f)
         .set_engine_kind(engine_kind::gpu)
@@ -270,7 +272,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_matmul_post_ops_gpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
         });
-
+#endif
 /*
                     [quant_weight]*
         |                  |
@@ -296,6 +298,7 @@ While CPU supports.
 
 Note: This pattern also accepts fp32 as weight input
 */
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_matmul_add_post_ops_cpu)
         .set_priority(10.f)
         .set_engine_kind(engine_kind::cpu)
@@ -335,7 +338,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_matmul_add_post_ops_cpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
         });
-
+#endif
 /*
 MatMul: Currently DNNL Backend doesn't support below
 features on GPU:
@@ -345,6 +348,7 @@ While CPU supports.
 
 Note: This pattern also accepts fp32 as weight input
 */
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_matmul_add_post_ops_gpu)
         .set_priority(10.f)
         .set_engine_kind(engine_kind::gpu)
@@ -388,7 +392,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_matmul_add_post_ops_gpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
         });
-
+#endif
 /*
                     [quant_weight]*
         |                  |
@@ -417,6 +421,7 @@ MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 
 Note: This pattern also accepts fp32 as weight input
 */
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops_cpu)
         .set_priority(10.4f)
         .set_engine_kind(engine_kind::cpu)
@@ -498,13 +503,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops_cpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
         });
-
+#endif
 /*
 MatMul: Currently DNNL Backend doesn't support Reorder with zero points
 (used in weight u8->s8) on GPU, while CPU supports.
 
 Note: This pattern also accepts fp32 as weight input
 */
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_matmul_post_ops_gpu)
         .set_priority(10.4f)
         .set_engine_kind(engine_kind::gpu)
@@ -575,7 +581,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_matmul_post_ops_gpu)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
         });
-
+#endif
 /*
                     [quant_weight]*
         |                  |
@@ -607,6 +613,7 @@ while CPU supports.
 
 Note: This pattern also accepts fp32 as weight input
 */
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, x8x8x8_tc_matmul_add_post_ops_cpu)
         .set_priority(10.5f)
@@ -687,7 +694,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
         });
-
+#endif
 /*
 MatMul: Currently DNNL Backend doesn't support below
 features on GPU:
@@ -697,6 +704,7 @@ while CPU supports.
 
 Note: This pattern also accepts fp32 as weight input
 */
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         dnnl, x8s8x8_tc_matmul_add_post_ops_gpu)
         .set_priority(10.5f)
@@ -778,7 +786,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_matmul>();
         });
-
+#endif
 /*
                     [quant_weight]*
         |                  |

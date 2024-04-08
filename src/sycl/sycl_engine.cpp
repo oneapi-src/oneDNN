@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,8 @@ namespace sycl {
 status_t sycl_engine_factory_t::engine_create(
         engine_t **engine, size_t index) const {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-    if (engine_kind_ == engine_kind::cpu) return status::unimplemented;
+    VERROR_ENGINE(engine_kind_ != engine_kind::cpu, status::unimplemented,
+            VERBOSE_BAD_ENGINE_KIND);
 #endif
     assert(index < count());
 
@@ -60,7 +61,8 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
         const ::sycl::device &dev, const ::sycl::context &ctx,
         size_t index) const {
     // Validate device and context.
-    if (!dev_ctx_consistency_check(dev, ctx)) return status::invalid_arguments;
+    VERROR_ENGINE(dev_ctx_consistency_check(dev, ctx),
+            status::invalid_arguments, VERBOSE_DEVICE_CTX_MISMATCH);
 
 #ifdef DNNL_SYCL_CUDA
     if (gpu::nvidia::is_nvidia_gpu(dev))
@@ -73,10 +75,11 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
         return gpu::amd::hip_engine_create(
                 engine, engine_kind_, dev, ctx, index);
 #endif
-    if (engine_kind_ == engine_kind::cpu && !dev.is_cpu() && !is_host(dev))
-        return status::invalid_arguments;
-    if (engine_kind_ == engine_kind::gpu && !dev.is_gpu())
-        return status::invalid_arguments;
+    VERROR_ENGINE(!(engine_kind_ == engine_kind::cpu && !dev.is_cpu()
+                          && !is_host(dev)),
+            status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
+    VERROR_ENGINE(!(engine_kind_ == engine_kind::gpu && !dev.is_gpu()),
+            status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     std::unique_ptr<sycl_engine_base_t, engine_deleter_t> sycl_engine(
@@ -87,7 +90,8 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
                             new gpu::sycl::sycl_gpu_engine_t(dev, ctx, index)));
 #else
 
-    if (engine_kind_ == engine_kind::cpu) return status::unimplemented;
+    VERROR_ENGINE(engine_kind_ != engine_kind::cpu, status::unimplemented,
+            VERBOSE_BAD_ENGINE_KIND);
 
     std::unique_ptr<sycl_engine_base_t, engine_deleter_t> sycl_engine(
             static_cast<sycl_engine_base_t *>(

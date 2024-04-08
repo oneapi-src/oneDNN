@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,45 +45,6 @@ void *sycl_malloc_wrapper(
 
 void sycl_free_wrapper(
         void *ptr, const void *device, const void *context, void *event);
-
-// a simple sycl allocator for testing purpose only
-class simple_sycl_allocator {
-public:
-    simple_sycl_allocator() = default;
-    simple_sycl_allocator(const ::sycl::context *ctx) : ctx_(ctx) {};
-    ~simple_sycl_allocator() {};
-
-    void *malloc(size_t num_bytes, const ::sycl::device *dev) {
-        return malloc_shared(num_bytes, *dev, *ctx_);
-    }
-
-    void release(void *ptr, ::sycl::event e) { free_list_[e] = ptr; }
-
-    void free_to_driver() {
-        for (typename std::unordered_map<::sycl::event, void *>::const_iterator
-                        it
-                = free_list_.begin();
-                it != free_list_.end(); ++it) {
-            ::sycl::event e = it->first;
-            e.wait();
-            free(it->second, *ctx_);
-        }
-        free_list_.clear();
-    }
-
-private:
-    const ::sycl::context *ctx_;
-    std::unordered_map<::sycl::event, void *> free_list_;
-};
-
-simple_sycl_allocator *get_allocator(const ::sycl::context *ctx);
-
-void *sycl_allocator_malloc(
-        size_t size, size_t alignment, const void *dev, const void *ctx);
-
-void sycl_allocator_free(
-        void *ptr, const void *device, const void *context, void *event);
-
 #endif
 
 } // namespace testing

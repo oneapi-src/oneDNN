@@ -87,7 +87,9 @@
 #ifndef GPU_OCL_OCL_TYPES_H
 #define GPU_OCL_OCL_TYPES_H
 
+#include "gpu/ocl/ocl_custom_types.h"
 #include "gpu/ocl/ocl_math_utils.h"
+#include "gpu/ocl/ocl_utils.h"
 
 #define auto __auto_type
 #define typeof(x) __typeof__(x)
@@ -101,31 +103,6 @@
 
 #define for_ for
 
-#ifdef __has_builtin
-#define HAS_BUILTIN(x) __has_builtin(x)
-#else
-#define HAS_BUILTIN(x) false
-#endif
-
-#ifdef ENABLE_CHECK_ASSUMPTIONS
-// Don't actually inform the compiler about the assumption
-#define ASSUME(x) \
-    if (!(x)) { \
-        printf("Error - GWS indices (%ld,%ld,%ld): Runtime assumption \"%s\" " \
-               "violated\n", \
-                get_global_id(0), get_global_id(1), get_global_id(2), #x); \
-        return; \
-    }
-#elif HAS_BUILTIN(__builtin_assume)
-#define ASSUME(x) __builtin_assume(x)
-#else
-#define ASSUME(x)
-#endif
-
-#define CONCAt2(a, b) a##b
-#define CONCAT2(a, b) CONCAt2(a, b)
-#define CONCAT3(a, b, c) CONCAT2(CONCAT2(a, b), c)
-
 #if defined(DT_F16) || defined(SRC_DT_F16) || defined(SRC0_DT_F16) \
         || defined(SRC1_DT_F16) || defined(DST_DT_F16) || defined(WEI_DT_F16) \
         || defined(BIA_DT_F16) || defined(ACC_DT_F16)
@@ -135,8 +112,6 @@
 #if DT_F64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif
-
-#define dim_t long // 64 bit per the OpenCL specification
 
 #if DT_F64 == 1
 #define AS_POST_OP_DATA_T(v) v
@@ -858,6 +833,12 @@
 #define SRC_TO_REF(x) convert_float(cvt_f8_e4m3_to_hf(x))
 #define SRC_TO_REF8(x) convert_float8(cvt_f8_e4m3_to_hf(x))
 #define REF_TO_SRC(x) cvt_hf_to_f8_e4m3(convert_half(x))
+#elif SRC_DT_U4
+#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
+#define SRC_TO_REF(x) convert_float(x)
+#elif SRC_DT_S4
+#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
+#define SRC_TO_REF(x) convert_float(cvt_s4_to_f32(x))
 #else
 #define SRC_TO_REF(x) (x)
 #define SRC_TO_REF8(x) (x)
@@ -865,6 +846,8 @@
 #endif
 #if SRC_DT_BF16
 #define TO_SRC(x) cvt_f32_to_bf16(x)
+#elif SRC_DT_F16
+#define TO_SRC(x) convert_half(x)
 #elif SRC_DT_BF8
 #define TO_SRC(x) cvt_hf_to_f8_e5m2(convert_half(x))
 #elif SRC_DT_HF8
@@ -1309,12 +1292,14 @@
 #define TO_DST8(x) cvt_hf_to_f8_e4m3(convert_half8(x))
 #define TO_DST16(x) cvt_hf_to_f8_e4m3(convert_half16(x))
 #elif DST_DT_U4
+#define SET_DOUBLE_HALF_BYTE(x, y, z) set_double_half_byte(x, y, z)
 #define TO_DST(x) cvt_f32_to_u4(convert_float(x))
 #define TO_DST2(x) cvt_f32_to_u4(convert_float2(x))
 #define TO_DST4(x) cvt_f32_to_u4(convert_float4(x))
 #define TO_DST8(x) cvt_f32_to_u4(convert_float8(x))
 #define TO_DST16(x) cvt_f32_to_u4(convert_float16(x))
 #elif DST_DT_S4
+#define SET_DOUBLE_HALF_BYTE(x, y, z) set_double_half_byte(x, y, z)
 #define TO_DST(x) cvt_f32_to_s4(convert_float(x))
 #define TO_DST2(x) cvt_f32_to_s4(convert_float2(x))
 #define TO_DST4(x) cvt_f32_to_s4(convert_float4(x))

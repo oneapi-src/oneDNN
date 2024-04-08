@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,13 +43,8 @@ namespace avx512_core_gemm_smalln_tn_f32 {
 struct xbyak_gemm_smalln_tn_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_gemm_smalln_tn_xbyak_gemm)
 
-    xbyak_gemm_smalln_tn_t(int N, float beta, float alpha,
-            void *code_ptr = nullptr,
-            size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)
-        : jit_generator(jit_name(), code_ptr, code_size)
-        , N(N)
-        , beta(beta)
-        , alpha(alpha) {}
+    xbyak_gemm_smalln_tn_t(int N, float beta, float alpha)
+        : jit_generator(jit_name()), N(N), beta(beta), alpha(alpha) {}
 
     void generate() override ATTRIBUTE_OPTIMIZE {
         using namespace Xbyak;

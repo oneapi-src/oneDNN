@@ -23,6 +23,7 @@
 #include <compiler/ir/builder.hpp>
 #include <compiler/ir/builtin.hpp>
 #include <compiler/ir/easy_build.hpp>
+#include <compiler/ir/graph/binding_axis.hpp>
 #include <compiler/ir/graph/fusion_anchor.hpp>
 #include <compiler/ir/graph/trait/configurable.hpp>
 #include <compiler/ir/transform/auto_cast.hpp>
@@ -480,6 +481,26 @@ config_ptr gen_nested_conv_fwd_t::get_default_config(context_ptr ctx) const {
       * im_ic_block;
   }
   return std::move(ret);
+}
+
+void gen_nested_conv_fwd_t::bind_output_loop_axis(const for_loop &loop,
+  const std::vector<std::string> &axis, bool is_block) const {
+  auto out_tsr = owner_->get_outputs()[0];
+  std::vector<int> real_axis;
+  for (const auto &ax : axis) {
+    if (ax == "N") {
+      real_axis.emplace_back(0);
+    } else if (ax == "C") {
+      real_axis.emplace_back(1);
+    } else if (ax == "D" && is_3d_) {
+      real_axis.emplace_back(2);
+    } else if (ax == "H") {
+      real_axis.emplace_back(is_3d_ + 2);
+    } else if (ax == "W") {
+      real_axis.emplace_back(is_3d_ + 3);
+    }
+  }
+  bind_loop_axis(out_tsr, loop, real_axis);
 }
 
 int gen_nested_conv_fwd_t::get_im_w_block(const context_ptr &ctx) const {
@@ -1025,6 +1046,10 @@ void gen_nested_conv_fwd_t::compute_conv1d(CONV_ARG_LIST) const {
     }
   }
   loops = {lpbs, lps, lpoc, lpic};
+  bind_loop_axis(owner_->get_outputs()[0], lpbs, 0);
+  bind_loop_axis(owner_->get_outputs()[0], lps, 2);
+  bind_loop_axis(owner_->get_outputs()[0], lpoc, 1);
+  bind_loop_axis(owner_->get_outputs()[0], lpic, std::vector<int> {});
 }
 
 void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
@@ -1434,6 +1459,11 @@ void gen_nested_conv_fwd_t::compute_1x1_pack_input_nested(CONV_ARG_LIST) const {
           : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
     }
   }
+  bind_output_loop_axis(lpbs, "N");
+  bind_output_loop_axis(lph, "H");
+  bind_output_loop_axis(lpw, "W");
+  bind_output_loop_axis(lpoc, "C");
+  bind_output_loop_axis(lpic, "");
   loops = {lpbs, lph, lpw, lpoc, lpic};
 }
 
@@ -1688,6 +1718,11 @@ void gen_nested_conv_fwd_t::dynamic_compute_1x1_pack_input_nested(
     //     {{pbs, 1UL}, {0, oh_expr_}, {0, ow_expr_}, {0, oc_}});
     // }
   } // pbs
+  bind_output_loop_axis(lpbs, "N");
+  bind_output_loop_axis(lph, "H");
+  bind_output_loop_axis(lpw, "W");
+  bind_output_loop_axis(lpoc, "C");
+  bind_output_loop_axis(lpic, "");
   loops = {lpbs, lph, lpw, lpoc, lpic};
 }
 
@@ -2068,6 +2103,11 @@ void gen_nested_conv_fwd_t::compute_1x1_no_pack_input_nested(
           : slice_range {{pbs, 1UL}, {0, oh_expr_}, {0, ow_}, {0, oc_}});
     }
   }
+  bind_output_loop_axis(lpbs, "N");
+  bind_output_loop_axis(lph, "H");
+  bind_output_loop_axis(lpw, "W");
+  bind_output_loop_axis(lpoc, "C");
+  bind_output_loop_axis(lpic, "");
   loops = {lpbs, lph, lpw, lpoc, lpic};
 }
 
@@ -2342,7 +2382,10 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_os_blocking_nested(
       }
     }
   }
-
+  bind_output_loop_axis(lpbs, "N");
+  bind_output_loop_axis(lps, std::vector<std::string> {"H", "W"});
+  bind_output_loop_axis(lpoc, "C");
+  bind_output_loop_axis(lpic, "");
   loops = {lpbs, lps, lpoc, lpic, lok};
 }
 
@@ -2757,6 +2800,12 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_no_padding_nested(
             {outer_k * oc_ / oc_split, oc_ / oc_split}});
     }
   }
+  bind_output_loop_axis(lpbs, "N");
+  bind_output_loop_axis(lph, "H");
+  bind_output_loop_axis(lpw, "W");
+  bind_output_loop_axis(lpoc, "C");
+  bind_output_loop_axis(lok, "C");
+  bind_output_loop_axis(lpic, "");
   loops = {lpbs, lph, lpw, lpoc, lpic, lok};
 }
 
@@ -3176,6 +3225,12 @@ void gen_nested_conv_fwd_t::compute_conv_no_padding_nested(
       }
     }
   }
+  bind_output_loop_axis(lpbs, "N");
+  bind_output_loop_axis(lph, "H");
+  bind_output_loop_axis(lpw, "W");
+  bind_output_loop_axis(lpoc, "C");
+  bind_output_loop_axis(lok, "C");
+  bind_output_loop_axis(lpic, "");
   loops = {lpbs, lph, lpw, lpoc, lpic, lok};
 }
 
@@ -4407,6 +4462,12 @@ void gen_nested_conv_fwd_t::dynamic_compute_conv_padding_nested(
             {outer_k * oc_ / oc_split, oc_ / oc_split}});
     }
   }
+  bind_output_loop_axis(lpbs, "N");
+  bind_output_loop_axis(lph, "H");
+  bind_output_loop_axis(lpw, "W");
+  bind_output_loop_axis(lpoc, "C");
+  bind_output_loop_axis(lok, "C");
+  bind_output_loop_axis(lpic, "");
   loops = {lpbs, lph, lpw, lpoc, lpic, lok};
 }
 

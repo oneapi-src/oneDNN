@@ -129,17 +129,31 @@ private:
 
 class dim_mapper_t {
 public:
-    void set_dim(const prb_dim_t &dim, const expr_t &expr = expr_t());
+    void set_dim(const prb_dim_t &dim, const expr_t &expr = expr_t(),
+            bool has_undeflow = false);
     void set_layout_desc(const layout_desc_t &desc) { layout_desc_ = desc; }
-    bool is_empty() const { return exprs_.is_empty(); }
-    bool has(const prb_dim_t &dim) const { return exprs_.has(dim); }
+    bool is_empty() const { return map_.is_empty(); }
+    bool has(const prb_dim_t &dim) const { return map_.has(dim); }
     const expr_t &expr(const prb_dim_t &dim) const;
+    bool has_underflow(const prb_dim_t &dim) const;
     const layout_desc_t &layout_desc() const { return layout_desc_; }
     std::string str() const;
     IR_DEFINE_DUMP()
 
 private:
-    dim_map_t<prb_dim_t, expr_t> exprs_;
+    struct map_data_t {
+        std::string str() const {
+            std::ostringstream oss;
+            oss << expr;
+            if (has_underflow) oss << " (has_underflow)";
+            return oss.str();
+        }
+
+        expr_t expr;
+        bool has_underflow;
+    };
+
+    dim_map_t<prb_dim_t, map_data_t> map_;
     layout_desc_t layout_desc_;
 };
 
@@ -508,7 +522,7 @@ class dim_mask_desc_t {
 public:
     dim_mask_desc_t() = default;
     dim_mask_desc_t(const prb_dim_t &dim, const expr_t &expr,
-            const expr_t &bound, int block, bool do_zero_cmp);
+            const expr_t &bound, int block, bool has_underflow);
     bool is_identity() const { return is_zero(c) && is_one(a) && y.is_empty(); }
 
     template <typename T>
@@ -523,7 +537,7 @@ public:
     prb_dim_t dim;
     expr_t bound;
     int block = 0;
-    bool do_zero_cmp = false;
+    bool has_underflow = false;
 
     expr_t base;
     expr_t a, b, c;
@@ -618,7 +632,7 @@ public:
     const mask_desc_t &mask_desc() const { return mask_desc_; }
     const plane_t &plane() const { return plane_; }
     const type_t &type() const { return layout_.type(); }
-    // Transforms the view to a scattered viersion where elements are strided
+    // Transforms the view to a scattered version where elements are strided
     // by stride_bytes value. This is used to generate scattered messages
     // prefetch.
     view_t scatterize(int stride_bytes, const prover_t &prover) const;

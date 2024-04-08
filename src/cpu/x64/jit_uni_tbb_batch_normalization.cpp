@@ -2500,9 +2500,10 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
     else if (memory_desc_matches_tag(*dst_md(), nspc_format)) {
         tag_kind_ = jit_memory_tag_kind_t::nspc;
         const int simd_w = get_simd_w<isa>(tag_kind_);
-        VDISPATCH_BNORM(C() % simd_w == 0, VERBOSE_BLOCKING_FAIL);
+        VDISPATCH_BNORM(
+                C() % simd_w == 0, VERBOSE_BLOCKING_FAIL, "bad src dimensions");
     } else
-        return status::unimplemented;
+        VDISPATCH_BNORM(false, VERBOSE_UNSUPPORTED_TAG);
 
     // AVX2 only supports xf16 on plain layout and inference
     VDISPATCH_BNORM(
@@ -2520,7 +2521,8 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
 
     VDISPATCH_BNORM(!(memory_desc_wrapper(src_md()).padded_dims()[1] != C()
                             && !isa_supports_avx2),
-            VERBOSE_PADDING_ERROR, "bad padded dimensions for current isa");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "bad padded dimensions for current isa");
 
     auto scratchpad = scratchpad_registry().registrar();
     bnorm_tbb_impl::driver_t<isa>::init_scratchpad(scratchpad, this);
@@ -2629,14 +2631,16 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
     else if (memory_desc_matches_tag(*diff_src_md(), nspc_format)) {
         tag_kind_ = jit_memory_tag_kind_t::nspc;
         const int simd_w = get_simd_w<isa>(tag_kind_);
-        VDISPATCH_BNORM(C() % simd_w == 0, VERBOSE_BLOCKING_FAIL);
+        VDISPATCH_BNORM(
+                C() % simd_w == 0, VERBOSE_BLOCKING_FAIL, "bad src dimensions");
     } else
-        return status::unimplemented;
+        VDISPATCH_BNORM(false, VERBOSE_UNSUPPORTED_TAG);
 
     const bool isa_supports_avx2 = is_superset(isa, avx2);
     VDISPATCH_BNORM(!((memory_desc_wrapper(src_md()).padded_dims()[1] != C()
                             && !isa_supports_avx2)),
-            VERBOSE_PADDING_ERROR, "bad padded dimensions for current isa");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "bad padded dimensions for current isa");
 
     if (fuse_norm_relu()) {
         VDISPATCH_BNORM(isa_supports_avx2, VERBOSE_UNSUPPORTED_ISA);

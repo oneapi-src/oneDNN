@@ -112,7 +112,7 @@ protected:
         auto strm = make_stream(eng);
 
         auto aa = allows_attr_t {false};
-        aa.po_binary = true;
+        aa.po_binary = !is_amd_gpu(eng);
 
         auto src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
         auto dst_md = memory::desc(p.dims, p.dst_dt, p.dst_tag);
@@ -312,13 +312,19 @@ protected:
                     "Unsupported combination of algorithm type and alpha "
                     "parameter for CUDA");
 
-            SKIP_FOR_LOOP_HIP(
-                    !impl::utils::one_of(alg, algorithm::eltwise_relu,
-                            algorithm::eltwise_tanh, algorithm::eltwise_elu,
-                            algorithm::eltwise_logistic,
-                            algorithm::eltwise_soft_relu,
-                            algorithm::eltwise_abs),
+            SKIP_FOR_LOOP_HIP(is_fwd(pk)
+                            && !impl::utils::one_of(alg,
+                                    algorithm::eltwise_relu,
+                                    algorithm::eltwise_tanh,
+                                    algorithm::eltwise_elu,
+                                    algorithm::eltwise_logistic,
+                                    algorithm::eltwise_soft_relu,
+                                    algorithm::eltwise_abs),
                     "Unsupported algorithm type for HIP");
+            SKIP_FOR_LOOP_HIP(
+                    alg == algorithm::eltwise_soft_relu && p.alpha != 1.f,
+                    "Unsupported combination of algorithm type and alpha "
+                    "parameter for HIP");
 
             Forward(pk, alg);
 
@@ -330,6 +336,9 @@ protected:
             SKIP_FOR_LOOP_CUDA(
                     !impl::utils::one_of(alg, algorithm::eltwise_relu),
                     "Unsupported algorithm type for CUDA");
+            SKIP_FOR_LOOP_HIP(!impl::utils::one_of(alg, algorithm::eltwise_relu,
+                                      algorithm::eltwise_soft_relu),
+                    "Unsupported algorithm type for HIP");
 
             SKIP_IF(unsupported_data_type(p.diff_src_dt),
                     "Engine does not support this data type.");

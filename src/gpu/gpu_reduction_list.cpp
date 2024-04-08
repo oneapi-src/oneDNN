@@ -16,6 +16,7 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#include "gpu/jit/jit_reduction.hpp"
 #include "gpu/ocl/reduction/atomic_reduction.hpp"
 #include "gpu/ocl/reduction/combined_reduction.hpp"
 #include "gpu/ocl/reduction/ref_reduction.hpp"
@@ -27,8 +28,15 @@ namespace gpu {
 
 namespace {
 
+#ifdef DNNL_DEV_MODE
+#define JIT_REDUCTION_INSTANCE INSTANCE(jit::jit_reduction_t)
+#else
+#define JIT_REDUCTION_INSTANCE
+#endif
+
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
+        JIT_REDUCTION_INSTANCE
         INSTANCE(ocl::atomic_reduction_t)
         INSTANCE(ocl::combined_reduction_t)
         INSTANCE(ocl::ref_reduction_t)
@@ -36,6 +44,8 @@ constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
         nullptr,
 });
 // clang-format on
+
+#undef JIT_REDUCTION_INSTANCE
 } // namespace
 
 const impl_list_item_t *get_reduction_impl_list(const reduction_desc_t *desc) {

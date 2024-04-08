@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include "reshape.hpp"
 #include <memory>
 #include <compiler/ir/graph/fusible_op.hpp>
+#include <ops/fusible/memory_movement.hpp>
 
 namespace dnnl {
 namespace impl {
@@ -186,10 +187,25 @@ ir_module_ptr static_reshape_op::get_func(context_ptr ctx) {
     throw std::runtime_error("Not implemented");
 }
 sc_op_ptr static_reshape_op::constant_optimize(sc_graph_t &graph) {
-    auto new_input = graph.make("tensor_view", {get_inputs()[0]}, {},
+    // try to convert to tensor view
+    auto trial_tensor_view = graph.make("tensor_view", {get_inputs()[0]}, {},
             {{"shape", get_outputs()[0]->details_.get_plain_dims()}});
-    this->replace_uses_with_and_remove(new_input);
-    return new_input;
+    sc_data_format_t trial_format;
+    bool valid_tensor_view = true;
+    if (!get_inputs()[0]->details_.get_format().is_any())
+        valid_tensor_view = trial_tensor_view->dyn_cast<tensor_view_op_t>()
+                                    ->try_penetrate(trial_format);
+    if (!valid_tensor_view) {
+        auto reorder = graph.make("reorder", {get_inputs()[0]}, {},
+                {{"internal", true},
+                        {"out_format",
+                                get_inputs()[0]
+                                        ->details_.get_format()
+                                        .to_plain()}});
+        trial_tensor_view->replace_input(0, reorder->get_outputs()[0]);
+    }
+    this->replace_uses_with_and_remove(trial_tensor_view);
+    return trial_tensor_view;
 }
 } // namespace ops
 OP_REGISTER(ops::dynamic_reshape_op, dynamic_reshape);

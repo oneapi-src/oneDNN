@@ -42,9 +42,7 @@ using namespace Xbyak;
 jit_sse41_1x1_conv_kernel_f32::jit_sse41_1x1_conv_kernel_f32(
         const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, sse41)
-    , jcp(ajcp)
-    , attr_(attr) {
+    : jit_generator(jit_name(), sse41), jcp(ajcp), attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary) {
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
@@ -654,7 +652,8 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
             && jcp.stride_h == 1 // TODO: support some strides
             && jcp.ow == jcp.iw && jcp.oh == jcp.ih // enforce rpad=0
             && jcp.kh == 1 && jcp.kw == 1;
-    VDISPATCH_CONV_IC(args_ok, VERBOSE_BLOCKING_FAIL);
+    VDISPATCH_CONV_IC(
+            args_ok, VERBOSE_BLOCKING_FAIL, "bad blocking parameters");
 
     jcp.ur = 1;
     if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);

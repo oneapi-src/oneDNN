@@ -200,9 +200,7 @@ struct jit_brgemm_relo_copy_to_wbuffer_t : public jit_generator {
     using reg64_t = Xbyak::Reg64;
 
     jit_brgemm_relo_copy_to_wbuffer_t(const cfg_t &ajcp)
-        : jit_generator(
-                jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
-        , wjcp(ajcp) {}
+        : jit_generator(jit_name(), avx512_core_amx), wjcp(ajcp) {}
 
 private:
     cfg_t wjcp;

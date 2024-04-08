@@ -337,9 +337,6 @@ TEST(APIPartitionCache, GetSetCapacity) {
 TEST(APIPartition, F8MatmulPartition) {
     using namespace dnnl::graph;
 
-    SKIP_IF(dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx512_core_fp16,
-            "skip on machine without AVX512_CORE_FP16");
-
     logical_tensor deq0_src {0, logical_tensor::data_type::f8_e4m3, {10, 10},
             logical_tensor::layout_type::strided};
     logical_tensor deq0_dst {1, logical_tensor::data_type::f32, {10, 10},
@@ -372,7 +369,12 @@ TEST(APIPartition, F8MatmulPartition) {
     g.add_op(mm);
     g.finalize();
     auto parts = g.get_partitions();
-    ASSERT_EQ(parts.size(), 1UL);
-    engine eng(engine::kind::cpu, 0);
-    parts[0].compile({deq0_src, deq1_src}, {mm_dst}, eng);
+
+    if (dnnl_get_effective_cpu_isa() < dnnl_cpu_isa_avx512_core_fp16) {
+        ASSERT_EQ(parts.size(), 3UL);
+    } else {
+        ASSERT_EQ(parts.size(), 1UL);
+        engine eng(engine::kind::cpu, 0);
+        parts[0].compile({deq0_src, deq1_src}, {mm_dst}, eng);
+    }
 }

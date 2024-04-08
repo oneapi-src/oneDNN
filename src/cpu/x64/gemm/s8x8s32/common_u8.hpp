@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,9 +20,6 @@
 #include "cpu/platform.hpp"
 
 #include "cpu/x64/jit_generator.hpp"
-
-#define U8_COPY_KERNEL_CODE_SIZE (4096L * 4)
-#define S8U8S32_COMPUTE_KERNEL_CODE_SIZE (4096L * 32)
 
 #define PADD_BYTESIZE_ONPAGE(x, size) \
     (((x) * (size) + PAGE_4K - 1) / PAGE_4K) * PAGE_4K

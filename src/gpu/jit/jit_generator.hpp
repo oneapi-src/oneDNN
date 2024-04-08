@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,9 +19,17 @@
 
 #include <memory>
 
+// Must be included before emulation.hpp
+#include "gpu/jit/ngen/ngen.hpp"
+
+#include "common/impl_registration.hpp"
 #include "common/nstl.hpp"
+#include "gpu/compute/device_info.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/jit/emulation.hpp"
 #include "gpu/jit/jit_generator_base.hpp"
-#include "oneapi/dnnl/dnnl_config.h"
+#include "gpu/jit/utils/ngen_type_bridge.hpp"
+#include "gpu/jit/utils/utils.hpp"
 
 #include "gpu/jit/ngen/ngen_opencl.hpp"
 
@@ -96,14 +104,18 @@ template <gpu_gen_t hw>
 struct jit_eltwise_injector_f32;
 
 template <gpu_gen_t hw>
+struct jit_reduction_injector_f32;
+
+template <gpu_gen_t hw>
 struct jit_post_op_injector;
 
 template <gpu_gen_t hw>
 class jit_generator : public ngen::OpenCLCodeGenerator<hw>,
                       public jit_generator_base {
     friend struct jit_eltwise_injector_f32<hw>;
-
+    friend struct jit_reduction_injector_f32<hw>;
     friend struct jit_post_op_injector<hw>;
+    friend struct EmulationImplementation;
 
 private:
 #ifdef CL_VERSION_2_0
@@ -157,6 +169,71 @@ void jit_generator<hw>::dbg_alloc(cl_context context) {
     memset(mem, 0xcd, size);
 }
 #endif
+
+template <template <ngen::HW> class KernelT, ngen::HW arch, typename... ArgsT>
+std::unique_ptr<jit::jit_generator_base> make_generator(
+        const compute::device_info_t &device_info, ArgsT &&...args) {
+
+    auto raw_kernel = new KernelT<arch>(std::forward<ArgsT>(args)...);
+    if (raw_kernel->getRootStreamLength() > device_info.icache_size()) {
+        ir_warning() << raw_kernel->kernel_name()
+                     << " larger than icache, kernel: "
+                     << raw_kernel->getRootStreamLength()
+                     << " bytes, icache: " << device_info.icache_size()
+                     << " bytes\n";
+    }
+    return std::unique_ptr<jit::jit_generator_base>(raw_kernel);
+}
+
+template <template <ngen::HW> class KernelT, typename... ArgsT>
+compute::kernel_t make_kernel(gpu_primitive_t *primitive, bool register_kernel,
+        engine_t *engine, ArgsT &&...args) {
+    using namespace compute;
+    kernel_t kernel;
+
+    if (primitive->cache_blob()) {
+        status_t status = primitive->create_kernel(
+                engine, &kernel, nullptr, register_kernel);
+        if (status != status::success) return kernel_t();
+        return kernel;
+    }
+
+    auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
+    auto *device_info = compute_engine->device_info();
+    auto arch = convert_dnnl_arch_to_ngen(device_info->gpu_arch());
+
+    std::unique_ptr<jit::jit_generator_base> jit_kernel;
+#define CASE(gpu_arch) \
+    case gpu_arch: \
+        jit_kernel = make_generator<KernelT, gpu_arch>( \
+                *device_info, std::forward<ArgsT>(args)...); \
+        break;
+    switch (arch) {
+        REG_GEN9_ISA(CASE(gpu_gen9));
+        REG_GEN11_ISA(CASE(gpu_gen11));
+        REG_XELP_ISA(CASE(gpu_xe_lp));
+        REG_XEHP_ISA(CASE(gpu_xe_hp));
+        REG_XEHPG_ISA(CASE(gpu_xe_hpg));
+        REG_XEHPC_ISA(CASE(gpu_xe_hpc));
+        REG_XE2_ISA(CASE(gpu_xe2));
+        default: break;
+    }
+#undef CASE
+
+    if (!jit_kernel) return kernel_t();
+
+    status_t status = primitive->create_kernel(
+            engine, &kernel, jit_kernel.get(), register_kernel);
+    if (status != status::success) return kernel_t();
+    return kernel;
+}
+
+template <template <ngen::HW> class KernelT, typename... ArgsT>
+compute::kernel_t make_kernel(
+        gpu_primitive_t *primitive, engine_t *engine, ArgsT &&...args) {
+    return make_kernel<KernelT>(primitive, /*register_kernel=*/true, engine,
+            std::forward<ArgsT>(args)...);
+}
 
 } // namespace jit
 } // namespace gpu

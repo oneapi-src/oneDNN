@@ -1,12 +1,13 @@
+[![UXL Foundation Logo](https://github.com/uxlfoundation/artwork/blob/main/foundation/uxl-foundation-logo-horizontal-color.png)][UXL Foundation]
+
 oneAPI Deep Neural Network Library (oneDNN)
 ===========================================
 
-<img align="left" src="https://spec.oneapi.io/oneapi-logo-white-scaled.jpg"
-alt="oneAPI logo">
-
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
-oneDNN is part of [oneAPI](https://oneapi.io).
+oneDNN project is part of the [UXL Foundation] and is an implementation
+of the [oneAPI specification] for oneDNN component.
+
 The library is optimized for Intel(R) Architecture Processors, Intel Graphics,
 and Arm\* 64-bit Architecture (AArch64)-based processors. oneDNN has
 experimental support for the following architectures: NVIDIA\* GPU,
@@ -17,12 +18,16 @@ developers interested in improving application performance on CPUs and GPUs.
 Deep learning practitioners should use one of the
 [applications enabled with oneDNN](#applications-enabled-with-onednn).
 
+[UXL Foundation]: http://www.uxlfoundation.org
+[oneAPI specification]: https://spec.oneapi.io
+
 # Table of Contents
 
 - [Documentation](#documentation)
 - [Installation](#installation)
 - [System Requirements](#system-requirements)
 - [Applications Enabled with oneDNN](#applications-enabled-with-onednn)
+- [Governance](#governance)
 - [Support](#support)
 - [Contributing](#contributing)
 - [License](#license)
@@ -337,6 +342,21 @@ You can also contact oneDNN developers via [UXL Foundation Slack] using
 [Github issues]: https://github.com/oneapi-src/oneDNN/issues
 [UXL Foundation Slack]: https://slack-invite.uxlfoundation.org/
 [#onednn]: https://uxlfoundation.slack.com/channels/onednn
+
+# Governance
+
+oneDNN project is governed by the [UXL Foundation] and you can get involved in
+this project in multiple ways. It is possible to join the [AI Special Interest
+Group (SIG)] meetings where the groups discuss and demonstrate work using this
+project. Members can also join the Open Source and Specification Working Group
+meetings.
+
+You can also join the [mailing lists for the UXL Foundation] to be informed
+of when meetings are happening and receive the latest information and
+discussions.
+
+[AI Special Interest Group (SIG)]: https://github.com/uxlfoundation/foundation
+[mailing lists for the UXL Foundation]: https://lists.uxlfoundation.org/g/main/subgroups
 
 # Contributing
 

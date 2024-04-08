@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -427,7 +427,7 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceSwish) {
     }
 }
 
-TEST(test_reduce_execute_subgraph_fp32, ReduceWith3PostOps) {
+TEST(test_reduce_execute_subgraph_fp32, ReduceWith3PostOps_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 

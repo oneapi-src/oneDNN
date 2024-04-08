@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -378,7 +378,7 @@ TEST(test_layer_norm_execute, LayerNormBackwardFp32) {
     }
 }
 
-TEST(test_layer_norm_execute_subgraph_int8, LayernormTypecastQuant) {
+TEST(test_layer_norm_execute_subgraph_int8, LayernormTypecastQuant_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
     static auto isa = dnnl_get_effective_cpu_isa();

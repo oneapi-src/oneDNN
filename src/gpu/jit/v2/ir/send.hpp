@@ -127,7 +127,7 @@ struct dim_mask_t {
         dim = dmd.dim;
         base = dmd.base;
         bound = dmd.bound;
-        do_zero_cmp = dmd.do_zero_cmp;
+        has_underflow = dmd.has_underflow;
     }
 
     bool is_empty() const { return slot_incs.empty(); }
@@ -148,7 +148,7 @@ struct dim_mask_t {
     expr_t base;
     expr_t bound;
     std::vector<expr_t> slot_incs;
-    bool do_zero_cmp = false;
+    bool has_underflow = false;
 };
 
 struct mask_t {

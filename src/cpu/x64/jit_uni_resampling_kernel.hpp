@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ struct jit_uni_resampling_kernel_base_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_resampling)
 
     jit_uni_resampling_kernel_base_t(const jit_resampling_conf_t &conf)
-        : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, conf.isa)
+        : jit_generator(jit_name(), conf.isa)
         , conf_(conf)
         , sum_scales_(conf_.sum_scales) {}
 

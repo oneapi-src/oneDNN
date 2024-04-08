@@ -199,11 +199,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                         || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_);
             }
 
-            ok &= IMPLICATION((wei_zp_2d || wei_scales_2d_),
-                    !utils::one_of(bf16, d->b_type(), d->a_type()));
-
             if (wei_scales_2d_) {
-                if (wei_zp && !wei_zp_2d) return status::unimplemented;
+                if (wei_zp && (ao_dims_ == 1 || bo_dims_ == 1))
+                    return status::unimplemented;
                 auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
                 wei_scales_type = wei_scales.data_type_;
                 auto scales_group_k

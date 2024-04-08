@@ -79,6 +79,9 @@
 # fp8
 --batch=test_reorder_float8
 
+# int4
+--batch=test_reorder_int4
+
 # Run-time
 --batch=harness_reorder_runtime
 

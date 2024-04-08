@@ -565,6 +565,11 @@ public:
         } else {
             inner_var = var_t::make(type_t::s32(), inner_name);
         }
+
+        ir_assert(outer_var.as<var_t>().name != inner_var.as<var_t>().name)
+                << "Cannot split loops to the same name "
+                << outer_var.as<var_t>().name;
+
         auto &outer_loop = create_loop(outer_var, bound / factor);
         auto &inner_loop = create_loop(inner_var, factor);
         loop.set_split(outer_loop, inner_loop);

@@ -98,7 +98,7 @@ static dim_tile_t create_tile(gemm_schedule_t &gemm_schedule,
     for (int i = ndims - 1; i >= 1; i--) {
         expr_t outer;
         expr_t inner;
-        auto outer_name = (i == 1) ? dim_name + suffixes[i] : std::string();
+        auto outer_name = (i == 1) ? dim_name + suffixes[i - 1] : std::string();
         auto inner_name = dim_name + suffixes[i];
         gemm_schedule.split(idx, dims[i], outer, inner, outer_name, inner_name);
         if (has_block(i)) idxs[i] = inner;

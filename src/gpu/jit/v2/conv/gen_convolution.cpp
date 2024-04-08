@@ -23,6 +23,7 @@
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/jit/codegen/kernel.hpp"
+#include "gpu/jit/conv/gen_convolution.hpp"
 #include "gpu/jit/ir/kernel_info.hpp"
 #include "gpu/jit/utils/utils.hpp"
 #include "gpu/jit/v2/conv/bridge.hpp"
@@ -70,12 +71,12 @@ public:
     static bool is_supported(T *pd, prop_kind_t prop) {
         bool enable_conv_v2 = gpu_utils::dev_getenv("enable_conv_v2", false);
         if (!enable_conv_v2) return false;
-        switch (prop) {
-            case prop_kind::forward:
-                if (!pd->is_fwd()) return false;
-                break;
-            default: return false;
-        }
+
+        // Non-trivial strides produces non-linear offset arithmetic which is
+        // not yet supported.
+        if (pd->is_bwd_d()
+                && !(pd->KSW() == 1 && pd->KSH() == 1 && pd->KSD() == 1))
+            return false;
 
         if (pd->with_bias()) return false;
         if (!pd->attr()->has_default_values()) return false;
@@ -133,6 +134,7 @@ private:
         if (plan_preset_t::instance().is_set()) {
             _desc = plan_preset_t::instance().get();
             _desc.hw = hw_t(engine);
+            _desc.spec_reqs.specialize(prb);
             {
                 ir_utils::ir_check_log_level_t check_level(ir_utils::LOG_FATAL);
                 auto plan = create_conv_plan_and_finalize_desc(_desc);
@@ -140,6 +142,7 @@ private:
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
+            _desc.spec_reqs.specialize(prb);
         }
         if (_desc.is_empty()) return status::unimplemented;
         ir_assert(ir_check_fatal(_desc.fits(prb)));
@@ -163,6 +166,33 @@ status_t gen_convolution_fwd_t::init(engine_t *engine) {
 }
 
 status_t gen_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+    return impl_->execute(this, ctx);
+}
+
+status_t gen_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
+    return gen_convolution_t::init_pd(this, engine, prop_kind::backward_data);
+}
+
+status_t gen_convolution_bwd_data_t::init(engine_t *engine) {
+    impl_.reset(new gen_convolution_t());
+    return impl_->init(this, engine);
+}
+
+status_t gen_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+    return impl_->execute(this, ctx);
+}
+
+status_t gen_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
+    return gen_convolution_t::init_pd(
+            this, engine, prop_kind::backward_weights);
+}
+
+status_t gen_convolution_bwd_weights_t::init(engine_t *engine) {
+    impl_.reset(new gen_convolution_t());
+    return impl_->init(this, engine);
+}
+
+status_t gen_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
     return impl_->execute(this, ctx);
 }
 

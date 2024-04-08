@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,8 +35,7 @@ public:
 
     jit_avx512_common_lrn_kernel_fwd_blocked_t(const struct nChw16c_across_t &J,
             prop_kind_t prop_kind, int use_h_parallel, float alpha, float beta,
-            float k, int local_size, void *code_ptr = nullptr,
-            size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+            float k, int local_size);
 
     void compute_loop(int loop_size_param);
 

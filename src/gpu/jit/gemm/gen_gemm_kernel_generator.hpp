@@ -40,7 +40,7 @@
 #endif
 #include "../ngen/ngen_register_allocator.hpp"
 
-#include "gpu/jit/gemm/emulation.hpp"
+#include "gpu/jit/emulation.hpp"
 
 #include <array>
 #include <complex>
@@ -1252,7 +1252,7 @@ struct GEMMStrategy : public GEMMStrategyPOD {
     int ka_inc() const { return slmA ? unrollKSLM : ka_load; }
     int kb_inc() const { return slmB ? unrollKSLM : kb_load; }
 
-    int kInterleaveChunk() const;
+    int kInterleaveChunk(const GEMMProblem &problem) const;
 
     bool needsMNLocalIDs() const {
         return xParallel || (slmBuffers > 0) || cooperativePF || kParallelLocal
@@ -1445,10 +1445,11 @@ struct GEMMState : public CommonState {
     ngen::Subregister remFusedStorage; // d
     ngen::Subregister diagA, diagB, diagC; // d
     SubregisterPair lda, ldb;
+    SubregisterPair ldao, ldbo, ldaScale, ldbScale;
     LDIncrements ldaIncrements, ldbIncrements; // Cached lda * ka, ldb * kb
+    LDIncrements ldaoIncrements, ldboIncrements;
+    LDIncrements ldasIncrements, ldbsIncrements;
     LDMultiples ldaMultiples, ldbMultiples, ldcMultiples[2];
-    ngen::Subregister ldao_kaq, ldaScale_kaq; // ud
-    ngen::Subregister ldbo_kbq, ldbScale_kbq; // ud
     ngen::Subregister k, K; // d
     ngen::Subregister kNoBarrierStart, kNoBarrierEnd; // d
     ngen::FlagRegister flagAP;
@@ -1508,6 +1509,7 @@ struct GEMMState : public CommonState {
     bool aoReuseA = false, boReuseB = false;
     Type Tao_int, Ta_scaleInt;
     Type Tbo_int, Tb_scaleInt;
+    Type Ta_scaleOp, Tb_scaleOp;
     MatrixAddressing Ai, Bi, Ao, Bo, tempC;
     MatrixAddressingStrategy Ai_strategy, Bi_strategy;
     MatrixAddressingStrategy Ao_strategy, Bo_strategy;
@@ -2379,6 +2381,12 @@ protected:
             const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             const CommonStrategy &strategy, CommonState &state, bool decrement);
+    void incAddrStrided(const std::vector<ngen::GRFRange> &addr, bool column,
+            int k, const SubregisterPair &ld, const LDIncrements &incs,
+            const std::vector<RegisterBlock> &layout,
+            const MatrixAddressing &atype,
+            const MatrixAddressingStrategy &astrategy,
+            const CommonStrategy &strategy, CommonState &state);
 
     void extendIndexVec(int n, CommonState &state);
     ngen::Subregister accessIndexVec(int n, CommonState &state);
@@ -2649,9 +2657,9 @@ protected:
             const std::vector<RegisterBlock> &layoutOffset,
             const std::vector<RegisterBlock> &layoutScale, GRFMultirange src,
             GRFMultirange dst, GRFMultirange offset, GRFMultirange scale,
-            int offR, int offC, const GEMMProblem *problem,
+            Type Tscale, int offR, int offC, const GEMMProblem *problem,
             const CommonStrategy &strategy, CommonState &state);
-    void gemm2DDequantizeOperation(bool doA, Type T, BinaryOp op,
+    void gemm2DDequantizeOperation(bool doA, Type T, Type To, BinaryOp op,
             const std::vector<RegisterBlock> &layout,
             const std::vector<RegisterBlock> &qlayout,
             const GRFMultirange &regs, const GRFMultirange &qregs, int hq,

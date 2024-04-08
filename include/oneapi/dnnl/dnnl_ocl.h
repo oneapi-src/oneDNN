@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -153,8 +153,6 @@ dnnl_status_t DNNL_API dnnl_ocl_interop_engine_get_cache_blob(
 /// @param device The OpenCL device that this engine will encapsulate.
 /// @param context The OpenCL context (containing the device) that this
 ///     engine will use for all operations.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
 /// @param size Size of the cache blob in bytes.
 /// @param cache_blob Cache blob of size @p size.
 /// @returns #dnnl_success on success and a status describing the error

@@ -56,11 +56,11 @@ struct reusable_lnorm_params_t
 
     compute::kernel_ctx_t get_kernel_ctx() const;
 
-    data_type_t input_dt = data_type::undef;
-    data_type_t output_dt = data_type::undef;
-    data_type_t ss_dt = data_type::undef;
+    data_type_t src_dt = data_type::undef;
+    data_type_t dst_dt = data_type::undef;
     bool use_scale = false;
     bool use_shift = false;
+    uint8_t padding[4] = {0};
 
     // Not used by bwd impl, but would be padding otherwise
     bool with_src_scale = false;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -226,20 +226,20 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             // for dw: Always fuse with same ISA.
             // Caveat: May be a better dw conv exists.
             VDISPATCH_CONV(!mayiuse(avx512_core_amx),
-                    "heuristic to skip implementation when higher ISA is "
-                    "supported");
+                    VERBOSE_1x1CONV_HEURISTIC_FAIL, "higher ISA is supported");
 
             VDISPATCH_CONV(attr_1x1.post_ops_.find(primitive_kind::sum) == -1,
-                    VERBOSE_UNSUPPORTED_POSTOP);
+                    VERBOSE_UNSUPPORTED_FEATURE, "unsupported sum post-op");
 
             // TODO: Below may be further tuned.
-            VDISPATCH_CONV(
-                    l2_cache * 2 < src_d.size(), "cache size check failed");
+            VDISPATCH_CONV(l2_cache * 2 < src_d.size(),
+                    VERBOSE_1x1CONV_HEURISTIC_FAIL, "cache size check failed");
 
             // load_grp_count check can be redundant due to l2 check
             // above. Adding it explicitly as the current driver doesn't
             // work if this condition fails.
-            VDISPATCH_CONV(jcp_1x1.load_grp_count < 2, "load group count > 1");
+            VDISPATCH_CONV(jcp_1x1.load_grp_count < 2,
+                    VERBOSE_1x1CONV_HEURISTIC_FAIL, "load group count > 1");
 
             int dw_po_index
                     = attr_1x1.post_ops_.find(primitive_kind::convolution);
@@ -274,12 +274,12 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
                     dnnl_memory_desc_equal(&src_md, dw_conv_pd_->src_md(0)),
                     VERBOSE_INCONSISTENT_MDS, "src_md", "dw_conv_pd_->src_md");
             VDISPATCH_CONV(jcp_1x1.oc_without_padding % jcp_1x1.oc_block == 0,
-                    "output-channel is not an exact multiple of oc_block "
-                    "(currently unsupported padded output-channel)");
+                    VERBOSE_1x1CONV_HEURISTIC_FAIL,
+                    "output-channel is not an exact multiple of oc_block");
             VDISPATCH_CONV(IMPLICATION(jcp_dw->ow_block,
                                    jcp_dw->ow_block == jcp_dw->ow),
-                    "heuristic: ow_block does not equal output-width "
-                    "(unsupported output-width partitioning)");
+                    VERBOSE_1x1CONV_HEURISTIC_FAIL,
+                    "ow_block does not equal output-width");
 
             assert(dw_conv_pd_->dst_md(0)->format_kind != format_kind::any);
             assert(dw_conv_pd_->weights_md(0)->format_kind != format_kind::any);

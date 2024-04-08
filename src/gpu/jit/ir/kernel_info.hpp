@@ -161,6 +161,19 @@ public:
         arg->value = value;
     }
 
+    std::map<std::string, expr_t> get_vars() const {
+        std::map<std::string, expr_t> vars;
+        for (auto &arg : args_) {
+            if (arg.var.is<var_t>())
+                vars[arg.var.as<var_t>().name] = arg.var;
+            else if (arg.var.is<const_var_t>())
+                vars[arg.var.as<const_var_t>().name] = arg.var;
+            else
+                ir_error_not_expected();
+        }
+        return vars;
+    }
+
     void register_resource_arg(const expr_t &var) {
         // TODO: Check key uniqueness.
         register_arg(var, arg_kind_t::resource, nargs(), /*is_input=*/true);

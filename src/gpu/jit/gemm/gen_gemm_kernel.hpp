@@ -88,19 +88,6 @@ protected:
         }
     }
 
-    static ngen::HW convert_dnnl_arch_to_hw(compute::gpu_arch_t arch) {
-        switch (arch) {
-            case compute::gpu_arch_t::gen9: return ngen::HW::Gen9;
-            case compute::gpu_arch_t::gen11: return ngen::HW::Gen11;
-            case compute::gpu_arch_t::xe_lp: return ngen::HW::XeLP;
-            case compute::gpu_arch_t::xe_hp: return ngen::HW::XeHP;
-            case compute::gpu_arch_t::xe_hpg: return ngen::HW::XeHPG;
-            case compute::gpu_arch_t::xe_hpc: return ngen::HW::XeHPC;
-            case compute::gpu_arch_t::xe2: return ngen::HW::Xe2;
-            default: return ngen::HW::Unknown;
-        }
-    }
-
     compute::gpu_arch_t arch_;
     ngen::HW hw_ = ngen::HW::Unknown;
     int stepping_ = 0;

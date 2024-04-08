@@ -15,49 +15,54 @@
 *******************************************************************************/
 
 #include "gpu/ocl/dispatch.h"
-#include "gpu/ocl/ocl_types.h"
+#include "gpu/ocl/ocl_io.h"
 #include "gpu/ocl/types_interop.h"
 
 NAMED_KERNEL_ATTR(STAT)
-__kernel void lnorm_reusable_calc_mean(__global DATA_T *src,
+__kernel void lnorm_reusable_calc_mean(__global SRC_STAT_DT *src,
         __global float *mean, dim_t reduce_size, dim_t reduce_stride,
         dispatch_gws_rt_params_t gws_params) {
     src = GWS_GET_BUFFER_POS_NAMED(SRC, STAT, gws_params, src);
     mean = GWS_GET_BUFFER_POS_NAMED(STAT, STAT, gws_params, mean);
 
-    float sum = 0;
+    ACC_DT sum = SPECIAL(ACC_DT, zero);
     for (off_t i = 0; i < reduce_size; i++) {
-        sum += TO_DEF_ACC_DATA_T(src[i * (off_t)reduce_stride]);
+        ACC_DT src_val;
+        load(&src_val, src + i * (off_t)reduce_stride);
+        sum += src_val;
     }
 
-    *mean = sum / reduce_size;
+    float res = into_float(sum) / reduce_size;
+    write(mean, &res);
 }
 
 NAMED_KERNEL_ATTR(STAT)
-__kernel void lnorm_reusable_calc_var(__global DATA_T *src,
+__kernel void lnorm_reusable_calc_var(__global SRC_STAT_DT *src,
         __global float *mean, __global float *variance, dim_t reduce_size,
         dim_t reduce_stride, dispatch_gws_rt_params_t gws_params) {
     src = GWS_GET_BUFFER_POS_NAMED(SRC, STAT, gws_params, src);
     mean = GWS_GET_BUFFER_POS_NAMED(STAT, STAT, gws_params, mean);
     variance = GWS_GET_BUFFER_POS_NAMED(STAT, STAT, gws_params, variance);
 
-    float mean_val = *mean;
-    float sum = 0;
+    float mean_val;
+    load(&mean_val, mean);
+    float sum = 0.0f;
     for (off_t i = 0; i < reduce_size; i++) {
-        DEF_ACC_DATA_T v0
-                = TO_DEF_ACC_DATA_T(src[i * (off_t)reduce_stride]) - mean_val;
+        ACC_DT src_val;
+        load(&src_val, src + i * (off_t)reduce_stride);
+        float v0 = src_val - mean_val;
         sum += v0 * v0;
     }
 
-    *variance = sum / reduce_size;
+    float res = sum / reduce_size;
+    write(variance, &res);
 }
 
 KERNEL_ATTR
-__kernel void lnorm_reusable_fwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DST_DATA_T *dst,
-        __global WEI_DATA_T *scale, __global WEI_DATA_T *shift, float eps,
-        __global float *src_scale, __global float *dst_scale,
-        dispatch_gws_rt_params_t gws_params) {
+__kernel void lnorm_reusable_fwd(__global SRC_DT *src, __global float *mean,
+        __global float *variance, __global DST_DT *dst, __global SS_DT *scale,
+        __global SS_DT *shift, float eps, __global float *src_scale,
+        __global float *dst_scale, dispatch_gws_rt_params_t gws_params) {
     mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
     variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
 
@@ -67,25 +72,38 @@ __kernel void lnorm_reusable_fwd(__global DATA_T *src, __global float *mean,
     src = GWS_GET_BUFFER_POS(SRC, gws_params, src);
     dst = GWS_GET_BUFFER_POS(DST, gws_params, dst);
 
-    float sm = USE_SCALE ? WEI_TO_REF(*scale) : 1.0f;
-    float sv = USE_SHIFT ? WEI_TO_REF(*shift) : 0.0f;
-    DEF_ACC_DATA_T src_val = TO_DEF_ACC_DATA_T(*src);
-    float sqrt_variance = 1.0f / sqrt(*variance + eps);
-    float res = sm * (src_val - *mean) * sqrt_variance + sv;
+    float sm = 1.0f;
+    float sv = 0.0f;
+    if (USE_SCALE) load(&sm, scale);
+    if (USE_SHIFT) load(&sv, shift);
+    float src_val, var_val, mean_val;
+    load(&src_val, src);
+    load(&var_val, variance);
+    load(&mean_val, mean);
+    float sqrt_variance = 1.0f / sqrt(var_val + eps);
+    float res = sm * (src_val - mean_val) * sqrt_variance + sv;
 
-    if (WITH_SRC_SCALES) res *= *src_scale;
-    if (WITH_DST_SCALES) res /= *dst_scale;
+    if (WITH_SRC_SCALES) {
+        float src_scale_val;
+        load(&src_scale_val, src_scale);
+        res *= src_scale_val;
+    }
+    if (WITH_DST_SCALES) {
+        float dst_scale_val;
+        load(&dst_scale_val, dst_scale);
+        res /= dst_scale_val;
+    }
 
-    *dst = TO_DST(res);
+    write(dst, &res);
 }
 
 //************ BWD kernels *************//
 
 NAMED_KERNEL_ATTR(SS)
-__kernel void lnorm_reusable_bwd_scaleshift(__global DST_DATA_T *src,
+__kernel void lnorm_reusable_bwd_scaleshift(__global SRC_SS_DT *src,
         __global float *mean, __global float *variance,
-        __global DATA_T *diff_dst, __global WEI_DATA_T *diff_scale,
-        __global WEI_DATA_T *diff_shift, dim_t stat_size, dim_t stat_stride,
+        __global DST_SS_DT *diff_dst, __global SS_SS_DT *diff_scale,
+        __global SS_SS_DT *diff_shift, dim_t stat_size, dim_t stat_stride,
         float eps, dispatch_gws_rt_params_t gws_params) {
 
     src = GWS_GET_BUFFER_POS_NAMED(SRC, SS, gws_params, src);
@@ -94,27 +112,33 @@ __kernel void lnorm_reusable_bwd_scaleshift(__global DST_DATA_T *src,
     diff_scale = GWS_GET_BUFFER_POS_NAMED(SS, SS, gws_params, diff_scale);
     diff_shift = GWS_GET_BUFFER_POS_NAMED(SS, SS, gws_params, diff_shift);
 
-    float gamma = 0;
-    float beta = 0;
+    float gamma = 0.0f;
+    float beta = 0.0f;
     for (int i = 0; i < stat_size; i++) {
         off_t off = i * stat_stride;
-        DEF_ACC_DATA_T dst_val = TO_DEF_ACC_DATA_T(diff_dst[off]);
-        float src_val = DST_TO_REF(src[off]);
+        ACC_BWD_DT dst_val;
+        load(&dst_val, diff_dst + off);
+        ACC_DT src_val;
+        load(&src_val, src + off);
+
+        float mean_val, var_val;
+        load(&mean_val, mean + i);
+        load(&var_val, variance + i);
 
         beta += dst_val;
-        gamma += dst_val * (src_val - mean[i]) / sqrt(variance[i] + eps);
+        gamma += dst_val * (src_val - mean_val) / sqrt(var_val + eps);
     }
 
-    if (diff_shift) *diff_shift = TO_WEI(beta);
-    if (diff_scale) *diff_scale = TO_WEI(gamma);
+    if (diff_shift) write(diff_shift, &beta);
+    if (diff_scale) write(diff_scale, &gamma);
 }
 
 NAMED_KERNEL_ATTR(STAT)
-__kernel void lnorm_reusable_bwd(__global DST_DATA_T *src,
-        __global DATA_T *diff_dst, __global DST_DATA_T *diff_src,
-        __global WEI_DATA_T *scale, __global float *mean,
-        __global float *variance, float eps, dim_t norm_stride, dim_t norm_size,
-        char include_stats, dispatch_gws_rt_params_t gws_params) {
+__kernel void lnorm_reusable_bwd(__global SRC_STAT_DT *src,
+        __global DST_STAT_DT *diff_dst, __global SRC_STAT_DT *diff_src,
+        __global SS_DT *scale, __global float *mean, __global float *variance,
+        float eps, dim_t norm_stride, dim_t norm_size, char include_stats,
+        dispatch_gws_rt_params_t gws_params) {
 
     // Cannot pass bools into kernels - we will only pass a 0 or 1
     ASSUME((include_stats == 0) || (include_stats == 1));
@@ -126,20 +150,24 @@ __kernel void lnorm_reusable_bwd(__global DST_DATA_T *src,
     mean = GWS_GET_BUFFER_POS_NAMED(STAT, STAT, gws_params, mean);
     variance = GWS_GET_BUFFER_POS_NAMED(STAT, STAT, gws_params, variance);
 
-    float mean_val = *mean;
-    float var_val = *variance;
+    float mean_val, var_val;
+    load(&mean_val, mean);
+    load(&var_val, variance);
 
     float inv_var = rsqrt(var_val + eps);
 
     // If we calculate mean/variance from src, include this contribution in diff_src
-    DEF_ACC_DATA_T mu = 0;
-    DEF_ACC_DATA_T sigma = 0;
+    float mu = 0.0f;
+    float sigma = 0.0f;
     if (include_stats) {
         for (int i = 0; i < norm_size; i++) {
             off_t off = i * norm_stride;
-            DEF_ACC_DATA_T dst_val = TO_DEF_ACC_DATA_T(diff_dst[off]);
-            float src_val = DST_TO_REF(src[off]);
-            float scale_val = (scale ? CONVERT_WEI_FLOAT_T(scale[i]) : 1.0f);
+            ACC_BWD_DT dst_val;
+            load(&dst_val, diff_dst + off);
+            ACC_DT src_val;
+            load(&src_val, src + off);
+            float scale_val = 1.0f;
+            if (scale) load(&scale_val, scale + i);
 
             mu += dst_val * scale_val;
             sigma += dst_val * scale_val * src_val;
@@ -151,16 +179,20 @@ __kernel void lnorm_reusable_bwd(__global DST_DATA_T *src,
     // Apply these stats to the entirety of the norm dim
     for (int i = 0; i < norm_size; i++) {
         off_t off = i * norm_stride;
-        DEF_ACC_DATA_T dst_val = TO_DEF_ACC_DATA_T(diff_dst[off]);
-        float src_val = DST_TO_REF(src[off]);
-        float scale_val = (scale ? CONVERT_WEI_FLOAT_T(scale[i]) : 1.0f);
+        ACC_BWD_DT dst_val;
+        load(&dst_val, diff_dst + off);
+        ACC_DT src_val;
+        load(&src_val, src + off);
+        float scale_val = 1.0f;
+        if (scale) load(&scale_val, scale + i);
 
-        DEF_ACC_DATA_T res = dst_val * scale_val;
+        float res = dst_val * scale_val;
 
         if (include_stats) {
             res -= (mu + sigma * (src_val - mean_val)) / norm_size;
         }
 
-        diff_src[off] = TO_DST(inv_var * res);
+        float out = inv_var * res;
+        write(diff_src + off, &out);
     }
 }

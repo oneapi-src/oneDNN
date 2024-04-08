@@ -16,7 +16,7 @@
 
 #include <cctype>
 
-#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc.hpp"

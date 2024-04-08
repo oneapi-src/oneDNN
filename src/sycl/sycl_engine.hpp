@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -135,7 +135,9 @@ inline status_t get_sycl_device_index(
         *index = SIZE_MAX;
         // TODO: remove this work around once Level-Zero is fixed
         if (backend == backend_t::level0) return status::success;
-        return status::invalid_arguments;
+        VERROR_ENGINE(false, status::invalid_arguments,
+                VERBOSE_INVALID_ENGINE_IDX, SIZE_MAX,
+                to_string(dev_type).c_str(), devices.size());
     }
 }
 

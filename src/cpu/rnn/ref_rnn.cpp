@@ -95,10 +95,10 @@ status_t dnnl::impl::cpu::_ref_rnn_common_t<aprop, src_type, weights_type,
                           this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION),
                           this->dst_md(0), this->dst_md(1), this->dst_md(2),
                           this->arg_md(DNNL_ARG_BIAS)),
-            "init_conf failed");
+            VERBOSE_PRIMITIVE_CREATION_FAIL, "rnn");
 
     VDISPATCH_RNN(IMPLICATION(rnn_.is_f16_conf(), !rnn_.is_training),
-            "f16 training is not yet fully supported");
+            VERBOSE_UNSUPPORTED_FEATURE, "f16 training not supported");
 
     if (rnn_.is_xf16_conf()) {
         VDISPATCH_RNN(
@@ -118,7 +118,8 @@ status_t dnnl::impl::cpu::_ref_rnn_common_t<aprop, src_type, weights_type,
     /* check that no data shift have been passed to s8s8 lstm */
     VDISPATCH_RNN(IMPLICATION(rnn_.is_signed_int8_conf(),
                           this->attr()->rnn_data_qparams_.shift_ == 0.f),
-            "s8s8 lstm implementation does not support data shift");
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "s8s8 lstm does not support data shift");
 
     /* INT8 cases with non-trivial strides are not supported */
     VDISPATCH_RNN(!(rnn_.is_int8_conf()
@@ -176,7 +177,7 @@ status_t dnnl::impl::cpu::_ref_rnn_common_t<aprop, src_type, weights_type,
 
     VDISPATCH_RNN(this->check_layout_consistency(false /*is_brgemm*/)
                     == status::success,
-            "check_layout_consistency failed");
+            "layout consistency check failed");
 
     set_conf<class_name>(rnn_, *this->desc(), this->weights_md(0),
             this->weights_md(1), this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION),
@@ -359,12 +360,12 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
                           this->arg_md(DNNL_ARG_WEIGHTS_PROJECTION),
                           this->dst_md(0), this->dst_md(1), this->dst_md(2),
                           this->arg_md(DNNL_ARG_BIAS)),
-            "init_conf failed");
+            VERBOSE_PRIMITIVE_CREATION_FAIL, "rnn");
 
     VDISPATCH_RNN(IMPLICATION(one_of(this->desc()->prop_kind, forward_training,
                                       backward),
                           (rnn_.is_xf16_conf() || rnn_.is_f32_conf())),
-            "data type and propagation kind mismatch");
+            VERBOSE_PROPKIND_DT_MISMATCH);
 
     // Support for GRU / AUGRU cell in BRGEMM-based implementation is
     // limited by forward_inference pass for now, all_f32 is disabled
@@ -374,8 +375,7 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
                           this->desc()->prop_kind == forward_inference
                                   && !rnn_.is_cell_dt_f32()),
             VERBOSE_UNSUPPORTED_FEATURE,
-            "gru/augru cell in brgemm-based implementation for forward "
-            "inference");
+            "gru/augru cell in brgemm-based forward inference");
 
     VDISPATCH_RNN(!(rnn_.is_cell_dt_f32()
                           && utils::one_of(this->desc()->prop_kind, backward,
@@ -422,7 +422,7 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
     VDISPATCH_RNN(IMPLICATION(rnn_.is_signed_int8_conf(),
                           this->attr()->rnn_data_qparams_.shift_ == 0),
             VERBOSE_UNSUPPORTED_FEATURE,
-            "no support for shift in s8s8 amx lstm implementation");
+            "s8s8 amx lstm does not support shift");
 
     /* INT8 cases with non-trivial strides are not supported */
     VDISPATCH_RNN(!(rnn_.is_int8_conf()
@@ -511,7 +511,7 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
     }
     VDISPATCH_RNN(this->check_layout_consistency(true /*is_brgemm*/)
                     == status::success,
-            "check_layout_consistency failed");
+            "layout consistency check failed");
 
     if (rnn_.is_bf32()) {
         const memory_desc_wrapper weights_layer_d(this->weights_layer_md_);

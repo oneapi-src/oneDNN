@@ -437,7 +437,8 @@ void debugdump_processed_source(const std::string &source,
 status_t get_kernel_arg_types(cl_kernel ocl_kernel,
         std::vector<gpu::compute::scalar_type_t> *arg_types);
 
-status_t get_ocl_device_eu_count(cl_device_id device, int32_t *eu_count);
+status_t get_ocl_device_eu_count(
+        cl_device_id device, gpu::compute::gpu_arch_t arch, int32_t *eu_count);
 
 status_t get_ocl_device_enabled_systolic_intel(
         cl_device_id device, bool &systolic_enabled);

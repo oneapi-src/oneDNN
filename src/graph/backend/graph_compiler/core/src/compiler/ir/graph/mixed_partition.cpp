@@ -2578,7 +2578,7 @@ void mixed_parti_t::clear_fanchors() {
 }
 
 std::vector<for_loop> mixed_parti_t::get_outer_loops(
-        fusion_anchor_ptr fanchor) const {
+        fusion_anchor_ptr fanchor, bool skip_def_node) const {
     if (merged_to) { return get_root()->get_outer_loops(fanchor); }
     std::vector<for_loop> outer_loops;
     if (!func_) return outer_loops;
@@ -2589,22 +2589,46 @@ std::vector<for_loop> mixed_parti_t::get_outer_loops(
         target_fanchor = target_fanchor->parent_;
     }
 
-    if (body.isa<stmts>()
-            && (body.checked_as<stmts>()->seq_.size() == 1
-                    || body.checked_as<stmts>()->seq_.size() == 2)) {
-        if (body.checked_as<stmts>()->seq_.size() == 2) {
-            if (!body.checked_as<stmts>()->seq_[1].isa<returns>())
-                return outer_loops;
+    if (body.isa<stmts>()) {
+        // copy
+        auto ss = body.static_as<stmts>()->seq_;
+        if (skip_def_node) {
+            for (auto iter = ss.begin(); iter != ss.end();) {
+                if (iter->isa<define>()) {
+                    iter = ss.erase(iter);
+                } else {
+                    break;
+                }
+            }
         }
-        auto st = body.checked_as<stmts>()->seq_[0];
-        if (st.isa<for_loop>()) {
-            auto loop = st.static_as<for_loop>();
-            while (loop.defined()) {
-                outer_loops.emplace_back(loop);
-                loop = get_next_inner_loop_with_anchor(loop, target_fanchor);
+        // pop back unnecessary item including `return` or unused anchor
+        if (!ss.empty()) {
+            auto backs = ss.back();
+            if (backs.isa<returns>()) ss.pop_back();
+            backs = ss.back();
+            if (backs.isa<stmts>()) {
+                auto last_ss = backs.static_as<stmts>();
+                if (last_ss->seq_.empty()) {
+                    auto anchor_map = lookup_anchor_map(last_ss);
+                    if (anchor_map && anchor_map != target_fanchor) {
+                        ss.pop_back();
+                    }
+                }
+            }
+        }
+        if (ss.size() == 1) {
+            auto st = ss[0];
+            if (st.isa<for_loop>()) {
+                auto loop = st.static_as<for_loop>();
+                while (loop.defined()) {
+                    outer_loops.emplace_back(loop);
+                    loop = get_next_inner_loop_with_anchor(
+                            loop, target_fanchor);
+                }
             }
         }
     }
+
     return outer_loops;
 }
 
@@ -3017,8 +3041,8 @@ static bool check_repartition(const mixed_parti_t::ptr &parti) {
                 });
         if (is_terminate_op) {
             // find producer inputs
-            for (auto prod_input : op->get_inputs()) {
-                for (auto preced_output :
+            for (const auto &prod_input : op->get_inputs()) {
+                for (const auto &preced_output :
                         prod_input->producer_owner_->get_outputs()) {
                     if (parti->is_parti_out(preced_output)
                             && !op->attrs_.has_key(
@@ -3384,7 +3408,32 @@ static bool try_optimize_reduce(mixed_parti_t *parti, sc_graph_t &sub_graph,
             } else if (auto rd_op = op->dyn_cast<reduce_compute_op_t>()) {
                 COMPILE_ASSERT(rd_op->is_partial_reduce(),
                         "Only partial reduce is expected")
-                split_reduce_set.insert(red_op);
+                // predict anchor parallelism of coming `reduce_collect_op`
+                auto orig_iter = graph2orig_ops.find(op);
+                COMPILE_ASSERT(orig_iter != graph2orig_ops.end(),
+                        "Could not find original op in partition")
+                auto &input = orig_iter->second->get_inputs()[0];
+                auto required_axis = rd_op->get_rd_axis();
+                // get real requied axis
+                required_axis.erase(required_axis.begin());
+                bool parallelism = true;
+                // get outer loops
+                auto outer_loops = parti->get_outer_loops(nullptr, true);
+                for (auto itr = outer_loops.begin(); itr != outer_loops.end();
+                        itr++) {
+                    // check required axis whether appears on outer loops
+                    if (check_loop_has_axis(*itr, input, required_axis)) {
+                        // if found, predict parallelism
+                        if (itr == outer_loops.begin()
+                                || evaluate_loop_parallel_balance(
+                                           {outer_loops.begin(), itr - 1})
+                                        != 1.0f) {
+                            parallelism = false;
+                        }
+                        break;
+                    }
+                }
+                if (parallelism) split_reduce_set.insert(red_op);
             }
         }
     }
@@ -3414,7 +3463,8 @@ static bool try_optimize_reduce(mixed_parti_t *parti, sc_graph_t &sub_graph,
         if (op->isa<reduce_compute_op_t>()) {
             // find original op in partition
             auto orig_iter = graph2orig_ops.find(op->shared_from_this());
-            if (orig_iter == graph2orig_ops.end()) continue;
+            COMPILE_ASSERT(orig_iter != graph2orig_ops.end(),
+                    "Could not find original op in partition")
             // get shrink info
             auto slice_info = parti->buf_alloc_.get_shrinked_info(
                     parti->buf_alloc_.g2b_map_.get(

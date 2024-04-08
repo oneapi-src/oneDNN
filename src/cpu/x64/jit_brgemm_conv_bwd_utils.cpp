@@ -455,7 +455,6 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     static constexpr int bench_iterations = 1;
 
     int sp, sp_block, nb_sp;
-    static int last_oc_block_size;
 
     void get_from_jcp(const jit_brgemm_conv_conf_t &jcp) { *this = jcp; }
     void save_to_jcp(jit_brgemm_conv_conf_t &jcp) const { jcp = *this; }
@@ -531,7 +530,6 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
 
 unsigned brg_blocking_t::L1;
 unsigned brg_blocking_t::L2;
-int brg_blocking_t::last_oc_block_size;
 
 float brg_blocking_t::io_k(dim_t src, dim_t wei, dim_t dst, float n, float pk,
         bool is_broadcast, bool is_shared) const {
@@ -556,7 +554,7 @@ float brg_blocking_t::io_k(const loop_t loop, const array_in_loop_t arr,
 }
 
 void brg_blocking_t::select_oc_block() {
-    const auto padded_oc = last_oc_block_size * (is_oc_padded ? acc_simd_w : 1);
+    const auto padded_oc = vnni_block * (is_oc_padded ? acc_simd_w : 1);
     oc_block = (exec_type == exec_trans ? rnd_up(oc, padded_oc) : oc);
     nb_oc = utils::div_up(oc, oc_block);
 }
@@ -570,7 +568,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
 
     // Configure matrix sizes
     // for amx if oc_block != oc then we use exec_trans so K is oc_block
-    const auto padded_oc = last_oc_block_size * (is_oc_padded ? acc_simd_w : 1);
+    const auto padded_oc = vnni_block * (is_oc_padded ? acc_simd_w : 1);
 
     ocp = rnd_up(oc, padded_oc);
 
@@ -581,7 +579,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     N = ic >= ic_block ? ic_block : 0;
     N_tail = ic % ic_block;
     K = oc >= oc_block ? oc_block : 0;
-    K_tail = oc_block;
+    K_tail = oc % oc_block;
 
     const auto vK = K > 0 ? K : K_tail;
     const auto vM = M > 0 ? M : M_tail;
@@ -641,7 +639,7 @@ status_t brg_blocking_t::get_brgemm_ur(
                     brg_strides.stride_a = ngroups * oc_without_padding
                             * (dilate_w + 1) * src_dsz;
                     //weights are padded by ic_block and last_oc_block
-                    brg_strides.stride_b = rnd_up(oc, last_oc_block_size)
+                    brg_strides.stride_b = rnd_up(oc, vnni_block)
                             * rnd_up(ic, ic_block) * wei_dsz;
                     const auto strides_ptr = (brg_type == brgemm_strd)
                             ? &brg_strides
@@ -1125,7 +1123,8 @@ status_t brg_blocking_t::calc_blocks() {
         }
     }
     *this = best_brgb;
-    VDISPATCH_CONV_IC(sp_block > 0, VERBOSE_BLOCKING_FAIL);
+    VDISPATCH_CONV_IC(
+            sp_block > 0, VERBOSE_BLOCKING_FAIL, "bad blocking parameters");
 
     iw_block = is_block = sp_block;
     iw_tail = iw % iw_block;
@@ -1446,7 +1445,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.stride_w = cd.strides[ndims - 3];
 
     VDISPATCH_CONV_IC(!everyone_is(1, jcp.stride_d, jcp.stride_h, jcp.stride_w),
-            "skipping implementation as it does not support unit strides");
+            VERBOSE_UNSUPPORTED_FEATURE, "unit strides are not supported");
 
     jcp.has_uneven_iw = jcp.iw % jcp.stride_w != 0;
     const bool has_uneven_spatial = jcp.id % jcp.stride_d != 0
@@ -1459,7 +1458,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.dilate_w = cd.dilates[ndims - 3];
 
     VDISPATCH_CONV_IC(everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w),
-            "skipping implementation since non-zero dilations are detected");
+            VERBOSE_UNSUPPORTED_FEATURE, "non-zero dilations are detected");
 
     jcp.is = jcp.id * jcp.ih * jcp.iw;
 
@@ -1503,8 +1502,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const data_type_t last_oc_block_dt
             = get_mac_emu_data_type(jcp.wei_dt, isa, isa == avx512_core_fp16);
-    brg_blocking_t::last_oc_block_size
-            = data_type_vnni_granularity(last_oc_block_dt);
+    jcp.vnni_block = data_type_vnni_granularity(last_oc_block_dt);
 
     // TODO: optimize grouped convolutions with small oc
     const bool is_grouped_small_oc
@@ -1517,9 +1515,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                             && !jcp.is_1x1)
             // Enable the shapes not supported in direct convs
             && IMPLICATION(with_groups, is_groups_ok(jcp));
-    VDISPATCH_CONV_IC(!is_grouped_small_oc,
-            "skipping implementation as it does not support grouped "
-            "convolutions with small oc");
+    VDISPATCH_CONV_IC(!is_grouped_small_oc, VERBOSE_UNSUPPORTED_FEATURE,
+            "grouped convolutions with small oc");
 
     // Dispatch the shapes to VNNI for better performance
     // TODO: optimize the perf of 3d shape with small oc and large spatial
@@ -1532,8 +1529,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             && jcp.oc * jcp.ic <= 32 && jcp.id >= 128 && jcp.ih >= 128
             && jcp.iw >= 128;
     VDISPATCH_CONV_IC(!(is_small_shape || is_3d_small_oc),
-            "skipping implementation as it does not support small 3d shapes "
-            "with small oc");
+            VERBOSE_UNSUPPORTED_FEATURE, "small 3d shapes with small oc");
 
     const bool is_f32
             = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
@@ -1565,20 +1561,20 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             IMPLICATION(jcp.wei_dt == s8,
                     is_superset(jcp.isa, avx512_core)
                             || one_of(jcp.isa, avx2_vnni, avx2_vnni_2)),
-            "unsupported isa for current datatype combination");
+            VERBOSE_ISA_DT_MISMATCH);
 
     VDISPATCH_CONV_IC(IMPLICATION(jcp.wei_dt == bf16,
                               is_superset(jcp.isa, avx512_core_bf16)
                                       || is_superset(jcp.isa, avx2_vnni_2)),
-            "unsupported isa for current datatype combination");
+            VERBOSE_ISA_DT_MISMATCH);
 
     VDISPATCH_CONV_IC(IMPLICATION(jcp.wei_dt == f16,
                               is_superset(jcp.isa, avx512_core_fp16)
                                       || is_superset(jcp.isa, avx2_vnni_2)),
-            "unsupported isa for current datatype combination");
+            VERBOSE_ISA_DT_MISMATCH);
 
     VDISPATCH_CONV_IC(IMPLICATION(is_f32, one_of(isa, avx512_core, avx2)),
-            "unsupported isa for current datatype combination");
+            VERBOSE_ISA_DT_MISMATCH);
 
     VDISPATCH_CONV_IC(post_ops_ok(jcp, attr, diff_src_d, is_deconv),
             VERBOSE_UNSUPPORTED_POSTOP);
@@ -1921,8 +1917,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     jcp.copy_block_only = true;
 
-    const auto oc_padded_block
-            = jcp.acc_simd_w * brg_blocking_t::last_oc_block_size;
+    const auto oc_padded_block = jcp.acc_simd_w * jcp.vnni_block;
     jcp.is_oc_padded = one_of(jcp.wei_dt, bf16, f16, s8)
             && jcp.oc > oc_padded_block && is_amx(isa);
 
@@ -1979,7 +1974,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     VDISPATCH_CONV_IC(
             !(jcp.iw_block == 0 || jcp.oc_block == 0 || jcp.ic_block == 0),
-            VERBOSE_BLOCKING_FAIL);
+            VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
 
     jcp.gemm_batch_size = jcp.nb_oc_blocking
             * nstl::max(jcp.kd_block * jcp.kh_block * jcp.kw_block,
@@ -2032,14 +2027,16 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             !(jcp.req_cal_comp_pad && jcp.src_zero_point && is_amx(jcp.isa)
                     && jcp.ngroups * jcp.ic * jcp.id * jcp.ih * jcp.iw < 4096
                     && jcp.ic <= 4 && jcp.oc <= 64 && jcp.mb <= 64),
-            "heuristic to skip amx implementation for given data dimensions");
+            VERBOSE_IMPL_HEURISTIC_FAIL,
+            "skipping amx implementation for given data dimensions");
 
     if (jcp.req_cal_comp_pad) {
         VDISPATCH_CONV_IC(!(is_amx(jcp.isa)
                                   && static_cast<dim_t>(jcp.ngroups) * jcp.nb_ic
                                                   * jcp.ic_block * jcp.iw
                                           > 4096),
-                "heuristic to skip amx implementation because of buffer size");
+                VERBOSE_IMPL_HEURISTIC_FAIL,
+                "skipping amx implementation because of buffer size");
         const auto comp_buffer_iw = jcp.exec_type == exec_trans ? jcp.iw : 1;
         jcp.ker_ranges_size = precalculate_comp_pad_kernels(jcp);
         jcp.comp_a_buffer_size = static_cast<dim_t>(jcp.ngroups) * jcp.nb_ic

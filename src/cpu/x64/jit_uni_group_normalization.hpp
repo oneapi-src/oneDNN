@@ -65,10 +65,10 @@ struct jit_uni_group_normalization_fwd_t : public primitive_t {
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_GNORM(memory_desc_matches_one_of_tag(
                                     *src_md(), ndhwc, nhwc, nwc, nc),
-                    VERBOSE_UNSUPPORTED_TAG);
+                    VERBOSE_UNSUPPORTED_TAG_S, "src");
             VDISPATCH_GNORM(memory_desc_matches_one_of_tag(
                                     *dst_md(), ndhwc, nhwc, nwc, nc),
-                    VERBOSE_UNSUPPORTED_TAG);
+                    VERBOSE_UNSUPPORTED_TAG_S, "dst");
             VDISPATCH_GNORM(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
@@ -79,6 +79,8 @@ struct jit_uni_group_normalization_fwd_t : public primitive_t {
             VDISPATCH_GNORM(IMPLICATION(C_PER_G != 1, C_PER_G % simd_w == 0),
                     VERBOSE_INCONSISTENT_DIM, "C", (int)C(), "groups",
                     (int)desc()->groups);
+            // C_PER_G should be less than simd_w * unroll_c (which is 6 for var)
+            VDISPATCH_GNORM(C_PER_G / simd_w <= 6, VERBOSE_SHAPE_RESTRICTION);
 
             nthr_ = dnnl_get_max_threads();
             auto scratchpad = scratchpad_registry().registrar();

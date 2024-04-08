@@ -95,7 +95,8 @@ struct gen9_binary_t : public gpu_primitive_t {
                                      && dst_md()->data_type == u8),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
-            VDISPATCH_BINARY_SC(init_conf(engine), "init_conf()");
+            VDISPATCH_BINARY_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "binary");
             return status::success;
         }
 

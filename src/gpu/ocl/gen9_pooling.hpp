@@ -72,8 +72,8 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_POOLING_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_TAG);
-            VDISPATCH_POOLING(
-                    !is_dilated(), VERBOSE_UNSUPPORTED_FEATURE, "is_dilated()");
+            VDISPATCH_POOLING(!is_dilated(), VERBOSE_UNSUPPORTED_FEATURE,
+                    "does not support dilations");
             VDISPATCH_POOLING(!utils::one_of(f64, src_data_t, dst_data_t),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_POOLING(compute_engine->mayiuse(
@@ -92,7 +92,8 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
             if (desc()->alg_kind == pooling_max && is_training)
                 init_default_ws(s32);
 
-            VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
+            VDISPATCH_POOLING_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "pooling");
             return status::success;
         }
 
@@ -162,8 +163,8 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_POOLING(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
-            VDISPATCH_POOLING(
-                    !is_dilated(), VERBOSE_UNSUPPORTED_FEATURE, "is_dilated()");
+            VDISPATCH_POOLING(!is_dilated(), VERBOSE_UNSUPPORTED_FEATURE,
+                    "does not support dilations");
             VDISPATCH_POOLING(
                     IMPLICATION(diff_src_md()->data_type == data_type::f16,
                             compute_engine->mayiuse(
@@ -182,7 +183,8 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
                         compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
-            VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
+            VDISPATCH_POOLING_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "pooling");
             return status::success;
         }
 

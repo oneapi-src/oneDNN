@@ -42,8 +42,8 @@ struct fp8_emulation_base_t {
     // Must be called from host kernel after postamble to populate lookup table.
     virtual void prepare_table() = 0;
 
-    virtual void vcvt_f8_to_f16(const Xbyak::Xmm &xmm_out,
-            const Xbyak::Operand &op_in, bool do_nan_check)
+    virtual void vcvt_f8_to_f16(
+            const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in)
             = 0;
     virtual void vcvt_f8_to_f32(
             const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in)
@@ -107,8 +107,8 @@ struct fp8_emulation_e5m2_t : public fp8_emulation_base_t {
 
     void prepare_table() override;
 
-    void vcvt_f8_to_f16(const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in,
-            bool do_nan_check) override;
+    void vcvt_f8_to_f16(
+            const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in) override;
     void vcvt_f8_to_f32(
             const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in) override;
     void vcvt_f16_to_f8(
@@ -143,8 +143,8 @@ struct fp8_emulation_e4m3_t : public fp8_emulation_base_t {
 
     void prepare_table() override;
 
-    void vcvt_f8_to_f16(const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in,
-            bool do_nan_check) override;
+    void vcvt_f8_to_f16(
+            const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in) override;
     void vcvt_f8_to_f32(
             const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in) override;
     void vcvt_f16_to_f8(

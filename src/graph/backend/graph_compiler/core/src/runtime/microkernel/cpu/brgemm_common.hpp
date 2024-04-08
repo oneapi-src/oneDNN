@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ enum attr_key {
     hint_prfC_dist1,
     hint_prfC_dist2,
     var_bs, // bool, enable variable batch size for uker
-    bs_group, // int, grouping in bs, used by brdgmm
+    hint_bs_group, // int, grouping in bs, used by brdgmm
     dispatch_avx, // use avx instead of amx isa
     nkeys, // brgemm internal attribute nkeys
     // extra attribute for range brgemm cache.

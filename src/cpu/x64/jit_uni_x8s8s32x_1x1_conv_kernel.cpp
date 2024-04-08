@@ -48,9 +48,7 @@ template <cpu_isa_t isa, typename Vmm>
 _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::_jit_uni_x8s8s32x_1x1_conv_kernel(
         const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, isa)
-    , jcp(ajcp)
-    , attr_(attr) {
+    : jit_generator(jit_name(), isa), jcp(ajcp), attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;
@@ -706,7 +704,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
 
     VDISPATCH_CONV_IC(
             !((jcp.dst_zero_point || jcp.src_zero_point) && jcp.with_dw_conv),
-            "implementation does not support zero-point");
+            VERBOSE_UNSUPPORTED_FEATURE, "does not support zero-point");
 
     format_tag_t dat_tag = utils::pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
@@ -892,7 +890,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
             && jcp.reduce_dim % jcp.reduce_block == 0;
 
     assert(params_ok && "parameter values are inconsistent");
-    VDISPATCH_CONV_IC(params_ok, VERBOSE_BLOCKING_FAIL);
+    VDISPATCH_CONV_IC(params_ok, VERBOSE_BLOCKING_FAIL, "bad parameters");
 
     jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 

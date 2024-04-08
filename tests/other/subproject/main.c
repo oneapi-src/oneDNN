@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,8 +20,6 @@
 int main() {
     printf("dnnl_version: %d.%d.%d\n", DNNL_VERSION_MAJOR, DNNL_VERSION_MINOR,
             DNNL_VERSION_PATCH);
-    printf("dnnl_memory_desc_init_by_tag = %p, "
-           "sizeof(dnnl_memory_desc_t) = %d\n",
-            dnnl_memory_desc_init_by_tag, (int)sizeof(dnnl_memory_desc_t));
+
     return 0;
 }

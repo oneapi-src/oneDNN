@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -425,7 +425,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::generate() {
 
 jit_avx512_core_gemm_bf16bf16f32_kern::jit_avx512_core_gemm_bf16bf16f32_kern(
         bool beta_zero, bool alpha_one, bool use_zmm)
-    : jit_generator(jit_name(), nullptr, 170000)
+    : jit_generator(jit_name())
     , beta_zero_(beta_zero)
     , alpha_one_(alpha_one)
     , bfloat16_(mayiuse(avx512_core_bf16))

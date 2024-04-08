@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,9 +43,11 @@ public:
         std::vector<cl_device_id> ocl_devices;
 
         status = get_ocl_devices(&ocl_devices, CL_DEVICE_TYPE_GPU);
-        if (status != status::success) return status;
+        VERROR_ENGINE(
+                status == status::success, status, "no ocl devices found");
 
-        if (index >= ocl_devices.size()) return status::invalid_arguments;
+        VERROR_ENGINE(index < ocl_devices.size(), status::invalid_arguments,
+                VERBOSE_INVALID_ENGINE_IDX, ocl_devices.size(), "ocl", index);
 
         auto *ocl_engine
                 = new ocl_gpu_engine_t(ocl_devices[index], nullptr, index);

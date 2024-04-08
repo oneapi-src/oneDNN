@@ -42,13 +42,58 @@ class kernel_info_t;
 namespace v2 {
 namespace conv {
 
+enum class spec_strategy_t { none, max, one_d, two_d };
+
+inline std::string to_string(spec_strategy_t mode) {
+    switch (mode) {
+        case spec_strategy_t::none: return "none";
+        case spec_strategy_t::max: return "max";
+        case spec_strategy_t::one_d: return "1d";
+        case spec_strategy_t::two_d: return "2d";
+        default: ir_error_not_expected(); return "invalid";
+    }
+}
+
+inline spec_strategy_t str_to_spec_strategy(const std::string &s) {
+    if (s == "none") return spec_strategy_t::none;
+    if (s == "max") return spec_strategy_t::max;
+    if (s == "1d") return spec_strategy_t::one_d;
+    if (s == "2d") return spec_strategy_t::two_d;
+    return spec_strategy_t::none;
+}
+
+// The class spec_reqs_t represents specialization requirements for problem
+// dimensions. It supports a strategy based mode where specialization can be
+// tailored to a specific strategy. In the strategy mode, a call to
+// specialize(problem_t) is required to finish generation.
 class spec_reqs_t {
 public:
     spec_reqs_t() = default;
-    spec_reqs_t(const prb_tile_t &spec_tile) : spec_tile_(spec_tile) {}
+    spec_reqs_t(const prb_tile_t &spec_tile)
+        : spec_tile_(spec_tile), spec_strategy_(spec_strategy_t::none) {}
+    spec_reqs_t(spec_strategy_t spec_strategy)
+        : spec_strategy_(spec_strategy) {}
+
+    bool operator==(const spec_reqs_t &other) const {
+        return as_elements() == other.as_elements();
+    }
+
+    size_t get_hash() const { return ir_utils::get_hash(as_elements()); }
+
+    void serialize(std::ostream &out) const {
+        ir_utils::serialize(as_elements(), out);
+    }
+
+    void deserialize(std::istream &in) {
+        ir_utils::deserialize(as_elements(), in);
+    }
 
     bool is_equal(const prb_dim_t &dim, int value) const {
         return spec_tile_.has(dim) && spec_tile_.at(dim) == value;
+    }
+
+    expr_t to_expr(const prb_dim_t &dim) const {
+        return spec_tile_.has(dim) ? spec_tile_.at(dim) : size_var(dim);
     }
 
     prb_reqs_t reqs() const {
@@ -59,16 +104,66 @@ public:
         return ret;
     }
 
-    std::string str() const { return spec_tile_.str(); }
+    constraint_set_t as_constraint_set(const kernel_info_t &kernel_info) const {
+        constraint_set_t ret;
+        auto vars = kernel_info.get_vars();
+        for (auto &d : spec_tile_) {
+            auto v = vars.find(d.str());
+            ir_assert(v != vars.end()) << "Could not find variable " << d.str();
+            ret.add_constraint(v->second == spec_tile_.at(d));
+        }
+        return ret;
+    }
+
+    std::string str() const {
+        if (spec_strategy_ == spec_strategy_t::none)
+            return spec_tile_.str();
+        else
+            return "(" + to_string(spec_strategy_) + ")";
+    }
+
+    void specialize(const problem_t &prb) {
+        if (spec_strategy_ == spec_strategy_t::none) return;
+        switch (spec_strategy_) {
+            case spec_strategy_t::max: spec_tile_ = prb.shape(); break;
+            case spec_strategy_t::one_d:
+                spec_tile_ = str_to_prb_tile(
+                        "id1ih1od1oh1kd1kh1dd0dh0pd0ph0sd1sh1");
+                break;
+            case spec_strategy_t::two_d:
+                spec_tile_ = str_to_prb_tile("id1od1kd1dd0pd0sd1");
+                break;
+            default: spec_tile_ = {}; break;
+        }
+        spec_strategy_ = spec_strategy_t::none;
+        return;
+    }
+
+    bool has_strategy() const {
+        return spec_strategy_ != spec_strategy_t::none;
+    }
 
     IR_DEFINE_DUMP()
 
+    using elements_t = const std::tuple<prb_tile_t &, spec_strategy_t &>;
+    using const_elements_t
+            = std::tuple<const prb_tile_t &, const spec_strategy_t &>;
+    elements_t as_elements() { return {spec_tile_, spec_strategy_}; }
+    const_elements_t as_elements() const {
+        return {spec_tile_, spec_strategy_};
+    }
+
 private:
     prb_tile_t spec_tile_;
+    spec_strategy_t spec_strategy_;
 };
 
 inline spec_reqs_t str_to_spec_reqs(const std::string &s) {
-    return spec_reqs_t(str_to_prb_tile(s));
+    spec_strategy_t mode = str_to_spec_strategy(s);
+    if (mode == spec_strategy_t::none)
+        return spec_reqs_t(str_to_prb_tile(s));
+    else
+        return spec_reqs_t(mode);
 }
 
 struct loop_nest_entry_t {
@@ -344,11 +439,14 @@ public:
         ir_check(prb.prop() == prop) << "Propagation kind does not match";
         if (check_tags) {
             ir_check(prb.src_tag().matches(src_tag, prb.shape()))
-                    << "Source tag does not match";
+                    << "Source tag  " << prb.src_tag()
+                    << " does not match kernel descriptor tag " << src_tag;
             ir_check(prb.wei_tag().matches(wei_tag, prb.shape()))
-                    << "Weights tag does not match";
+                    << "Weights tag " << prb.wei_tag()
+                    << " does not match kernel descriptor tag " << wei_tag;
             ir_check(prb.dst_tag().matches(dst_tag, prb.shape()))
-                    << "Destination tag does not match";
+                    << "Destination tag " << prb.dst_tag()
+                    << " does not match kernel descriptor tag " << dst_tag;
         }
         ir_check(prb.is_depthwise() == is_dw)
                 << "Mixing depthwise/non-depthwise descriptor and problem";
@@ -364,9 +462,10 @@ public:
     bool operator==(const kernel_desc_t &other) const {
         return (prop == other.prop) && (is_dw == other.is_dw)
                 && (src_tag == other.src_tag) && (wei_tag == other.wei_tag)
-                && (dst_tag == other.dst_tag) && (hw == other.hw)
-                && (fma == other.fma) && (simd == other.simd)
-                && (regs == other.regs) && (iter_tile == other.iter_tile)
+                && (dst_tag == other.dst_tag) && (spec_reqs == other.spec_reqs)
+                && (hw == other.hw) && (fma == other.fma)
+                && (simd == other.simd) && (regs == other.regs)
+                && (iter_tile == other.iter_tile)
                 && (thread_group_tile == other.thread_group_tile)
                 && (loop_nest == other.loop_nest) && (load == other.load)
                 && (prefetch == other.prefetch) && (store == other.store)
@@ -378,9 +477,9 @@ public:
     }
 
     size_t get_hash() const {
-        return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag, hw,
-                fma, simd, regs, iter_tile, thread_group_tile, loop_nest, load,
-                prefetch, store, is_finalized);
+        return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag,
+                spec_reqs, hw, fma, simd, regs, iter_tile, thread_group_tile,
+                loop_nest, load, prefetch, store, is_finalized);
     }
 
     void serialize(std::ostream &out) const {
@@ -390,6 +489,7 @@ public:
         ir_utils::serialize(src_tag, out);
         ir_utils::serialize(wei_tag, out);
         ir_utils::serialize(dst_tag, out);
+        ir_utils::serialize(spec_reqs, out);
         ir_utils::serialize(hw, out);
         ir_utils::serialize(fma, out);
         ir_utils::serialize(simd, out);
@@ -409,6 +509,7 @@ public:
         ir_utils::deserialize(src_tag, in);
         ir_utils::deserialize(wei_tag, in);
         ir_utils::deserialize(dst_tag, in);
+        ir_utils::deserialize(spec_reqs, in);
         ir_utils::deserialize(hw, in);
         ir_utils::deserialize(fma, in);
         ir_utils::deserialize(simd, in);

@@ -104,7 +104,8 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
             VDISPATCH_ELTWISE(compute_engine->mayiuse_sub_group(16),
                     VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
 
-            VDISPATCH_ELTWISE_SC(init_conf(engine), "init_conf()");
+            VDISPATCH_ELTWISE_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "eltwise");
             return status::success;
         }
 
@@ -171,7 +172,8 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
                             == memory_desc_wrapper(diff_src_md()),
                     VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
 
-            VDISPATCH_ELTWISE_SC(init_conf(engine), "init_conf()");
+            VDISPATCH_ELTWISE_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "eltwise");
             return status::success;
         }
 

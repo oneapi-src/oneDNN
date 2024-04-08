@@ -93,7 +93,8 @@ SC_INTERNAL_API void eliminate_zero_shaped_tensors(
             if (input_left) {
                 vis->update_state_for_visited(op);
                 for (auto &out_tsr : op->get_outputs()) {
-                    for (auto &idx_op : out_tsr->uses_) {
+                    auto uses = out_tsr->uses_;
+                    for (auto &idx_op : uses) {
                         idx_op.second->replace_input(idx_op.first, input_left);
                     }
                 }

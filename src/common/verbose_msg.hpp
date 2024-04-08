@@ -84,6 +84,9 @@
 #define VERBOSE_UNSUPPORTED_SPARSE_CFG "unsupported sparse md configuration"
 #define VERBOSE_UNSUPPORTED_FEATURE "unsupported feature for implementation: %s"
 #define VERBOSE_UNSUPPORTED_DEVICE_FEATURE "%s feature unavailable for device"
+#define VERBOSE_UNSUPPORTED_BACKEND "unsupported %s backend"
+#define VERBOSE_UNSUPPORTED_PAD_FEATURE "unsupported feature for padding: %s"
+#define VERBOSE_UNSUPPORTED_TENSOR_LAYOUT "unsupported %s tensor layout"
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
 #define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"
@@ -93,6 +96,7 @@
 #define VERBOSE_ISA_DT_MISMATCH \
     "datatype configuration not supported on this isa"
 #define VERBOSE_OFFSET_DT_MISMATCH "%s offsets do not fit into %s datatype"
+#define VERBOSE_PROPKIND_DT_MISMATCH "data type and propagation kind mismatch"
 #define VERBOSE_WS_MISMATCH \
     "workspace mismatch between forward and backward primitive " \
     "descriptors"
@@ -100,21 +104,21 @@
 #define VERBOSE_WS_INIT "workspace initialization failed"
 #define VERBOSE_SCRATCHPAD_INIT "scratchpad initialization unsuccessful"
 
-#define VERBOSE_BLOCKING_FAIL "blocking heuristic failed"
+#define VERBOSE_BLOCKING_FAIL "blocking heuristic fail: %s"
 #define VERBOSE_SMALL_SHAPES "small shapes fall back"
 #define VERBOSE_NONTRIVIAL_STRIDE "only trivial strides are supported"
 #define VERBOSE_UNSUPPORTED_MEM_STRIDE "unsupported memory stride"
 
-#define VERBOSE_PADDING_ERROR "padding error for implementation: %s"
-#define VERBOSE_IMPL_HEURISTIC_FAIL "implementation heuristic failed: %s"
-#define VERBOSE_1x1CONV_HEURISTIC_FAIL \
-    "failed heuristic for 1x1 convolution: %s"
-#define VERBOSE_PERF_HEURISTICS_DISABLED \
-    "performance heuristics disabled for %s"
+#define VERBOSE_IMPL_HEURISTIC_FAIL "heuristic fail: %s"
+#define VERBOSE_1x1CONV_HEURISTIC_FAIL "heuristic fail for 1x1 convolution: %s"
 #define VERBOSE_SCRATCHPAD_LIMIT "scratchpad memory limit exceeded"
 #define VERBOSE_PRIMITIVE_CREATION_FAIL "failed to create nested primitive %s"
 #define VERBOSE_DESC_CREATION_FAIL "failed to create %s descriptor"
 #define VERBOSE_SHAPE_RESTRICTION "failed shape restrictions"
 #define VERBOSE_INCOMPATIBLE_GEMM_FMT "incompatible gemm format"
+
+#define VERBOSE_DEVICE_CTX_MISMATCH "device not found in the given context"
+#define VERBOSE_INVALID_PLATFORM "unsupported %s platform (expected %s got %s)"
+#define VERBOSE_ENGINE_CREATION_FAIL "failed to create %s engine with index %zu"
 
 #endif

@@ -119,7 +119,7 @@ std::string prb_reqs_t::str() const {
     std::ostringstream oss;
     bool is_first = true;
     for (auto &r : reqs_) {
-        if (!is_first) oss << std::endl;
+        if (!is_first) oss << "\n";
         oss << r.expr.to_ir();
         is_first = false;
     }
@@ -310,7 +310,9 @@ bool prb_reqs_t::req_t::fits(const prb_tile_t &sizes) const {
             case op_kind_t::_lt: ret = (a < b); break;
             default: ir_error_not_expected();
         }
-        ir_check(ret) << "Requirement is not satisfied: " << expr.to_ir();
+        ir_check(ret) << "Requirement is not satisfied: " << expr.to_ir()
+                      << " evaluates to " << a << " " << op->op_kind << " "
+                      << b;
         return true;
     }
     ir_error_not_expected() << expr.to_ir();

@@ -39,6 +39,12 @@
 #define DEBUG_PRINT(...)
 #endif
 
+#ifdef __has_builtin
+#define HAS_BUILTIN(x) __has_builtin(x)
+#else
+#define HAS_BUILTIN(x) false
+#endif
+
 // Defines (for example) float_zero, float_one, float_min, and float_max
 // Can be used in a data-type agnostic way with the SPECIAL macro below
 #define DEF_special_vals(dt, zero_val, one_val, min_val, max_val) \
@@ -53,5 +59,20 @@ IF_DOUBLE_SUPPORTED(DEF_special_vals(double, 0.0, 1.0, -DBL_MAX, DBL_MAX));
 IF_HALF_SUPPORTED(DEF_special_vals(half, 0.0h, 1.0h, -HALF_MAX, HALF_MAX));
 
 #define SPECIAL(dt, val) CONCAT3(dt, _, val)
+
+#ifdef ENABLE_CHECK_ASSUMPTIONS
+// Don't actually inform the compiler about the assumption
+#define ASSUME(x) \
+    if (!(x)) { \
+        printf("Error - GWS indices (%ld,%ld,%ld): Runtime assumption \"%s\" " \
+               "violated\n", \
+                get_global_id(0), get_global_id(1), get_global_id(2), #x); \
+        return; \
+    }
+#elif HAS_BUILTIN(__builtin_assume)
+#define ASSUME(x) __builtin_assume(x)
+#else
+#define ASSUME(x)
+#endif
 
 #endif // GPU_OCL_OCL_UTILS_H

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -134,8 +134,8 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     bool kernel_outside_src = false || ext_kw <= jcp.l_pad
             || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad
             || ext_kh <= jcp.b_pad;
-    VDISPATCH_CONV_IC(!kernel_outside_src,
-            "weights and src size mismatch due to padding");
+    VDISPATCH_CONV_IC(!kernel_outside_src, VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "weights and src size mismatch");
 
     jcp.typesize_out = types::data_type_size(dst_d.data_type());
     jcp.typesize_in = types::data_type_size(src_d.data_type());
@@ -185,7 +185,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         const size_t max_input_offset
                 = (max_ic_off + max_iw_off + max_ex_off) * jcp.typesize_in;
         VDISPATCH_CONV_IC(max_input_offset <= INT_MAX,
-                "input offsets do not fit into s32");
+                VERBOSE_OFFSET_DT_MISMATCH, "input", "s32");
 
         // check that output offsets fit into s32
         const size_t max_oc_off = max_ch_off * jcp.oh * jcp.ow;
@@ -194,7 +194,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         const size_t max_output_offset
                 = (max_oc_off + max_ow_off + max_ex_off) * jcp.typesize_out;
         VDISPATCH_CONV_IC(max_output_offset <= INT_MAX,
-                "output offsets do not fit into s32");
+                VERBOSE_OFFSET_DT_MISMATCH, "output", "s32");
     }
 
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
@@ -203,7 +203,8 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
             calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,
                     jcp.stride_w, ext_kw));
     VDISPATCH_CONV_IC(!(jcp.l_pad > jcp.ur_w || r_pad_no_tail > jcp.ur_w),
-            "width unroll from heuristic exceeds padding size");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "width unroll exceeds padding size");
 
     CHECK(attr.set_default_formats(&dst_md));
 
@@ -286,9 +287,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
             VERBOSE_UNSUPPORTED_ISA);
 
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
-    VDISPATCH_CONV_IC(with_groups,
-            "skipping non-grouped convolution in depthwise convolution "
-            "implementation");
+    VDISPATCH_CONV_IC(with_groups, VERBOSE_UNSUPPORTED_FEATURE,
+            "non-grouped convolution in depthwise implementation");
 
     const int ndims = diff_src_d.ndims();
     jcp.ngroups = weights_d.dims()[0];
@@ -341,7 +341,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(diff_src_md, dat_tag_blocked));
         jcp.src_tag = dat_tag_blocked;
     } else {
-        VDISPATCH_CONV_IC(curr_src_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
+        VDISPATCH_CONV_IC(
+                curr_src_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG_S, "src");
         jcp.src_tag = dat_tag;
     }
 
@@ -349,7 +350,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(diff_dst_md, dat_tag_blocked));
         jcp.dst_tag = dat_tag_blocked;
     } else {
-        VDISPATCH_CONV_IC(curr_dst_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
+        VDISPATCH_CONV_IC(
+                curr_dst_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG_S, "dst");
         jcp.dst_tag = dat_tag;
     }
 
@@ -414,8 +416,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     const size_t max_inp_sp_off = static_cast<size_t>(jcp.ur_w - 1) * sp_step;
     const size_t max_input_offset
             = (max_oc_off + max_inp_sp_off + max_ex_off) * jcp.typesize_in;
-    VDISPATCH_CONV_IC(
-            max_input_offset <= INT_MAX, "input offsets do not fit into s32");
+    VDISPATCH_CONV_IC(max_input_offset <= INT_MAX, VERBOSE_OFFSET_DT_MISMATCH,
+            "input", "s32");
 
     // check that output offset fit into s32
     const size_t max_ic_off
@@ -424,8 +426,8 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
             = static_cast<size_t>(jcp.ur_w - 1) * jcp.stride_w * sp_step;
     const size_t max_output_offset
             = (max_ic_off + max_out_sp_off + max_ex_off) * jcp.typesize_out;
-    VDISPATCH_CONV_IC(
-            max_output_offset <= INT_MAX, "output offsets do not fit into s32");
+    VDISPATCH_CONV_IC(max_output_offset <= INT_MAX, VERBOSE_OFFSET_DT_MISMATCH,
+            "output", "s32");
 
     return status::success;
 }
@@ -467,9 +469,8 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
 
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.oc, jcp.ic);
 
-    VDISPATCH_CONV_IC(jcp.is_depthwise,
-            "skipping non-grouped convolution in depthwise convolution "
-            "implementation");
+    VDISPATCH_CONV_IC(jcp.is_depthwise, VERBOSE_UNSUPPORTED_FEATURE,
+            "non-grouped convolution in depthwise implementation");
 
     jcp.mb = src_d.dims()[0];
 
@@ -521,7 +522,8 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(src_md, dat_tag_blocked));
         jcp.src_tag = dat_tag_blocked;
     } else {
-        VDISPATCH_CONV_IC(curr_src_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
+        VDISPATCH_CONV_IC(
+                curr_src_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG_S, "src");
         jcp.src_tag = dat_tag;
     }
 
@@ -529,7 +531,8 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(diff_dst_md, dat_tag_blocked));
         jcp.dst_tag = dat_tag_blocked;
     } else {
-        VDISPATCH_CONV_IC(curr_dst_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG);
+        VDISPATCH_CONV_IC(
+                curr_dst_tag == dat_tag, VERBOSE_UNSUPPORTED_TAG_S, "dst");
         jcp.dst_tag = dat_tag;
     }
 
@@ -594,7 +597,8 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
             // non-unit padding must be a multiple of the stride
             && IMPLICATION(jcp.t_pad > 1, jcp.t_pad % jcp.stride_h == 0)
             && IMPLICATION(jcp.b_pad > 1, jcp.b_pad % jcp.stride_h == 0);
-    VDISPATCH_CONV_IC(boundaries_ok, "padding size unsupported (overflow)");
+    VDISPATCH_CONV_IC(boundaries_ok, VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "padding size unsupported (overflow)");
 
     /* BF16: accumulation of output happens in f32, down-conversion to bf16
      * happens during the reduction phase. */

@@ -23,6 +23,7 @@
 #include "graph/backend/dnnl/dnnl_constant_tensor_cache.hpp"
 #include "graph/backend/dnnl/dnnl_opset.hpp"
 #include "graph/backend/dnnl/kernels/kernels.hpp"
+#include "graph/backend/dnnl/patterns/data_type_check_pass.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 
 namespace dnnl {
@@ -71,7 +72,8 @@ pass::pass_registry_t dnnl_backend::register_passes() {
     DNNL_BACKEND_REGISTER_PATTERN_CALL(shuffle_fusion, pass_registry);
     DNNL_BACKEND_REGISTER_PATTERN_CALL(reduction_fusion, pass_registry);
 
-    const std::vector<data_type_t> dtypes_to_check = {dnnl_bf16, dnnl_f16};
+    const std::vector<data_type_t> dtypes_to_check
+            = {dnnl_bf16, dnnl_f16, dnnl_f8_e4m3, dnnl_f8_e5m2};
     auto check_pass_ptr = std::make_shared<pattern::dtype_check_pass_t>(
             "dnnl_backend", "dtype_check_pass", dtypes_to_check);
     pass_registry.register_pass(check_pass_ptr);

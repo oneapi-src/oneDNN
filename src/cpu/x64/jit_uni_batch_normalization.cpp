@@ -2417,13 +2417,14 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
     VDISPATCH_BNORM(!(memory_desc_wrapper(src_md()).padded_dims()[1] != C()
                             && !isa_supports_avx2),
-            VERBOSE_PADDING_ERROR, "bad padded dimensions for current isa");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "bad padded dimensions for current isa");
 
     // Only IC % simd_w == 0 is supported for now
     const int simd_w = cpu_isa_traits<isa>::vlen / sizeof(acc_data_t);
     VDISPATCH_BNORM(!(src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc)
                             && src_d.padded_dims()[1] % simd_w != 0),
-            VERBOSE_PADDING_ERROR,
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
             "bad padded dimensions for current format tag");
 
     nthr_ = dnnl_get_max_threads();
@@ -2542,12 +2543,13 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
     const bool isa_supports_avx2 = is_superset(isa, avx2);
     VDISPATCH_BNORM(!(memory_desc_wrapper(src_md()).padded_dims()[1] != C()
                             && !isa_supports_avx2),
-            VERBOSE_PADDING_ERROR, "bad padded dimensions for current isa");
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
+            "bad padded dimensions for current isa");
 
     // Only IC % 16 == 0 is supported for now
     VDISPATCH_BNORM(!(src_d.matches_one_of_tag(nc, nwc, nhwc, ndhwc)
                             && src_d.padded_dims()[1] % 16 != 0),
-            VERBOSE_PADDING_ERROR,
+            VERBOSE_UNSUPPORTED_PAD_FEATURE,
             "bad padded dimensions for current format tag");
 
     if (fuse_norm_relu()) {

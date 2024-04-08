@@ -126,26 +126,28 @@ status_t check_device(
             break;
         }
     }
-    if (!found) return status::invalid_arguments;
+    VERROR_ENGINE(
+            found, status::invalid_arguments, VERBOSE_DEVICE_CTX_MISMATCH);
 
     // Check engine kind and device consistency.
     cl_device_type dev_type;
     OCL_CHECK(clGetDeviceInfo(
             dev, CL_DEVICE_TYPE, sizeof(dev_type), &dev_type, nullptr));
-    if ((eng_kind == engine_kind::cpu)
-            && (dev_type & CL_DEVICE_TYPE_CPU) == 0) {
-        return status::invalid_arguments;
-    }
-    if ((eng_kind == engine_kind::gpu)
-            && (dev_type & CL_DEVICE_TYPE_GPU) == 0) {
-        return status::invalid_arguments;
-    }
+    VERROR_ENGINE(!((eng_kind == engine_kind::cpu)
+                          && (dev_type & CL_DEVICE_TYPE_CPU) == 0),
+            status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
+    VERROR_ENGINE(!((eng_kind == engine_kind::gpu)
+                          && (dev_type & CL_DEVICE_TYPE_GPU) == 0),
+            status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
 
     // Check that the platform is an Intel platform.
     cl_platform_id platform;
     OCL_CHECK(clGetDeviceInfo(
             dev, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr));
-    if (!is_intel_platform(platform)) return status::invalid_arguments;
+
+    VERROR_ENGINE(is_intel_platform(platform), status::invalid_arguments,
+            VERBOSE_INVALID_PLATFORM, "ocl", "intel",
+            get_platform_name(platform).c_str());
 
     return status::success;
 }
@@ -474,7 +476,7 @@ status_t get_kernel_arg_types(cl_kernel ocl_kernel,
 }
 
 static status_t get_ocl_device_eu_count_intel(
-        cl_device_id device, int32_t *eu_count) {
+        cl_device_id device, gpu::compute::gpu_arch_t arch, int32_t *eu_count) {
     cl_uint num_slices = 0;
     cl_uint num_sub_slices_per_slice = 0;
     cl_uint num_eus_per_sub_slice = 0;
@@ -486,6 +488,9 @@ static status_t get_ocl_device_eu_count_intel(
             nullptr));
     OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_NUM_EUS_PER_SUB_SLICE_INTEL,
             sizeof(num_eus_per_sub_slice), &num_eus_per_sub_slice, nullptr));
+
+    if (arch == gpu::compute::gpu_arch_t::xe2)
+        num_eus_per_sub_slice = 8; /* runtime reports incorrect value */
 
     *eu_count = (int32_t)(
             num_slices * num_sub_slices_per_slice * num_eus_per_sub_slice);
@@ -558,9 +563,10 @@ status_t get_ocl_device_enabled_native_float_atomics(
     return status::success;
 }
 
-status_t get_ocl_device_eu_count(cl_device_id device, int32_t *eu_count) {
+status_t get_ocl_device_eu_count(
+        cl_device_id device, gpu::compute::gpu_arch_t arch, int32_t *eu_count) {
     // Try to use Intel-specific slices/sub-slices to deduce EU count.
-    auto status = get_ocl_device_eu_count_intel(device, eu_count);
+    auto status = get_ocl_device_eu_count_intel(device, arch, eu_count);
     if (status == status::success) return status;
 
     // If failed, fall back to common OpenCL query.

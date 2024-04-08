@@ -192,9 +192,11 @@ struct ocl_conf_t {
     int direction_kind = 0;
 
     data_type_t src_dt = data_type::undef;
+    data_type_t src_c_dt = data_type::undef;
     data_type_t wei_dt = data_type::undef;
     data_type_t bia_dt = data_type::undef;
     data_type_t dst_dt = data_type::undef;
+    data_type_t dst_c_dt = data_type::undef;
     data_type_t acc_dt = data_type::undef;
     data_type_t aux_dt = data_type::undef;
     data_type_t input_dt = data_type::undef;
@@ -334,10 +336,12 @@ struct conf_t {
     data_type_t aux_data_type;
     data_type_t input_data_type;
     data_type_t output_data_type;
+    data_type_t src_data_type;
     data_type_t dst_data_type;
     data_type_t diff_data_type;
     data_type_t wei_layer_type;
     data_type_t wei_iter_type;
+    data_type_t bias_data_type;
 };
 bool is_ldigo(const memory_desc_wrapper &md);
 bool is_ldgoi(const memory_desc_wrapper &md);
@@ -349,7 +353,10 @@ void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d, data_type_t acc_data_type,
+        const memory_desc_wrapper &dst_layer_d,
+        const memory_desc_wrapper &dst_iter_d,
+        const memory_desc_wrapper &diff_dst_layer_d,
+        const memory_desc_wrapper &bias_d, data_type_t acc_data_type,
         const compute::device_info_t &device_info);
 void init_test_mode(conf_t &rnn, const primitive_attr_t &attr);
 void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
@@ -441,7 +448,7 @@ struct user_data_t : public data_helper_t {
                    "perform merge_gemm_layer";
 
         gpu_assert(IMPLICATION(!conf.copy_src_layer && conf.n_iter > 1,
-                (offsets_.src_layer[0] * type_size(conf_.input_data_type)) % 8
+                (offsets_.src_layer[0] * type_size(conf_.src_data_type)) % 8
                         == 0))
                 << "[ERROR]: GEMM interface assumes inputs buffers are well "
                    "aligned";
@@ -485,7 +492,7 @@ struct user_data_t : public data_helper_t {
 
         // src_layer dimension order: iter, mini-batch, channel
         const auto iter_stride
-                = offsets_.src_layer[0] * type_size(conf_.input_data_type);
+                = offsets_.src_layer[0] * type_size(conf_.src_data_type);
         dim_t offset = iter * iter_stride;
         auto cell_size = iter_stride;
         auto n_cells = all_iter ? conf_.n_iter - iter : 1;
@@ -560,7 +567,7 @@ struct user_data_t : public data_helper_t {
         if (bias().data_handle() == nullptr) return {};
 
         // bia dimension order: lay, dir, gates, dhc
-        auto t_size = type_size(conf_.aux_data_type);
+        auto t_size = type_size(conf_.bias_data_type);
         auto layer_stride = offsets_.bias[0] * t_size;
         auto dir_stride = offsets_.bias[1] * t_size;
         auto cell_size = dir_stride;

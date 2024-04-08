@@ -138,6 +138,19 @@ size_t get_hash(const ArgsT &...args) {
     return h;
 }
 
+template <size_t idx, typename... ArgsT>
+size_t get_tuple_hash(const std::tuple<ArgsT...> &tup) {
+    constexpr size_t end = std::tuple_size<std::tuple<ArgsT...>>::value - 1;
+    size_t h = get_hash(std::get<idx>(tup));
+    if (idx == end) return h;
+    return hash_combine(h, get_tuple_hash < idx == end ? idx : idx + 1 > (tup));
+}
+
+template <typename... ArgsT>
+size_t get_hash(const std::tuple<ArgsT...> &tup) {
+    return get_tuple_hash<0>(tup);
+}
+
 template <typename T>
 struct hasher_t {
     size_t operator()(const T &t) const { return t.get_hash(); }
@@ -768,6 +781,19 @@ void serialize(const T &t, std::ostream &out) {
     serialize_helper_t<T>::call(t, out);
 }
 
+template <size_t idx, typename... ArgsT>
+void serialize_tuple(const std::tuple<ArgsT...> &tup, std::ostream &out) {
+    constexpr size_t end = std::tuple_size<std::tuple<ArgsT...>>::value - 1;
+    serialize(std::get<idx>(tup), out);
+    if (idx == end) return;
+    serialize_tuple<idx == end ? idx : idx + 1>(tup, out);
+}
+
+template <typename... ArgsT>
+void serialize(const std::tuple<ArgsT...> &tup, std::ostream &out) {
+    serialize_tuple<0>(tup, out);
+}
+
 template <typename T>
 void serialize(const T &t, const std::string &path) {
     std::ofstream out(path, std::ios::binary);
@@ -849,6 +875,19 @@ T deserialize(std::istream &in) {
 template <typename T>
 void deserialize(T &t, std::istream &in) {
     t = deserialize<T>(in);
+}
+
+template <size_t idx, typename... ArgsT>
+void deserialize_tuple(const std::tuple<ArgsT...> &tup, std::istream &in) {
+    constexpr size_t end = std::tuple_size<std::tuple<ArgsT...>>::value - 1;
+    deserialize(std::get<idx>(tup), in);
+    if (idx == end) return;
+    deserialize_tuple<idx == end ? idx : idx + 1>(tup, in);
+}
+
+template <typename... ArgsT>
+void deserialize(const std::tuple<ArgsT...> &tup, std::istream &in) {
+    deserialize_tuple<0>(tup, in);
 }
 
 template <typename T>
