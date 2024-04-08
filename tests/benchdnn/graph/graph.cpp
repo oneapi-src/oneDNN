@@ -375,6 +375,15 @@ std::string case_to_str(const std::string &json_file,
 
 void skip_unimplemented_ops(const dnnl::graph::partition &partition,
         const deserialized_graph &dg, res_t *res) {
+    // Unconditionally skip all unimplemented cases for Graph Compiler. They got
+    // triggered when `_DNNL_DISABLE_DNNL_BACKEND=1` is utilized.
+    // TODO: extend with `getenv` call if limits too much.
+    if (is_gc_backend()) {
+        res->state = SKIPPED;
+        res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     // A list of ops that don't have DNNL backend support so far.
     static const std::vector<std::string> unimplemented_ops {
             "Pow", "Select", "StaticReshape", "StaticTranspose"};

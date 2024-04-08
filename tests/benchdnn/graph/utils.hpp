@@ -232,5 +232,7 @@ inline const cpp_engine_t &get_graph_engine() {
     return instance;
 }
 
+bool is_gc_backend();
+
 } // namespace graph
 #endif

@@ -1361,4 +1361,13 @@ cpp_engine_t::cpp_engine_t() {
 #endif
     }
 }
+
+bool is_gc_backend() {
+#if defined(ENABLE_GRAPH_COMPILER_BACKEND)
+    return true;
+#else
+    return false;
+#endif
+}
+
 } // namespace graph
