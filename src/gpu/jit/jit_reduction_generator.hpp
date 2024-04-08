@@ -67,24 +67,26 @@ public:
         ra.claim(r0);
         ngen::Subregister tg_idx0 = r0.ud(1);
         ngen::Subregister tg_idx1 = r0.ud(6);
+        ngen::Subregister tid = r0.ud(2).b(0);
         ngen::Subregister tg_size0 = getLocalSize(0).uw();
-        ngen::Subregister tg_size1 = getLocalSize(1).uw();
         ngen::Subregister src_ptr = getArgument("src_ptr").uq();
         ngen::Subregister dst_ptr = getArgument("dst_ptr").uq();
         ra.claim(src_ptr);
         ra.claim(dst_ptr);
         ra.claim(tg_size0);
-        ra.claim(tg_size1);
 
-        // SRC offset: (tg_idx0*simd*nregs + tg_idx1*stride*iters) * sizeof(float)
-        // DST offset: (tg_idx0*simd*nregs + tg_idx1*stride) * sizeof(float)
+        // SRC offset: tid*grf_bytes*nregs + tg_idx0*tg_size0*dt_size*nregs + tg_idx1*stride*iters*dt_size
+        // DST offset: tid*grf_bytes*nregs + tg_idx0*tg_size0*dt_size*nregs + tg_idx1*stride*dt_size
         const int max_write_size = device_info.max_exec_size();
         int nwrites = utils::div_up(regs_per_thr * grf_bytes, max_write_size);
         int regs_per_write = max_write_size / grf_bytes;
 
         ngen::Subregister inner_off = ra.alloc_sub(ngen::DataType::ud);
         ngen::Subregister outer_off = ra.alloc_sub(ngen::DataType::ud);
-        emul(1, inner_off, tg_idx0, simd * nregs * dt_size);
+        emul(1, inner_off, tg_idx0, tg_size0);
+        emul(1, inner_off, inner_off, dt_size * nregs);
+        emad(1, inner_off, inner_off, tid, nregs * grf_bytes);
+
         emul(1, outer_off, tg_idx1, stride * dt_size);
 
         ngen::GRF src_addr = ra.alloc().uq();
@@ -112,12 +114,13 @@ public:
         for (int i = 0; i < total_write_owords; i += max_write_owords) {
             int reg_idx = i / (grf_bytes / oword_bytes);
             int write_size = std::min(max_write_owords, total_write_owords - i);
+            int write_regs = write_size * oword_bytes / grf_bytes;
             bool force_legacy = gpu_utils::dev_getenv(
                     "jit_reduction_force_legacy_load", false);
             if (!force_legacy && hw >= ngen::HW::XeHPG) {
                 // LSC store
                 ngen::DataSpecLSC lscspec = ngen::block(
-                        ngen::DataSizeLSC::D32, simd * regs_per_write);
+                        ngen::DataSizeLSC::D32, simd * write_regs);
                 lscspec |= ngen::CacheSettingsLSC::L1UC_L3WB;
                 store.ugm(1, lscspec, A64, dst_addr[i / max_write_owords].uq(),
                         acc[reg_idx].f());

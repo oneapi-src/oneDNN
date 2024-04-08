@@ -16,6 +16,7 @@
 
 // A small wrapper on the jit_reduction_generator_t, used to test its functionality.
 // Only valid in dev mode for now, until performance is improved.
+#include "gpu/gpu_primitive_attr.hpp"
 #ifdef DNNL_DEV_MODE
 
 #include "common/c_types_map.hpp"
@@ -62,7 +63,6 @@ status_t jit_reduction_t::pd_t::init_conf(engine_t *engine) {
     dim_t inner_nelems = reduction_stride;
     int dt_size = into<int>(sizeof(float));
 
-    // TODO: Use gpu_attr to override threads_per_eu
     auto &compute_engine
             = *utils::downcast<compute::compute_engine_t *>(engine);
     const compute::device_info_t &device_info = *compute_engine.device_info();
@@ -74,13 +74,34 @@ status_t jit_reduction_t::pd_t::init_conf(engine_t *engine) {
     nregs = dev_getenv("jit_reduction_nregs", into<int>(default_nregs));
 
     // Only allow cases where inner size aligns with register size
-    if ((inner_nelems * dt_size) % (reg_size * nregs) != 0)
+    if (inner_nelems % (elems_per_reg * nregs) != 0)
         return status::unimplemented;
+
+    // Grouping threads into threadgroups: ensures better access patterns (we can use barriers)
+    // --> Use the largest threadgroup possible, must fit within the inner dimension
+    dim_t gws0 = inner_nelems / nregs;
+    dim_t nthreads = gws0 / elems_per_reg;
+    int tg_size = [this, &device_info, &nthreads]() {
+        const compute::gpu_arch_t arch = device_info.gpu_arch();
+        auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+                attr()->gpu_attr_.get());
+        const int threads_per_eu = gpu_attr
+                ? gpu_attr->threads_per_eu()
+                : compute::device_info_t::threads_per_eu(arch);
+        int tg_size = utils::rnd_down_pow2(
+                device_info.max_eus_per_wg() * threads_per_eu);
+        while (nthreads % tg_size != 0) {
+            tg_size /= 2;
+        }
+        tg_size = dev_getenv("jit_reduction_tg_size", tg_size);
+        return tg_size;
+    }();
+    gpu_assert(nthreads % tg_size == 0) << "Invalid tg_size";
 
     // valid case, now compute the nd_range_t
     dim_t outer_nelems = dst_nelems / inner_nelems;
-    compute::range_t gws(into<size_t>(inner_nelems / nregs), into<size_t>(outer_nelems));
-    compute::range_t lws(into<size_t>(reg_size) / sizeof(float), 1);
+    compute::range_t gws(into<size_t>(gws0), into<size_t>(outer_nelems));
+    compute::range_t lws(into<size_t>(tg_size * elems_per_reg), 1);
     nd_range = {gws, lws};
 
     return status::success;
