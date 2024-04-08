@@ -46,8 +46,8 @@ struct jit_call_t {
         , scales_(scales)
         , nelems_(nelems) {}
 
-    const float *src_scales_;
-    const float *wei_scales_;
+    const void *src_scales_;
+    const void *wei_scales_;
     float *scales_;
     size_t nelems_;
 };
@@ -63,8 +63,12 @@ struct jit_avx512_core_scale_precompute_t : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_scale_precompute_t)
 
-    jit_avx512_core_scale_precompute_t(const float scale_adjust_factor = 1)
+    jit_avx512_core_scale_precompute_t(
+            const primitive_attr_t *attr, const float scale_adjust_factor = 1)
         : jit_generator(jit_name())
+        , attr_(attr)
+        , wei_scales_dt_(attr_->scales_.get(DNNL_ARG_WEIGHTS).data_type_)
+        , wei_scales_dsz_(types::data_type_size(wei_scales_dt_))
         , scale_adjust_factor_(scale_adjust_factor)
         , compute_scale_factor_(scale_adjust_factor_ != 1) {}
 
@@ -80,6 +84,9 @@ private:
             = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     using Vmm = typename cpu_isa_traits<avx512_core>::Vmm;
 
+    const primitive_attr_t *attr_;
+    const data_type_t wei_scales_dt_;
+    const size_t wei_scales_dsz_;
     const float scale_adjust_factor_;
     const bool compute_scale_factor_;
 
@@ -98,6 +105,8 @@ private:
     const Vmm vmm_scale_factor_ = Vmm(2);
 
     void setup_mask();
+    void cvt2ps(data_type_t type_in, const Vmm vmm_in, const Xbyak::Operand &op,
+            const bool mask_flag);
     void compute_scale(const int offset_base, const bool compute_tail);
 };
 

@@ -960,13 +960,14 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
     // JIT to precompute scales
     const bool is_jit_supported = mayiuse(avx512_core);
     const auto attr = pd()->attr();
-    if (is_jit_supported && req_copy_scales(attr, jcp.scale_adjust_factor)) {
+    if (is_jit_supported && pd()->OC() > 1
+            && req_copy_scales(attr, jcp.scale_adjust_factor)) {
         const auto &attr_scales = attr->scales_;
         int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
         if (wei_scale_mask != 0) {
             CHECK(safe_ptr_assign(jit_scale_precompute_,
                     new jit_avx512_core_scale_precompute_t(
-                            jcp.scale_adjust_factor)));
+                            attr, jcp.scale_adjust_factor)));
             CHECK(jit_scale_precompute_->create_kernel());
         }
     }

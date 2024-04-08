@@ -66,21 +66,39 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
 
 #define GET_OFF(field) offsetof(scale_utils::jit_call_t, field)
 
+void jit_avx512_core_scale_precompute_t::cvt2ps(data_type_t type_in,
+        const Vmm vmm_in, const Xbyak::Operand &op,
+        const bool mask_flag = false) {
+    const Vmm vmm = mask_flag ? vmm_in | ktail_f32_mask_ | T_z : vmm_in;
+    switch (type_in) {
+        case data_type::f32: vmovups(vmm, op); break;
+        case data_type::f16: vcvtph2psx(vmm, op); break;
+        case data_type::bf16:
+            vpmovzxwd(vmm, op);
+            vpslld(vmm_in, vmm_in, 0x10);
+            break;
+        default: assert(!"unsupported data type");
+    }
+}
+
 void jit_avx512_core_scale_precompute_t::compute_scale(
         const int offset_base, const bool compute_tail) {
-    const size_t addr_offset
-            = static_cast<size_t>(offset_base) * simd_w_ * sizeof(float);
+    const size_t dst_addr_offset
+            = static_cast<size_t>(offset_base) * sizeof(float);
+    const size_t wei_addr_offset
+            = static_cast<size_t>(offset_base) * wei_scales_dsz_;
     const Vmm vmm_m_wei_scales = compute_tail
             ? vmm_wei_scales_ | ktail_f32_mask_ | T_z
             : vmm_wei_scales_;
     const Vmm vmm_m_dst = compute_tail ? vmm_dst_ | ktail_f32_mask_ : vmm_dst_;
+
+    cvt2ps(wei_scales_dt_, vmm_wei_scales_,
+            ptr[reg_wei_scales_ + wei_addr_offset], compute_tail);
     if (compute_scale_factor_)
-        vmulps(vmm_m_wei_scales, vmm_scale_factor_,
-                ptr[reg_wei_scales_ + addr_offset]);
-    else
-        vmovups(vmm_m_wei_scales, ptr[reg_wei_scales_ + addr_offset]);
+        vmulps(vmm_m_wei_scales, vmm_scale_factor_, vmm_m_wei_scales);
+
     vmulps(vmm_dst_, vmm_m_wei_scales, ptr_b[reg_src_scales_]);
-    vmovups(ptr[reg_dst_scales_ + addr_offset], vmm_m_dst);
+    vmovups(ptr[reg_dst_scales_ + dst_addr_offset], vmm_m_dst);
 }
 
 void jit_avx512_core_scale_precompute_t::setup_mask() {
@@ -116,9 +134,9 @@ void jit_avx512_core_scale_precompute_t::generate() {
             cmp(reg_nelems_, addr_step);
             jl(l_simd_loop[i], T_NEAR);
             for (int offset_base = 0; offset_base < unroll; offset_base++) {
-                compute_scale(offset_base, false);
+                compute_scale(offset_base * simd_w_, false);
             }
-            add(reg_wei_scales_, addr_step * sizeof(float));
+            add(reg_wei_scales_, addr_step * wei_scales_dsz_);
             add(reg_dst_scales_, addr_step * sizeof(float));
             sub(reg_nelems_, addr_step);
             jmp(l_simd_loop[i + 1], T_NEAR);

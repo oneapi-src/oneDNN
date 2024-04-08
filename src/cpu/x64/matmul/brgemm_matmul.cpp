@@ -103,7 +103,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VDISPATCH_MATMUL(
             attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::scales_runtime
+                    primitive_attr_t::skip_mask_t::scales_runtime_data_type
                             | primitive_attr_t::skip_mask_t::zero_points_runtime
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt
@@ -244,12 +244,12 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
     // JIT to precompute scales
     const bool is_jit_supported = mayiuse(avx512_core);
     const auto attr = pd()->attr();
-    if (is_jit_supported && req_copy_scales(attr)) {
+    if (is_jit_supported && pd()->N() > 1 && req_copy_scales(attr)) {
         const auto &attr_scales = attr->scales_;
         int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
         if (wei_scale_mask != 0) {
             CHECK(safe_ptr_assign(jit_scale_precompute_,
-                    new jit_avx512_core_scale_precompute_t()));
+                    new jit_avx512_core_scale_precompute_t(attr)));
             CHECK(jit_scale_precompute_->create_kernel());
         }
     }
