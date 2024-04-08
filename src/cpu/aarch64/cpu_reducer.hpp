@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ private:
 };
 
 /** forward declaration of reduce driver */
-template <impl::data_type_t data_type>
+template <impl::data_type_t data_type, cpu_isa_t isa>
 struct reducer_2d_driver_t;
 
 /** class to perform a reduction over 3D array
@@ -167,7 +167,7 @@ struct reducer_2d_driver_t;
  *
  *                                  dest-memory:  +-----------+   +-----------+
  */
-template <impl::data_type_t data_type>
+template <impl::data_type_t data_type, cpu_isa_t isa = sve_512>
 struct cpu_reducer_t {
     typedef typename prec_traits<data_type>::type data_t;
 
@@ -242,12 +242,12 @@ private:
      * simple_barrier::ctx_t barriers[groups_]; */
 
     const conf_t conf_;
-    reducer_2d_driver_t<data_type> *drv_;
+    reducer_2d_driver_t<data_type, isa> *drv_;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_reducer_t);
 };
 
-template <impl::data_type_t data_type>
+template <impl::data_type_t data_type, cpu_isa_t isa = sve_512>
 struct cpu_reducer_2d_t {
     typedef typename prec_traits<data_type>::type data_t;
 
@@ -321,7 +321,7 @@ private:
      * simple_barrier::ctx_t barriers[groups_]; */
 
     const conf_t conf_;
-    reducer_2d_driver_t<data_type> *drv_;
+    reducer_2d_driver_t<data_type, isa> *drv_;
 
     int choose_x_blocking(int nx, int ny, int nthr_per_grp) const;
     void reduce_block(const data_t *space_base, data_t *dst, int job,
@@ -332,7 +332,7 @@ private:
 };
 
 /** simple 1d accumulator: y[:] += x[:] */
-template <impl::data_type_t data_type>
+template <impl::data_type_t data_type, cpu_isa_t isa = sve_512>
 struct cpu_accumulator_1d_t {
     typedef typename prec_traits<data_type>::type data_t;
 
@@ -342,7 +342,7 @@ struct cpu_accumulator_1d_t {
 
     status_t create_kernel();
 
-    reducer_2d_driver_t<data_type> *drv_;
+    reducer_2d_driver_t<data_type, isa> *drv_;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_accumulator_1d_t);
 };

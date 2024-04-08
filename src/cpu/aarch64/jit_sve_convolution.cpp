@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/aarch64/jit_sve_512_convolution.hpp"
+#include "cpu/aarch64/jit_sve_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -77,10 +77,10 @@ inline void jit_conv_ker_pipeline_iw_thr(jit_conv_ker_t ker, jit_conv_call_s &p,
             reduce_work, load_work);
 }
 
-inline void jit_sve_512_conv_3d_ker_pipeline(jit_conv_ker_t ker,
-        jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
-        const void *bias, int channel, int kh_padding, int kd_padding,
-        int reduce_work, int load_work) {
+inline void jit_sve_conv_3d_ker_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
+        const void *src, const void *dst, const void *filt, const void *bias,
+        int channel, int kh_padding, int kd_padding, int reduce_work,
+        int load_work) {
     PIPELINE(src);
     PIPELINE(dst);
     PIPELINE(filt);
@@ -97,14 +97,14 @@ inline void jit_sve_512_conv_3d_ker_pipeline(jit_conv_ker_t ker,
 }
 // The special case for the driver with ow-parallelization (FWD)
 // TODO: implement it for BWD_D and BWD_W too
-inline void jit_sve_512_conv_3d_ker_pipeline_ow_thr(jit_conv_ker_t ker,
+inline void jit_sve_conv_3d_ker_pipeline_ow_thr(jit_conv_ker_t ker,
         jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
         const void *bias, int channel, int kh_padding, int kd_padding, int owb,
         int reduce_work, int load_work, int flags) {
     PIPELINE(owb);
     PIPELINE(flags);
 
-    jit_sve_512_conv_3d_ker_pipeline(ker, p, src, dst, filt, bias, channel,
+    jit_sve_conv_3d_ker_pipeline(ker, p, src, dst, filt, bias, channel,
             kh_padding, kd_padding, reduce_work, load_work);
 }
 
@@ -115,9 +115,9 @@ inline void jit_conv_ker_pipeline_bwd_w(jit_conv_ker_t ker, jit_conv_call_s &p,
             reduce_work, load_work);
 }
 
-void jit_sve_512_conv_2d_ker_bwd_w_pipeline(jit_conv_ker_t ker,
-        jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
-        const void *bias, int channel, int os_index_begin, int os_index_end,
+void jit_sve_conv_2d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
+        const void *src, const void *dst, const void *filt, const void *bias,
+        int channel, int os_index_begin, int os_index_end,
         int kh_padding /* kh_work_size */, size_t kh_offset, size_t reduce_work,
         size_t load_work) {
     PIPELINE(src);
@@ -137,9 +137,9 @@ void jit_sve_512_conv_2d_ker_bwd_w_pipeline(jit_conv_ker_t ker,
     if (p.src) ker(&p);
 }
 
-void jit_sve_512_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker,
-        jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
-        const void *bias, int channel, int os_index_begin, int os_index_end,
+void jit_sve_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
+        const void *src, const void *dst, const void *filt, const void *bias,
+        int channel, int os_index_begin, int os_index_end,
         int kd_padding /* kd_work_size */, size_t kd_offset, size_t reduce_work,
         size_t load_work) {
     PIPELINE(src);
@@ -162,9 +162,10 @@ void jit_sve_512_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker,
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_sve_512_convolution_fwd_t<src_type, wei_type,
-        dst_type>::prepare_padded_bias(const dst_data_t *&bias,
+template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
+        cpu_isa_t isa>
+void jit_sve_convolution_fwd_t<src_type, wei_type, dst_type,
+        isa>::prepare_padded_bias(const dst_data_t *&bias,
         const memory_tracking::grantor_t &scratchpad) const {
     if (!pd()->wants_padded_bias()) return;
 
@@ -176,9 +177,10 @@ void jit_sve_512_convolution_fwd_t<src_type, wei_type,
     bias = padded_bias;
 }
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_sve_512_convolution_fwd_t<src_type, wei_type,
-        dst_type>::execute_forward_1d(const exec_ctx_t &ctx) const {
+template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
+        cpu_isa_t isa>
+void jit_sve_convolution_fwd_t<src_type, wei_type, dst_type,
+        isa>::execute_forward_1d(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const dst_data_t *, DNNL_ARG_BIAS);
@@ -300,9 +302,10 @@ void jit_sve_512_convolution_fwd_t<src_type, wei_type,
     });
 }
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_sve_512_convolution_fwd_t<src_type, wei_type,
-        dst_type>::execute_forward_2d(const exec_ctx_t &ctx) const {
+template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
+        cpu_isa_t isa>
+void jit_sve_convolution_fwd_t<src_type, wei_type, dst_type,
+        isa>::execute_forward_2d(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const dst_data_t *, DNNL_ARG_BIAS);
@@ -459,9 +462,10 @@ void jit_sve_512_convolution_fwd_t<src_type, wei_type,
     });
 }
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_sve_512_convolution_fwd_t<src_type, wei_type,
-        dst_type>::execute_forward_3d(const exec_ctx_t &ctx) const {
+template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
+        cpu_isa_t isa>
+void jit_sve_convolution_fwd_t<src_type, wei_type, dst_type,
+        isa>::execute_forward_3d(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const dst_data_t *, DNNL_ARG_BIAS);
@@ -584,8 +588,7 @@ void jit_sve_512_convolution_fwd_t<src_type, wei_type,
                                 dilate_h);
                         int kh_padding = nstl::max(
                                 0, jcp.kh - i_t_overflow - i_b_overflow);
-                        jit_sve_512_conv_3d_ker_pipeline_ow_thr(jit_ker,
-                                par_conv,
+                        jit_sve_conv_3d_ker_pipeline_ow_thr(jit_ker, par_conv,
                                 src_c + i_t_overflow * dilate_h * src_h_stride,
                                 dst_c, wht_w + i_t_overflow * wht_h_stride,
                                 bias_w, icb, kh_padding, kd_padding, owb,
@@ -619,17 +622,20 @@ void jit_sve_512_convolution_fwd_t<src_type, wei_type,
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
-        jit_sve_512_conv_3d_ker_pipeline_ow_thr(jit_ker, par_conv, src, dst,
+        jit_sve_conv_3d_ker_pipeline_ow_thr(jit_ker, par_conv, src, dst,
                 weights, bias, 0, 0, 0, 0, 0, 0, 0);
     });
 }
 
-template struct jit_sve_512_convolution_fwd_t<data_type::f32>;
+template struct jit_sve_convolution_fwd_t<data_type::f32, data_type::f32,
+        data_type::f32, sve_512>;
+template struct jit_sve_convolution_fwd_t<data_type::f32, data_type::f32,
+        data_type::f32, sve_256>;
 
 template <data_type_t diff_dst_type, data_type_t wei_type,
-        data_type_t diff_src_type>
-void jit_sve_512_convolution_bwd_data_t<diff_dst_type, wei_type,
-        diff_src_type>::execute_backward_data_1d(const exec_ctx_t &ctx) const {
+        data_type_t diff_src_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_data_t<diff_dst_type, wei_type, diff_src_type,
+        isa>::execute_backward_data_1d(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
@@ -743,9 +749,9 @@ void jit_sve_512_convolution_bwd_data_t<diff_dst_type, wei_type,
 }
 
 template <data_type_t diff_dst_type, data_type_t wei_type,
-        data_type_t diff_src_type>
-void jit_sve_512_convolution_bwd_data_t<diff_dst_type, wei_type,
-        diff_src_type>::execute_backward_data_2d(const exec_ctx_t &ctx) const {
+        data_type_t diff_src_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_data_t<diff_dst_type, wei_type, diff_src_type,
+        isa>::execute_backward_data_2d(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
@@ -911,9 +917,9 @@ void jit_sve_512_convolution_bwd_data_t<diff_dst_type, wei_type,
 }
 
 template <data_type_t diff_dst_type, data_type_t wei_type,
-        data_type_t diff_src_type>
-void jit_sve_512_convolution_bwd_data_t<diff_dst_type, wei_type,
-        diff_src_type>::execute_backward_data_3d(const exec_ctx_t &ctx) const {
+        data_type_t diff_src_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_data_t<diff_dst_type, wei_type, diff_src_type,
+        isa>::execute_backward_data_3d(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
@@ -1090,7 +1096,7 @@ void jit_sve_512_convolution_bwd_data_t<diff_dst_type, wei_type,
                         }
                         assert(k_len >= 0);
 
-                        jit_sve_512_conv_3d_ker_pipeline(jit_ker, par_conv,
+                        jit_sve_conv_3d_ker_pipeline(jit_ker, par_conv,
                                 diff_src_w + ij * diff_src_h_stride,
                                 diff_dst_w + oj * diff_dst_h_stride,
                                 wht_w + k_lo * wht_h_stride, 0, ocb, k_len,
@@ -1119,17 +1125,18 @@ void jit_sve_512_convolution_bwd_data_t<diff_dst_type, wei_type,
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
-        jit_sve_512_conv_3d_ker_pipeline(jit_ker, par_conv, diff_src, diff_dst,
+        jit_sve_conv_3d_ker_pipeline(jit_ker, par_conv, diff_src, diff_dst,
                 weights, 0, 0, 1, 1, 0, 0);
     });
 }
 
-template struct jit_sve_512_convolution_bwd_data_t<data_type::f32>;
+template struct jit_sve_convolution_bwd_data_t<data_type::f32, data_type::f32,
+        data_type::f32, sve_512>;
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-status_t jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::init(engine_t *engine) {
+        data_type_t diff_weights_type, cpu_isa_t isa>
+status_t jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::init(engine_t *engine) {
     const auto &j = pd()->jcp_;
 
     nthr_ = j.nthr;
@@ -1139,7 +1146,7 @@ status_t jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
     nthr_ic_b_ = j.nthr_ic_b;
 
     CHECK(safe_ptr_assign(
-            kernel_, new jit_sve_512_conv_bwd_weights_kernel_f32(j)));
+            kernel_, new jit_sve_conv_bwd_weights_kernel_f32<isa>(j)));
     CHECK(kernel_->create_kernel());
 
     if (nthr_mb_ > 1) {
@@ -1155,9 +1162,9 @@ status_t jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-struct jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::thread_info_t {
+        data_type_t diff_weights_type, cpu_isa_t isa>
+struct jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::thread_info_t {
     const src_data_t *src;
     const diff_dst_data_t *diff_dst;
     const diff_weights_data_t *diff_weights;
@@ -1184,7 +1191,7 @@ struct jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
     int oc_b_start = 0, oc_b_end = 0, oc_b_work;
     int ic_b_start = 0, ic_b_end = 0, ic_b_work;
 
-    thread_info_t(const jit_sve_512_convolution_bwd_weights_t *self,
+    thread_info_t(const jit_sve_convolution_bwd_weights_t *self,
             const exec_ctx_t &ctx, int ithr)
         : scratchpad(ctx.get_scratchpad_grantor()), ithr(ithr) {
         diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
@@ -1245,9 +1252,9 @@ struct jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 };
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::compute_diff_weights(const thread_info_t *ti)
+        data_type_t diff_weights_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::compute_diff_weights(const thread_info_t *ti)
         const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -1325,10 +1332,10 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::compute_diff_weights_2d(const thread_info_t *ti)
-        const {
+        data_type_t diff_weights_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::compute_diff_weights_2d(const thread_info_t
+                *ti) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
@@ -1393,7 +1400,7 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
             auto src = src_h + src_d.blk_off(0, ic_off_idx);
             auto diff_dst = diff_dst_h + diff_dst_d.blk_off(0, oc_off_idx);
 
-            jit_sve_512_conv_2d_ker_bwd_w_pipeline(jit_ker, p, src, diff_dst,
+            jit_sve_conv_2d_ker_bwd_w_pipeline(jit_ker, p, src, diff_dst,
                     diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
                     diff_bia + _oc * jcp.oc_block, (img == img_first), oh_s,
                     oh_e, kh_padding, kh_padding_offset, ic_to_compute,
@@ -1414,7 +1421,7 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
-        jit_sve_512_conv_2d_ker_bwd_w_pipeline(jit_ker, p,
+        jit_sve_conv_2d_ker_bwd_w_pipeline(jit_ker, p,
                 ti->src + src_d.blk_off(img + 1, ic_off_idx),
                 ti->diff_dst + diff_dst_d.blk_off(img + 1, oc_off_idx),
                 diff_wei
@@ -1426,10 +1433,10 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::compute_diff_weights_3d(const thread_info_t *ti)
-        const {
+        data_type_t diff_weights_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::compute_diff_weights_3d(const thread_info_t
+                *ti) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
@@ -1505,7 +1512,7 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
             auto dst = &ti->diff_dst[diff_dst_d.blk_off(img, oc_off_idx)
                     + od_s * output_step];
 
-            jit_sve_512_conv_3d_ker_bwd_w_pipeline(jit_ker, p, src, dst,
+            jit_sve_conv_3d_ker_bwd_w_pipeline(jit_ker, p, src, dst,
                     diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
                     diff_bia + _oc * 16, (img == img_first), od_s, od_e,
                     jcp.kd - kd_front_pad - kd_back_pad, kd_pad_off,
@@ -1526,7 +1533,7 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
-        jit_sve_512_conv_3d_ker_bwd_w_pipeline(jit_ker, p,
+        jit_sve_conv_3d_ker_bwd_w_pipeline(jit_ker, p,
                 &ti->src[src_d.blk_off(img + 1, ic_off_idx)],
                 &ti->diff_dst[diff_dst_d.blk_off(img + 1, oc_off_idx)],
                 diff_wei
@@ -1538,9 +1545,10 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::reduce_diff_weights(const thread_info_t *ti) const {
+        data_type_t diff_weights_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::reduce_diff_weights(const thread_info_t *ti)
+        const {
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
     const auto &jcp = kernel_->jcp;
@@ -1589,9 +1597,9 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::reduce_diff_weights_3d(const thread_info_t *ti)
+        data_type_t diff_weights_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::reduce_diff_weights_3d(const thread_info_t *ti)
         const {
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
@@ -1639,9 +1647,10 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::compute_diff_bias(const thread_info_t *ti) const {
+        data_type_t diff_weights_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::compute_diff_bias(const thread_info_t *ti)
+        const {
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
 
     auto rb = this->reducer_bias_;
@@ -1704,9 +1713,10 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::reduce_diff_bias(const thread_info_t *ti) const {
+        data_type_t diff_weights_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::reduce_diff_bias(const thread_info_t *ti)
+        const {
     const auto &jcp = kernel_->jcp;
 
     const size_t wei_size = (size_t)jcp.ngroups * rnd_up(jcp.oc, jcp.oc_block)
@@ -1726,9 +1736,9 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::prepare_scratchpad_data(const exec_ctx_t &ctx)
+        data_type_t diff_weights_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::prepare_scratchpad_data(const exec_ctx_t &ctx)
         const {
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -1744,9 +1754,9 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,
-        data_type_t diff_weights_type>
-void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::execute_backward_weights(const exec_ctx_t &ctx)
+        data_type_t diff_weights_type, cpu_isa_t isa>
+void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type, isa>::execute_backward_weights(const exec_ctx_t &ctx)
         const {
     prepare_scratchpad_data(ctx);
 
@@ -1848,7 +1858,8 @@ void jit_sve_512_convolution_bwd_weights_t<src_type, diff_dst_type,
     }
 }
 
-template struct jit_sve_512_convolution_bwd_weights_t<data_type::f32>;
+template struct jit_sve_convolution_bwd_weights_t<data_type::f32,
+        data_type::f32, data_type::f32, sve_512>;
 
 } // namespace aarch64
 } // namespace cpu
