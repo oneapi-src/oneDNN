@@ -23,6 +23,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/compute/kernel_list.hpp"
+#include "gpu/intel/microkernels/fuser.hpp"
 #include "gpu/intel/ocl/kernel_utils.hpp"
 #include "gpu/intel/ocl/ocl_gpu_device_info.hpp"
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
@@ -197,6 +198,35 @@ inline status_t preprocess_headers(
     return status::success;
 }
 
+inline status_t fuse_microkernels(cl_context context, cl_device_id device,
+        xpu::ocl::wrapper_t<cl_program> &program, const char *code) {
+    if (micro::hasMicrokernels(code)) {
+        cl_int status = CL_SUCCESS;
+        size_t binary_size = 0;
+        OCL_CHECK(clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
+                sizeof(binary_size), &binary_size, nullptr));
+
+        std::vector<uint8_t> binary(binary_size);
+        auto binary_data = binary.data();
+        OCL_CHECK(clGetProgramInfo(program, CL_PROGRAM_BINARIES,
+                sizeof(binary_data), &binary_data, nullptr));
+
+        try {
+            micro::fuseMicrokernels(binary, code);
+        } catch (...) { return status::runtime_error; }
+
+        auto nbinary_size = binary.size();
+        auto nbinary_data = const_cast<const uint8_t *>(binary.data());
+
+        program = xpu::ocl::make_wrapper(clCreateProgramWithBinary(context, 1,
+                &device, &nbinary_size, &nbinary_data, nullptr, &status));
+        OCL_CHECK(status);
+        OCL_CHECK(clBuildProgram(program, 1, &device, "", nullptr, nullptr));
+    }
+
+    return status::success;
+}
+
 } // namespace
 
 status_t ocl_gpu_engine_t::build_program_from_source(
@@ -223,13 +253,17 @@ status_t ocl_gpu_engine_t::build_program_from_source(
     debugdump_processed_source(
             pp_code_str, options, dev_info->get_cl_ext_options());
 
-    program = xpu::ocl::make_wrapper(clCreateProgramWithSource(
-            context(), 1, &pp_code_str_ptr, nullptr, &err));
+    auto ctx = context();
+    program = xpu::ocl::make_wrapper(
+            clCreateProgramWithSource(ctx, 1, &pp_code_str_ptr, nullptr, &err));
     OCL_CHECK(err);
 
     auto dev = device();
     err = clBuildProgram(program, 1, &dev, options.c_str(), nullptr, nullptr);
     OCL_CHECK(maybe_print_debug_info(err, program, dev));
+
+    CHECK(fuse_microkernels(ctx, dev, program, pp_code_str_ptr));
+
     return status::success;
 }
 

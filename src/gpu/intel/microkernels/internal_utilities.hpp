@@ -14,30 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/compiler_workarounds.hpp"
-
-#include "gpu/gpu_impl_list.hpp"
-#include "gpu/intel/ocl/ref_sdpa.hpp"
+#ifndef GPU_MICROKERNELS_INTERNAL_UTILITIES_HPP
+#define GPU_MICROKERNELS_INTERNAL_UTILITIES_HPP
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
+namespace micro {
 
-namespace {
-
-// clang-format off
-constexpr impl_list_item_t impl_list[] = {
-        INSTANCE(intel::ocl::ref_sdpa_t)
-        nullptr,
-};
-// clang-format on
-} // namespace
-
-const impl_list_item_t *get_sdpa_impl_list(const sdpa_desc_t *desc) {
-    UNUSED(desc);
-    return impl_list;
+template <typename T, typename U>
+static inline T divideUp(T num, U denom) {
+    return (num + denom - 1) / denom;
 }
 
+} /* namespace micro */
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#endif

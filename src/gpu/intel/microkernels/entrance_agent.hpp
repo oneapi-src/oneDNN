@@ -14,30 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/compiler_workarounds.hpp"
+#ifndef GPU_MICROKERNELS_ENTRANCE_AGENT_HPP
+#define GPU_MICROKERNELS_ENTRANCE_AGENT_HPP
 
-#include "gpu/gpu_impl_list.hpp"
-#include "gpu/intel/ocl/ref_sdpa.hpp"
+#include "package.hpp"
+
+// The entrance agent is a stateless class that analyzes an incoming package from the microkernel provider,
+//   deducing information from the raw microkernel binary.
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
+namespace micro {
 
-namespace {
+class EntranceAgent {
+public:
+    enum class Status {
+        Success,
+        UncertainClobbers,
+        UnsupportedHW,
+    };
 
-// clang-format off
-constexpr impl_list_item_t impl_list[] = {
-        INSTANCE(intel::ocl::ref_sdpa_t)
-        nullptr,
+    static Status scan(Package &package);
 };
-// clang-format on
-} // namespace
 
-const impl_list_item_t *get_sdpa_impl_list(const sdpa_desc_t *desc) {
-    UNUSED(desc);
-    return impl_list;
-}
-
+} /* namespace micro */
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#endif

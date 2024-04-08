@@ -14,30 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/compiler_workarounds.hpp"
+#ifndef GPU_MICROKERNELS_FUSER_HPP
+#define GPU_MICROKERNELS_FUSER_HPP
 
-#include "gpu/gpu_impl_list.hpp"
-#include "gpu/intel/ocl/ref_sdpa.hpp"
+#include <cstdint>
+#include <vector>
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
+namespace micro {
 
-namespace {
+// Markers for patch sections.
+static constexpr uint32_t sigilStart = 0xCAFEFADE;
+static constexpr uint32_t sigilEnd = 0xFADECAFE;
+static constexpr const char *sigilBinary = "@_u_@";
 
-// clang-format off
-constexpr impl_list_item_t impl_list[] = {
-        INSTANCE(intel::ocl::ref_sdpa_t)
-        nullptr,
-};
-// clang-format on
-} // namespace
+// Fuse the microkernel machine code into the program binary of a compiled host kernel.
+void fuseMicrokernel(std::vector<uint8_t> &binary,
+        const std::vector<uint8_t> &microkernel, int id = 0);
 
-const impl_list_item_t *get_sdpa_impl_list(const sdpa_desc_t *desc) {
-    UNUSED(desc);
-    return impl_list;
-}
+// Fusing microkernels that were embedded directly in source code.
+void fuseMicrokernels(std::vector<uint8_t> &binary, const char *source);
+bool hasMicrokernels(const char *source);
 
+} /* namespace micro */
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#endif

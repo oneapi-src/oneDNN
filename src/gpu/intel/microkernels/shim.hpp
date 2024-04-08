@@ -14,30 +14,38 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/compiler_workarounds.hpp"
+#ifndef GPU_MICROKERNELS_SHIM_HPP
+#define GPU_MICROKERNELS_SHIM_HPP
 
-#include "gpu/gpu_impl_list.hpp"
-#include "gpu/intel/ocl/ref_sdpa.hpp"
+#include <string>
+#include <vector>
+
+#include "package.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
+namespace micro {
 
-namespace {
+enum class HostLanguage { None, OpenCL_C, SYCL, vISA };
 
-// clang-format off
-constexpr impl_list_item_t impl_list[] = {
-        INSTANCE(intel::ocl::ref_sdpa_t)
-        nullptr,
+struct ShimOptions {
+    std::string decorator;
+    int subgroupSize = 0;
+    bool copyScalarArgs = true;
+    bool copyTensorArgs = false;
+    bool useTileOps = false;
+    uint32_t microkernelID = 0;
 };
-// clang-format on
-} // namespace
 
-const impl_list_item_t *get_sdpa_impl_list(const sdpa_desc_t *desc) {
-    UNUSED(desc);
-    return impl_list;
-}
+std::string generateShim(const Package &package, HostLanguage language,
+        const ShimOptions &options = ShimOptions());
 
+} /* namespace micro */
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#endif
