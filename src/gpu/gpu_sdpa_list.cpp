@@ -17,6 +17,7 @@
 #include "common/compiler_workarounds.hpp"
 
 #include "gpu/gpu_impl_list.hpp"
+#include "gpu/intel/ocl/ref_sdpa.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -26,6 +27,7 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = {
+        INSTANCE(intel::ocl::ref_sdpa_t)
         nullptr,
 };
 // clang-format on
