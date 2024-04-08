@@ -116,7 +116,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 int bs = get_brg_batchsize(i_bs, i_K);
                 int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
                 if (idx < 0) continue;
-                brgemm_t &brg = brg_descs_[idx];
+                brgemm_desc_t &brg = brg_descs_[idx];
                 CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, jbgp_.src_dt,
                         jbgp_.wei_dt, false, false, brgemm_row_major, alpha,
                         vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
@@ -187,7 +187,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             return bs;
         }
 
-        brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
+        brgemm_desc_t
+                brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
         brgemm_inner_product_utils::jit_brgemm_ip_fwd_conf_t jbgp_;
     };
 
@@ -310,7 +311,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                 int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
                 if (idx < 0) continue;
 
-                brgemm_t &brg = brg_descs_[idx];
+                brgemm_desc_t &brg = brg_descs_[idx];
                 CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, diff_dst_dt,
                         dt_b, false, false, brgemm_row_major, alpha, vbeta,
                         jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
@@ -368,7 +369,8 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             return bs;
         }
 
-        brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
+        brgemm_desc_t
+                brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
         brgemm_inner_product_utils::jit_brgemm_ip_bwd_d_conf_t jbgp_;
     };
 
@@ -486,7 +488,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 int bs = get_brg_batchsize(i_bs, i_K);
                 int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K, bs);
                 if (idx < 0) continue;
-                brgemm_t &brg = brg_descs_[idx];
+                brgemm_desc_t &brg = brg_descs_[idx];
                 CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, dt_a, dt_b,
                         false, false, brgemm_row_major, alpha, vbeta, jbgp_.LDA,
                         jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
@@ -537,7 +539,8 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             return bs;
         }
 
-        brgemm_t brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
+        brgemm_desc_t
+                brg_descs_[brgemm_inner_product_utils::max_num_brg_kernels_ip];
         brgemm_inner_product_utils::jit_brgemm_ip_bwd_w_conf_t jbgp_;
     };
 

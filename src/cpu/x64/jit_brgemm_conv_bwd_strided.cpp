@@ -158,9 +158,9 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
                     ? (vM == jcp_.M ? jcp_.brgM : jcp_.brgM_tail)
                     : vM;
             auto brg_idx = get_brg_idx(jcp_.max_batch, i, i_init, i_N, i_K);
-            // if brgemm_t already created then skip this iteration
+            // if brgemm_desc_t already created then skip this iteration
             if ((*brgs_)[brg_idx] != nullptr) continue;
-            brgemm_t brg;
+            brgemm_desc_t brg;
             if (vN == 0 || vK == 0) continue;
             brgemm_strides_t brg_strides;
             brg_strides.stride_a = jcp_.brg_stride_a;
@@ -279,7 +279,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::add_brg_kernel(
 
 template <cpu_isa_t isa, bool is_deconv>
 status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::add_po_kernel(
-        brgemm_t *bcfg, int ker_idx, bool is_init) {
+        brgemm_desc_t *bcfg, int ker_idx, bool is_init) {
     if (!bcfg) return status::success;
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;

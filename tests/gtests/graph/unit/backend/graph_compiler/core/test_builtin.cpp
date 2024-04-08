@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,8 +38,8 @@ TEST(GCCore_CPU_builtin_cpp, TestBrgemmOnednn) {
             _arg_("C", datatypes::f32, {M, N})) {
         _bind_(A, B, C);
         _evaluate_call_(
-                builtin::get_brgemm_update_funcs(
-                        builtin::brgemm_mode::stride, scflags_t::brgemm_t::dnnl)
+                builtin::get_brgemm_update_funcs(builtin::brgemm_mode::stride,
+                        scflags_t::brgemm_backend_t::dnnl)
                         .second,
                 builder::tensor_ptr(A, {0, 0, 0}),
                 builder::tensor_ptr(B, {0, 0, 0}),

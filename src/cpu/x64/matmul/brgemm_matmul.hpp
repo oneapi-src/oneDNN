@@ -106,13 +106,15 @@ struct brgemm_matmul_t : public primitive_t {
             return get_brg_kernel_index(bgmmc_, is_bs_tail, do_initialization,
                     m_ker_idx, n_ker_idx, is_K_tail, bs);
         }
-        const brgemm_t &get_brg_desc(int idx) const { return brg_descs_[idx]; }
+        const brgemm_desc_t &get_brg_desc(int idx) const {
+            return brg_descs_[idx];
+        }
         const brgemm_matmul_conf_t &get_brgemm_matmul_conf() const {
             return bgmmc_;
         }
 
     private:
-        brgemm_t brg_descs_[max_num_brg_kernels_matmul];
+        brgemm_desc_t brg_descs_[max_num_brg_kernels_matmul];
         brgemm_matmul_conf_t bgmmc_;
     };
 

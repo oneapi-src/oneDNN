@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -229,10 +229,10 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestKernelLowering) {
                 brg_c_buf);
     }
     auto ctx = std::make_shared<context_t>(*get_default_context());
-    ctx->flags_.brgemm_backend_ = scflags_t::brgemm_t::dnnl;
+    ctx->flags_.brgemm_backend_ = scflags_t::brgemm_backend_t::dnnl;
     auto m = ir_module_t::from_entry_func(ctx, aaa);
     auto res = kernel_lowering_cpu_t(true)(m);
-    scflags_t::brgemm_t backend = scflags_t::brgemm_t::dnnl;
+    scflags_t::brgemm_backend_t backend = scflags_t::brgemm_backend_t::dnnl;
     expr ir_nullptr = make_expr<constant_node>(0UL, datatypes::pointer);
     expr ir_zero = make_expr<constant_node>(0UL, datatypes::index);
     expr ir_zero_s32 = make_expr<constant_node>(0UL, datatypes::s32);
@@ -517,7 +517,7 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestBrgemmAttrs) {
                 datatypes::s8, datatypes::s8);
     }
     auto ctx = std::make_shared<context_t>(*get_default_context());
-    scflags_t::brgemm_t backend = scflags_t::brgemm_t::dnnl;
+    scflags_t::brgemm_backend_t backend = scflags_t::brgemm_backend_t::dnnl;
     ctx->flags_.brgemm_backend_ = backend;
     auto tested_mod = ir_module_t::from_entry_func(ctx, tested_func);
     auto tested = kernel_lowering_cpu_t(true)(tested_mod);
@@ -590,7 +590,7 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestBrgemmSharedBdmask) {
                 datatypes::s8, datatypes::s8, attrs, bd_mask, 0, 2);
     }
     auto ctx = std::make_shared<context_t>(*get_default_context());
-    scflags_t::brgemm_t backend = scflags_t::brgemm_t::dnnl;
+    scflags_t::brgemm_backend_t backend = scflags_t::brgemm_backend_t::dnnl;
     ctx->flags_.brgemm_backend_ = backend;
     auto tested_mod = ir_module_t::from_entry_func(ctx, tested_func);
     auto tested = kernel_lowering_cpu_t(true)(tested_mod);
@@ -656,7 +656,7 @@ TEST(GCCore_CPU_kernel_lowering_cpp, TestBrgemmSharedBdmask) {
 TEST(GCCore_CPU_kernel_lowering_cpp, TestRangeKernelLowering) {
     REQUIRE_AVX2();
     auto backend = get_default_context()->flags_.brgemm_backend_;
-    if (backend != scflags_t::brgemm_t::dnnl) { GTEST_SKIP(); }
+    if (backend != scflags_t::brgemm_backend_t::dnnl) { GTEST_SKIP(); }
     builder::ir_builder_t builder;
     sc_brgemm_attrs_t attrs_0 = {range_attr_0, range_attr_3};
     sc_brgemm_attrs_t attrs_1 = {range_attr_0, range_attr_1, range_attr_2};

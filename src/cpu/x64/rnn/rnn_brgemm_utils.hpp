@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,35 +68,36 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
     status_t init_kernels(const cpu::rnn_utils::rnn_conf_t &rnn,
             data_type_t src_type, data_type_t weights_type);
 
-    brgemm_t desc_layer_b0_[num_base_kernels_];
-    brgemm_t desc_iter_b0_[num_base_kernels_];
-    brgemm_t desc_iter_b1_[num_base_kernels_];
-    brgemm_t desc_layer_N_tail_b0_[num_base_kernels_];
-    brgemm_t desc_iter_N_tail_b0_[num_base_kernels_];
-    brgemm_t desc_iter_N_tail_b1_[num_base_kernels_];
+    brgemm_desc_t desc_layer_b0_[num_base_kernels_];
+    brgemm_desc_t desc_iter_b0_[num_base_kernels_];
+    brgemm_desc_t desc_iter_b1_[num_base_kernels_];
+    brgemm_desc_t desc_layer_N_tail_b0_[num_base_kernels_];
+    brgemm_desc_t desc_iter_N_tail_b0_[num_base_kernels_];
+    brgemm_desc_t desc_iter_N_tail_b1_[num_base_kernels_];
 
-    brgemm_t desc_layer_K1_tail_b1_[num_base_kernels_];
-    brgemm_t desc_layer_NK1_tail_b1_[num_base_kernels_];
-    brgemm_t desc_iter_K2_tail_b1_[num_base_kernels_];
-    brgemm_t desc_iter_NK2_tail_b1_[num_base_kernels_];
+    brgemm_desc_t desc_layer_K1_tail_b1_[num_base_kernels_];
+    brgemm_desc_t desc_layer_NK1_tail_b1_[num_base_kernels_];
+    brgemm_desc_t desc_iter_K2_tail_b1_[num_base_kernels_];
+    brgemm_desc_t desc_iter_NK2_tail_b1_[num_base_kernels_];
 
-    brgemm_t desc_layermerged_b0_[num_base_kernels_];
-    brgemm_t desc_layermerged_N_tail_b0_[num_base_kernels_];
-    brgemm_t desc_layermerged_K1_tail_b1_[num_base_kernels_];
-    brgemm_t desc_layermerged_NK1_tail_b1_[num_base_kernels_];
+    brgemm_desc_t desc_layermerged_b0_[num_base_kernels_];
+    brgemm_desc_t desc_layermerged_N_tail_b0_[num_base_kernels_];
+    brgemm_desc_t desc_layermerged_K1_tail_b1_[num_base_kernels_];
+    brgemm_desc_t desc_layermerged_NK1_tail_b1_[num_base_kernels_];
 
-    brgemm_t desc_proj_b0_[num_proj_kernels_];
-    brgemm_t desc_proj_N_tail_b0_[num_proj_kernels_];
-    brgemm_t desc_proj_N_tail_b1_[num_proj_kernels_];
-    brgemm_t desc_proj_K_tail_b1_[num_proj_kernels_];
-    brgemm_t desc_proj_NK_tail_b1_[num_proj_kernels_];
+    brgemm_desc_t desc_proj_b0_[num_proj_kernels_];
+    brgemm_desc_t desc_proj_N_tail_b0_[num_proj_kernels_];
+    brgemm_desc_t desc_proj_N_tail_b1_[num_proj_kernels_];
+    brgemm_desc_t desc_proj_K_tail_b1_[num_proj_kernels_];
+    brgemm_desc_t desc_proj_NK_tail_b1_[num_proj_kernels_];
 
     // Set of brgemm descriptor for 2nd part of iteration gemm in vanulla GRU
     // cell
-    brgemm_t desc_iter_p2_b1_[num_vanilla_gru_iter_part2_kernels_];
-    brgemm_t desc_iter_p2_N_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
-    brgemm_t desc_iter_p2_K2_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
-    brgemm_t desc_iter_p2_NK2_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_desc_t desc_iter_p2_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_desc_t desc_iter_p2_N_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_desc_t desc_iter_p2_K2_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
+    brgemm_desc_t
+            desc_iter_p2_NK2_tail_b1_[num_vanilla_gru_iter_part2_kernels_];
 
     brgemm_ker_ptr_t kernel_layer_b0_[num_base_kernels_];
     brgemm_ker_ptr_t kernel_layer_b1_[num_base_kernels_];
@@ -154,23 +155,24 @@ struct rnn_brgemm_t<prop_kind::forward> : public rnn_brgemm_base_t {
     brgemm_pallete_t pallete_buff_layermerged_nk1_tail_;
 
 private:
-    status_t brgemm_rnn_init_tiles(brgemm_t *desc, brgemm_pallete_t pallete);
-    status_t brgemm_rnn_init_tiles_proj(
-            brgemm_t *desc, brgemm_pallete_t pallete);
     status_t brgemm_rnn_init_tiles(
-            brgemm_t *desc, dim_t size, brgemm_pallete_t pallete);
+            brgemm_desc_t *desc, brgemm_pallete_t pallete);
+    status_t brgemm_rnn_init_tiles_proj(
+            brgemm_desc_t *desc, brgemm_pallete_t pallete);
+    status_t brgemm_rnn_init_tiles(
+            brgemm_desc_t *desc, dim_t size, brgemm_pallete_t pallete);
 };
 
 struct rnn_diff_src_brgemm_t {
-    brgemm_t desc_iter_layer_beta0_;
-    brgemm_t desc_iter_layer_beta1_;
-    brgemm_t desc_layer_N_tail_beta0_;
-    brgemm_t desc_layer_N_tail_beta1_;
-    brgemm_t desc_iter_N_tail_beta0_;
-    brgemm_t desc_iter_N_tail_beta1_;
-    brgemm_t desc_iter_layer_K_tail_beta1_;
-    brgemm_t desc_layer_NK_tail_beta1_;
-    brgemm_t desc_iter_NK_tail_beta1_;
+    brgemm_desc_t desc_iter_layer_beta0_;
+    brgemm_desc_t desc_iter_layer_beta1_;
+    brgemm_desc_t desc_layer_N_tail_beta0_;
+    brgemm_desc_t desc_layer_N_tail_beta1_;
+    brgemm_desc_t desc_iter_N_tail_beta0_;
+    brgemm_desc_t desc_iter_N_tail_beta1_;
+    brgemm_desc_t desc_iter_layer_K_tail_beta1_;
+    brgemm_desc_t desc_layer_NK_tail_beta1_;
+    brgemm_desc_t desc_iter_NK_tail_beta1_;
 
     brgemm_ker_ptr_t kernel_iter_layer_beta0_ = nullptr;
     brgemm_ker_ptr_t kernel_iter_layer_beta1_ = nullptr;
@@ -191,14 +193,14 @@ struct rnn_diff_src_brgemm_t {
 };
 
 struct rnn_diff_wei_brgemm_t {
-    brgemm_t desc_iter_beta1_;
-    brgemm_t desc_layer_beta1_;
-    brgemm_t desc_iter_N_tail_beta1_;
-    brgemm_t desc_layer_N_tail_beta1_;
-    brgemm_t desc_iter_NK_tail_beta1_;
-    brgemm_t desc_layer_NK_tail_beta1_;
-    brgemm_t desc_iter_K_tail_beta1_;
-    brgemm_t desc_layer_K_tail_beta1_;
+    brgemm_desc_t desc_iter_beta1_;
+    brgemm_desc_t desc_layer_beta1_;
+    brgemm_desc_t desc_iter_N_tail_beta1_;
+    brgemm_desc_t desc_layer_N_tail_beta1_;
+    brgemm_desc_t desc_iter_NK_tail_beta1_;
+    brgemm_desc_t desc_layer_NK_tail_beta1_;
+    brgemm_desc_t desc_iter_K_tail_beta1_;
+    brgemm_desc_t desc_layer_K_tail_beta1_;
 
     brgemm_ker_ptr_t kernel_iter_beta1_ = nullptr;
     brgemm_ker_ptr_t kernel_layer_beta1_ = nullptr;

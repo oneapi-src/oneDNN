@@ -587,7 +587,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
 
     const float alpha = 1.0;
     const float beta = 0.0;
-    brgemm_t brg;
+    brgemm_desc_t brg;
     brgemm_utils::init_brgemm_conf(&brg, isa, brgemm_addr, src_dt, wei_dt,
             brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK, nullptr,
             is_bf32);
@@ -596,7 +596,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     if (ur == 0) return status::invalid_arguments;
     ur_block = brg.bd_block;
     if (is_1x1 && is_amx(isa) && M > 0 && M_tail > 0) {
-        brgemm_t brg_sp_tail;
+        brgemm_desc_t brg_sp_tail;
         brgemm_utils::init_brgemm_conf(&brg_sp_tail, isa, brgemm_addr, src_dt,
                 wei_dt, brgemm_row_major, alpha, beta, LDA, LDB, LDC, M_tail,
                 vN, vK, nullptr, is_bf32);
@@ -634,7 +634,7 @@ status_t brg_blocking_t::get_brgemm_ur(
                     auto vN = (i_N) ? N_tail : N;
                     auto vK = (i_K) ? K_tail : K;
                     if (vN == 0 || vK == 0) continue;
-                    brgemm_t brg;
+                    brgemm_desc_t brg;
                     brgemm_strides_t brg_strides;
                     brg_strides.stride_a = ngroups * oc_without_padding
                             * (dilate_w + 1) * src_dsz;

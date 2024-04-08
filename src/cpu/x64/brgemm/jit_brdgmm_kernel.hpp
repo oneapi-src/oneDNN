@@ -35,19 +35,19 @@ namespace x64 {
 
 template <typename Wmm>
 struct jit_brdgmm_kernel_base_t : public jit_generator {
-    jit_brdgmm_kernel_base_t(const brgemm_t &abrd);
+    jit_brdgmm_kernel_base_t(const brgemm_desc_t &abrd);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brdgmm_kernel_base_t)
 
-    brgemm_t brg;
+    brgemm_desc_t brg;
 
-    static bool is_fast_vnni_int8(const brgemm_t &brg) {
+    static bool is_fast_vnni_int8(const brgemm_desc_t &brg) {
         return brg.is_dgmm && brg.is_int8 && brg.isa_impl == avx512_core_vnni
                 && brg.ldb_tail /*n_vlen_tail*/ == 0;
     }
 
     struct vmm_allocator_helper_t {
-        vmm_allocator_helper_t(const brgemm_t &brg)
+        vmm_allocator_helper_t(const brgemm_desc_t &brg)
             : aux_vmm_count_(0)
             , vmm_tmp_count_(0)
             , compute_vmm_base_idx_(-1)
@@ -93,10 +93,10 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
             idx_vmm_b_
                     = vmm_a_idx(brg, max_m - 1, max_n - 1) + !is_fma_embd(brg);
         }
-        int vnni_substep(const brgemm_t &brg) const {
+        int vnni_substep(const brgemm_desc_t &brg) const {
             return brg.isa_impl == avx2_vnni_2 && brg.is_xf16() ? 2 : 1;
         }
-        int vmm_a_idx(const brgemm_t &brg, int m, int n) const {
+        int vmm_a_idx(const brgemm_desc_t &brg, int m, int n) const {
             const auto idx_offset = grouped_bs(brg)
                     ? (m * brg.ld_block2 + n) * vnni_substep(brg)
                     : 0;
@@ -150,12 +150,12 @@ struct jit_brdgmm_kernel_base_t : public jit_generator {
         int idx_vmm_s8s8_comp_;
     };
 
-    static int get_aux_vmm_count(const brgemm_t &brg) {
+    static int get_aux_vmm_count(const brgemm_desc_t &brg) {
         auto vmm_alloc = vmm_allocator_helper_t(brg);
         return vmm_alloc.get_aux_vmm_count();
     }
 
-    static int get_compute_vmm_count(const brgemm_t &brg) {
+    static int get_compute_vmm_count(const brgemm_desc_t &brg) {
         auto vmm_alloc = vmm_allocator_helper_t(brg);
         return vmm_alloc.get_compute_vmm_count();
     }
@@ -267,9 +267,11 @@ private:
     int tail_length() { return n_block1_tail() % simd_w_; }
 
     inline int bs_group() const { return brg.bs_group; }
-    static bool grouped_bs(const brgemm_t &brg) { return brg.bs_group > 1; }
+    static bool grouped_bs(const brgemm_desc_t &brg) {
+        return brg.bs_group > 1;
+    }
     inline bool grouped_bs() const { return grouped_bs(brg); }
-    static bool is_fma_embd(const brgemm_t &brg) {
+    static bool is_fma_embd(const brgemm_desc_t &brg) {
         return grouped_bs(brg)
                 ? false
                 : brg.is_f32 && is_superset(brg.isa_impl, avx512_core);

@@ -175,7 +175,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init_brgemm_desc() {
 
         const auto brg_idx = get_brg_idx(jcp_, params);
 
-        brgemm_t brg;
+        brgemm_desc_t brg;
         brgemm_strides_t brg_strides;
         brg_strides.stride_a = jcp_.brg_stride_a;
         brg_strides.stride_b = jcp_.brg_stride_b;

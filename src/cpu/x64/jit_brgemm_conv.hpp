@@ -228,7 +228,7 @@ private:
             const char *__restrict input_weights,
             const char *__restrict &wei) const;
 
-    status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
+    status_t add_po_kernel(brgemm_desc_t *bcfg, int ker_idx, bool is_init);
     void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);
     status_t add_brg_kernel(int brg_idx);
 

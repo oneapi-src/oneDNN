@@ -441,7 +441,7 @@ struct brg_desc_safe_t {
                 bd_mask};
         brg_arg_t &arg = *arg_ptr;
         // If we go here, the kernel is not yet created.
-        brgemm_t desc;
+        brgemm_desc_t desc;
         brgemm_strides_t stride_info = {arg.stride_a, arg.stride_b};
         auto dnnl_dtypeA = convert_dnnl_dtype(arg.dtypeA);
         auto dnnl_dtypeB = convert_dnnl_dtype(arg.dtypeB);

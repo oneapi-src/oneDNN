@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,9 +111,9 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
                 auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
                 if (vN == 0 || vK == 0) continue;
                 auto brg_idx = get_brg_idx(bs, M, i_init, i_N, i_K);
-                // if brgemm_t already created then skip this iteration
+                // if brgemm_desc_t already created then skip this iteration
                 if ((*brgs_)[brg_idx] != nullptr) continue;
-                brgemm_t brg;
+                brgemm_desc_t brg;
                 CHECK(brgemm_desc_init(&brg, jcp_.isa, jcp_.brg_type, src_type,
                         wei_type, false, false, brgemm_row_major, alpha, vbeta,
                         jcp_.LDA, jcp_.LDB, jcp_.LDC, M, vN, vK, nullptr));

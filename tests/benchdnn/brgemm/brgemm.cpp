@@ -303,7 +303,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     using namespace dnnl::impl::cpu::x64;
 
-    brgemm_t brgemm_desc;
+    brgemm_desc_t brgemm_desc;
     // Supports only address model for now as only affects the way memory is
     // passed to `brgemm_batch_element_t` object.
     brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_addr;

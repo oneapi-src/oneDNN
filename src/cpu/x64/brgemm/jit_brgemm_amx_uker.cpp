@@ -40,7 +40,7 @@ using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 struct jit_brgemm_amx_uker_base_t : public jit_generator {
-    jit_brgemm_amx_uker_base_t(const brgemm_t &abrg)
+    jit_brgemm_amx_uker_base_t(const brgemm_desc_t &abrg)
         : jit_generator(jit_name(), abrg.isa_impl)
         , brg(abrg)
         , postops_injector_(nullptr) {
@@ -116,7 +116,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_amx_uker_base_t)
 
-    brgemm_t brg;
+    brgemm_desc_t brg;
 
 private:
     static constexpr cpu_isa_t po_isa_ = avx512_core_fp16;
@@ -2643,7 +2643,7 @@ void jit_brgemm_amx_uker_base_t::generate() {
     }
 }
 
-brgemm_amx_uker_t::brgemm_amx_uker_t(const brgemm_t &abrd)
+brgemm_amx_uker_t::brgemm_amx_uker_t(const brgemm_desc_t &abrd)
     : brgemm_kernel_(new jit_brgemm_amx_uker_base_t(abrd)) {}
 
 status_t brgemm_amx_uker_t::create_kernel() {

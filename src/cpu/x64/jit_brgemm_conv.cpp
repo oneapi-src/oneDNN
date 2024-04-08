@@ -202,7 +202,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
 
     auto brg_idx = get_brg_idx(
             vM, do_init, is_N_tail, is_K_tail, kd_b, kd_e, kh_b, kh_e);
-    // if brgemm_t already created then skip this iteration
+    // if brgemm_desc_t already created then skip this iteration
     if (brg_idx != -1) return status::success;
 
     brgemm_attr_t brgattr;
@@ -262,7 +262,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
 
     const auto bs = get_bs(kd_b, kd_e, kh_b, kh_e);
 
-    brgemm_t brg;
+    brgemm_desc_t brg;
     brgattr.bd_mask = bd_mask.data();
     brgattr.static_offsets = stoffs.data();
     brgemm_strides_t brg_strides;
@@ -754,7 +754,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_brg_kernel(
 
 template <cpu_isa_t isa, bool use_inversion>
 status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_po_kernel(
-        brgemm_t *bcfg, int ker_idx, bool is_init) {
+        brgemm_desc_t *bcfg, int ker_idx, bool is_init) {
     if (!bcfg) return status::success;
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
