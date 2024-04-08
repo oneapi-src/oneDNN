@@ -231,9 +231,9 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const float trh_coeff_bwd = (prb->dir & FLAG_FWD) ? 1.f : 4.f;
     const float trh_f32 = trh_coeff_log * trh_coeff_bwd * trh_coeff_f32
             * epsilon_dt(trh_dt);
-#if DNNL_AARCH64_USE_ACL
-    // ACL softmax accumulates in F16, but oneDNN now expects accumulation in
-    // F32, this partially reverts 6727bbe8. For more information, see
+#if DNNL_AARCH64_USE_ACL || defined(DNNL_SYCL_HIP)
+    // MIOpen and ACL softmax accumulate in F16, but oneDNN now expects accumulation in
+    // F32, this partially reverts 6727bbe8. For more information on ACL softmax, see
     // https://github.com/oneapi-src/oneDNN/issues/1819
     const float trh = trh_f32;
 #else
