@@ -17,7 +17,7 @@
 
 #include "rvv_nchw_pooling.hpp"
 #include <algorithm>
-#include "intrin_rvv.h"
+#include "cpu/rv64/intrin_rvv.hpp"
 
 namespace dnnl {
 namespace impl {
