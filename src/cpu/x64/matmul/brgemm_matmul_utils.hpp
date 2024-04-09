@@ -333,6 +333,12 @@ private:
     const cpu_isa_t isa_;
 };
 
+// This function initializes all required fields in the conf object to generate
+// copy_b kernel. Used in this impl and re-used in brgemm kernel API.
+status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
+        dim_t n_blk, data_type_t in_type, data_type_t out_type,
+        format_tag_t in_tag);
+
 void init_aux_values(brgemm_matmul_conf_t &bgmmc,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
         const memory_desc_wrapper &dst_d);
