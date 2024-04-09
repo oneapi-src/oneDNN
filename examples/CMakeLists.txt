@@ -49,6 +49,10 @@ if(NOT DNNL_EXPERIMENTAL_SPARSE)
     list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/cpu_matmul_weights_compression.cpp)
 endif()
 
+if(NOT DNNL_EXPERIMENTAL_UKERNEL)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/ukernels/brgemm.cpp)
+endif()
+
 # Remove tests for CUDA which use unimplemented primitives
 if(DNNL_SYCL_CUDA)
     list(REMOVE_ITEM sources
