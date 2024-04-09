@@ -241,6 +241,7 @@ public:
     bool has_native(native_ext_t ext) const { return native_extensions_ & (uint64_t)ext; }
     gpu_arch_t gpu_arch() const { return gpu_arch_; }
     int stepping_id() const { return stepping_id_; }
+    uint32_t ip_version() const { return ip_version_; }
     int max_eus_per_wg() const { return max_eus_per_wg_; }
     static int max_eus_per_wg(gpu_arch_t gpu_arch);
 
@@ -315,6 +316,7 @@ protected:
 
     compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
     int stepping_id_ = 0;
+    uint32_t ip_version_ = 0;
     bool mayiuse_systolic_ = false;
     bool mayiuse_ngen_kernels_ = false;
     bool mayiuse_system_memory_allocators_ = false;
