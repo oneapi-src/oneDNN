@@ -18,7 +18,7 @@
 
 #include "gpu/ocl/bnorm/gen9_batch_normalization.hpp"
 #include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
-#include "gpu/ocl/bnorm/nhwc_reusable_bnorm.hpp"
+#include "gpu/ocl/bnorm/nhwc_reusable.hpp"
 #include "gpu/ocl/bnorm/ref_batch_normalization.hpp"
 #include "gpu/ocl/bnorm/reusable_bnorm.hpp"
 #include "gpu/ocl/bnorm/simple_bnorm.hpp"
