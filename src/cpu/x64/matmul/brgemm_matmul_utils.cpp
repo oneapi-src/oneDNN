@@ -1532,6 +1532,49 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     return status::success;
 }
 
+status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
+        dim_t n_blk, data_type_t in_type, data_type_t out_type,
+        format_tag_t in_tag) {
+    if (n_blk <= 0) return status::invalid_arguments;
+
+    const bool is_f16 = utils::one_of(data_type::f16, in_type, out_type);
+    const bool is_bf16_with_int_wei = out_type == data_type::bf16
+            && utils::one_of(in_type, data_type::s8, data_type::u8);
+    const bool with_wei_decompression = in_type != out_type
+            && utils::one_of(in_type, data_type::s8, data_type::u8);
+
+    conf.blocked_B = !utils::one_of(in_tag, ab, abc);
+    conf.is_bf16_with_int_wei = is_bf16_with_int_wei;
+    conf.with_wei_decompression = with_wei_decompression;
+    conf.orig_wei_dt = in_type;
+    conf.wei_tag = in_tag;
+    conf.batch = batch;
+    conf.K = K;
+    conf.N = N;
+    conf.wei_n_blk = conf.N_blk = conf.LDB = n_blk;
+    conf.N_tail = conf.N % conf.N_blk;
+    conf.K_blk = 16 * data_type_vnni_granularity(out_type);
+    conf.K_tail = conf.K % conf.K_blk;
+    conf.src_dt = conf.wei_dt = out_type;
+    conf.a_dt_sz = conf.tr_a_dt_sz = types::data_type_size(conf.src_dt);
+    conf.b_dt_sz = types::data_type_size(in_type);
+    conf.tr_b_dt_sz = types::data_type_size(conf.wei_dt);
+    conf.copy_B_wei_stride = conf.N * conf.b_dt_sz;
+    conf.transposed_B = false;
+    conf.s8s8_comp_b_str = utils::rnd_up(conf.N, conf.wei_n_blk);
+    conf.s8s8_comp_n_str = conf.wei_n_blk;
+    conf.isa = is_f16 ? avx512_core_fp16 : avx512_core;
+    // The following members are different from the upper level `init_conf()`
+    // call from the reorder implementation due to lacking a memory descriptor
+    // to tip on compensation.
+    // TODO: re-consider an interface change to enable these members.
+    conf.s8s8_compensation_required = false;
+    conf.src_zp_type = brgemm_broadcast_t::none;
+    conf.has_zero_point_a = false;
+
+    return status::success;
+}
+
 void init_aux_values(brgemm_matmul_conf_t &bgmmc,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
         const memory_desc_wrapper &dst_d) {
