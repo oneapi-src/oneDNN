@@ -904,25 +904,25 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::cal_compensation(
             if (jcp.s8s8_compensation_required && s8s8_comp_buffer)
                 std::memset(&s8s8_comp_buffer[buffer_offs], 0,
                         sizeof(int32_t) * comp_kw_sz);
-            if (everyone_is(0, kd_e, kd_b, kh_e, kh_b, kw_e, kw_b)) continue;
-            assert(kd_e > kd_b && kh_e > kh_b && kw_e > kw_b);
+            if (!everyone_is(0, kd_e, kd_b, kh_e, kh_b, kw_e, kw_b)) {
+                assert(kd_e > kd_b && kh_e > kh_b && kw_e > kw_b);
 
-            jit_brgemm_conv_comp_pad_call_s p;
+                jit_brgemm_conv_comp_pad_call_s p;
 
-            p.kd_l = div_up(kd_e - kd_b, SD);
-            p.kh_l = div_up(kh_e - kh_b, SH);
-            p.kw_l = div_up(kw_e - kw_b, SW);
-            p.use_inversion = false;
+                p.kd_l = div_up(kd_e - kd_b, SD);
+                p.kh_l = div_up(kh_e - kh_b, SH);
+                p.kw_l = div_up(kw_e - kw_b, SW);
+                p.use_inversion = false;
 
-            p.ptr_in = &weights[wei_offs];
-            p.ptr_zp_out = jcp.src_zero_point ? &src_zp_buffer[buffer_offs]
-                                              : nullptr;
-            p.ptr_cp_out = jcp.s8s8_compensation_required
-                    ? &s8s8_comp_buffer[buffer_offs]
-                    : nullptr;
+                p.ptr_in = &weights[wei_offs];
+                p.ptr_zp_out = jcp.src_zero_point ? &src_zp_buffer[buffer_offs]
+                                                  : nullptr;
+                p.ptr_cp_out = jcp.s8s8_compensation_required
+                        ? &s8s8_comp_buffer[buffer_offs]
+                        : nullptr;
 
-            (*comp_vpad_pbuffer_)(&p);
-
+                (*comp_vpad_pbuffer_)(&p);
+            }
             nd_iterator_step(
                     g, jcp.ngroups, icb, jcp.nb_ic, k, jcp.ker_ranges_size);
         }
