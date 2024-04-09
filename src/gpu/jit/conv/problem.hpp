@@ -208,7 +208,7 @@ public:
         if (prb_.is_bwd_d) return DNNL_ARG_DIFF_SRC;
         if (prb_.is_bwd_w) return DNNL_ARG_SRC;
         ir_error_not_expected();
-        return -1;
+        return DNNL_ARG_UNDEF;
     }
 
     bool is_src_input() const { return prb_.is_fwd || prb_.is_bwd_w; }
@@ -219,7 +219,7 @@ public:
         if (prb_.is_bwd_d) return DNNL_ARG_WEIGHTS;
         if (prb_.is_bwd_w) return DNNL_ARG_DIFF_WEIGHTS;
         ir_error_not_expected();
-        return -1;
+        return DNNL_ARG_UNDEF;
     }
 
     bool is_wei_input() const { return prb_.is_fwd || prb_.is_bwd_d; }
@@ -230,7 +230,7 @@ public:
         if (prb_.is_bwd_d) return DNNL_ARG_BIAS;
         if (prb_.is_bwd_w) return DNNL_ARG_DIFF_BIAS;
         ir_error_not_expected();
-        return -1;
+        return DNNL_ARG_UNDEF;
     }
 
     bool is_bia_input() const { return prb_.is_fwd || prb_.is_bwd_d; }
@@ -241,7 +241,7 @@ public:
         if (prb_.is_bwd_d) return DNNL_ARG_DIFF_DST;
         if (prb_.is_bwd_w) return DNNL_ARG_DIFF_DST;
         ir_error_not_expected();
-        return -1;
+        return DNNL_ARG_UNDEF;
     }
 
     bool is_dst_input() const { return prb_.is_bwd_d || prb_.is_bwd_w; }

@@ -138,17 +138,13 @@ status_t gen_pooling_fwd_t::init(engine_t *engine) {
         ir_assert(!t.needs_reorder);
         ir_assert(!t.needs_zero_out);
 
-        int user_arg_key = t.arg_key;
-        auto user_buf = make_buffer(t.name);
-
-        if (user_arg_key == -1) {
+        if (t.arg_key == DNNL_ARG_UNDEF) {
             ir_assert(!t.needs_reorder);
             ir_assert(!t.needs_zero_out);
             ir_error_not_expected();
             continue;
         }
-
-        kernel_info_.register_user_arg(user_buf, user_arg_key,
+        kernel_info_.register_user_arg(make_buffer(t.name), t.arg_key,
                 /*is_input=*/t.is_input && !t.is_output);
     }
 
