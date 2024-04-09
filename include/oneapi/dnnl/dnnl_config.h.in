@@ -145,6 +145,9 @@
 // When defined, experimental functionality for sparse domain is enabled.
 #cmakedefine DNNL_EXPERIMENTAL_SPARSE
 
+// When defined, experimental functionality for ukernels is enabled.
+#cmakedefine DNNL_EXPERIMENTAL_UKERNEL
+
 // When defined, graph component is enabled.
 #cmakedefine ONEDNN_BUILD_GRAPH
 
