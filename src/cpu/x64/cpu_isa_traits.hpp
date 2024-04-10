@@ -423,8 +423,8 @@ static inline bool isa_has_masks(cpu_isa_t isa) {
 static inline int isa_max_vlen(cpu_isa_t isa) {
     if (is_superset(isa, avx512_core))
         return cpu_isa_traits<avx512_core>::vlen;
-    else if (is_superset(isa, avx2))
-        return cpu_isa_traits<avx2>::vlen;
+    else if (is_superset(isa, avx))
+        return cpu_isa_traits<avx>::vlen;
     else if (is_superset(isa, sse41))
         return cpu_isa_traits<sse41>::vlen;
     assert(!"ISA Error");
@@ -434,8 +434,8 @@ static inline int isa_max_vlen(cpu_isa_t isa) {
 static inline int isa_num_vregs(cpu_isa_t isa) {
     if (is_superset(isa, avx512_core))
         return cpu_isa_traits<avx512_core>::n_vregs;
-    else if (is_superset(isa, avx2))
-        return cpu_isa_traits<avx2>::n_vregs;
+    else if (is_superset(isa, avx))
+        return cpu_isa_traits<avx>::n_vregs;
     else if (is_superset(isa, sse41))
         return cpu_isa_traits<sse41>::n_vregs;
     assert(!"ISA Error");
