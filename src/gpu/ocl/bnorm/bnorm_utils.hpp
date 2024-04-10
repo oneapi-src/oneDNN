@@ -50,8 +50,8 @@
         } \
     } while (0)
 #endif
-#ifndef DPRINT_RT
-#define DPRINT_RT(fmt, ...) \
+#ifndef DPRINT_MODEL
+#define DPRINT_MODEL(fmt, ...) \
     do { \
         if (get_verbose_dev_mode(verbose_t::debuginfo) >= 4) { \
             printf(fmt, __VA_ARGS__); \
