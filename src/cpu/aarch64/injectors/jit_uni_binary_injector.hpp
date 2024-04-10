@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
-* Copyright 2022-2023 FUJITSU LIMITED
+* Copyright 2022-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,6 +47,8 @@ bool binary_args_matches_tag(format_tag_t tag, const post_ops_t &post_ops);
 bool binary_args_broadcast_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set);
+bool any_binary_postop_rhs_non_scalar_broadcast(
+        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d);
 
 bool binary_args_tail_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d, int vlen,
@@ -92,7 +94,7 @@ bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
  * @param dst_orig_offset - offset 0 to destination tensor
  * @param dst_d - descriptor of destination tensor (result after applying all post-ops
  * operations).
- * @param tail_opmask - register with loaded by user mask, used in avx512 for load with
+ * @param tail_opmask - register with loaded by user mask, used in sve512 for load with
  * tail handling.
  * @param tail_size - size of processed tail in elements.
  * @param use_exact_tail_scalar_bcast - in case of scalar broadcast user can disable
@@ -100,7 +102,7 @@ bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
  * vs. broadcasting limited by tail size (potentially several instructions). In case
  * when user during storing ignores values from vmm above tail size, setting this option to
  * false can result in better performance.
- * @param reg_tail_size - register with loaded size of tail, used in sse41/avx/avx2
+ * @param reg_tail_size - register with loaded size of tail, used in sse41/sve/sve2
  * for load with tail in runtime.
  */
 struct rhs_arg_static_params_t {
@@ -221,7 +223,7 @@ struct static_params_t {
  * Mode of data load with tail for rhs:
  * STATIC - load based on given integer.
  * DYNAMIC - load based on opmask or 64-bit register.
- * DEFAULT - DYNAMIC for avx512, STATIC for others.
+ * DEFAULT - DYNAMIC for sve512, STATIC for others.
  */
 
 enum class tail_lode_mode_t { STATIC, DYNAMIC, DEFAULT };
@@ -600,7 +602,7 @@ private:
     std::pair<bool, int> should_preserve_vmm(int curr_idx, int vmm_hint,
             int max_vmm_idx, bool dt_helper_vmm_needed) const;
     /*
-     * Used in isa != avx512 where m32bcst is not supported, replaces ptr_b
+     * Used in isa != sve512 where m32bcst is not supported, replaces ptr_b
      * with ptr.
      */
     rhs_address_t remove_bcast_bit(const rhs_address_t &rhs_addr) const;
@@ -612,10 +614,6 @@ private:
 
     static constexpr int sizeof_reg64 = 8;
     /*
-     * Instructions from SSE/AVX used to compute binary result like vaddps where
-     * second operand is memory, require mem operand to be 16/32 byte explicitly
-     * aligned. (Intel Manual chapter 2.4).
-     * Rule is relaxed from AVX2 (Intel Manual chapter 14.9).
      * When using benchdnn zmalloc_protect doesn't guarantee that tensor memory
      * address is 64 byte aligned, which can cause segmentation fault.
      */

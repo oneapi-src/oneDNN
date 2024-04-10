@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
-* Copyright 2022-2023 FUJITSU LIMITED
+* Copyright 2022-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,6 +97,22 @@ bool binary_args_broadcast_supported(const post_ops_t &post_ops,
                             entry.binary.src1_desc, dst_d,
                             supported_strategy_set);
                     return bcast_type == broadcasting_strategy_t::unsupported;
+                }
+                return false;
+            });
+}
+
+bool any_binary_postop_rhs_non_scalar_broadcast(
+        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d) {
+    return std::any_of(post_ops.entry_.cbegin(), post_ops.entry_.cend(),
+            [&](const post_ops_t::entry_t &entry) -> bool {
+                if (entry.is_like_binary()) {
+                    const auto bcast_type = get_rhs_arg_broadcasting_strategy(
+                            entry.binary.src1_desc, dst_d,
+                            get_all_strategies_supported_by_injector());
+                    return !utils::one_of(bcast_type,
+                            broadcasting_strategy_t::scalar,
+                            broadcasting_strategy_t::unsupported);
                 }
                 return false;
             });
@@ -1381,7 +1397,7 @@ void jit_uni_binary_injector_t<isa>::inject_binary(
         Xbyak_aarch64::PReg mask = host_->P_ALL_ONE;
         if (with_tail_fusable_to_binary_op) {
             assert(rhs_arg_static_params_.is_opmask_set()
-                    && "Opmask is not set for tail loading avx512");
+                    && "Opmask is not set for tail loading sve512");
             const auto &tail_opmask = rhs_arg_static_params_.tail_opmask;
             mask = tail_opmask;
             host_->mov(dst.s, mask / Xbyak_aarch64::T_z, dst.s);
@@ -1578,16 +1594,10 @@ void jit_uni_binary_injector_t<isa>::load_rhs_tail_dynamically_with_opmask(
 
 /**
 * load_bytes is the utility function to facilitate loading of
-* load_size (0 <= load_size <= 32) many contiguous bytes into the Xmm/Ymm
+* load_size (0 <= load_size <= 32) many contiguous bytes into the ZReg
 * register from the memory referenced by ptr[reg + offset] address.
 *
-* Functionally, invocation of load_bytes is equivalent to
-* the following loop:
-*
-* for (int idx = 0; idx < load_size; ++idx)
-*     vpinsrb(xmm, xmm, ptr[reg + offset + idx], idx);
-*
-* TODO: Add an option to zero-out unloaded bytes in the Xmm register.
+* TODO: Add an option to zero-out unloaded bytes in the ZReg register.
 * TODO: Add an option for unsafe_load wherein one could read outside the
 * provided memory buffer so as to minimize the total number of read
 * memory instructions.
@@ -1595,7 +1605,7 @@ void jit_uni_binary_injector_t<isa>::load_rhs_tail_dynamically_with_opmask(
 static void load_bytes(jit_generator *host, const Xbyak_aarch64::ZReg &vmm,
         const Xbyak_aarch64::XReg reg_addr, int load_size) {
 
-    // Ensure data fits completely inside the Xmm/Ymm register
+    // Ensure data fits completely inside the ZReg register
     assert(load_size >= 0 && load_size <= 32);
 
     // Ensure that vector register is compatible with the ISA in hand
@@ -1613,29 +1623,21 @@ static void load_bytes(jit_generator *host, const Xbyak_aarch64::ZReg &vmm,
 /**
 * load_bytes_to_dword_extension is the utility function to facilitate
 * loading of load_size (0 <= load_size <= 16) many contiguous bytes in
-* the Xmm register from the memory referenced by ptr[reg + offset]
+* the ZReg register from the memory referenced by ptr[reg + offset]
 * address and then do signed/zero extension of those to double words.
 *
-* Functionally, invocation of load_bytes_to_dword_extension is equivalent
-* to the following:
-*
-* for (int idx = 0; idx < load_size; ++idx)
-*     vpinsrb(xmm, xmm, ptr[reg + offset + idx], idx);
-* if (is_signed) vpmovsxbd(vmm, vmm); else vpmovzxbd(vmm, vmm);
-*
 * Valid values for the load_size variable are:
-* [0..4] for XMM version of the function
-* [0..8] for YMM version of the function.
+* [0..8] for ZReg version of the function.
 * TODO: Implement this routine for every ISA.
 */
 static void load_bytes_to_dword_extension(jit_generator *host,
         const Xbyak_aarch64::ZReg &vmm, const Xbyak_aarch64::XReg &reg_addr,
         bool is_signed, int load_size) {
     if (host->cpu_sveLen == Xbyak_aarch64::util::SVE_256) {
-        // Ensure extended double words fit inside Ymm (32 * load_size <= 256)
+        // Ensure extended double words fit inside ZReg (32 * load_size <= 256)
         assert(load_size >= 0 && load_size <= 8);
     } else if (host->cpu_sveLen == Xbyak_aarch64::util::SVE_128) {
-        // For Xmm register, load capacity is halved (32 * load_size <= 128)
+        // For ZReg register, load capacity is halved (32 * load_size <= 128)
         assert(load_size >= 0 && load_size <= 4);
     } else {
         assert(!"routine is not supported for the current isa");
