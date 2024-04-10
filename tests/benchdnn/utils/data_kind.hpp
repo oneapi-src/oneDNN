@@ -39,6 +39,7 @@ enum data_kind_t {
     WEI_ITER,
     WEI_PEEPHOLE,
     WEI_PROJECTION,
+    DROPOUT_MASK,
 
     DAT_TOTAL,
 };

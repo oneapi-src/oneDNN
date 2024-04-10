@@ -317,6 +317,16 @@ class LogParser:
                 def convert_acc_mode(value):
                     return value
 
+                def convert_dropout(value):
+                    res = {"p": 0}
+                    elems = value.split(":")
+                    res["p"] = elems[0]
+                    if len(elems) > 1:
+                        res["seed"] = elems[1]
+                        if len(elems) > 2:
+                            res["tag"] = elems[2]
+                    return res
+
                 def convert_deterministic(value):
                     return value
 
@@ -327,6 +337,7 @@ class LogParser:
                     "attr-scratchpad": convert_scratchpad_mode,
                     "attr-fpmath": convert_fpmath_mode,
                     "attr-acc": convert_acc_mode,
+                    "attr-dropout": convert_dropout,
                     "attr-deterministic": convert_deterministic,
                 }
                 attrs = {}

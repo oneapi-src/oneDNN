@@ -469,6 +469,20 @@ private:
     }
 };
 
+struct dropout_t : public c_compatible {
+    dropout_t() = default;
+
+    bool has_default_values() const {
+        return types::is_zero_md(&user_dropout_desc_);
+    }
+    bool operator==(const dropout_t &rhs) const {
+        return user_dropout_desc_ == rhs.user_dropout_desc_;
+    }
+    status_t set_default_formats(const memory_desc_t *dst_md);
+    dnnl::impl::memory_desc_t dropout_desc_;
+    dnnl::impl::memory_desc_t user_dropout_desc_;
+};
+
 struct serialization_stream_t;
 
 struct primitive_attr_item_t {
@@ -777,6 +791,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                 other.rnn_weights_projection_qparams_));
         CHECK(rnn_tparams_.copy_from(other.rnn_tparams_));
         if (other.gpu_attr_) gpu_attr_ = other.gpu_attr_->clone();
+        dropout_ = other.dropout_;
 
         return status::success;
     }
@@ -805,6 +820,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         zero_points_runtime_groups = (unsigned)zero_points_runtime | (1u << 17),
         zero_points_runtime_data_type
         = (unsigned)zero_points_runtime | (1u << 18),
+        dropout = 1u << 19,
     };
 
     /** Returns true if the attributes have default values.
@@ -830,7 +846,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                 && rnn_tparams_ == rhs.rnn_tparams_
                 && ((gpu_attr_ && rhs.gpu_attr_
                             && gpu_attr_->is_equal(*rhs.gpu_attr_))
-                        || (!gpu_attr_ && !rhs.gpu_attr_));
+                        || (!gpu_attr_ && !rhs.gpu_attr_))
+                && dropout_ == rhs.dropout_;
         return ret;
     }
 
@@ -838,6 +855,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
             dnnl::impl::fpmath_mode_t fpmath_mode, bool apply_to_int = false);
     dnnl::impl::status_t set_accumulation_mode(
             dnnl::impl::accumulation_mode_t am);
+    dnnl::impl::status_t set_dropout(
+            const dnnl::impl::memory_desc_t *dropout_desc);
     dnnl::impl::status_t set_scratchpad_mode(
             dnnl::impl::scratchpad_mode_t scratchpad_mode);
     dnnl::impl::status_t set_post_ops(const dnnl::impl::post_ops_t &post_ops);
@@ -903,6 +922,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::scales_t rnn_weights_qparams_;
     dnnl::impl::scales_t rnn_weights_projection_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
+    dnnl::impl::dropout_t dropout_;
 
     std::unique_ptr<dnnl::impl::primitive_attr_item_t> gpu_attr_;
 

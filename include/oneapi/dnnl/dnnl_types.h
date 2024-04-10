@@ -2620,6 +2620,15 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// A special mnemonic for shift argument of normalization primitives.
 #define DNNL_ARG_DIFF_SHIFT 256
 
+/// Dropout mask output buffer.
+#define DNNL_ARG_ATTR_DROPOUT_MASK 509
+
+/// Dropout probability value passed via a buffer.
+#define DNNL_ARG_ATTR_DROPOUT_PROBABILITY 510
+
+/// Dropout RNG seed value passed via a buffer.
+#define DNNL_ARG_ATTR_DROPOUT_SEED 511
+
 /// Output scaling factors provided at execution time.
 #define DNNL_ARG_ATTR_OUTPUT_SCALES 513
 

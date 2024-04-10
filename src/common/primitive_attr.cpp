@@ -108,6 +108,20 @@ status_t zero_points_t::set(int arg, int mask, int ndims, const dims_t groups,
     return status::success;
 }
 
+status_t dropout_t::set_default_formats(const memory_desc_t *dst_md) {
+    if (memory_desc_matches_one_of_tag(
+                dropout_desc_, dnnl_format_tag_any, dnnl_format_tag_undef)) {
+        if (!dst_md
+                || memory_desc_matches_one_of_tag(
+                        *dst_md, dnnl_format_tag_any, dnnl_format_tag_undef))
+            return status::invalid_arguments;
+        const memory_desc_wrapper dst_mdw(dst_md);
+        CHECK(memory_desc_init_by_blocking_desc(
+                dropout_desc_, dst_mdw.blocking_desc()));
+    }
+    return status::success;
+}
+
 } // namespace impl
 } // namespace dnnl
 
@@ -154,6 +168,8 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
             utils::one_of(acc_mode_, dnnl::impl::accumulation_mode::strict,
                     dnnl::impl::accumulation_mode::relaxed,
                     dnnl::impl::accumulation_mode::any)));
+    CHECK_ARG(IMPLICATION(
+            (bool)(~mask & smask_t::dropout), dropout_.has_default_values()));
     CHECK_ARG(this->defined(defined_mask));
     bool fpmath_mode_ok = IMPLICATION(
             (bool)(~mask & smask_t::fpmath_mode) && fpmath_.apply_to_int_,
@@ -380,6 +396,13 @@ bool post_ops_t::check_sum_consistency(const data_type_t dst_dt,
             && check_sum_consistent_quantization(dst_dt, is_int8);
 }
 
+status_t primitive_attr_t::set_dropout(const memory_desc_t *user_dropout_desc) {
+    if (any_null(user_dropout_desc)) return invalid_arguments;
+    dropout_.user_dropout_desc_ = *user_dropout_desc;
+    dropout_.dropout_desc_ = *user_dropout_desc;
+    return success;
+}
+
 status_t primitive_attr_t::set_fpmath_mode(
         fpmath_mode_t fpmath_mode, bool apply_to_int) {
     auto st = check_fpmath_mode(fpmath_mode);
@@ -418,7 +441,9 @@ status_t primitive_attr_t::set_post_ops(const post_ops_t &post_ops) {
 }
 
 status_t primitive_attr_t::set_default_formats(const memory_desc_t *dst_md) {
-    return post_ops_.set_default_formats(dst_md);
+    CHECK(post_ops_.set_default_formats(dst_md));
+    CHECK(dropout_.set_default_formats(dst_md));
+    return status::success;
 }
 
 status_t primitive_attr_t::set_gpu_attr(const primitive_attr_item_t &gpu_attr) {
@@ -448,6 +473,20 @@ status_t dnnl_primitive_attr_destroy(primitive_attr_t *attr) {
     delete attr;
 
     return success;
+}
+
+status_t dnnl_primitive_attr_get_dropout(
+        const primitive_attr_t *attr, const memory_desc_t **user_dropout_desc) {
+    if (any_null(attr)) return invalid_arguments;
+    if (user_dropout_desc)
+        *user_dropout_desc = &attr->dropout_.user_dropout_desc_;
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_dropout(
+        primitive_attr_t *attr, const memory_desc_t *user_dropout_desc) {
+    if (any_null(attr)) return invalid_arguments;
+    return attr->set_dropout(user_dropout_desc);
 }
 
 status_t dnnl_primitive_attr_get_fpmath_mode(

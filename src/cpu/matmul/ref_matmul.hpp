@@ -91,7 +91,14 @@ struct ref_matmul_t : public primitive_t {
                     && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_scales_ok() && set_default_formats()
                     && zero_points_ok()
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && attr_.set_default_formats(dst_md(0)) == status::success
+                    && IMPLICATION(!attr_.dropout_.has_default_values(),
+                            utils::one_of(
+                                    attr_.dropout_.dropout_desc_.data_type, u8,
+                                    s8))
+                    && IMPLICATION(!attr_.dropout_.has_default_values(),
+                            memory_desc_wrapper(dst_md(0)).similar_to(
+                                    attr_.dropout_.dropout_desc_, true, false));
             return ok ? status::success : status::unimplemented;
         }
 

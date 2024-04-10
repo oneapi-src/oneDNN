@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,6 +88,9 @@ private:
     std::vector<ref_binary_scalar_t> binary_po_;
     std::vector<memory_desc_t> prelu_md_;
 };
+
+float ref_dropout(
+        float src, uint8_t *mask, dim_t offset, float p, int64_t seed);
 
 } // namespace cpu
 } // namespace impl
