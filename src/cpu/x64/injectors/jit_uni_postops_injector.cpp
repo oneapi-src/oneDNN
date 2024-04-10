@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include <cassert>
+#include "common/verbose.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
 namespace dnnl {
@@ -184,6 +185,10 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
             = post_ops_ok_args.sum_requires_same_params;
     const auto &enabled_bcast_strategy
             = post_ops_ok_args.enabled_bcast_strategy;
+
+    VCONDCHECK(primitive, create, check, injector,
+            dst_d != nullptr && dst_d->md_->format_kind != dnnl_format_kind_any,
+            false, VERBOSE_UNSUPPORTED_FORMAT_KIND);
 
     // Save scale and zero point of first sum postop in order to check that any
     // subsequent sum postops have the same values. This check is necessary

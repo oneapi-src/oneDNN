@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 * Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -86,6 +86,7 @@
 
 #define VERBOSE_UNSUPPORTED_TAG "unsupported format tag"
 #define VERBOSE_UNSUPPORTED_TAG_S "unsupported format tag for %s"
+#define VERBOSE_UNSUPPORTED_FORMAT_KIND "unsupported format kind"
 
 #define VERBOSE_ISA_SPARSE_ENCODING_MISMATCH \
     "sparse encoding is not supported on this isa"
