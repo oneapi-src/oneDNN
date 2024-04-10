@@ -74,14 +74,14 @@ constexpr int aux_fwd = 1;
 constexpr int aux_bwd = 0;
 
 namespace kernel_id {
-constexpr size_t update_fwd = 0;
+constexpr size_t norm_fwd = 0;
 constexpr size_t calc_mean = 1;
 constexpr size_t calc_var = 2;
 constexpr size_t reduce_fwd_reg = 3;
 constexpr size_t calc_mean_var = 4;
 constexpr size_t reduce_fwd_1pass = 5;
 constexpr size_t reduce_aux = 6;
-constexpr size_t update_bwd = 7;
+constexpr size_t norm_bwd = 7;
 constexpr size_t calc_stat = 8;
 constexpr size_t reduce_stat = 9;
 } // namespace kernel_id

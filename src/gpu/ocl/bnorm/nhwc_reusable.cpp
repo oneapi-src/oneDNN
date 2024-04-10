@@ -495,7 +495,7 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
     arg_list.append(rt_conf.update_sp_block);
 
     auto nd_range = pd()->dispatch.nd_range();
-    return parallel_for(ctx, nd_range, kernels_[update_fwd], arg_list);
+    return parallel_for(ctx, nd_range, kernels_[norm_fwd], arg_list);
 }
 
 status_t nhwc_reusable_batch_normalization_bwd_t::pd_t::init_conf(
@@ -639,7 +639,7 @@ status_t nhwc_reusable_batch_normalization_bwd_t::execute_backward(
     arg_list.append(rt_conf.update_sp_block);
 
     auto nd_range = pd()->dispatch.nd_range();
-    return parallel_for(ctx, nd_range, kernels_[update_bwd], arg_list);
+    return parallel_for(ctx, nd_range, kernels_[norm_bwd], arg_list);
 }
 
 } // namespace ocl

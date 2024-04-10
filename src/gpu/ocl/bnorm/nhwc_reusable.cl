@@ -336,7 +336,7 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
 
 // Main FWD kernel, common for regular and 1pass algorithms
 __attribute__((intel_reqd_sub_group_size(16))) __kernel void
-nhwc_reusable_update_fwd(__global DATA_T *src, __global float *mean,
+nhwc_reusable_norm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global float *shift, __global char *ws,
         float eps, __global DATA_T *src_add, float relu_alpha, off_t ic_size,
@@ -632,7 +632,7 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
 
 // Main BWD pass kernel
 __attribute__((intel_reqd_sub_group_size(16))) __kernel void
-nhwc_reusable_update_bwd(__global DATA_T *src, __global float *mean,
+nhwc_reusable_norm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global char *ws,
         __global DATA_T *diff_src, __global float *diff_scale,

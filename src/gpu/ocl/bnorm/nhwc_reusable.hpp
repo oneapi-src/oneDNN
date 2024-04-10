@@ -50,10 +50,10 @@ struct nhwc_reusable_bnorm_compile_params_t {
 
     const std::vector<const char *> &get_kernel_names() const {
         static const std::vector<const char *> kernel_names = {
-                "nhwc_reusable_update_fwd", "nhwc_reusable_calc_mean",
+                "nhwc_reusable_norm_fwd", "nhwc_reusable_calc_mean",
                 "nhwc_reusable_calc_var", "nhwc_reusable_reduce_fwd_reg",
                 "nhwc_reusable_calc_mean_var", "nhwc_reusable_reduce_fwd_1pass",
-                "nhwc_reusable_reduce_aux", "nhwc_reusable_update_bwd",
+                "nhwc_reusable_reduce_aux", "nhwc_reusable_norm_bwd",
                 "nhwc_reusable_calc_stat", "nhwc_reusable_reduce_stat"};
         return kernel_names;
     }
