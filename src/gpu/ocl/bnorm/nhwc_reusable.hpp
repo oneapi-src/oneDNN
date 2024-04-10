@@ -181,43 +181,8 @@ struct nhwc_reusable_batch_normalization_fwd_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
-
-        // Since selection of reduction kind occures at run-rime,
-        // all kind of reduction kernels (trhu sratchpad or atomic-based)
-        // must be build at once
-
-        std::vector<const char *> kernel_names = {
-                "nhwc_reusable_update_fwd", nullptr, nullptr, nullptr, nullptr};
-        if (pd()->cmpl_conf.calculate_stats) {
-            if (pd()->cmpl_conf.use_stats_one_pass) {
-                kernel_names[1] = "nhwc_reusable_calc_mean_var";
-                kernel_names[2] = "nhwc_reusable_reduce_fwd_1pass";
-                kernel_names[3] = "nhwc_reusable_reduce_aux";
-            } else { // regular algorithm
-                kernel_names[1] = "nhwc_reusable_calc_mean";
-                kernel_names[2] = "nhwc_reusable_calc_var";
-                kernel_names[3] = "nhwc_reusable_reduce_fwd_reg";
-                kernel_names[4] = "nhwc_reusable_reduce_aux";
-            }
-        }
-
-        std::vector<compute::kernel_t> kernels;
-        CHECK(create_kernels(engine, kernels, kernel_names, pd()->cmpl_conf));
-
-        update_kernel_ = kernels[0];
-        if (pd()->cmpl_conf.calculate_stats) {
-            if (pd()->cmpl_conf.use_stats_one_pass) {
-                calculate_mean_var_kernel_ = kernels[1];
-                reduce_mean_var_kernel_ = kernels[2];
-                reduce_aux_kernel_ = kernels[3];
-            } else { // regular algorithm
-                calculate_mean_kernel_ = kernels[1];
-                calculate_var_kernel_ = kernels[2];
-                reduce_fwd_reg_kernel_ = kernels[3];
-                reduce_aux_kernel_ = kernels[4];
-            }
-        }
-
+        auto kernel_names = pd()->cmpl_conf.get_kernel_names();
+        CHECK(create_kernels(engine, kernels_, kernel_names, pd()->cmpl_conf));
         return status::success;
     }
 
@@ -228,13 +193,7 @@ struct nhwc_reusable_batch_normalization_fwd_t : public gpu_primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t update_kernel_;
-    compute::kernel_t calculate_mean_kernel_;
-    compute::kernel_t calculate_var_kernel_;
-    compute::kernel_t reduce_fwd_reg_kernel_;
-    compute::kernel_t calculate_mean_var_kernel_;
-    compute::kernel_t reduce_mean_var_kernel_;
-    compute::kernel_t reduce_aux_kernel_;
+    std::vector<compute::kernel_t> kernels_;
 };
 
 struct nhwc_reusable_batch_normalization_bwd_t : public gpu_primitive_t {
@@ -306,19 +265,8 @@ struct nhwc_reusable_batch_normalization_bwd_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
-
-        std::vector<const char *> kernel_names = {"nhwc_reusable_update_bwd",
-                "nhwc_reusable_calc_stat", "nhwc_reusable_reduce_stat",
-                "nhwc_reusable_reduce_aux"};
-
-        std::vector<compute::kernel_t> kernels;
-        CHECK(create_kernels(engine, kernels, kernel_names, pd()->cmpl_conf));
-
-        update_kernel_ = kernels[0];
-        calculate_stats_kernel_ = kernels[1];
-        reduce_stats_kernel_ = kernels[2];
-        reduce_aux_kernel_ = kernels[3];
-
+        auto kernel_names = pd()->cmpl_conf.get_kernel_names();
+        CHECK(create_kernels(engine, kernels_, kernel_names, pd()->cmpl_conf));
         return status::success;
     }
 
@@ -329,10 +277,7 @@ struct nhwc_reusable_batch_normalization_bwd_t : public gpu_primitive_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t update_kernel_;
-    compute::kernel_t calculate_stats_kernel_;
-    compute::kernel_t reduce_stats_kernel_;
-    compute::kernel_t reduce_aux_kernel_;
+    std::vector<compute::kernel_t> kernels_;
 };
 
 } // namespace ocl
