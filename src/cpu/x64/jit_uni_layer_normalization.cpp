@@ -457,7 +457,9 @@ protected:
                     rhs_arg_params.vmm_idx_to_out_addr.emplace(
                             vmm_dst.getIdx(), dst_ptr());
                     rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                            vmm_dst.getIdx(), offt_elems + j * simd_w_);
+                            vmm_dst.getIdx(),
+                            (offt_elems + j * simd_w_)
+                                    * dst_d_.data_type_size());
                     if (tail)
                         rhs_arg_params.vmm_tail_idx_.emplace(vmm_dst.getIdx());
                 }
