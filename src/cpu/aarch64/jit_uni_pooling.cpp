@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2017-2023 Intel Corporation
-* Copyright 2020-2023 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1267,6 +1267,8 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
 
 template struct jit_uni_pooling_fwd_t<sve_512, data_type::f32>;
 template struct jit_uni_pooling_bwd_t<sve_512, data_type::f32>;
+template struct jit_uni_pooling_fwd_t<sve_256, data_type::f32>;
+template struct jit_uni_pooling_bwd_t<sve_256, data_type::f32>;
 
 } // namespace aarch64
 } // namespace cpu
