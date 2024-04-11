@@ -584,6 +584,7 @@ bool attr_t::is_def(bool skip_fpmath) const {
     return scales.is_def() && zero_points.is_def() && post_ops.is_def()
             && scratchpad_mode == get_default_scratchpad_mode()
             && IMPLICATION(!skip_fpmath, fpmath_mode.is_def())
+            && acc_mode == dnnl_accumulation_mode_strict
             && deterministic.is_def();
 }
 
