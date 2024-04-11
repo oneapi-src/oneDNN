@@ -85,6 +85,24 @@ bool parse_op_attrs(std::vector<std::map<size_t, std::string>> &op_attrs_vec,
     return parse_key_value(op_attrs_vec, op_attrs_str), true;
 }
 
+bool parse_graph_fpmath_mode(
+        std::vector<std::string> &fpmath_mode_vec, const char *str) {
+    std::string graph_attrs_str;
+    if (!parse_string(graph_attrs_str, str, "attr-fpmath")) return false;
+
+    std::stringstream ss(graph_attrs_str);
+    std::string mode;
+    while (std::getline(ss, mode, ',')) {
+        if (!mode.empty()) {
+            if (fpmath_mode_vec.size() == 1
+                    && fpmath_mode_vec.front() == "default")
+                fpmath_mode_vec.pop_back();
+            fpmath_mode_vec.emplace_back(mode);
+        }
+    }
+    return true;
+}
+
 std::map<std::string, std::string> parse_attrs(const std::string &attrs_str) {
     std::map<std::string, std::string> attrs_map;
     std::string::size_type key_pos = 0;

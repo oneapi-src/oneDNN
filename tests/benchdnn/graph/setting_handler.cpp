@@ -114,6 +114,15 @@ void assign_shape_val(int64_t &c, int64_t &w, int64_t &h, int64_t &d,
     d = has_d ? ncx_shape[2] : 1;
 };
 
+bool get_graph_attr(const deserialized_op &base_op_ref,
+        attr_t::fpmath_mode_t &arg_fpmath_mode) {
+
+    const auto &fpmath_mode = base_op_ref.fpmath_mode_;
+    arg_fpmath_mode.set(str2fpmath_mode(fpmath_mode.c_str()));
+
+    return true;
+}
+
 bool get_driver_tag_by_idx(const deserialized_op &base_op_ref, std::string &tag,
         int idx = 0, bool from_output = false) {
     logical_tensor::dims strides = from_output
@@ -350,6 +359,8 @@ bool get_binary_alg(const deserialized_op &base_op_ref, ::binary::alg_t &alg) {
     DNN_GRAPH_CHECK_SETTINGS(
             binary::get_binary_alg(base_op_ref, op_setting.alg.front()), res);
 
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
     return op_setting;
 }
 
@@ -438,6 +449,8 @@ bool get_bnorm_flag(
             get_driver_tag(base_op_ref, op_setting.tag.front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
             bnorm::get_bnorm_flag(base_op_ref, op_setting.flags.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
     return op_setting;
 }
 
@@ -493,12 +506,13 @@ bool get_concat_stag_and_dtag(
     DNN_GRAPH_CHECK_SETTINGS(concat::get_concat_sdt_and_ddt(
                                      base_op_ref, op_setting, rewrite_lt_ids),
             res);
-
     DNN_GRAPH_CHECK_SETTINGS(
             concat::get_concat_stag_and_dtag(base_op_ref, op_setting), res);
 
     DNN_GRAPH_CHECK_SETTINGS(
             get_driver_axis(base_op_ref, op_setting.axis.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
 
     return op_setting;
 }
@@ -716,6 +730,8 @@ bool get_conv_stag_and_dtag(
             conv::get_conv_stag_and_dtag(base_op_ref, op_setting), res);
     DNN_GRAPH_CHECK_SETTINGS(
             conv::get_conv_wtag(base_op_ref, op_setting.wtag.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
 
     return op_setting;
 }
@@ -912,6 +928,8 @@ bool get_deconv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
             res);
     DNN_GRAPH_CHECK_SETTINGS(
             deconv::get_deconv_wtag(base_op_ref, op_setting.wtag.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
 
     return op_setting;
 }
@@ -1071,6 +1089,8 @@ bool get_eltwise_beta(const deserialized_op &base_op_ref, float &beta) {
     DNN_GRAPH_CHECK_SETTINGS(
             eltwise::get_eltwise_beta(base_op_ref, op_setting.beta.front()),
             res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
 
     return op_setting;
 }
@@ -1173,6 +1193,8 @@ bool get_lnorm_flags(
             get_driver_tag(base_op_ref, op_setting.tag[0].front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
             lnorm::get_lnorm_flags(base_op_ref, op_setting.flags.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
 
     return op_setting;
 }
@@ -1304,6 +1326,8 @@ bool get_matmul_bia_dt_mask(const deserialized_op &base_op_ref,
                     op_setting.wtag.front(), op_setting.dtag.front(),
                     op_setting.prb_vdims.ndims),
             res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
 
     return op_setting;
 }
@@ -1539,6 +1563,8 @@ bool get_prelu_stag(
             res);
     DNN_GRAPH_CHECK_SETTINGS(
             prelu::get_prelu_stag(base_op_ref, op_setting), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
 
     return op_setting;
 }
@@ -1636,6 +1662,8 @@ bool get_reduction_p(const deserialized_op &base_op_ref, float &p) {
             res);
     DNN_GRAPH_CHECK_SETTINGS(
             reduction::get_reduction_p(base_op_ref, op_setting.p.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
 
     return op_setting;
 }
@@ -1756,6 +1784,9 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
                                          op_setting.zero_points.front()),
                 res);
     }
+
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
     return op_setting;
 }
 
@@ -1923,6 +1954,9 @@ bool get_softmax_alg(
             softmax::get_softmax_alg(base_op_ref, op_setting.alg.front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
             get_driver_axis(base_op_ref, op_setting.axis.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
+
     return op_setting;
 }
 

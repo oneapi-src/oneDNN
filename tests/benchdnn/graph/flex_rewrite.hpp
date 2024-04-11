@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,9 +25,13 @@
 namespace graph {
 
 struct flex_rewrite {
-    flex_rewrite(const std::map<size_t, std::string> in_shapes,
-            const std::map<size_t, std::string> op_attrs, const int64_t mb)
-        : in_shapes_(in_shapes), op_attrs_(op_attrs), mb_(mb) {}
+    flex_rewrite(const std::map<size_t, std::string> &in_shapes,
+            const std::map<size_t, std::string> &op_attrs,
+            const std::string &fpmath_mode, const int64_t mb)
+        : in_shapes_(in_shapes)
+        , op_attrs_(op_attrs)
+        , fpmath_mode_(fpmath_mode)
+        , mb_(mb) {}
 
     void rewrite(deserialized_graph &dgraph);
 
@@ -36,6 +40,7 @@ private:
     std::map<size_t, std::string> in_shapes_;
     // input attributes from CML
     std::map<size_t, std::string> op_attrs_;
+    std::string fpmath_mode_;
     int64_t mb_;
 
     void split_ncx(const std::string &data_format, dims_t &in, int64_t &n,
@@ -57,6 +62,7 @@ private:
     void quantized_graph_rewrite(deserialized_graph &dgraph);
     void update_output_info(deserialized_op &aop, deserialized_graph &dgraph,
             bool change_stride);
+    void graph_attrs_rewrite(deserialized_graph &dgraph);
 };
 
 } // namespace graph
