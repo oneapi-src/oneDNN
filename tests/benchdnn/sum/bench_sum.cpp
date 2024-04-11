@@ -109,10 +109,7 @@ int bench(int argc, char **argv) {
                 || parse_multivector_option(s.input_scales, def.input_scales,
                         atof, argv[0], "scales", help_scales)
                 || parse_inplace(s.inplace, def.inplace, argv[0])
-                || parse_attr_scratchpad_mode(
-                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_attr_deterministic(
-                        s.deterministic, def.deterministic, argv[0])
+                || parse_attributes(s, def, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])

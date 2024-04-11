@@ -112,9 +112,11 @@ static int check_attr() {
             SELF_CHECK_EQ(entry.groups[i], (zero_points_groups)[i]); \
     } while (0)
 
+    static base_settings_t def;
     {
-        std::vector<attr_t::zero_points_t> zp;
-        SELF_CHECK_EQ(parse_attr_zero_points(zp,
+        base_settings_t s;
+        std::vector<attr_t::zero_points_t> &zp = s.zero_points;
+        SELF_CHECK_EQ(parse_attributes(s, def,
                               "--attr-zero-points=src:common:0+wei:per_oc+dst:"
                               "common:-2,src:per_dim_1"),
                 true);
@@ -132,9 +134,10 @@ static int check_attr() {
     }
 
     {
-        std::vector<attr_t::arg_scales_t> sc;
+        base_settings_t s;
+        std::vector<attr_t::arg_scales_t> &sc = s.scales;
         // `src` scale is overridden with the latter value.
-        SELF_CHECK_EQ(parse_attr_scales(sc,
+        SELF_CHECK_EQ(parse_attributes(s, def,
                               "--attr-scales=src:common:1.5+wei:per_oc+src:"
                               "common:0.5"),
                 true);
@@ -146,8 +149,9 @@ static int check_attr() {
     }
 
     {
-        std::vector<attr_t::arg_scales_t> sc;
-        SELF_CHECK_EQ(parse_attr_scales(sc,
+        base_settings_t s;
+        std::vector<attr_t::arg_scales_t> &sc = s.scales;
+        SELF_CHECK_EQ(parse_attributes(s, def,
                               "--attr-scales=src:common:2.5+src1:common:1.5"),
                 true);
         SELF_CHECK_EQ(sc.size(), 1);
@@ -158,9 +162,10 @@ static int check_attr() {
     }
 
     {
-        std::vector<attr_t::zero_points_t> zp;
-        SELF_CHECK_EQ(parse_attr_zero_points(
-                              zp, "--attr-zero-points=wei:per_ocic:s8:2x1"),
+        base_settings_t s;
+        std::vector<attr_t::zero_points_t> &zp = s.zero_points;
+        SELF_CHECK_EQ(parse_attributes(
+                              s, def, "--attr-zero-points=wei:per_ocic:s8:2x1"),
                 true);
         SELF_CHECK_EQ(zp.size(), 1);
         std::vector<dnnl_dim_t> groups = {2, 1};
@@ -169,9 +174,10 @@ static int check_attr() {
     }
 
     {
-        std::vector<attr_t::arg_scales_t> sc;
-        SELF_CHECK_EQ(parse_attr_scales(
-                              sc, "--attr-scales=attr_post_op_dw_wei:common:2"),
+        base_settings_t s;
+        std::vector<attr_t::arg_scales_t> &sc = s.scales;
+        SELF_CHECK_EQ(parse_attributes(s, def,
+                              "--attr-scales=attr_post_op_dw_wei:common:2"),
                 true);
         SELF_CHECK_EQ(sc.size(), 1);
         const auto arg = DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS;
@@ -181,8 +187,9 @@ static int check_attr() {
 
     // depthwise conv section
     {
-        std::vector<attr_t::post_ops_t> po;
-        auto st = parse_attr_post_ops(po, "--attr-post-ops=dw:k3s1p1");
+        base_settings_t s;
+        std::vector<attr_t::post_ops_t> &po = s.post_ops;
+        auto st = parse_attributes(s, def, "--attr-post-ops=dw:k3s1p1");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(po[0].len(), 1);
         const auto &e = po[0].entry[0];
@@ -195,9 +202,10 @@ static int check_attr() {
     }
 
     {
-        std::vector<attr_t::post_ops_t> po;
-        auto st = parse_attr_post_ops(
-                po, "--attr-post-ops=relu:0.5+dw:k3s2p1:s8+linear:2:1");
+        base_settings_t s;
+        std::vector<attr_t::post_ops_t> &po = s.post_ops;
+        auto st = parse_attributes(
+                s, def, "--attr-post-ops=relu:0.5+dw:k3s2p1:s8+linear:2:1");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(po[0].len(), 3);
         auto &e = po[0].entry[0];
@@ -224,31 +232,35 @@ static int check_attr() {
     }
 
     {
-        std::vector<attr_t::fpmath_mode_t> fm, fm_def;
-        auto st = parse_attr_fpmath_mode(
-                fm, fm_def, "--attr-fpmath=strict:true");
+        base_settings_t s;
+        std::vector<attr_t::fpmath_mode_t> &fm = s.fpmath_mode;
+        auto st = parse_attributes(s, def, "--attr-fpmath=strict:true");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(fm[0].mode, dnnl_fpmath_mode_strict);
         SELF_CHECK_EQ(fm[0].apply_to_int, true);
     }
 
     {
-        std::vector<attr_t::fpmath_mode_t> fm, fm_def;
-        auto st = parse_attr_fpmath_mode(fm, fm_def, "--attr-fpmath=bf16");
+        base_settings_t s;
+        std::vector<attr_t::fpmath_mode_t> &fm = s.fpmath_mode;
+        auto st = parse_attributes(s, def, "--attr-fpmath=bf16");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(fm[0].mode, dnnl_fpmath_mode_bf16);
         SELF_CHECK_EQ(fm[0].apply_to_int, false);
     }
 
     {
+        base_settings_t s;
         // Updating the default values and expect them to be returned.
-        std::vector<attr_t::fpmath_mode_t> fm, fm_def;
-        fm_def.emplace_back();
-        fm_def[0].set(dnnl_fpmath_mode_bf16, true);
-        auto st = parse_attr_fpmath_mode(fm, fm_def, "--attr-fpmath=");
+        std::vector<attr_t::fpmath_mode_t> &fm = s.fpmath_mode;
+        def.fpmath_mode.emplace_back();
+        def.fpmath_mode[0].set(dnnl_fpmath_mode_bf16, true);
+        auto st = parse_attributes(s, def, "--attr-fpmath=");
         SELF_CHECK_EQ(st, true);
         SELF_CHECK_EQ(fm[0].mode, dnnl_fpmath_mode_bf16);
         SELF_CHECK_EQ(fm[0].apply_to_int, true);
+        // Reset default settings
+        def = base_settings_t();
     }
 
 #undef SELF_CHECK_ATTR_ZP

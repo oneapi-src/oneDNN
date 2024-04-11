@@ -177,16 +177,7 @@ int bench(int argc, char **argv) {
                 || parse_multivector_option(s.rt_dims_masks, def.rt_dims_masks,
                         atoi, argv[0], "runtime_dims_masks",
                         help_runtime_dims_masks)
-                || parse_attr_scales(s.scales, argv[0])
-                || parse_attr_zero_points(s.zero_points, argv[0])
-                || parse_attr_post_ops(s.post_ops, argv[0])
-                || parse_attr_scratchpad_mode(
-                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_attr_fpmath_mode(
-                        s.fpmath_mode, def.fpmath_mode, argv[0])
-                || parse_attr_acc_mode(s.acc_mode, def.acc_mode, argv[0])
-                || parse_attr_deterministic(
-                        s.deterministic, def.deterministic, argv[0])
+                || parse_attributes(s, def, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])

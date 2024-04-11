@@ -94,11 +94,7 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.p, def.p, atof, argv[0], "p", help_p)
                 || parse_vector_option(
                         s.eps, def.eps, atof, argv[0], "eps", help_eps)
-                || parse_attr_post_ops(s.post_ops, argv[0])
-                || parse_attr_scratchpad_mode(
-                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_attr_deterministic(
-                        s.deterministic, def.deterministic, argv[0])
+                || parse_attributes(s, def, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])

@@ -129,13 +129,7 @@ int bench(int argc, char **argv) {
                         s.beta, def.beta, atof, argv[0], "beta", help_beta)
                 || parse_vector_option(s.brgemm_attr, def.brgemm_attr, cstr2str,
                         argv[0], "brgemm-attr", help_brgemm_attr)
-                || parse_attr_scales(s.scales, argv[0])
-                || parse_attr_zero_points(s.zero_points, argv[0])
-                || parse_attr_post_ops(s.post_ops, argv[0])
-                || parse_attr_scratchpad_mode(
-                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_attr_fpmath_mode(
-                        s.fpmath_mode, def.fpmath_mode, argv[0])
+                || parse_attributes(s, def, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv(), argv[0])

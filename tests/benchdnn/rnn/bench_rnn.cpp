@@ -180,12 +180,7 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.with_projection, def.with_projection,
                         str2bool, argv[0], "with-projection",
                         help_with_projection)
-                || parse_attr_scratchpad_mode(
-                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_attr_fpmath_mode(
-                        s.fpmath_mode, def.fpmath_mode, argv[0])
-                || parse_attr_deterministic(
-                        s.deterministic, def.deterministic, argv[0])
+                || parse_attributes(s, def, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
