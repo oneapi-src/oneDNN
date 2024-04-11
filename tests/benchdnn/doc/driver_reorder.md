@@ -26,15 +26,6 @@ where *reorder-knobs* are:
             default format of the skipped tensor will be used. As long as
             `--strides` and `--tag` options refer to different tensors, they
             can be specified together.
- - `--attr-scales=STRING` -- per argument scales primitive attribute. No
-            scales are set by default. Refer to [attributes](knobs_attr.md)
-            for details.
- - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
-            points are set by default. Refer to [attributes](knobs_attr.md)
-            for details.
- - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
-            operations are set by default. Refer to [attributes](knobs_attr.md)
-            for details.
  - `--oflag=FLAG:MASK[+...]` -- memory descriptor extra field specifier. By
             default `FLAG` is empty and `MASK` is `0`. Possible `FLAG` values
             are:
@@ -52,6 +43,7 @@ where *reorder-knobs* are:
             `REGEX`. By default no pattern is applied (run everything).
             Note: Windows may interpret only string arguments surrounded by
             double quotation marks.
+ - Any attributes options. Refer to [attributes](knobs_attr.md) for details.
 
 and *reorder-desc* is a problem descriptor. The canonical form is:
 ```

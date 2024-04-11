@@ -25,9 +25,6 @@ where *pool-knobs* are:
                     dnnl_pooling_avg_include_padding;
             Refer to [pooling primitive](https://oneapi-src.github.io/oneDNN/dev_guide_pooling.html)
             for details.
- - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
-            operations are set by default. Refer to [attributes](knobs_attr.md)
-            for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
@@ -35,6 +32,7 @@ where *pool-knobs* are:
             `REGEX`. By default no pattern is applied (run everything).
             Note: Windows may interpret only string arguments surrounded by
             double quotation marks.
+ - Any attributes options. Refer to [attributes](knobs_attr.md) for details.
 
 and *pool-desc* is a problem descriptor. The canonical form is:
 ```
