@@ -102,6 +102,7 @@ public:
         jit_reduction_injector_f32<hw> reduce(
                 *this, alg, ra(), device_info.stepping_id());
         reduce.compute(src_addr, acc, stride, iters);
+        ra().release(src_addr);
 
         finalize(simd, alg, acc, iters);
 
@@ -127,6 +128,18 @@ public:
                         dst_addr[i / max_write_owords].uq(), acc[reg_idx].f());
             }
         }
+        ra().release(acc);
+        ra().release(dst_addr);
+
+        ra().release(r0);
+        ra().release(src_ptr);
+        ra().release(dst_ptr);
+        ra().release(tg_size0);
+#ifdef DNNL_DEV_MODE
+        gpu_assert(ra().get_alloced_regs() == 0)
+                << ra().get_alloced_regs()
+                << " registers are allocated that need to be released.";
+#endif
 
         epilogue();
     }

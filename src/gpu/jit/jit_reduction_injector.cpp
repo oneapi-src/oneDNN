@@ -94,7 +94,9 @@ template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::compute(const ngen::GRF &src_ptr,
         const ngen::GRFRange &acc, dim_t stride, dim_t iters) {
     using namespace alg_kind;
-
+#ifdef DNNL_DEV_MODE
+    int pre_regs = ra.get_alloced_regs();
+#endif
     assert(src_ptr.getType() == ngen::DataType::uq);
 
     int dt_size = sizeof(float);
@@ -175,6 +177,13 @@ void jit_reduction_injector_f32<hw>::compute(const ngen::GRF &src_ptr,
     ra.release(loop_index);
     ra.release(val);
     ra.release(loop_flag);
+
+#ifdef DNNL_DEV_MODE
+    int remaining_regs = ra.get_alloced_regs() - pre_regs;
+    gpu_assert(remaining_regs == 0)
+            << remaining_regs
+            << " registers are allocated that need to be released.";
+#endif
 }
 
 template <gpu_gen_t hw>
