@@ -58,25 +58,16 @@ void check_correctness(
 #endif
     for_(const auto &i_strides : s.strides)
     for_(const auto &i_rt_dims_masks : s.rt_dims_masks)
-    for_(const auto &i_scales : s.scales)
-    for_(const auto &i_zero_points : s.zero_points)
-    for_(const auto &i_post_ops : s.post_ops)
-    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_deterministic : s.deterministic)
+    for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
-    for_(const auto &i_fpmath_mode : s.fpmath_mode)
-    for_(const auto &i_acc_mode : s.acc_mode)
     for (const auto &i_bia_cfg : bia_cfg) {
-        auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
-                i_scratchpad_mode, i_fpmath_mode, i_acc_mode, i_deterministic);
-
         const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_strides,
                 i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks,
 #ifdef DNNL_EXPERIMENTAL_SPARSE
                 i_sparse_options,
 #endif
-                attr, i_ctx_init, i_ctx_exe);
+                i_attr, i_ctx_init, i_ctx_exe);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(
@@ -208,6 +199,7 @@ int bench(int argc, char **argv) {
             parse_prb_vdims(s.prb_vdims, argv[0]);
 
             SAFE(verify_input(s, def), WARN);
+            s.finalize();
             check_correctness(s, task_executor);
         }
     }

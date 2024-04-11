@@ -46,21 +46,12 @@ void check_correctness(
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_alg : s.alg)
-    for_(const auto &i_scales : s.scales)
-    for_(const auto &i_zero_points : s.zero_points)
-    for_(const auto &i_post_ops : s.post_ops)
-    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_fpmath_mode : s.fpmath_mode)
-    for_(const auto &i_acc_mode : s.acc_mode)
-    for_(const auto &i_deterministic : s.deterministic)
+    for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (const auto &i_mb : s.mb) {
-        auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
-                i_scratchpad_mode, i_fpmath_mode, i_acc_mode, i_deterministic);
-
         const prb_t prb(s.desc, i_dir, i_dt, i_stag, i_wtag, i_dtag, i_alg,
-                attr, i_ctx_init, i_ctx_exe, i_mb);
+                i_attr, i_ctx_init, i_ctx_exe, i_mb);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(
@@ -120,6 +111,7 @@ int bench(int argc, char **argv) {
             SAFE(str2desc(&s.desc, argv[0]), CRIT);
 
             SAFE(verify_input(s), WARN);
+            s.finalize();
             check_correctness(s, task_executor);
         }
     }

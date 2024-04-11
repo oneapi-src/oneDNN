@@ -42,16 +42,11 @@ void check_correctness(
     for_(const auto &i_dir : s.dir)
     for_(const auto &i_sdt : s.sdt)
     for_(const auto &i_stag : s.stag)
-    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_acc_mode : s.acc_mode)
-    for_(const auto &i_deterministic : s.deterministic)
+    for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        auto attr = settings_t::get_attr(
-                i_scratchpad_mode, i_acc_mode, i_deterministic);
-
-        const prb_t prb(
-                s.prb_vdims, i_dir, i_sdt, i_stag, attr, i_ctx_init, i_ctx_exe);
+        const prb_t prb(s.prb_vdims, i_dir, i_sdt, i_stag, i_attr, i_ctx_init,
+                i_ctx_exe);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(
@@ -119,6 +114,7 @@ int bench(int argc, char **argv) {
             parse_prb_vdims(s.prb_vdims, argv[0]);
 
             SAFE(verify_input(s), WARN);
+            s.finalize();
             check_correctness(s, task_executor);
         }
     }

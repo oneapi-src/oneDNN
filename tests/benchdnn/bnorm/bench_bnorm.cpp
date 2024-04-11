@@ -46,18 +46,12 @@ void check_correctness(
     for_(const auto &i_strides : s.strides)
     for_(const auto &i_flags : s.flags)
     for_(const auto &i_mb : s.mb)
-    for_(const auto &i_post_ops : s.post_ops)
-    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_acc_mode : s.acc_mode)
-    for_(const auto &i_deterministic : s.deterministic)
+    for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
-        auto attr = settings_t::get_attr(
-                i_post_ops, i_scratchpad_mode, i_acc_mode, i_deterministic);
-
         const prb_t prb(s.desc, i_mb, i_dir, i_dt, i_tag, i_strides, i_flags,
-                i_inplace, attr, i_ctx_init, i_ctx_exe, s.check_alg,
+                i_inplace, i_attr, i_ctx_init, i_ctx_exe, s.check_alg,
                 s.debug_check_ws);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
@@ -170,6 +164,7 @@ int bench(int argc, char **argv) {
             SAFE(str2desc(&s.desc, argv[0]), CRIT);
 
             SAFE(verify_input(s, def), WARN);
+            s.finalize();
             check_correctness(s, task_executor);
         }
     }

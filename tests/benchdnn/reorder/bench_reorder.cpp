@@ -45,20 +45,12 @@ void check_correctness(
     for_(const auto &i_strides : s.strides)
     for_(const auto &i_oflag : s.oflag)
     for_(const auto &i_cross_engine : s.cross_engine)
-    for_(const auto &i_scales : s.scales)
-    for_(const auto &i_zero_points : s.zero_points)
-    for_(const auto &i_post_ops : s.post_ops)
-    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_acc_mode : s.acc_mode)
-    for_(const auto &i_deterministic : s.deterministic)
+    for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
-        auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
-                i_scratchpad_mode, i_acc_mode, i_deterministic);
-
         const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, i_strides,
-                attr, i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
+                i_attr, i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
                 i_runtime_dim_mask);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
@@ -198,6 +190,7 @@ int bench(int argc, char **argv) {
             parse_prb_dims(s.prb_dims, argv[0]);
 
             SAFE(verify_input(s, def), WARN);
+            s.finalize();
             check_correctness(s, task_executor);
         }
     }
