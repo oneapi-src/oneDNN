@@ -283,23 +283,14 @@ struct settings_t : public base_settings_t {
 struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
-        : prb_t(s.desc,
-                dt_conf_t::create(s.cfg[0],
-                        settings_t::get_attr(s.scales[0], s.zero_points[0],
-                                s.post_ops[0], s.scratchpad_mode[0],
-                                s.fpmath_mode[0], s.acc_mode[0])),
+        : prb_t(s.desc, dt_conf_t::create(s.cfg[0], s.attributes.front()),
                 s.tag[0], s.prop[0], s.alg[0], s.with_peephole[0],
                 s.with_projection[0], s.direction[0], s.scale_policy[0],
                 s.scale_proj_policy[0], s.flags[0], s.activation[0],
-                settings_t::get_attr(s.scales[0], s.zero_points[0],
-                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
-                s.ctx_init[0], s.ctx_exe[0], s.alpha, s.beta,
-                s.skip_nonlinear[0], s.trivial_strides[0], s.n_layer[0],
+                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0], s.alpha,
+                s.beta, s.skip_nonlinear[0], s.trivial_strides[0], s.n_layer[0],
                 s.n_iter[0], s.mb[0]) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
-        // Just for better styling, no real reason to keep it separate.
-        this->attr = settings_t::get_attr(s.scales[0], s.zero_points[0],
-                s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]);
     }
 
     prb_t(const desc_t &desc, const dt_conf_t &cfg,

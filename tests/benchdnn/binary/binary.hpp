@@ -65,10 +65,8 @@ struct prb_t : public prb_vdims_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
         : prb_t(s.prb_vdims, s.sdt[0], s.ddt[0], s.stag[0], s.dtag[0], s.alg[0],
-                s.inplace[0],
-                settings_t::get_attr(s.scales[0], s.zero_points[0],
-                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
-                s.ctx_init[0], s.ctx_exe[0]) {
+                s.inplace[0], s.attributes.front(), s.ctx_init[0],
+                s.ctx_exe[0]) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 

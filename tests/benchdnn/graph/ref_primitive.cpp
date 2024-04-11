@@ -81,6 +81,7 @@ int ref_primitive_t::init_prb(
         ::driver::settings_t setting \
                 = get_setting<::driver::settings_t>(op_, bf16_rewrite, res); \
         if (res->state == INVALID_ARGUMENTS) return FAIL; \
+        setting.finalize(); \
         auto pprb = ::std::make_shared<::driver::prb_t>(setting); \
         prb_wrapper_ \
                 = ::std::make_shared<prb_wrapper_t<::driver::prb_t>>(pprb); \
