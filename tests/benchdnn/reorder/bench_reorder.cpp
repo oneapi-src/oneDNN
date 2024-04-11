@@ -54,33 +54,16 @@ void check_correctness(
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
-        const auto &src_scale = i_scales.get(DNNL_ARG_SRC);
-        const std::vector<float> src_test_scales = src_scale.scale == 0
-                ? s.def_scale
-                : std::vector<float>(1, src_scale.scale);
-        const auto &dst_scale = i_scales.get(DNNL_ARG_DST);
-        const std::vector<float> dst_test_scales = dst_scale.scale == 0
-                ? s.def_scale
-                : std::vector<float>(1, dst_scale.scale);
+        auto attr = settings_t::get_attr(i_scales, i_zero_points, i_post_ops,
+                i_scratchpad_mode, i_acc_mode, i_deterministic);
 
-        for_(const auto &i_src_test_scale : src_test_scales)
-        for (const auto &i_dst_test_scale : dst_test_scales) {
-            attr_t::arg_scales_t test_arg_scales;
-            test_arg_scales.set(
-                    DNNL_ARG_SRC, {src_scale.policy, i_src_test_scale});
-            test_arg_scales.set(
-                    DNNL_ARG_DST, {dst_scale.policy, i_dst_test_scale});
-            auto attr = settings_t::get_attr(test_arg_scales, i_zero_points,
-                    i_post_ops, i_scratchpad_mode, i_acc_mode, i_deterministic);
+        const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, i_strides,
+                attr, i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
+                i_runtime_dim_mask);
+        if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
-            const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, i_strides,
-                    attr, i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
-                    i_runtime_dim_mask);
-            if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
-
-            task_executor.submit(
-                    prb, s.perf_template, createit, check_cacheit, doit);
-        }
+        task_executor.submit(
+                prb, s.perf_template, createit, check_cacheit, doit);
     }
 }
 
@@ -169,10 +152,6 @@ static const std::string help_runtime_dim_mask
           "whether a dimension is `DNNL_RUNTIME_DIM_VAL` if `1` on a "
           "correspondent dimension.\n";
 
-static const std::string help_def_scales
-        = "FLOAT\n    Scales, used to improve testing coverage.\n    If "
-          "`--attr-scales` is specified, does not have an effect.\n";
-
 static const std::string help_cross_engine
         = "KIND    (Default: `none`)\n    Specifies `KIND` of cross-engine "
           "used for benchmarking.\n    `KIND` values are `none`, `cpu2gpu` or "
@@ -197,8 +176,6 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.runtime_dim_mask, def.runtime_dim_mask,
                         atoi, argv[0], "runtime-dim-mask",
                         help_runtime_dim_mask)
-                || parse_vector_option(s.def_scale, def.def_scale, atof,
-                        argv[0], "def-scales", help_def_scales)
                 || parse_vector_option(s.cross_engine, def.cross_engine,
                         str2cross_engine, argv[0], "cross-engine",
                         help_cross_engine)

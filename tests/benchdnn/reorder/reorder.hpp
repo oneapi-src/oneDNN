@@ -70,9 +70,6 @@ struct settings_t : public base_settings_t {
     std::vector<unsigned> runtime_dim_mask {0};
     std::vector<cross_engine_t> cross_engine {NONE};
 
-    // Just to increase the coverage, doesn't participate in prb construction.
-    std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
-
     const char *perf_template_csv() const {
         static const std::string args = "%sdt%,%ddt%,%stag%,%dtag%,%flags%";
         return perf_template_csv_base(args);
