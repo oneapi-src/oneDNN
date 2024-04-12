@@ -761,6 +761,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_post_ops)
       conv_bwd_weight  biasadd_bwd
                 |          |
 */
+#if BUILD_TRAINING
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_bwd_weights_bias)
         .set_enable(false)
         .set_kind(partition_kind_t::convolution_backward_post_ops)
@@ -781,6 +782,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_bwd_weights_bias)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<conv_bwd_weights_t>();
         });
+#endif
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
