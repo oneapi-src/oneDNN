@@ -160,12 +160,6 @@ if(ONEDNN_BUILD_GRAPH)
             "primitive selection with ONEDNN_ENABLE_PRIMITIVE=ALL.")
     endif()
 
-    if (NOT DNNL_ENABLE_WORKLOAD STREQUAL "TRAINING")
-        message(FATAL_ERROR "Graph API does not support selecting workloads. "
-            "Either disable Graph API with ONEDNN_BUILD_GRAPH=OFF or change "
-            "workload selection with ONEDNN_ENABLE_WORKLOAD=TRAINING.")
-    endif()
-
     if(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND)
         add_definitions_with_host_compiler(-DDNNL_ENABLE_COMPILER_BACKEND)
     endif()
