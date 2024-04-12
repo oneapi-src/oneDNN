@@ -18,6 +18,7 @@
 #define GPU_JIT_REDUCTION_GENERATOR_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/nstl.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/jit/emulated_generator.hpp"
@@ -74,10 +75,6 @@ public:
 
         // SRC offset: tid*grf_bytes*nregs + tg_idx0*tg_size0*dt_size*nregs + tg_idx1*stride*iters*dt_size
         // DST offset: tid*grf_bytes*nregs + tg_idx0*tg_size0*dt_size*nregs + tg_idx1*stride*dt_size
-        const int max_write_size = device_info.max_exec_size();
-        int nwrites = utils::div_up(regs_per_thr * grf_bytes, max_write_size);
-        int regs_per_write = max_write_size / grf_bytes;
-
         ngen::Subregister inner_off = ra().alloc_sub(ngen::DataType::ud);
         ngen::Subregister outer_off = ra().alloc_sub(ngen::DataType::ud);
         emul(1, inner_off, tg_idx0, tg_size0);
@@ -87,14 +84,10 @@ public:
         emul(1, outer_off, tg_idx1, stride * dt_size);
 
         ngen::GRF src_addr = ra().alloc().uq();
-        ngen::GRFRange dst_addr = ra().alloc_range(nwrites);
+        ngen::GRF dst_addr = ra().alloc().uq();
         emad(1, src_addr, inner_off, outer_off, iters);
         eadd(1, src_addr, src_addr, src_ptr);
-        eadd3(1, dst_addr[0].uq(), dst_ptr, inner_off, outer_off);
-        for (int i = 1; i < nwrites; i++) {
-            eadd(1, dst_addr[i].uq(), dst_addr[0].uq(),
-                    i * grf_bytes * regs_per_write);
-        }
+        eadd3(1, dst_addr, dst_ptr, inner_off, outer_off);
         ra().release(inner_off);
         ra().release(outer_off);
 
@@ -106,28 +99,8 @@ public:
 
         finalize(simd, alg, acc, iters);
 
-        constexpr int oword_bytes = 16;
-        const int max_write_owords = max_write_size / oword_bytes;
-        int total_write_owords = regs_per_thr * grf_bytes / oword_bytes;
-        for (int i = 0; i < total_write_owords; i += max_write_owords) {
-            int reg_idx = i / (grf_bytes / oword_bytes);
-            int write_size = std::min(max_write_owords, total_write_owords - i);
-            int write_regs = write_size * oword_bytes / grf_bytes;
-            bool force_legacy = gpu_utils::dev_getenv(
-                    "jit_reduction_force_legacy_load", false);
-            if (!force_legacy && hw >= ngen::HW::XeHPG) {
-                // LSC store
-                ngen::DataSpecLSC lscspec = ngen::block(
-                        ngen::DataSizeLSC::D32, simd * write_regs);
-                lscspec |= ngen::CacheSettingsLSC::L1UC_L3WB;
-                store.ugm(1, lscspec, A64, dst_addr[i / max_write_owords].uq(),
-                        acc[reg_idx].f());
-            } else {
-                // legacy store
-                store(1, ngen::aligned_block_oword(write_size), A64,
-                        dst_addr[i / max_write_owords].uq(), acc[reg_idx].f());
-            }
-        }
+        estore(dst_addr, acc);
+
         ra().release(acc);
         ra().release(dst_addr);
 
@@ -145,6 +118,57 @@ public:
     }
 
 protected:
+    // Store data from a contiguous range of registers into a contiguous
+    // range in global memory (block store)
+    void estore(const ngen::GRF &base_dst_addr, const ngen::GRFRange &src) {
+        const int grf_bytes = ngen::GRF::bytes(hw);
+        int nregs = src.getLen();
+        bool force_legacy = gpu_utils::dev_getenv(
+                "jit_reduction_force_legacy_send", false);
+        bool use_legacy = force_legacy || hw < ngen::HW::XeHPG;
+        const int max_store_size = use_legacy ? 128 : 512;
+        gpu_assert(max_store_size % grf_bytes == 0) << "Unexpected store size";
+        const int max_store_regs = max_store_size / grf_bytes;
+
+        // Load in chunks
+        int reg_start = 0;
+        while (reg_start < nregs) {
+            int store_regs = nstl::min(max_store_regs, nregs - reg_start);
+            // Compute the src address
+            ngen::GRF addr = ra().alloc().uq();
+            eadd(1, addr, base_dst_addr, reg_start * grf_bytes);
+            if (use_legacy) {
+                // Reduce store_regs according to valid store sizes
+                const int oword_per_grf = grf_bytes / 16;
+                for (auto store_owords : {8, 4, 2, 1}) {
+                    if (store_owords / oword_per_grf > store_regs) continue;
+                    store_regs = store_owords / oword_per_grf;
+                    break;
+                }
+
+                // Do the store
+                auto dt = ngen::aligned_block_oword(store_regs * oword_per_grf);
+                store(1, dt, A64, addr, src[reg_start]);
+            } else {
+                // Reduce store_regs according to valid store sizes
+                const int d64_per_grf = grf_bytes / 8;
+                for (auto store_d64s : {64, 32, 16, 8, 4, 3, 2, 1}) {
+                    if (store_d64s / d64_per_grf > store_regs) continue;
+                    store_regs = store_d64s / d64_per_grf;
+                    break;
+                }
+
+                // Do the store
+                ngen::DataSpecLSC lscspec = ngen::CacheSettingsLSC::L1UC_L3WB;
+                lscspec |= ngen::block(
+                        ngen::DataSizeLSC::D64, store_regs * d64_per_grf);
+                store.ugm(1, lscspec, A64, addr, src[reg_start]);
+            }
+            reg_start += store_regs;
+            ra().release(addr);
+        }
+    }
+
     void finalize(
             int simd, alg_kind_t alg, const ngen::GRFRange &acc, dim_t iters) {
         int nregs = acc.getLen();

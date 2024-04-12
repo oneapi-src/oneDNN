@@ -55,8 +55,9 @@ struct jit_reduction_injector_f32 {
 
 private:
     void initialize(int simd, const ngen::GRF &reg);
-    void eload(
-            int simd, int dt_size, const ngen::GRF &dst, const ngen::GRF &addr);
+    // Load data from a contiguous range in global memory into a contiguous
+    // range of registers (block load)
+    void eload(const ngen::GRFRange &dst, const ngen::GRF &base_src_addr);
 
     // Emulation functions
     void emov(jit_generator<hw> &host, const ngen::InstructionModifier &mod,

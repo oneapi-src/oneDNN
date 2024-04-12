@@ -75,21 +75,55 @@ void jit_reduction_injector_f32<hw>::initialize(
 
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::eload(
-        int simd, int dt_size, const ngen::GRF &dst, const ngen::GRF &addr) {
+        const ngen::GRFRange &dst, const ngen::GRF &base_src_addr) {
+    const int grf_bytes = ngen::GRF::bytes(hw);
+    int nregs = dst.getLen();
     bool force_legacy
-            = gpu_utils::dev_getenv("jit_reduction_force_legacy_load", false);
-    if (!force_legacy && hw >= ngen::HW::XeHPG) {
-        // LSC load
-        ngen::DataSpecLSC lscspec = ngen::block(ngen::DataSizeLSC::D32, simd);
-        lscspec |= ngen::CacheSettingsLSC::L1C_L3C;
-        h.load.ugm(1, dst, lscspec, h.A64, addr);
-    } else {
-        // Legacy load
-        int load_size = simd * dt_size;
-        int load_owords = load_size / 16;
-        h.load(1, dst, ngen::aligned_block_oword(load_owords), h.A64, addr);
+            = gpu_utils::dev_getenv("jit_reduction_force_legacy_send", false);
+    bool use_legacy = force_legacy || hw < ngen::HW::XeHPG;
+    const int max_load_size = use_legacy ? 128 : 512;
+    gpu_assert(max_load_size % grf_bytes == 0) << "Unexpected load size";
+    const int max_load_regs = max_load_size / grf_bytes;
+
+    // Load in chunks
+    int reg_start = 0;
+    while (reg_start < nregs) {
+        int load_regs = nstl::min(max_load_regs, nregs - reg_start);
+        // Compute the src address
+        ngen::GRF addr = ra.alloc().uq();
+        eadd(h, 1, addr, base_src_addr, reg_start * grf_bytes);
+        if (use_legacy) {
+            // Reduce load_regs according to valid load sizes
+            const int oword_per_grf = grf_bytes / 16;
+            for (auto load_owords : {8, 4, 2, 1}) {
+                if (load_owords / oword_per_grf > load_regs) continue;
+                load_regs = load_owords / oword_per_grf;
+                break;
+            }
+
+            // Do the load
+            auto dt = ngen::aligned_block_oword(load_regs * oword_per_grf);
+            h.load(1, dst[reg_start], dt, h.A64, addr);
+        } else {
+            // Reduce load_regs according to valid load sizes
+            const int d64_per_grf = grf_bytes / 8;
+            for (auto load_d64s : {64, 32, 16, 8, 4, 3, 2, 1}) {
+                if (load_d64s / d64_per_grf > load_regs) continue;
+                load_regs = load_d64s / d64_per_grf;
+                break;
+            }
+
+            // Do the load
+            ngen::DataSpecLSC lscspec = ngen::CacheSettingsLSC::L1UC_L3WB;
+            lscspec |= ngen::block(
+                    ngen::DataSizeLSC::D64, load_regs * d64_per_grf);
+            h.load.ugm(1, dst[reg_start], lscspec, h.A64, addr);
+        }
+        reg_start += load_regs;
+        ra.release(addr);
     }
 }
+
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::compute(const ngen::GRF &src_ptr,
         const ngen::GRFRange &acc, dim_t stride, dim_t iters) {
@@ -111,13 +145,8 @@ void jit_reduction_injector_f32<hw>::compute(const ngen::GRF &src_ptr,
         return max_exec_size / reg_size;
     }());
 
-    int nloads = utils::div_up(nregs, regs_per_inst);
-    ngen::GRFRange load_addr = ra.alloc_range(nloads);
-    emov(h, 1, load_addr[0].uq(), src_ptr.uq());
-    for (int i = 1; i < nloads; i++) {
-        eadd(h, 1, load_addr[i].uq(), src_ptr.uq(),
-                i * reg_size * regs_per_inst);
-    }
+    ngen::GRF load_addr = ra.alloc().uq();
+    emov(h, 1, load_addr, src_ptr);
 
     // Set up GRFs used for loop indices
     ngen::Subregister loop_index = ra.alloc_sub(ngen::DataType::d);
@@ -136,11 +165,7 @@ void jit_reduction_injector_f32<hw>::compute(const ngen::GRF &src_ptr,
     h.mark(loop_start);
 
     // Load data - coalesce calls when possible
-    for (int i = 0; i < nregs; i += regs_per_inst) {
-        int inst_nregs = std::min(regs_per_inst, nregs - i);
-        int simd = inst_nregs * elems_per_reg;
-        eload(simd, dt_size, val[i].f(), load_addr[i / regs_per_inst]);
-    }
+    eload(val, load_addr);
 
     // Accumulate
     for (int i = 0; i < nregs; i += regs_per_inst) {
@@ -167,9 +192,7 @@ void jit_reduction_injector_f32<hw>::compute(const ngen::GRF &src_ptr,
     // Iterate
     eadd(h, 1, loop_index, loop_index, 1);
     h.cmp(1 | h.lt | loop_flag, loop_index, iters);
-    for (int i = 0; i < nloads; i++) {
-        eadd(h, 1, load_addr[i].uq(), load_addr[i].uq(), stride * dt_size);
-    }
+    eadd(h, 1, load_addr, load_addr, stride * dt_size);
     h.jmpi(1 | loop_flag, loop_start);
 
     // Release used registers
