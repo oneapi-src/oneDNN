@@ -1433,6 +1433,7 @@ private:
 };
 
 template struct brgemm_matmul_t<sve_512>;
+template struct brgemm_matmul_t<sve_256>;
 
 } // namespace matmul
 } // namespace aarch64
