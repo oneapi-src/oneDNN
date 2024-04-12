@@ -32,7 +32,7 @@ using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::utils;
 using namespace Xbyak_aarch64;
 
-#define GET_OFF(x) offsetof(ctx_t, x)
+#define GET_OFF(x) (uint32_t) offsetof(ctx_t, x)
 
 #define LDR_IMM(reg, addr, off) \
     { \
