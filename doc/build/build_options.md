@@ -335,7 +335,6 @@ CMake error.
 |:------------------------|:-------------------|
 | ONEDNN_GPU_VENDOR       | NVIDIA             |
 | ONEDNN_ENABLE_PRIMITIVE | PRIMITIVE_NAME     |
-| ONEDNN_ENABLE_WORKLOAD  | INFERENCE          |
 
 ## Graph Compiler Backend Limitations
 
