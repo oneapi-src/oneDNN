@@ -18,7 +18,7 @@ C = \beta C + \alpha \sum_i A_i \cdot B_i + bias
 with
 - $A_i$ a set of matrices of dimension $M \times K$
 - $B_i$ a set of matrices of dimension $K \times N$
-- D and C matrices of dimension $M \times N$
+- C matrix of dimension $M \times N$
 - bias a vector of dimension $N$.
 
 This proposal discusses exposing these sequential, basic building
@@ -42,7 +42,7 @@ for this block level API, we will have are three considerations:
 ### Arbitrary strides between A and B blocks
 
 To make the API flexible, we want to allow arbitrary strides between A
-and B blocks as showed in the picture:
+and B blocks as shown in the picture:
 ![](brgemm_pic.png)
 
 This is necessary on multiple occasions, a few examples being:
@@ -217,6 +217,8 @@ in block level APIs. However, `dnnl::set_max_cpu_isa` will still be
 effective, and can be used by the user to control the maximum isa
 level used by block level APIs.
 
+If more granularity is needed by end-user, we can add cpu isa selection
+as an attribute later.
 
 ### Handling of architectural state 
 
@@ -254,6 +256,8 @@ There are two options here:
 
 The recommendation is to go with the first option, with explicit set
 and release functions, that the user can hoist as they see fit.
+We will also have a `brgemm::reset_hw_context()` to avoid sequences 
+where `release_hw_context()` and `set_hw_context()` are called back-to-back.
 
 With respect to OS syscall, we recommend to make it transparent to
 user, by making those upon first created brgemm object that would need
@@ -348,20 +352,20 @@ here are a few ways to mitigate the lack of kernel-level cache:
 
 ## Transforms and transpose
 
-Transormation rountines, for example to pack data in a certain layout,
+Transformation routines, for example to pack data in a certain layout,
 are typically hard to implement without using intrinsics or assembly.
 To facilitate packing, we will expose an out-of-place transform
 functionality.
 
 ## All-in-all
 
-### Interface proposal
+### Interface proposal (C++)
 
 ```c++
 
 // namespace name to be defined, leaving it general enough for additional block level APIs
 namespace dnnl {
-namespace block { 
+namespace ukernel {
 
 enum packing_tag {
 packed_32;
@@ -370,39 +374,59 @@ plain;
 transposed;
 }
 
+struct brgemm_attr {
+    brgemm_attr();
+    set_scales(int a_scale_mask, int a_scale_mask, int a_scale_mask);
+    set_postops(post_ops &po);
+}
+
+struct attr_params{
+    attr_params();
+    set_scales(void *a_scale, void *b_scale, void *c_scale);
+    set_po_args(void **po_args); // array of pointers for post-op arguments, in order in which they were appended in attributes
+}
+
 struct brgemm {
-    struct desc {
-        // Vanilla version of brgemm with no post-op or destination conversion.
-        desc(dim_t batch, dim_t M, dim_t N, dim_t K,
-                data_type dtA, dim_t ldA,
-                data_type dtB, dim_t ldB, 
-                data_type dtC, dim_t ldC,
-                float alpha, float beta);
+    // Advanced version with postop and datatype conversion when D type
+    // is different than C type.
+    brgemm(dim_t batch, dim_t M, dim_t N, dim_t K,
+            data_type dtA, dim_t ldA,
+            data_type dtB, dim_t ldB, 
+            data_type dtC, dim_t ldC,
+            data_type dtD, dim_t ldD,
+            float alpha, float beta, 
+            const brgemm_attr &attr);
 
-        // Advanced version with postop and datatype conversion when D type
-        // is different than C type.
-        desc(dim_t batch, dim_t M, dim_t N, dim_t K,
-                data_type dtA, dim_t ldA,
-                data_type dtB, dim_t ldB, 
-                data_type dtC, dim_t ldC,
-                data_type dtD, dim_t ldD,
-                float alpha, float beta, 
-                const brgemm_attr &attr);
+    // Vanilla version of brgemm with no post-op or destination conversion.
+    brgemm(dim_t batch, dim_t M, dim_t N, dim_t K,
+            data_type dtA, dim_t ldA,
+            data_type dtB, dim_t ldB, 
+            data_type dtC, dim_t ldC,
+            float alpha, float beta);
 
-        // Queries for expected layouts and temporary memory
-        packing_tag get_A_tag() const;
-        packing_tag get_B_tag() const;
-        size_t get_scratchpad_size() const;
-    }
+    // Queries for expected layouts and temporary memory
+    packing_tag get_A_tag() const; // Not really needed, just for consistency
+    packing_tag get_B_tag() const;
+    size_t get_scratchpad_size() const;
 
-    brgemm(const desc &bd); 
-    
     // HW context handling.
     // This currently mimics AMX (need to clarify for SME): 
     // - Release is static
     // - No release necessary between different calls to set_hw_context
     void set_hw_context() const;
+    void reset_hw_context() const;
     static void release_hw_context() const;
+
+    // separate kernel generation to allow query without jit overhead
+    void generate();
+
+    // Execution function for the advanced brgemm variant
+    // Here the C matrix is just an input to accumulation
+    // final result after postop/conversion will be in D
+    // Computes D = \beta C + \alpha \sum_i A_i \cdot B_i + bias
+    void execute(const std::vector<std::pair<void *, void *>> A_B, 
+            const void *C, void *D, void *scratch = nullptr,
+            const attr_params &attr_args);
 
     // Execution function for the vanilla brgemm variant.
     // we take pointers to A and B as a vector of pairs, guarantees they are the same size
@@ -411,30 +435,69 @@ struct brgemm {
     // Computes C = \beta C + \alpha \sum_i A_i \cdot B_i
     void execute(const std::vector<std::pair<void *, void *>> &A_B,
             void *C, void *scratch = nullptr);
-
-    // Execution function for the advanced brgemm variant
-    // Here the C matrix is just an input to accumulation
-    // final result after postop/conversion will be in D
-    // Computes D = \beta C + \alpha \sum_i A_i \cdot B_i + bias
-    void execute(const std::vector<std::pair<void *, void *>> A_B, 
-            const void *C, void *D, void *scratch = nullptr,
-            void **post_ops_args = nullptr);
 }
 
 struct transform {
-    struct desc {
-        desc(dim_t M, dim_t N, data_type dt, 
-                packing_tag tag_src, dim_t ld_src,
-                packing_tag tag_dst, dim_t ld_dst);
-	}
-    transform(const desc &td);
+    // both src, dst share same dt, no fused conversion
+    transform(dim_t M, dim_t N, data_type dt, 
+            packing_tag tag_src, dim_t ld_src,
+            packing_tag tag_dst, dim_t ld_dst);
+    generate();
     execute(const void *src, void *dst);
 }
 
-} // namespace block
+} // namespace ukernel
 } // namespace dnnl
 ```
-### Simple example for bf16 matmul with f32 accumulation and relu fusion.
+
+### Interface proposal (C)
+
+```c++
+
+// opaque structure
+struct dnnl_ukernel_brgemm_attr_t;
+dnnl_brgemm_attr_create();
+dnnl_brgemm_attr_set_scales(int a_scale_mask, int a_scale_mask, int a_scale_mask);
+dnnl_brgemm_attr_set_postops(dnnl_post_ops &po);
+
+// opaque structure
+struct dnnl_ukernel_attr_params_t;
+dnnl_status_t dnnl_ukernel_attr_params_create(dnnl_ukernel_attr_params_t *ap);
+dnnl_status_t dnnl_ukernel_attr_params_set_scales(dnnl_ukernel_attr_params_t ap, void *a_scale, void *b_scale, void *c_scale);
+dnnl_status_t dnnl_ukernel_attr_params_set_po_args(dnnl_ukernel_attr_params_t ap, void **po_args);
+
+// Single creation function, if no post-ops/conversion, D should be set to undef
+dnnl_status_t dnnl_ukernel_brgemm_create(dnnl_brgemm_t *brgemm,
+        dnnl_dim_t batch, dnnl_dim_t M, dnnl_dim_t N, dnnl_dim_t K,
+        dnnl_data_type_t a_dt, dnnl_dim_t lda, 
+        dnnl_data_type_t b_dt, dnnl_dim_t ldb,
+        dnnl_data_type_t c_dt, dnnl_dim_t ldc,
+        dnnl_data_type_t d_dt, dnnl_dim_t ldd,   
+        float alpha, float beta,
+        const_dnnl_ukernel_brgemm_attr_t attr);
+
+// Queries for expected layouts and temporary memory
+dnnl_ukernel_packing_tag dnnl_ukernel_brgemm_get_A_tag(const_dnnl_brgemm_t brg);
+dnnl_ukernel_packing_tag dnnl_ukernel_brgemm_get_B_tag(const_dnnl_brgemm_t brg);
+dnnl_status_t dnnl_ukernel_brgemm_get_scratchpad_size(const_dnnl_brgemm_t brg, size_t *size);
+
+// HW context management. Release is independent of brgemm object
+dnnl_status_t dnnl_ukernel_brgemm_set_hw_context(const_dnnl_brgemm_t brg);
+dnnl_status_t dnnl_ukernel_brgemm_reset_hw_context(const_dnnl_brgemm_t brg);
+dnnl_status_t dnnl_ukernel_brgemm_release_hw_context();
+
+// separate kernel generation to allow query without jit overhead
+dnnl_status_t dnnl_ukernel_brgemm_generate(dnnl_brgemm_t brg);
+
+// Execution function. Single function here.
+// If no post-ops/conversion, C_ptr = D_ptr and attr_arguments=NULL
+dnnl_status_t dnnl_brgemm_execute(const_dnnl_brgemm_t brg,
+        const void **A_B_ptr, void *C_ptr, void *D_ptr, void *scratchpad_ptr,
+        const_ukernel_attr_params_t attr_arguments);
+
+```
+
+### Simple example for bf16 matmul with f32 accumulation and relu fusion.#include "dnnl_block.h"
 
 ```c++
 int matmul_with_relu(const void *src, const void *weights, void *dst) {
@@ -537,4 +600,4 @@ WIP
 [^5]: [Intel optimization guide](https://www.intel.com/content/www/us/en/content-details/671488/intel-64-and-ia-32-architectures-optimization-reference-manual-volume-1.html)
 [^6]: [The indirect convolution algorithm](https://arxiv.org/abs/1907.02129)
 [^7]: [XNNpack microkernels](https://github.com/google/XNNPACK/blob/8b30931dba3d4f23f0da035fa5330a45b5ade5bf/doc/microkernel-naming-conventions.md?plain=1#L57)
-[^8]: [FBGEMM microkernls](https://arxiv.org/abs/2101.05615)
+[^8]: [FBGEMM microkernels](https://arxiv.org/abs/2101.05615)
