@@ -44,12 +44,24 @@ extern "C" {
 /// Allocation call-back function interface for OpenCL. OpenCL allocator should
 /// be used for OpenCL GPU runtime. The call-back should return a USM device
 /// memory pointer.
+///
+/// @param size Memory size in bytes for requested allocation
+/// @param alignment The minimum alignment in bytes for the requested allocation
+/// @param device A valid OpenCL device used to allocate
+/// @param context A valid OpenCL context used to allocate
+/// @returns The memory address of the requested USM allocation.
 typedef void *(*dnnl_graph_ocl_allocate_f)(
         size_t size, size_t alignment, cl_device_id device, cl_context context);
 
 /// Deallocation call-back function interface for OpenCL. OpenCL allocator
 /// should be used for OpenCL runtime. The call-back should deallocate a USM
-/// device memory returned by #dnnl_graph_ocl_allocate_f.
+/// device memory returned by #dnnl_graph_ocl_allocate_f. The event should be
+/// completed before deallocate the USM.
+///
+/// @param buf The USM allocation to be released
+/// @param device A valid OpenCL device the USM associated with
+/// @param context A valid OpenCL context used to free the USM allocation
+/// @param event A event which the USM deallocation depends on
 typedef void (*dnnl_graph_ocl_deallocate_f)(
         void *buf, cl_device_id device, cl_context context, cl_event event);
 
