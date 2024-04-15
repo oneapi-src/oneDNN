@@ -745,14 +745,14 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     }
 
     auto read_params = get_send_params(cfg_.exec_cfg(), send_op_t::load,
-            send_address_t::a64, src_thr_view);
+            send_address_t::a64, src_thr_view, true);
     read_params.try_legacy = false;
     auto read = make_access_builder(
             ir_ctx, src_thr_view, src_buf, reg_buf, read_params);
     auto &read_stmt = read.stmt();
 
     auto write_params = get_send_params(cfg_.exec_cfg(), send_op_t::store,
-            send_address_t::a64, dst_thr_view);
+            send_address_t::a64, dst_thr_view, true);
     write_params.try_legacy = false;
     auto write = make_access_builder(
             ir_ctx, dst_thr_view, dst_buf, reg_buf, write_params);
