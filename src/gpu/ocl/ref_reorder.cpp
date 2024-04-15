@@ -41,7 +41,7 @@ status_t ref_reorder_t::pd_t::init_conf(engine_t *engine) {
     if (!IMPLICATION(
                 utils::one_of(src_mdw.data_type(), data_type::s4, data_type::u4)
                         || utils::one_of(dst_mdw.data_type(), data_type::s4,
-                                data_type::s4),
+                                data_type::u4),
                 dst_mdw.is_plain() && src_mdw.is_plain()))
         return status::unimplemented;
 
@@ -116,7 +116,7 @@ status_t ref_reorder_t::pd_t::init_kernel_ctx(
 
         int dst_contig_dim = -1;
         if (dst_blk.inner_nblks > 0)
-            dst_contig_dim = dst_blk.inner_blks[0];
+            dst_contig_dim = dst_blk.inner_idxs[0];
         else
             for (int i = 0; i < dst_md()->ndims; i++)
                 if (dst_blk.strides[i] == 1) dst_contig_dim = i;
