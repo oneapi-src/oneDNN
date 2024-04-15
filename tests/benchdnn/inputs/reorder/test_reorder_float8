@@ -2,6 +2,7 @@
 --reset
 --sdt=f32 --ddt=f8_e5m2,f8_e4m3
 --stag=abx
+--dtag=abx 30x1
 --dtag=aBx16b 2x64x14x14 2x56x14x14
 --dtag=gOIhw16i16o 2x64x64x3x3 2x56x56x3x3
 --dtag=gOIhw8i16o2i 2x64x64x3x3 2x56x56x3x3
@@ -13,6 +14,7 @@
 
 --sdt=f8_e5m2,f8_e4m3 --ddt=f32
 --dtag=abx
+--stag=abx 30x1
 --stag=aBx16b 2x64x14x14 2x56x14x14
 --stag=gOIhw16i16o 2x64x64x3x3 2x56x56x3x3
 --stag=gOIhw8i16o2i 2x64x64x3x3 2x56x56x3x3

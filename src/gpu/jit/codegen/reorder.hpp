@@ -428,32 +428,27 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             if (dst_type_size < conv_dst_type_size)
                 conv_dst_stride = conv_dst_type_size / dst_type_size;
         }
-        if (do_pre_reorder) {
-            if (conv_src_type_size < src_type_size)
-                conv_src_stride = src_type_size / conv_src_type_size;
-            if (conv_src_type_size > src_type_size)
-                conv_src_stride = conv_src_type_size / src_type_size;
-        }
+        if (do_pre_reorder) { conv_src_stride = 1; }
         const int step_nregs
                 = utils::div_up(step * ((int)sizeof(ngen::half)), grf_size);
-        const int nregs = utils::div_up(width
-                        * std::max((int)sizeof(ngen::half), max_type_size)
-                        * std::max(conv_src_stride, conv_dst_stride),
-                grf_size);
         auto tmp1 = lex_scope.alloc_reg_buf_data(step_nregs);
         auto tmp2 = lex_scope.alloc_reg_buf_data(step_nregs);
         // Only conversion between hf and bf8 supported with mov so additional
         // reorders generated when required.
         if (do_pre_reorder) {
-            auto tmp_src
-                    = lex_scope.alloc_reg_buf_data(nregs).format(0, conv_src);
+            const int src_nregs = utils::div_up(
+                    width * conv_src_type_size * conv_src_stride, grf_size);
+            auto tmp_src = lex_scope.alloc_reg_buf_data(src_nregs).format(
+                    0, conv_src);
             emit_reorder_1d_tile(hw, host, scope, width, src, src_stride,
                     tmp_src, conv_src_stride);
             src = std::move(tmp_src);
         }
         if (do_post_reorder) {
-            auto tmp_dst
-                    = lex_scope.alloc_reg_buf_data(nregs).format(0, conv_dst);
+            const int dst_nregs = utils::div_up(
+                    width * conv_dst_type_size * conv_dst_stride, grf_size);
+            auto tmp_dst = lex_scope.alloc_reg_buf_data(dst_nregs).format(
+                    0, conv_dst);
             dst = std::move(tmp_dst);
         }
         const int conv_src_stride_bytes = conv_src_type_size * conv_src_stride;
