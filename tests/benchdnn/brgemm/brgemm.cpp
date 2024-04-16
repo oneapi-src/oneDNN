@@ -61,6 +61,12 @@ dnnl_status_t brgemm_attr_init(
         dnnl::impl::cpu::x64::brgemm_attr_t *brgattr, const prb_t *prb) {
     using namespace dnnl::impl::cpu::x64;
 
+    // `max_bs` is handled directly through the driver interface.
+    brgattr->max_bs = prb->batch_size;
+
+    // `fpmath_mode` is handled directly through the driver interface.
+    brgattr->fpmath_mode = prb->attr.fpmath_mode.mode;
+
     const auto &str = prb->brgemm_attr;
     if (str.empty()) return dnnl_success;
 
@@ -127,12 +133,6 @@ dnnl_status_t brgemm_attr_init(
             brgattr->hint_load_nt_B = static_cast<brgemm_kernel_hint_nt_t>(
                     std::stoi(value_str));
     }
-
-    // `max_bs` is handled directly through the driver interface.
-    brgattr->max_bs = prb->batch_size;
-
-    // `fpmath_mode` is handled directly through the driver interface.
-    brgattr->fpmath_mode = prb->attr.fpmath_mode.mode;
 
     return dnnl_success;
 }
