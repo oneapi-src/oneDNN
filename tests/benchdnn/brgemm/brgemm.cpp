@@ -159,6 +159,16 @@ std::string prepare_wei_format_string(
     return wtag;
 }
 
+dnnl::impl::cpu::x64::brgemm_batch_kind_t str2batch_kind(
+        const std::string &str) {
+    if (str == "addr")
+        return dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_addr;
+    else if (str == "offs")
+        return dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_offs;
+    assert(!"Unsupported batch kind value");
+    return dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_batch_kind_undef;
+}
+
 int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
 
@@ -263,14 +273,23 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 // A special wrapper needed to match internal infrastructure.
 dnnl_status_t brgemm_kernel_execute_postops_wrapper(
         const dnnl::impl::cpu::x64::brgemm_kernel_t *brgemm_kernel,
-        int batch_size,
+        dnnl::impl::cpu::x64::brgemm_batch_kind_t batch_kind, int batch_size,
+        const void *src_ptr, const void *wei_ptr,
         const dnnl::impl::cpu::x64::brgemm_batch_element_t *batch_element,
         void *acc_ptr, void *dst_ptr,
         const dnnl::impl::cpu::x64::brgemm_post_ops_data_t &post_ops_data,
         void *scratchpad_ptr, const dnnl_stream_t &stream,
         const std::vector<dnnl_exec_arg_t> &dnnl_args) {
-    brgemm_kernel_execute_postops(brgemm_kernel, batch_size, batch_element,
-            acc_ptr, dst_ptr, post_ops_data, scratchpad_ptr);
+
+    if (batch_kind == dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_addr) {
+        brgemm_kernel_execute_postops(brgemm_kernel, batch_size, batch_element,
+                acc_ptr, dst_ptr, post_ops_data, scratchpad_ptr);
+    } else if (batch_kind
+            == dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_offs) {
+        brgemm_kernel_execute_postops(brgemm_kernel, batch_size, src_ptr,
+                wei_ptr, batch_element, acc_ptr, dst_ptr, post_ops_data,
+                scratchpad_ptr);
+    }
     return dnnl_success;
 }
 
@@ -306,7 +325,7 @@ int doit(const prb_t *prb, res_t *res) {
     brgemm_desc_t brgemm_desc;
     // Supports only address model for now as only affects the way memory is
     // passed to `brgemm_batch_element_t` object.
-    brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_addr;
+    brgemm_batch_kind_t batch_kind = str2batch_kind(prb->batch_kind);
     brgemm_layout_t layout = brgemm_layout_t::brgemm_row_major;
 
     // Pass `isa_undef` for now since internal work with it or rather isa bits
@@ -495,10 +514,17 @@ int doit(const prb_t *prb, res_t *res) {
             (long)src_batch_offset, (long)wei_batch_offset);
 
     for (size_t i = 0; i < v_batch_element.size(); i++) {
-        v_batch_element[i].ptr.A
-                = src_ptr + i * src_batch_offset * src_dt.sizeof_dt();
-        v_batch_element[i].ptr.B
-                = wei_ptr + i * wei_batch_offset * wei_dt.sizeof_dt();
+        if (batch_kind == brgemm_batch_kind_t::brgemm_addr) {
+            v_batch_element[i].ptr.A
+                    = src_ptr + i * src_batch_offset * src_dt.sizeof_dt();
+            v_batch_element[i].ptr.B
+                    = wei_ptr + i * wei_batch_offset * wei_dt.sizeof_dt();
+        } else if (batch_kind == brgemm_batch_kind_t::brgemm_offs) {
+            v_batch_element[i].offset.A
+                    = i * src_batch_offset * src_dt.sizeof_dt();
+            v_batch_element[i].offset.B
+                    = i * wei_batch_offset * wei_dt.sizeof_dt();
+        }
     }
 
     // Brgemm takes single pointer oscale, but relies on a combination of arg
@@ -579,9 +605,15 @@ int doit(const prb_t *prb, res_t *res) {
     char *dst_ptr = (char *)dst_dt;
     if (use_dst_as_acc) acc_ptr = dst_ptr;
 
-    brgemm_kernel_execute_postops(brgemm_kernel, prb->batch_size,
-            v_batch_element.data(), acc_ptr, dst_ptr, post_ops_data,
-            scratchpad_ptr);
+    if (batch_kind == brgemm_batch_kind_t::brgemm_addr) {
+        brgemm_kernel_execute_postops(brgemm_kernel, prb->batch_size,
+                v_batch_element.data(), acc_ptr, dst_ptr, post_ops_data,
+                scratchpad_ptr);
+    } else if (batch_kind == brgemm_batch_kind_t::brgemm_offs) {
+        brgemm_kernel_execute_postops(brgemm_kernel, prb->batch_size, src_ptr,
+                wei_ptr, v_batch_element.data(), acc_ptr, dst_ptr,
+                post_ops_data, scratchpad_ptr);
+    }
     res->state = EXECUTED;
 
     if (has_bench_mode_bit(mode_bit_t::corr)) {
@@ -603,9 +635,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     // Create a bind to match internals to run performance measurements.
     perf_function_t perf_func = std::bind(brgemm_kernel_execute_postops_wrapper,
-            brgemm_kernel_, prb->batch_size, v_batch_element.data(), acc_ptr,
-            dst_ptr, post_ops_data, scratchpad_ptr, std::placeholders::_1,
-            std::placeholders::_2);
+            brgemm_kernel_, batch_kind, prb->batch_size, src_ptr, wei_ptr,
+            v_batch_element.data(), acc_ptr, dst_ptr, post_ops_data,
+            scratchpad_ptr, std::placeholders::_1, std::placeholders::_2);
     measure_perf(prb->ctx_exe, res, perf_func, args);
 
     if (is_tmm) DNN_SAFE(amx_tile_release(), WARN);

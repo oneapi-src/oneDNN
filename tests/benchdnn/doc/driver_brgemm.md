@@ -29,6 +29,8 @@ where *brgemm-knobs* are:
             The format is: KEY:VALUE[+KEY:VALUE[...]] following post-ops
             notation. STRING may have `,` to iterate over multiple attribute
             settings. Refer to internal brgemm headers for more details.
+ - `--batch-kind=STRING` -- specifies brgemm batch kind. Supported values are:
+            `addr` (the default), `offs`.
  - `--match=REGEX` -- skip problems not matching the regular expression in
             `REGEX`. By default no pattern is applied (run everything).
             Note: Windows may interpret only string arguments surrounded by

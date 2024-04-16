@@ -240,6 +240,8 @@ status_t brgemm_desc_init(brgemm_desc_t *brg, cpu_isa_t isa,
     */
     if (brg == nullptr) return status::invalid_arguments;
     if (transA || transB) return status::unimplemented;
+    if (type == brgemm_batch_kind_t::brgemm_batch_kind_undef)
+        return status::invalid_arguments;
 
     brgemm_utils::init_brgemm_conf(brg, isa, type, dt_a, dt_b, layout, alpha,
             beta, LDA, LDB, LDC, M, N, K, strides);

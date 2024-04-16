@@ -54,6 +54,7 @@ struct settings_t : public base_settings_t {
     std::vector<int> batch_size {1};
     std::vector<float> alpha {1.f}, beta {0.f};
     std::vector<std::string> brgemm_attr {std::string()};
+    std::vector<std::string> batch_kind {"addr"};
 
     const char *perf_template_csv() const {
         static const std::string args = "";
@@ -68,8 +69,9 @@ struct prb_t : public prb_vdims_t {
             const std::string &stag, const std::string &wtag,
             const std::string &dtag, const std::vector<int64_t> &ld,
             dnnl_data_type_t bia_dt, float alpha, float beta, int batch_size,
-            const std::string &brgemm_attr, const attr_t &attr,
-            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe)
+            const std::string &brgemm_attr, const std::string &batch_kind,
+            const attr_t &attr, const thr_ctx_t &ctx_init,
+            const thr_ctx_t &ctx_exe)
         : prb_vdims_t(prb_vdims)
         , dt(dt)
         , stag(stag)
@@ -81,6 +83,7 @@ struct prb_t : public prb_vdims_t {
         , beta(beta)
         , batch_size(batch_size)
         , brgemm_attr(brgemm_attr)
+        , batch_kind(batch_kind)
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
@@ -130,6 +133,7 @@ struct prb_t : public prb_vdims_t {
     float alpha, beta;
     int64_t batch_size;
     std::string brgemm_attr;
+    std::string batch_kind;
 
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
