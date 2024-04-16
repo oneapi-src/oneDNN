@@ -1,4 +1,0 @@
-
-# test shapes with b_buffer
---reset
---dt=f16:f16:f16 --stag=ab --wtag=ba --dtag=ab --bia_dt=f16 327x256:256x256

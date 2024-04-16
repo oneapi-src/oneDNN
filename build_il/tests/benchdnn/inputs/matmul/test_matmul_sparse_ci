@@ -1,9 +1,0 @@
---reset
---dt=f32:f32:f32
---dtag=ab
---encoding=csr+0.99::,:csr+0.99:
---batch=shapes_sparse
-
---dt=u8:s8:s32,s8:s8:s32,u8:s8:f32,s8:s8:f32
---encoding=:packed+0.99:,:packed+0.5:,:packed+0.0:,:packed+1.0:
---batch=shapes_sparse_packed

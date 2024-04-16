@@ -1,6 +1,0 @@
-#
---reset --allow-enum-tags-only=0 --dt=f32 --tag=ABcde32a16b 32x6x13x14x9n"3dgan.tr.fp32.tf.mb256*8"
---reset --allow-enum-tags-only=0 --dt=f32 --tag=ABcde32a16b 256x8x25x25x25n"3dgan.tr.fp32.tf.mb256*8"
---reset --allow-enum-tags-only=0 --dt=f32 --tag=ABcde16a16b 256x8x25x25x25n"3dgan.tr.fp32.tf.mb256*8"
---reset --allow-enum-tags-only=0 --dt=f32 --tag=ABcde16a16b 256x8x23x23x23n"3dgan.tr.fp32.tf.mb256*8"
---reset --allow-enum-tags-only=0 --dt=f32 --tag=ABcde32a16b 256x6x13x14x9n"3dgan.tr.fp32.tf.mb256*4"

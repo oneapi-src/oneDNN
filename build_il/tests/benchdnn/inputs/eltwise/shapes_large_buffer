@@ -1,2 +1,0 @@
-# Test dimensions with 2 ^ 32 + 1 size to catch integer overflow
-4294967297n"large_dim1"

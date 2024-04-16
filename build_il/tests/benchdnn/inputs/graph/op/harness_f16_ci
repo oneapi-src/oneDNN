@@ -1,5 +1,0 @@
---reset --op-attrs=0:auto_pad:VALID --case=op/f16/conv_2d.json
---reset --case=op/f16/add.json
---reset --in-shapes=0:1x32x32x128 --op-attrs=0:data_format:NXC --case=op/f16/biasadd.json
---reset --case=op/f16/min.json
---reset --case=op/f16/reducel2.json

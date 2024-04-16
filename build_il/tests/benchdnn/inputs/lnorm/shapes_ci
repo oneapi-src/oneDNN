@@ -1,6 +1,0 @@
-15x3_n"lnorm_ci_0d:0" # Used in smoke validation, don't change the name
-30x300_n"lnorm_ci_0d:1" # Used in smoke validation, don't change the name
-256x768_n"lnorm_ci_0d:2" # Used in smoke validation, don't change the name
-257x768_n"lnorm_ci_0d:3" # Used in smoke validation, don't change the name
-128x1x1024_n"lnorm_ci_1d:0"
-6x2x128x1024_n"lnorm_ci_2d:0"

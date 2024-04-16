@@ -1,4 +1,0 @@
---batch=set_maskrcnn
---batch=set_fastrcnn
---batch=shapes_3d_unet
---batch=shapes_cosmictagger

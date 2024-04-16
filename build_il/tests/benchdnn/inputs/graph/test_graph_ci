@@ -1,7 +1,0 @@
---batch=op/harness_f32_ci
---batch=op/harness_f16_ci
---batch=op/harness_bf16_ci
---batch=pattern/harness_f32_ci
---batch=pattern/harness_f16_ci
---batch=pattern/harness_bf16_ci
---batch=pattern/harness_int8_ci

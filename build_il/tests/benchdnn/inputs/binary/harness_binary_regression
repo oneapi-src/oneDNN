@@ -1,5 +1,0 @@
-# repeated sum with varying scale
---reset --attr-post-ops=sum+relu+sum:2 8x8x3x5:8x8x3x5_n"multisum"
-
-# Curious edge case in GPU JIT-reorder-based binary
---reset --alg=ADD --stag=ABcd32a16b:ABcd32a16b --dtag=acdb --sdt=f16:f16 --ddt=f16 64x168x42x42:64x168x42x42

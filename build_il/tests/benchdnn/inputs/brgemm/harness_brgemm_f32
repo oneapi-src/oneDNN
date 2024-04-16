@@ -1,9 +1,0 @@
---reset
-
---dt=f32
---bia_dt=undef,f32
---alpha=1,2
---beta=0,1
---attr-post-ops=,sum:2,relu
---ld=,:160:96
---batch=option_set_f32

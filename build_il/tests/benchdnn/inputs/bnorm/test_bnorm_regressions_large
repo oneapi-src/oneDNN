@@ -1,5 +1,0 @@
---reset
-
---skip-impl=ref
-
---tag=axb,abx,aBx16b --dir=FWD_D,BWD_DW --flags=CHR --batch=shapes_large

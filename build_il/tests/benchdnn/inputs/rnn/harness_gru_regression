@@ -1,4 +1,0 @@
-# int8 SIC != SLC
---reset
---trivial-strides=true --prop=FWD_I --alg=VANILLA_GRU --activation=UNDEF
---direction=left2right --cfg=u8u8u8f32 l1t47mb100sic128slc256dhc128dic128

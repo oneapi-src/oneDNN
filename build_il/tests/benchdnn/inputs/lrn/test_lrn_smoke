@@ -1,9 +1,0 @@
---reset
-
---match=.*lrn_ci_2d.* # Use 2d problems only from shapes_ci
---mb=2
---dt=f32,bf16,f16
---alg=ACROSS,WITHIN
---dir=FWD_D,FWD_I,BWD_D
---tag=axb
---batch=shapes_ci
