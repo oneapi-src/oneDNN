@@ -711,6 +711,10 @@ private:
         return code;
     }
 
+    inline bool is_valid_isa(cpu_isa_t isa) {
+        return is_subset(isa, max_cpu_isa_) && mayiuse(isa);
+    }
+    
     static inline bool is_initialized() {
         /* At the moment, Xbyak_aarch64 does not have GetError()\
          so that return dummy result. */
