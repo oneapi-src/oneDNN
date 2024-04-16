@@ -49,25 +49,13 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
 
             const bool ok = set_default_params() == status::success
                     && check_data_types(src0_d, src1_d, dst_d)
-                    && check_formats(src0_d, src1_d, dst_d) && is_tensor_op()
+                    && check_formats(src0_d, src1_d, dst_d)
                     && attr()->has_default_values(
                             sm::scales_runtime | sm::post_ops)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask())
                     && post_ops_ok();
             if (!ok) return status::unimplemented;
-            // TODO: extend sycl device info to check supported sub-group sizes.
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
-            const auto supported_sub_group_sizes
-                    = sycl_engine->device()
-                              .template get_info<
-                                      ::sycl::info::device::sub_group_sizes>();
-            if (!std::any_of(supported_sub_group_sizes.cbegin(),
-                        supported_sub_group_sizes.cend(),
-                        [](size_t size) { return size == 32; })) {
-                return status::unimplemented;
-            }
 
             return init_conf();
         }
