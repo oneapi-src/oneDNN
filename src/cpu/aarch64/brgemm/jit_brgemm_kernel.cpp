@@ -135,7 +135,7 @@ struct jit_brgemm_kernel_t : public jit_generator {
     brgemm_t brg;
 
 private:
-    using po_injector_t = injector::jit_uni_postops_injector_t<sve_256>;
+    using po_injector_t = injector::jit_uni_postops_injector_t<sve_512>;
     std::unique_ptr<po_injector_t> postops_injector_;
 
     // Register decomposition
@@ -848,7 +848,7 @@ void jit_brgemm_kernel_t::apply_post_ops(
         int bd_block, int ld_block2, int ldb_and_bdb_offset, bool is_ld_tail) {
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
 
-    const injector_utils::conditional_register_preserve_guard_t<sve_256>
+    const injector_utils::conditional_register_preserve_guard_t<sve_512>
             register_guard(brg.with_binary, this, {param1});
     const auto guard_space = register_guard.stack_space_occupied();
     if (brg.with_binary) {
@@ -875,11 +875,11 @@ void jit_brgemm_kernel_t::apply_post_ops(
         const bool p_sum_zp_reg_set = *p_sum_zp != 0;
 
         {
-            const injector_utils::conditional_register_preserve_guard_t<sve_256>
+            const injector_utils::conditional_register_preserve_guard_t<sve_512>
                     register_guard_sum_scale((with_binary_non_scalar_bcast_)
                                     && p_sum_scale_reg_set,
                             this, {reg_ptr_sum_scale});
-            const injector_utils::conditional_register_preserve_guard_t<sve_256>
+            const injector_utils::conditional_register_preserve_guard_t<sve_512>
                     register_guard_sum_zp(
                             p_sum_zp_reg_set, this, {reg_ptr_sum_zp});
 
