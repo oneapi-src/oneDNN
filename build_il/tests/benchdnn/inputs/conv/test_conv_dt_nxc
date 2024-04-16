@@ -1,0 +1,16 @@
+--reset
+
+# f32
+--batch=harness_conv_f32_nxc
+
+# tails
+--reset
+--skip-impl=ref
+--stag=axb --dtag=axb
+--dir=FWD_B,BWD_D,BWD_WB  --batch=shapes_tails
+
+# bf16
+--batch=test_conv_bfloat16_nxc
+
+# f16
+--batch=test_conv_float16_nxc

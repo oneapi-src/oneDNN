@@ -1,0 +1,277 @@
+{
+  "version": "3.2.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "input_ports": [
+    40
+  ],
+  "output_ports": [
+    44
+  ],
+  "graph": [
+    {
+      "id": 36,
+      "name": "dqdata_op",
+      "kind": "Dequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            0.1
+          ]
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            -4
+          ]
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        }
+      },
+      "inputs": [
+        {
+          "id": 40,
+          "dtype": "s8",
+          "shape": [
+            1, 
+            1, 
+            3, 
+            3
+          ],
+          "stride": [
+            9, 
+            9, 
+            3, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 41,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            1, 
+            3, 
+            3
+          ],
+          "stride": [
+            9, 
+            9, 
+            3, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 37,
+      "name": "pool_op",
+      "kind": "AvgPool",
+      "attrs": {
+        "rounding_type": {
+          "type": "string",
+          "value": "floor"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "exclude_pad": {
+          "type": "bool",
+          "value": 0
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            0
+          ]
+        },
+        "kernel": {
+          "type": "s64[]",
+          "value": [
+            2, 
+            2
+          ]
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            1
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 41,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            1, 
+            3, 
+            3
+          ],
+          "stride": [
+            9, 
+            9, 
+            3, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 42,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            1, 
+            2, 
+            2
+          ],
+          "stride": [
+            4, 
+            4, 
+            2, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 38,
+      "name": "reshape",
+      "kind": "StaticReshape",
+      "attrs": {
+        "special_zero": {
+          "type": "bool",
+          "value": 0
+        },
+        "shape": {
+          "type": "s64[]",
+          "value": [
+            -1
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 42,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            1, 
+            2, 
+            2
+          ],
+          "stride": [
+            4, 
+            4, 
+            2, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 43,
+          "dtype": "f32",
+          "shape": [
+            4
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 39,
+      "name": "qout_op",
+      "kind": "Quantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            0.2
+          ]
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            -4
+          ]
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        }
+      },
+      "inputs": [
+        {
+          "id": 43,
+          "dtype": "f32",
+          "shape": [
+            4
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 44,
+          "dtype": "s8",
+          "shape": [
+            4
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

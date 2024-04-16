@@ -1,0 +1,5 @@
+--reset
+
+--dir=FWD_D,BWD_DW
+--sdt=f16:f32,f16
+--batch=option_set_all

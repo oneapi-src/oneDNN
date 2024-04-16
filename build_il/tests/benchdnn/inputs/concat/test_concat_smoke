@@ -1,0 +1,15 @@
+--reset
+
+--dtag=undef
+--sdt=f32,bf16,f16,s8,u8
+--ddt=f32,bf16,f16,s8,u8
+--stag=axb:axb
+--axis=1
+2x16x3x4:2x16x3x4
+3x5x5x17:3x4x5x17
+
+--stag=axb:axb:axb
+--axis=1
+--attr-scales=,msrc0:common:1.5+msrc1:common:2.5
+6x48x3x4x5:6x32x3x4x5:6x16x3x4x5
+6x48x3x4x5:6x31x3x4x5:6x16x3x4x5

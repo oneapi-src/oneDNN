@@ -1,0 +1,6 @@
+# basic shapes
+
+16x16_n"softmax_ci_0d:0"
+255x10_n"softmax_ci_0d:1"
+2x19x17x13_n"softmax_ci_2d:0" # Used in smoke validation, don't change the name
+1x16x2x12_n"softmax_ci_2d:1" # Used in smoke validation, don't change the name

@@ -1,0 +1,94 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "CONCAT_0",
+      "kind": "Concat",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            1,
+            128,
+            150,
+            150
+          ],
+          "stride": [
+            2880000,
+            1,
+            19200,
+            128
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            128,
+            150,
+            150
+          ],
+          "stride": [
+            2880000,
+            1,
+            19200,
+            128
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            1,
+            128,
+            150,
+            150
+          ],
+          "stride": [
+            2880000,
+            1,
+            19200,
+            128
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            3,
+            128,
+            150,
+            150
+          ],
+          "stride": [
+            2880000,
+            1,
+            19200,
+            128
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+# filename has bfloat16 to preserve testing on bfloat16 machines.
+--reset
+--skip-impl=ref,x64:gemm # only test brgemm:avx512_core_amx_bf16
+--dir=FWD_B
+--attr-fpmath=bf16
+--mb=0,10,68 # heuristics require mb > 8
+--batch=set_all --batch=shapes_0d --batch=shapes_regression
+
+# attributes
+--dir=FWD_B
+--attr-fpmath=bf16
+--attr-post-ops=linear:1:1:2.5,add:s32,sum:0.5+mul:s32:per_oc+relu:0.5
+--mb=0,10,68 --batch=set_all # heuristics require mb > 8
+--mb=0 --batch=shapes_0d
+
+--reset
+--skip-impl=ref,x64:gemm # only test brgemm_bwd_d:avx512_core_amx_bf16
+--dir=BWD_D
+--attr-fpmath=bf16
+--mb=0,10,68 --batch=set_all # heuristics require mb > 8
+--batch=set_all --batch=shapes_0d --batch=shapes_regression
+
+--reset
+--skip-impl=ref,x64:gemm # only test brgemm_bwd_w:avx512_core_amx_bf16
+--dir=BWD_WB
+--attr-fpmath=bf16
+--mb=0,64 # heuristics require mb > 32
+--batch=set_all --batch=shapes_0d

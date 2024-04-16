@@ -1,0 +1,27 @@
+# f32
+--reset
+--mb=2
+--dir=FWD_B
+
+--dt=f32
+--skip-impl=ref,x64:gemm      # ! test jit version only
+--batch=option_set_combined_postops
+--skip-impl=
+
+--dt=f32,f16,bf16,u8:s8:u8
+--skip-impl=ref
+--batch=option_set_all_eltwise_postops
+--skip-impl=
+
+# f32_wino
+--reset
+--mb=2
+--dir=FWD_B
+
+--dt=f32
+--alg=wino
+--attr-post-ops=sum+relu
+--batch=shapes_resnet_50
+
+# Depthwise fusion
+--batch=harness_conv_fused_depthwise

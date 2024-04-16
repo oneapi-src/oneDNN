@@ -1,0 +1,53 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 6,
+      "name": "ELTWISE_0",
+      "kind": "Sqrt",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "bf16",
+          "shape": [
+            64,
+            512,
+            28,
+            28
+          ],
+          "stride": [
+            401408,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 166,
+          "dtype": "bf16",
+          "shape": [
+            64,
+            512,
+            28,
+            28
+          ],
+          "stride": [
+            401408,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "Convolution",
+      "kind": "Convolution",
+      "attrs": {
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            2,
+            2
+          ]
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1
+          ]
+        },
+        "weights_format": {
+          "type": "string",
+          "value": "OIX"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f16",
+          "shape": [
+            2,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            1,
+            896,
+            32
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f16",
+          "shape": [
+            128,
+            32,
+            2,
+            2
+          ],
+          "stride": [
+            128,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "f16",
+          "shape": [
+            2,
+            128,
+            13,
+            13
+          ],
+          "stride": [
+            21632,
+            1,
+            1664,
+            128
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

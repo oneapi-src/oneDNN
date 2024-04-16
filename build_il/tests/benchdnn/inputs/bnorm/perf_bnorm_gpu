@@ -1,0 +1,2 @@
+--reset --batch=option_set_fwks_key_gpu
+--reset --batch=option_set_fwks_ext_gpu

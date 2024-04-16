@@ -1,0 +1,13 @@
+--reset
+
+--match=.*eltwise_ci_2d.* # Use 2d problems only from shapes_ci
+--inplace=false
+
+--dt=f32,bf16,f16
+--tag=axb
+--dir=FWD_D,BWD_D
+--batch=option_set_all_algs_ci
+
+--dir=FWD_I
+--dt=s8,u8
+--batch=option_set_all_algs_int8_ci

@@ -1,0 +1,52 @@
+--reset
+
+--mb=2
+
+# Training
+## Forward
+--dir=FWD_B,FWD_D
+### Direct
+--alg=direct
+--stag=any,axb
+--dtag=any,axb
+### f64 doesn't support post ops
+--dt=f64
+--batch=shapes_ci
+
+--dt=f32,bf16,f16
+--attr-post-ops=, \
+                sum:0.5, \
+                linear:2:1, \
+                add:f32, \
+                prelu:per_oc,\
+                mul:s8:per_oc+sum:0.25+relu:0.5
+--batch=shapes_ci
+## Backward
+--dir=BWD_D,BWD_W,BWD_WB
+--dt=f64,f32,f16
+--attr-post-ops=
+--batch=shapes_ci
+
+# Inference
+--dir=FWD_I
+
+--dt=s8:s8:f32,s8:s8:bf16,s8:s8:s32,s8:s8:s8,s8:s8:u8,u8:s8:f32,u8:s8:bf16,u8:s8:s32,u8:s8:s8,u8:s8:u8
+--batch=shapes_ci
+
+--attr-scales=,src:common:0.25,wei:per_oc,dst:common:2,src:common:0.25+wei:per_oc
+## Direct
+--alg=direct
+--dt=s8:s8:s8,u8:s8:s32
+--stag=any,axb
+--dtag=any,axb
+--attr-post-ops=, \
+                sum:0.5, \
+                linear:2:1, \
+                add:f32, \
+                mul:s8:per_oc+sum:0.25+relu:0.5:0:0.75
+--attr-zero-points=
+--batch=shapes_ci
+
+--attr-post-ops=
+--attr-zero-points=,src:common:31+dst:common:15
+--batch=shapes_ci

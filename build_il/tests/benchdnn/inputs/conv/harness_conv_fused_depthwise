@@ -1,0 +1,366 @@
+--reset
+--dir=FWD_I,FWD_B
+
+--dt=f32
+--attr-post-ops=dw:k3s1p1
+--batch=shapes_fused_mobilenet_stride_1
+
+--dt=f32,bf16
+--stag=axb --dtag=axb
+--batch=shapes_fused_mobilenet_stride_1
+
+--dt=u8:s8:u8,s8:s8:u8
+--stag= --dtag=
+--attr-scales=src:common:0.25+wei:per_oc+dst:common:0.5+attr_post_op_dw_wei:per_oc
+--attr-post-ops=relu+dw:k3s1p1:u8+relu:0.5+add:s8, \
+                add:f32:per_oc+dw:k3s1p1:s8+linear:0.5:1.5, \
+                relu+dw:k3s1p1:s32+add:s32:per_oc+abs, \
+                relu+add:f32+dw:k3s1p1+add:f32:per_oc+pow:0.5:0.33
+--batch=shapes_fused_mobilenet_stride_1
+
+--dt=u8:s8:s8,s8:s8:s8
+--attr-scales=src:common:0.25+wei:per_oc+dst:common:0.5+attr_post_op_dw_wei:common:2
+--attr-post-ops=linear:2+dw:k3s1p1:u8+relu, \
+                linear:0.5:1.5+dw:k3s1p1:s8+relu, \
+                dw:k3s1p1:s32+relu, \
+                add:f32:per_oc+dw:k3s1p1+relu+add:f32:per_oc
+--batch=shapes_fused_mobilenet_stride_1
+
+
+--attr-scratchpad=user
+
+--dt=f32
+--attr-scales=
+--attr-post-ops=relu+dw:k3s2p1+tanh,add:f32:per_oc+dw:k3s2p1+add:f32:per_oc
+--batch=shapes_fused_mobilenet_stride_2
+
+--dt=f32,bf16
+--stag=axb --dtag=axb
+--batch=shapes_fused_mobilenet_stride_2
+
+--dt=u8:s8:u8,s8:s8:u8
+--stag= --dtag=
+--attr-scales=src:common:0.25+wei:per_oc+dst:common:0.5+attr_post_op_dw_wei:per_oc+attr_post_op_dw_dst:common:4
+--attr-post-ops=relu+dw:k3s2p1:u8+relu:0.5+add:s8, \
+                add:f32:per_oc+dw:k3s2p1:s8+linear:0.5:1.5, \
+                relu+dw:k3s2p1:s32+add:s32:per_oc+abs, \
+                relu+add:f32+dw:k3s2p1+add:f32:per_oc+pow:0.5:0.33, \
+                dw:k3s2p1:s8
+--batch=shapes_fused_mobilenet_stride_2
+
+--dt=u8:s8:s8,s8:s8:s8
+--attr-scales=src:common:0.25+wei:per_oc+dst:common:0.5
+--attr-post-ops=relu:0.5+dw:k3s2p1:u8+relu, \
+                relu:0.5+dw:k3s2p1:s8+relu, \
+                relu:0.5+dw:k3s2p1:s32+relu, \
+                add:f32:per_oc+relu:0.5+dw:k3s2p1+relu+add:f32:per_oc
+--batch=shapes_fused_mobilenet_stride_2
+
+# target jit kernel with large shape to overcome L2-cache heuristic
+
+--skip-impl=ref,x64:gemm
+--dt=f32
+--attr-scales=
+--attr-post-ops=dw:k3s1p1
+--batch=shapes_fused_large_src
+
+--attr-post-ops=relu+dw:k3s2p1+tanh
+--batch=shapes_fused_large_src
+
+--attr-scales=src:common:0.25+wei:per_oc+dst:common:0.5+attr_post_op_dw_wei:per_oc
+--dt=s8:s8:s8
+--attr-post-ops=linear:2+dw:k3s1p1:u8+relu
+--batch=shapes_fused_large_src
+
+--dt=u8:s8:u8
+--attr-scales=src:common:0.25+wei:per_oc+dst:common:0.5+attr_post_op_dw_wei:per_oc+attr_post_op_dw_dst:common:2
+--attr-post-ops=relu:0.5+dw:k3s2p1:s32+relu,dw:k3s2p1
+--batch=shapes_fused_large_src
+
+
+# f32 dw with extended kernels, strides and padding.
+--reset
+--skip-impl=
+--dt=f32
+--mb=1,2,16
+
+# effD1
+--attr-post-ops=dw:k3s1p1
+ic32oc16_ih320oh320kh1sh1dh0ph0_n"effD1_1.1"
+ic24oc144_ih160oh160kh1sh1dh0ph0_n"effD1_1.2"
+ic80oc480_ih40oh40kh1sh1dh0ph0_n"effD1_1.3"
+ic192oc1152_ih20oh20kh1sh1dh0ph0_n"effD1_1.4"
+ic320oc1920_ih20oh20kh1sh1dh0ph0_n"effD1_1.5"
+ic88oc88_ih10oh10kh1sh1dh0ph0_n"effD1_1.6"
+ic88oc88_ih20oh20kh1sh1dh0ph0_n"effD1_1.7"
+ic112oc88_ih40oh40kh1sh1dh0ph0_n"effD1_1.8"
+ic40oc88_ih80oh80kh1sh1dh0ph0_n"effD1_1.9"
+ic88oc88_ih5oh5kh1sh1dh0ph0_n"effD1_1.10"
+
+--attr-post-ops=dw:k3s2p0
+ic16oc96_ih320oh320kh1sh1dh0ph0_n"effD1_2.1"
+ic40oc240_ih80oh80kh1sh1dh0ph0_n"effD1_2.2"
+
+--attr-post-ops=dw:k5s2p1
+ic24oc144_ih160oh160kh1sh1dh0ph0_n"effD1_3.1"
+ic112oc672_ih40oh40kh1sh1dh0ph0_n"effD1_3.2"
+
+--attr-post-ops=dw:k5s1p2
+ic40oc240_ih80oh80kh1sh1dh0ph0_n"effD1_4.1"
+ic80oc480_ih40oh40kh1sh1dh0ph0_n"effD1_4.2"
+ic112oc672_ih40oh40kh1sh1dh0ph0_n"effD1_4.3"
+ic192oc1152_ih20oh20kh1sh1dh0ph0_n"effD1_4.4"
+
+# effD4
+--attr-post-ops=dw:k3s1p1
+ic48oc24_ih512oh512kh1sh1dh0ph0_n"effD4_1.1"
+ic32oc192_ih256oh256kh1sh1dh0ph0_n"effD4_1.2"
+ic112oc672_ih64oh64kh1sh1dh0ph0_n"effD4_1.3"
+ic272oc1632_ih32oh32kh1sh1dh0ph0_n"effD4_1.4"
+ic448oc2688_ih32oh32kh1sh1dh0ph0_n"effD4_1.5"
+ic448oc224_ih8oh8kh1sh1dh0ph0_n"effD4_1.6"
+ic448oc224_ih16oh16kh1sh1dh0ph0_n"effD4_1.7"
+ic448oc224_ih32oh32kh1sh1dh0ph0_n"effD4_1.8"
+ic448oc224_ih64oh64kh1sh1dh0ph0_n"effD4_1.9"
+ic448oc224_ih128oh128kh1sh1dh0ph0_n"effD4_1.10"
+
+--attr-post-ops=dw:k3s2p0
+ic24oc144_ih512oh512kh1sh1dh0ph0_n"effD4_2.1"
+ic56oc336_ih128oh128kh1sh1dh0ph0_n"effD4_2.2"
+
+--attr-post-ops=dw:k5s2p1
+ic32oc192_ih256oh256kh1sh1dh0ph0_n"effD4_3.1"
+ic160oc960_ih64oh64kh1sh1dh0ph0_n"effD4_3.2"
+
+--attr-post-ops=dw:k5s1p2
+ic56oc336_ih128oh128kh1sh1dh0ph0_n"effD4_4.1"
+ic112oc672_ih64oh64kh1sh1dh0ph0_n"effD4_4.2"
+ic160oc960_ih64oh64kh1sh1dh0ph0_n"effD4_4.3"
+ic272oc1632_ih32oh32kh1sh1dh0ph0_n"effD4_4.4"
+
+# faster_rcnn_nas_lowproposals_coco
+--attr-post-ops=dw:k3s1p1
+ic42oc42_ih300oh300kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.1"
+ic168oc168_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.2"
+ic84oc84_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.3"
+ic336oc336_ih75oh75kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.4"
+ic672oc672_ih9oh9kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.5"
+
+--attr-post-ops=dw:k5s1p2
+ic42oc42_ih300oh300kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.1"
+ic84oc84_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.2"
+ic168oc168_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.3"
+ic336oc336_ih75oh75kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.4"
+ic672oc672_ih9oh9kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.5"
+
+--attr-post-ops=dw:k7s1p3
+ic96oc42_ih300oh300kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_3.1"
+ic84oc84_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_3.2"
+ic336oc336_ih75oh75kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_3.3"
+ic672oc672_ih9oh9kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_3.4"
+
+# deeplab
+--attr-post-ops=dw:k3s1p0
+ic64oc384_ih129oh129kh1sh1dh0ph0_n"deeplab_1.1"
+ic96oc576_ih129oh129kh1sh1dh0ph0_n"deeplab_1.2"
+ic160oc960_ih129oh129kh1sh1dh0ph0_n"deeplab_1.3"
+
+--attr-post-ops=dw:k3s1p1
+ic24oc144_ih257oh257kh1sh1dh0ph0_n"deeplab_2.1"
+ic32oc192_ih129oh129kh1sh1dh0ph0_n"deeplab_2.2"
+
+--attr-post-ops=dw:k3s2p1
+ic16oc96_ih513oh513kh1sh1dh0ph0_n"deeplab_3.1"
+ic24oc144_ih257oh257kh1sh1dh0ph0_n"deeplab_3.2"
+
+# deeplab_v3
+--attr-post-ops=dw:k3s1p0
+ic64oc384_ih65oh65kh1sh1dh0ph0_n"deeplab_v3_1.1"
+ic96oc576_ih65oh65kh1sh1dh0ph0_n"deeplab_v3_1.2"
+ic160oc960_ih65oh65kh1sh1dh0ph0_n"deeplab_v3_1.3"
+
+--attr-post-ops=dw:k3s1p1
+ic24oc144_ih129oh129kh1sh1dh0ph0_n"deeplab_v3_2.1"
+ic32oc192_ih65oh65kh1sh1dh0ph0_n"deeplab_v3_2.2"
+
+--attr-post-ops=dw:k3s2p1
+ic16oc96_ih257oh257kh1sh1dh0ph0_n"deeplab_v3_3.1"
+ic24oc144_ih129oh129kh1sh1dh0ph0_n"deeplab_v3_3.2"
+
+# rmnet_ssd
+--attr-post-ops=dw:k3s1p1
+ic32oc8_ih200oh200kh1sh1dh0ph0_n"rmnet_ssd_1.1"
+ic64oc16_ih100oh100kh1sh1dh0ph0_n"rmnet_ssd_1.2"
+ic128oc32_ih50oh50kh1sh1dh0ph0_n"rmnet_ssd_1.3"
+ic256oc64_ih25oh25kh1sh1dh0ph0_n"rmnet_ssd_1.4"
+ic128oc128_ih50oh50kh1sh1dh0ph0_n"rmnet_ssd_1.5"
+ic256oc256_ih25oh25kh1sh1dh0ph0_n"rmnet_ssd_1.6"
+
+--attr-post-ops=dw:k3s2p0
+ic32oc16_ih200oh200kh1sh1dh0ph0_n"rmnet_ssd_2.1"
+ic64oc32_ih100oh100kh1sh1dh0ph0_n"rmnet_ssd_2.2"
+ic128oc64_ih50oh50kh1sh1dh0ph0_n"rmnet_ssd_2.3"
+
+# nasnet_a_large_331
+--attr-post-ops=dw:k3s1p1
+ic42oc42_ih83oh83kh1sh1dh0ph0_n"nasnet_a_large_331_1.1"
+ic168oc168_ih42oh42kh1sh1dh0ph0_n"nasnet_a_large_331_1.2"
+ic336oc336_ih21oh21kh1sh1dh0ph0_n"nasnet_a_large_331_1.3"
+ic672oc672_ih11oh11kh1sh1dh0ph0_n"nasnet_a_large_331_1.4"
+
+--attr-post-ops=dw:k5s1p1
+ic42oc42_ih83oh83kh1sh1dh0ph0_n"nasnet_a_large_331_2.1"
+ic84oc84_ih42oh42kh1sh1dh0ph0_n"nasnet_a_large_331_2.2"
+ic168oc168_ih42oh42kh1sh1dh0ph0_n"nasnet_a_large_331_2.3"
+ic336oc336_ih21oh21kh1sh1dh0ph0_n"nasnet_a_large_331_2.4"
+ic672oc672_ih11oh11kh1sh1dh0ph0_n"nasnet_a_large_331_2.5"
+
+--attr-post-ops=dw:k7s1p3
+ic96oc42_ih83oh83kh1sh1dh0ph0_n"nasnet_a_large_331_3.1"
+ic84oc84_ih42oh42kh1sh1dh0ph0_n"nasnet_a_large_331_3.2"
+ic336oc336_ih21oh21kh1sh1dh0ph0_n"nasnet_a_large_331_3.3"
+ic672oc672_ih11oh11kh1sh1dh0ph0_n"nasnet_a_large_331_3.4"
+
+
+# bf16 dw with extended kernels, strides and padding.
+--reset
+--skip-impl=
+--dt=bf16
+--mb=1,2,16
+
+# effD1
+--attr-post-ops=dw:k3s1p1:bf16
+ic32oc16_ih320oh320kh1sh1dh0ph0_n"effD1_1.1"
+ic24oc144_ih160oh160kh1sh1dh0ph0_n"effD1_1.2"
+ic80oc480_ih40oh40kh1sh1dh0ph0_n"effD1_1.3"
+ic192oc1152_ih20oh20kh1sh1dh0ph0_n"effD1_1.4"
+ic320oc1920_ih20oh20kh1sh1dh0ph0_n"effD1_1.5"
+ic88oc88_ih10oh10kh1sh1dh0ph0_n"effD1_1.6"
+ic88oc88_ih20oh20kh1sh1dh0ph0_n"effD1_1.7"
+ic112oc88_ih40oh40kh1sh1dh0ph0_n"effD1_1.8"
+ic40oc88_ih80oh80kh1sh1dh0ph0_n"effD1_1.9"
+ic88oc88_ih5oh5kh1sh1dh0ph0_n"effD1_1.10"
+
+--attr-post-ops=dw:k3s2p0:bf16
+ic16oc96_ih320oh320kh1sh1dh0ph0_n"effD1_2.1"
+ic40oc240_ih80oh80kh1sh1dh0ph0_n"effD1_2.2"
+
+--attr-post-ops=dw:k5s2p1:bf16
+ic24oc144_ih160oh160kh1sh1dh0ph0_n"effD1_3.1"
+ic112oc672_ih40oh40kh1sh1dh0ph0_n"effD1_3.2"
+
+--attr-post-ops=dw:k5s1p2:bf16
+ic40oc240_ih80oh80kh1sh1dh0ph0_n"effD1_4.1"
+ic80oc480_ih40oh40kh1sh1dh0ph0_n"effD1_4.2"
+ic112oc672_ih40oh40kh1sh1dh0ph0_n"effD1_4.3"
+ic192oc1152_ih20oh20kh1sh1dh0ph0_n"effD1_4.4"
+
+# effD4
+--attr-post-ops=dw:k3s1p1:bf16
+ic48oc24_ih512oh512kh1sh1dh0ph0_n"effD4_1.1"
+ic32oc192_ih256oh256kh1sh1dh0ph0_n"effD4_1.2"
+ic112oc672_ih64oh64kh1sh1dh0ph0_n"effD4_1.3"
+ic272oc1632_ih32oh32kh1sh1dh0ph0_n"effD4_1.4"
+ic448oc2688_ih32oh32kh1sh1dh0ph0_n"effD4_1.5"
+ic448oc224_ih8oh8kh1sh1dh0ph0_n"effD4_1.6"
+ic448oc224_ih16oh16kh1sh1dh0ph0_n"effD4_1.7"
+ic448oc224_ih32oh32kh1sh1dh0ph0_n"effD4_1.8"
+ic448oc224_ih64oh64kh1sh1dh0ph0_n"effD4_1.9"
+ic448oc224_ih128oh128kh1sh1dh0ph0_n"effD4_1.10"
+
+--attr-post-ops=dw:k3s2p0:bf16
+ic24oc144_ih512oh512kh1sh1dh0ph0_n"effD4_2.1"
+ic56oc336_ih128oh128kh1sh1dh0ph0_n"effD4_2.2"
+
+--attr-post-ops=dw:k5s2p1:bf16
+ic32oc192_ih256oh256kh1sh1dh0ph0_n"effD4_3.1"
+ic160oc960_ih64oh64kh1sh1dh0ph0_n"effD4_3.2"
+
+--attr-post-ops=dw:k5s1p2:bf16
+ic56oc336_ih128oh128kh1sh1dh0ph0_n"effD4_4.1"
+ic112oc672_ih64oh64kh1sh1dh0ph0_n"effD4_4.2"
+ic160oc960_ih64oh64kh1sh1dh0ph0_n"effD4_4.3"
+ic272oc1632_ih32oh32kh1sh1dh0ph0_n"effD4_4.4"
+
+# faster_rcnn_nas_lowproposals_coco
+--attr-post-ops=dw:k3s1p1:bf16
+ic42oc42_ih300oh300kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.1"
+ic168oc168_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.2"
+ic84oc84_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.3"
+ic336oc336_ih75oh75kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.4"
+ic672oc672_ih9oh9kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_1.5"
+
+--attr-post-ops=dw:k5s1p2:bf16
+ic42oc42_ih300oh300kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.1"
+ic84oc84_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.2"
+ic168oc168_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.3"
+ic336oc336_ih75oh75kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.4"
+ic672oc672_ih9oh9kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_2.5"
+
+--attr-post-ops=dw:k7s1p3:bf16
+ic96oc42_ih300oh300kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_3.1"
+ic84oc84_ih150oh150kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_3.2"
+ic336oc336_ih75oh75kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_3.3"
+ic672oc672_ih9oh9kh1sh1dh0ph0_n"faster_rcnn_nas_lowproposals_coco_3.4"
+
+# deeplab
+--attr-post-ops=dw:k3s1p0:bf16
+ic64oc384_ih129oh129kh1sh1dh0ph0_n"deeplab_1.1"
+ic96oc576_ih129oh129kh1sh1dh0ph0_n"deeplab_1.2"
+ic160oc960_ih129oh129kh1sh1dh0ph0_n"deeplab_1.3"
+
+--attr-post-ops=dw:k3s1p1:bf16
+ic24oc144_ih257oh257kh1sh1dh0ph0_n"deeplab_2.1"
+ic32oc192_ih129oh129kh1sh1dh0ph0_n"deeplab_2.2"
+
+--attr-post-ops=dw:k3s2p1:bf16
+ic16oc96_ih513oh513kh1sh1dh0ph0_n"deeplab_3.1"
+ic24oc144_ih257oh257kh1sh1dh0ph0_n"deeplab_3.2"
+
+# deeplab_v3
+--attr-post-ops=dw:k3s1p0:bf16
+ic64oc384_ih65oh65kh1sh1dh0ph0_n"deeplab_v3_1.1"
+ic96oc576_ih65oh65kh1sh1dh0ph0_n"deeplab_v3_1.2"
+ic160oc960_ih65oh65kh1sh1dh0ph0_n"deeplab_v3_1.3"
+
+--attr-post-ops=dw:k3s1p1:bf16
+ic24oc144_ih129oh129kh1sh1dh0ph0_n"deeplab_v3_2.1"
+ic32oc192_ih65oh65kh1sh1dh0ph0_n"deeplab_v3_2.2"
+
+--attr-post-ops=dw:k3s2p1:bf16
+ic16oc96_ih257oh257kh1sh1dh0ph0_n"deeplab_v3_3.1"
+ic24oc144_ih129oh129kh1sh1dh0ph0_n"deeplab_v3_3.2"
+
+# rmnet_ssd
+--attr-post-ops=dw:k3s1p1:bf16
+ic32oc8_ih200oh200kh1sh1dh0ph0_n"rmnet_ssd_1.1"
+ic64oc16_ih100oh100kh1sh1dh0ph0_n"rmnet_ssd_1.2"
+ic128oc32_ih50oh50kh1sh1dh0ph0_n"rmnet_ssd_1.3"
+ic256oc64_ih25oh25kh1sh1dh0ph0_n"rmnet_ssd_1.4"
+ic128oc128_ih50oh50kh1sh1dh0ph0_n"rmnet_ssd_1.5"
+ic256oc256_ih25oh25kh1sh1dh0ph0_n"rmnet_ssd_1.6"
+
+--attr-post-ops=dw:k3s2p0:bf16
+ic32oc16_ih200oh200kh1sh1dh0ph0_n"rmnet_ssd_2.1"
+ic64oc32_ih100oh100kh1sh1dh0ph0_n"rmnet_ssd_2.2"
+ic128oc64_ih50oh50kh1sh1dh0ph0_n"rmnet_ssd_2.3"
+
+# nasnet_a_large_331
+--attr-post-ops=dw:k3s1p1:bf16
+ic42oc42_ih83oh83kh1sh1dh0ph0_n"nasnet_a_large_331_1.1"
+ic168oc168_ih42oh42kh1sh1dh0ph0_n"nasnet_a_large_331_1.2"
+ic336oc336_ih21oh21kh1sh1dh0ph0_n"nasnet_a_large_331_1.3"
+ic672oc672_ih11oh11kh1sh1dh0ph0_n"nasnet_a_large_331_1.4"
+
+--attr-post-ops=dw:k5s1p1:bf16
+ic42oc42_ih83oh83kh1sh1dh0ph0_n"nasnet_a_large_331_2.1"
+ic84oc84_ih42oh42kh1sh1dh0ph0_n"nasnet_a_large_331_2.2"
+ic168oc168_ih42oh42kh1sh1dh0ph0_n"nasnet_a_large_331_2.3"
+ic336oc336_ih21oh21kh1sh1dh0ph0_n"nasnet_a_large_331_2.4"
+ic672oc672_ih11oh11kh1sh1dh0ph0_n"nasnet_a_large_331_2.5"
+
+--attr-post-ops=dw:k7s1p3:bf16
+ic96oc42_ih83oh83kh1sh1dh0ph0_n"nasnet_a_large_331_3.1"
+ic84oc84_ih42oh42kh1sh1dh0ph0_n"nasnet_a_large_331_3.2"
+ic336oc336_ih21oh21kh1sh1dh0ph0_n"nasnet_a_large_331_3.3"
+ic672oc672_ih11oh11kh1sh1dh0ph0_n"nasnet_a_large_331_3.4"

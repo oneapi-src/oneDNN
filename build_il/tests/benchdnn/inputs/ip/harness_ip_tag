@@ -1,0 +1,42 @@
+--reset
+--dir=FWD_D,BWD_D,BWD_WB
+# IO
+--wtag=xba,abx
+mb2ic640oc256
+mb2ic640iw10oc256
+--wtag=abx,xba,aBx16b,aBx8b,aBx4b
+mb2ic640ih10oc256
+mb2ic640id2ih10iw10oc256
+# Target BRGEMM implementation
+--wtag=AxB16b64a,AxB16b32a,AxB16b16a
+mb2ic645oc284
+mb2ic333oc119
+mb2ic645iw10oc284
+mb2ic645ih10oc284
+mb2ic333id2ih10iw10oc119
+
+--reset
+--dir=FWD_D,BWD_D,BWD_WB
+# IO
+--stag=abx
+mb2ic640oc256
+mb2ic640iw10oc256
+
+--stag=abx,aBx16b,aBx8b,aBx4b
+mb2ic640ih10oc256
+mb2ic640id2ih10iw10oc256
+
+# Test GEMM impl (regression shapes) with different tags
+--reset
+--dt=f32,bf16 --dir=FWD_B,BWD_D,BWD_WB
+--stag=ba --wtag=ba --dtag=ab mb16ic16oc16
+
+--dt=s8:s8:s8 --dir=FWD_B
+mb32ic32oc16
+
+# Test reference impl with arbitrary tag combinations
+--reset
+--dt=f32,u8:s8:u8 # for float and integral reference impl
+--stag=any --wtag=OIhw16i16o mb1ic1oc1ih1iw1
+--stag=dcab --wtag=any mb1ic1oc1ih1iw1
+

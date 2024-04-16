@@ -1,0 +1,49 @@
+--reset
+
+# reference reorders
+--sdt=f32,bf16,f16,f8_e5m2,f8_e4m3,s32,s8,u8
+--ddt=f32,bf16,f16,f8_e5m2,f8_e4m3,s32,s8,u8
+--attr-scales=,src:per_dim_1+dst:per_dim_1
+--attr-zero-points=,src:common:-1+dst:common:2
+--attr-post-ops=,sum:0.5
+--runtime-dim-mask=0,63
+--stag=abx
+--dtag=abx,axb,xba
+--oflag=
+2x16x3x4 1x17x5x3
+
+--reset
+# compensation reorders without groups
+--sdt=f32,s8,bf16
+--ddt=s8
+--stag=abx
+--dtag=xba
+--oflag=zp_comp:1
+2x16x3x4 1x17x5x3
+
+--reset
+# all combinations of scales
+--sdt=f32
+--ddt=f32,bf16,f16,s32,s8,u8,f8_e5m2,f8_e4m3
+--runtime-dim-mask=0,63
+--stag=abx
+--dtag=axb
+--attr-scales=src:common:2, \
+              src:per_dim_0, \
+              src:per_dim_1, \
+              src:per_dim_01, \
+              dst:common:2, \
+              dst:per_dim_0, \
+              dst:per_dim_1, \
+              dst:per_dim_01, \
+              src:common:4+dst:common:2, \
+              src:per_dim_0+dst:per_dim_0, \
+              src:per_dim_1+dst:per_dim_1, \
+              src:per_dim_01+dst:per_dim_01, \
+              src:per_dim_1+dst:common:2, \
+              src:common:4+dst:per_dim_1
+2x16x3x4
+
+# int4 cases
+--reset
+--batch=test_reorder_int4

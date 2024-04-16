@@ -1,0 +1,243 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 4,
+      "name": "CONV_0",
+      "kind": "Convolution",
+      "attrs": {
+        "weights_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1
+          ]
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            -1,
+            -1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            2,
+            2
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            50,
+            1024,
+            14,
+            14
+          ],
+          "stride": [
+            200704,
+            196,
+            14,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            2048,
+            1024,
+            1,
+            1
+          ],
+          "stride": [
+            1024,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        },
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            2048
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 164,
+          "dtype": "f32",
+          "shape": [
+            50,
+            2048,
+            7,
+            7
+          ],
+          "stride": [
+            100352,
+            49,
+            7,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 2054,
+      "name": "ELTWISE_1",
+      "kind": "Sigmoid",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 164,
+          "dtype": "f32",
+          "shape": [
+            50,
+            2048,
+            7,
+            7
+          ],
+          "stride": [
+            100352,
+            49,
+            7,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2214,
+          "dtype": "f32",
+          "shape": [
+            50,
+            2048,
+            7,
+            7
+          ],
+          "stride": [
+            100352,
+            49,
+            7,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 4097,
+      "name": "BINARY_2",
+      "kind": "Multiply",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 2214,
+          "dtype": "f32",
+          "shape": [
+            50,
+            2048,
+            7,
+            7
+          ],
+          "stride": [
+            100352,
+            49,
+            7,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 164,
+          "dtype": "f32",
+          "shape": [
+            50,
+            2048,
+            7,
+            7
+          ],
+          "stride": [
+            100352,
+            49,
+            7,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 4257,
+          "dtype": "f32",
+          "shape": [
+            50,
+            2048,
+            7,
+            7
+          ],
+          "stride": [
+            100352,
+            49,
+            7,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

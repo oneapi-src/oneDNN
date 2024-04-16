@@ -1,0 +1,35 @@
+--reset
+--mb=2
+
+--alg=max,avg_np,avg_p
+# Training
+--dt=f32
+--tag=abx,axb,aBx8b,aBx16b
+
+--dir=FWD_D,BWD_D
+--batch=set_all
+--batch=set_topologies
+
+--dir=FWD_D
+--attr-post-ops=add:f32:per_oc,linear:0.5:-1
+--batch=set_all_small
+
+# Inference
+--dt=f32,s32,s8,u8
+--dir=FWD_I
+--tag=axb
+--batch=set_all
+
+--attr-post-ops=add:s8,linear:0.5:-1
+--batch=set_all_small
+
+# Regression
+--reset
+--skip-impl=ref
+--dt=f32 --dir=FWD_I --tag=axb mb1ic16_ih4oh1kh8sh128dh0ph2_iw1ow1kw8sw1dw0pw3n"regression_test_limit_l_pad_for_small_ow"
+
+# bf16
+--batch=test_pool_bfloat16
+
+# f16
+--batch=test_pool_float16

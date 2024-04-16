@@ -1,0 +1,70 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "SOFTMAX_0",
+      "kind": "SoftMaxBackward",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "bf16",
+          "shape": [
+            8,
+            384,
+            1024
+          ],
+          "stride": [
+            393216,
+            1,
+            384
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "bf16",
+          "shape": [
+            8,
+            384,
+            1024
+          ],
+          "stride": [
+            393216,
+            1,
+            384
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "bf16",
+          "shape": [
+            8,
+            384,
+            1024
+          ],
+          "stride": [
+            393216,
+            1,
+            384
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

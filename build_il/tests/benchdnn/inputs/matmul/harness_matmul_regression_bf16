@@ -1,0 +1,19 @@
+# Runtime M dimension and binary post-ops with per_oc broadcast.
+--reset
+--dt=bf16,bf16:bf16:f32
+--stag=ab --wtag=ab --dtag=ab
+--runtime_dims_masks=1:0
+--attr-post-ops=add:bf16:per_oc,add:f32:per_oc
+10x1:1x20_n"runtime_m_and_binary_po"
+
+# Small shape with binary po and mask 13 broadcast.
+--reset
+--dt=bf16
+--stag=abcd --wtag=abcd --dtag=abcd
+--attr-post-ops=add:bf16:13:abcd
+2x2x32x16:2x2x16x64_n"small_shape_with_binary_po_and_mask_13"
+
+# Shape to reach parallel reduction.
+--reset
+--dt=bf16:bf16:bf16
+2x1280:1280x65_n"parallel_reduction"

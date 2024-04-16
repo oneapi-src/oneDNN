@@ -1,0 +1,17 @@
+--reset
+
+# f16
+--mb=2
+--sdt=f16
+--ddt=f16
+--dir=FWD_D,BWD_D
+--alg=nearest,linear
+--tag=abx,axb
+--batch=set_all
+
+# post ops
+--dir=FWD_D
+--sdt=f16
+--ddt=f16
+--attr-post-ops=add:f16
+--batch=shapes_ci

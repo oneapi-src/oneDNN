@@ -1,0 +1,7 @@
+--reset --allow-enum-tags-only=0 --dir=FWD_I --flags=CH --dt=f32:f32 --tag=abc:abc --stat_tag= 64x384x1024_n"762a2c48f8b850f39740d14babe2d995*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_I --flags=CH --dt=f32:f32 --tag=ab:ab --stat_tag= 24576x1024_n"5d90cda5b0320d8e4fd414a4d42e7c9e*48"
+--reset --allow-enum-tags-only=0 --dir=FWD_I --flags=CH --dt=bf16:bf16 --tag=abc:abc --stat_tag= 64x384x1024_n"1835e23454a6686e537cba92a9349f8e*1"
+--reset --allow-enum-tags-only=0 --dir=FWD_I --flags=CH --dt=bf16:bf16 --tag=ab:ab --stat_tag= 24576x1024_n"a17e3f049748a9853ac267f9e4165b73*48"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --flags=CH --dt=bf16:bf16 --tag=abc:abc --stat_tag=ab 1x16384x3072_n"e9596a832fb7db45e7b0e26435441951*121"
+--reset --allow-enum-tags-only=0 --dir=BWD_DW --flags=CH --dt=bf16:bf16 --tag=abc:abc --stat_tag=ab 1x16384x3072_n"48c3bab5c9b108d1eb79d8ae45ac8014*61"
+--reset --allow-enum-tags-only=0 --dir=FWD_D --flags=CH --dt=bf16:bf16 --tag=abc:abc --stat_tag=ab 1x24576x1024_n"48d0b620bf161fa6ae3580933b26e425*49"

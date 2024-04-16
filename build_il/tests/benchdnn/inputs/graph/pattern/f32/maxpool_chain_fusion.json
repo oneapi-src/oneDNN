@@ -1,0 +1,308 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 9,
+      "name": "POOL_0",
+      "kind": "MaxPool",
+      "attrs": {
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1
+          ]
+        },
+        "rounding_type": {
+          "type": "string",
+          "value": "floor"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "kernel": {
+          "type": "s64[]",
+          "value": [
+            3,
+            3
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            4,
+            4
+          ],
+          "stride": [
+            2048,
+            16,
+            4,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 169,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 2049,
+      "name": "BINARY_1",
+      "kind": "Multiply",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 169,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            128,
+            1,
+            1
+          ],
+          "stride": [
+            128,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2209,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 4097,
+      "name": "BINARY_2",
+      "kind": "Minimum",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 2209,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            1,
+            128,
+            1,
+            1
+          ],
+          "stride": [
+            128,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 4257,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 6145,
+      "name": "BINARY_3",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 4257,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "stride": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6305,
+          "dtype": "f32",
+          "shape": [
+            2,
+            128,
+            2,
+            2
+          ],
+          "stride": [
+            512,
+            4,
+            2,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

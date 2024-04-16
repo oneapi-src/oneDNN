@@ -1,0 +1,53 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "ELTWISE_0",
+      "kind": "Reciprocal",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            32
+          ],
+          "stride": [
+            32768,
+            1024,
+            32,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 1,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            32
+          ],
+          "stride": [
+            32768,
+            1024,
+            32,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+--reset
+
+--match=.*bnorm_ci_2d.* # Use 2d problems only from shapes_ci
+--inplace=false
+--tag=axb
+
+# training
+--dir=FWD_D,BWD_DW
+--dt=f32,bf16,f16
+--flags=,G,CHR
+--batch=shapes_ci
+## no scale or shift support for backward_data
+--dir=BWD_D
+--flags=,G,R
+--batch=shapes_ci
+
+# inference
+--dir=FWD_I
+
+--dt=f32,bf16,f16
+--flags=,G,CH
+--attr-post-ops=,relu
+--batch=shapes_ci
+--attr-post-ops=
+
+--dt=f16
+--flags=,G,CH
+--batch=shapes_ci
+
+--dt=s8
+--flags=G,GCH
+--batch=shapes_ci

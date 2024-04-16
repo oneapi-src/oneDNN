@@ -1,0 +1,8 @@
+--reset
+
+--dt=f16,f16:f16:f32,f16:f32:f32,f32:f16:f32
+--bia_dt=undef,f32,f16
+--alpha=1,2
+--beta=0
+--attr-post-ops=,sum:2,relu
+--batch=option_set_f32 # f16 uses f32 blocking for avx512_core_fp16

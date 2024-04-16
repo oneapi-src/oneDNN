@@ -1,0 +1,142 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "CONV_0",
+      "kind": "ConvolutionBackwardData",
+      "attrs": {
+        "dst_shape": {
+          "type": "s64[]",
+          "value": [
+            1,
+            32,
+            28,
+            28
+          ]
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "weights_format": {
+          "type": "string",
+          "value": "OIX"
+        },
+        "output_padding": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "dilations": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            0,
+            0
+          ]
+        },
+        "groups": {
+          "type": "s64",
+          "value": 1
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            2,
+            2
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f16",
+          "shape": [
+            1,
+            128,
+            14,
+            14
+          ],
+          "stride": [
+            25088,
+            196,
+            14,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f16",
+          "shape": [
+            128,
+            32,
+            1,
+            1
+          ],
+          "stride": [
+            32,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "constant"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "f16",
+          "shape": [
+            1,
+            32,
+            28,
+            28
+          ],
+          "stride": [
+            25088,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

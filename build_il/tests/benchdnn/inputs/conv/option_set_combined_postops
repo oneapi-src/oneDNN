@@ -1,0 +1,18 @@
+# Option set to test postop combinations
+
+--attr-post-ops=sum+relu --batch=shapes_resnet_50
+--attr-post-ops=sum+relu:0.5 --batch=shapes_tails
+--attr-post-ops=sum+tanh:0:0:2.5 --batch=shapes_tails
+--attr-post-ops=sum+elu:0.5 --batch=shapes_tails
+--attr-post-ops=sum+abs --batch=shapes_tails
+--attr-post-ops=sum+linear:0.5:1.5 --batch=shapes_tails
+--attr-post-ops=sum+clip:0:0.5 --batch=shapes_tails
+--attr-post-ops=sum+logistic:0:0:2.5 --batch=shapes_tails
+--attr-post-ops=sum+square --batch=shapes_tails
+--attr-post-ops=sum+soft_relu:1 --batch=shapes_tails
+--attr-post-ops=sum+soft_relu:0.5 --batch=shapes_tails
+--attr-post-ops=sum+pow:0.5:0.33 --batch=shapes_tails
+
+--attr-post-ops=add:f32:per_oc,add:f32:per_tensor --batch=shapes_tails
+
+--attr-post-ops=prelu:per_oc,sum+prelu:per_oc --batch=shapes_tails

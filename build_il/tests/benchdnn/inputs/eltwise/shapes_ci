@@ -1,0 +1,2 @@
+16x16x2x1_n"eltwise_ci_2d:0" # Used in smoke validation, don't change the name
+3x15x2x5x3_n"eltwise_ci_3d:0"

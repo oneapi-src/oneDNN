@@ -1,0 +1,19 @@
+--reset
+
+--match=.*softmax_ci_2d.* # Use 2d problems only from shapes_ci
+--inplace=false
+--stag=axb
+--dtag=any
+--alg=SOFTMAX,LOGSOFTMAX
+--axis=1
+
+--dir=FWD_D,BWD_D
+--sdt=f32,bf16,f16
+--ddt=f32,bf16,f16
+--batch=shapes_ci
+
+--dir=FWD_I
+--sdt=s8,u8
+--ddt=s8,u8
+--attr-scales=,src:common:64+dst:common:0.5
+--batch=shapes_ci

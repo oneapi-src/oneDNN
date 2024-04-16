@@ -1,0 +1,24 @@
+# basic shapes
+
+# 1D
+mb16ic64_iw32ow64_n"resampling_ci_1d:0"
+mb16ic64_iw64ow32_n"resampling_ci_1d:1"
+mb4ic17_iw17ow21_n"resampling_ci_1d:2"
+mb4ic17_iw21ow17_n"resampling_ci_1d:3"
+
+# 2D
+# Used in smoke validation, don't change the name
+mb3ic16_ih3oh5_iw11ow11_n"resampling_ci_2d:0"
+mb3ic16_ih5oh3_iw11ow11_n"resampling_ci_2d:1"
+mb4ic17_ih7oh6_iw14ow12_n"resampling_ci_2d:2"
+mb4ic17_ih6oh7_iw12ow14_n"resampling_ci_2d:3"
+
+# 3D
+mb2ic8_id2od4_ih4oh8_iw6ow12_n"resampling_ci_3d:0"
+mb2ic8_id2od4_ih4oh8_iw12ow6_n"resampling_ci_3d:1"
+mb2ic8_id2od4_ih8oh4_iw6ow12_n"resampling_ci_3d:2"
+mb2ic8_id4od2_ih4oh8_iw6ow12_n"resampling_ci_3d:3"
+mb2ic9_id2od3_ih8oh5_iw12ow7_n"resampling_ci_3d:4"
+mb2ic9_id3od2_ih5oh8_iw7ow12_n"resampling_ci_3d:5"
+mb2ic9_id3od2_ih8oh5_iw7ow12_n"resampling_ci_3d:6"
+mb2ic9_id3od2_ih8oh5_iw6ow12_n"resampling_ci_3d:7"

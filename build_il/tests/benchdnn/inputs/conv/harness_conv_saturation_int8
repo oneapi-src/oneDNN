@@ -1,0 +1,15 @@
+# Test that saturation is handled properly (lightweight test)
+--reset
+--mb=2
+--dir=FWD_B
+--dt=u8:s8:u8,u8:s8:s8,u8:s8:s32
+--attr-scales=src:common:0.25+wei:common:0.5+dst:common:4294967295
+ic16oc16ih4oh4kh1ph0 # jit 1x1
+ic16oc16ih4oh4kh3ph0 # jit
+ic16oc16ih4oh7kh3ph3 # gemm impl
+
+--reset
+--dt=u8:s8:u8
+--attr-scales=src:common:0.25+wei:common:0.5+dst:common:4294967295
+--attr-post-ops=round
+ic16oc16_ih5oh5kh3ph1

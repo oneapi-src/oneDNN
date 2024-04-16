@@ -1,0 +1,85 @@
+# Small tests
+# f32, bf16
+--reset
+
+--cfg=f32,bf16f32
+--trivial-strides=true,false
+--direction=left2right,right2left,concat,sum
+--l=1,2
+--t=1,2,3
+--mb=1,3,4
+--prop=FWD_I
+
+# RNN, LSTM, GRU
+--alg=VANILLA_RNN --activation=RELU,TANH,LOGISTIC --batch=shapes_small
+--alg=VANILLA_LSTM --activation=UNDEF --batch=shapes_small
+--alg=LBR_GRU,VANILLA_GRU --batch=shapes_small_gru
+
+--prop=BWD_DW
+--flags=,O
+# RNN, LSTM, GRU
+--alg=VANILLA_RNN --activation=RELU,TANH,LOGISTIC --batch=shapes_small
+--alg=VANILLA_LSTM --activation=UNDEF --batch=shapes_small
+--alg=LBR_GRU,VANILLA_GRU --batch=shapes_small_gru
+
+--reset
+
+# f16
+--cfg=f16
+--prop=FWD_I
+--direction=left2right,right2left,concat,sum
+--l=1,2
+--t=1,2,3
+--mb=1,3,4
+
+# RNN, LSTM
+--alg=VANILLA_RNN  --activation=RELU,TANH,LOGISTIC        --batch=shapes_small
+--alg=VANILLA_LSTM --activation=UNDEF --batch=shapes_small
+--alg=LBR_GRU,VANILLA_GRU --activation=UNDEF --batch=shapes_small_gru
+
+--reset
+
+# LSTM int8
+# l and t > 1 are skipped by benchdnn for int8
+--alg=VANILLA_LSTM
+--direction=left2right,right2left,concat,sum
+--prop=FWD_I
+--trivial-strides=false,true
+--mb=1,3,4
+
+--cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=shapes_small
+--cfg=f32u8f32f32,f32u8f32u8 --scaling=per_oc --batch=shapes_small
+
+# Large tests
+--reset
+
+# LSTM, GRU
+# f32, bf16
+--cfg=f32,bf16f32
+--direction=right2left,concat,sum
+--l=1,2
+--t=1,2,3
+--mb=1,16,65
+
+--alg=VANILLA_LSTM --prop=FWD_I --batch=shapes_large
+--alg=LBR_GRU,VANILLA_GRU --prop=FWD_I --batch=shapes_large_gru
+
+--alg=VANILLA_LSTM --prop=BWD_DW --flags=,O --batch=shapes_large
+--alg=LBR_GRU,VANILLA_GRU --prop=BWD_DW --flags=,O --batch=shapes_large_gru
+
+# RNN
+# f16
+--reset
+
+--cfg=f16
+--prop=FWD_I
+--l=1,2
+--t=1,2,3
+--mb=1,16,65
+--direction=right2left,concat,sum
+
+--alg=VANILLA_RNN --activation=RELU --batch=shapes_large
+
+# Test layers of some key GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu

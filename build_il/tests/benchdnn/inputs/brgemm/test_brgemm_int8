@@ -1,0 +1,67 @@
+# u8 src
+## Bias check
+--reset
+--brgemm-attr=,use_uker:1
+--dt=u8:s8:f32,u8:s8:bf16,u8:s8:s32,u8:s8:u8,u8:s8:s8
+--bia_dt=f32,bf16,s32,u8,s8
+--batch=option_set_int8
+
+## Alpha and sum check
+--reset
+--brgemm-attr=,use_uker:1
+--dt=u8:s8:f32,u8:s8:bf16,u8:s8:s32,u8:s8:u8,u8:s8:s8
+--alpha=1,2
+--beta=0,1
+--batch=option_set_int8
+
+## Attributes check
+--reset
+--brgemm-attr=,use_uker:1
+--dt=u8:s8:f32,u8:s8:u8
+--attr-post-ops=,sum:2,relu
+--attr-scales=,src:common:0.5,wei:per_oc,dst:common:5,src:common:0.5+wei:per_oc+dst:common:5
+--attr-zero-points=,src:common:-2,src:common:128+dst:common:-1
+--batch=option_set_int8
+
+# s8 src
+## Bias check
+--reset
+--brgemm-attr=,use_uker:1
+--dt=s8:s8:f32,s8:s8:bf16,s8:s8:s32,s8:s8:u8,s8:s8:s8
+--bia_dt=f32,bf16,s32,u8,s8
+--batch=option_set_int8
+
+## Alpha and sum check
+--reset
+--brgemm-attr=,use_uker:1
+--dt=s8:s8:f32,s8:s8:bf16,s8:s8:s32,s8:s8:u8,s8:s8:s8
+--alpha=1,2
+--beta=0,1
+--batch=option_set_int8
+
+## Attributes check
+--reset
+--brgemm-attr=,use_uker:1
+--dt=s8:s8:s32,s8:s8:s8
+--attr-post-ops=,sum:2,relu
+--attr-scales=,src:common:0.5,wei:per_oc,dst:common:5,src:common:0.5+wei:per_oc+dst:common:5
+--attr-zero-points=,src:common:-2,src:common:128+dst:common:-1
+--batch=option_set_int8
+
+## Limited full stack check
+--reset
+--brgemm-attr=,use_uker:1
+--dt=s8:s8:s8
+--attr-post-ops=sum:2+relu
+--attr-scales=src:common:0.5+wei:per_oc+dst:common:5
+--attr-zero-points=,src:common:128+dst:common:-1
+--bia_dt=f32,s8
+--batch=option_set_int8
+
+# u8 wei
+## Limited check (u8 wei is mostly unsupported)
+--reset
+--brgemm-attr=,use_uker:1
+--dt=s8:u8:f32,u8:u8:s32
+--bia_dt=f32,bf16,s32,u8,s8
+--batch=option_set_int8

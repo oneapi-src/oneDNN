@@ -1,0 +1,96 @@
+{
+  "version": "3.1.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "softmax",
+      "kind": "SoftMax",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 2
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            2, 
+            2, 
+            2
+          ],
+          "stride": [
+            4, 
+            2, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            2, 
+            2, 
+            2
+          ],
+          "stride": [
+            4, 
+            2, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 1,
+      "name": "log",
+      "kind": "Log",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            2, 
+            2, 
+            2
+          ],
+          "stride": [
+            4, 
+            2, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            2, 
+            2, 
+            2
+          ],
+          "stride": [
+            4, 
+            2, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

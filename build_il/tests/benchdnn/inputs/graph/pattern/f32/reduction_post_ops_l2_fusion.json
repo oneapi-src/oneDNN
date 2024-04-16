@@ -1,0 +1,134 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 11,
+      "name": "REDUCTION_0",
+      "kind": "ReduceL2",
+      "attrs": {
+        "axes": {
+          "type": "s64[]",
+          "value": [
+            2,
+            3
+          ]
+        },
+        "keep_dims": {
+          "type": "bool",
+          "value": 1
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024,
+            14,
+            14
+          ],
+          "stride": [
+            200704,
+            196,
+            14,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 171,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024,
+            1,
+            1
+          ],
+          "stride": [
+            1024,
+            1,
+            1024,
+            1024
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 2049,
+      "name": "BINARY_1",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 171,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024,
+            1,
+            1
+          ],
+          "stride": [
+            1024,
+            1,
+            1024,
+            1024
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "stride": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2209,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024,
+            1,
+            1
+          ],
+          "stride": [
+            1024,
+            1,
+            1024,
+            1024
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

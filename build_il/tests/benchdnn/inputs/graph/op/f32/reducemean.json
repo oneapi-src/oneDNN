@@ -1,0 +1,64 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "REDUCTION_0",
+      "kind": "ReduceMean",
+      "attrs": {
+        "axes": {
+          "type": "s64[]",
+          "value": [
+            1
+          ]
+        },
+        "keep_dims": {
+          "type": "bool",
+          "value": 1
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            1,
+            128,
+            150,
+            150
+          ],
+          "stride": [
+            2880000,
+            22500,
+            150,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1,
+            150,
+            150
+          ],
+          "stride": [
+            22500,
+            22500,
+            150,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

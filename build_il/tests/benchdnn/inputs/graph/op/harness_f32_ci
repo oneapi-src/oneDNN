@@ -1,0 +1,59 @@
+--reset --case=op/f32/conv_2d.json
+--reset --mb=4 --op-attrs=0:auto_pad:SAME_UPPER --case=op/f32/conv_2d.json
+--reset --in-shapes=0:2x28x28x32 --op-attrs=0:data_format:NXC --case=op/f32/conv_2d.json
+--reset --in-shapes=0:2x512x28x28+1:1024x128x1x1 --op-attrs=0:groups:4 --case=op/f32/conv_2d.json
+--reset --in-shapes=1:1x1x32x128 --op-attrs=0:weights_format:XIO --case=op/f32/conv_2d.json
+--reset --in-shapes=0:2x28x28x32+1:1x1x32x128 --op-attrs=0:data_format:NXC*weights_format:XIO --case=op/f32/conv_2d.json
+--reset --in-shapes=0:32x384*ab+1:384x1024*ab --case=op/f32/matmul_2d_4d.json
+--reset --case=op/f32/matmul_2d_4d.json
+--reset --case=op/f32/abs.json
+--reset --op-attrs=0:auto_pad:SAME_LOWER*kernel:2x2 --case=op/f32/avgpool.json
+--reset --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm_fwd_d.json
+--reset --in-shapes=0:2x71x71x192+1:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm_bwd.json
+--reset --case=op/f32/clamp.json
+--reset --in-shapes=0:1x14x14x128*abcd+1:128x32x1x1*abcd --op-attrs=0:data_format:NXC*dst_shape:1x28x28x32*pads_end:0x0*dilations:1x1*pads_begin:0x0*strides:2x2 --case=op/f32/conv_bwd_d_3d.json
+--reset --in-shapes=0:1x28x28x32+1:1x14x14x128 --op-attrs=0:data_format:NXC --case=op/f32/conv_bwd_w_2d.json
+--reset --case=op/f32/deconv.json
+--reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/deconv_bwd_d.json
+--reset --op-attrs=0:weights_format:XOI*weights_shape:3x3x128x32 --case=op/f32/deconv_bwd_w.json
+--reset --case=op/f32/dequantize_s8.json
+--reset --case=op/f32/dequantize_u8.json
+--reset --case=op/f32/elu.json
+--reset --case=op/f32/elu_bwd.json
+--reset --case=op/f32/exp.json
+--reset --case=op/f32/gelu.json
+--reset --case=op/f32/hardswish.json
+--reset --case=op/f32/hardswish_bwd.json
+--reset --op-attrs=0:mode:linear --case=op/f32/interpolate_bwd.json
+--reset --op-attrs=0:keep_stats:1 --case=op/f32/lnorm_ks.json
+--reset --case=op/f32/lnorm_bwd.json
+--reset --case=op/f32/log.json
+--reset --case=op/f32/logsoftmax_bwd.json
+--reset --op-attrs=0:auto_pad:VALID*kernel:2x2 --case=op/f32/maxpool_bwd.json
+--reset --case=op/f32/max.json
+--reset --case=op/f32/mish.json
+--reset --case=op/f32/mul.json
+--reset --op-attrs=0:per_channel_broadcast:1 --case=op/f32/prelu.json
+--reset --case=op/f32/quantize.json
+--reset --case=op/f32/reducel1.json
+--reset --case=op/f32/reducemax.json
+--reset --case=op/f32/reducemean.json
+--reset --case=op/f32/reduceprod.json
+--reset --case=op/f32/reducesum.json
+--reset --case=op/f32/relu.json
+--reset --case=op/f32/relu_bwd.json
+--reset --case=op/f32/reorder.json
+--reset --case=op/f32/round.json
+--reset --case=op/f32/sigmoid_bwd.json
+--reset --case=op/f32/softmax.json
+--reset --case=op/f32/softmax_bwd.json
+--reset --case=op/f32/square.json
+--reset --case=op/f32/tanh.json
+--reset --case=op/f32/tanh_bwd.json
+--reset --case=op/f32/typecast.json
+--reset --op-attrs=0:alpha:2*beta:1 --case=op/f32/hardsigmoid_bwd.json
+# only the graph compiler supports these 4 ops
+--reset --case=op/f32/pow.json
+--reset --case=op/f32/select.json
+--reset --case=op/f32/static_reshape.json
+--reset --case=op/f32/static_transpose.json

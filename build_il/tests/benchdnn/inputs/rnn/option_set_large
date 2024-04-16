@@ -1,0 +1,8 @@
+# option set to run all reasonable large shapes
+
+--skip-nonlinear=true
+--l=1,2,3
+--t=1,2,3
+--mb=1,16,65
+--tag=tnc:any:tnc,ntc:any:ntc
+--batch=shapes_large

@@ -1,0 +1,17 @@
+# f32
+--reset --dt=f32
+--skip-impl=ref
+--stag=axb --dtag=axb
+--mb=2                      # for fwd and bwd_d reduce mb
+
+--dir=FWD_B,BWD_D,BWD_WB
+--batch=set_conv_all --batch=shapes_mobilenet_dw --batch=shapes_regression_dw
+
+--mb=0                      # for bwd_w use the actual mb for 1 topology
+--dir=BWD_WB --batch=shapes_resnet_50
+
+# plain weights
+--dir=FWD_B
+--mb=2
+--wtag=xba --batch=shapes_resnet_50_v1_5
+--wtag=xcab --batch=shapes_basic --batch=shapes_gemm --batch=shapes_googlenet_v3 --batch=shapes_mobilenet

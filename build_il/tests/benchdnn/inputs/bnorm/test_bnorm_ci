@@ -1,0 +1,39 @@
+--reset
+
+--inplace=true,false
+--tag=abx,axb
+
+# training
+--dir=FWD_D,BWD_DW
+--dt=f32,bf16,f16
+--flags=,G,C,H,R,GC,GH,GR,CH,CR,HR,GCH,CHR,GCHR
+--batch=shapes_ci
+## no scale or shift support for backward_data
+--dir=BWD_D
+--flags=,G,R,GR
+--batch=shapes_ci
+
+# inference
+--dir=FWD_I
+
+--dt=f32,bf16,f16
+--flags=,G,CH,GH,GCH
+--attr-post-ops=,relu,relu:-1
+--batch=shapes_ci
+--attr-post-ops=
+
+--dt=f16
+--flags=,G,R,CH,GR,GCH,CHR,GCHR
+--batch=shapes_ci
+
+--dt=s8
+--flags=G,GCH,GR,GCHR,GC
+--batch=shapes_ci
+
+# BN+Add+Relu fusion
+--reset
+--mb=2
+--dt=s8
+--dir=FWD_I             --flags=GCHA             --batch=shapes_ci
+--dt=f32,bf16,f16
+--dir=FWD_D,BWD_DW      --flags=A,CHA,GCHA        --batch=shapes_ci

@@ -1,0 +1,18 @@
+# dilated f32
+--reset
+--mb=2
+--dt=f32
+--skip-impl=ref
+--stag=axb --dtag=axb
+--dir=FWD_B,BWD_D,BWD_WB
+--batch=shapes_dilated --batch=shapes_dilated_rfcn
+--match=.*fc6.* --batch=shapes_ssd_300_voc0712
+
+--reset --dt=f32
+--mb=2
+--skip-impl=ref,x64:gemm      # ! test jit version only
+--stag=axb --dtag=axb
+--dir=FWD_B,BWD_D,BWD_WB
+--batch=set_dilated-conv_1st
+--batch=set_dilated-conv
+--batch=set_dilated-conv_3d

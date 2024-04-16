@@ -1,0 +1,24 @@
+--reset
+
+--inplace=true,false
+--dt=f16,f16:f32,f32:f16
+
+--dir=FWD_D,FWD_I
+--flags=,CH,G,GCH
+--batch=option_set_all
+
+--dir=BWD_D
+--flags=,G
+--batch=option_set_all
+
+--dir=BWD_DW
+--flags=CH,GCH
+--batch=option_set_all
+
+# Different data type combinations
+
+--dt=f32:f16,f16
+--dir=FWD_D,BWD_DW
+--ss_dt=f16
+--flags=C,H,CH
+--batch=option_set_all

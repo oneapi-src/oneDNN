@@ -1,0 +1,34 @@
+--reset
+
+# do not test other implementations
+--skip-impl='ref,jit'
+
+# test format::any
+--batch=shapes_ci
+
+# only inference, with and without bias
+--dir=FWD_I,FWD_B
+# test all shapes
+--batch=set_all
+
+# with and without batches
+--mb=0,2
+
+# test non-spatial layout combinations
+--stag=ab,ba
+--wtag=ab,ba
+--batch=shapes_0d
+
+# test spatial layout combinations
+--stag=abx,axb
+--wtag=abx,axb
+# 2d-spatial dimensions
+--batch=shapes_googlenet_v1
+
+# Tests for external blocked weights layout.
+--reset
+--dir=FWD_I
+--skip-impl='ref,jit'
+--allow-enum-tags-only=0
+--wtag=Ab8a
+--batch=shapes_bert

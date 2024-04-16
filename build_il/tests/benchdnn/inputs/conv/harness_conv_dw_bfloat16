@@ -1,0 +1,28 @@
+#bf16
+--reset
+--mb=2
+--dir=FWD_B
+--dt=bf16:bf16:f32
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+--dt=bf16
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--dir=BWD_D
+--dt=f32:bf16:bf16
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+--dt=bf16
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--dir=BWD_WB
+--dt=bf16:f32:bf16
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+--dt=bf16
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--reset
+--mb=2
+--dir=FWD_D
+--dt=bf16,bf16:bf16:f32
+--attr-post-ops=relu,sum,sum+relu,prelu:per_oc,add:bf16:per_oc
+--batch=shapes_mobilenet_dw
+--batch=shapes_regression_dw

@@ -1,0 +1,8 @@
+--reset
+
+--dir=FWD_D,BWD_D
+--dt=f32,bf16,f16,s8,u8
+--tag=axb
+--group=4
+--axis=1
+2x12x32x17 3x16x36x9

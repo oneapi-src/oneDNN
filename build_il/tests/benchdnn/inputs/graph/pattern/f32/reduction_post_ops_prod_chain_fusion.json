@@ -1,0 +1,227 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 11,
+      "name": "REDUCTION_0",
+      "kind": "ReduceProd",
+      "attrs": {
+        "axes": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
+        "keep_dims": {
+          "type": "bool",
+          "value": 1
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            16,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 171,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 2049,
+      "name": "BINARY_1",
+      "kind": "Divide",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "none"
+        }
+      },
+      "inputs": [
+        {
+          "id": 171,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2209,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 4097,
+      "name": "BINARY_2",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "none"
+        }
+      },
+      "inputs": [
+        {
+          "id": 2209,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 4257,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 6145,
+      "name": "BINARY_3",
+      "kind": "Multiply",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "none"
+        }
+      },
+      "inputs": [
+        {
+          "id": 4257,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6305,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1024
+          ],
+          "stride": [
+            1024,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+# cross engine test
+--reset
+
+--cross-engine=cpu2gpu,gpu2cpu
+--sdt=f32,bf16,f16,s32,s8,u8
+--ddt=f32,bf16,f16,s32,s8,u8
+--attr-scales=,src:per_dim_1+dst:per_dim_1
+--attr-post-ops=,sum:0.5
+--stag=abx,axb,aBx16b,ABx16a16b
+--dtag=abx,axb,aBx16b,ABx16a16b
+2x16x3x4 1x17x5x3
+
+# f64 cross engine tests
+--reset
+--cross-engine=cpu2gpu
+--sdt=f32
+--ddt=f64
+--stag=abx,axb
+--dtag=abx,axb
+2x16x3x4 1x17x5x3
+
+--reset
+--cross-engine=gpu2cpu
+--sdt=f64
+--ddt=f32
+--stag=abx,axb
+--dtag=abx,axb
+2x16x3x4 1x17x5x3

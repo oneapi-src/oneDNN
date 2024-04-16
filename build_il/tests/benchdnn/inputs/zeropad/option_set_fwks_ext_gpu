@@ -1,0 +1,4 @@
+#
+--reset --allow-enum-tags-only=0 --dt=f16 --tag=aBcd16b 1x4x1080x1920n"text-image-super-resolution-0001_onnx.inf.fp16.ov.b1*1"
+#
+--reset --allow-enum-tags-only=0 --dt=f16 --tag=ABcd32a16b 32x4x1080x1920n"text-image-super-resolution-0001_onnx.inf.fp16.ov.b32*1"

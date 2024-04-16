@@ -1,0 +1,331 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 9,
+      "name": "POOL_0",
+      "kind": "AvgPool",
+      "attrs": {
+        "rounding_type": {
+          "type": "string",
+          "value": "floor"
+        },
+        "auto_pad": {
+          "type": "string",
+          "value": "None"
+        },
+        "pads_end": {
+          "type": "s64[]",
+          "value": [
+            -1,
+            1,
+            0
+          ]
+        },
+        "kernel": {
+          "type": "s64[]",
+          "value": [
+            2,
+            4,
+            3
+          ]
+        },
+        "pads_begin": {
+          "type": "s64[]",
+          "value": [
+            1,
+            1,
+            1
+          ]
+        },
+        "exclude_pad": {
+          "type": "bool",
+          "value": 1
+        },
+        "data_format": {
+          "type": "string",
+          "value": "NCX"
+        },
+        "strides": {
+          "type": "s64[]",
+          "value": [
+            2,
+            2,
+            2
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            2,
+            9,
+            22,
+            62,
+            42
+          ],
+          "stride": [
+            515592,
+            57288,
+            2604,
+            42,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 169,
+          "dtype": "f32",
+          "shape": [
+            2,
+            9,
+            11,
+            31,
+            21
+          ],
+          "stride": [
+            64449,
+            7161,
+            651,
+            21,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 2049,
+      "name": "BINARY_1",
+      "kind": "Divide",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 169,
+          "dtype": "f32",
+          "shape": [
+            2,
+            9,
+            11,
+            31,
+            21
+          ],
+          "stride": [
+            64449,
+            7161,
+            651,
+            21,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            9,
+            1,
+            1,
+            1
+          ],
+          "stride": [
+            9,
+            1,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2209,
+          "dtype": "f32",
+          "shape": [
+            2,
+            9,
+            11,
+            31,
+            21
+          ],
+          "stride": [
+            64449,
+            7161,
+            651,
+            21,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 4097,
+      "name": "BINARY_2",
+      "kind": "Multiply",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 2209,
+          "dtype": "f32",
+          "shape": [
+            2,
+            9,
+            11,
+            31,
+            21
+          ],
+          "stride": [
+            64449,
+            7161,
+            651,
+            21,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "stride": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 4257,
+          "dtype": "f32",
+          "shape": [
+            2,
+            9,
+            11,
+            31,
+            21
+          ],
+          "stride": [
+            64449,
+            7161,
+            651,
+            21,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    },
+    {
+      "id": 6145,
+      "name": "BINARY_3",
+      "kind": "Subtract",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 4257,
+          "dtype": "f32",
+          "shape": [
+            2,
+            9,
+            11,
+            31,
+            21
+          ],
+          "stride": [
+            64449,
+            7161,
+            651,
+            21,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        },
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "stride": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6305,
+          "dtype": "f32",
+          "shape": [
+            2,
+            9,
+            11,
+            31,
+            21
+          ],
+          "stride": [
+            64449,
+            7161,
+            651,
+            21,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

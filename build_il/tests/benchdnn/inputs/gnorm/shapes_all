@@ -1,0 +1,11 @@
+# Instance normalization
+# Unet-3D (id is divided by 10 for the first 2 cases)
+g32mb2ic32id16ih224iw224
+g256mb6ic256id2ih28iw28
+g320mb2ic320id10ih14iw14
+g128mb2ic128id6ih7iw7
+
+# Group normalization
+g1mb2ic2iw40
+g2mb2ic8ih30iw40
+g5mb2ic10id9ih10iw10

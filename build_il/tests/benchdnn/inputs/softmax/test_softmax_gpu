@@ -1,0 +1,68 @@
+--reset
+
+--sdt=f64,f32,bf16
+--dir=FWD_D
+--alg=SOFTMAX,LOGSOFTMAX
+--inplace=true,false
+--dir=FWD_D,BWD_D
+--stag=aBx16b
+--axis=0,1,2,3     --batch=shapes_2d
+
+--stag=abx
+--axis=0,1         --batch=shapes_0d
+--axis=0,1,2,3,4   --batch=shapes_3d
+
+--sdt=f16
+--ddt=f16
+--dir=FWD_I
+--stag=aBx16b --axis=2,3 --batch=shapes_2d
+
+--reset
+--dir=FWD_D,FWD_I
+--alg=SOFTMAX,LOGSOFTMAX
+--sdt=bf16,f16,f32
+--inplace=true,false
+--stag=abx
+--axis=0,1     --batch=shapes_0d
+--axis=0,1,2,3 --batch=shapes_2d
+
+--reset
+--sdt=s8,u8
+--ddt=s8,u8
+--dir=FWD_I
+--attr-scales=,src:common:128,dst:common:0.125,src:common:64+dst:common:0.5
+--attr-post-ops=,add:f32:per_oc,linear:0.5:2,add:f32:common+linear:0.5:2
+--batch=shapes_2d
+
+--reset
+--sdt=f32,f64,f16
+--dir=FWD_D
+--stag=acb
+--axis=2
+--batch=shapes_large_axis
+
+# regression
+--reset
+--dir=FWD_I
+--stag=abcd --dtag=abcd
+--alg=LOGSOFTMAX --axis=3 64x3x224x224
+
+# tail cases for byte-alignment
+--reset
+--dir=FWD_I
+--stag=abc --dtag=abc
+--sdt=f16,f32,u8
+--axis=2 16x32x129 10x5x389
+
+# f32 precision testing for large tensors
+--reset
+--dir=FWD_D,BWD_D
+--sdt=f32,f64
+--alg=SOFTMAX,LOGSOFTMAX
+--axis=0 --batch=shapes_large
+
+# Test layers of some key and ext GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu
+--reset
+--batch=option_set_fwks_ext_gpu

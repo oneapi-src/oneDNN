@@ -1,0 +1,70 @@
+# f32
+--reset
+--mb=2
+--dir=FWD_B
+--attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01+relu:0.5
+--batch=set_all
+
+# fp64
+--dt=f64
+--attr-post-ops=
+--batch=set_all
+
+
+#run backward without post ops
+--dt=f32,f64
+--dir=BWD_D,BWD_WB
+--attr-post-ops=
+--batch=set_all
+--dir=BWD_W --batch=shapes_1d
+
+# f16
+--reset
+--dt=f16
+--mb=2
+--dir=FWD_B
+--attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01+relu:0.5
+--batch=set_all
+
+#bf16
+--reset
+--mb=2
+--dt=bf16,bf16:bf16:f32
+--dir=FWD_B
+--attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01+relu:0.5
+--batch=set_all
+
+#mixed float->int8 (dont cover all combinations to reduce size)
+--reset
+--mb=16
+--dt=bf16:bf16:s8,f32:f32:u8
+--dir=FWD_B
+--batch=set_all
+
+#run backward without post ops
+--attr-post-ops=
+--dt=bf16,f16 --dir=BWD_D,BWD_WB --batch=set_all
+--dt=f32:bf16:bf16,f32:f16:f16 --dir=BWD_D --batch=set_all
+--dt=bf16:f32:bf16,f16:f32:f16 --dir=BWD_WB --batch=set_all
+
+# int8
+--reset
+--dt=u8:s8:u8,s8:s8:u8,s8:s8:s8,s8:s8:s32,u8:s8:s32,u8:s8:f16,u8:s8:bf16
+--mb=2
+--dir=FWD_B
+--attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_tensor+relu:0.5
+--batch=set_all
+
+# regression
+--reset
+--dt=f32,f16
+--dtag=axb
+--attr-post-ops=sum:0.5+add:f32+add:u8:per_dim_01+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01+relu:0.5
+g1ic16iw5oc16ow5kw1pw0
+
+
+# Test layers of some key and ext GPU DL Frameworks
+--reset
+--batch=option_set_fwks_key_gpu
+--reset
+--batch=option_set_fwks_ext_gpu

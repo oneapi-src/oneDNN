@@ -1,0 +1,21 @@
+# i8
+--reset
+--mb=2
+--skip-impl=ref
+--dir=FWD_B
+--attr-scales=src:common:0.25+wei:per_oc,src:common:0.25+wei:per_oc+dst:common:2.25
+--attr-post-ops=sum:1.5+relu:0:0:2.6
+--dt=u8:s8:u8,s8:s8:s32 --batch=shapes_1d
+--dt=s8:s8:f32 --batch=shapes_2d
+--dt=u8:s8:s32 --batch=shapes_3d
+
+--dir=FWD_D
+--attr-scales=src:common:0.25+wei:per_oc,src:common:0.25+wei:common:0.5+dst:common:2.25
+--attr-post-ops=sum:1.5
+--dt=u8:s8:s8  --batch=shapes_1x1
+--dt=u8:s8:f32,s8:s8:s8  --batch=shapes_dilated
+--dt=s8:s8:s32 --batch=shapes_2d
+
+--dir=FWD_I
+--attr-post-ops=sum:0.25+add:f32:per_oc+relu:0.5
+--dt=s8:s8:s8,u8:s8:s32 --batch=shapes_ci

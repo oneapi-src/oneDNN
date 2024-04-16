@@ -1,0 +1,70 @@
+{
+  "version": "3.0.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "graph": [
+    {
+      "id": 0,
+      "name": "LNORM_0",
+      "kind": "LayerNorm",
+      "attrs": {
+        "keep_stats": {
+          "type": "bool",
+          "value": 0
+        },
+        "epsilon": {
+          "type": "f32",
+          "value": 0.0625
+        },
+        "use_affine": {
+          "type": "bool",
+          "value": 0
+        },
+        "begin_norm_axis": {
+          "type": "s64",
+          "value": -1
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            64,
+            128,
+            28,
+            28
+          ],
+          "stride": [
+            100352,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            64,
+            128,
+            28,
+            28
+          ],
+          "stride": [
+            100352,
+            784,
+            28,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

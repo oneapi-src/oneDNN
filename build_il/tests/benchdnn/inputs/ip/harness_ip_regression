@@ -1,0 +1,11 @@
+# repeated sum with varying scale
+--reset --attr-post-ops=sum+relu+sum:2 ic64oc64_n"multisum"
+
+# large oc to trigger use_buffer_b with tail
+--reset --dir=BWD_W mb32ic16oc2049_n"large_oc_for_use_buffer_b_with_tail"
+
+# f16->s8 is not supported by reference, gemm based ip handles this case,
+# but it requires src and weights to have compatible tags.
+# This test case makes sure ip chooses weights tag correctly for plain src tag
+# when shapes contain ones.
+--reset --dt=f16:f16:s8 --stag=abcd mb128ic768ih1oc768_n"f16_s8_plain_src_tag"
