@@ -407,6 +407,20 @@ void skip_unimplemented_ops(const dnnl::graph::partition &partition,
     }
 }
 
+void skip_unimplemented_graph_attribute(
+        const dnnl::fpmath_mode &fpmath_mode, res_t *res) {
+    // Compiler backend only supports strict and bf16 for floating-point math
+    // mode
+    if (is_gc_backend()) {
+        if (fpmath_mode != dnnl::fpmath_mode::strict
+                && fpmath_mode != dnnl::fpmath_mode::bf16) {
+            res->state = SKIPPED;
+            res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+}
+
 /// @brief check if the current partition is actually an End op
 /// @param parti the current partition
 /// @param end_op_ids a collection of End op's ids
@@ -426,6 +440,9 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
     skip_start(res);
+    if (res->state == SKIPPED) return OK;
+
+    skip_unimplemented_graph_attribute(prb->fpmath_mode, res);
     if (res->state == SKIPPED) return OK;
 
     const auto &dg = prb->dg;
