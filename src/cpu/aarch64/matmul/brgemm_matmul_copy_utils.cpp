@@ -225,13 +225,13 @@ struct jit_brgemm_matmul_copy_a_transposed_impl_t
         , is_f32(everyone_is(data_type::f32, conf_->src_dt, conf_->wei_dt))
         , is_bf32(conf_->is_bf32)
         , is_dynamic_src_ld(conf_->is_runtime_M) {
-            MAYBE_UNUSED(m_loop_src_shift);
-            MAYBE_UNUSED(k_loop_src_shift);
-            MAYBE_UNUSED(m_loop_dst_shift);
-            MAYBE_UNUSED(is_bf32);
-            MAYBE_UNUSED(is_dynamic_src_ld);
-            MAYBE_UNUSED(k_loop_dst_shift);
-        }
+        MAYBE_UNUSED(m_loop_src_shift);
+        MAYBE_UNUSED(k_loop_src_shift);
+        MAYBE_UNUSED(m_loop_dst_shift);
+        MAYBE_UNUSED(is_bf32);
+        MAYBE_UNUSED(is_dynamic_src_ld);
+        MAYBE_UNUSED(k_loop_dst_shift);
+    }
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -253,7 +253,6 @@ private:
     const bool is_f32;
     const bool is_bf32;
     const bool is_dynamic_src_ld;
-    
 
     opmask_t kFFFF = p1;
     opmask_t k3333 = p1;
@@ -486,9 +485,9 @@ struct jit_brgemm_matmul_copy_b_f32_t : public jit_brgemm_matmul_copy_b_t,
         , src_stride_(conf_->wei_tag == acbd ? conf_->copy_B_wei_stride
                                              : conf_->N * typesize_in_)
         , tr_src_stride_(conf_->LDB * typesize_out_) {
-            MAYBE_UNUSED(src_stride_);
-            MAYBE_UNUSED(tr_src_stride_);
-        }
+        MAYBE_UNUSED(src_stride_);
+        MAYBE_UNUSED(tr_src_stride_);
+    }
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }

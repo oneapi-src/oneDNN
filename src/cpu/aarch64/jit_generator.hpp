@@ -35,8 +35,12 @@
 #endif
 
 #define DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_name) \
-    const char *name() const override { return STRINGIFY(jit_name); } \
-    const char *source_file() const override { return __FILE__; }
+    const char *name() const override { \
+        return STRINGIFY(jit_name); \
+    } \
+    const char *source_file() const override { \
+        return __FILE__; \
+    }
 
 static const size_t CSIZE = sizeof(uint32_t);
 
@@ -714,7 +718,7 @@ private:
     inline bool is_valid_isa(cpu_isa_t isa) {
         return is_subset(isa, max_cpu_isa_) && mayiuse(isa);
     }
-    
+
     static inline bool is_initialized() {
         /* At the moment, Xbyak_aarch64 does not have GetError()\
          so that return dummy result. */
