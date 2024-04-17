@@ -12,14 +12,13 @@ brgemm), is a very flexible operation that can be used in a variety of
 DNN operators. It is defined as folllow:
 
 ```math
-C = \beta C + \alpha \sum_i A_i \cdot B_i + bias
+C = \alpha C + \beta \sum_i A_i \cdot B_i
 ```
 
 with
 - $A_i$ a set of matrices of dimension $M \times K$
 - $B_i$ a set of matrices of dimension $K \times N$
-- C matrix of dimension $M \times N$
-- bias a vector of dimension $N$.
+- C matrix of dimension $M \times N$.
 
 This proposal discusses exposing these sequential, basic building
 blocks externally for end-users to conveniently be able to write their
@@ -36,7 +35,7 @@ for this block level API, we will have are three considerations:
 - allowing arbitrary strides between blocks ($A_i$, $B_i$ in
   particular) for maximum flexibility,
 - Support for metadata (e.g. zero-point handling) and
-  hardware-specific layouts,
+  hardware-specific packing requirements,
 - runtime overheads.
 
 ### Arbitrary strides between A and B blocks
@@ -46,7 +45,7 @@ and B blocks as shown in the picture:
 ![](brgemm_pic.png)
 
 This is necessary on multiple occasions, a few examples being:
-- for convolutions, where blocks can overlap depending on covolution strides
+- for convolutions, where blocks can overlap depending on convolution strides
 - for LSTM/GRU where weights for each gate can live in separate memory addresses.
 - for models with embedding lookup, where vectors can be passed as separate blocks.
 
@@ -65,14 +64,7 @@ if we encapsulate all $A_i$ blocks (resp $B_i$ blocks) of a brgemm
 operation in a dnnl::memory object, since this will force a fixed
 stride between each block.
 
-Another option would be to take an array of dnnl::memory objects, each
-containing a single block of A/B. This would require the user to call
-`dnnl::memory::set_data_handle()` on each of these objects before
-brgemm call. It would incur some unnecessary overhead, but should
-not be anything substantial.
-
-However, one might wonder why use memory descriptors at all and not
-just take pointers directly as input to brgemm::execute
+As a result, we just take pointers directly as input to brgemm::execute
 call. Internally we support multiple flavors:
 - array of pointers: here the user will have to do pointer arithmetic
   before passing those pointers to brgemm::execute call.
@@ -82,15 +74,19 @@ call. Internally we support multiple flavors:
   is typically used for matmul implementation. Given its limited
   applicability, it seems unnecessary to expose it.
   
-To make the public brgemm API simpler, we propose to expose only the array
-of pointers flavor.
+To make the public brgemm API simpler, we propose to expose only the
+base pointer + array of offsets flavor, as it has a few advantages:
+- it is flexible and can be used to express arbitrary strides between
+  batch
+- on user side, offset computation can be hoisted out of the hot loop
+  when possible.
 
 For the brgemm API specifically, an array of equal sizes for A and B
 blocks are passed.  To guarantee these are of equal size, and simplify
 pointer arithmetic logic inside generated kernels, we will take an
 array of pairs of pointers.
 
-### Support for hardware-specific layouts
+### Support for hardware-specific packing requirements
 
 To speedup computation for low accuracy datatype, various hardware
 require the data to be packed in a certain way:
@@ -100,36 +96,45 @@ require the data to be packed in a certain way:
 - grouped by 64-bit chunks along K (e.g. ARM *MMLA extensions). This
   stems from the registers actually holding 2d matrices.
 
-Exposing these packed layouts is necessary to benefit from HW
+Exposing these packing requirements is necessary to benefit from HW
 acceleration. This packing can happen in one of two places:
 - at execution time upon calls to brgemm::execute.
 - ahead of execution time (pre-packing) when one of the matrix is
   constant.
 
-#### How to express HW specific layouts
+#### How to express HW specific packing requirements
 
-There are two main ways oneDNN can expose those layouts:
-- through layout tags. This has the advantage of being very simple,
+There are two main ways oneDNN can expose those packing requirements:
+- through `pack_type` enum. This has the advantage of being very simple,
   but comes with two limitations:
-    - These tags can contain only information about data layout, not
-      extra metadata (e.g. zero-point related)
-	- it does not scale well when the number of layouts increases.
-- through memory descriptors. This can be more tedious to use as it is
-  an opaque structure that needs to be queried for
-  information. However, it is very flexible as it allows to express
-  non trivial layout descritions, and can be extended with extra
-  information/meta-data.
+    - These enum valus can contain only information about data layout,
+      not extra metadata (e.g. zero-point/compensation related)
+    - it does not scale well when the number/nature of packing type
+      increases/changes.
+- through opaque descriptors (e.g. memory descriptors). This is very
+  flexible as it allows to express non trivial layout descritions, and
+  can be extended with extra information/meta-data. However, this can
+  be more tedious to use and have more overheads as any creation/query
+  of such an objects would have to go through library calls.
 
+Enum for packing types will have to be different than what is used for
+the oneDNN primitive API memory layout tags, as they would mostly map
+to part of the innerblock component of existing memory::desc objects.
 
-Layout tags here will have to be different than what is used for the
-oneDNN primitive API, as they would mostly map to part of the
-innerblock component of existing memory::desc objects.
+Because these ukernel APIs are low-level, we want to expose maximum
+flexibility on user side and reduce the amount of features hidden
+behind oneDNN ukernels API. The recommendation here would be to go
+with a new pack\_type enum (called `pack_type` to distinguish from
+primitive API layouts) and not support handling of metadata and extra
+information behind oneDNN ukernel APIs. The current expectation is
+that the number of values for this enum will remain small
+(`pack_32`/`pack_64`/`no_pack`).
 
-The recommendation here would be to go with layout tags only if no
-handling of metadata and extra information is expected from oneDNN
-block level APIs.
+Also, the recommendation as a starting point is to not allow user to
+force some pack_type upon brgemm creation.  This simplifies the
+configurations supported by brgemm ukernels.
 
-#### Query mecanism for layout
+#### Query mecanism for pack_type
 
 Another question is how to inform user about which layout to use for a
 given brgemm problem.  Similar to oneDNN primitive API, we will expose
@@ -143,17 +148,17 @@ possible:
 The first option is optimal in the sense that the dispatched
 implementation has all the knowledge necessary to make the layout
 determination. However, it requires the user to pass a brgemm object
-or a layout tag around when the data pre-packing logic is separate to
+or a pack_type around when the data pre-packing logic is separate to
 the operator implementation.
 
-The second option could be simpler only if the information necessary to
-make layout determination is readily available and does not require to
-pass extra information around (otherwise it would be equivalent to
-pass layout tag / brgemm object around).  Current internal
-implementation of layout selection depends on highest available ISA,
-input datatype, fp_math mode and accumulation datatype.
+The second option could be simpler only if the information necessary
+to make `pack_type` determination is readily available and does not
+require to pass extra information around (otherwise it would be
+equivalent to pass `pack_type` / brgemm object around).  Current
+internal implementation of `pack_type` selection depends on highest
+available ISA, input datatype, fp_math mode and accumulation datatype.
 
-In general, we would recommend to tie the layout query to a brgemm
+In general, we would recommend to tie the `pack_type` query to a brgemm
 object for two reasons:
 - from oneDNN implementation perspective, we can extend the
   information used to select best layout
@@ -161,24 +166,28 @@ object for two reasons:
   object creation parameters) have to be known in order to layout data
   in an optimal way.
 
-In order to make the case where brgemm objects are recreated for the
-sole purpose of packing data, brgemm obect creation will be split in
-two steps (brgemm::desc and brgemm classes) to avoid jitting
-overheads.  This will introduce some overhead for brgemm objects
-creation though (potential extra copies upon brgemm constructor call).
+In order to reduce overheads when brgemm objects are recreated for the
+sole purpose of querying `pack_type`, brgemm object kernel jitting will
+be split from brgemm object creation (separate generate function).
 
-#### Other considerations
+#### Other API considerations
 
-The recommendation as a starting point is to make query mandatory: no
-layout forcing on user side. This simplifies the configurations
-supported by brgemm. Given that we have no support internally for
-transa/tranb, those will not be exposed as well. We will also support
-only row major representation, and not expose a knob to select
-row/column major.
+Original brgemm API takes $\alpha$ and $\beta$ scalar values 
+(to scale $A_i \cdot B_i$ products and $C$ respectively). 
+We will not expose them for a few reasons:
+- in practice, it seems only $\alpha = 1$ and $\beta = {0, 1}$ are used
+- those are scalar so they have limited use for quantization support,
+- they have float datatype, which is ambiguous for integer configurations.
 
-Given the small number of layouts, we will expose a layout tag enum
-(next section will address the lack of need for metadata handling by
-oneDNN brgemm).
+For scaling, we will expose a `set_scales()` method that allow to
+specify the data-type for scales, for each inputs/outputs, as well as
+shapes/granularity.  To replace beta, we will expose a boolean knobs
+through `set_add_C` to select if C should be overwritten ($\beta=0$)
+or added ($\beta=1$).
+
+Given that we have no support internally for transa/tranb, those will
+not be exposed as well. We will also support only row major
+representation, and not expose a knob to select row/column major.
 
 ## Low precision handling.
 
@@ -189,7 +198,7 @@ provides.
 
 If a user wants to implement quantized computation with zero-point,
 they will have to precompute compensation term and pass it to brgemm
-computation as bias.
+computation as binary post-operation.
 
 The main drivers behind this choice are:
 - flexibility on the user side, as any custom quantization scheme can
@@ -282,28 +291,35 @@ supported by current brgemm kernel implementation so there is no plan
 to expose those for now.
 
 API wise, block level attributes can be exposed in two ways:
-- relying on existing oneDNN primitive attribute. This allows to
-  simplify documentation and usability by aligning semantics between
-  primitive and block level APIs. However, there is a set of
-  attributes that are specific to primitive API, and we might expose a
-  set of attributes specific to the block-level API (e.g. prefetching
-  strategy).
-- relying on dedicated attributes for block-level API. This allows a
-  clear separation of attributes between block level and primitive
-  level APIs, and allows to expose only supported attributes for block
-  level API.
+- rely on dedicated attribute structure (e.g. primitive_attr or
+  dedicated brgemm_attr).  The benefit of this approach is that a same
+  structure can be reused for all ukernel functionality, allowing to
+  minimize API changes when we introduce new attributes. The downside
+  is that it requires extensive documentation on which ukernel
+  functionality supports which attribute. This could become even more
+  challenging as we introduce knobs that are very specific to a given
+  ukernel functionality (e.g. prefetching strategy for brgemm only).
+- set attributes directly to ukernel object through dedicated
+  setter. This allows to only expose attributes that are supported by
+  a given ukernel.  The main disadvantage of this is, when a new
+  attribute is exposed that applies to multiple ukernels is exposed,
+  we will have to expose number of ukernels new API entry point,
+  instead of a single entrypoint for the above solution.
 
+To simplify usage model, we will start with attributes setters
+directly in ukernel objects, as current discussions point to attribute
+extension to likely be more ukernel specific.
 
-To make a first version of the API publicly available faster,
-we will start by relying on existing dnnl::primitive_attr objects.
+If attribute are set directly to ukernel objects, we either:
+- need to separate configurable descriptor, so that when all attribute
+  are set, we can create a ukernel object which would have all
+  queriable information.
+- keep a single class for each ukernel functionality, but expose a
+  `finalize()` method after which attributes can no more be changed
+  and queries can be issued.
 
-In the future, we will consider exposing a dedicated attribute for
-block-level API, to make API cleaner. Internally, we can rely on the
-same abstraction for primitive and block-level attributes to simplify
-passing attributes from primitive API calls to internal block level
-API calls. Like for primitive level API, those would be opaque, and
-attributes would be set/get using dedicated setters and getters.
-
+We propose to go with the latter solution in order to minimize the
+amount of objects created on user side, and minimize overheads.
 
 ## Managing jitting overheads and caching support
 
@@ -352,7 +368,7 @@ here are a few ways to mitigate the lack of kernel-level cache:
 
 ## Transforms and transpose
 
-Transformation routines, for example to pack data in a certain layout,
+Transformation routines, for example to pack data in a hardware required format,
 are typically hard to implement without using intrinsics or assembly.
 To facilitate packing, we will expose an out-of-place transform
 functionality.
@@ -367,83 +383,87 @@ functionality.
 namespace dnnl {
 namespace ukernel {
 
-enum packing_tag {
-packed_32;
-packed_64;
-plain;
-transposed;
-}
-
-struct brgemm_attr {
-    brgemm_attr();
-    set_scales(int a_scale_mask, int a_scale_mask, int a_scale_mask);
-    set_postops(post_ops &po);
+enum pack_type {
+    pack_32;
+    pack_64;
+    no_pack;
 }
 
 struct attr_params{
     attr_params();
     set_scales(void *a_scale, void *b_scale, void *c_scale);
-    set_po_args(void **po_args); // array of pointers for post-op arguments, in order in which they were appended in attributes
+    // array of pointers for post-op arguments, in order in which they were appended in post-ops
+    set_po_args(void **po_args); 
 }
 
 struct brgemm {
-    // Advanced version with postop and datatype conversion when D type
-    // is different than C type.
-    brgemm(dim_t batch, dim_t M, dim_t N, dim_t K,
-            data_type dtA, dim_t ldA,
-            data_type dtB, dim_t ldB, 
-            data_type dtC, dim_t ldC,
-            data_type dtD, dim_t ldD,
-            float alpha, float beta, 
-            const brgemm_attr &attr);
-
     // Vanilla version of brgemm with no post-op or destination conversion.
     brgemm(dim_t batch, dim_t M, dim_t N, dim_t K,
             data_type dtA, dim_t ldA,
             data_type dtB, dim_t ldB, 
-            data_type dtC, dim_t ldC,
-            float alpha, float beta);
+            data_type dtC, dim_t ldC);
+
+    // Attributes setting
+    // Those have to be set before call to generate
+
+    // If true (default), computes C = sum_i A_i * B_i
+    // If false, computes C = C + sum_i A_i * B_i
+    status_t set_add_C(bool add_C);
+
+    // adds post-operation, and conversion to final destination D.
+    status_t set_postops(post_ops &po, data_type dtD, dim_t ldD);
+
+    // scales can be applied before (upconversion) or after the GEMM operation
+    status_t set_scales(int a_scale_mask, int b_scale_mask, int d_scale_mask);
 
     // Queries for expected layouts and temporary memory
-    packing_tag get_A_tag() const; // Not really needed, just for consistency
-    packing_tag get_B_tag() const;
+    pack_type get_A_pack_type() const; // Not really needed, just for consistency
+    pack_type get_B_pack_type() const;
     size_t get_scratchpad_size() const;
 
     // HW context handling.
-    // This currently mimics AMX (need to clarify for SME): 
-    // - Release is static
-    // - No release necessary between different calls to set_hw_context
+    // This currently should support AMX and SME: 
+    // - set is non-static (tilecfg for AMX or  smstart+masks setting for SME)
+    // - Release is static (tile_release for AMX or smstop for SME)
+    // - No release necessary between different calls to {re}set_hw_context
     void set_hw_context() const;
     void reset_hw_context() const;
     static void release_hw_context() const;
 
+    //
+    status finalize();
     // separate kernel generation to allow query without jit overhead
-    void generate();
-
-    // Execution function for the advanced brgemm variant
-    // Here the C matrix is just an input to accumulation
-    // final result after postop/conversion will be in D
-    // Computes D = \beta C + \alpha \sum_i A_i \cdot B_i + bias
-    void execute(const std::vector<std::pair<void *, void *>> A_B, 
-            const void *C, void *D, void *scratch = nullptr,
-            const attr_params &attr_args);
+    status generate();
 
     // Execution function for the vanilla brgemm variant.
-    // we take pointers to A and B as a vector of pairs, guarantees they are the same size
+    // we take base pointers to A and B, 
+    // and a vector of pairs for offsets to guarantees they are the same size
     // The batch size is the size of the vector.
     // pointers are void*, datatypes are specified in constructor
-    // Computes C = \beta C + \alpha \sum_i A_i \cdot B_i
-    void execute(const std::vector<std::pair<void *, void *>> &A_B,
+    // Computes C += \sum_i A_i \cdot B_i if add_C=true
+    // C = \sum_i A_i \cdot B_i  otherwise.
+    void execute(const void *A, const void *B, 
+            const std::vector<std::pair<size_t *, size_t *>> &A_B_offsets,
             void *C, void *scratch = nullptr);
+
+    // Execution function for the advanced brgemm<> variant
+    // Here the C matrix is just an input to accumulation
+    // final result after postop/conversion will be in D
+    // Computes D = convert(post_ops(C + \sum_i A_i \cdot B_i) if add_C=true
+    // D = convert(post_ops(\sum_i A_i \cdot B_i) otherwise
+    void execute(const void *A, const void *B, 
+            const std::vector<std::pair<size_t, size_t>> &A_B_offsets, 
+            const void *C, void *D, void *scratch = nullptr,
+            const attr_params &attr_args = attr_args());
 }
 
 struct transform {
-    // both src, dst share same dt, no fused conversion
-    transform(dim_t M, dim_t N, data_type dt, 
-            packing_tag tag_src, dim_t ld_src,
-            packing_tag tag_dst, dim_t ld_dst);
-    generate();
-    execute(const void *src, void *dst);
+    transform(dim_t M, dim_t N,
+            data_type dt_src, pack_type tag_src, dim_t ld_src,
+            data_type dt_dst, pack_type tag_dst, dim_t ld_dst);
+    void finalize();
+    void generate();
+    void execute(const void *src, void *dst);
 }
 
 } // namespace ukernel
@@ -455,12 +475,6 @@ struct transform {
 ```c++
 
 // opaque structure
-struct dnnl_ukernel_brgemm_attr_t;
-dnnl_brgemm_attr_create();
-dnnl_brgemm_attr_set_scales(int a_scale_mask, int a_scale_mask, int a_scale_mask);
-dnnl_brgemm_attr_set_postops(dnnl_post_ops &po);
-
-// opaque structure
 struct dnnl_ukernel_attr_params_t;
 dnnl_status_t dnnl_ukernel_attr_params_create(dnnl_ukernel_attr_params_t *ap);
 dnnl_status_t dnnl_ukernel_attr_params_set_scales(dnnl_ukernel_attr_params_t ap, void *a_scale, void *b_scale, void *c_scale);
@@ -469,16 +483,20 @@ dnnl_status_t dnnl_ukernel_attr_params_set_po_args(dnnl_ukernel_attr_params_t ap
 // Single creation function, if no post-ops/conversion, D should be set to undef
 dnnl_status_t dnnl_ukernel_brgemm_create(dnnl_brgemm_t *brgemm,
         dnnl_dim_t batch, dnnl_dim_t M, dnnl_dim_t N, dnnl_dim_t K,
-        dnnl_data_type_t a_dt, dnnl_dim_t lda, 
+        dnnl_data_type_t a_dt, dnnl_dim_t lda,
         dnnl_data_type_t b_dt, dnnl_dim_t ldb,
-        dnnl_data_type_t c_dt, dnnl_dim_t ldc,
-        dnnl_data_type_t d_dt, dnnl_dim_t ldd,   
-        float alpha, float beta,
-        const_dnnl_ukernel_brgemm_attr_t attr);
+        dnnl_data_type_t c_dt, dnnl_dim_t ldc);
+
+dnnl_status_t dnnl_ukernel_brgemm_set_add_C(dnnl_brgemm_t brg, bool add_C);
+dnnl_status_t dnnl_ukernel_brgemm_set_postops(dnnl_brgemm_t brg, const_dnnl_post_ops_t po, dnnl_data_type_t d_dt, dnnl_dim_t ldd);
+dnnl_status_t dnnl_ukernel_brgemm_set_scales(dnnl_brgemm_t brg, int a_scale_mask, int b_scale_mask, int d_scale_mask);
+
+// After this call, queries can be called and attributes cannot be set anymore
+dnnl_status_t dnnl_ukernel_brgemm_finalize(dnnl_brgemm_t brg);
 
 // Queries for expected layouts and temporary memory
-dnnl_ukernel_packing_tag dnnl_ukernel_brgemm_get_A_tag(const_dnnl_brgemm_t brg);
-dnnl_ukernel_packing_tag dnnl_ukernel_brgemm_get_B_tag(const_dnnl_brgemm_t brg);
+dnnl_ukernel_pack_type dnnl_ukernel_brgemm_get_A_pack_type(const_dnnl_brgemm_t brg);
+dnnl_ukernel_pack_type dnnl_ukernel_brgemm_get_B_pack_type(const_dnnl_brgemm_t brg);
 dnnl_status_t dnnl_ukernel_brgemm_get_scratchpad_size(const_dnnl_brgemm_t brg, size_t *size);
 
 // HW context management. Release is independent of brgemm object
@@ -487,20 +505,26 @@ dnnl_status_t dnnl_ukernel_brgemm_reset_hw_context(const_dnnl_brgemm_t brg);
 dnnl_status_t dnnl_ukernel_brgemm_release_hw_context();
 
 // separate kernel generation to allow query without jit overhead
+// After this call, no setter is allowed to be called
 dnnl_status_t dnnl_ukernel_brgemm_generate(dnnl_brgemm_t brg);
 
-// Execution function. Single function here.
-// If no post-ops/conversion, C_ptr = D_ptr and attr_arguments=NULL
+// Execution function. 
+// We have two separate functions as C is const for post-op version
 dnnl_status_t dnnl_brgemm_execute(const_dnnl_brgemm_t brg,
-        const void **A_B_ptr, void *C_ptr, void *D_ptr, void *scratchpad_ptr,
+        const void *A, const void *B, const void **A_B_offsets,
+        void *C_ptr, void *scratchpad_ptr,
         const_ukernel_attr_params_t attr_arguments);
 
+dnnl_status_t dnnl_brgemm_execute_with_postops(const_dnnl_brgemm_t brg,
+        const void *A, const void *B, const void **A_B_offsets,
+        const void *C_ptr, void *D_ptr, void *scratchpad_ptr,
+        const_ukernel_attr_params_t attr_arguments);
 ```
 
 ### Simple example for bf16 matmul with f32 accumulation and relu fusion.#include "dnnl_block.h"
 
 ```c++
-int matmul_with_relu(const void *src, const void *weights, void *dst) {
+void matmul_with_relu(const void *src, const void *weights, void *dst) {
   // Here we will create a bf16 matmul operation, with f32 accumulation,
   // and downconversion to bf16 at the end
   // We assume a copy based implementation: we copy just B for example simplification
@@ -513,26 +537,24 @@ int matmul_with_relu(const void *src, const void *weights, void *dst) {
     assert(N % BN == 0);
     assert(K % BK == 0);
 
+    brgemm brg(K / BK, BM, BN, BK,
+            data_type::bf16, K,  // type/ld for A/src
+            data_type::bf16, BN, // type/ld for B/weights
+            data_type::f32, BN); // type/ld for C, temporary buffer
+    
+    // Apply post-op and downconversion to bf16
     post_ops po;
     po.append_eltwise(algorithm::eltwise_relu, 0.f, 0.f);
-    primitive_attr attr;
-    attr.set_postops(po);
+    brg.set_post_ops(po, data_type::bf16, N); // type/ld for D/dst)
+    brg.finalize();
 
-    float alpha = 1.0f;
-    float beta = 0.0f; // beta is 0 as we do a single call
-    brgemm::desc bdesc(K / BK, BM, BN, BK,
-            data_type::bf16, K, // type/ld for A/src
-            data_type::bf16, BN, // type/ld for B/weights
-            data_type::f32, BN, // type/ld for C, temporary buffer
-            data_type::bf16, N, // type/ld for D/dst
-            alpha, beta, attr);
-
-    assert(bdesc.get_A_tag() == packing_tag::plain);
-    transform::desc tBdesc(K, BN, bf16, packing_tag::plain, N, bdesc.get_B_tag(), BN);
+    assert(brg.get_A_pack_type() == pack_type::plain);
+    transform tB(K, BN, bf16, pack_type::plain, N, brg.get_B_pack_type(), BN);
+    tB.finalize();
 
     // Here we jit the block level kernels
-    brgemm bg(bdesc);
-    transform tB(tBdesc);
+    brg.generate();
+    tB.generate();
 
     // we do parallelisation based on M/N slicing
     // each thread gets a single output block
@@ -545,7 +567,7 @@ int matmul_with_relu(const void *src, const void *weights, void *dst) {
             // If allocator has thread-local pools, this is fine
             void *c_buff = myalloc(BM * BN * sizeof(float));
             void *packedB = myalloc(K * BN * sizeof(bfloat16_t));
-            void *scratch = myalloc(bdesc.get_scratchpad_size());
+            void *scratch = myalloc(brg.get_scratchpad_size());
 
             // pack B
             tB.execute(weights + r[1] * BN * sizeof(bfloat16_t), packedB);
@@ -557,10 +579,8 @@ int matmul_with_relu(const void *src, const void *weights, void *dst) {
             }
 
             // we run it
-            bg.execute(A_B, c_buff, dst + (r[0] * BM * N + r[1] * BN) * sizeof(bfloat16_t), scratch);
+            brg.execute(A_B, c_buff, dst + (r[0] * BM * N + r[1] * BN) * sizeof(bfloat16_t), scratch);
     });
-
-
 }
 
 
@@ -568,22 +588,35 @@ int matmul_with_relu(const void *src, const void *weights, void *dst) {
 
 ## A note on other block level libraries
 
-As part of this proposal, it can be interesting to look at other block level libraries used in Frameworks to accelerate AI, as those could be integration points for the oneDNN block level APIs. In particular we looked at:
-- fbgemm, developped by Meta and used in PyTorch for quantized/low-precision computation acceleration
-- XNNpack, developped by Google and used in Tensorflow lite, PyTorch and ONNXruntime.
+As part of this proposal, it can be interesting to look at other block
+level libraries used in Frameworks to accelerate AI, as those could be
+integration points for the oneDNN block level APIs. In particular we
+looked at:
+- fbgemm, developped by Meta and used in PyTorch for
+  quantized/low-precision computation acceleration
+- XNNpack, developped by Google and used in Tensorflow lite, PyTorch
+  and ONNXruntime.
 - MLAS , developped by Microsoft and used in ONNXruntime and openVINO.
 
 ### XNNpack
 
-XNNpack relies on indirect gemm abstraction [^6] [^7], which computes $C += A \cdot B$, but where A is passed as an array of pointers to independent columns.
-The benefit of such approach compared to brgemm makes it usable to fold gather operation into matmul operation (e.g. to implement embedding lookups).
-The downside is that it does not fold some accumulations while accumulators are in register (e.g. when computing convolution).
-Unfortunately, brgemm would not be very efficient if we were to integrate it behind the indirect gemm abstraction for integration to XNNpack (would require separate call for each pointer).
+XNNpack relies on indirect gemm abstraction [^6] [^7], which computes
+$C += A \cdot B$, but where A is passed as an array of pointers to
+independent columns.  The benefit of such approach compared to brgemm
+makes it usable to fold gather operation into matmul operation
+(e.g. to implement embedding lookups).  The downside is that it does
+not fold some accumulations while accumulators are in register
+(e.g. when computing convolution).  Unfortunately, brgemm would not be
+very efficient if we were to integrate it behind the indirect gemm
+abstraction for integration to XNNpack (would require separate call
+for each pointer).
 
 ### FBGEMM
 
-fbgemm relies on single gemm abstraction, with dedicated packA/packB routines, as well as post-gemm routines [^8]. 
-If we are to integrate oneDNN block API behind fbgemm, that would be possible with the current proposal.
+fbgemm relies on single gemm abstraction, with dedicated packA/packB
+routines, as well as post-gemm routines [^8].  If we are to integrate
+oneDNN block API behind fbgemm, that would be possible with the
+current proposal.
 
 
 ### MLAS
@@ -601,3 +634,4 @@ WIP
 [^6]: [The indirect convolution algorithm](https://arxiv.org/abs/1907.02129)
 [^7]: [XNNpack microkernels](https://github.com/google/XNNPACK/blob/8b30931dba3d4f23f0da035fa5330a45b5ade5bf/doc/microkernel-naming-conventions.md?plain=1#L57)
 [^8]: [FBGEMM microkernels](https://arxiv.org/abs/2101.05615)
+
