@@ -434,33 +434,40 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
             auto s = src.subregister(i, esize, src_stride_bytes);
             auto d = dst.subregister(i, esize, dst_stride_bytes);
-            host->eshl(esize,
-                    tmp1.subregister(0, ngen::DataType::uw)(dst_stride),
-                    s.reinterpret(0, ngen::DataType::ub)(src_stride), 8);
-            host->eshl(esize,
-                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
-                    s.reinterpret(0, ngen::DataType::ub)(src_stride), 7);
-            host->and_(esize,
-                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
-                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
-                    0x3F80);
+            if (src_stride > 1 && s.getByteOffset() > 1) {
+                host->mov(esize,
+                        tmp1.subregister(0, ngen::DataType::ub)(src_stride),
+                        s.reinterpret(0, ngen::DataType::ub)(src_stride));
+
+                host->mov(esize, tmp1.subregister(0, ngen::DataType::ub)(1),
+                        tmp1.subregister(0, ngen::DataType::ub)(src_stride));
+
+                host->mov(esize, s.reinterpret(0, ngen::DataType::ub)(1),
+                        tmp1.subregister(0, ngen::DataType::ub)(1));
+            } else {
+                host->mov(esize, s.reinterpret(0, ngen::DataType::ub)(1),
+                        s.reinterpret(0, ngen::DataType::ub)(src_stride));
+            }
+            host->eshl(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
+                    s.reinterpret(0, ngen::DataType::ub)(1), 8);
+            host->eshl(esize, tmp2.subregister(0, ngen::DataType::uw)(1),
+                    s.reinterpret(0, ngen::DataType::ub)(1), 7);
+            host->and_(esize, tmp2.subregister(0, ngen::DataType::uw)(1),
+                    tmp2.subregister(0, ngen::DataType::uw)(1), 0x3F80);
             host->cmp(esize | host->eq | host->f0[0], host->null.uw(),
-                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
-                    0x3F80);
-            host->mul(esize,
-                    tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
-                    tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
+                    tmp2.subregister(0, ngen::DataType::uw)(1), 0x3F80);
+            host->mul(esize, tmp2.subregister(0, ngen::DataType::hf)(1),
+                    tmp2.subregister(0, ngen::DataType::hf)(1),
                     ngen::Immediate::hf(0x5c00));
             host->mov(esize | host->f0[0],
-                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride),
-                    0x7C01);
+                    tmp2.subregister(0, ngen::DataType::uw)(1), 0x7C01);
             host->csel(esize | host->gt,
-                    tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
-                    tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
-                    -tmp2.subregister(0, ngen::DataType::hf)(dst_stride),
-                    tmp1.subregister(0, ngen::DataType::hf)(dst_stride));
+                    tmp2.subregister(0, ngen::DataType::hf)(1),
+                    tmp2.subregister(0, ngen::DataType::hf)(1),
+                    -tmp2.subregister(0, ngen::DataType::hf)(1),
+                    tmp1.subregister(0, ngen::DataType::hf)(1));
             host->mov(esize, d.reinterpret(0, ngen::DataType::uw)(dst_stride),
-                    tmp2.subregister(0, ngen::DataType::uw)(dst_stride));
+                    tmp2.subregister(0, ngen::DataType::uw)(1));
         }
         if (do_post_reorder) {
             emit_reorder_1d_tile(
