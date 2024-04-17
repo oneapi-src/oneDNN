@@ -253,16 +253,22 @@ void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
 /// AMX utilities: Creates a palette based on BRGEMM descriptor
 ///
 /// @note
-///     This call expects brgemm_desc_t object completely set up, thus, used after
-///     `brgemm_desc_set_attr` call for non-empty attributes.
+///     This call expects brgemm_desc_t object completely set up, thus, must be
+///     used after `brgemm_desc_set_attr` call for non-empty attributes.
 ///
 /// @note
 ///     Caller is expected to subsequently configure AMX tiles by calling
 ///     amx_tile_configure(palette).
 ///
-/// @param brg BRGEMM descriptor
-/// @param palette 64 bytes array contains tiles configuration
+/// @param brg Input BRGeMM descriptor
+/// @param palette Output 64 bytes array initialized with tile configuration if
+///     returned status is status::success. When any other status is returned,
+///     the `palette` is not initialized and can't be used.
 ///
+/// TODO: replace `char[64]` with a proper type that can express itself if it
+/// was properly initialized and whether it's empty. Current API is broken in a
+/// sense that multiple different scenarios are considered equal, whether
+/// it's not AMX, or blocking is completely broken or unsupported.
 status_t DNNL_API brgemm_init_tiles(const brgemm_desc_t &brg, char palette[64]);
 
 } // namespace x64
