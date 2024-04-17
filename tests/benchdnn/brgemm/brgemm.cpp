@@ -45,9 +45,29 @@ struct dnnl_api_traits<dnnl::impl::cpu::x64::brgemm_kernel_t *> {
 };
 #endif
 
+#if defined(DNNL_AARCH64) && DNNL_AARCH64 == 1 && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+template <>
+struct dnnl_api_traits<dnnl::impl::cpu::aarch64::brgemm_kernel_t *> {
+    static void destroy(dnnl::impl::cpu::aarch64::brgemm_kernel_t *t) {
+        DNN_SAFE_V(dnnl::impl::cpu::aarch64::brgemm_kernel_destroy(t));
+    }
+};
+#endif
+
 namespace brgemm {
 
-#if defined(DNNL_X64) && DNNL_X64 == 1 && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if defined(DNNL_X64) && DNNL_X64 == 1
+#define  brg_x64
+#define namspace_impl dnnl::impl::cpu::x64
+#endif
+#if defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
+#define  brg_aarch64
+#define namspace_impl dnnl::impl::cpu::aarch64
+#endif
+#endif
+
+#if defined(brg_x64) || defined(brg_aarch64)
 
 /// Initializes BRGEMM attributes from an input string.
 ///
@@ -58,8 +78,8 @@ namespace brgemm {
 ///     integers.
 ///
 dnnl_status_t brgemm_attr_init(
-        dnnl::impl::cpu::x64::brgemm_attr_t *brgattr, const prb_t *prb) {
-    using namespace dnnl::impl::cpu::x64;
+        namspace_impl::brgemm_attr_t *brgattr, const prb_t *prb) {
+    using namespace namspace_impl;
 
     const auto &str = prb->brgemm_attr;
     if (str.empty()) return dnnl_success;
@@ -262,11 +282,11 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 // A special wrapper needed to match internal infrastructure.
 dnnl_status_t brgemm_kernel_execute_postops_wrapper(
-        const dnnl::impl::cpu::x64::brgemm_kernel_t *brgemm_kernel,
+        const namspace_impl::brgemm_kernel_t *brgemm_kernel,
         int batch_size,
-        const dnnl::impl::cpu::x64::brgemm_batch_element_t *batch_element,
+        const namspace_impl::brgemm_batch_element_t *batch_element,
         void *acc_ptr, void *dst_ptr,
-        const dnnl::impl::cpu::x64::brgemm_post_ops_data_t &post_ops_data,
+        const namspace_impl::brgemm_post_ops_data_t &post_ops_data,
         void *scratchpad_ptr, const dnnl_stream_t &stream,
         const std::vector<dnnl_exec_arg_t> &dnnl_args) {
     brgemm_kernel_execute_postops(brgemm_kernel, batch_size, batch_element,
@@ -301,9 +321,12 @@ int doit(const prb_t *prb, res_t *res) {
     auto dst_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
             prb->dst_dt(), prb->dtag, dst_strides);
 
-    using namespace dnnl::impl::cpu::x64;
-
+    using namespace namspace_impl;
+#if defined(brg_x64)
     brgemm_desc_t brgemm_desc;
+#else
+    brgemm_t brgemm_desc;
+#endif
     // Supports only address model for now as only affects the way memory is
     // passed to `brgemm_batch_element_t` object.
     brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_addr;
@@ -357,12 +380,14 @@ int doit(const prb_t *prb, res_t *res) {
     }
     auto brgemm_kernel = make_benchdnn_dnnl_wrapper(brgemm_kernel_);
 
+#if defined(brg_x64)
     const auto is_tmm = brgemm_desc.is_tmm;
     if (is_tmm) {
         char palette[AMX_PALETTE_SIZE] = {};
         DNN_SAFE(brgemm_init_tiles(brgemm_desc, palette), WARN);
         DNN_SAFE(amx_tile_configure(palette), WARN);
     }
+#endif
 
     auto src_md = dnn_mem_t::init_md(
             prb->ndims, src_dims, prb->src_dt(), prb->stag, src_strides);
@@ -608,7 +633,9 @@ int doit(const prb_t *prb, res_t *res) {
             std::placeholders::_2);
     measure_perf(prb->ctx_exe, res, perf_func, args);
 
+#if defined(brg_x64)
     if (is_tmm) DNN_SAFE(amx_tile_release(), WARN);
+#endif
 
     return OK;
 }

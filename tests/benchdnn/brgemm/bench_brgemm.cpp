@@ -24,7 +24,7 @@
 
 namespace brgemm {
 
-#if defined(DNNL_X64) && DNNL_X64 == 1 && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if ((defined(DNNL_X64) && DNNL_X64 == 1) || (defined(DNNL_AARCH64) && DNNL_AARCH64 == 1)) && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 
 void check_correctness(const settings_t &s, const settings_t &def) {
     for_(const auto &i_dt : s.dt)
@@ -151,7 +151,7 @@ int bench(int argc, char **argv) {
 
 int bench(int argc, char **argv) {
     BENCHDNN_PRINT(
-            0, "%s\n", "INFO: brgemm driver: only x64 backend is supported.");
+            0, "%s\n", "INFO: brgemm driver: only x64, aarch64 backend is supported.");
     return OK;
 }
 
