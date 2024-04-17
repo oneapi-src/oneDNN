@@ -2572,7 +2572,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
     // if beta == 1 and C datatype is f32 it is better to perform addition by
     // reading tiles directly from C instead of by reading/writing by vectors
     may_load_accumulators_ = one_of(brg.alpha, 0, 1) && brg.beta == 1.f
-            && brg.dt_c == brg.dt_d && !brg.is_input_convert()
+            && brg.dt_c == brg.dt_d
+            && IMPLICATION(brg.is_input_convert(), brg.is_fp8_via_convert())
             && IMPLICATION(
                     brg.is_f32 || brg.is_bf16, brg.dt_c == data_type::f32)
             && IMPLICATION(brg.is_int8, brg.dt_c == data_type::s32)
@@ -2589,7 +2590,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
     assert(IMPLICATION(are_post_ops_applicable_ || need_to_apply_alpha_beta_
                     || brg.brgattr.bd_mask_level,
             !brg.is_blocked && !brg.brgattr.var_bs));
-    assert(IMPLICATION(brg.brgattr.var_bs, !brg.is_input_convert()));
+    assert(IMPLICATION(brg.brgattr.var_bs,
+            IMPLICATION(brg.is_input_convert(), brg.is_fp8_via_convert())));
     read_params();
     prepare_bd_mask();
 
