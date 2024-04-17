@@ -374,11 +374,14 @@ std::ostream &operator<<(std::ostream &s, const deserialized_op &dop) {
     const bool has_scales = it_attr_scales != dop.attrs_.end();
     if (has_scales) {
         s << "    Attrs: { ";
-        s << "Scales: { ";
+
         const auto &scales_v = it_attr_scales->second.f32_vector_;
-        for (size_t i = 0; i < scales_v.size(); i++) {
+        const auto size = scales_v.size();
+        std::string size_str = " (" + std::to_string(size) + ")";
+        s << "Scales" << (size > 1 ? size_str : "") << ": { ";
+        for (size_t i = 0; i < size; i++) {
             s << scales_v[i];
-            if (i != scales_v.size() - 1) s << ",";
+            if (i != size - 1) s << ",";
             s << " ";
         }
         s << "} "; // Scales
