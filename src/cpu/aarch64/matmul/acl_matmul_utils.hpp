@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Arm Ltd. and affiliates
+* Copyright 2021-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,13 +54,10 @@ struct acl_matmul_conf_t {
 
 namespace acl_matmul_utils {
 
-status_t init_conf_matmul_fixed_format(acl_matmul_conf_t &amp,
-        memory_desc_t &src_md, memory_desc_t &wei_md, memory_desc_t &dst_md,
-        const matmul_desc_t &md, const primitive_attr_t &attr);
-
-status_t init_conf_matmul_non_fixed_format(acl_matmul_conf_t &amp,
-        memory_desc_t &src_md, memory_desc_t &wei_md, memory_desc_t &dst_md,
-        const matmul_desc_t &md, const primitive_attr_t &attr);
+template <bool IsFixedFormat>
+status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
+        memory_desc_t &wei_md, memory_desc_t &dst_md, const matmul_desc_t &md,
+        const primitive_attr_t &attr);
 
 } // namespace acl_matmul_utils
 

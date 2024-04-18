@@ -32,7 +32,7 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
 
     bool is_transA = pd()->amp_.is_transA;
-    bool is_transB = pd()->amp_.is_transB && !IsFixedFormat;
+    bool is_transB = pd()->amp_.is_transB;
     bool use_dst_acc = pd()->amp_.use_dst_acc;
 
     std::lock_guard<std::mutex> _lock {this->mtx};

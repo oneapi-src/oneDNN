@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Arm Ltd. and affiliates
+* Copyright 2021-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,9 +25,10 @@ namespace aarch64 {
 
 namespace acl_matmul_utils {
 
-status_t init_conf_matmul_fixed_format(acl_matmul_conf_t &amp,
-        memory_desc_t &src_md, memory_desc_t &wei_md, memory_desc_t &dst_md,
-        const matmul_desc_t &md, const primitive_attr_t &attr) {
+template <bool IsFixedFormat>
+status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
+        memory_desc_t &wei_md, memory_desc_t &dst_md, const matmul_desc_t &md,
+        const primitive_attr_t &attr) {
 
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper wei_d(&wei_md);
@@ -57,129 +58,41 @@ status_t init_conf_matmul_fixed_format(acl_matmul_conf_t &amp,
     // The two innermost dimensions can be transposed, but the batch dimensions
     // must be the outermost
     using namespace format_tag;
-    auto src_tag = memory_desc_matches_one_of_tag(
-            src_md, abcd, abdc, abc, acb, ab, ba);
-    auto dst_tag = memory_desc_matches_one_of_tag(dst_md, abcd, abc, ab, ba);
-    ACL_CHECK_SUPPORT(utils::one_of(format_tag::undef, src_tag, dst_tag),
-            "Format tag is undefined");
+    if (IsFixedFormat) {
+        auto src_tag = memory_desc_matches_one_of_tag(
+                src_md, abcd, abdc, abc, acb, ab, ba);
+        auto dst_tag
+                = memory_desc_matches_one_of_tag(dst_md, abcd, abc, ab, ba);
+        ACL_CHECK_SUPPORT(utils::one_of(format_tag::undef, src_tag, dst_tag),
+                "Format tag is undefined");
+    } else {
+        auto src_tag = memory_desc_matches_one_of_tag(
+                src_md, acdb, abcd, abdc, abc, acb, ab, ba);
+        auto wei_tag = memory_desc_matches_one_of_tag(
+                wei_md, acdb, abcd, abdc, abc, acb, ab, ba);
+        auto dst_tag = memory_desc_matches_one_of_tag(dst_md, abcd, abc, ab);
+        ACL_CHECK_SUPPORT(
+                utils::one_of(format_tag::undef, src_tag, wei_tag, dst_tag),
+                "Format tag is undefined");
+    }
 
-    // Transpose A (src)
+    // Transpose A (src) and/or B (wei). Transpose B is not needed for fixed format.
     amp.is_transA = helper.transA() == 'T';
+    amp.is_transB = IsFixedFormat ? false : helper.transB() == 'T';
 
     auto acl_src_data_t = acl_utils::get_acl_data_t(src_md.data_type);
     auto acl_wei_data_t = acl_utils::get_acl_data_t(wei_md.data_type);
     auto acl_dst_data_t = acl_utils::get_acl_data_t(dst_md.data_type);
 
-    if (amp.is_transA)
+    if (amp.is_transA) {
         amp.src_acc_info = arm_compute::TensorInfo(
                 arm_compute::TensorShape(M, K, 1, src_batch), 1,
                 acl_src_data_t);
-
-    amp.src_tensor_info = arm_compute::TensorInfo(
-            arm_compute::TensorShape(K, M, 1, src_batch), 1, acl_src_data_t);
-    amp.wei_tensor_info = arm_compute::TensorInfo(
-            arm_compute::TensorShape(N, K, wei_batch), 1, acl_wei_data_t);
-    amp.dst_tensor_info = arm_compute::TensorInfo(
-            arm_compute::TensorShape(N, M, 1, dst_batch), 1, acl_dst_data_t);
-
-    // Validate ACL transpose
-    if (amp.is_transA)
-        ACL_CHECK_VALID(arm_compute::NETranspose::validate(
-                &amp.src_acc_info, &amp.src_tensor_info));
-
-    bool is_fastmath_enabled = utils::one_of(
-            attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
-    amp.gemm_info.set_fast_math(is_fastmath_enabled);
-
-    amp.gemm_info.set_fixed_format(true);
-
-    // WeightFormat::ANY tells ACL we can handle any format
-    amp.gemm_info.set_weight_format(arm_compute::WeightFormat::ANY);
-
-    // Get the format that the ACL kernel will expect the weights to be
-    // in (if a kernel exists). Note that these are referred to as fixed format
-    // kernels, because they require one specific weights format
-    arm_compute::WeightFormat expected_weight_format;
-    ACL_CHECK_VALID(arm_compute::NEGEMM::has_opt_impl(expected_weight_format,
-            &amp.src_tensor_info, &amp.wei_tensor_info, nullptr,
-            &amp.dst_tensor_info, 1.0f, 0.0f, amp.gemm_info));
-
-    // Set gemm weights info to the one returned by has_opt_impl
-    amp.gemm_info.set_weight_format(expected_weight_format);
-
-    // has_opt_impl may return a non fast math kernel, even if we requested one
-    amp.gemm_info.set_fast_math(
-            arm_compute::is_fixed_format_fast_math(expected_weight_format));
-
-    // Logical dimension indices
-    dim_t innermost_dim = wei_md.ndims - 1;
-    dim_t N_dim = innermost_dim;
-    dim_t K_dim = innermost_dim - 1;
-
-    // The logical indices of dimensions related to the batch, ordered from
-    // innermost to outermost
-    std::vector<dim_t> batch_dims = {};
-    for (dim_t i = K_dim - 1; i >= 0; --i)
-        batch_dims.push_back(i);
-
-    acl_utils::reorder_to_weight_format(amp.wei_tensor_info, wei_md,
-            expected_weight_format, K_dim, N_dim, {}, batch_dims);
-
-    return status::success;
-}
-
-status_t init_conf_matmul_non_fixed_format(acl_matmul_conf_t &amp,
-        memory_desc_t &src_md, memory_desc_t &wei_md, memory_desc_t &dst_md,
-        const matmul_desc_t &md, const primitive_attr_t &attr) {
-
-    const memory_desc_wrapper src_d(&src_md);
-    const memory_desc_wrapper wei_d(&wei_md);
-    const memory_desc_wrapper dst_d(&dst_md);
-
-    cpu::matmul::matmul_helper_t helper(src_d, wei_d, dst_d);
-    const dim_t M = helper.M();
-    const dim_t N = helper.N();
-    const dim_t K = helper.K();
-    const dim_t dst_batch = helper.batch();
-    const dim_t src_batch = helper.src_batch();
-    const dim_t wei_batch = helper.wei_batch();
-
-    // ACL supports broadcast for 3D shapes, and 4D shapes
-    // for e.g when ab in abcd is 1x1
-    bool batch_ok = IMPLICATION(src_batch > 1, wei_batch == 1)
-            && IMPLICATION(wei_batch > 1, src_batch == 1);
-    ACL_CHECK_SUPPORT(src_d.ndims() == 4 && src_batch != wei_batch && !batch_ok,
-            "matmul broadcast supported only for 3D shapes and 4D shapes when "
-            "ab is 1x1");
-
-    // ACL does not support bias
-    bool with_bias = md.bias_desc.format_kind != format_kind::undef;
-    ACL_CHECK_SUPPORT(with_bias, "ACL does not support bias for matmul");
-
-    using namespace format_tag;
-    auto src_tag = memory_desc_matches_one_of_tag(
-            src_md, acdb, abcd, abdc, abc, acb, ab, ba);
-    auto wei_tag = memory_desc_matches_one_of_tag(
-            wei_md, acdb, abcd, abdc, abc, acb, ab, ba);
-    auto dst_tag = memory_desc_matches_one_of_tag(dst_md, abcd, abc, ab);
-    ACL_CHECK_SUPPORT(
-            utils::one_of(format_tag::undef, src_tag, wei_tag, dst_tag),
-            "Format tag is undefined");
-
-    // Transpose A (src) or B (wei)
-    amp.is_transA = helper.transA() == 'T';
-    amp.is_transB = helper.transB() == 'T';
-    auto acl_src_data_t = acl_utils::get_acl_data_t(src_md.data_type);
-    auto acl_wei_data_t = acl_utils::get_acl_data_t(wei_md.data_type);
-    auto acl_dst_data_t = acl_utils::get_acl_data_t(dst_md.data_type);
-
-    if (amp.is_transA)
-        amp.src_acc_info = arm_compute::TensorInfo(
-                arm_compute::TensorShape(M, K, 1, src_batch), 1,
-                acl_src_data_t);
-    if (amp.is_transB)
+    }
+    if (amp.is_transB) {
         amp.wei_acc_info = arm_compute::TensorInfo(
                 arm_compute::TensorShape(K, N, wei_batch), 1, acl_wei_data_t);
+    }
 
     amp.src_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(K, M, 1, src_batch), 1, acl_src_data_t);
@@ -187,10 +100,6 @@ status_t init_conf_matmul_non_fixed_format(acl_matmul_conf_t &amp,
             arm_compute::TensorShape(N, K, wei_batch), 1, acl_wei_data_t);
     amp.dst_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(N, M, 1, dst_batch), 1, acl_dst_data_t);
-
-    bool is_fastmath_enabled = utils::one_of(
-            attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
-    amp.gemm_info.set_fast_math(is_fastmath_enabled);
 
     // Validate ACL transpose
     if (amp.is_transA)
@@ -200,8 +109,56 @@ status_t init_conf_matmul_non_fixed_format(acl_matmul_conf_t &amp,
         ACL_CHECK_VALID(arm_compute::NETranspose::validate(
                 &amp.wei_acc_info, &amp.wei_tensor_info));
 
+    bool is_fastmath_enabled = utils::one_of(
+            attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
+    amp.gemm_info.set_fast_math(is_fastmath_enabled);
+
+    if (IsFixedFormat) {
+        amp.gemm_info.set_fixed_format(true);
+
+        // WeightFormat::ANY tells ACL we can handle any format
+        amp.gemm_info.set_weight_format(arm_compute::WeightFormat::ANY);
+
+        // Get the format that the ACL kernel will expect the weights to be
+        // in (if a kernel exists). Note that these are referred to as fixed format
+        // kernels, because they require one specific weights format
+        arm_compute::WeightFormat expected_weight_format;
+        ACL_CHECK_VALID(
+                arm_compute::NEGEMM::has_opt_impl(expected_weight_format,
+                        &amp.src_tensor_info, &amp.wei_tensor_info, nullptr,
+                        &amp.dst_tensor_info, 1.0f, 0.0f, amp.gemm_info));
+
+        // Set gemm weights info to the one returned by has_opt_impl
+        amp.gemm_info.set_weight_format(expected_weight_format);
+
+        // has_opt_impl may return a non fast math kernel, even if we requested one
+        amp.gemm_info.set_fast_math(
+                arm_compute::is_fixed_format_fast_math(expected_weight_format));
+
+        // Logical dimension indices
+        dim_t innermost_dim = wei_md.ndims - 1;
+        dim_t N_dim = innermost_dim;
+        dim_t K_dim = innermost_dim - 1;
+
+        // The logical indices of dimensions related to the batch, ordered from
+        // innermost to outermost
+        std::vector<dim_t> batch_dims = {};
+        for (dim_t i = K_dim - 1; i >= 0; --i)
+            batch_dims.push_back(i);
+
+        acl_utils::reorder_to_weight_format(amp.wei_tensor_info, wei_md,
+                expected_weight_format, K_dim, N_dim, {}, batch_dims);
+    }
+
     return status::success;
 }
+
+template status_t init_conf_matmul<true>(acl_matmul_conf_t &amp,
+        memory_desc_t &src_md, memory_desc_t &wei_md, memory_desc_t &dst_md,
+        const matmul_desc_t &md, const primitive_attr_t &attr);
+template status_t init_conf_matmul<false>(acl_matmul_conf_t &amp,
+        memory_desc_t &src_md, memory_desc_t &wei_md, memory_desc_t &dst_md,
+        const matmul_desc_t &md, const primitive_attr_t &attr);
 
 } // namespace acl_matmul_utils
 

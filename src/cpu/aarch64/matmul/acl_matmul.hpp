@@ -109,7 +109,7 @@ struct acl_matmul_t : public primitive_t {
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
             if (weights_format_kind_ == format_kind::any) {
-                CHECK(acl_matmul_utils::init_conf_matmul_fixed_format(
+                CHECK(acl_matmul_utils::init_conf_matmul<true>(
                         amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
             } else {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
@@ -117,7 +117,7 @@ struct acl_matmul_t : public primitive_t {
                 if (threadpool_utils::get_active_threadpool() == nullptr)
                     return status::unimplemented;
 #endif
-                CHECK(acl_matmul_utils::init_conf_matmul_non_fixed_format(
+                CHECK(acl_matmul_utils::init_conf_matmul<false>(
                         amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
             }
 
