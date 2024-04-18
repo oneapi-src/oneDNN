@@ -45,7 +45,8 @@ struct dnnl_api_traits<dnnl::impl::cpu::x64::brgemm_kernel_t *> {
 };
 #endif
 
-#if defined(DNNL_AARCH64) && DNNL_AARCH64 == 1 && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if defined(DNNL_AARCH64) && DNNL_AARCH64 == 1 \
+        && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 template <>
 struct dnnl_api_traits<dnnl::impl::cpu::aarch64::brgemm_kernel_t *> {
     static void destroy(dnnl::impl::cpu::aarch64::brgemm_kernel_t *t) {
@@ -58,11 +59,11 @@ namespace brgemm {
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #if defined(DNNL_X64) && DNNL_X64 == 1
-#define  brg_x64
+#define brg_x64
 #define namspace_impl dnnl::impl::cpu::x64
 #endif
 #if defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
-#define  brg_aarch64
+#define brg_aarch64
 #define namspace_impl dnnl::impl::cpu::aarch64
 #endif
 #endif
@@ -282,8 +283,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 // A special wrapper needed to match internal infrastructure.
 dnnl_status_t brgemm_kernel_execute_postops_wrapper(
-        const namspace_impl::brgemm_kernel_t *brgemm_kernel,
-        int batch_size,
+        const namspace_impl::brgemm_kernel_t *brgemm_kernel, int batch_size,
         const namspace_impl::brgemm_batch_element_t *batch_element,
         void *acc_ptr, void *dst_ptr,
         const namspace_impl::brgemm_post_ops_data_t &post_ops_data,
