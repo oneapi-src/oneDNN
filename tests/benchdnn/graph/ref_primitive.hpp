@@ -78,7 +78,14 @@ public:
     void replace_arg(const int arg, const dnn_mem_t &mem) {
         // Only compatible memory objects can be replaced.
         const auto &orig_mem = args_.find(arg);
-        if (orig_mem.size() != mem.size()) SAFE_V(FAIL);
+        if (orig_mem.size() != mem.size()) {
+            BENCHDNN_PRINT(0,
+                    "Error: can't replace mem_%s (%zu) with mem_%s (%zu) for "
+                    "%s op.\n",
+                    dt2str(orig_mem.dt()), orig_mem.size(), dt2str(mem.dt()),
+                    mem.size(), op_.kind_.c_str());
+            SAFE_V(FAIL);
+        }
 
         args_.replace(arg, &mem);
     }

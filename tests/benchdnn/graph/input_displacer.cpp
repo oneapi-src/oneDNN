@@ -115,6 +115,9 @@ int partition_data_displacer_t::displace_input_data(
     int main_op_arg = get_prim_arg_name_from_graph_op_input_offset(
             opkind, main_op_offset);
 
+    BENCHDNN_PRINT(3, "[DISPLACE]: Op:%s; Arg:%s;\n", main_op.kind_.c_str(),
+            data_kind2str(exec_arg2data_kind(main_op_arg)));
+
     dnn_mem_t mem_replace;
     SAFE(gen_quantize_filling(
                  main_op, main_op_arg, mem_replace, tensor.data_type_, res),
@@ -138,6 +141,9 @@ int partition_data_displacer_t::displace_input_data(
         // 5. Dequantize: change opkind to Quantize and keep scales and zps
 
         auto op = dg_->get_op_by_out_lt(tensor.id_);
+        BENCHDNN_PRINT(
+                3, "[DISPLACE]: Backward path for Op:%s;\n", op.kind_.c_str());
+
         ::std::swap(op.in_lts_, op.out_lts_);
 
         auto opkind = opstr2kind(op.kind_);
@@ -194,6 +200,8 @@ int partition_data_displacer_t::displace_input_data(
         tensor = op.out_lts_[0];
         parent_op = &dg_->get_op_by_out_lt(tensor.id_);
     }
+
+    BENCHDNN_PRINT(3, "%s\n", "[DISPLACE]: Backward path ended.");
 
     bool mds_are_equal = dnnl_memory_desc_equal(mem_replace.md_, mem.md_) == 1;
     bool mds_are_int8 = is_integral_dt(mem_replace.dt())
