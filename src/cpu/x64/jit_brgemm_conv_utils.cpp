@@ -242,7 +242,8 @@ bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
             false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
             false /*sum_requires_zp_zero*/, true /*sum_requires_same_params*/,
             {broadcasting_strategy_t::per_oc, broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::no_broadcast}));
+                    broadcasting_strategy_t::no_broadcast,
+                    broadcasting_strategy_t::spatial}));
 }
 
 bool is_groups_ok(jit_brgemm_conv_conf_t &jcp) {
