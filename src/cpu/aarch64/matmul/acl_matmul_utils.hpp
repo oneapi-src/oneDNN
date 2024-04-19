@@ -59,6 +59,9 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
         memory_desc_t &wei_md, memory_desc_t &dst_md, const matmul_desc_t &md,
         const primitive_attr_t &attr);
 
+status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
+        acl_matmul_conf_t &amp, memory_desc_t &dst_md);
+
 } // namespace acl_matmul_utils
 
 } // namespace aarch64

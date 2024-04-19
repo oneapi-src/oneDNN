@@ -153,6 +153,19 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     return status::success;
 }
 
+status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
+        acl_matmul_conf_t &amp, memory_desc_t &dst_md) {
+    if (amp.use_dst_acc) {
+        dim_t nelems_dst = 1;
+        for (int i = 0; i < dst_md.ndims; ++i) {
+            nelems_dst *= dst_md.dims[i];
+        }
+        scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
+                nelems_dst, types::data_type_size(dst_md.data_type));
+    }
+    return status::success;
+}
+
 template status_t init_conf_matmul<true>(acl_matmul_conf_t &amp,
         memory_desc_t &src_md, memory_desc_t &wei_md, memory_desc_t &dst_md,
         const matmul_desc_t &md, const primitive_attr_t &attr);

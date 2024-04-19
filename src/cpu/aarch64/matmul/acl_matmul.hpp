@@ -131,6 +131,9 @@ struct acl_matmul_t : public primitive_t {
                     &amp_.wei_tensor_info, nullptr, &amp_.dst_tensor_info,
                     amp_.alpha, 0.0f, amp_.gemm_info));
 
+            auto scratchpad = scratchpad_registry().registrar();
+            CHECK(acl_matmul_utils::init_scratchpad(scratchpad, amp_, dst_md_));
+
             return status::success;
         }
 

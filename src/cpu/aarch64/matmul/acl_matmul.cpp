@@ -38,6 +38,9 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     std::lock_guard<std::mutex> _lock {this->mtx};
     auto *acl_resource = ctx.get_resource_mapper()->get<acl_resource_t>(this);
     acl_matmul_obj_t &acl_obj = acl_resource->get_acl_obj();
+
+    const auto scratchpad = ctx.get_scratchpad_grantor();
+
     // Run transpose kernel
     if (is_transA && !is_transB) {
         acl_obj.src_tensor.allocator()->allocate();
@@ -69,14 +72,12 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
                 const_cast<data_t *>(wei_base));
     }
 
-    if (use_dst_acc) {
-        // Put the result in a new tensor, it will be accumulated to the dst
-        // during the post ops
-        acl_obj.dst_tensor.allocator()->allocate();
-    } else {
-        auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-        acl_obj.dst_tensor.allocator()->import_memory(dst_base);
-    }
+    // Put the result in a new tensor, if we have a sum post op.
+    // Result will be accumulated to the dst during the post ops.
+    auto dst_base = use_dst_acc ? scratchpad.get<void>(
+                            memory_tracking::names::key_matmul_dst_in_acc_dt)
+                                : CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    acl_obj.dst_tensor.allocator()->import_memory(dst_base);
 
     acl_obj.gemm.run();
 
