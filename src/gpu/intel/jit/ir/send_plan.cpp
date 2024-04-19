@@ -1710,6 +1710,12 @@ private:
         vmods[params_.h_vidx] = modulus_t(0);
         auto base_mod = mod_info.get_modulus(info_.view().tlayout(), vmods);
         int base_align = block_2d_base_alignment(info_.hw());
+
+        // TODO: move unaligned portion of offset to block start x
+        auto offset = info_.view().tlayout().offset_in_bytes();
+        if (!is_const(offset) || to_cpp<int>(offset) % base_align)
+            return fail_2d("Unsupported base alignment: ", base_align);
+
         if (!base_mod.is_divisible(base_align) != 0)
             return fail_2d("Unsupported base alignment: ", base_align);
 
