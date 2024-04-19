@@ -255,6 +255,28 @@ void deserialized_graph::load(const std::string &pass_config_json) {
         SAFE_V(FAIL);
     }
 
+    // Original graph int8 cases come with close-to-real-world values of scales.
+    // They are typically f32 random real numbers which doesn't help to validate
+    // correctness due to rounding issues in lower precision data types.
+    // To work around potential rounding, the code below rounds scales from the
+    // case to the nearest pow2 value. E.g. 0.2438485 -> 0.25.
+    // Note: it must be done before `ops` are put into `ops_map`.
+    for (auto &aop : ops_) {
+        if (aop.kind_ != "Dequantize" && aop.kind_ != "Quantize") continue;
+
+        const auto it_attr_scales = aop.attrs_.find("scales");
+        const bool has_scales = it_attr_scales != aop.attrs_.end();
+        if (!has_scales) continue;
+
+        auto &f32_vector = it_attr_scales->second.f32_vector_;
+        for (size_t i = 0; i < f32_vector.size(); i++) {
+            const int64_t p
+                    = static_cast<int64_t>(std::ceil(std::log2(f32_vector[i])));
+            const float new_scale = p >= 0 ? (1LL << p) : (1.f / (1LL << -p));
+            f32_vector[i] = new_scale;
+        }
+    }
+
     std::map<size_t, size_t> deg; // record indegree for each op
     std::map<size_t, deserialized_op> ops_map; // op_id -> op
     for (const auto &aop : ops_) {

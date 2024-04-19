@@ -951,24 +951,18 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
             continue;
         if (is_int8 && attr.find("zps") == attr.end()) continue;
 
-        auto pre_scales = attr["scales"].f32_vector_;
+        const auto &pre_scales = attr["scales"].f32_vector_;
+        const auto pre_scales_size = pre_scales.size();
         int64_t axis = 1;
         auto ndims = aop.in_lts_.front().shape_.size();
         if (attr.find("axis") != attr.end()) {
             axis = (attr["axis"].s64_value_ + ndims) % ndims;
         }
         const int64_t scales_zp_dim = aop.in_lts_.front().shape_[axis];
-        std::vector<float> scales(scales_zp_dim, pre_scales[0]);
+        std::vector<float> scales(scales_zp_dim);
 
-        attr_t::arg_scales_t::entry_t e(policy_t::PER_OC);
-        const dnnl_dims_t scales_dims {scales_zp_dim};
-        const auto scales_md
-                = dnn_mem_t::init_md(1, scales_dims, dnnl_f32, tag::abx);
-        dnn_mem_t scales_fp(scales_md, ::get_test_engine());
-        dnn_mem_t dummy;
-        fill_scales(e, dummy, scales_fp);
-        for (int i = 0; i < scales_fp.nelems(); i++)
-            scales[i] = scales_fp.get_elem(i);
+        for (int64_t i = 0; i < scales_zp_dim; i++)
+            scales[i] = pre_scales[i % pre_scales_size];
         aop.attrs_["scales"].f32_vector_ = scales;
 
         if (is_int8) {
