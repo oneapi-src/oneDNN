@@ -121,5 +121,7 @@
 #define VERBOSE_DEVICE_CTX_MISMATCH "device not found in the given context"
 #define VERBOSE_INVALID_PLATFORM "unsupported %s platform (expected %s got %s)"
 #define VERBOSE_ENGINE_CREATION_FAIL "failed to create %s engine with index %zu"
+#define VERBOSE_MEM_DESC_CHECK_FAIL "bad arguments for memory descriptor"
+#define VERBOSE_INVALID_MEM_IDX "invalid memory index"
 
 #endif

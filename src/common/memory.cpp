@@ -142,8 +142,10 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
     if (md == nullptr) md = &z_md;
 
     const auto mdw = memory_desc_wrapper(md);
-    if (mdw.format_any() || mdw.has_runtime_dims_or_strides())
-        return invalid_arguments;
+    VCHECK_MEMORY(
+            !mdw.format_any(), invalid_arguments, VERBOSE_UNSUPPORTED_TAG);
+    VCHECK_MEMORY(!mdw.has_runtime_dims_or_strides(), invalid_arguments,
+            VERBOSE_UNSUPPORTED_MEM_STRIDE);
 
     unsigned flags = (handle == DNNL_MEMORY_ALLOCATE)
             ? memory_flags_t::alloc
@@ -174,8 +176,10 @@ status_t dnnl_memory_create_v2(memory_t **memory, const memory_desc_t *md,
     if (md == nullptr) md = &z_md;
 
     const auto mdw = memory_desc_wrapper(md);
-    if (mdw.format_any() || mdw.has_runtime_dims_or_strides())
-        return invalid_arguments;
+    VCHECK_MEMORY(
+            !mdw.format_any(), invalid_arguments, VERBOSE_UNSUPPORTED_TAG);
+    VCHECK_MEMORY(!mdw.has_runtime_dims_or_strides(), invalid_arguments,
+            VERBOSE_UNSUPPORTED_MEM_STRIDE);
 
     std::vector<unsigned> flags_vec(nhandles);
     std::vector<void *> handles_vec(nhandles);
@@ -247,9 +251,10 @@ status_t dnnl_memory_set_data_handle_v2(
 
 status_t dnnl_memory_map_data_v2(
         const memory_t *memory, void **mapped_ptr, int index) {
-    const bool args_ok = !any_null(memory, mapped_ptr)
-            && (index >= 0 && index < (int)memory->get_num_handles());
-    if (!args_ok) return invalid_arguments;
+    VCHECK_MEMORY(
+            !any_null(memory, mapped_ptr), invalid_arguments, VERBOSE_NULL_ARG);
+    VCHECK_MEMORY((index >= 0 && index < (int)memory->get_num_handles()),
+            invalid_arguments, VERBOSE_INVALID_MEM_IDX);
 
     const memory_desc_t *md = memory->md();
     // See caveats in the comment to `memory_desc_map_size()` function.
@@ -268,9 +273,10 @@ status_t dnnl_memory_map_data_v2(
 
 status_t dnnl_memory_unmap_data_v2(
         const memory_t *memory, void *mapped_ptr, int index) {
-    const bool args_ok = !any_null(memory)
-            && (index >= 0 && index < (int)memory->get_num_handles());
-    if (!args_ok) return invalid_arguments;
+    VCHECK_MEMORY(!any_null(memory), invalid_arguments, VERBOSE_NULL_ARG);
+    VCHECK_MEMORY((index >= 0 && index < (int)memory->get_num_handles()),
+            invalid_arguments, VERBOSE_INVALID_MEM_IDX);
+
     return memory->memory_storage(index)->unmap_data(mapped_ptr, nullptr);
 }
 
