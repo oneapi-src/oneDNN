@@ -167,6 +167,8 @@
 # softmax
 --reset --case=pattern/f32/softmax_post_ops_unary_fusion.json
 --reset --case=pattern/f32/softmax_post_ops_binary_fusion.json
+# layernorm
+--reset --case=pattern/f32/lnorm_gelu.json
 # shuffle
 --reset --in-shapes=0:1x512x75x75 --op-attrs=0:shape:1x512x75x25x3+2:shape:1x512x75x75 --case=pattern/f32/shuffle_fusion.json
 # large scope
