@@ -11943,21 +11943,21 @@ TEST(test_pass_pass_system, NotFuseLayernormTypecast) {
 
     ASSERT_EQ(agraph.get_num_partitions(), 2U);
 
-    // partition 0: tc + quant
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 1U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 3U);
+    // partition 0: layernorm + tc
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 1U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 2U);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 
-    // partition 1: layernorm
-    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 3U);
-    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[0].id, 0U);
-    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[1].id, 1U);
-    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[2].id, 2U);
+    // partition 1: quant
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[0].id, 4U);
 
     ASSERT_EQ(agraph.get_partitions()[1]->get_outputs().size(), 1U);
-    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 3U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 5U);
 }
 
 TEST(test_pass_pass, ShuffleFusion) {
