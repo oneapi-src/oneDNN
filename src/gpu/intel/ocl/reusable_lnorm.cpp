@@ -36,14 +36,6 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-namespace lnorm_dims {
-compute::dim_id_t mb = 0;
-compute::dim_id_t ic = 1;
-compute::dim_id_t sp0 = 2;
-compute::dim_id_t sp1 = 3;
-compute::dim_id_t sp2 = 4;
-}; // namespace lnorm_dims
-
 static std::vector<compute::dim_id_t> get_dims(
         size_t ndims, bool for_stats = false) {
     assert(ndims > 1 && ndims < 6);
