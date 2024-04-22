@@ -409,7 +409,6 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     // x <-> bf8
     if (src_bf8 || dst_bf8) {
         int step = get_step();
-        int max_type_size = std::max(src_type_size, dst_type_size);
         ngen::DataType src_raw
                 = src_bf8 ? ngen::DataType::ub : ngen::DataType::w;
         ngen::DataType dst_raw
