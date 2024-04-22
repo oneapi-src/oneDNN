@@ -62,9 +62,9 @@ bool is_supported_partition(const std::shared_ptr<graph::partition_impl_t> &p) {
 }
 
 bool is_supported_dtype(data_type_t dt) {
+    using namespace dnnl::impl::graph::dnnl_impl::platform;
     static graph::engine_t *engine = get_engine();
-    return dnnl::impl::graph::dnnl_impl::platform::get_dtype_support_status(
-            engine->kind(), dt);
+    return get_dtype_support_status(engine->kind(), dt, dir_t::FLAG_INF);
 }
 
 } // namespace
