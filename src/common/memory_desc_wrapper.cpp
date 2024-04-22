@@ -129,7 +129,8 @@ status_t memory_desc_wrapper::compute_blocking(
         memory_desc_t &memory_desc, format_tag_t tag) {
     using namespace format_tag;
 
-    if (memory_desc.ndims == 0) return status::invalid_arguments;
+    VCHECK_MEMORY((memory_desc.ndims != 0), status::invalid_arguments,
+            VERBOSE_BAD_NDIMS, "", 0);
 
 #define C(tag, ... /* perm, inner_blks, inner_idxs */) \
     case tag: return fill_blocked(memory_desc, __VA_ARGS__)

@@ -282,7 +282,7 @@ protected:
 
     status_t register_kernels(const std::vector<compute::kernel_t> &kernels) {
         for (const auto &k : kernels) {
-            CHECK(k.dump());
+            if (k) CHECK(k.dump());
             registered_compute_blocks_.emplace_back(k);
         }
         return status::success;
