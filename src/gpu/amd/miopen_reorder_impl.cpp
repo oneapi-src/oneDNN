@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 #include "common/impl_list_item.hpp"
 #include "gpu/amd/miopen_reorder.hpp"
 #include "gpu/amd/sycl_hip_engine.hpp"
-#include "gpu/ocl/cross_engine_reorder.hpp"
+#include "gpu/intel/ocl/cross_engine_reorder.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -62,7 +62,7 @@
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "gpu/ocl/verbose.hpp"
+#include "gpu/intel/ocl/verbose.hpp"
 #endif
 
 #ifdef DNNL_WITH_SYCL

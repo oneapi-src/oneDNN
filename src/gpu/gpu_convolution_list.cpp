@@ -16,13 +16,13 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/jit/binary_format.hpp"
-#include "gpu/jit/conv/gen_convolution.hpp"
-#include "gpu/ocl/gen9_wino_convolution.hpp"
-#include "gpu/ocl/ref_convolution.hpp"
+#include "gpu/intel/jit/binary_format.hpp"
+#include "gpu/intel/jit/conv/gen_convolution.hpp"
+#include "gpu/intel/ocl/gen9_wino_convolution.hpp"
+#include "gpu/intel/ocl/ref_convolution.hpp"
 
 #ifdef DNNL_DEV_MODE
-#include "gpu/jit/v2/conv/gen_convolution.hpp"
+#include "gpu/intel/jit/v2/conv/gen_convolution.hpp"
 #endif
 
 namespace dnnl {

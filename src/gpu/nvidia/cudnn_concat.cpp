@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/intel/ocl/ref_concat.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
-#include "gpu/ocl/ref_concat.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -18,9 +18,9 @@
 #include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_utils.hpp"
 
-#include "gpu/ocl/ocl_engine.hpp"
-#include "gpu/ocl/ocl_gpu_hw_info.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/ocl_engine.hpp"
+#include "gpu/intel/ocl/ocl_gpu_hw_info.hpp"
+#include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 
 #include "cpu/platform.hpp"

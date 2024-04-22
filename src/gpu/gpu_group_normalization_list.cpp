@@ -16,7 +16,7 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/ocl/ref_group_normalization.hpp"
+#include "gpu/intel/ocl/ref_group_normalization.hpp"
 
 namespace dnnl {
 namespace impl {

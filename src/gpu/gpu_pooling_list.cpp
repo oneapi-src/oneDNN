@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/jit/pooling/gen_pooling.hpp"
-#include "gpu/ocl/gen9_global_pooling.hpp"
-#include "gpu/ocl/gen9_pooling.hpp"
-#include "gpu/ocl/ref_pooling.hpp"
+#include "gpu/intel/jit/pooling/gen_pooling.hpp"
+#include "gpu/intel/ocl/gen9_global_pooling.hpp"
+#include "gpu/intel/ocl/gen9_pooling.hpp"
+#include "gpu/intel/ocl/ref_pooling.hpp"
 
 namespace dnnl {
 namespace impl {

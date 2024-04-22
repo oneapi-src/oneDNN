@@ -29,7 +29,7 @@
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "oneapi/dnnl/dnnl_ocl.hpp"
-#include "src/gpu/ocl/ocl_usm_utils.hpp"
+#include "src/gpu/intel/ocl/ocl_usm_utils.hpp"
 #endif
 
 #include "tests/test_thread.hpp"

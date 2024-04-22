@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "sycl/sycl_utils.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "gpu/intel/ocl/ocl_engine.hpp"
 #include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_engine_base.hpp"
 

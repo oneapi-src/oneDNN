@@ -16,9 +16,9 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/ocl/ref_layer_normalization.hpp"
-#include "gpu/ocl/reusable_lnorm.hpp"
-#include "gpu/ocl/vectorized_lnorm.hpp"
+#include "gpu/intel/ocl/ref_layer_normalization.hpp"
+#include "gpu/intel/ocl/reusable_lnorm.hpp"
+#include "gpu/intel/ocl/vectorized_lnorm.hpp"
 
 namespace dnnl {
 namespace impl {

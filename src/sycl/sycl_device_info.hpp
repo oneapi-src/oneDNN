@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #ifndef SYCL_DEVICE_INFO_HPP
 #define SYCL_DEVICE_INFO_HPP
 
-#include "gpu/compute/device_info.hpp"
+#include "gpu/intel/compute/device_info.hpp"
 
 namespace dnnl {
 namespace impl {

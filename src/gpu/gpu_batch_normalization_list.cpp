@@ -16,12 +16,12 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/ocl/bnorm/gen9_batch_normalization.hpp"
-#include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
-#include "gpu/ocl/bnorm/nhwc_reusable.hpp"
-#include "gpu/ocl/bnorm/ref_batch_normalization.hpp"
-#include "gpu/ocl/bnorm/reusable_bnorm.hpp"
-#include "gpu/ocl/bnorm/simple_bnorm.hpp"
+#include "gpu/intel/ocl/bnorm/gen9_batch_normalization.hpp"
+#include "gpu/intel/ocl/bnorm/nhwc_batch_normalization.hpp"
+#include "gpu/intel/ocl/bnorm/nhwc_reusable.hpp"
+#include "gpu/intel/ocl/bnorm/ref_batch_normalization.hpp"
+#include "gpu/intel/ocl/bnorm/reusable_bnorm.hpp"
+#include "gpu/intel/ocl/bnorm/simple_bnorm.hpp"
 
 namespace dnnl {
 namespace impl {

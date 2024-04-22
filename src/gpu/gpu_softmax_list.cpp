@@ -16,9 +16,9 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/ocl/gen9_softmax.hpp"
-#include "gpu/ocl/ref_softmax.hpp"
-#include "gpu/ocl/reusable_softmax.hpp"
+#include "gpu/intel/ocl/gen9_softmax.hpp"
+#include "gpu/intel/ocl/ref_softmax.hpp"
+#include "gpu/intel/ocl/reusable_softmax.hpp"
 
 namespace dnnl {
 namespace impl {

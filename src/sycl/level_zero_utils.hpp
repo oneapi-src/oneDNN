@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "gpu/compute/kernel.hpp"
+#include "gpu/intel/compute/kernel.hpp"
 #include "sycl/sycl_compat.hpp"
 
 namespace dnnl {

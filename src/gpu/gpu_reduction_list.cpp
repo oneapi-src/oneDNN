@@ -16,11 +16,11 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/jit/jit_reduction.hpp"
-#include "gpu/ocl/reduction/atomic_reduction.hpp"
-#include "gpu/ocl/reduction/combined_reduction.hpp"
-#include "gpu/ocl/reduction/ref_reduction.hpp"
-#include "gpu/ocl/reduction/reusable_ref_reduction.hpp"
+#include "gpu/intel/jit/jit_reduction.hpp"
+#include "gpu/intel/ocl/reduction/atomic_reduction.hpp"
+#include "gpu/intel/ocl/reduction/combined_reduction.hpp"
+#include "gpu/intel/ocl/reduction/ref_reduction.hpp"
+#include "gpu/intel/ocl/reduction/reusable_ref_reduction.hpp"
 
 namespace dnnl {
 namespace impl {

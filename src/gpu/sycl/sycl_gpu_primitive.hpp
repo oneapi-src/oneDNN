@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,11 +17,11 @@
 #ifndef GPU_SYCL_SYCL_GPU_PRIMITIVE_HPP
 #define GPU_SYCL_SYCL_GPU_PRIMITIVE_HPP
 
-#include "gpu/gpu_primitive.hpp"
+#include "gpu/intel/gpu_primitive.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_stream.hpp"
 
-#include "gpu/compute/kernel.hpp"
+#include "gpu/intel/compute/kernel.hpp"
 #include "gpu/sycl/sycl_gpu_kernel.hpp"
 
 namespace dnnl {

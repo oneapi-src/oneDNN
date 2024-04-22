@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/gpu/ocl/ocl_usm_utils.hpp"
+#include "src/gpu/intel/ocl/ocl_usm_utils.hpp"
 
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"

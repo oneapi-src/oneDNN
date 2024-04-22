@@ -18,13 +18,13 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/jit/binary_format.hpp"
+#include "gpu/intel/jit/binary_format.hpp"
 
-#include "gpu/jit/gemm/gen_gemm.hpp"
-#include "gpu/jit/gemm/xe_hp_systolic_gemm.hpp"
-#include "gpu/ocl/gemm/conv_gemm.hpp"
-#include "gpu/ocl/gemm/gemm_with_post_ops.hpp"
-#include "gpu/ocl/gemm/ref_gemm.hpp"
+#include "gpu/intel/jit/gemm/gen_gemm.hpp"
+#include "gpu/intel/jit/gemm/xe_hp_systolic_gemm.hpp"
+#include "gpu/intel/ocl/gemm/conv_gemm.hpp"
+#include "gpu/intel/ocl/gemm/gemm_with_post_ops.hpp"
+#include "gpu/intel/ocl/gemm/ref_gemm.hpp"
 
 namespace dnnl {
 namespace impl {

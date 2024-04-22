@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,12 +16,12 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/jit/reorder/gen_reorder.hpp"
-#include "gpu/ocl/cross_engine_reorder.hpp"
-#include "gpu/ocl/custom_reorder.hpp"
-#include "gpu/ocl/generic_reorder.hpp"
-#include "gpu/ocl/ref_reorder.hpp"
-#include "gpu/ocl/rnn/rnn_reorders.hpp"
+#include "gpu/intel/jit/reorder/gen_reorder.hpp"
+#include "gpu/intel/ocl/cross_engine_reorder.hpp"
+#include "gpu/intel/ocl/custom_reorder.hpp"
+#include "gpu/intel/ocl/generic_reorder.hpp"
+#include "gpu/intel/ocl/ref_reorder.hpp"
+#include "gpu/intel/ocl/rnn/rnn_reorders.hpp"
 
 namespace dnnl {
 namespace impl {

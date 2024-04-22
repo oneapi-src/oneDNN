@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
 #include "common/utils.hpp"
-#include "gpu/compute/device_info.hpp"
+#include "gpu/intel/compute/device_info.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_engine_base.hpp"

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/ocl/convolution_inner_product.hpp"
-#include "gpu/ocl/gemm_inner_product.hpp"
-#include "gpu/ocl/gemm_post_ops_inner_product.hpp"
-#include "gpu/ocl/ref_inner_product.hpp"
+#include "gpu/intel/ocl/convolution_inner_product.hpp"
+#include "gpu/intel/ocl/gemm_inner_product.hpp"
+#include "gpu/intel/ocl/gemm_post_ops_inner_product.hpp"
+#include "gpu/intel/ocl/ref_inner_product.hpp"
 
 namespace dnnl {
 namespace impl {
