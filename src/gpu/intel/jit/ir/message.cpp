@@ -1105,22 +1105,40 @@ send_2d_hint_t get_send_2d_hint(send_op_t send_op, const type_t &_type,
     return hint;
 }
 
-send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
-        send_address_t send_address, const view_t &view,
-        send_cache_hint_t cache_hint, fma_kind_t fma_kind,
-        abc_kind_t abc_kind) {
-    send_params_t params;
-    params.hw = exec_cfg.hw();
-    params.mem_type = view.type();
-    params.send_op = send_op;
-    params.send_address = send_address;
-    params.use_send_plan = can_use_send_plan(view);
-    params.cache_hint = cache_hint;
+bool send_2d_params_ok(const exec_config_t &exec_cfg, send_op_t send_op) {
+    if (exec_cfg.hw() < ngen::HW::XeHPC) return false;
+    if (!utils::one_of(send_op, send_op_t::load, send_op_t::prefetch,
+                send_op_t::store))
+        return false;
+    return true;
+}
 
-    if (fma_kind == fma_kind_t::dpas && abc_kind == abc_kind_t::a) {
-        params.prefer_dense = true;
-    }
-    return params;
+bool send_2d_vlayout_ok(const layout_t &vlayout) {
+    const auto &blocks = vlayout.blocks();
+    if (blocks.size() < 2) return false;
+
+    const auto &b0 = blocks[0];
+    const auto &b1 = blocks[1];
+    if (b0.dim_idx == b1.dim_idx) return false;
+    if (b0.stride != stride_t(1)) return false;
+    if (b1.stride.is_unknown()) return false;
+    return true;
+}
+
+send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
+        send_op_t send_op, const view_t &view, bool allow_2d,
+        bool use_send_plan) {
+    send_2d_hint_t hint;
+    if (!allow_2d || !send_2d_params_ok(exec_cfg, send_op)) return hint;
+    auto vlayout = view.create_pseudo_vlayout();
+    if (!send_2d_vlayout_ok(vlayout)) return hint;
+    auto blocks = vlayout.blocks();
+    auto &b0 = blocks[0];
+    auto &b1 = blocks[1];
+
+    if (b0.block >= 128) return hint;
+    return get_send_2d_hint(
+            send_op, view.type(), false, false, b0.block, b1.block);
 }
 
 send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
@@ -1128,22 +1146,12 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
         const view_t &view, const gemm_schedule_t &gemm_schedule, bool allow_2d,
         bool use_send_plan) {
     send_2d_hint_t hint;
-    if (!allow_2d) return hint;
-    if (exec_cfg.hw() < ngen::HW::XeHPC) return hint;
-    if (!utils::one_of(send_op, send_op_t::load, send_op_t::prefetch,
-                send_op_t::store))
-        return hint;
-
+    if (!allow_2d || !send_2d_params_ok(exec_cfg, send_op)) return hint;
     auto vlayout = view.create_pseudo_vlayout();
+    if (!send_2d_vlayout_ok(vlayout)) return hint;
     auto blocks = vlayout.blocks();
-    if (blocks.size() < 2) return hint;
-
-    auto &bmnk_mapper = gemm_schedule.bmnk_mapper();
     auto &b0 = blocks[0];
     auto &b1 = blocks[1];
-    if (b0.dim_idx == b1.dim_idx) return hint;
-    if (b0.stride != stride_t(1)) return hint;
-    if (b1.stride.is_unknown()) return hint;
 
     if (send_op == send_op_t::load && fma_kind == fma_kind_t::dpas
             && utils::one_of(abc_kind, abc_kind_t::a, abc_kind_t::b)) {
@@ -1157,6 +1165,7 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
         int n_blk = any_block;
         int mn_blk = (is_dpas_src1 ? m_blk : n_blk);
         int k_blk = 32 / view.type().size();
+        auto &bmnk_mapper = gemm_schedule.bmnk_mapper();
         bool is_b0_k = (bmnk_mapper.bmnk_kind(abc_kind, b0.dim_idx)
                 == bmnk_kind_t::k);
         bool transpose = (is_dpas_src1 == is_b0_k);
@@ -1198,11 +1207,29 @@ send_2d_hint_t get_send_2d_hint(const exec_config_t &exec_cfg,
 }
 
 send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
+        send_address_t send_address, const view_t &view,
+        send_cache_hint_t cache_hint, fma_kind_t fma_kind, abc_kind_t abc_kind,
+        bool allow_2d) {
+    send_params_t params;
+    params.hw = exec_cfg.hw();
+    params.mem_type = view.type();
+    params.send_op = send_op;
+    params.send_address = send_address;
+    params.use_send_plan = can_use_send_plan(view);
+    params.cache_hint = cache_hint;
+    params.prefer_dense
+            = (fma_kind == fma_kind_t::dpas && abc_kind == abc_kind_t::a);
+    params.hint_2d = get_send_2d_hint(
+            exec_cfg, send_op, view, allow_2d, params.use_send_plan);
+    return params;
+}
+
+send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
         send_address_t send_address, fma_kind_t fma_kind, abc_kind_t abc_kind,
         const view_t &view, const gemm_schedule_t &gemm_schedule,
         bool allow_2d) {
     auto params = get_send_params(exec_cfg, send_op, send_address, view,
-            send_cache_hint_t::undef, fma_kind, abc_kind);
+            send_cache_hint_t::undef, fma_kind, abc_kind, false);
     params.hint_2d = get_send_2d_hint(exec_cfg, send_op, fma_kind, abc_kind,
             view, gemm_schedule, allow_2d, params.use_send_plan);
     return params;

@@ -544,12 +544,20 @@ send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
         send_address_t send_address, const view_t &view,
         send_cache_hint_t cache_hint = send_cache_hint_t::undef,
         fma_kind_t fma_kind = fma_kind_t::undef,
-        abc_kind_t abc_kind = abc_kind_t::undef);
+        abc_kind_t abc_kind = abc_kind_t::undef, bool allow_2d = false);
 
 send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
         send_address_t send_address, fma_kind_t fma_kind, abc_kind_t abc_kind,
         const view_t &view, const gemm_schedule_t &gemm_schedule,
         bool allow_2d = true);
+
+inline send_params_t get_send_params(const exec_config_t &exec_cfg,
+        send_op_t send_op, send_address_t send_address, const view_t &view,
+        bool allow_2d) {
+    return get_send_params(exec_cfg, send_op, send_address, view,
+            send_cache_hint_t::undef, fma_kind_t::undef, abc_kind_t::undef,
+            allow_2d);
+}
 
 inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
         const view_t &mem_view, const expr_t &mem_buf, const expr_t &reg_buf,
