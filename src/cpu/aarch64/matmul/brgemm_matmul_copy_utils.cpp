@@ -224,7 +224,14 @@ struct jit_brgemm_matmul_copy_a_transposed_impl_t
         , k_loop_dst_shift(rows_step * tr_typesize)
         , is_f32(everyone_is(data_type::f32, conf_->src_dt, conf_->wei_dt))
         , is_bf32(conf_->is_bf32)
-        , is_dynamic_src_ld(conf_->is_runtime_M) {}
+        , is_dynamic_src_ld(conf_->is_runtime_M) {
+        MAYBE_UNUSED(m_loop_src_shift);
+        MAYBE_UNUSED(k_loop_src_shift);
+        MAYBE_UNUSED(m_loop_dst_shift);
+        MAYBE_UNUSED(is_bf32);
+        MAYBE_UNUSED(is_dynamic_src_ld);
+        MAYBE_UNUSED(k_loop_dst_shift);
+    }
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -477,7 +484,10 @@ struct jit_brgemm_matmul_copy_b_f32_t : public jit_brgemm_matmul_copy_b_t,
         , typesize_in_(types::data_type_size(dt_in_))
         , src_stride_(conf_->wei_tag == acbd ? conf_->copy_B_wei_stride
                                              : conf_->N * typesize_in_)
-        , tr_src_stride_(conf_->LDB * typesize_out_) {}
+        , tr_src_stride_(conf_->LDB * typesize_out_) {
+        MAYBE_UNUSED(src_stride_);
+        MAYBE_UNUSED(tr_src_stride_);
+    }
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }

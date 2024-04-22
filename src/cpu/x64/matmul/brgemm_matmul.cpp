@@ -1273,7 +1273,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             return b_off + B_strides_[1] * k + B_strides_[0] * n;
         } else {
             int dt_b_k_blk = bgmmc_.is_bf32
-                    ? data_type_vnni_simd_elems<avx512_core>(f32)
+                    ? data_type_vnni_simd_elems(f32, bgmmc_.isa)
                     : bgmmc_.wei_k_blk;
             int k_idx = bgmmc_.blocked_B ? k / dt_b_k_blk : k;
             int n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
@@ -1759,6 +1759,7 @@ template struct brgemm_matmul_t<avx512_core_bf16>;
 template struct brgemm_matmul_t<avx512_core_vnni>;
 template struct brgemm_matmul_t<avx2_vnni_2>;
 template struct brgemm_matmul_t<avx2_vnni>;
+template struct brgemm_matmul_t<avx2>;
 template struct brgemm_matmul_t<avx512_core>;
 
 } // namespace matmul

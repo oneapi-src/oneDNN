@@ -43,13 +43,11 @@ quantization factor for activations with non-negative values.
 
 + \f$ Q_{w} = \frac{127}{R_{w}}\f$ is the quantization factor for weights.
 
-The **quantized** activation, weights, and bias values are calculated as:
+The **quantized** activation and weights values are calculated as:
 
 + \f$\alpha_{u8} = \lceil Q_{\alpha} \alpha_{f32} \rceil \in [0,255]\f$,
 
-+ \f$W_{s8} = \lceil Q_{w} W_{f32} \rceil \in [-127,127]\f$,
-
-+ \f$b_{s32} = \lceil Q_{\alpha} Q_{w} b_{f32} \rceil \in [-2^{31},2^{31}-1]\f$.
++ \f$W_{s8} = \lceil Q_{w} W_{f32} \rceil \in [-127,127]\f$.
 
 Here \f$ \lceil \rceil \f$ denotes rounding according to the active rounding
 mode (typically determined by the MXCSR register; the default value is
@@ -58,15 +56,17 @@ RoundNearestEven).
 When the destination value is stored as a signed 32-bit integer, the result is
 bound to the same quantization **scaling factors**:
 
-+ \f$X_{s32} = W_{s8} \cdot \alpha{u8} + b_{s32} \approx Q_{\alpha} Q_{\omega} X_{f32}\f$,
++ \f$X_{s32} = W_{s8} \cdot \alpha_{u8} \approx Q_{\alpha} Q_{\omega} X_{f32}\f$,
 
-+ where \f$X_{f32} = W_{f32} \cdot \alpha_{f32} + b_{f32}\f$.
++ where \f$X_{f32} = W_{f32} \cdot \alpha_{f32}\f$.
 
 Here the approximation is used to denote rounding.
 
 The dequantized value is calculated as
 
 + \f$X_{f32} \approx \frac{1}{Q_{\alpha} Q_{\omega}} X_{s32} \f$.
+
+@note bias does not support quantization as it is applied to dequantized output.
 
 ### Quantization Example
 To show how the quantization parameters are obtained, suppose we first start
@@ -79,9 +79,6 @@ point values:
 
 + weights:\f$ T_{\omega} = [-5.1 , 6.8, \ldots, -1.2, 9.8 ]\f$
   where \f$ \max(abs(T_{\omega})) = 9.8\f$
-
-+ bias:\f$ T_{\alpha} = [ 2.4, -5.2, \ldots, -8 ]\f$
-  where \f$ \max(abs(T_{\alpha})) = 8\f$
 
 The scaling factors are:
 
@@ -97,10 +94,6 @@ Finally, the quantized input values for the int8 operation are calculated as:
 + \f$W_{s8} = \lceil Q_{w} W_{f32} \rceil
     = \Bigl \lceil 12.96 \cdot [-5.1 , 6.8, \ldots, -1.2, 9.8 ] \Bigr \rceil
     = [-66, 88, \ldots, -15, 127] \f$
-
-+ \f$b_{s32} = \lceil Q_{\alpha} Q_{w} b_{f32} \rceil
-    = \Bigl \lceil 17 \cdot 12.96 \cdot [ 2.4, -5.2 \ldots, -8 ] \Bigr \rceil
-    = [528, -1145, \ldots, -1762] \f$
 
 These arrays are the new inputs for the int8 net.
 
@@ -120,7 +113,7 @@ attributes, but not all combinations of parameters are supported. In
 the case of an unsupported combination, the library returns an error.
 
 In oneDNN, the scaling factor are applied to each memory object of a primitive.
-Moreover, to perform input transformations (for example, source, bias, and
+Moreover, to perform input transformations (for example, source and
 weights), oneDNN performs quantizing and dequantizing of data for int8 using
 the **reorder primitive**.
 

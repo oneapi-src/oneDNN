@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ void simple_net_int8(engine::kind engine_kind) {
 
     //[Choose scaling factors]
 
-    /// The *source, weights, bias* and *destination* datasets use the single-scale
+    /// The *source, weights* and *destination* datasets use the single-scale
     /// format with mask set to '0'.
     /// @snippet cnn_inference_int8.cpp Set scaling mask
     //[Set scaling mask]
@@ -103,15 +103,17 @@ void simple_net_int8(engine::kind engine_kind) {
     /// descriptors are configured as:
     ///
     /// * 8-bit unsigned (u8) for source and destination.
-    /// * 8-bit signed (s8) for bias and weights.
+    /// * 8-bit signed (s8) for weights.
     ///
     ///  > **Note**
     ///  > The destination type is chosen as *unsigned* because the
     ///  > convolution applies a ReLU operation where data results \f$\geq 0\f$.
+    ///  > **Note**
+    ///  > Bias does not support quantization.
     /// @snippet cnn_inference_int8.cpp Create convolution memory descriptors
     //[Create convolution memory descriptors]
     auto conv_src_md = memory::desc({conv_src_tz}, dt::u8, tag::any);
-    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::s8, tag::any);
+    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::f32, tag::any);
     auto conv_weights_md = memory::desc({conv_weights_tz}, dt::s8, tag::any);
     auto conv_dst_md = memory::desc({conv_dst_tz}, dt::u8, tag::any);
     //[Create convolution memory descriptors]

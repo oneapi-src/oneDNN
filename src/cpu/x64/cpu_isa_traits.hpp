@@ -507,11 +507,21 @@ inline size_t data_type_vnni_granularity(const data_type_t data_type) {
     return size_t(0); /* should not be reachable */
 }
 
-template <cpu_isa_t isa>
-inline size_t data_type_vnni_simd_elems(data_type_t data_type) {
+inline size_t data_type_vnni_simd_elems(data_type_t data_type, cpu_isa_t isa) {
     const size_t dt_size = types::data_type_size(data_type);
     assert(dt_size > 0);
-    return cpu_isa_traits<isa>::vlen / dt_size;
+    if (isa == avx2_vnni_2
+            && utils::one_of(data_type, data_type::f16, data_type::bf16))
+        // for xf16 avx2_vnni_2, we use same blocking as avx512_core_bf16 due
+        // to use of even-odd pair of cvt instructions.
+        return data_type_vnni_simd_elems(data_type::bf16, avx512_core_bf16);
+
+    // Note: Currently, int8 matmul has avx512_core hardcoded.
+    // TODO: Investigate and remove if possible.
+    if (data_type == data_type::s8 && isa != avx512_core)
+        return data_type_vnni_simd_elems(data_type, avx512_core);
+
+    return isa_max_vlen(isa) / dt_size;
 }
 
 } // namespace x64
