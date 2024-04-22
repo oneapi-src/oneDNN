@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -187,7 +187,7 @@ private:
         //initialize brgemm kernel
         char palette[64];
         char tile_buffer[1024];
-        x64::brgemm_t desc;
+        x64::brgemm_desc_t desc;
         auto res = brgemm_desc_init(&desc, x64::cpu_isa_t::isa_undef,
                 p.batch_kind, p.dt_a, p.dt_b, p.tr_a(), p.tr_b(), p.layout,
                 p.alpha, p.beta, p.lda, p.ldb, p.ldc, p.M, p.N, p.K);

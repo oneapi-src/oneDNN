@@ -82,7 +82,8 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Conv) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps {0};
     std::vector<float> scales {0.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -146,7 +147,11 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Conv) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x8_conv_add_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x8_conv_add_post_ops_gpu"
+                            : "x8s8x8_conv_add_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -222,7 +227,8 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Matmul) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps {0};
     std::vector<float> scales {0.5f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -271,7 +277,11 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -577,7 +587,8 @@ TEST(test_subgraph_pass_subgraph_pass, Int8ConvSumRelu) {
     qout_node.add_input(dst_relu_f32);
     qout_node.add_output(dst_s8);
 
-    graph::graph_t g;
+    const auto engine_kind = p_eng.get()->kind();
+    graph::graph_t g(engine_kind);
     g.add_op(&dqdata_node);
     g.add_op(&qweight_node);
     g.add_op(&dqweight_node);
@@ -588,7 +599,11 @@ TEST(test_subgraph_pass_subgraph_pass, Int8ConvSumRelu) {
     g.add_op(&qout_node);
     g.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x8_conv_add_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x8_conv_add_post_ops_gpu"
+                            : "x8s8x8_conv_add_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
 
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -794,7 +809,8 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
     */
     const auto &params = GetParam();
 
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
     std::vector<int64_t> zps {0};
@@ -845,7 +861,11 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -1280,13 +1300,15 @@ TEST(test_subgraph_pass_subgraph_pass, MemoryPlanning) {
     ASSERT_TRUE(mem_offkeys.empty());
 }
 
-TEST(test_subgraph_pass_subgraph_pass, FusePostOpsForConvDepthwise) {
+TEST(test_subgraph_pass_subgraph_pass, FusePostOpsForConvDepthwise_CPU) {
     /*   conv
           |
          conv (depthwise)
     */
     graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
+    SKIP_IF(g_eng->kind() == graph::engine_kind::gpu,
+            "Skip for GPU - not supported yet.");
 
     // N, IC, IH, IW
     std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
@@ -1349,13 +1371,15 @@ TEST(test_subgraph_pass_subgraph_pass, FusePostOpsForConvDepthwise) {
     ASSERT_EQ(subgraph->num_ops(), 2U);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, FailToFusePostOpsForConvDepthwise) {
+TEST(test_subgraph_pass_subgraph_pass, FailToFusePostOpsForConvDepthwise_CPU) {
     /*   conv
           |
          conv (depthwise)
     */
     graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
+    SKIP_IF(g_eng->kind() == graph::engine_kind::gpu,
+            "Skip for GPU - not supported yet.");
 
     // N, IC, IH, IW
     std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
@@ -1461,7 +1485,7 @@ TEST(test_subgraph_pass_subgraph_pass, FuseSigmoidMultiplyToSwish) {
 }
 
 TEST(test_subgraph_pass_int8_matmul_passes_with_diff_inputs,
-        X8X8BF16MatmulScaleAddPasses) {
+        X8X8BF16MatmulScaleAddPasses_CPU) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant

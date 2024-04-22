@@ -10,7 +10,7 @@
 --stag=abx
 --dtag=abx,axb,xba
 --oflag=
-2x16x3x4 1x17x5x3
+2x16x3x4 1x17x5x3 30x1
 
 --reset
 # compensation reorders without groups

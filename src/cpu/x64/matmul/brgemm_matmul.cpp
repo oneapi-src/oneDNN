@@ -155,7 +155,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         int bs = get_brg_batchsize(bgmmc_, i_bs, i_K);
         int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K);
         if (idx < 0) continue;
-        brgemm_t &brg = brg_descs_[idx];
+        brgemm_desc_t &brg = brg_descs_[idx];
         auto LDA = i_K && bgmmc_.use_buffer_a_tail_only
                 ? (dim_t)bgmmc_.wei_k_blk
                 : bgmmc_.LDA;
@@ -1273,7 +1273,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             return b_off + B_strides_[1] * k + B_strides_[0] * n;
         } else {
             int dt_b_k_blk = bgmmc_.is_bf32
-                    ? data_type_vnni_simd_elems<avx512_core>(f32)
+                    ? data_type_vnni_simd_elems(f32, bgmmc_.isa)
                     : bgmmc_.wei_k_blk;
             int k_idx = bgmmc_.blocked_B ? k / dt_b_k_blk : k;
             int n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
@@ -1759,6 +1759,7 @@ template struct brgemm_matmul_t<avx512_core_bf16>;
 template struct brgemm_matmul_t<avx512_core_vnni>;
 template struct brgemm_matmul_t<avx2_vnni_2>;
 template struct brgemm_matmul_t<avx2_vnni>;
+template struct brgemm_matmul_t<avx2>;
 template struct brgemm_matmul_t<avx512_core>;
 
 } // namespace matmul

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -969,6 +969,16 @@ status_t memory_desc_wrapper::compute_blocking(
         C(AcdB8b8a2b, {0, 2, 3, 1}, {8, 8, 2}, {1, 0, 1});
         C(ABcde8b8a2b, {0, 1, 2, 3, 4}, {8, 8, 2}, {1, 0, 1});
         C(AcdeB8b8a2b, {0, 2, 3, 4, 1}, {8, 8, 2}, {1, 0, 1});
+        C(BA2a24b, {1, 0}, {2, 24}, {0, 1});
+        C(BA2a8b, {1, 0}, {2, 8}, {0, 1});
+        C(aCB2b24c, {0, 2, 1}, {2, 24}, {1, 2});
+        C(aCB2b8c, {0, 2, 1}, {2, 8}, {1, 2});
+        C(BA8a24b, {1, 0}, {8, 24}, {0, 1});
+        C(BA8a16b, {1, 0}, {8, 16}, {0, 1});
+        C(BA8a8b, {1, 0}, {8, 8}, {0, 1});
+        C(aCB8b24c, {0, 2, 1}, {8, 24}, {1, 2});
+        C(aCB8b16c, {0, 2, 1}, {8, 16}, {1, 2});
+        C(aCB8b8c, {0, 2, 1}, {8, 8}, {1, 2});
         default: break;
     }
 

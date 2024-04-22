@@ -44,16 +44,11 @@ void check_correctness(
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_axis : s.axis)
-    for_(const auto &i_scales : s.scales)
-    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_deterministic : s.deterministic)
+    for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        auto attr = settings_t::get_attr(
-                i_scales, i_scratchpad_mode, i_deterministic);
-
-        const prb_t prb(s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_axis, attr,
-                i_ctx_init, i_ctx_exe);
+        const prb_t prb(s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_axis,
+                i_attr, i_ctx_init, i_ctx_exe);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(
@@ -92,11 +87,7 @@ int bench(int argc, char **argv) {
                 || parse_multi_tag(s.stag, def.stag, argv[0])
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_axis(s.axis, def.axis, argv[0])
-                || parse_attr_scales(s.scales, argv[0])
-                || parse_attr_scratchpad_mode(
-                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_attr_deterministic(
-                        s.deterministic, def.deterministic, argv[0])
+                || parse_attributes(s, def, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
@@ -109,6 +100,7 @@ int bench(int argc, char **argv) {
             parse_prb_vdims(s.prb_vdims, argv[0], 1);
 
             SAFE(verify_input(s), WARN);
+            s.finalize();
             check_correctness(s, task_executor);
         }
     }

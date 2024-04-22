@@ -2671,6 +2671,22 @@ public:
         L(label_tbl_end);
     }
 
+    void init_f32_avx2_mask_ymm(
+            Xbyak::Ymm &ymm_mask, const Xbyak::Reg64 &reg_tmp, int tail_size) {
+        static const uint32_t mask_in[16] = {0xffffffff, 0xffffffff, 0xffffffff,
+                0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0,
+                0, 0, 0, 0, 0, 0, 0};
+        constexpr int max_words_in_ymm = 8;
+        auto mask_in_offset = max_words_in_ymm - tail_size;
+        mov(reg_tmp, reinterpret_cast<size_t>(&mask_in[mask_in_offset]));
+        vmovups(ymm_mask, ptr[reg_tmp]);
+    }
+
+    void transpose(const Xbyak::Reg64 &reg_src, const Xbyak::Reg64 &reg_dst,
+            dim_t src_stride, dim_t dst_stride, int nrows, int ncolumns,
+            data_type_t dt,
+            /*rest of vmms used only if there are tails*/ Xbyak::Ymm &ymm_tmp,
+            Xbyak::Ymm &ymm_mask, Xbyak::Xmm &xmm_upper_mask);
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_generator);
 
 public:

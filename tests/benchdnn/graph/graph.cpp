@@ -375,9 +375,18 @@ std::string case_to_str(const std::string &json_file,
 
 void skip_unimplemented_ops(const dnnl::graph::partition &partition,
         const deserialized_graph &dg, res_t *res) {
+    // Unconditionally skip all unimplemented cases for Graph Compiler. They got
+    // triggered when `_DNNL_DISABLE_DNNL_BACKEND=1` is utilized.
+    // TODO: extend with `getenv` call if limits too much.
+    if (is_gc_backend()) {
+        res->state = SKIPPED;
+        res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     // A list of ops that don't have DNNL backend support so far.
     static const std::vector<std::string> unimplemented_ops {
-            "Pow", "Select", "StaticReshape", "StaticTranspose"};
+            "Pow", "StaticReshape", "StaticTranspose"};
 
     // For an unsupported partition, retrieve all operation IDs, find a
     // correspondent operation kind in a deserialized_graph and match it against
@@ -391,6 +400,20 @@ void skip_unimplemented_ops(const dnnl::graph::partition &partition,
                     return dg_op_kind == kind;
                 });
         if (has_unimplemented_op) {
+            res->state = SKIPPED;
+            res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+}
+
+void skip_unimplemented_graph_attribute(
+        const dnnl::fpmath_mode &fpmath_mode, res_t *res) {
+    // Compiler backend only supports strict and bf16 for floating-point math
+    // mode
+    if (is_gc_backend()) {
+        if (fpmath_mode != dnnl::fpmath_mode::strict
+                && fpmath_mode != dnnl::fpmath_mode::bf16) {
             res->state = SKIPPED;
             res->reason = CASE_NOT_SUPPORTED;
             return;
@@ -417,6 +440,9 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode == bench_mode_t::list) return res->state = LISTED, OK;
 
     skip_start(res);
+    if (res->state == SKIPPED) return OK;
+
+    skip_unimplemented_graph_attribute(prb->fpmath_mode, res);
     if (res->state == SKIPPED) return OK;
 
     const auto &dg = prb->dg;

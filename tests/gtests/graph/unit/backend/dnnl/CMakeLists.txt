@@ -41,6 +41,7 @@ FILE(GLOB DNNL_COMMON_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_scratchpad.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_subgraph_pass.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_thread_local_cache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_select.cpp
 )
 
 # op compile/execution need test on both CPU and GPU

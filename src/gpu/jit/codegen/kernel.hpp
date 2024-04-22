@@ -63,7 +63,8 @@ struct ir_generator_t : public jit_generator_base {
                 REG_XEHP_ISA(CASE(XeHP));
                 REG_XEHPG_ISA(CASE(XeHPG));
                 REG_XEHPC_ISA(CASE(XeHPC));
-                default: break;
+                REG_XE2_ISA(CASE(Xe2));
+                default: gpu_assert(false) << "Unexpected GPU architecture";
             }
 #undef CASE
         } catch (ngen::out_of_registers_exception &) {

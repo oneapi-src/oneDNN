@@ -160,7 +160,7 @@ struct DNNL_API brgemm_attr_t {
     // and there is no unrolling by batchsize in kernel
     bool var_bs {false};
     bool postops_only {false};
-    // Hint for bs_group value in brgemm_t
+    // Hint for bs_group value in brgemm_desc_t
     int hint_bs_group {0};
 
     int hint_bd_block {0};
@@ -186,10 +186,10 @@ struct DNNL_API brgemm_attr_t {
     const brgemm_batch_element_t *static_offsets;
 };
 
-struct brgemm_t {
-    brgemm_t() {}
-    brgemm_t(const brgemm_t &other);
-    DNNL_API ~brgemm_t();
+struct brgemm_desc_t {
+    brgemm_desc_t() {}
+    brgemm_desc_t(const brgemm_desc_t &other);
+    DNNL_API ~brgemm_desc_t();
 
     // Note: new added parameters must be taken into account in the brgemm
     // comparison function
@@ -384,8 +384,8 @@ struct brgemm_t {
     }
     bool is_xf16() const noexcept { return is_bf16 || is_f16; }
 
-    bool operator==(const brgemm_t &rhs) const;
-    bool operator<(const brgemm_t &rhs) const;
+    bool operator==(const brgemm_desc_t &rhs) const;
+    bool operator<(const brgemm_desc_t &rhs) const;
 
 private:
     primitive_attr_t *attr_ {nullptr};
@@ -398,7 +398,7 @@ private:
 
     // The default assignment operator is intended to be used in custom copy
     // constructor only to avoid copying field-by-field
-    brgemm_t &operator=(const brgemm_t &) = default;
+    brgemm_desc_t &operator=(const brgemm_desc_t &) = default;
 };
 
 struct brgemm_dynamic_values_t {
@@ -474,7 +474,7 @@ struct brgemm_kernel_t {
 
 template <typename Vmm>
 struct brgemm_kernel_common_t : public brgemm_kernel_t {
-    brgemm_kernel_common_t(const brgemm_t &abrd);
+    brgemm_kernel_common_t(const brgemm_desc_t &abrd);
     ~brgemm_kernel_common_t();
 
     status_t create_kernel();
@@ -488,7 +488,7 @@ private:
 };
 
 struct brgemm_amx_uker_t : public brgemm_kernel_t {
-    brgemm_amx_uker_t(const brgemm_t &abrd);
+    brgemm_amx_uker_t(const brgemm_desc_t &abrd);
     ~brgemm_amx_uker_t();
 
     status_t create_kernel();
@@ -503,7 +503,7 @@ private:
 
 template <typename Vmm>
 struct brdgmm_kernel_t : public brgemm_kernel_t {
-    brdgmm_kernel_t(const brgemm_t &abrd);
+    brdgmm_kernel_t(const brgemm_desc_t &abrd);
     ~brdgmm_kernel_t();
 
     status_t create_kernel();
@@ -518,7 +518,7 @@ private:
 
 /// @param bias Vector of bias (vector length is N)
 /// @param scales - Vector of scale factor values which represents combination
-///     scale factors for matrixes A and B. If brgemm_t::is_oc_scale = true
+///     scale factors for matrixes A and B. If brgemm_desc_t::is_oc_scale = true
 ///     vector length is N otherwise it must be broadcasted to vector of simd
 ///     width length
 /// @param binary_post_ops_rhs - Ptr to table of pointers to tensors used as rhs

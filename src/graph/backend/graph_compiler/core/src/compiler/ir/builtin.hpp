@@ -377,11 +377,11 @@ enum class brgemm_mode {
 
 // returns <kernerl creator, caller> pair
 std::pair<func_t, func_t> get_brgemm_creator_and_call_func(
-        brgemm_mode mode, scflags_t::brgemm_t backend, bool has_postop);
+        brgemm_mode mode, scflags_t::brgemm_backend_t backend, bool has_postop);
 
 // returns <update, init_update> pair
 std::pair<func_t, func_t> get_brgemm_update_funcs(
-        brgemm_mode mode, scflags_t::brgemm_t backend);
+        brgemm_mode mode, scflags_t::brgemm_backend_t backend);
 func_t get_brgemm_call_range_func(brgemm_mode mode);
 
 // dynamic query format function evaluation at runtime.

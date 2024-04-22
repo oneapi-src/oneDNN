@@ -136,7 +136,7 @@ static const char *brgemm_names[] = {
         "sc",
 };
 
-static const char *get_brgemm_name(scflags_t::brgemm_t backend) {
+static const char *get_brgemm_name(scflags_t::brgemm_backend_t backend) {
     return brgemm_names[static_cast<int>(backend)];
 }
 
@@ -147,7 +147,8 @@ static const func_t &mark_brgemm_func(const func_t &f) {
 
 // returns the kernel creator and kernel caller pair
 static std::pair<func_t, func_t> declare_brgemm_kernel_creator(
-        scflags_t::brgemm_t backend, brgemm_mode mode, bool has_postop) {
+        scflags_t::brgemm_backend_t backend, brgemm_mode mode,
+        bool has_postop) {
     std::stringstream ss;
     std::string postfix = has_postop ? "_call_postops" : "_call";
     std::vector<std::vector<expr>> post_args
@@ -220,11 +221,11 @@ static std::pair<func_t, func_t> declare_brgemm_kernel_creator(
     }
 }
 
-std::pair<func_t, func_t> get_brgemm_creator_and_call_func(
-        brgemm_mode mode, scflags_t::brgemm_t backend, bool has_postop) {
+std::pair<func_t, func_t> get_brgemm_creator_and_call_func(brgemm_mode mode,
+        scflags_t::brgemm_backend_t backend, bool has_postop) {
 #define DEF_FUNC(back, list_stride) \
     if (mode == brgemm_mode::list_stride \
-            && backend == scflags_t::brgemm_t::back) { \
+            && backend == scflags_t::brgemm_backend_t::back) { \
         static std::pair<func_t, func_t> f0 \
                 = declare_brgemm_kernel_creator(backend, mode, false); \
         static std::pair<func_t, func_t> f1 \
@@ -242,7 +243,7 @@ std::pair<func_t, func_t> get_brgemm_creator_and_call_func(
 
 // returns the kernel creator and kernel caller pair
 static func_t declare_brgemm_update_funcs(
-        scflags_t::brgemm_t backend, brgemm_mode mode, bool init) {
+        scflags_t::brgemm_backend_t backend, brgemm_mode mode, bool init) {
     std::stringstream ss;
     if (mode == brgemm_mode::stride) {
         ss << get_brgemm_name(backend) << "_brgemm_";
@@ -337,9 +338,10 @@ func_t get_brgemm_call_range_func(brgemm_mode mode) {
 }
 
 std::pair<func_t, func_t> get_brgemm_update_funcs(
-        brgemm_mode mode, scflags_t::brgemm_t backend) {
+        brgemm_mode mode, scflags_t::brgemm_backend_t backend) {
 #define DEF_FUNC(back) \
-    if (mode == brgemm_mode::stride && backend == scflags_t::brgemm_t::back) { \
+    if (mode == brgemm_mode::stride \
+            && backend == scflags_t::brgemm_backend_t::back) { \
         static std::pair<func_t, func_t> f = std::pair<func_t, func_t>( \
                 declare_brgemm_update_funcs(backend, mode, false), \
                 declare_brgemm_update_funcs(backend, mode, true)); \
@@ -347,7 +349,7 @@ std::pair<func_t, func_t> get_brgemm_update_funcs(
     }
 #define DEF_LIST_FUNC(back) \
     if (mode == brgemm_mode::addr_list \
-            && backend == scflags_t::brgemm_t::back) { \
+            && backend == scflags_t::brgemm_backend_t::back) { \
         static std::pair<func_t, func_t> f = std::pair<func_t, func_t>( \
                 declare_brgemm_update_funcs(backend, mode, false), \
                 declare_brgemm_update_funcs(backend, mode, true)); \

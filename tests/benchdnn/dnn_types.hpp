@@ -77,7 +77,7 @@ struct attr_t {
     static int get_default_mask(policy_t policy);
     static int policy2mask(int arg, policy_t policy,
             dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
-            const_dnnl_memory_desc_t wei_md = nullptr, bool has_groups = false);
+            int ndims = -1, bool has_groups = false);
 
     struct zero_points_t {
         struct entry_t {
@@ -133,11 +133,10 @@ struct attr_t {
 
         int get_mask(int arg,
                 dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
-                const_dnnl_memory_desc_t wei_md = nullptr,
-                bool has_groups = false) const {
+                int ndims = -1, bool has_groups = false) const {
             const auto &e = get(arg);
             return attr_t::policy2mask(
-                    arg, e.policy, prim_kind, wei_md, has_groups);
+                    arg, e.policy, prim_kind, ndims, has_groups);
         }
 
         zero_points_t() : points() {} // needed for debug icc190 build;
@@ -173,11 +172,10 @@ struct attr_t {
 
         int get_mask(int arg,
                 dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive,
-                const_dnnl_memory_desc_t wei_md = nullptr,
-                bool has_groups = false) const {
+                int ndims = -1, bool has_groups = false) const {
             const auto &e = get(arg);
             return attr_t::policy2mask(
-                    arg, e.policy, prim_kind, wei_md, has_groups);
+                    arg, e.policy, prim_kind, ndims, has_groups);
         }
 
         bool is_def(int arg) const {
@@ -324,7 +322,15 @@ struct attr_t {
         int binary_index() const;
         int prelu_index() const;
 
-        std::vector<std::pair<int, int>> get_po_masks() const;
+        // ndims must be provided for primitives that have po mask that depends
+        // on the ndims. Currently this includes only lnorm with binary post-op
+        // with policy PER_OC.
+        // Some primitives might have a special handling for a policy provided.
+        // For such primitives prim_kind must be set so get_po_masks generates
+        // a correct mask. Currently this behavior depends on policy2mask().
+        std::vector<std::pair<int, int>> get_po_masks(int ndims = -1,
+                dnnl_primitive_kind_t prim_kind
+                = dnnl_undefined_primitive) const;
 
         std::vector<entry_t> entry;
     };
@@ -529,8 +535,9 @@ struct attr_args_t {
         entries.insert(std::make_pair(DNNL_ARG_ATTR_ZERO_POINTS | arg, mask));
     };
 
-    int prepare_post_ops_mds(
-            const attr_t &attr, int ndims, const dnnl_dims_t prb_dims);
+    int prepare_post_ops_mds(const attr_t &attr, int ndims,
+            const dnnl_dims_t prb_dims,
+            dnnl_primitive_kind_t prim_kind = dnnl_undefined_primitive);
 
     void prepare_dw_post_op(const attr_t &attr, dnnl_data_type_t wei_dt,
             dnnl_data_type_t bia_dt);

@@ -62,9 +62,9 @@ bool is_supported_partition(const std::shared_ptr<graph::partition_impl_t> &p) {
 }
 
 bool is_supported_dtype(data_type_t dt) {
+    using namespace dnnl::impl::graph::dnnl_impl::platform;
     static graph::engine_t *engine = get_engine();
-    return dnnl::impl::graph::dnnl_impl::platform::get_dtype_support_status(
-            engine->kind(), dt);
+    return get_dtype_support_status(engine->kind(), dt, dir_t::FLAG_INF);
 }
 
 } // namespace
@@ -81,7 +81,8 @@ TEST(test_pass_pass, FuseConvBn) {
           |
          bn
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -133,7 +134,8 @@ TEST(test_pass_pass, FuseConvBnWithSharedInputs) {
           |
          bn
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -189,7 +191,8 @@ TEST(test_pass_pass, FailToFuseConvBnWithConvSecondOutput) {
         /    \
        bn   relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -231,7 +234,8 @@ TEST(test_pass_pass, FuseConvRelu) {
           |
          relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {1, ReLU, "relu"};
@@ -266,7 +270,8 @@ TEST(test_pass_pass, FuseConvBiasadd) {
           |
          bias
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -304,7 +309,8 @@ TEST(test_pass_pass, FuseConvWithInputBias) {
           |
          bias
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -342,7 +348,8 @@ TEST(test_pass_pass, FuseConvSum) {
            \  /
            add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {1, Add, "add"};
@@ -380,7 +387,8 @@ TEST(test_pass_pass, FuseConvBiasaddBn) {
           |
          bn
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -433,7 +441,8 @@ TEST(test_pass_pass, FuseConvBiasBnWithInputBias) {
           |
          bn
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -482,7 +491,8 @@ TEST(test_pass_pass, FuseConvBiasaddRelu) {
           |
          relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -526,7 +536,8 @@ TEST(test_pass_pass, FuseConvBiasReluWithInputBias) {
           |
          relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t relu {1, ReLU, "relu"};
@@ -566,7 +577,8 @@ TEST(test_pass_pass, FuseConvBiasaddRelu6) {
           |
          relu6
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -612,7 +624,8 @@ TEST(test_pass_pass, FuseConvBiasElu) {
           |
          elu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t elu {1, Elu, "elu"};
@@ -653,7 +666,8 @@ TEST(test_pass_pass, FuseConvBiasSigmoid) {
           |
          sigmoid
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t sigmoid {1, Sigmoid, "sigmoid"};
@@ -697,7 +711,8 @@ TEST(test_pass_pass, FuseConvBiasSwish) {
         multiply
 
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t sigmoid {1, Sigmoid, "sigmoid"};
@@ -744,7 +759,8 @@ TEST(test_pass_pass, FuseConvSwish) {
         multiply
 
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t sigmoid {1, Sigmoid, "sigmoid"};
@@ -788,7 +804,8 @@ TEST(test_pass_pass, FuseConvSwishSigmoid) {
         sigmoid
 
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t sigmoid {1, Sigmoid, "sigmoid"};
@@ -832,7 +849,8 @@ TEST(test_pass_pass, FuseConvBiasClamp) {
           |
          clamp
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -878,7 +896,8 @@ TEST(test_pass_pass, FuseConvBiasSquare) {
           |
         square
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -922,7 +941,8 @@ TEST(test_pass_pass, FuseConvBiasTanh) {
           |
          tanh
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -966,7 +986,8 @@ TEST(test_pass_pass, FuseConvBiasAbs) {
           |
          abs
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -1010,7 +1031,8 @@ TEST(test_pass_pass, FuseConvBiasSqrt) {
           |
          sqrt
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -1054,7 +1076,8 @@ TEST(test_pass_pass, FuseConvBiasaddSum) {
            \   /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -1100,7 +1123,8 @@ TEST(test_pass_pass, FuseConvBiasSum) {
            \   /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {1, Add, "add"};
@@ -1144,7 +1168,8 @@ TEST(test_pass_pass, FuseConvBiasaddSumRelu) {
              |
             relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -1196,7 +1221,8 @@ TEST(test_pass_pass_system, TestConvRelated) {
              |
             relu    should be fused to conv-bias-add-relu + conv
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -1265,7 +1291,8 @@ TEST(test_pass_pass, FuseConvBiasaddSumElu) {
              |
             elu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -1318,7 +1345,8 @@ TEST(test_pass_pass, FuseConvBiasaddSumRelu6) {
              |
             relu6
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -1368,8 +1396,7 @@ TEST(test_pass_pass_system, FuseConvDepthwise) {
           |
          conv (depthwise)
     */
-    const std::vector<engine_kind_t> engine_kinds
-            = {engine_kind::cpu, engine_kind::gpu};
+    const auto engine_kind = get_test_engine_kind();
     const std::vector<std::string> dw_types {"k3s1p1", "k3s2p1"};
     // N, IC, IH, IW
     const std::vector<int64_t> conv_src_shape {4, 4, 4, 4};
@@ -1392,7 +1419,6 @@ TEST(test_pass_pass_system, FuseConvDepthwise) {
         return new_shape;
     };
 
-    for_(const auto &engine_kind : engine_kinds)
     for (const auto &dw_type : dw_types) {
         op_t conv {0, Convolution, "conv"};
         set_conv_dw_base_op_attr(conv);
@@ -1456,9 +1482,10 @@ TEST(test_pass_pass, FuseBinarySum) {
             {Multiply, partition_kind_t::binary_post_ops},
             {Maximum, partition_kind_t::binary_post_ops},
             {Minimum, partition_kind_t::binary_post_ops}};
+    const auto engine_kind = get_test_engine_kind();
 
     for (auto &p : opkind_pair) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         auto binary_kind = p.first;
         op_t binary {0, binary_kind, "binary"};
         op_t add {1, Add, "add"};
@@ -1508,9 +1535,10 @@ TEST(test_pass_pass_system, TestConvSumAndBinary) {
             {Multiply, partition_kind_t::convolution_post_ops},
             {Maximum, partition_kind_t::convolution_post_ops},
             {Minimum, partition_kind_t::convolution_post_ops}};
+    const auto engine_kind = get_test_engine_kind();
 
     for (const auto &p : opkind_pair) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         auto binary_kind = p.first;
         op_t binary {0, binary_kind, "binary"};
         op_t conv {1, Convolution, "convolution"};
@@ -1556,9 +1584,10 @@ TEST(test_pass_pass, FuseBinarySumWithSupportBroadcast) {
             {Multiply, partition_kind_t::binary_post_ops},
             {Maximum, partition_kind_t::binary_post_ops},
             {Minimum, partition_kind_t::binary_post_ops}};
+    const auto engine_kind = get_test_engine_kind();
 
     for (auto &p : opkind_pair) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         auto binary_kind = p.first;
         op_t binary {0, binary_kind, "binary"};
         op_t add {1, Add, "add"};
@@ -1598,9 +1627,10 @@ TEST(test_pass_pass, FailToFuseBinarySumWithUnsupportBroadcast) {
             {Multiply, partition_kind_t::binary_post_ops},
             {Maximum, partition_kind_t::binary_post_ops},
             {Minimum, partition_kind_t::binary_post_ops}};
+    const auto engine_kind = get_test_engine_kind();
 
     for (auto &p : opkind_pair) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         auto binary_kind = p.first;
         op_t binary {0, binary_kind, "binary"};
         op_t add {1, Add, "add"};
@@ -1650,9 +1680,10 @@ TEST(test_pass_pass, FailToFuseBinarySumWithUnknownShape) {
             {Multiply, partition_kind_t::binary_post_ops},
             {Maximum, partition_kind_t::binary_post_ops},
             {Minimum, partition_kind_t::binary_post_ops}};
+    const auto engine_kind = get_test_engine_kind();
 
     for (auto &p : opkind_pair) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         auto binary_kind = p.first;
         op_t binary {0, binary_kind, "binary"};
         op_t add {1, Add, "add"};
@@ -1691,7 +1722,8 @@ TEST(test_pass_pass, FuseBinaryAddMul) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
 
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t add {0, Add, "add"};
     op_t mul {1, Multiply, "mul"};
 
@@ -1740,7 +1772,8 @@ TEST(test_pass_pass, FuseBinaryEltwise) {
                     {{Minimum, ReLU}, partition_kind_t::binary_post_ops}};
 
     for (auto &p : opkind_pair) {
-        graph_t agraph;
+        const auto engine_kind = get_test_engine_kind();
+        graph_t agraph(engine_kind);
         auto binary_kind = p.first.first;
         auto eltwise_kind = p.first.second;
 
@@ -1780,7 +1813,8 @@ TEST(test_pass_pass, FuseEltwiseBinary3PostOps) {
            \     /
             binary
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
 
     op_t relu {0, ReLU, "relu"};
     op_t add {1, Add, "add"};
@@ -1830,7 +1864,8 @@ TEST(test_pass_pass, FuseEltwiseBinaryFail) {
         \   /
          div
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
 
     op_t relu {0, ReLU, "relu"};
     op_t div {1, Divide, "div"};
@@ -1863,7 +1898,8 @@ TEST(test_pass_pass, ReciprocalMultiply2Divide) {
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
 
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t reciprocal {0, Reciprocal, "reciprocal"};
     op_t multiply {1, Multiply, "multiply"};
 
@@ -1910,9 +1946,10 @@ TEST(test_pass_pass_system, TestBinaryEltwise) {
                     {{Maximum, ReLU}, partition_kind_t::binary_post_ops},
                     {{Minimum, Sigmoid}, partition_kind_t::binary_post_ops},
                     {{Minimum, ReLU}, partition_kind_t::binary_post_ops}};
+    const auto engine_kind = get_test_engine_kind();
 
     for (auto &p : opkind_pair) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         auto binary_kind = p.first.first;
         auto eltwise_kind = p.first.second;
 
@@ -1950,7 +1987,8 @@ TEST(test_pass_pass, FuseBnRelu) {
          |
         relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t bn {0, BatchNormInference, "bn"};
     bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {1, ReLU, "relu"};
@@ -1994,7 +2032,8 @@ TEST(test_pass_pass_system, TestBnRelu) {
          |
         relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t bn {0, BatchNormInference, "bn"};
     bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {1, ReLU, "relu"};
@@ -2039,7 +2078,8 @@ TEST(test_pass_pass, FuseBnBwdReluBwd) {
          |
         BatchNormTrainingBackward
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t op1 {0, ReLUBackward, "op1"};
     op_t op2 {1, BatchNormTrainingBackward, "op2"};
     op2.set_attr(op_attr::epsilon, 0.001f);
@@ -2087,7 +2127,8 @@ TEST(test_pass_pass_system, TestBnBwdReluBwd) {
          |
         BatchNormTrainingBackward
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t op1 {0, ReLUBackward, "op1"};
     op_t op2 {1, BatchNormTrainingBackward, "op2"};
     op2.set_attr(op_attr::epsilon, 0.001f);
@@ -2139,7 +2180,8 @@ TEST(test_pass_pass, FuseConvSumRelu) {
              |
             relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {1, Add, "add"};
@@ -2183,7 +2225,8 @@ TEST(test_pass_pass, FuseConvSumElu) {
              |
             elu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {1, Add, "add"};
@@ -2228,7 +2271,8 @@ TEST(test_pass_pass, FuseConvSumRelu6) {
              |
             relu6
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {1, Add, "add"};
@@ -2276,7 +2320,8 @@ TEST(test_pass_pass, FuseConvBiasaddSumSum) {
            \   /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv1 {0, Convolution, "conv"};
     set_conv_common_attr(conv1);
     op_t bias1 {1, BiasAdd, "bias"};
@@ -2349,7 +2394,8 @@ TEST(test_pass_pass, FuseConvBnSum) {
            \   /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -2402,7 +2448,8 @@ TEST(test_pass_pass, FuseConvBnSumWithRelu) {
            \   /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -2461,7 +2508,8 @@ TEST(test_pass_pass, FuseConvBiasBnSum) {
            \   /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -2516,7 +2564,8 @@ TEST(test_pass_pass, FuseConvBnRelu) {
           |
          relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -2567,7 +2616,8 @@ TEST(test_pass_pass_system, TestConvBnRelu) {
           |
          relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -2622,7 +2672,8 @@ TEST(test_pass_pass, FuseConvBiasaddBnRelu) {
           |
          relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -2681,7 +2732,8 @@ TEST(test_pass_pass, FuseConvBiasBnReluWithInputBias) {
           |
          relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -2737,7 +2789,8 @@ TEST(test_pass_pass_system, TestConvBiasBnRelu) {
          relu
     */
 
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bias {1, BiasAdd, "bias"};
@@ -2798,7 +2851,8 @@ TEST(test_pass_pass, FuseConvBnSumRelu) {
             |
           relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -2859,7 +2913,8 @@ TEST(test_pass_pass, FuseConvBiasBnSumRelu) {
             |
           relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t bn {1, BatchNormInference, "bn"};
@@ -2944,11 +2999,12 @@ TEST(test_pass_pass, FuseConvBiasPostOpsChain) {
             op_kind::Divide,
             op_kind::Subtract,
     };
+    const auto engine_kind = get_test_engine_kind();
 
     for (size_t k = 0; k < supported_ops.size(); ++k) {
         for (size_t num_chain_ops = 0; num_chain_ops <= max_num_post_ops;
                 ++num_chain_ops) {
-            graph_t agraph;
+            graph_t agraph(engine_kind);
             size_t op_id = 0;
             size_t lt_id = 0;
             op_t conv {op_id++, Convolution, "conv"};
@@ -3079,11 +3135,12 @@ TEST(test_pass_pass, FuseConvPostOpsChain) {
             op_kind::Divide,
             op_kind::Subtract,
     };
+    const auto engine_kind = get_test_engine_kind();
 
     for (size_t k = 0; k < supported_ops.size(); ++k) {
         for (size_t num_chain_ops = 0; num_chain_ops <= max_num_post_ops;
                 ++num_chain_ops) {
-            graph_t agraph;
+            graph_t agraph(engine_kind);
             size_t op_id = 0;
             size_t lt_id = 0;
             op_t conv {op_id++, Convolution, "conv"};
@@ -3181,7 +3238,8 @@ TEST(test_pass_pass, FuseConvtransposeBiasadd) {
           |
          bias
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t convtranspose {0, ConvTranspose, "convtranspose"};
     set_convtranspose_common_attr(convtranspose);
     op_t bias {1, BiasAdd, "bias"};
@@ -3220,9 +3278,10 @@ TEST(test_pass_pass, FuseConvtransposeAdd) {
          add
     */
     std::vector<bool> with_biases {false, true};
+    const auto engine_kind = get_test_engine_kind();
 
     for (auto with_bias : with_biases) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         op_t convtranspose {0, ConvTranspose, "convtranspose"};
         set_convtranspose_common_attr(convtranspose);
         op_t add {1, Add, "add"};
@@ -3272,7 +3331,8 @@ TEST(test_pass_pass, FuseConvtransposeAddTwoInputs) {
          add
     */
 
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t convtranspose {0, ConvTranspose, "convtranspose"};
     set_convtranspose_common_attr(convtranspose);
     op_t bias {1, BiasAdd, "bias"};
@@ -3317,9 +3377,10 @@ TEST(test_pass_pass, FuseConvtransposeRelu) {
          relu
     */
     std::vector<bool> with_biases {false, true};
+    const auto engine_kind = get_test_engine_kind();
 
     for (auto with_bias : with_biases) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         op_t convtranspose {0, ConvTranspose, "convtranspose"};
         set_convtranspose_common_attr(convtranspose);
         op_t relu {1, ReLU, "relu"};
@@ -3364,7 +3425,8 @@ TEST(test_pass_pass, FuseConvtransposeReLUTwoInputs) {
           |
          relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t convtranspose {0, ConvTranspose, "convtranspose"};
     set_convtranspose_common_attr(convtranspose);
     op_t bias {1, BiasAdd, "bias"};
@@ -3404,7 +3466,8 @@ TEST(test_pass_pass, FuseMatmulRelu) {
           |
         relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t relu {1, ReLU, "relu"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -3440,7 +3503,8 @@ TEST(test_pass_pass, FuseMatmulReluCase2) {
           |
         relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t relu {1, ReLU, "relu"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
@@ -3480,7 +3544,8 @@ TEST(test_pass_pass, FailToFuseReluMatmul) {
           |
         matmul
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t relu {0, ReLU, "relu"};
     op_t matmul {1, MatMul, "matmul"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -3512,7 +3577,8 @@ TEST(test_pass_pass, FuseMatmulElu) {
           |
         elu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t elu {1, Elu, "elu"};
     elu.set_attr(op_attr::alpha, 0.1f);
@@ -3549,7 +3615,8 @@ TEST(test_pass_pass, FuseMatmulSigmoid) {
           |
         sigmoid
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t sigmoid {1, Sigmoid, "sigmoid"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -3585,7 +3652,8 @@ TEST(test_pass_pass, FuseMatmulClamp) {
           |
         clamp
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t clamp {1, Clamp, "clamp"};
     clamp.set_attr(op_attr::min, -1.f);
@@ -3623,7 +3691,8 @@ TEST(test_pass_pass, FuseMatmulGelu) {
           |
         gelu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t gelu {1, GELU, "gelu"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
@@ -3659,7 +3728,8 @@ TEST(test_pass_pass, FuseMatmulSum) {
           \    /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t add {2, Add, "add"};
@@ -3700,7 +3770,8 @@ TEST(test_pass_pass, FuseMatmulSumWithCommunicativeOrder) {
           \    /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t add {2, Add, "add"};
@@ -3743,7 +3814,8 @@ TEST(test_pass_pass, FuseMatmulSumGelu) {
              |
             gelu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t add {2, Add, "add"};
@@ -3790,7 +3862,8 @@ TEST(test_pass_pass, FuseMatmulSumRelu) {
              |
             relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t add {2, Add, "add"};
@@ -3835,7 +3908,8 @@ TEST(test_pass_pass, FuseMatmulDiv) {
           \    /
             div
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t div {2, Divide, "div"};
@@ -3876,7 +3950,8 @@ TEST(test_pass_pass_system, FuseMatmulDiv) {
           \    /
             div
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t div {2, Divide, "div"};
@@ -3912,7 +3987,8 @@ TEST(test_pass_pass, FuseMatmulDivAdd) {
              | /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t wildcard2 {2, Wildcard, "wildcard2"};
@@ -3964,7 +4040,8 @@ TEST(test_pass_pass_system, FuseMatmulDivAdd) {
              | /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t wildcard2 {2, Wildcard, "wildcard2"};
@@ -4008,7 +4085,8 @@ TEST(test_pass_pass_system, TestMatmulDivAdd) {
              | /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t div {3, Divide, "div"};
     op_t add {4, Add, "add"};
@@ -4051,7 +4129,8 @@ TEST(test_pass_pass, FuseMatmulBiasadd) {
            |
          bias
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t bias {1, BiasAdd, "bias"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
@@ -4089,7 +4168,8 @@ TEST(test_pass_pass, FuseMatmulBias) {
            |
          bias
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(4);
     matmul.add_input(lt_vec[0]);
@@ -4125,7 +4205,8 @@ TEST(test_pass_pass, FuseMatmulBiasSigmoid) {
            |
         sigmoid
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t sigmoid {1, Sigmoid, "sigmoid"};
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(5);
@@ -4170,7 +4251,8 @@ TEST(test_pass_pass, FuseMatmulBiasaddElu) {
            |
           elu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t bias {1, BiasAdd, "bias"};
     op_t elu {2, Elu, "elu"};
@@ -4215,7 +4297,8 @@ TEST(test_pass_pass, FuseMatmulBiasaddRelu) {
            |
           relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t bias {1, BiasAdd, "bias"};
     op_t relu {2, ReLU, "relu"};
@@ -4259,7 +4342,8 @@ TEST(test_pass_pass, FuseMatmulBiasaddClamp) {
            |
         clamp
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t clamp {1, Clamp, "clamp"};
     clamp.set_attr(op_attr::min, 0.1f);
@@ -4306,7 +4390,8 @@ TEST(test_pass_pass, FuseMatmulReluSum) {
            \   /
             add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t relu {1, ReLU, "relu"};
     op_t add {2, Add, "add"};
@@ -4354,7 +4439,8 @@ TEST(test_pass_pass, FuseMatmulBiasSumRelu) {
              |
             relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t add {2, Add, "add"};
@@ -4407,7 +4493,8 @@ TEST(test_pass_pass_system, TestMatmulBiasSumRelu) {
              |
             relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t wildcard {1, Wildcard, "wildcard"};
     op_t add {2, Add, "add"};
@@ -4462,7 +4549,8 @@ TEST(test_pass_pass, FuseMatmulBiasaddSwish) {
             multiply
                 |
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t bias {1, BiasAdd, "bias"};
     op_t sigmoid {2, Sigmoid, "sigmoid"};
@@ -4515,7 +4603,8 @@ TEST(test_pass_pass_system, FuseMatmulBiasaddSwish) {
             multiply
                 |
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t bias {1, BiasAdd, "bias"};
     op_t sigmoid {2, Sigmoid, "sigmoid"};
@@ -4565,7 +4654,8 @@ TEST(test_pass_pass, FuseMatmulBiasaddRelu6) {
            |
          relu6
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
     op_t relu6 {1, Clamp, "clamp"};
     relu6.set_attr(op_attr::min, 0.f);
@@ -4642,8 +4732,10 @@ TEST(test_pass_pass, DnnlSingleOpReplacement) {
             DynamicQuantize,
             DynamicDequantize,
     };
+    const auto engine_kind = get_test_engine_kind();
+
     for (auto akind : single_op_set_supported) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         op_t *op = agraph.create_op(akind);
         // specially handle AvgPool
         // which requires certain combinations of attributes
@@ -4679,7 +4771,8 @@ public:
         const auto params
                 = ::testing::TestWithParam<single_op_params_t>::GetParam();
 
-        graph_t agraph;
+        const auto engine_kind = get_test_engine_kind();
+        graph_t agraph(engine_kind);
         op_t aop {0, params.op_kind, "aop"};
         for (const auto &attr : params.float_attrs) {
             aop.set_attr(attr, 0.1f);
@@ -4752,7 +4845,8 @@ INSTANTIATE_TEST_SUITE_P(test_pass_single_op_pass, test_single_op_pass_t,
                         graph::data_type::bf16, false}));
 
 TEST(test_pass_pass, ConvSingleOpReplacement) {
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
 
@@ -4780,7 +4874,8 @@ TEST(test_pass_pass, ConvSingleOpReplacement) {
 }
 
 TEST(test_pass_pass, ConvSingleOpReplacementWithBias) {
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
 
@@ -4823,7 +4918,8 @@ TEST(test_pass_pass, SaveLoadJson) {
              \    /
                add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv1 {0, Convolution, "conv"};
     set_conv_common_attr(conv1);
     op_t bn {1, BatchNormInference, "bn"};
@@ -4896,7 +4992,8 @@ TEST(test_pass_pass, TestPassFilterFunc) {
            |
           biasAdd
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul_op");
     graph::op_t add_op(1, graph::op_kind::BiasAdd, "add_op");
 
@@ -4936,7 +5033,8 @@ TEST(test_pass_pass, InputJsonIsValid) {
            |
           relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv1 {0, Convolution, "conv"};
     set_conv_common_attr(conv1);
     op_t relu {1, ReLU, "relu"};
@@ -4992,7 +5090,8 @@ TEST(test_pass_pass, InputJsonIsInvalidWithIncompleteHash) {
            |
           relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv1 {0, Convolution, "conv"};
     set_conv_common_attr(conv1);
     op_t relu {1, ReLU, "relu"};
@@ -5050,7 +5149,8 @@ TEST(test_pass_pass, InputJsonIsInvalidWithMissingFiled) {
            |
           relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv1 {0, Convolution, "conv"};
     set_conv_common_attr(conv1);
     op_t relu {1, ReLU, "relu"};
@@ -5101,7 +5201,8 @@ TEST(test_pass_pass, InputJsonIsInvalidWithWrongFormat) {
            |
           relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv1 {0, Convolution, "conv"};
     set_conv_common_attr(conv1);
     op_t relu {1, ReLU, "relu"};
@@ -5149,7 +5250,8 @@ TEST(test_pass_pass, FuseTwoConvReluWithSharedWeight) {
            relu relu
 
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv0 {0, Convolution, "conv0"};
     set_conv_common_attr(conv0);
     op_t relu0 {1, ReLU, std::string("relu0")};
@@ -5207,7 +5309,8 @@ TEST(test_pass_pass, CheckSameInput) {
             ||
            add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {1, Add, "add"};
@@ -5331,7 +5434,8 @@ TEST(test_pass_pass, FuseToInt8Fp32Conv) {
             /  \
         relu   relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -5399,7 +5503,8 @@ TEST(test_pass_pass_system, TestInt8) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -5469,7 +5574,8 @@ wildcard     | (f32)
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -5530,7 +5636,8 @@ TEST(test_pass_pass, FuseToInt8ConvBias) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -5598,7 +5705,8 @@ TEST(test_pass_pass_system, TestInt8ConvBias) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -5670,7 +5778,8 @@ TEST(test_pass_pass, FuseToInt8ConvRelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -5745,7 +5854,8 @@ TEST(test_pass_pass, FuseToInt8ConvSwish) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -5825,7 +5935,8 @@ TEST(test_pass_pass_system, TestInt8ConvRelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -5900,7 +6011,8 @@ TEST(test_pass_pass, FuseToInt8ConvBiasRelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -5975,7 +6087,8 @@ TEST(test_pass_pass_system, TestInt8ConvBiasRelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -6055,85 +6168,83 @@ TEST(test_pass_pass, FuseToInt8ConvBiasAdd) {
            quant
              | (u8/s8)
     */
-    const std::vector<engine_kind_t> engine_kinds
-            = {engine_kind::cpu, engine_kind::gpu};
-    for (const auto &engine_kind : engine_kinds) {
-        graph_t agraph(engine_kind);
-        std::vector<int64_t> zps = {0};
-        std::vector<float> scales = {3.1f};
-        op_t dequant1 {0, Dequantize, "dequant"};
-        dequant1.set_attr(op_attr::scales, scales);
-        dequant1.set_attr(op_attr::zps, zps);
-        op_t dequant2 {1, Dequantize, "dequant"};
-        dequant2.set_attr(op_attr::scales, scales);
-        dequant2.set_attr(op_attr::zps, zps);
-        op_t dequant3 {2, Dequantize, "dequant"};
-        dequant3.set_attr(op_attr::scales, scales);
-        dequant3.set_attr(op_attr::zps, zps);
-        op_t conv {3, Convolution, "conv"};
-        set_conv_common_attr(conv);
-        op_t add {5, Add, "add"};
-        op_t quant {6, Quantize, "quant"};
-        quant.set_attr(op_attr::scales, scales);
-        quant.set_attr(op_attr::zps, zps);
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    std::vector<int64_t> zps = {0};
+    std::vector<float> scales = {3.1f};
+    op_t dequant1 {0, Dequantize, "dequant"};
+    dequant1.set_attr(op_attr::scales, scales);
+    dequant1.set_attr(op_attr::zps, zps);
+    op_t dequant2 {1, Dequantize, "dequant"};
+    dequant2.set_attr(op_attr::scales, scales);
+    dequant2.set_attr(op_attr::zps, zps);
+    op_t dequant3 {2, Dequantize, "dequant"};
+    dequant3.set_attr(op_attr::scales, scales);
+    dequant3.set_attr(op_attr::zps, zps);
+    op_t conv {3, Convolution, "conv"};
+    set_conv_common_attr(conv);
+    op_t add {5, Add, "add"};
+    op_t quant {6, Quantize, "quant"};
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
-        logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
-        logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
-        dequant1.add_input(int8_data);
-        dequant1.add_output(fp32_data);
+    logical_tensor_t int8_data = logical_tensor_init(0, data_type::u8);
+    logical_tensor_t fp32_data = logical_tensor_init(1, data_type::f32);
+    dequant1.add_input(int8_data);
+    dequant1.add_output(fp32_data);
 
-        logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
-        logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
-        dequant2.add_input(s8_weight);
-        dequant2.add_output(fp32_weight);
+    logical_tensor_t s8_weight = logical_tensor_init(2, data_type::s8);
+    logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
+    dequant2.add_input(s8_weight);
+    dequant2.add_output(fp32_weight);
 
-        logical_tensor_t int8_other = logical_tensor_init(4, data_type::u8);
-        logical_tensor_t fp32_other = logical_tensor_init(5, data_type::f32);
-        dequant3.add_input(int8_other);
-        dequant3.add_output(fp32_other);
+    logical_tensor_t int8_other = logical_tensor_init(4, data_type::u8);
+    logical_tensor_t fp32_other = logical_tensor_init(5, data_type::f32);
+    dequant3.add_input(int8_other);
+    dequant3.add_output(fp32_other);
 
-        logical_tensor_t fp32_bias = logical_tensor_init(6, data_type::f32);
-        logical_tensor_t fp32_conv_out = logical_tensor_init(7, data_type::f32);
-        conv.add_input(fp32_data);
-        conv.add_input(fp32_weight);
-        conv.add_input(fp32_bias);
-        conv.add_output(fp32_conv_out);
+    logical_tensor_t fp32_bias = logical_tensor_init(6, data_type::f32);
+    logical_tensor_t fp32_conv_out = logical_tensor_init(7, data_type::f32);
+    conv.add_input(fp32_data);
+    conv.add_input(fp32_weight);
+    conv.add_input(fp32_bias);
+    conv.add_output(fp32_conv_out);
 
-        logical_tensor_t fp32_add_out = logical_tensor_init(8, data_type::f32);
-        add.add_input(fp32_conv_out);
-        add.add_input(fp32_other);
-        add.add_output(fp32_add_out);
+    logical_tensor_t fp32_add_out = logical_tensor_init(8, data_type::f32);
+    add.add_input(fp32_conv_out);
+    add.add_input(fp32_other);
+    add.add_output(fp32_add_out);
 
-        logical_tensor_t int8_out = logical_tensor_init(9, data_type::u8);
-        quant.add_input(fp32_add_out);
-        quant.add_output(int8_out);
+    logical_tensor_t int8_out = logical_tensor_init(9, data_type::u8);
+    quant.add_input(fp32_add_out);
+    quant.add_output(int8_out);
 
-        ASSERT_EQ(agraph.add_op(&dequant1), status::success);
-        ASSERT_EQ(agraph.add_op(&dequant2), status::success);
-        ASSERT_EQ(agraph.add_op(&dequant3), status::success);
-        ASSERT_EQ(agraph.add_op(&conv), status::success);
-        ASSERT_EQ(agraph.add_op(&add), status::success);
-        ASSERT_EQ(agraph.add_op(&quant), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant1), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant2), status::success);
+    ASSERT_EQ(agraph.add_op(&dequant3), status::success);
+    ASSERT_EQ(agraph.add_op(&conv), status::success);
+    ASSERT_EQ(agraph.add_op(&add), status::success);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
 
-        agraph.finalize();
+    agraph.finalize();
 
-        pass::pass_base_ptr apass = get_pass(engine_kind == engine_kind::cpu
-                        ? "x8s8x8_conv_add_post_ops_cpu"
-                        : "x8s8x8_conv_add_post_ops_gpu");
-        apass->run(agraph);
-        ASSERT_EQ(agraph.get_num_partitions(), 1U);
-        ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
-                partition_kind_t::quantized_convolution_post_ops);
+    pass::pass_base_ptr apass = get_pass(engine_kind == engine_kind::cpu
+                    ? "x8s8x8_conv_add_post_ops_cpu"
+                    : "x8s8x8_conv_add_post_ops_gpu");
+    ASSERT_NE(apass, nullptr);
+    apass->run(agraph);
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
+    ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
+            partition_kind_t::quantized_convolution_post_ops);
 
-        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
-        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
-        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
-        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6U);
-        ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 2U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[3].id, 4U);
 
-        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
-        ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
-    }
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
 }
 
 TEST(test_pass_pass, FuseToInt8ConvBinary) {
@@ -6159,7 +6270,8 @@ TEST(test_pass_pass, FuseToInt8ConvBinary) {
 
     for (auto &binary_kind : binary_kinds) {
         for (auto with_bias : with_biases) {
-            graph_t agraph;
+            const auto engine_kind = get_test_engine_kind();
+            graph_t agraph(engine_kind);
             std::vector<int64_t> zps = {0};
             std::vector<float> scales = {3.1f};
             op_t dequant1 {0, Dequantize, "dequant"};
@@ -6261,9 +6373,10 @@ TEST(test_pass_pass_system, TestInt8ConvBiasAdd) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
     std::vector<bool> dequant_for_add = {true, false};
     for (auto with_dequant_for_add : dequant_for_add) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
@@ -6366,7 +6479,8 @@ TEST(test_pass_pass, FuseToInt8ConvBiasAddRelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -6431,7 +6545,11 @@ TEST(test_pass_pass, FuseToInt8ConvBiasAddRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x8_conv_add_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x8_conv_add_post_ops_gpu"
+                            : "x8s8x8_conv_add_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6464,7 +6582,8 @@ TEST(test_pass_pass_system, TestInt8ConvBiasAddRelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -6564,7 +6683,8 @@ TEST(test_pass_pass, FuseToInt8ConvBiasAddReluWithInputBias) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     //asymmetric zps
     std::vector<int64_t> zps = {1};
     std::vector<float> scales = {3.1f};
@@ -6576,7 +6696,11 @@ TEST(test_pass_pass, FuseToInt8ConvBiasAddReluWithInputBias) {
     dequant2.set_attr(op_attr::zps, zps);
     op_t dequant3 {2, Dequantize, "dequant"};
     dequant3.set_attr(op_attr::scales, scales);
-    dequant3.set_attr(op_attr::zps, zps);
+    // post-sum with zps is not supported on gpu. see the comment of pattern
+    // definition.
+    if (engine_kind != graph::engine_kind::gpu) {
+        dequant3.set_attr(op_attr::zps, zps);
+    }
     op_t conv {3, Convolution, "conv"};
     set_conv_common_attr(conv);
     op_t add {5, Add, "add"};
@@ -6631,7 +6755,11 @@ TEST(test_pass_pass, FuseToInt8ConvBiasAddReluWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x8_conv_add_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x8_conv_add_post_ops_gpu"
+                            : "x8s8x8_conv_add_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6654,7 +6782,8 @@ TEST(test_pass_pass, FuseToX8s8f32Conv) {
             conv
              | (f32)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -6708,7 +6837,8 @@ TEST(test_pass_pass, FuseToX8s8f32ConvBiasWithInputBias) {
             conv
              | (f32)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -6768,7 +6898,8 @@ TEST(test_pass_pass, FuseToX8s8f32ConvReluWithInputBias) {
             relu
              | (f32)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -6830,7 +6961,8 @@ TEST(test_pass_pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
             relu
              | (f32)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -6905,7 +7037,8 @@ TEST(test_pass_pass, TestQuantizedConv) {
     */
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     //asymmetric zps
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -7041,7 +7174,8 @@ TEST(test_pass_pass, FuseToInt8Matmul) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -7080,7 +7214,11 @@ TEST(test_pass_pass, FuseToInt8Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7103,7 +7241,8 @@ TEST(test_pass_pass_system, TestInt8Matmul) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -7173,7 +7312,8 @@ TEST(test_pass_pass, OptionalQuantForInt8Matmul) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
 
@@ -7232,7 +7372,11 @@ TEST(test_pass_pass, OptionalQuantForInt8Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7259,7 +7403,8 @@ TEST(test_pass_pass, OptionalQuantWith2ConsumersForInt8Matmul) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
 
@@ -7321,7 +7466,11 @@ TEST(test_pass_pass, OptionalQuantWith2ConsumersForInt8Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7349,10 +7498,11 @@ TEST(test_pass_pass, FuseToInt8MatMulBinary) {
             Subtract,
     };
     std::vector<bool> with_biases {false, true};
+    const auto engine_kind = get_test_engine_kind();
 
     for (auto &binary_kind : binary_kinds) {
         for (auto with_bias : with_biases) {
-            graph_t agraph;
+            graph_t agraph(engine_kind);
             std::vector<int64_t> zps = {0};
             std::vector<float> scales = {3.1f};
             op_t dequant1 {0, Dequantize, "dequant"};
@@ -7414,7 +7564,11 @@ TEST(test_pass_pass, FuseToInt8MatMulBinary) {
 
             agraph.finalize();
 
-            pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+            graph::pass::pass_base_ptr apass
+                    = get_pass(engine_kind == graph::engine_kind::gpu
+                                    ? "x8s8x_matmul_post_ops_gpu"
+                                    : "x8x8x_matmul_post_ops_cpu");
+            ASSERT_NE(apass, nullptr);
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7451,9 +7605,9 @@ TEST(test_pass_pass, FailToFuseToInt8MatMulDivOrSubtract) {
              | (u8/s8)
     */
     const std::vector<graph::op_kind_t> binary_kinds = {Divide, Subtract};
-
+    const auto engine_kind = get_test_engine_kind();
     for (auto &binary_kind : binary_kinds) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
@@ -7510,7 +7664,11 @@ TEST(test_pass_pass, FailToFuseToInt8MatMulDivOrSubtract) {
 
         agraph.finalize();
 
-        pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine_kind == graph::engine_kind::gpu
+                                ? "x8s8x_matmul_post_ops_gpu"
+                                : "x8x8x_matmul_post_ops_cpu");
+        ASSERT_NE(apass, nullptr);
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 3U);
@@ -7533,7 +7691,8 @@ TEST(test_pass_pass_system, FuseToInt8MatMulSwishReLU) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -7619,7 +7778,8 @@ TEST(test_pass_pass, FuseToInt8MatmulBias) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -7661,7 +7821,11 @@ TEST(test_pass_pass, FuseToInt8MatmulBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7685,7 +7849,8 @@ TEST(test_pass_pass_system, TestInt8MatmulBias) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -7755,7 +7920,8 @@ TEST(test_pass_pass, FuseToInt8MatmulRelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -7801,7 +7967,11 @@ TEST(test_pass_pass, FuseToInt8MatmulRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7827,7 +7997,8 @@ TEST(test_pass_pass_system, FuseToInt8MatmulRelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -7900,7 +8071,8 @@ TEST(test_pass_pass, FuseToInt8MatmulBiasRelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -7949,7 +8121,11 @@ TEST(test_pass_pass, FuseToInt8MatmulBiasRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7971,7 +8147,8 @@ TEST(test_pass_pass, FuseToX8s8f32Matmul) {
            matmul
              | (f32)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -8003,7 +8180,11 @@ TEST(test_pass_pass, FuseToX8s8f32Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8024,7 +8205,8 @@ TEST(test_pass_pass, FuseToX8s8f32MatmulBias) {
         matmul (w/ bias)
              | (f32)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -8059,7 +8241,11 @@ TEST(test_pass_pass, FuseToX8s8f32MatmulBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8089,8 +8275,9 @@ TEST(test_pass_pass, FuseToX8s8f32MatmulEltwise) {
             {ReLU, partition_kind_t::quantized_matmul_post_ops},
             {Sigmoid, partition_kind_t::quantized_matmul_post_ops},
             {GELU, partition_kind_t::quantized_matmul_post_ops}};
+    const auto engine_kind = get_test_engine_kind();
     for (auto &p : opkind_pair) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
@@ -8159,8 +8346,9 @@ TEST(test_pass_pass, FuseToX8s8f32MatmulBiasEltwise) {
             {ReLU, partition_kind_t::quantized_matmul_post_ops},
             {Sigmoid, partition_kind_t::quantized_matmul_post_ops},
             {GELU, partition_kind_t::quantized_matmul_post_ops}};
+    const auto engine_kind = get_test_engine_kind();
     for (auto &p : opkind_pair) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
@@ -8227,8 +8415,8 @@ TEST(test_pass_pass, FuseToInt8Maxpool) {
            quant
              | (u8/s8)
     */
-
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
@@ -8291,7 +8479,8 @@ TEST(test_pass_pass_system, TestInt8Maxpool) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
@@ -8356,7 +8545,8 @@ TEST(test_pass_pass, FuseToInt8Avgpool) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
@@ -8420,10 +8610,8 @@ TEST(test_pass_pass_system, FuseToInt8PoolAdd) {
              | (u8/s8)
     */
     std::vector<op_kind_t> pool_kinds = {AvgPool, MaxPool};
-    std::vector<engine_kind_t> engine_kinds
-            = {engine_kind::cpu, engine_kind::gpu};
+    const auto engine_kind = get_test_engine_kind();
 
-    for_(const auto &engine_kind : engine_kinds)
     for (const auto &pool_kind : pool_kinds) {
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
@@ -8516,32 +8704,30 @@ TEST(test_pass_pass_system, FuseToInt8PoolAdd) {
 }
 
 TEST(test_pass_pass_system, Quantize) {
-    std::vector<engine_kind_t> engine_kinds
-            = {engine_kind::cpu, engine_kind::gpu};
-    for (const auto &engine_kind : engine_kinds) {
-        graph_t agraph(engine_kind);
-        std::vector<int64_t> zps = {1};
-        std::vector<float> scales = {3.1f};
-        op_t quant {0, Quantize, "quant"};
-        quant.set_attr(op_attr::scales, scales);
-        quant.set_attr(op_attr::zps, zps);
+    const auto engine_kind = get_test_engine_kind();
 
-        logical_tensor_t in = logical_tensor_init(0, data_type::f32);
-        logical_tensor_t out = logical_tensor_init(1, data_type::s8);
+    graph_t agraph(engine_kind);
+    std::vector<int64_t> zps = {1};
+    std::vector<float> scales = {3.1f};
+    op_t quant {0, Quantize, "quant"};
+    quant.set_attr(op_attr::scales, scales);
+    quant.set_attr(op_attr::zps, zps);
 
-        quant.add_input(in);
-        quant.add_output(out);
-        ASSERT_EQ(agraph.add_op(&quant), status::success);
-        ASSERT_EQ(agraph.finalize(), status::success);
+    logical_tensor_t in = logical_tensor_init(0, data_type::f32);
+    logical_tensor_t out = logical_tensor_init(1, data_type::s8);
 
-        auto &backend_ptr
-                = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
-        auto pm = dnnl::impl::graph::pass::pass_manager_t(
-                backend_ptr.get_pass_registry());
-        pm.run_passes(agraph, "no_config");
+    quant.add_input(in);
+    quant.add_output(out);
+    ASSERT_EQ(agraph.add_op(&quant), status::success);
+    ASSERT_EQ(agraph.finalize(), status::success);
 
-        ASSERT_EQ(agraph.get_num_partitions(), 1U);
-    }
+    auto &backend_ptr
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+    auto pm = dnnl::impl::graph::pass::pass_manager_t(
+            backend_ptr.get_pass_registry());
+    pm.run_passes(agraph, "no_config");
+
+    ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
 
 TEST(test_pass_pass, FuseToInt8MatmulAdd) {
@@ -8559,7 +8745,8 @@ TEST(test_pass_pass, FuseToInt8MatmulAdd) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps {0};
     std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -8617,7 +8804,11 @@ TEST(test_pass_pass, FuseToInt8MatmulAdd) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x8_matmul_add_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x8_matmul_add_post_ops_gpu"
+                            : "x8x8x8_matmul_add_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
@@ -8647,7 +8838,8 @@ TEST(test_pass_pass, FuseToInt8MatmulBiasAdd) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps {0};
     std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -8707,7 +8899,11 @@ TEST(test_pass_pass, FuseToInt8MatmulBiasAdd) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x8_matmul_add_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x8_matmul_add_post_ops_gpu"
+                            : "x8x8x8_matmul_add_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
@@ -8729,8 +8925,8 @@ TEST(test_pass_pass_system, FuseReluAdd) {
            \  /
            add
     */
-    graph_t agraph;
-
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t relu {0, ReLU, "relu"};
     op_t add {1, Add, "add"};
 
@@ -8777,7 +8973,8 @@ TEST(test_pass_pass, FuseToX8x8f32MatmulDivAdd) {
             add
              | (f32)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -8795,7 +8992,10 @@ TEST(test_pass_pass, FuseToX8x8f32MatmulDivAdd) {
     dequant1.add_input(int8_data);
     dequant1.add_output(fp32_data);
 
-    logical_tensor_t int8_weight = logical_tensor_init(2, data_type::u8);
+    // only s8 is supported on gpu. See comments in the pattern definition.
+    auto qtype_wei
+            = engine_kind == engine_kind::cpu ? data_type::u8 : data_type::s8;
+    logical_tensor_t int8_weight = logical_tensor_init(2, qtype_wei);
     logical_tensor_t fp32_weight = logical_tensor_init(3, data_type::f32);
     dequant2.add_input(int8_weight);
     dequant2.add_output(fp32_weight);
@@ -8825,7 +9025,11 @@ TEST(test_pass_pass, FuseToX8x8f32MatmulDivAdd) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_matmul_post_ops_gpu"
+                            : "x8x8x_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8840,7 +9044,7 @@ TEST(test_pass_pass, FuseToX8x8f32MatmulDivAdd) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
-TEST(test_pass_pass_system, FuseToX8x8f32MatmulDivAdd) {
+TEST(test_pass_pass_system, FuseToX8x8f32MatmulDivAdd_CPU) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8852,6 +9056,9 @@ TEST(test_pass_pass_system, FuseToX8x8f32MatmulDivAdd) {
             add
              | (f32)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -8918,7 +9125,8 @@ TEST(test_pass_pass, FuseToX8s8bf16Matmul) {
            matmul
              | (bf16)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -8940,7 +9148,10 @@ TEST(test_pass_pass, FuseToX8s8bf16Matmul) {
     typecast1.add_input(fp32_data);
     typecast1.add_output(bf16_data);
 
-    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::u8);
+    // only s8 is supported on gpu. See comments in the pattern definition.
+    auto qtype_wei
+            = engine_kind == engine_kind::cpu ? data_type::u8 : data_type::s8;
+    logical_tensor_t int8_weight = logical_tensor_init(3, qtype_wei);
     logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
     dequant2.add_input(int8_weight);
     dequant2.add_output(fp32_weight);
@@ -8962,7 +9173,11 @@ TEST(test_pass_pass, FuseToX8s8bf16Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_tc_matmul_post_ops_gpu"
+                            : "x8x8x_tc_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -8975,10 +9190,7 @@ TEST(test_pass_pass, FuseToX8s8bf16Matmul) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 6U);
 }
 
-TEST(test_pass_pass_system, FuseToX8s8bf16Matmul) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
-
+TEST(test_pass_pass_system, FuseToX8s8bf16Matmul_CPU) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -8988,6 +9200,11 @@ TEST(test_pass_pass_system, FuseToX8s8bf16Matmul) {
            matmul
              | (bf16)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -9052,7 +9269,8 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulDiv) {
             div
              | (bf16)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -9075,7 +9293,10 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulDiv) {
     typecast1.add_input(fp32_data);
     typecast1.add_output(bf16_data);
 
-    logical_tensor_t int8_weight = logical_tensor_init(3, data_type::u8);
+    // only s8 is supported on gpu. See comments in the pattern definition.
+    auto qtype_wei
+            = engine_kind == engine_kind::cpu ? data_type::u8 : data_type::s8;
+    logical_tensor_t int8_weight = logical_tensor_init(3, qtype_wei);
     logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
     dequant2.add_input(int8_weight);
     dequant2.add_output(fp32_weight);
@@ -9104,7 +9325,11 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulDiv) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_tc_matmul_post_ops_gpu"
+                            : "x8x8x_tc_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -9118,9 +9343,7 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulDiv) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 8U);
 }
 
-TEST(test_pass_pass_system, FuseToX8s8bf16MatmulDiv) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
+TEST(test_pass_pass_system, FuseToX8s8bf16MatmulDiv_CPU) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9132,6 +9355,11 @@ TEST(test_pass_pass_system, FuseToX8s8bf16MatmulDiv) {
             div
              | (bf16)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -9198,7 +9426,8 @@ TEST(test_pass_pass, FailToAddMatmul) {
            matmul
              | (bf16)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t matmul {0, MatMul, "matmul"};
 
     logical_tensor_t bf16_data = logical_tensor_init(0, data_type::bf16);
@@ -9226,8 +9455,10 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulScaleAdd) {
              | (bf16)
     */
     std::vector<op_kind_t> scale_kinds {Multiply, Divide};
+    const auto engine_kind = get_test_engine_kind();
+
     for (auto scale_kind : scale_kinds) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
@@ -9251,7 +9482,10 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulScaleAdd) {
         typecast1.add_input(fp32_data);
         typecast1.add_output(bf16_data);
 
-        logical_tensor_t int8_weight = logical_tensor_init(3, data_type::u8);
+        // only s8 is supported on gpu. See comments in the pattern definition.
+        auto qtype_wei = engine_kind == engine_kind::cpu ? data_type::u8
+                                                         : data_type::s8;
+        logical_tensor_t int8_weight = logical_tensor_init(3, qtype_wei);
         logical_tensor_t fp32_weight = logical_tensor_init(4, data_type::f32);
         dequant2.add_input(int8_weight);
         dequant2.add_output(fp32_weight);
@@ -9291,7 +9525,11 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulScaleAdd) {
 
         agraph.finalize();
 
-        pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass
+                = get_pass(engine_kind == graph::engine_kind::gpu
+                                ? "x8s8x_tc_matmul_post_ops_gpu"
+                                : "x8x8x_tc_matmul_post_ops_cpu");
+        ASSERT_NE(apass, nullptr);
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -9307,9 +9545,7 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulScaleAdd) {
     }
 }
 
-TEST(test_pass_pass_system, FuseToX8s8bf16MatmulScaleAdd) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
+TEST(test_pass_pass_system, FuseToX8s8bf16MatmulScaleAdd_CPU) {
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9323,9 +9559,15 @@ TEST(test_pass_pass_system, FuseToX8s8bf16MatmulScaleAdd) {
             add
              | (bf16)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     std::vector<op_kind_t> scale_kinds {Multiply, Divide};
     for (auto scale_kind : scale_kinds) {
-        graph_t agraph;
+        const auto engine_kind = get_test_engine_kind();
+        graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         op_t dequant1 {0, Dequantize, "dequant"};
@@ -9408,7 +9650,8 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBias) {
            matmul_with_bias
              | (bf16)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -9454,7 +9697,11 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_tc_matmul_post_ops_gpu"
+                            : "x8x8x_tc_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -9469,8 +9716,6 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBias) {
 }
 
 TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBias) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -9480,7 +9725,11 @@ TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBias) {
            matmul_with_bias
              | (bf16)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -9540,7 +9789,8 @@ TEST(test_pass_pass, FuseSingleTypecast) {
      typecast
         | (bf16)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t typecast {0, TypeCast, "typecast"};
 
     logical_tensor_t f32_data = logical_tensor_init(0, data_type::f32);
@@ -9571,7 +9821,8 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBiasAddBF16) {
             add
              | (bf16)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps {0};
     std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -9627,7 +9878,11 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBiasAddBF16) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_tc_matmul_post_ops_gpu"
+                            : "x8x8x_tc_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     ASSERT_TRUE(apass);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9645,8 +9900,6 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBiasAddBF16) {
 }
 
 TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBiasAddBF16) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -9660,7 +9913,11 @@ TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBiasAddBF16) {
             add
              | (bf16)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     std::vector<int64_t> zps {0};
     std::vector<float> scales {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -9741,7 +9998,8 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBiasGelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -9807,7 +10065,11 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBiasGelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_tc_matmul_post_ops_gpu"
+                            : "x8x8x_tc_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9822,8 +10084,6 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBiasGelu) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulBiasGelu) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -9839,9 +10099,13 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulBiasGelu) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -9928,7 +10192,8 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulGelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -9992,7 +10257,11 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulGelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_tc_matmul_post_ops_gpu"
+                            : "x8x8x_tc_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -10006,8 +10275,6 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulGelu) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulGelu) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10023,9 +10290,13 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulGelu) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -10116,7 +10387,8 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBias) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -10176,7 +10448,11 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_tc_matmul_post_ops_gpu"
+                            : "x8x8x_tc_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -10191,8 +10467,6 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBias) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulBias) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10206,9 +10480,13 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulBias) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -10295,7 +10573,8 @@ TEST(test_pass_pass, MixInt8AndBf16Matmul) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -10353,7 +10632,11 @@ TEST(test_pass_pass, MixInt8AndBf16Matmul) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::gpu
+                            ? "x8s8x_tc_matmul_post_ops_gpu"
+                            : "x8x8x_tc_matmul_post_ops_cpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -10367,8 +10650,6 @@ TEST(test_pass_pass, MixInt8AndBf16Matmul) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16Matmul) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -10382,9 +10663,13 @@ TEST(test_pass_pass_system, MixInt8AndBf16Matmul) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -10458,7 +10743,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16Matmul) {
 TEST(test_pass_pass_system, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
-
+    const auto engine_kind = get_test_engine_kind();
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<bool> with_bias_typecasts {false, true};
@@ -10467,7 +10752,7 @@ TEST(test_pass_pass_system, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
     std::vector<int64_t> transpose_order {0, 2, 1, 3};
     std::vector<int64_t> reshape_shape {0, 0, 0, 0};
     for (auto with_bias_typecast : with_bias_typecasts) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         op_t dqdata_op(1, Dequantize, "dqdata_op");
         dqdata_op.set_attr<std::vector<int64_t>>(op_attr::zps, zps);
         dqdata_op.set_attr<std::vector<float>>(op_attr::scales, scales);
@@ -10598,7 +10883,8 @@ TEST(test_pass_pass, MixInt8AndBf16ConvolutionBias) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -10676,8 +10962,6 @@ TEST(test_pass_pass, MixInt8AndBf16ConvolutionBias) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBias) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -10691,9 +10975,13 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBias) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -10785,7 +11073,8 @@ TEST(test_pass_pass,
            typecast
              | (f32)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     float alpha_value = 1.0f;
@@ -10869,7 +11158,8 @@ TEST(test_pass_pass, MixInt8AndBf16ConvolutionBiasGelu) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -10953,8 +11243,6 @@ TEST(test_pass_pass, MixInt8AndBf16ConvolutionBiasGelu) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBiasGelu) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -10970,9 +11258,13 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBiasGelu) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -11055,8 +11347,6 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBiasGelu) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionAdd) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | s8
      dequant    dequant
@@ -11069,9 +11359,13 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionAdd) {
             add
              | (bf16)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -11133,16 +11427,27 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionAdd) {
 
     pm.run_passes(agraph, "no_config");
 
-    ASSERT_EQ(agraph.get_num_partitions(), 1U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 7U);
+    // `typecast` for `add` will be separated as a single op partition or
+    // primitive kernel will run into ref impl for bf16 conv with f32 post
+    // binary_add
+    ASSERT_EQ(agraph.get_num_partitions(), 2U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_ops().size(), 6U);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[0].id, 0U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[1].id, 3U);
-    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 6U);
+    ASSERT_EQ(agraph.get_partitions()[0]->get_inputs()[2].id, 7U);
 
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 9U);
+
+    ASSERT_EQ(agraph.get_partitions()[1]->get_ops().size(), 1U);
+
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_inputs()[0].id, 6U);
+
+    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs().size(), 1U);
+    ASSERT_EQ(agraph.get_partitions()[1]->get_outputs()[0].id, 7U);
 }
 
 TEST(test_pass_pass, FuseAddIntoSum) {
@@ -11155,7 +11460,8 @@ TEST(test_pass_pass, FuseAddIntoSum) {
              Add
              ...
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
 
     const size_t rep_times = 3;
     logical_tensor_t input0 = empty_logical_tensor_with_default_id();
@@ -11203,7 +11509,8 @@ TEST(test_pass_pass, FuseBroadcastAddIntoSum) {
            Add
             ...
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
 
     op_t add0 {0, op_kind::Add, "add0"};
     add0.set_attr<std::string>(op_attr::auto_broadcast, "none");
@@ -11241,7 +11548,8 @@ TEST(test_pass_pass, FuseTypecaseQuantize) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t typecast {0, TypeCast, "typecast"};
@@ -11283,7 +11591,8 @@ TEST(test_pass_pass_system, FuseSoftmaxQuantize) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t softmax {0, SoftMax, "softmax"};
@@ -11317,7 +11626,7 @@ TEST(test_pass_pass_system, FuseSoftmaxQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
 }
 
-TEST(test_pass_pass_system, FuseLayernormQuantize) {
+TEST(test_pass_pass_system, FuseLayernormQuantize_CPU) {
     /*
              | (f32)
            layernorm
@@ -11325,6 +11634,9 @@ TEST(test_pass_pass_system, FuseLayernormQuantize) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+
     graph_t agraph;
     bool keep_stats = false;
     std::vector<int64_t> zps = {0};
@@ -11368,8 +11680,6 @@ TEST(test_pass_pass_system, FuseLayernormQuantize) {
 }
 
 TEST(test_pass_pass_system, FuseSoftmaxTypecast) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
              | (bf16)
            softmax
@@ -11377,7 +11687,11 @@ TEST(test_pass_pass_system, FuseSoftmaxTypecast) {
            typecast
              | (f32)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     op_t softmax {0, SoftMax, "softmax"};
     op_t typecast {1, TypeCast, "typecast"};
 
@@ -11407,9 +11721,7 @@ TEST(test_pass_pass_system, FuseSoftmaxTypecast) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 2U);
 }
 
-TEST(test_pass_pass_system, FuseLayernormTypecast) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
+TEST(test_pass_pass_system, FuseLayernormTypecast_CPU) {
     /*
              | (bf16)
            layernorm
@@ -11417,6 +11729,11 @@ TEST(test_pass_pass_system, FuseLayernormTypecast) {
            typecast
              | (f32)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     graph_t agraph;
     bool keep_stats = false;
     op_t layernorm {0, LayerNorm, "layernorm"};
@@ -11457,8 +11774,6 @@ TEST(test_pass_pass_system, FuseLayernormTypecast) {
 }
 
 TEST(test_pass_pass_system, FuseSoftmaxTypecastQuantize) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
              | (bf16)
            softmax
@@ -11468,7 +11783,11 @@ TEST(test_pass_pass_system, FuseSoftmaxTypecastQuantize) {
            quant
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t softmax {0, SoftMax, "softmax"};
@@ -11508,9 +11827,7 @@ TEST(test_pass_pass_system, FuseSoftmaxTypecastQuantize) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 3U);
 }
 
-TEST(test_pass_pass_system, FuseLayernormTypecastQuantize) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
+TEST(test_pass_pass_system, FuseLayernormTypecastQuantize_CPU) {
     /*
              | (bf16)
            layernorm
@@ -11520,6 +11837,11 @@ TEST(test_pass_pass_system, FuseLayernormTypecastQuantize) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     graph_t agraph;
     bool keep_stats = false;
     std::vector<int64_t> zps = {0};
@@ -11569,8 +11891,6 @@ TEST(test_pass_pass_system, FuseLayernormTypecastQuantize) {
 }
 
 TEST(test_pass_pass_system, NotFuseLayernormTypecast) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
              | (bf16)
            layernorm
@@ -11580,7 +11900,11 @@ TEST(test_pass_pass_system, NotFuseLayernormTypecast) {
            quant (non-zero zps)
              | (u8/s8)
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     bool keep_stats = false;
     std::vector<int64_t> zps = {198};
     std::vector<float> scales = {3.1f};
@@ -11686,7 +12010,8 @@ TEST(test_pass_pass, ShuffleFusion) {
         reshape1.add_input(transpose_dst);
         reshape1.add_output(reshape1_dst);
 
-        graph_t agraph;
+        const auto engine_kind = get_test_engine_kind();
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&reshape0), status::success);
         ASSERT_EQ(agraph.add_op(&transpose), status::success);
         ASSERT_EQ(agraph.add_op(&reshape1), status::success);
@@ -11702,8 +12027,7 @@ TEST(test_pass_pass, ShuffleFusion) {
 }
 
 TEST(test_pass_pass_system, FuseTypecaseQuantize) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
+
     /*
              | (bf16)
            typecast
@@ -11711,9 +12035,13 @@ TEST(test_pass_pass_system, FuseTypecaseQuantize) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t typecast {0, TypeCast, "typecast"};
@@ -11747,8 +12075,6 @@ TEST(test_pass_pass_system, FuseTypecaseQuantize) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulAdd) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -11764,9 +12090,13 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulAdd) {
                quant
                  | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -11856,8 +12186,6 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulAdd) {
 }
 
 TEST(test_pass_pass_system, MixInt8AndBf16MatmulDiv) {
-    SKIP_IF(!is_supported_dtype(data_type::bf16),
-            "Skip bf16 tests for systems that do not support avx512_core.");
     /*
         | (u8/s8)  | (u8/s8)
      dequant    dequant
@@ -11873,9 +12201,13 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulDiv) {
                quant
                  | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
+    SKIP_IF(!is_supported_dtype(data_type::bf16),
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
-    graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant"};
@@ -11953,7 +12285,8 @@ TEST(test_pass_pass, FuseBnReLUWithSharedInputs) {
           |
          relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t bn {0, BatchNormInference, "bn"};
     bn.set_attr(op_attr::epsilon, 0.001f);
     op_t relu {1, ReLU, "relu"};
@@ -12003,7 +12336,8 @@ TEST(test_pass_pass, FuseReorderAdd) {
     */
     const std::vector<data_type_t> dtypes {data_type::f32, data_type::bf16};
     for (auto &dtype : dtypes) {
-        graph_t agraph;
+        const auto engine_kind = get_test_engine_kind();
+        graph_t agraph(engine_kind);
         op_t reorder {0, Reorder, "reorder"};
         op_t add {1, Add, "add"};
         add.set_attr<std::string>(op_attr::auto_broadcast, "none");
@@ -12047,7 +12381,8 @@ TEST(test_pass_pass, FailToFuseReorderAdd) {
             add
              |
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t reorder {0, Reorder, "reorder"};
     op_t add {1, Add, "add"};
     // if add support auto_broadcast, it cannot be fused
@@ -12087,7 +12422,8 @@ TEST(test_pass_pass, FuseInt8Reorder) {
          quantize
              |
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
@@ -12140,7 +12476,8 @@ TEST(test_pass_pass_system, FuseInt8Reorder) {
          quantize
              |
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
@@ -12191,7 +12528,8 @@ TEST(test_pass_pass, FuseInt8ReorderAdd) {
          quantize
              |
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
@@ -12241,7 +12579,11 @@ TEST(test_pass_pass, FuseInt8ReorderAdd) {
 
     ASSERT_EQ(agraph.finalize(), status::success);
 
-    pass::pass_base_ptr apass = get_pass("int8_reorder_sum_fusion_cpu");
+    graph::pass::pass_base_ptr apass
+            = get_pass(engine_kind == graph::engine_kind::cpu
+                            ? "int8_reorder_sum_fusion_cpu"
+                            : "int8_reorder_sum_fusion_gpu");
+    ASSERT_NE(apass, nullptr);
     apass->run(agraph);
 
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -12265,7 +12607,8 @@ TEST(test_pass_pass_system, FuseInt8ReorderAdd) {
          quantize
              |
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant {0, Dequantize, "dequant"};
@@ -12324,7 +12667,8 @@ TEST(test_pass_pass_system, FuseInt8ReorderAdd) {
 }
 
 TEST(test_pass_pass, SingleInterpolatePass) {
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t interpolate {0, Interpolate, "interpolate"};
 
     logical_tensor_t lt_data = logical_tensor_init(0, data_type::f32);
@@ -12357,7 +12701,8 @@ TEST(test_pass_pass, FuseInterpolateRelu) {
             |
            relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t interpolate {0, Interpolate, "interpolate"};
     interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
     interpolate.set_attr(op_attr::mode, std::string("linear"));
@@ -12397,7 +12742,8 @@ TEST(test_pass_pass, FuseInterpolateSwish) {
               |
             relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t interpolate {0, Interpolate, "interpolate"};
     interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
     interpolate.set_attr(op_attr::mode, std::string("linear"));
@@ -12447,7 +12793,8 @@ TEST(test_pass_pass_system, FuseInterpolateSwish) {
               |
             relu
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t interpolate {0, Interpolate, "interpolate"};
     interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
     interpolate.set_attr(op_attr::mode, std::string("linear"));
@@ -12498,7 +12845,8 @@ TEST(test_pass_pass, FuseInterpolate3PostOps) {
                |    /
               multiply
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t interpolate {0, Interpolate, "interpolate"};
     interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
     interpolate.set_attr(op_attr::mode, std::string("linear"));
@@ -12545,7 +12893,8 @@ TEST(test_pass_pass, FuseInterpolateSum) {
                \        /
                   add
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t interpolate {0, Interpolate, "interpolate"};
     interpolate.set_attr(op_attr::sizes, std::vector<int64_t> {2, 3, 4});
     interpolate.set_attr(op_attr::mode, std::string("linear"));
@@ -12583,7 +12932,8 @@ TEST(test_pass_pass, FuseInterpolateMul) {
                \        /
                 Multiply
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t interpolate {0, Interpolate, "interpolate"};
     interpolate.set_attr<std::vector<int64_t>>(op_attr::sizes, {2, 3, 4});
     interpolate.set_attr<std::string>(op_attr::mode, "linear");
@@ -12616,7 +12966,8 @@ TEST(test_pass_pass, FuseInterpolateMul) {
 }
 
 TEST(test_pass_pass, Int8MhaFusion) {
-    dnnl::impl::graph::graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     dnnl::graph::tests::unit::utils::construct_int8_MHA(&agraph);
     agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 13U);
@@ -12627,7 +12978,8 @@ TEST(test_pass_pass, Int8MhaFusion) {
 }
 
 TEST(test_pass_pass, F32MhaFusion) {
-    dnnl::impl::graph::graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     dnnl::graph::tests::unit::utils::construct_dnnl_float_MHA(&agraph);
     agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 7U);
@@ -12644,6 +12996,7 @@ TEST(test_pass_pass, FuseReduceAdd) {
     */
     const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
             ReduceMean, ReduceMin, ReduceProd, ReduceSum};
+    const auto engine_kind = get_test_engine_kind();
 
     for (const auto &base_op : configs) {
         op_t reduce {0, base_op, "reduce"};
@@ -12664,7 +13017,7 @@ TEST(test_pass_pass, FuseReduceAdd) {
         add.add_input(add_src1);
         add.add_output(add_dst);
 
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&reduce), status::success);
         ASSERT_EQ(agraph.add_op(&add), status::success);
         agraph.finalize();
@@ -12685,6 +13038,7 @@ TEST(test_pass_pass, FuseReduceRelu) {
     */
     const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
             ReduceMean, ReduceMin, ReduceProd, ReduceSum};
+    const auto engine_kind = get_test_engine_kind();
 
     for (const auto &base_op : configs) {
         op_t reduce {0, base_op, "reduce"};
@@ -12703,7 +13057,7 @@ TEST(test_pass_pass, FuseReduceRelu) {
         relu.add_input(reduce_dst);
         relu.add_output(relu_dst);
 
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&reduce), status::success);
         ASSERT_EQ(agraph.add_op(&relu), status::success);
         agraph.finalize();
@@ -12726,6 +13080,7 @@ TEST(test_pass_pass_system, FuseReduceSwish) {
     */
     const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
             ReduceMean, ReduceMin, ReduceProd, ReduceSum};
+    const auto engine_kind = get_test_engine_kind();
 
     for (const auto &base_op : configs) {
         op_t reduce {0, base_op, "reduce"};
@@ -12749,7 +13104,7 @@ TEST(test_pass_pass_system, FuseReduceSwish) {
         multiply.add_input(reduce_dst);
         multiply.add_output(mul_dst);
 
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&reduce), status::success);
         ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
         ASSERT_EQ(agraph.add_op(&multiply), status::success);
@@ -12806,7 +13161,8 @@ TEST(test_pass_pass_system, FuseReduceWith3PostOps) {
     multiply.add_input(sigmoid_dst);
     multiply.add_output(mul_dst);
 
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     ASSERT_EQ(agraph.add_op(&reduce), status::success);
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
@@ -12831,8 +13187,10 @@ TEST(test_pass_pass_system, FuseReduceWith3PostOps) {
 TEST(test_pass_pass, FailToFuseReduceWithEmptyScales) {
     const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
             ReduceMean, ReduceMin, ReduceProd, ReduceSum};
+    const auto engine_kind = get_test_engine_kind();
+
     for (const auto base_op : configs) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         op_t reduce {0, base_op, "reduce"};
         reduce.set_attr<std::vector<int64_t>>(op_attr::axes, {});
 
@@ -12860,8 +13218,10 @@ TEST(test_pass_pass, Int8Concat) {
                |
     */
     const size_t max_num_dq = 32;
+    const auto engine_kind = get_test_engine_kind();
+
     for (size_t i = 1; i <= max_num_dq; ++i) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
         std::vector<float> scales = {3.1f};
         // test concat with cur_num_dq inputs
@@ -12922,7 +13282,8 @@ TEST(test_pass_pass, FailToFuseInt8Concat) {
            quantize
                |
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     op_t dequant1 {0, Dequantize, "dequant1"};
@@ -12974,7 +13335,7 @@ TEST(test_pass_pass, FailToFuseInt8Concat) {
     ASSERT_EQ(agraph.get_num_partitions(), 0U);
 }
 
-TEST(test_pass_pass, FuseToInt8ConvTransposeAdd) {
+TEST(test_pass_pass, FuseToInt8ConvTransposeAdd_CPU) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -12989,6 +13350,8 @@ TEST(test_pass_pass, FuseToInt8ConvTransposeAdd) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
     std::vector<bool> with_biases {false, true};
 
     for (auto with_bias : with_biases) {
@@ -13063,6 +13426,7 @@ TEST(test_pass_pass, FuseToInt8ConvTransposeAdd) {
 
         pass::pass_base_ptr apass
                 = get_pass("int8_convtranspose_add_post_ops_fusion_cpu");
+        ASSERT_NE(apass, nullptr);
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -13100,11 +13464,8 @@ TEST(test_pass_pass_system, FuseToInt8ConvTransposeAdd) {
            quant
              | (u8/s8)
     */
-    std::vector<bool> with_biases {false, true};
-    std::vector<engine_kind_t> engine_kinds
-            = {engine_kind::cpu, engine_kind::gpu};
-
-    for_(const auto &engine_kind : engine_kinds)
+    const std::vector<bool> with_biases {false, true};
+    const auto engine_kind = get_test_engine_kind();
     for (auto with_bias : with_biases) {
         graph_t agraph(engine_kind);
         std::vector<int64_t> zps = {0};
@@ -13207,7 +13568,7 @@ TEST(test_pass_pass_system, FuseToInt8ConvTransposeAdd) {
     }
 }
 
-TEST(test_pass_pass, FuseToInt8ConvtransposeEltwise) {
+TEST(test_pass_pass, FuseToInt8ConvtransposeEltwise_CPU) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -13219,6 +13580,8 @@ TEST(test_pass_pass, FuseToInt8ConvtransposeEltwise) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
     const std::vector<graph::op_kind_t> eltwise_kinds = {
             Abs,
             Clamp,
@@ -13305,6 +13668,7 @@ TEST(test_pass_pass, FuseToInt8ConvtransposeEltwise) {
 
             pass::pass_base_ptr apass
                     = get_pass("int8_convtranspose_post_ops_fusion_cpu");
+            ASSERT_TRUE(apass != nullptr);
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -13325,7 +13689,7 @@ TEST(test_pass_pass, FuseToInt8ConvtransposeEltwise) {
     }
 }
 
-TEST(test_pass_pass_system, FuseToInt8ConvtransposeEltwise) {
+TEST(test_pass_pass_system, FuseToInt8ConvtransposeEltwise_CPU) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -13337,6 +13701,10 @@ TEST(test_pass_pass_system, FuseToInt8ConvtransposeEltwise) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    // the graph will be filtered into two partitions on gpu.
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+
     const std::vector<graph::op_kind_t> eltwise_kinds = {
             Abs,
             Clamp,
@@ -13443,7 +13811,7 @@ TEST(test_pass_pass_system, FuseToInt8ConvtransposeEltwise) {
     }
 }
 
-TEST(test_pass_pass, FuseToInt8ConvtransposeBinary) {
+TEST(test_pass_pass, FuseToInt8ConvtransposeBinary_CPU) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -13455,6 +13823,9 @@ TEST(test_pass_pass, FuseToInt8ConvtransposeBinary) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+
     const std::vector<graph::op_kind_t> binary_kinds = {
             Maximum,
             Minimum,
@@ -13531,6 +13902,7 @@ TEST(test_pass_pass, FuseToInt8ConvtransposeBinary) {
 
             pass::pass_base_ptr apass
                     = get_pass("int8_convtranspose_post_ops_fusion_cpu");
+            ASSERT_TRUE(apass != nullptr);
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -13563,7 +13935,8 @@ TEST(test_pass_pass, FailToFuseInt8ConcatDifferentScales) {
            quantize
               |
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
     std::vector<float> other_scales = {1.3f};
@@ -13616,6 +13989,8 @@ TEST(test_pass_pass, SingleSoftPlusForwardAndBackwardPass) {
     std::vector<std::pair<op_kind_t, std::string>> op_infos {
             {SoftPlus, "eltwise_fwd"}, {SoftPlusBackward, "eltwise_bwd"}};
     std::vector<float> beta_values {-3.f, -1.f, 0.f, 1.f, 3.f};
+    const auto engine_kind = get_test_engine_kind();
+
     for_(const auto &op_info : op_infos)
     for (auto beta : beta_values) {
         const auto &op_name = op_info.second;
@@ -13631,7 +14006,7 @@ TEST(test_pass_pass, SingleSoftPlusForwardAndBackwardPass) {
         softplus.add_output(lt_out);
         softplus.set_attr(op_attr::beta, beta);
 
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&softplus), status::success);
         ASSERT_EQ(agraph.finalize(), status::success);
         pass::pass_base_ptr apass = get_pass(op_name + "_pass");
@@ -13646,7 +14021,8 @@ TEST(test_pass_pass, FuseConvBwdBiasaddBwd) {
       Convolution  BiasAddBackward
     BackwardWeights
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     std::vector<logical_tensor_t> lt_vec = create_logical_tensors(6);
     op_t op0 {0, ReLU, "op0"};
     op_t op1 {1, ConvolutionBackwardWeights, "op1"};
@@ -13735,12 +14111,14 @@ TEST(test_pass_pass, BinaryPostops) {
             Multiply,
             Subtract,
     };
+    const auto engine_kind = get_test_engine_kind();
+
     for_(auto bop : supported_binary_ops)
     for (auto pop : supported_post_ops) {
         auto is_post_op_binary = (std::find(supported_binary_post_ops.begin(),
                                           supported_binary_post_ops.end(), pop)
                 != supported_binary_post_ops.end());
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         op_t binary_op {0, bop, "binary op"};
         op_t post_op {1, pop, "post op"};
 
@@ -13852,6 +14230,8 @@ TEST(test_pass_pass, Binary3Postops) {
             {Clamp, Minimum},
             {HardSigmoid, ReLU},
     };
+    const auto engine_kind = get_test_engine_kind();
+
     for_(const auto &pop_seq : post_op_seqs)
     for (const auto &pop : pop_seq)
         ASSERT_NE(std::find(supported_post_ops.begin(),
@@ -13860,7 +14240,7 @@ TEST(test_pass_pass, Binary3Postops) {
 
     for_(auto bop : supported_binary_ops)
     for (const auto &pop_seq : post_op_seqs) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
         size_t lt_idx = 0;
         std::vector<size_t> input_lts = {};
@@ -13939,6 +14319,7 @@ TEST(test_pass_pass_system, FuseBinarySwish) {
     */
     const std::vector<op_kind_t> configs {
             Add, Divide, Maximum, Minimum, Multiply, Subtract};
+    const auto engine_kind = get_test_engine_kind();
 
     for (const auto &base_op : configs) {
         op_t binary {0, base_op, "binary"};
@@ -13962,7 +14343,7 @@ TEST(test_pass_pass_system, FuseBinarySwish) {
         multiply.add_input(binary_dst);
         multiply.add_output(mul_dst);
 
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&binary), status::success);
         ASSERT_EQ(agraph.add_op(&sigmoid), status::success);
         ASSERT_EQ(agraph.add_op(&multiply), status::success);
@@ -14029,6 +14410,7 @@ TEST(test_pass_pass, ConvtransposePostops) {
             Multiply,
             Subtract,
     };
+    const auto engine_kind = get_test_engine_kind();
 
     for (auto conv_bias_on : with_conv_bias)
         for (auto post_bias_on : with_post_bias)
@@ -14039,7 +14421,7 @@ TEST(test_pass_pass, ConvtransposePostops) {
                                        supported_binary_ops.end(), Activation)
                                     != supported_binary_ops.end());
 
-                    graph_t agraph;
+                    graph_t agraph(engine_kind);
                     op_t convtranspose {0, ConvTranspose, "convtranspose"};
                     set_convtranspose_common_attr(convtranspose);
                     op_t biasadd {1, BiasAdd, "biasadd"};
@@ -14180,12 +14562,13 @@ TEST(test_pass_pass, Convtranspose3Postops) {
             {Clamp, Minimum},
             {HardSigmoid, ReLU},
     };
+    const auto engine_kind = get_test_engine_kind();
 
     for_(auto conv_bias_on : with_conv_bias)
     for_(auto post_bias_on : with_post_bias)
     for_(auto post_activation_on : with_post_activation)
     for (auto pop_seq : post_op_seqs) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         op_t convtranspose {0, ConvTranspose, "convtranspose"};
         set_convtranspose_common_attr(convtranspose);
         op_t biasadd {1, BiasAdd, "biasadd"};
@@ -14283,7 +14666,8 @@ TEST(test_pass_pass_system, FuseConvTransposeSwish) {
         multiply
 
     */
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t convtranspose {0, ConvTranspose, "convtranspose"};
     set_convtranspose_common_attr(convtranspose);
     op_t sigmoid {1, Sigmoid, "sigmoid"};
@@ -14319,7 +14703,7 @@ TEST(test_pass_pass_system, FuseConvTransposeSwish) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 4U);
 }
 
-TEST(test_pass_pass_system, FuseToInt8ConvTransposeSwishReLU) {
+TEST(test_pass_pass_system, FuseToInt8ConvTransposeSwishReLU_CPU) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -14335,6 +14719,10 @@ TEST(test_pass_pass_system, FuseToInt8ConvTransposeSwishReLU) {
            quant
              | (u8/s8)
     */
+    const auto engine_kind = get_test_engine_kind();
+    // the graph will be filtered into two partitions on gpu.
+    SKIP_IF(engine_kind == engine_kind::gpu, "skip on gpu");
+
     graph_t agraph;
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -14430,10 +14818,11 @@ TEST(test_pass_pass, Pool3Postops) {
     const std::vector<std::vector<op_kind_t>> post_op_t_seqs {
             {Add, Subtract, Divide}, {Minimum, Multiply}, {Add, Maximum},
             {Divide, Minimum, Multiply}};
+    const auto engine_kind = get_test_engine_kind();
 
     for_(auto &pool_op_t : pooling_op_ts)
     for (const auto &post_op_t_seq : post_op_t_seqs) {
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         std::vector<logical_tensor_t> lt_vec = create_logical_tensors(9);
         size_t lt_idx = 0;
         std::vector<size_t> input_lts = {};
@@ -14502,6 +14891,8 @@ TEST(test_pass_pass_system, PoolFusionWithInternalInputs) {
     std::vector<op_kind_t> pooling_ts = {AvgPool, MaxPool};
     std::vector<op_kind_t> binary_ts
             = {Add, Divide, Maximum, Minimum, Multiply, Subtract};
+    const auto engine_kind = get_test_engine_kind();
+
     for_(auto pool_t : pooling_ts)
     for (auto bin_t : binary_ts) {
         std::vector<int64_t> strides = {1, 1};
@@ -14523,7 +14914,7 @@ TEST(test_pass_pass_system, PoolFusionWithInternalInputs) {
         binary_op.add_input(lt_vec[1]);
         binary_op.add_output(lt_vec[2]);
 
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&pool_op), status::success);
         ASSERT_EQ(agraph.add_op(&binary_op), status::success);
         agraph.finalize();
@@ -14558,6 +14949,8 @@ TEST(test_pass_pass_system, EltwiseFusionWithInternalInputs) {
                     Sigmoid, SoftPlus, ReLU, Round, Sqrt, Square, Tanh};
     std::vector<op_kind_t> binary_ts
             = {Add, Divide, Maximum, Minimum, Multiply, Subtract};
+    const auto engine_kind = get_test_engine_kind();
+
     for_(auto elt_t : eltwise_ts)
     for (auto bin_t : binary_ts) {
         op_t eltwise_op {0, elt_t, "eltwise"};
@@ -14577,7 +14970,7 @@ TEST(test_pass_pass_system, EltwiseFusionWithInternalInputs) {
         binary_op.add_input(lt_vec[1]);
         binary_op.add_output(lt_vec[2]);
 
-        graph_t agraph;
+        graph_t agraph(engine_kind);
         ASSERT_EQ(agraph.add_op(&eltwise_op), status::success);
         ASSERT_EQ(agraph.add_op(&binary_op), status::success);
         agraph.finalize();
@@ -14611,6 +15004,7 @@ TEST(test_pass_pass, BatchNormReluU8Unfuse) {
     std::vector<int64_t> zps = {0};
     std::vector<float> scales_src = {2.1f};
     std::vector<float> scales_out = {3.1f};
+    const auto engine_kind = get_test_engine_kind();
 
     // Tensor dimensions.
     const graph::dim_t N = 1, // batch size
@@ -14680,7 +15074,7 @@ TEST(test_pass_pass, BatchNormReluU8Unfuse) {
         quant.add_input(relu_dst);
         quant.add_output(dst_int8_out);
 
-        graph::graph_t g;
+        graph::graph_t g(engine_kind);
         EXPECT_EQ(g.add_op(&dequant), graph::status::success);
         EXPECT_EQ(g.add_op(&bn_op), graph::status::success);
         EXPECT_EQ(g.add_op(&relu_op), graph::status::success);
@@ -14695,6 +15089,8 @@ TEST(test_pass_pass, BatchNormReluU8Unfuse) {
 TEST(test_pass_pass, FuseMatmulSwish) {
     const std::vector<std::string> seqs_1 {"first", "second"};
     const std::vector<std::string> seqs_2 {"left", "right"};
+    const auto engine_kind = get_test_engine_kind();
+
     for (const auto &seq_1 : seqs_1)
         for (const auto &seq_2 : seqs_2) {
             graph::op_t matmul_op(0, graph::op_kind::MatMul, "matmul");
@@ -14719,7 +15115,7 @@ TEST(test_pass_pass, FuseMatmulSwish) {
 
             multi_op.add_output(lt_vec[4]);
 
-            graph::graph_t agraph;
+            graph_t agraph(engine_kind);
             agraph.add_op(&matmul_op);
 
             if (seq_2 == "left") {
@@ -14754,8 +15150,8 @@ TEST(test_pass_pass_system, LayernormWithSpecialAxis) {
            layernorm
              | (bf16)
     */
-    graph_t agraph;
-
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     bool keep_stats = false;
     int64_t begin_norm_axis = -2;
 

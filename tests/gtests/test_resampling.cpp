@@ -223,6 +223,8 @@ protected:
                 tag, dnnl_abc, dnnl_abcd, dnnl_acb, dnnl_acdb);
     }
     void SetUp() override {
+        SKIP_IF_HIP(
+                true, "Resampling operator is not supported by hip backend");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         SKIP_IF_CUDA(p.aalgorithm == algorithm::resampling_nearest,
                 "nearet algorithm is not supported for cudnn backend");

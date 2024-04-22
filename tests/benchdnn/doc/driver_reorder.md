@@ -26,24 +26,6 @@ where *reorder-knobs* are:
             default format of the skipped tensor will be used. As long as
             `--strides` and `--tag` options refer to different tensors, they
             can be specified together.
- - `--attr-scales=STRING` -- per argument scales primitive attribute. No
-            scales are set by default. See `--def-scales` for additional
-            reorder specific mechanics and refer to [attributes](knobs_attr.md)
-            for details.
- - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
-            points are set by default. Refer to [attributes](knobs_attr.md)
-            for details.
- - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
-            operations are set by default. Refer to [attributes](knobs_attr.md)
-            for details.
-- `--def-scales=FLOAT[,FLOAT...]` -- set of scales used to improve testing
-            coverage. Enabled only when combined with `attr-scales` which is
-            given a policy of `common` and a `SCALE` of 0. e.g.:
-            `--attr-scales=src:common:0*`. The default set of scales is
-            `0.125,0.25,0.5,1,2,4,8`.
-            Example: `--def-scales=-3,3` replaces the default set from seven entries
-            to two, but to enable it the user is required to pass
-            `--attr-scales=ARG:common:0*` in addition.
  - `--oflag=FLAG:MASK[+...]` -- memory descriptor extra field specifier. By
             default `FLAG` is empty and `MASK` is `0`. Possible `FLAG` values
             are:
@@ -61,6 +43,7 @@ where *reorder-knobs* are:
             `REGEX`. By default no pattern is applied (run everything).
             Note: Windows may interpret only string arguments surrounded by
             double quotation marks.
+ - Any attributes options. Refer to [attributes](knobs_attr.md) for details.
 
 and *reorder-desc* is a problem descriptor. The canonical form is:
 ```

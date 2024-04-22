@@ -173,8 +173,9 @@ std::string to_string(const data_location_t &loc) {
 
 // Useful for experimentation and debug purposes
 void dump_kernel_descriptor(kernel_desc_t &desc) {
-    DPRINT("%s:%s:%d kernel desc:  %s : ncalls = %d : nbytes = %lld %lld : "
-           "location = %s %s\n",
+    DPRINT_MODEL(
+            "%s:%s:%d kernel desc:  %s : ncalls = %d : nbytes = %lld %lld : "
+            "location = %s %s\n",
             PRINTHEAD, to_string(desc.kernel).c_str(), desc.ncalls,
             into<long long>(desc.input_nbytes),
             into<long long>(desc.output_nbytes),
@@ -487,12 +488,13 @@ void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
 
     // For debuging and analysis purposes
     std::string kernel_type_name = to_string(desc.kernel);
-    DPRINT("%s:%s:%d estimation - %s : p = %d %d %d : thr_util = %g ss_util = "
-           "%g "
-           ": base %.1f %.1f "
-           ": location %.1f %.1f "
-           ": v_coeff %.1f "
-           ": final %.1f %.1f : kernel_total %.1f\n",
+    DPRINT_MODEL(
+            "%s:%s:%d estimation - %s : p = %d %d %d : thr_util = %g ss_util = "
+            "%g "
+            ": base %.1f %.1f "
+            ": location %.1f %.1f "
+            ": v_coeff %.1f "
+            ": final %.1f %.1f : kernel_total %.1f\n",
             PRINTHEAD, kernel_type_name.c_str(), p.use_fused_atomics_reduction,
             p.ic_block, p.stat_sp_block, desc.used_ss_thr_util, desc.ss_util,
             r_ns_base, w_ns_base, r_ns_location, w_ns_location, v_coeff,
@@ -563,10 +565,12 @@ void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
 }
 
 void dump_params(std::vector<model_params_t> &params) {
-    DPRINT("%s:%s:%d params\n", PRINTHEAD);
+    DPRINT_MODEL("%s:%s:%d params\n", PRINTHEAD);
     for (auto &p : params) {
-        DPRINT("use_fused_atomics_reduction = %d ic_block = %d stat_sp_block = "
-               "%d vect_size = %d\n",
+        DPRINT_MODEL(
+                "use_fused_atomics_reduction = %d ic_block = %d stat_sp_block "
+                "= "
+                "%d vect_size = %d\n",
                 p.use_fused_atomics_reduction, p.ic_block, p.stat_sp_block,
                 p.vect_size);
     }
@@ -672,12 +676,13 @@ status_t get_params_by_model(nhwc_bnorm_params_t &conf,
         for (auto &desc : p.kernel_descs) {
             exp_time += desc.ncalls * desc.time_ns;
             exp_time += hw_params.host_overheads_per_kernel * desc.ncalls;
-            DPRINT("%s:%s:%d desc loop: p: %d %d %d : %s: %.1f(%.1f) \n",
+            DPRINT_MODEL("%s:%s:%d desc loop: p: %d %d %d : %s: %.1f(%.1f) \n",
                     PRINTHEAD, p.use_fused_atomics_reduction, p.ic_block,
                     p.stat_sp_block, to_string(desc.kernel).c_str(),
                     desc.time_ns, desc.time_ns * desc.ncalls);
         }
-        DPRINT("%s:%s:%d p: %d %d %d : total expected ns = %.1f ( %.4f ms)\n",
+        DPRINT_MODEL(
+                "%s:%s:%d p: %d %d %d : total expected ns = %.1f ( %.4f ms)\n",
                 PRINTHEAD, p.use_fused_atomics_reduction, p.ic_block,
                 p.stat_sp_block, exp_time, exp_time * 1e-6);
 

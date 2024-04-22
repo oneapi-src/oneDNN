@@ -264,7 +264,7 @@ static sc_data_type_t infer_out_dtype(const sc_data_type_t &in_dtype) {
 }
 
 static expr brgemm_init_kernel_cache(brgemm_mode mode,
-        scflags_t::brgemm_t backend, const std::vector<expr> &args,
+        scflags_t::brgemm_backend_t backend, const std::vector<expr> &args,
         std::vector<expr_c> &cached_args, float beta, bool has_postop) {
     if (mode == brgemm_mode::stride) {
         // cache basic args
@@ -348,7 +348,7 @@ static expr brgemm_init_kernel_cache(brgemm_mode mode,
     }
 }
 
-static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
+static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_backend_t backend,
         const expr &cache, const std::vector<expr> &args, bool has_postop) {
     if (mode == brgemm_mode::stride) {
         const int expected_num_args = brgemm_args::NUM_FULL_ARGS_STRIDE
@@ -423,8 +423,9 @@ static expr brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
     }
 }
 
-static expr range_brgemm_run(brgemm_mode mode, scflags_t::brgemm_t backend,
-        const expr &cache, const std::vector<expr> &args, bool has_postop) {
+static expr range_brgemm_run(brgemm_mode mode,
+        scflags_t::brgemm_backend_t backend, const expr &cache,
+        const std::vector<expr> &args, bool has_postop) {
     if (mode == brgemm_mode::stride) {
         const int expected_num_args = brgemm_args::NUM_FULL_ARGS_STRIDE
                 + brgemm_args::extra_args_offset::nargs;
@@ -483,19 +484,20 @@ public:
     std::vector<std::vector<stmt>> brg_bd_mask_arr_assignment_;
     // the kernel name => param_cache_table mapping
     std::unordered_map<std::string, param_cache_table> kernel_cache;
-    typedef expr (*init_func_t)(brgemm_mode mode, scflags_t::brgemm_t backend,
-            const std::vector<expr> &args, std::vector<expr_c> &cached_args,
-            float beta, bool has_postop);
-    using run_func_t = expr (*)(brgemm_mode, scflags_t::brgemm_t, const expr &,
-            const std::vector<expr> &, bool has_postop);
+    typedef expr (*init_func_t)(brgemm_mode mode,
+            scflags_t::brgemm_backend_t backend, const std::vector<expr> &args,
+            std::vector<expr_c> &cached_args, float beta, bool has_postop);
+    using run_func_t = expr (*)(brgemm_mode, scflags_t::brgemm_backend_t,
+            const expr &, const std::vector<expr> &, bool has_postop);
 
     expr_c optimize_range_kernel_call(brgemm_mode mode,
-            scflags_t::brgemm_t backend, expr_c v,
+            scflags_t::brgemm_backend_t backend, expr_c v,
             const std::vector<expr> &args, const std::string &name,
             run_func_t run_func, const sc_brgemm_attrs_t &brg_attrs, float beta,
             bool has_postop, bool use_bdmask) {
         std::vector<expr_c> cached_args;
-        if (backend != scflags_t::brgemm_t::dnnl || has_postop || use_bdmask) {
+        if (backend != scflags_t::brgemm_backend_t::dnnl || has_postop
+                || use_bdmask) {
             SC_MODULE_INFO << "Cannot optimize the range kernel call: " << v;
             return v;
         }
@@ -596,8 +598,9 @@ public:
         return result;
     }
 
-    expr_c optimize_kernel_call(brgemm_mode mode, scflags_t::brgemm_t backend,
-            expr_c v, const std::vector<expr> &args, const std::string &name,
+    expr_c optimize_kernel_call(brgemm_mode mode,
+            scflags_t::brgemm_backend_t backend, expr_c v,
+            const std::vector<expr> &args, const std::string &name,
             init_func_t init_func, run_func_t run_func, float beta,
             bool has_postop, bool use_bdmask) {
         std::vector<expr_c> cached_args;
@@ -835,7 +838,8 @@ public:
         no_opt_args[num_basic_args + 3] = cur_bd_mask;
 
         bool optimized = optimize_ >= 1;
-        scflags_t::brgemm_t backend = mod_->ctx_->flags_.brgemm_backend_;
+        scflags_t::brgemm_backend_t backend
+                = mod_->ctx_->flags_.brgemm_backend_;
         auto fpair = get_brgemm_update_funcs(mode, backend);
         func_t f = extras->cpu_.init_ ? fpair.second : fpair.first;
         assert(f);

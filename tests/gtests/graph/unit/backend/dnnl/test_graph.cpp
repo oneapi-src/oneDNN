@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 
 #include "gtest/gtest.h"
 
-#include "graph/unit/utils.hpp"
 #include "interface/c_types_map.hpp"
 #include "interface/graph.hpp"
 #include "interface/logical_tensor.hpp"
@@ -27,11 +26,15 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/fake/fake_backend.hpp"
 
+#include "graph/unit/unit_test_common.hpp"
+#include "graph/unit/utils.hpp"
+
 TEST(test_graph_graph, GetDnnlPartitions) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 
-    graph_t agraph;
+    const auto engine_kind = get_test_engine_kind();
+    graph_t agraph(engine_kind);
     op_t conv {0, op_kind::Convolution, std::string("conv2d")};
     op_t relu {1, op_kind::ReLU, std::string("relu")};
     op_t end {2, op_kind::End, std::string("end")};

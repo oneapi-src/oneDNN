@@ -42,7 +42,7 @@ struct brdgmm_dw_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine);
         jit_brdgmm_conv_conf_t jcp_;
-        std::vector<brgemm_t> bcps_;
+        std::vector<brgemm_desc_t> bcps_;
         std::vector<brgemm_batch_element_t> batches_;
         std::vector<int> bs_;
 

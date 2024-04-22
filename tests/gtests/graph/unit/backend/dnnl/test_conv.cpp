@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -950,7 +950,7 @@ TEST(test_conv_execute, Convolution3DNxcOix) {
     }
 }
 
-TEST(test_conv_execute, ConvolutionF16F16F16) {
+TEST(test_conv_execute, ConvolutionF16F16F16_GPU) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *eng = get_engine();
@@ -2671,7 +2671,7 @@ TEST(test_conv_execute, ConvAddEltwise) {
     }
 }
 
-TEST(test_conv_execute_subgraph_fp32, ConvDepthwise) {
+TEST(test_conv_execute_subgraph_fp32, ConvDepthwise_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -3389,7 +3389,7 @@ TEST(test_conv_execute_subgraph_int8, Conv2dSumRelu) {
 }
 
 TEST(test_conv_execute_subgraph_int8,
-        Conv2dSumReluWithDifferentSrc1AndDstTypeOnGPU) {
+        Conv2dSumReluWithDifferentSrc1AndDstType_GPU) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -5080,6 +5080,354 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
     }
 }
 
+TEST(test_conv_execute_subgraph_int8, ConvolutionSumU8s8u8MixBf16) {
+    using dims = dnnl::impl::graph::dnnl_impl::dims;
+    graph::engine_t *engine = get_engine();
+
+    std::string qtype = "per_channel";
+    std::vector<int64_t> groups = {1, 4};
+    for (const auto &g_ : groups) {
+        int64_t in_channel = 8, out_channel = 8;
+        std::vector<int64_t> src_shape = {1, in_channel, 12, 12};
+        std::vector<int64_t> weight_shape
+                = {out_channel, in_channel / g_, 3, 3};
+        std::vector<int64_t> bias_shape = {1, out_channel, 1, 1};
+        std::vector<int64_t> dst_shape = {1, out_channel, 10, 10};
+
+        std::vector<uint8_t> src_data(product(src_shape));
+        std::vector<float> weight_data(product(weight_shape));
+        std::vector<float> bias_data(product(bias_shape));
+
+        // random generate src, weight data
+        // random seed = 7
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> distribution(0.0f, 255.0f);
+        std::generate(src_data.begin(), src_data.end(), [&]() {
+            return static_cast<uint8_t>(distribution(generator));
+        });
+        std::uniform_real_distribution<float> distribution2(-1.f, 1.f);
+        std::generate(weight_data.begin(), weight_data.end(),
+                [&]() { return distribution2(generator); });
+        std::uniform_real_distribution<float> distribution3(0.0f, 20.0f);
+        std::generate(bias_data.begin(), bias_data.end(),
+                [&]() { return distribution3(generator); });
+        float scale_src = 1 / 255.f; // map to 0~255
+        int64_t zp_src = engine->kind() == graph::engine_kind::gpu ? 0 : 110;
+
+        size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
+        std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+        std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+
+        float scale_out = 1 / 255.f; // map to 0~255
+        int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 110;
+
+        graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+        graph::op_t qweight_op(10, graph::op_kind::Quantize, "qweight_op");
+        qweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+        qweight_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, scale_wei);
+        qweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+        graph::op_t dqweight_op(1, graph::op_kind::Dequantize, "dqweight_op");
+        dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+        graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
+        graph::op_t tcweight_op {
+                3, graph::op_kind::TypeCast, "typecast_weight"};
+
+        graph::op_t conv_op(4, graph::op_kind::Convolution, "conv_op");
+        conv_op.set_attr<dims>(graph::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::weights_format, "OIX");
+
+        graph::op_t dq_add_op {5, graph::op_kind::Dequantize, "dq_add_op"};
+        dq_add_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dq_add_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
+        dq_add_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, {scale_src});
+        dq_add_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+        graph::op_t tc_add_op {6, graph::op_kind::TypeCast, "typecast_bias"};
+
+        graph::op_t add_op {7, graph::op_kind::Add, "add_op"};
+
+        graph::op_t tcdst_op {8, graph::op_kind::TypeCast, "typecast_dst"};
+
+        graph::op_t qout_op(9, graph::op_kind::Quantize, "qdout_op");
+        qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
+        qout_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, {scale_out});
+        qout_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+        // prepare logical tensor
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                0, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t src_bf16 = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::bf16);
+        graph::logical_tensor_t weight_f32 = utils::logical_tensor_init(
+                30, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                3, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
+                6, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t add_u8 = utils::logical_tensor_init(
+                31, bias_shape, graph::data_type::u8);
+        graph::logical_tensor_t add_f32 = utils::logical_tensor_init(
+                7, bias_shape, graph::data_type::f32);
+        graph::logical_tensor_t add_bf16 = utils::logical_tensor_init(
+                8, bias_shape, graph::data_type::bf16);
+        graph::logical_tensor_t add_out_bf16 = utils::logical_tensor_init(
+                9, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_f32 = utils::logical_tensor_init(
+                11, dst_shape, graph::data_type::f32);
+        graph::logical_tensor_t dst_u8 = utils::logical_tensor_init(
+                12, dst_shape, graph::data_type::u8);
+
+        dqdata_op.add_input(src_u8);
+        dqdata_op.add_output(src_f32_dq);
+
+        qweight_op.add_input(weight_f32);
+        qweight_op.add_output(weight_s8);
+
+        dqweight_op.add_input(weight_s8);
+        dqweight_op.add_output(weight_f32_dq);
+
+        tcdata_op.add_input(src_f32_dq);
+        tcdata_op.add_output(src_bf16);
+
+        tcweight_op.add_input(weight_f32_dq);
+        tcweight_op.add_output(weight_bf16);
+
+        conv_op.add_input(src_bf16);
+        conv_op.add_input(weight_bf16);
+        conv_op.add_output(conv_bf16);
+
+        dq_add_op.add_input(add_u8);
+        dq_add_op.add_output(add_f32);
+
+        tc_add_op.add_input(add_f32);
+        tc_add_op.add_output(add_bf16);
+
+        add_op.add_input(conv_bf16);
+        add_op.add_input(add_bf16);
+        add_op.add_output(add_out_bf16);
+
+        tcdst_op.add_input(add_out_bf16);
+        tcdst_op.add_output(conv_f32);
+
+        qout_op.add_input(conv_f32);
+        qout_op.add_output(dst_u8);
+
+        graph::graph_t g(engine->kind());
+        ASSERT_EQ(g.add_op(&dqdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&qweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&dqweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&dq_add_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tc_add_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&add_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdst_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&qout_op), graph::status::success);
+        g.finalize();
+
+        graph::pass::pass_base_ptr conv_sum_pass;
+        if (engine->kind() == graph::engine_kind::cpu) {
+            conv_sum_pass = get_pass("x8s8x_tc_conv_add_post_ops_cpu");
+        } else {
+            conv_sum_pass = get_pass("x8s8x_tc_conv_add_post_ops_gpu");
+        }
+        conv_sum_pass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 1U);
+    }
+}
+
+TEST(test_conv_execute_subgraph_int8,
+        ConvolutionBinaryAddFailToFuseAsConvSumU8s8u8MixBf16) {
+    using dims = dnnl::impl::graph::dnnl_impl::dims;
+    graph::engine_t *engine = get_engine();
+
+    std::string qtype = "per_channel";
+    std::vector<int64_t> groups = {1, 4};
+    for (const auto &g_ : groups) {
+        int64_t in_channel = 8, out_channel = 8;
+        std::vector<int64_t> src_shape = {1, in_channel, 12, 12};
+        std::vector<int64_t> weight_shape
+                = {out_channel, in_channel / g_, 3, 3};
+        std::vector<int64_t> bias_shape = {1, out_channel, 1, 1};
+        std::vector<int64_t> dst_shape = {1, out_channel, 10, 10};
+
+        std::vector<uint8_t> src_data(product(src_shape));
+        std::vector<float> weight_data(product(weight_shape));
+        std::vector<float> bias_data(product(bias_shape));
+
+        // random generate src, weight data
+        // random seed = 7
+        std::default_random_engine generator(7);
+        std::uniform_real_distribution<float> distribution(0.0f, 255.0f);
+        std::generate(src_data.begin(), src_data.end(), [&]() {
+            return static_cast<uint8_t>(distribution(generator));
+        });
+        std::uniform_real_distribution<float> distribution2(-1.f, 1.f);
+        std::generate(weight_data.begin(), weight_data.end(),
+                [&]() { return distribution2(generator); });
+        std::uniform_real_distribution<float> distribution3(0.0f, 20.0f);
+        std::generate(bias_data.begin(), bias_data.end(),
+                [&]() { return distribution3(generator); });
+        float scale_src = 1 / 255.f; // map to 0~255
+        int64_t zp_src = engine->kind() == graph::engine_kind::gpu ? 0 : 110;
+
+        size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
+        std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+        std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+
+        graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
+        dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
+        dqdata_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, {scale_src});
+        dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+        graph::op_t qweight_op(10, graph::op_kind::Quantize, "qweight_op");
+        qweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        qweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+        qweight_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, scale_wei);
+        qweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+        graph::op_t dqweight_op(1, graph::op_kind::Dequantize, "dqweight_op");
+        dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+        dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+        dqweight_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, scale_wei);
+        dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+        graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
+        graph::op_t tcweight_op {
+                3, graph::op_kind::TypeCast, "typecast_weight"};
+
+        graph::op_t conv_op(4, graph::op_kind::Convolution, "conv_op");
+        conv_op.set_attr<dims>(graph::op_attr::strides, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::dilations, dims(2, 1));
+        conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims(2, 0));
+        conv_op.set_attr<dims>(graph::op_attr::pads_end, dims(2, 0));
+        conv_op.set_attr<int64_t>(graph::op_attr::groups, g_);
+        conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+        conv_op.set_attr<std::string>(graph::op_attr::weights_format, "OIX");
+
+        graph::op_t dq_add_op {5, graph::op_kind::Dequantize, "dq_add_op"};
+        dq_add_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+        dq_add_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
+        dq_add_op.set_attr<std::vector<float>>(
+                graph::op_attr::scales, {scale_src});
+        dq_add_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+        graph::op_t tc_add_op {6, graph::op_kind::TypeCast, "typecast_bias"};
+
+        graph::op_t add_op {7, graph::op_kind::Add, "add_op"};
+
+        // prepare logical tensor
+        graph::logical_tensor_t src_u8 = utils::logical_tensor_init(
+                0, src_shape, graph::data_type::u8);
+        graph::logical_tensor_t src_f32_dq = utils::logical_tensor_init(
+                1, src_shape, graph::data_type::f32);
+        graph::logical_tensor_t src_bf16 = utils::logical_tensor_init(
+                2, src_shape, graph::data_type::bf16);
+        graph::logical_tensor_t weight_f32 = utils::logical_tensor_init(
+                30, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_s8 = utils::logical_tensor_init(
+                3, weight_shape, graph::data_type::s8);
+        graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+                4, weight_shape, graph::data_type::f32);
+        graph::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+                5, weight_shape, graph::data_type::bf16);
+        graph::logical_tensor_t conv_bf16 = utils::logical_tensor_init(
+                6, dst_shape, graph::data_type::bf16);
+        graph::logical_tensor_t add_u8 = utils::logical_tensor_init(
+                31, bias_shape, graph::data_type::u8);
+        graph::logical_tensor_t add_f32 = utils::logical_tensor_init(
+                7, bias_shape, graph::data_type::f32);
+        graph::logical_tensor_t add_bf16 = utils::logical_tensor_init(
+                8, bias_shape, graph::data_type::bf16);
+        graph::logical_tensor_t add_out_bf16 = utils::logical_tensor_init(
+                9, dst_shape, graph::data_type::bf16);
+
+        dqdata_op.add_input(src_u8);
+        dqdata_op.add_output(src_f32_dq);
+
+        qweight_op.add_input(weight_f32);
+        qweight_op.add_output(weight_s8);
+
+        dqweight_op.add_input(weight_s8);
+        dqweight_op.add_output(weight_f32_dq);
+
+        tcdata_op.add_input(src_f32_dq);
+        tcdata_op.add_output(src_bf16);
+
+        tcweight_op.add_input(weight_f32_dq);
+        tcweight_op.add_output(weight_bf16);
+
+        conv_op.add_input(src_bf16);
+        conv_op.add_input(weight_bf16);
+        conv_op.add_output(conv_bf16);
+
+        dq_add_op.add_input(add_u8);
+        dq_add_op.add_output(add_f32);
+
+        tc_add_op.add_input(add_f32);
+        tc_add_op.add_output(add_bf16);
+
+        add_op.add_input(conv_bf16);
+        add_op.add_input(add_bf16);
+        add_op.add_output(add_out_bf16);
+
+        graph::graph_t g(engine->kind());
+        ASSERT_EQ(g.add_op(&dqdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcdata_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&qweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&dqweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tcweight_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&dq_add_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&tc_add_op), graph::status::success);
+        ASSERT_EQ(g.add_op(&add_op), graph::status::success);
+        g.finalize();
+
+        graph::pass::pass_base_ptr conv_sum_pass;
+        if (engine->kind() == graph::engine_kind::cpu) {
+            conv_sum_pass = get_pass("x8s8x_tc_conv_add_post_ops_cpu");
+        } else {
+            conv_sum_pass = get_pass("x8s8x_tc_conv_add_post_ops_gpu");
+        }
+
+        conv_sum_pass->run(g);
+        ASSERT_EQ(g.get_num_partitions(), 0U);
+    }
+}
+
 TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
@@ -5095,6 +5443,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     std::vector<uint8_t> src_data(product(src_shape));
     std::vector<float> weight_data(product(weight_shape));
     std::vector<float> bias_data(product(bias_shape));
+    std::vector<uint16_t> post_add_src1_data(product(bias_shape));
 
     // random generate src, weight data
     // random seed = 7
@@ -5108,6 +5457,10 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     std::uniform_real_distribution<float> distribution3(0.0f, 20.0f);
     std::generate(bias_data.begin(), bias_data.end(),
             [&]() { return distribution3(generator); });
+    std::uniform_real_distribution<float> distribution4(0.0f, 50.0f);
+    std::generate(post_add_src1_data.begin(), post_add_src1_data.end(),
+            [&]() { return static_cast<uint16_t>(distribution4(generator)); });
+
     float scale_src = 1 / 255.f; // map to 0~255
     int64_t zp_src = 110;
 
@@ -5222,7 +5575,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     graph::compiled_partition_t cp(p);
 
     std::vector<const graph::logical_tensor_t *> lt_ins {
-            &src_u8, &weight_f32, &bias_f32};
+            &src_u8, &weight_f32, &bias_bf16};
     std::vector<const graph::logical_tensor_t *> lt_outs {&bias_out_bf16};
 
     ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
@@ -5230,8 +5583,10 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     test_tensor src_u8_ts(src_u8, engine, src_data);
     test_tensor weight_f32_ts(weight_f32, engine, weight_data);
     test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor post_add_src1_bf16_ts(bias_bf16, engine, post_add_src1_data);
     test_tensor dst_ts(bias_out_bf16, engine);
-    cp.execute(strm, {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
+    cp.execute(strm,
+            {src_u8_ts.get(), weight_f32_ts.get(), post_add_src1_bf16_ts.get()},
             {dst_ts.get()});
     strm->wait();
 }

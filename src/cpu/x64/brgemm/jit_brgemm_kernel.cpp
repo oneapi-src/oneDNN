@@ -41,7 +41,7 @@ using namespace dnnl::impl::utils;
 using namespace Xbyak;
 template <typename Wmm>
 struct jit_brgemm_kernel_t : public jit_generator {
-    jit_brgemm_kernel_t(const brgemm_t &abrg)
+    jit_brgemm_kernel_t(const brgemm_desc_t &abrg)
         : jit_generator(jit_name(), abrg.isa_impl)
         , brg(abrg)
         , postops_injector_(nullptr)
@@ -119,7 +119,7 @@ struct jit_brgemm_kernel_t : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_t)
 
-    brgemm_t brg;
+    brgemm_desc_t brg;
 
 private:
     enum matrix_kind_t { matrix_A, matrix_B };
@@ -2366,7 +2366,7 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
                     const auto vpad_first = -brg.brgattr.max_bottom_vpad;
                     const auto vpad_last = brg.brgattr.max_top_vpad;
                     const auto n_vpads = vpad_last - vpad_first + 2;
-                    constexpr auto MAX_N_VPADS = 2 * brgemm_t::MAX_VPAD;
+                    constexpr auto MAX_N_VPADS = 2 * brgemm_desc_t::MAX_VPAD;
                     assert(n_vpads < MAX_N_VPADS);
 
                     Label Vpad_loop_end_label;
@@ -2773,7 +2773,7 @@ brgemm_attr_t::brgemm_attr_t()
     , static_offsets(nullptr) {}
 
 template <typename Wmm>
-brgemm_kernel_common_t<Wmm>::brgemm_kernel_common_t(const brgemm_t &abrd)
+brgemm_kernel_common_t<Wmm>::brgemm_kernel_common_t(const brgemm_desc_t &abrd)
     : brgemm_kernel_(new jit_brgemm_kernel_t<Wmm>(abrd)) {}
 
 template <typename Wmm>

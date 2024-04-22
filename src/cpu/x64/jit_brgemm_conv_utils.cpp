@@ -596,7 +596,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
 
     const float alpha = 1.0;
     const float beta = 0.0;
-    brgemm_t brg;
+    brgemm_desc_t brg;
     brgemm_utils::init_brgemm_conf(&brg, isa, brgemm_addr, src_dt, wei_dt,
             brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK, nullptr,
             is_bf32);
@@ -604,7 +604,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     ur = brg.bd_block * (is_amx(isa) ? brg.bd_block2 : 1);
     ur_block = brg.bd_block;
     if (is_1x1 && is_amx(isa) && M > 0 && M_tail > 0) {
-        brgemm_t brg_sp_tail;
+        brgemm_desc_t brg_sp_tail;
         brgemm_utils::init_brgemm_conf(&brg_sp_tail, isa, brgemm_addr, src_dt,
                 wei_dt, brgemm_row_major, alpha, beta, LDA, LDB, LDC, M_tail,
                 vN, vK, nullptr, is_bf32);
@@ -642,7 +642,7 @@ status_t brg_blocking_t::get_brgemm_ur(
                 auto vN = (i_N) ? N_tail : N;
                 auto vK = (i_K) ? K_tail : K;
                 if (vN == 0 || vK == 0) continue;
-                brgemm_t brg;
+                brgemm_desc_t brg;
                 brgemm_strides_t brg_strides;
                 brg_strides.stride_a = ngroups * ic_without_padding
                         * (dilate_w + 1) * src_dsz;
@@ -2195,6 +2195,28 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
             !(jcp.ow_block == 0 || jcp.ic_block == 0 || jcp.oc_block == 0),
             VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
 
+    // Dispatch the shape that requires large or small cache to JIT
+    // for better performance on AVX2
+    // The threshold is empirical
+    const size_t w_cache_sz
+            = static_cast<size_t>(jcp.src_dsz) * jcp.ic_block * jcp.iwp
+            + jcp.dst_dsz * jcp.ow * jcp.oc_block;
+    const size_t wei_cache_sz = static_cast<size_t>(jcp.wei_dsz) * jcp.kd_block
+            * jcp.kh_block * jcp.kw_block * jcp.ic_block * jcp.oc_block;
+    const size_t nthr_work_amount
+            = div_up(static_cast<size_t>(jcp.mb) * jcp.ngroups * jcp.nb_od
+                            * jcp.nb_oh * jcp.nb_ow * jcp.nb_oc,
+                    jcp.nthr);
+    const bool req_large_cache = jcp.oc >= 256 && jcp.ic >= 256
+            && nstl::max(w_cache_sz, wei_cache_sz) * nthr_work_amount
+                    >= brg_blocking_t::L2 * 10;
+    const bool req_small_cache = jcp.ic <= jcp.acc_simd_w
+            && nstl::max(w_cache_sz, wei_cache_sz) <= 2048;
+    VDISPATCH_CONV_IC(
+            !((req_large_cache || req_small_cache) && jcp.isa == avx2),
+            VERBOSE_IMPL_HEURISTIC_FAIL,
+            "Dispatch the shape that requires large/small cache size to jit");
+
     // to avoid cache concurrent write access from different threads
     size_t sc_size = sizeof(brgemm_batch_element_t);
     jcp.adjusted_batch_size
@@ -2408,6 +2430,28 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     VDISPATCH_CONV_IC(!(jcp.ic_block == 0 || jcp.oc_block == 0),
             VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
+
+    // Dispatch the shape that requires large or small cache to JIT
+    // for better performance on AVX2
+    // The threshold is empirical
+    const size_t w_cache_sz
+            = static_cast<size_t>(jcp.src_dsz) * jcp.ic_block * jcp.iwp
+            + jcp.dst_dsz * jcp.ow * jcp.oc_block;
+    const size_t wei_cache_sz = static_cast<size_t>(jcp.wei_dsz) * jcp.kd_block
+            * jcp.kh_block * jcp.kw_block * jcp.ic_block * jcp.oc_block;
+    const size_t nthr_work_amount
+            = div_up(static_cast<size_t>(jcp.mb) * jcp.ngroups * jcp.nb_od
+                            * jcp.nb_oh * jcp.nb_ow * jcp.nb_oc,
+                    jcp.nthr);
+    const bool req_large_cache = jcp.oc >= 256 && jcp.ic >= 256
+            && nstl::max(w_cache_sz, wei_cache_sz) * nthr_work_amount
+                    >= brg_blocking_t::L2 * 10;
+    const bool req_small_cache = jcp.ic <= jcp.acc_simd_w
+            && nstl::max(w_cache_sz, wei_cache_sz) <= 2048;
+    VDISPATCH_CONV_IC(
+            !((req_large_cache || req_small_cache) && jcp.isa == avx2),
+            VERBOSE_IMPL_HEURISTIC_FAIL,
+            "Dispatch the shapes that requie large cache size to jit");
 
     // Configure matrix sizes
 

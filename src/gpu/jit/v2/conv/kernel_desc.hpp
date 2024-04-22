@@ -166,7 +166,7 @@ inline spec_reqs_t str_to_spec_reqs(const std::string &s) {
         return spec_reqs_t(mode);
 }
 
-struct loop_nest_entry_t {
+struct loop_desc_entry_t {
     prb_dim_t dim;
     int idx = -1;
     bool is_outer = true;
@@ -174,8 +174,8 @@ struct loop_nest_entry_t {
     // k-slicing).
     bool is_global = false;
 
-    loop_nest_entry_t() = default;
-    loop_nest_entry_t(const prb_dim_t &dim, int idx, bool is_global)
+    loop_desc_entry_t() = default;
+    loop_desc_entry_t(const prb_dim_t &dim, int idx, bool is_global)
         : dim(dim), idx(idx), is_global(is_global) {}
 
     bool is_empty() const { return dim.is_undef(); }
@@ -188,13 +188,13 @@ struct loop_nest_entry_t {
 
     IR_DEFINE_DUMP()
 
-    bool operator==(const loop_nest_entry_t &other) const {
+    bool operator==(const loop_desc_entry_t &other) const {
         return (dim == other.dim) && (idx == other.idx)
                 && (is_outer == other.is_outer)
                 && (is_global == other.is_global);
     }
 
-    bool operator!=(const loop_nest_entry_t &other) const {
+    bool operator!=(const loop_desc_entry_t &other) const {
         return !operator==(other);
     }
 
@@ -217,16 +217,16 @@ struct loop_nest_entry_t {
     }
 };
 
-class loop_nest_t {
+class loop_desc_t {
 public:
     bool is_empty() const { return entries_.empty(); }
-    const std::vector<loop_nest_entry_t> &entries() const { return entries_; }
+    const std::vector<loop_desc_entry_t> &entries() const { return entries_; }
     int ndims() const { return (int)entries_.size(); }
     bool has(const prb_dim_t &dim) const { return !find(dim).is_empty(); }
-    loop_nest_entry_t find(const prb_dim_t &dim) const {
+    loop_desc_entry_t find(const prb_dim_t &dim) const {
         for (auto &e : entries_)
             if (e.dim == dim) return e;
-        return loop_nest_entry_t();
+        return loop_desc_entry_t();
     }
     bool is_global(const prb_dim_t &dim) const { return find(dim).is_global; }
     void add(const prb_dim_t &dim, bool is_global = false) {
@@ -243,10 +243,10 @@ public:
         update_indices();
     }
     int index(const prb_dim_t &dim) const { return find(dim).idx; }
-    std::vector<loop_nest_entry_t>::const_iterator begin() const {
+    std::vector<loop_desc_entry_t>::const_iterator begin() const {
         return entries_.begin();
     }
-    std::vector<loop_nest_entry_t>::const_iterator end() const {
+    std::vector<loop_desc_entry_t>::const_iterator end() const {
         return entries_.end();
     }
 
@@ -261,11 +261,11 @@ public:
 
     IR_DEFINE_DUMP()
 
-    bool operator==(const loop_nest_t &other) const {
+    bool operator==(const loop_desc_t &other) const {
         return entries_ == other.entries_;
     }
 
-    bool operator!=(const loop_nest_t &other) const {
+    bool operator!=(const loop_desc_t &other) const {
         return !operator==(other);
     }
 
@@ -284,12 +284,12 @@ private:
     }
 
     // Ordered from innermost to outermost.
-    std::vector<loop_nest_entry_t> entries_;
+    std::vector<loop_desc_entry_t> entries_;
 };
 
-inline loop_nest_t str_to_loop_nest(const std::string &s) {
+inline loop_desc_t str_to_loop_desc(const std::string &s) {
     auto parts = gpu_utils::split(s, ",");
-    loop_nest_t ret;
+    loop_desc_t ret;
     for (auto &p : parts)
         ret.add(prb_dim_t::from_name(p));
     return ret;
@@ -422,7 +422,7 @@ public:
     int regs = 0;
     prb_tile_t iter_tile;
     prb_tile_t thread_group_tile;
-    loop_nest_t loop_nest;
+    loop_desc_t loop_desc;
     load_desc_t load;
     store_desc_t store;
     prefetch_desc_t prefetch;
@@ -467,7 +467,7 @@ public:
                 && (simd == other.simd) && (regs == other.regs)
                 && (iter_tile == other.iter_tile)
                 && (thread_group_tile == other.thread_group_tile)
-                && (loop_nest == other.loop_nest) && (load == other.load)
+                && (loop_desc == other.loop_desc) && (load == other.load)
                 && (prefetch == other.prefetch) && (store == other.store)
                 && (is_finalized == other.is_finalized);
     }
@@ -479,7 +479,7 @@ public:
     size_t get_hash() const {
         return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag,
                 spec_reqs, hw, fma, simd, regs, iter_tile, thread_group_tile,
-                loop_nest, load, prefetch, store, is_finalized);
+                loop_desc, load, prefetch, store, is_finalized);
     }
 
     void serialize(std::ostream &out) const {
@@ -496,7 +496,7 @@ public:
         ir_utils::serialize(regs, out);
         ir_utils::serialize(iter_tile, out);
         ir_utils::serialize(thread_group_tile, out);
-        ir_utils::serialize(loop_nest, out);
+        ir_utils::serialize(loop_desc, out);
         ir_utils::serialize(load, out);
         ir_utils::serialize(prefetch, out);
         ir_utils::serialize(store, out);
@@ -516,7 +516,7 @@ public:
         ir_utils::deserialize(regs, in);
         ir_utils::deserialize(iter_tile, in);
         ir_utils::deserialize(thread_group_tile, in);
-        ir_utils::deserialize(loop_nest, in);
+        ir_utils::deserialize(loop_desc, in);
         ir_utils::deserialize(load, in);
         ir_utils::deserialize(prefetch, in);
         ir_utils::deserialize(store, in);

@@ -442,6 +442,7 @@ void split_to_linear(const expr_t &expr, const std::vector<expr_t> &idxs,
     for (size_t i = 0; i < idxs.size(); i++) {
         init = split_to_linear_impl(init, idxs[i], incs[i]);
     }
+    init = init.as<linear_t>().to_expr();
 }
 
 } // namespace jit

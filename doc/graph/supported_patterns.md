@@ -75,7 +75,7 @@ ReduceProd | ReduceSum]
 | Convolution + BiasAdd\f$^?\f$ + BatchNormInference\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks, for example ResNet, ResNext, SSD, etc. |
 | ConvTranspose + BiasAdd\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Generative Adversarial Networks. |
 | Interpolate + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used for image processing. |
-| MatMul + BiasAdd\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in language models and recommendation models, for example BERT, DLRM, etc. |
+| MatMul + BiasAdd\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$ + Select\f$^?\f$\f$_{>out}\f$ | This pattern is widely used in language models and recommendation models, for example BERT, DLRM, etc. |
 | Reduction + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used for data processing, for example loss reduction. |
 | Unary + Binary\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks. |
 | Binary + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Generative Adversarial Networks, for example ParallelWaveGAN. |
@@ -90,7 +90,7 @@ ReduceProd | ReduceSum]
 |:--------|:-----------------------------|
 | Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + Convolution\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ | N/A |
 | Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + ConvTranspose\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ |N/A |
-| Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + MatMul\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ |N/A |
+| Quantize\f$^?\f$ + Dequantize\f$_{>t1}\f$, Dequantize\f$_{>t2}\f$\f$^{0-3}\f$, Dequantize + MatMul\f$_{<t1}\f$ + BiasAdd\f$^?\f$ + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Select\f$^?\f$ + Quantize\f$^?\f$\f$_{>out}\f$ |N/A |
 | Dequantize + [AvgPool \| MaxPool] + Quantize\f$_{>out}\f$ |N/A |
 | Dequantize\f$_{>t1}\f$, Dequantize + [AvgPool \| MaxPool] + Add\f$_{<t1}\f$ + Quantize\f$_{>out}\f$ |N/A |
 | Dequantize + Reorder + Quantize\f$_{>out}\f$ |N/A |

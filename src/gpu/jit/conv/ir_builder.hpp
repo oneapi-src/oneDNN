@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,9 +35,12 @@ namespace jit {
 
 class conv_ir_builder_t : public ir_builder_t {
 public:
-    conv_ir_builder_t(
-            const conv_config_t &cfg, const kernel_info_t &kernel_info)
-        : ir_builder_t(kernel_info), prb_(cfg.prb()), cfg_(cfg) {
+    conv_ir_builder_t(const conv_config_t &cfg,
+            const kernel_info_t &kernel_info, const layout_t &zp_dst)
+        : ir_builder_t(kernel_info)
+        , prb_(cfg.prb())
+        , cfg_(cfg)
+        , zp_dst_(zp_dst) {
         build();
     }
 
@@ -56,6 +59,7 @@ private:
 
     const conv_problem_t &prb_;
     const conv_config_t &cfg_;
+    const layout_t &zp_dst_;
 };
 
 } // namespace jit

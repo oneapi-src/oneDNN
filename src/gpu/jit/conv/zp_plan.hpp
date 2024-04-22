@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ struct zp_plan_t : public base_plan_t {
             const layout_t &wei_layout, const layout_t &dst_layout);
 
     explicit operator bool() const;
+    bool needs_precalc() const;
     int load_reg_buf_size() const;
     int mask_reg_buf_size() const;
     int comp_reg_buf_size() const;

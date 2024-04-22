@@ -176,12 +176,13 @@ stmt_t add_grid_guard(
 class compute_builder_t {
 public:
     compute_builder_t(const conv_config_t &cfg, ir_context_t &ir_ctx,
-            const kernel_info_t &kernel_info)
+            const kernel_info_t &kernel_info, const layout_t &zp_dst)
         : cfg_(cfg)
         , plan_(cfg_.plan())
         , ir_ctx_(ir_ctx)
         , kernel_info_(kernel_info)
-        , buf_mgr_(ir_ctx) {
+        , buf_mgr_(ir_ctx)
+        , zp_dst_(zp_dst) {
         if (plan_.slm.has_a())
             (void)buf_mgr_.get("a_slm", plan_.slm.a_layout.size());
         if (plan_.slm.has_b())
@@ -482,7 +483,8 @@ private:
 
     void build_c_store() {
         auto &gemm_schedule = plan_.gemm_schedule;
-        conv_post_op_view_mapper_t view_mapper(gemm_schedule, cfg_.prb());
+        conv_post_op_view_mapper_t view_mapper(
+                gemm_schedule, cfg_.prb(), cfg_.zp_cfg(), zp_dst_);
         post_op_context_t post_op_ctx(*cfg_.prb().attr, cfg_.zp_cfg(),
                 gemm_schedule, kernel_info_, *cfg_.prb().conv_pd->dst_md(),
                 cfg_.prb().c_md(), view_mapper);
@@ -621,6 +623,8 @@ private:
 
     buffer_manager_t buf_mgr_;
 
+    const layout_t &zp_dst_;
+
     expr_t ap_buf_;
     expr_t bp_buf_;
     expr_t cp_buf_;
@@ -692,7 +696,7 @@ void conv_ir_builder_t::build() {
     trace_stamp("GEMM Schedule");
 
     ir_context_t ir_ctx(cfg_.exec_cfg(), init_cset);
-    compute_builder_t cb(cfg_, ir_ctx, kernel_info_);
+    compute_builder_t cb(cfg_, ir_ctx, kernel_info_, zp_dst_);
     cb.set_ap_buf(ap_buf);
     cb.set_bp_buf(bp_buf);
     cb.set_cp_buf(cp_buf);

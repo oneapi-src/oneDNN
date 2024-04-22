@@ -519,8 +519,8 @@ private:
         tg_grid_ = create_thread_group_grid(desc_);
         thr_grid_ = create_thread_grid(desc_);
         for (auto &d : conv_index_dims(desc_.prop)) {
-            bool is_loop = desc_.loop_nest.has(d);
-            bool is_global_loop = desc_.loop_nest.is_global(d);
+            bool is_loop = desc_.loop_desc.has(d);
+            bool is_global_loop = desc_.loop_desc.is_global(d);
             int tg_tile = desc_.thread_group_tile.get(d, 1);
             int iter_tile = desc_.iter_tile.get(d, 1);
             auto thr_idx = thr_grid_.index_var(d);

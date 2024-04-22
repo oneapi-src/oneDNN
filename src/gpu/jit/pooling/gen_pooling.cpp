@@ -127,7 +127,7 @@ status_t gen_pooling_fwd_t::init(engine_t *engine) {
     tensor_cfg.add_tensor("dst", DNNL_ARG_DST, true, true,
             cfg_.dst_layout().user(), cfg_.dst_layout().user());
 
-    init_extra_tensors(cfg_.zp_cfg(), *pd()->attr(), *pd()->dst_md(),
+    init_extra_tensors(cfg_.zp_cfg(), *pd()->attr(), nullptr, *pd()->dst_md(),
             /* ic = */ 1, /* oc = */ 1, tensor_cfg);
 
     kernel_info_ = kernel_info_t();

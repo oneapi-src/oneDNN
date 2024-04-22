@@ -26,6 +26,8 @@
 
 #include "cpu/platform.hpp"
 
+#include "cpu/primitive_attr_postops.hpp"
+
 #include "cpu/cpu_layer_normalization_pd.hpp"
 
 namespace dnnl {
@@ -62,17 +64,35 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
                     VERBOSE_UNSUPPORTED_FEATURE,
                     "unsupported scale or shift data type");
             VDISPATCH_LNORM(
-                    attr()->has_default_values(skip_mask_t::scales_runtime),
+                    attr()->has_default_values(skip_mask_t::scales_runtime
+                            | skip_mask_t::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_LNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_LNORM(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_LNORM(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
+            bool ok = attr_.set_default_formats(dst_md(0)) == status::success;
+            VDISPATCH_LNORM(ok, VERBOSE_UNSUPPORTED_POSTOP);
+
             return status::success;
+        }
+
+        bool post_ops_ok() const {
+            return ref_post_ops_t::primitive_kind_ok(attr()->post_ops_);
         }
     };
 
     ref_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
+        CHECK(ref_post_ops->init(pd()->dst_md()));
+
+        return status::success;
+    };
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -81,6 +101,8 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
 struct ref_layer_normalization_bwd_t : public primitive_t {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 
 #include "cpu/cpu_primitive.hpp"
 
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_uni_layer_normalization.hpp"
@@ -38,6 +39,12 @@ using namespace memory_tracking::names;
 using namespace data_type;
 using namespace Xbyak;
 
+static cpu_isa_t get_supported_isa() {
+    if (mayiuse(avx512_core)) return avx512_core;
+    if (mayiuse(avx2)) return avx2;
+    return isa_undef;
+}
+
 cpu_isa_t get_io_isa(cpu_isa_t isa, bool has_f16, bool has_bf16) {
     // re-using avx512_core instantiation for xf16
     // re-using avx2 instantiation for xf16
@@ -50,6 +57,24 @@ cpu_isa_t get_io_isa(cpu_isa_t isa, bool has_f16, bool has_bf16) {
         return isa;
 }
 
+static bcast_set_t get_supported_bcast_strategies(int ndims) {
+    assert(ndims > 1 && ndims <= 5);
+    bcast_set_t set {broadcasting_strategy_t::scalar};
+    switch (ndims) {
+        case 2: set.insert(broadcasting_strategy_t::per_oc); break;
+        case 3:
+        // XXX: Currently the binary injector assumes nchw order of logical dimensions
+        // while lnorm has tnc, so c is the last dimension. To support per_oc
+        // for lnorm currently per_w is passed as an expected policy to the injector.
+        // TODO: Update the injector logic to support per_oc for the primitives
+        // that have dimension order different from nchw.
+        case 4:
+        case 5: set.insert(broadcasting_strategy_t::per_w); break;
+        default: assert(!"Unsupported ndims");
+    }
+    return set;
+}
+
 template <cpu_isa_t isa>
 struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
                                          public jit_generator {
@@ -58,6 +83,7 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
     void operator()(const void *src, void *dst, const float *scale,
             const float *shift, float *mean, float *var,
             const float *src_scales, const float *dst_scales,
+            const void *post_ops_binary_rhs_arg_vec,
             const size_t block_size) const override {
         ker_args_t args;
         args.src = src;
@@ -71,6 +97,7 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
         args.block_size
                 = block_size * C_ * types::data_type_size(src_d_.data_type());
         args.eps = eps_;
+        args.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
         jit_generator::operator()(&args);
     }
 
@@ -93,6 +120,15 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
         , has_ne_convert_src_xf16_(isa == avx2 && mayiuse(avx2_vnni_2)
                   && utils::one_of(src_d_.data_type(), data_type::f16,
                           data_type::bf16)) {
+
+        const auto &post_ops = pd_->attr()->post_ops_;
+        with_postops_ = post_ops.len() != 0;
+        with_binary_ = post_ops.find(primitive_kind::binary) != -1;
+        with_eltwise_ = post_ops.find(primitive_kind::eltwise) != -1;
+
+        const auto &attr_scales = pd_->attr()->scales_;
+        with_src_scales_ = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
+        with_dst_scales_ = !attr_scales.get(DNNL_ARG_DST).has_default_values();
 
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
@@ -128,6 +164,7 @@ protected:
         const float *var;
         const float *src_scales;
         const float *dst_scales;
+        const void *post_ops_binary_rhs_arg_vec;
         size_t block_size;
         float eps;
     };
@@ -144,6 +181,14 @@ protected:
     const bool calculate_stats_;
     const float eps_;
     const bool has_ne_convert_src_xf16_;
+    bool with_postops_ = false;
+    bool with_binary_ = false;
+    bool with_eltwise_ = false;
+    bool with_src_scales_ = false;
+    bool with_dst_scales_ = false;
+
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
 
     const Reg64 reg_param = abi_param1;
     const Reg64 reg_src = rdx;
@@ -162,8 +207,7 @@ protected:
     const Vmm vmm_zero = Vmm(4); // In unroll range, safe for dst compute.
     const Vmm vmm_saturation_ubound
             = Vmm(5); // In unroll range, safe for dst compute.
-    const Vmm vmm_combined_scales
-            = Vmm(6); // In unroll range, safe for dst compute.
+    const Vmm vmm_qscale = Vmm(6); // In unroll range, safe for dst compute.
     const Vmm vmm_scale = Vmm(7); // In unroll range, safe for dst compute.
     const Vmm vmm_shift = Vmm(8); // In unroll range, safe for dst compute.
     const Vmm vmm_ones = Vmm(9);
@@ -182,6 +226,11 @@ protected:
     const int bf16_emu_zmm_3_idx = 30;
     const int bf16_emu_zmm_4_idx = 31;
     const int tail_opmask_idx = 1;
+    Opmask tail_opmask = Opmask(tail_opmask_idx);
+
+    const int elt_inj_opmask_idx = 2;
+    const Xbyak::Reg64 reg_po_injector_helper_ = r14;
+    Opmask elt_inj_opmask = Opmask(elt_inj_opmask_idx);
 
     Address src_ptr(size_t offt = 0) {
         return vmmword[reg_src + offt * src_d_.data_type_size()];
@@ -398,7 +447,29 @@ protected:
                 if (use_scale_) uni_vmulps(vmm_dst, vmm_dst, vmm_scale);
                 if (use_shift_) uni_vaddps(vmm_dst, vmm_dst, vmm_shift);
             }
-            uni_vmulps(vmm_dst, vmm_dst, vmm_combined_scales);
+            if (with_src_scales_) {
+                uni_vmovups(vmm_qscale, ptr[reg_src_scales]);
+                uni_vmulps(vmm_dst, vmm_dst, vmm_qscale);
+            }
+            if (with_postops_) {
+                binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+                if (with_binary_) {
+                    rhs_arg_params.vmm_idx_to_out_addr.emplace(
+                            vmm_dst.getIdx(), dst_ptr());
+                    rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                            vmm_dst.getIdx(),
+                            (offt_elems + j * simd_w_)
+                                    * dst_d_.data_type_size());
+                    if (tail)
+                        rhs_arg_params.vmm_tail_idx_.emplace(vmm_dst.getIdx());
+                }
+                postops_injector_->compute_vector(
+                        vmm_dst.getIdx(), rhs_arg_params);
+            }
+            if (with_dst_scales_) {
+                uni_vmovups(vmm_qscale, ptr[reg_dst_scales]);
+                uni_vmulps(vmm_dst, vmm_dst, vmm_qscale);
+            }
             io_[dst_d_.data_type()]->store(
                     vmm_dst, dst_ptr(offt_elems + j * simd_w_), tail);
         }
@@ -420,7 +491,26 @@ protected:
             if (use_scale_) uni_vmulps(vmm_dst, vmm_dst, vmm_scale);
             if (use_shift_) uni_vaddps(vmm_dst, vmm_dst, vmm_shift);
         }
-        uni_vmulps(vmm_dst, vmm_dst, vmm_combined_scales);
+        if (with_src_scales_) {
+            uni_vmovups(vmm_qscale, ptr[reg_src_scales]);
+            uni_vmulps(vmm_dst, vmm_dst, vmm_qscale);
+        }
+        if (with_postops_) {
+            binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+            if (with_binary_) {
+                rhs_arg_params.vmm_idx_to_out_addr.emplace(
+                        vmm_dst.getIdx(), dst_ptr());
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        vmm_dst.getIdx(), offt_elems * dst_d_.data_type_size());
+                if (tail)
+                    rhs_arg_params.vmm_tail_idx_.emplace(vmm_dst.getIdx());
+            }
+            postops_injector_->compute_vector(vmm_dst.getIdx(), rhs_arg_params);
+        }
+        if (with_dst_scales_) {
+            uni_vmovups(vmm_qscale, ptr[reg_dst_scales]);
+            uni_vmulps(vmm_dst, vmm_dst, vmm_qscale);
+        }
         io_[dst_d_.data_type()]->store(vmm_dst, dst_ptr(offt_elems), tail);
     }
 
@@ -448,12 +538,36 @@ protected:
                 = C_ * types::data_type_size(dst_d_.data_type());
         static const size_t float_size = types::data_type_size(f32);
 
+#define PARAM_OFF(x) offsetof(ker_args_t, x)
+        if (with_postops_) {
+            static constexpr bool preserve_gpr = true;
+            static constexpr bool preserve_vmm = true;
+            static constexpr bool use_exact_tail_scalar_bcast = true;
+            static const std::size_t tmp_vmm_injector = this->vmm_tmp.getIdx();
+
+            const eltwise_injector::static_params_t esp(true /*save_state*/,
+                    reg_po_injector_helper_, elt_inj_opmask, true /*is_fwd*/,
+                    false /*use_dst*/);
+
+            const binary_injector::rhs_arg_static_params_t rhs_sp {
+                    tmp_vmm_injector, this->r14, this->r15, this->r13,
+                    preserve_gpr, preserve_vmm,
+                    PARAM_OFF(post_ops_binary_rhs_arg_vec), PARAM_OFF(dst),
+                    dst_d_, static_cast<size_t>(axis_simd_tail_), tail_opmask,
+                    use_exact_tail_scalar_bcast};
+
+            const binary_injector::static_params_t bsp {reg_param,
+                    get_supported_bcast_strategies(dst_d_.ndims()), rhs_sp};
+
+            postops_injector_ = utils::make_unique<
+                    injector::jit_uni_postops_injector_t<isa>>(
+                    this, pd_->attr()->post_ops_, bsp, esp);
+        }
         preamble();
 
         io_.init_bf16();
         if (axis_simd_tail_) io_.prepare_tail_mask();
 
-#define PARAM_OFF(x) offsetof(ker_args_t, x)
         mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
         mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
         mov(reg_scale, ptr[reg_param + PARAM_OFF(scale)]);
@@ -501,12 +615,6 @@ protected:
             uni_vsqrtps(vmm_inv_sqrtvar, vmm_inv_sqrtvar);
             uni_vdivps(vmm_inv_sqrtvar, vmm_ones, vmm_inv_sqrtvar, vmm_tmp);
 
-            // precompute and broadcast scales (in case of runtime)
-            uni_vmovss(xmm_tmp, dword[reg_src_scales]);
-            uni_vbroadcastss(vmm_combined_scales, xmm_tmp);
-            uni_vmovss(xmm_tmp, dword[reg_dst_scales]);
-            uni_vbroadcastss(vmm_tmp, xmm_tmp);
-            uni_vmulps(vmm_combined_scales, vmm_combined_scales, vmm_tmp);
             io_.init_saturate_f32({dst_d_.data_type()});
 
             // calculate dst
@@ -521,6 +629,9 @@ protected:
         L(end);
 
         postamble();
+
+        if (with_eltwise_ && postops_injector_)
+            postops_injector_->prepare_table(/* generate = */ true);
     }
 };
 
@@ -1077,6 +1188,68 @@ diff_data_kernel_t *diff_data_kernel_t::create(
         return nullptr;
     }
 }
+status_t jit_uni_layer_normalization_fwd_t::pd_t::init(engine_t *engine) {
+    using namespace data_type;
+    using skip_mask_t = primitive_attr_t::skip_mask_t;
+    const memory_desc_wrapper src_d(src_md());
+
+    VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_LNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+    VDISPATCH_LNORM(utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(IMPLICATION(utils::one_of(bf16, src_md()->data_type,
+                                        dst_md()->data_type),
+                            mayiuse(avx512_core) || mayiuse(avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_LNORM(IMPLICATION(utils::one_of(f16, src_md()->data_type,
+                                        dst_md()->data_type),
+                            mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_LNORM(stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_LNORM(check_scale_shift_data_type(), VERBOSE_UNSUPPORTED_FEATURE,
+            "unsupported scale or shift data type");
+    VDISPATCH_LNORM(
+            //            attr()->has_default_values(skip_mask_t::scales_runtime),
+            attr()->has_default_values(
+                    skip_mask_t::scales_runtime | skip_mask_t::post_ops),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_LNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VDISPATCH_LNORM(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_LNORM(src_d.is_blocking_desc(), VERBOSE_BLOCKING_FAIL,
+            "blocking descriptor fail");
+    // plain format, last logical dim is last physical
+    VDISPATCH_LNORM(src_d.blocking_desc().strides[ndims() - 1] == 1,
+            VERBOSE_BLOCKING_FAIL, "bad stride value");
+
+    auto post_ops_ok = [&]() -> bool {
+        const std::vector<injector::post_op_type> accepted_post_ops
+                = {injector::eltwise, injector::binary, injector::sum};
+        const memory_desc_wrapper dst_d(dst_md());
+        injector::post_ops_ok_args_t post_ops_args(get_supported_isa(),
+                accepted_post_ops, attr()->post_ops_, &dst_d, true, true, true,
+                true, get_supported_bcast_strategies(dst_d.ndims()));
+
+        return injector::post_ops_ok(post_ops_args);
+    };
+    VDISPATCH_LNORM(attr_.set_default_formats(dst_md(0)) == status::success,
+            VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_LNORM(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
+
+    VDISPATCH_LNORM(fill_compatible_stats_md(*src_md(), reordered_stat_md_)
+                    == status::success,
+            VERBOSE_INCONSISTENT_MDS, "src", "stat");
+
+    if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
+        CHECK(reorder_primitive_desc_create(reorder_pd_, engine,
+                stats_are_src() ? stat_md() : &reordered_stat_md_,
+                stats_are_src() ? &reordered_stat_md_ : stat_md()));
+    }
+
+    init_scratchpad();
+    return status::success;
+}
 
 status_t jit_uni_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
@@ -1104,6 +1277,10 @@ status_t jit_uni_layer_normalization_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(
+                    pd()->attr()->post_ops_, ctx);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
@@ -1120,7 +1297,8 @@ status_t jit_uni_layer_normalization_fwd_t::execute_forward(
                 + N_start * C_padded * dst_d.data_type_size();
         const int block_size = N_end - N_start;
         (*stat_and_data_kernel_)(src_ptr, dst_ptr, scale, shift, &mean[N_start],
-                &variance[N_start], src_scales, dst_scales, block_size);
+                &variance[N_start], src_scales, dst_scales,
+                post_ops_binary_rhs_arg_vec.data(), block_size);
     });
     return status::success;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,12 +35,14 @@ namespace jit {
 
 // Specific to int8
 struct zero_points_config_t {
+public:
     bool do_src_compensation = false;
     bool do_dst_compensation = false;
     bool is_runtime_src_zero_points = false;
     bool is_runtime_dst_zero_points = false;
     bool is_common_src_zero_point = false;
     bool is_common_dst_zero_point = false;
+    bool needs_src_precalc = false;
     int common_src_zero_point = 0;
     int common_dst_zero_point = 0;
 
@@ -57,6 +59,8 @@ struct zero_points_config_t {
                   pd && pd->attr()->zero_points_.common(DNNL_ARG_SRC))
         , is_common_dst_zero_point(
                   pd && pd->attr()->zero_points_.common(DNNL_ARG_DST))
+        , needs_src_precalc(
+                  pd && do_src_compensation && is_src_precalc_compatible(pd))
         , common_src_zero_point(0)
         , common_dst_zero_point(0) {}
 
@@ -68,6 +72,17 @@ struct zero_points_config_t {
         if (is_common_src_zero_point && common_src_zero_point != 0) return true;
         if (is_common_dst_zero_point && common_dst_zero_point != 0) return true;
         return false;
+    }
+
+private:
+    bool is_src_precalc_compatible(const primitive_desc_t *pd) {
+        if (pd->kind() != primitive_kind_t::dnnl_convolution) return false;
+        // In general, precomputed ZPs are slower than the regular ZPs up to a
+        // point where a nested convolution that does the precalc takes less
+        // time than the in-situ compensations; that usually happens around
+        // MB = 64, but the exact number is just a heuristic.
+        // TODO: a finer-grained estimate
+        return pd->invariant_src_md()->dims[0] >= 64;
     }
 };
 
@@ -166,6 +181,10 @@ public:
 
     virtual view_t create_view(const memory_desc_t &md) const {
         return cp_view().retype(md.data_type);
+    }
+
+    virtual view_t create_src_zp_view(uint32_t mask) const {
+        return create_view(type_t::s32(), mask);
     }
 
     virtual view_t try_create_bias_view(uint32_t mask) const { return {}; }

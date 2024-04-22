@@ -31,30 +31,20 @@ namespace amd {
 hip_sycl_scoped_context_handler_t::hip_sycl_scoped_context_handler_t(
         const sycl_hip_engine_t &engine)
     : need_to_recover_(false) {
-    try {
-        HIP_EXECUTE_FUNC(hipCtxGetCurrent, &original_);
-        auto desired = engine.get_underlying_context();
-        currentDevice_ = engine.get_underlying_device();
+    HIP_EXECUTE_FUNC(hipCtxGetCurrent, &original_);
+    auto desired = engine.get_underlying_context();
+    currentDevice_ = engine.get_underlying_device();
 
-        if (original_ != desired) {
-
-            HIP_EXECUTE_FUNC(hipCtxSetCurrent, desired);
-            need_to_recover_ = original_ != nullptr;
-        }
-    } catch (const std::runtime_error &e) {
-        error::wrap_c_api(status::runtime_error, e.what());
+    if (original_ != desired) {
+        HIP_EXECUTE_FUNC(hipCtxSetCurrent, desired);
+        need_to_recover_ = original_ != nullptr;
     }
 }
 
 hip_sycl_scoped_context_handler_t::
         ~hip_sycl_scoped_context_handler_t() noexcept(false) {
-
-    try {
-        HIP_EXECUTE_FUNC(hipDevicePrimaryCtxRelease, currentDevice_);
-        if (need_to_recover_) { HIP_EXECUTE_FUNC(hipCtxSetCurrent, original_); }
-    } catch (const std::runtime_error &e) {
-        error::wrap_c_api(status::runtime_error, e.what());
-    }
+    HIP_EXECUTE_FUNC(hipDevicePrimaryCtxRelease, currentDevice_);
+    if (need_to_recover_) { HIP_EXECUTE_FUNC(hipCtxSetCurrent, original_); }
 }
 
 #pragma clang diagnostic pop

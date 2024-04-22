@@ -436,7 +436,7 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
 }
 
 bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
-        const std::string &option_name /* = "attr-post-ops"*/) {
+        const std::string &option_name = "attr-post-ops") {
     static const std::string help
             = "POST-OPS\n    Specifies post-ops attribute. `POST-OPS` syntax "
               "is one of those:\n    * SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]\n  "
@@ -450,7 +450,7 @@ bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
 }
 
 bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
-        const char *str, const std::string &option_name /* = "attr-scales"*/) {
+        const char *str, const std::string &option_name = "attr-scales") {
     static const std::string help
             = "ARG:POLICY[:SCALE][+...]\n    Specifies input scales "
               "attribute.\n    More details at "
@@ -460,8 +460,7 @@ bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
 }
 
 bool parse_attr_zero_points(std::vector<attr_t::zero_points_t> &zp,
-        const char *str,
-        const std::string &option_name /* = "attr-zero-points"*/) {
+        const char *str, const std::string &option_name = "attr-zero-points") {
     static const std::string help
             = "ARG:POLICY[:ZEROPOINT][+...]\n    Specifies zero-points "
               "attribute.\n    More details at "
@@ -473,8 +472,7 @@ bool parse_attr_zero_points(std::vector<attr_t::zero_points_t> &zp,
 bool parse_attr_scratchpad_mode(
         std::vector<dnnl_scratchpad_mode_t> &scratchpad_mode,
         const std::vector<dnnl_scratchpad_mode_t> &def_scratchpad_mode,
-        const char *str,
-        const std::string &option_name /* = "attr-scratchpad"*/) {
+        const char *str, const std::string &option_name = "attr-scratchpad") {
     static const std::string help
             = "MODE    (Default: `library`)\n    Specifies scratchpad "
               "attribute. `MODE` values can be `library` or `user`.\n    More "
@@ -486,7 +484,7 @@ bool parse_attr_scratchpad_mode(
 
 bool parse_attr_fpmath_mode(std::vector<attr_t::fpmath_mode_t> &fpmath_mode,
         const std::vector<attr_t::fpmath_mode_t> &def_fpmath_mode,
-        const char *str, const std::string &option_name /* = "attr-fpmath"*/) {
+        const char *str, const std::string &option_name = "attr-fpmath") {
     static const std::string help
             = "MODE[:APPLY_TO_INT]    (Default: `strict[:false]`)\n    "
               "Specifies "
@@ -498,8 +496,7 @@ bool parse_attr_fpmath_mode(std::vector<attr_t::fpmath_mode_t> &fpmath_mode,
 
 bool parse_attr_acc_mode(std::vector<dnnl_accumulation_mode_t> &acc_mode,
         const std::vector<dnnl_accumulation_mode_t> &def_acc_mode,
-        const char *str,
-        const std::string &option_name /* = "attr-acc-mode"*/) {
+        const char *str, const std::string &option_name = "attr-acc-mode") {
     static const std::string help
             = "MODE    (Default: `strict`)\n    Specifies accumulation mode "
               "attribute. `MODE` values can be `strict`, `relaxed`, `any`,"
@@ -512,13 +509,27 @@ bool parse_attr_deterministic(
         std::vector<attr_t::deterministic_t> &deterministic,
         const std::vector<attr_t::deterministic_t> &def_deterministic,
         const char *str,
-        const std::string &option_name /* = "attr-deterministic"*/) {
+        const std::string &option_name = "attr-deterministic") {
     static const std::string help
             = "MODE    (Default: `false`)\n    Specifies deterministic mode "
               "attribute. `MODE` values can be `true`, or `false`.\n";
     return parse_vector_option(deterministic, def_deterministic,
             parser_utils::parse_attr_deterministic_func, str, option_name,
             help);
+}
+
+bool parse_attributes(
+        base_settings_t &s, const base_settings_t &def, const char *str) {
+    const bool parsed_attrs = parse_attr_scales(s.scales, str)
+            || parse_attr_zero_points(s.zero_points, str)
+            || parse_attr_post_ops(s.post_ops, str)
+            || parse_attr_scratchpad_mode(
+                    s.scratchpad_mode, def.scratchpad_mode, str)
+            || parse_attr_fpmath_mode(s.fpmath_mode, def.fpmath_mode, str)
+            || parse_attr_acc_mode(s.acc_mode, def.acc_mode, str)
+            || parse_attr_deterministic(
+                    s.deterministic, def.deterministic, str);
+    return parsed_attrs;
 }
 
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,

@@ -35,6 +35,7 @@ void flex_rewrite::rewrite(deserialized_graph &dgraph) {
     }
     infer_output_shape(dgraph, change_stride);
     quantized_graph_rewrite(dgraph);
+    graph_attrs_rewrite(dgraph);
 }
 
 void flex_rewrite::split_ncx(const std::string &data_format, dims_t &in,
@@ -982,6 +983,17 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
             }
             aop.attrs_["zps"].s64_vector_ = zps;
         }
+    }
+}
+
+void flex_rewrite::graph_attrs_rewrite(deserialized_graph &dgraph) {
+
+    // if the fpmath mode is specified by users through cml
+    if (fpmath_mode_ != "default") dgraph.set_fpmath_mode(fpmath_mode_);
+
+    for (auto &aop : dgraph.ops_) {
+        // save the graph-level config for ops
+        aop.fpmath_mode_ = dgraph.get_fpmath_mode();
     }
 }
 

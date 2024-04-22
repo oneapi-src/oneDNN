@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2017-2022 Intel Corporation
 * Copyright 2018 YANDEX LLC
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.

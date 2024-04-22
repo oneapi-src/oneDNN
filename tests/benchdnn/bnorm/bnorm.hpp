@@ -98,10 +98,8 @@ struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
         : prb_t(s.desc, s.mb[0], s.dir[0], s.dt[0], s.tag[0], s.strides[0],
-                s.flags[0], s.inplace[0],
-                settings_t::get_attr(s.scales[0], s.zero_points[0],
-                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0]),
-                s.ctx_init[0], s.ctx_exe[0], s.check_alg, s.debug_check_ws) {
+                s.flags[0], s.inplace[0], s.attributes.front(), s.ctx_init[0],
+                s.ctx_exe[0], s.check_alg, s.debug_check_ws) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 

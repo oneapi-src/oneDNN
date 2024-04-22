@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ public:
     IR_KERNEL_FORWARD(hw)
 
     conv_kernel_t(const conv_config_t &cfg, const kernel_info_t &kernel_info,
-            const compute::nd_range_t &nd_range,
+            const compute::nd_range_t &nd_range, const layout_t &zp_dst,
             grf_mode_t grf_mode = grf_mode_t::any);
 
 private:
@@ -53,7 +53,7 @@ private:
 template <ngen::HW hw>
 conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
         const kernel_info_t &kernel_info, const compute::nd_range_t &nd_range,
-        grf_mode_t grf_mode)
+        const layout_t &zp_dst, grf_mode_t grf_mode)
     : ir_kernel_t<hw>("gen_conv", cfg.exec_cfg(), kernel_info, nd_range,
             utils::one_of(cfg.fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw),
             grf_mode)
@@ -67,7 +67,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 
     ir_utils::debug_profiler_t profile("Conv Kernel Construction Profile");
     // Build IR for the kernel.
-    conv_ir_builder_t builder(cfg, kernel_info);
+    conv_ir_builder_t builder(cfg, kernel_info, zp_dst);
     stmt_t body = builder.stmt();
     profile.stamp("Kernel Builder");
 

@@ -14,11 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstdint>
 #include <thread>
 #include <type_traits>
 
 #include "common/type_helpers.hpp"
 #include "gpu/compute/device_info.hpp"
+#include "gpu/jit/utils/ngen_type_bridge.hpp"
+#include "gpu/utils.hpp"
 
 #ifdef DNNL_WITH_SYCL
 #include "sycl/sycl_engine_base.hpp"
@@ -122,6 +125,11 @@ int device_info_t::max_subgroup_size(gpu_arch_t gpu_arch) {
         case gpu::compute::gpu_arch_t::unknown: return 16;
     }
     return 16;
+}
+
+int device_info_t::grf_size(gpu_arch_t gpu_arch) {
+    ngen::HW hw = jit::convert_dnnl_arch_to_ngen(gpu_arch);
+    return ngen::GRF::bytes(hw);
 }
 
 int device_info_t::min_subgroup_size() const {

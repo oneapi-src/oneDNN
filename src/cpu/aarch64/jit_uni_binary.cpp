@@ -492,7 +492,7 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
          * check blocking_desc consistency, currently when among postops exists
          * per_oc broadcast, binary kernel doesn't support situations when blocked
          * format size is smaller then vlen. example: sse41 vlen size is 4 and format
-         * is nChw8c - not supported, avx2 vlen size is 8 and format is
+         * is nChw8c - not supported, sve2 vlen size is 8 and format is
          * nChw8c - supported.
          */
         const auto blocking_desc = src0_d.blocking_desc();

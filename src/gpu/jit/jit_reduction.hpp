@@ -29,7 +29,6 @@
 #include "gpu/compute/utils.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reduction_pd.hpp"
-#include "gpu/jit/ir/tensor.hpp"
 #include "gpu/jit/jit_reduction_generator.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -82,6 +81,7 @@ struct jit_reduction_t : public gpu_primitive_t {
         status_t init_conf(engine_t *engine);
         dim_t reduction_size = 0;
         dim_t reduction_stride = 0;
+        int nregs = 1;
         compute::nd_range_t nd_range;
     };
 
@@ -91,13 +91,10 @@ struct jit_reduction_t : public gpu_primitive_t {
         auto *gpu_engine = utils::downcast<ocl::ocl_gpu_engine_t *>(engine);
         if (!gpu_engine) return status::runtime_error;
 
-        layout_t src(pd()->src_md());
-        layout_t dst(pd()->dst_md());
-
         const compute::device_info_t &device_info = *gpu_engine->device_info();
         kernel_ = make_kernel<jit_reduction_generator_t>(this, engine,
                 device_info, pd()->desc()->alg_kind, pd()->reduction_stride,
-                pd()->reduction_size);
+                pd()->reduction_size, pd()->nregs);
         if (!kernel_) return status::runtime_error;
 
         return status::success;

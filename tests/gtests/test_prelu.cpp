@@ -48,6 +48,7 @@ protected:
         p = ::testing::TestWithParam<prelu_test_params_t>::GetParam();
 
         SKIP_IF_CUDA(true, "Prelu primitive not supported by CUDA");
+        SKIP_IF_HIP(true, "Prelu primitive not supported by HIP");
 
         SKIP_IF(unsupported_data_type(p.src_dt, p.wei_dt, p.dst_dt),
                 "Engine does not support this data type.");

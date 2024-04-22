@@ -1218,6 +1218,7 @@ private:
 };
 
 struct zp_plan_impl_t : public base_plan_t {
+    bool needs_precalc = false;
     send_plan_t load;
     zp_comp_init_plan_t comp_init;
     zp_mask_init_plan_t mask_init;
@@ -1269,6 +1270,9 @@ void zp_plan_t::init(const conv_config_t &cfg,
         const gemm_schedule_t &gemm_schedule, const view_t &zp_view,
         const layout_t &src_layout, const layout_t &wei_layout,
         const layout_t &dst_layout) {
+    impl->needs_precalc = cfg.zp_cfg().needs_src_precalc;
+    if (impl->needs_precalc) return;
+
     auto &exec_cfg = cfg.exec_cfg();
     auto load_params = get_send_params(
             exec_cfg, send_op_t::load, send_address_t::a64, zp_view);
@@ -1283,6 +1287,10 @@ void zp_plan_t::init(const conv_config_t &cfg,
 
 zp_plan_t::operator bool() const {
     return (bool)*impl;
+}
+
+bool zp_plan_t::needs_precalc() const {
+    return impl->needs_precalc;
 }
 
 int zp_plan_t::load_reg_buf_size() const {

@@ -47,6 +47,8 @@ struct settings_t : public base_settings_t {
     std::string json_file;
     std::vector<std::map<size_t, std::string>> in_shapes_vec {{{0, "default"}}};
     std::vector<std::map<size_t, std::string>> op_attrs_vec {{{0, "default"}}};
+    // `default` means not specified by user with command line knob.
+    std::vector<std::string> fpmath_mode_vec {"default"};
 
     const char *perf_template_csv
             = "perf,%engine%,%DESC%,"
@@ -59,26 +61,11 @@ struct settings_t : public base_settings_t {
 
 // TODO evaluate prb_t struct
 struct prb_t {
-    prb_t(const deserialized_graph &dg,
-            const attr_t::fpmath_mode_t &fpmath_mode)
-        : dg(dg) {
-        switch (fpmath_mode.mode) {
-            case dnnl_fpmath_mode_strict:
-                this->fpmath_mode = dnnl::fpmath_mode::strict;
-                break;
-            case dnnl_fpmath_mode_bf16:
-                this->fpmath_mode = dnnl::fpmath_mode::bf16;
-                break;
-            case dnnl_fpmath_mode_f16:
-                this->fpmath_mode = dnnl::fpmath_mode::f16;
-                break;
-            case dnnl_fpmath_mode_any:
-                this->fpmath_mode = dnnl::fpmath_mode::any;
-                break;
-            case dnnl_fpmath_mode_tf32:
-                this->fpmath_mode = dnnl::fpmath_mode::tf32;
-                break;
-        }
+    prb_t(const deserialized_graph &dg) : dg(dg) {
+
+        const std::string &fpmath_mode = dg.get_fpmath_mode();
+        this->fpmath_mode = static_cast<dnnl::fpmath_mode>(
+                str2fpmath_mode(fpmath_mode.c_str()));
     }
 
     deserialized_graph dg;

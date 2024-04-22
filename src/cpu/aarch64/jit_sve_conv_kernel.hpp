@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,8 +30,8 @@
 
 #define LDRWMAX 252
 #define ADDMAX 4095
-/* Get vector offsets, ofs / VL(VL: 512bits = 64Bytes) */
-#define VL_OFS(ofs) ((ofs) >> 6)
+/* Get vector offsets, ofs / VL(eg VL: 512bits = 64Bytes ) */
+#define VL_OFS(ofs, isa) (ofs >> cpu_isa_traits<isa>::vlen_shift)
 
 using namespace Xbyak_aarch64;
 
@@ -40,20 +40,21 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-struct jit_sve_512_conv_fwd_kernel : public jit_generator {
+template <cpu_isa_t isa = isa_undef>
+struct jit_sve_conv_fwd_kernel : public jit_generator {
 
-    jit_sve_512_conv_fwd_kernel(
+    jit_sve_conv_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
 
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sve_512>(
-                    this, jcp.eltwise);
+            eltwise_injector_
+                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
     }
 
-    ~jit_sve_512_conv_fwd_kernel() { delete eltwise_injector_; }
+    ~jit_sve_conv_fwd_kernel() { delete eltwise_injector_; }
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_512_conv_fwd_kernel)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_conv_fwd_kernel)
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
@@ -150,10 +151,10 @@ private:
                 default: assert(!"invalid level"); break;
             }
 
-            if ((VL_OFS(ofs) <= PRFWMAX)
-                    && (VL_OFS(ofs) >= (-1 * PRFWMAX - 1))) {
+            if ((VL_OFS(ofs, isa) < PRFWMAX)
+                    && (VL_OFS(ofs, isa) >= (-1 * PRFWMAX))) {
                 prfw(op_sve, P_ALL_ONE,
-                        ptr(in, static_cast<int32_t>(VL_OFS(ofs))));
+                        ptr(in, static_cast<int32_t>(VL_OFS(ofs, isa))));
             } else {
                 add_imm(reg_tmp_addr, in, ofs, reg_tmp_imm);
                 prfw(op_sve, P_ALL_ONE, ptr(reg_tmp_addr));
@@ -161,7 +162,7 @@ private:
         }
     }
 
-    jit_uni_eltwise_injector_f32<sve_512> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
@@ -222,12 +223,12 @@ private:
     }
 };
 
-struct jit_sve_512_conv_bwd_data_kernel_f32 : public jit_generator {
+template <cpu_isa_t isa = isa_undef>
+struct jit_sve_conv_bwd_data_kernel_f32 : public jit_generator {
 
-    jit_sve_512_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp) {}
+    jit_sve_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp) : jcp(ajcp) {}
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_512_conv_bwd_data_kernel_f32)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_conv_bwd_data_kernel_f32)
     jit_conv_conf_t jcp;
     void (*jit_ker_)(jit_conv_call_s *);
 
@@ -337,15 +338,15 @@ private:
             }
 
             long long int tmp_ofs = ofs - prev_ofs;
-            if ((VL_OFS(ofs) <= PRFWMAX)
-                    && (VL_OFS(ofs) >= (-1 * PRFWMAX - 1))) {
+            if ((VL_OFS(ofs, isa) <= PRFWMAX)
+                    && (VL_OFS(ofs, isa) >= (-1 * PRFWMAX - 1))) {
                 prfw(op_sve, P_ALL_ONE,
-                        ptr(in, static_cast<int32_t>(VL_OFS(ofs))));
-            } else if ((VL_OFS(tmp_ofs) <= PRFWMAX)
-                    && (VL_OFS(tmp_ofs) >= (-1 * PRFWMAX - 1))) {
+                        ptr(in, static_cast<int32_t>(VL_OFS(ofs, isa))));
+            } else if ((VL_OFS(tmp_ofs, isa) <= PRFWMAX)
+                    && (VL_OFS(tmp_ofs, isa) >= (-1 * PRFWMAX - 1))) {
                 prfw(op_sve, P_ALL_ONE,
                         ptr(reg_tmp_addr,
-                                static_cast<int32_t>(VL_OFS(tmp_ofs))));
+                                static_cast<int32_t>(VL_OFS(tmp_ofs, isa))));
             } else {
                 add_imm(reg_tmp_addr, in, ofs, reg_tmp_imm);
                 prfw(op_sve, P_ALL_ONE, ptr(reg_tmp_addr));
@@ -416,9 +417,10 @@ private:
     }
 };
 
-struct jit_sve_512_conv_bwd_weights_kernel_f32 : public jit_generator {
+template <cpu_isa_t isa = isa_undef>
+struct jit_sve_conv_bwd_weights_kernel_f32 : public jit_generator {
 
-    jit_sve_512_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
+    jit_sve_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
         : jcp(ajcp) {}
 
     void generate() override {
@@ -429,7 +431,7 @@ struct jit_sve_512_conv_bwd_weights_kernel_f32 : public jit_generator {
         }
     }
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_512_conv_bwd_weights_kernel_f32)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_conv_bwd_weights_kernel_f32)
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_md,
@@ -529,10 +531,10 @@ private:
                 default: assert(!"invalid prfop"); break;
             }
 
-            if ((VL_OFS(ofs) <= PRFWMAX)
-                    && (VL_OFS(ofs) >= (-1 * PRFWMAX - 1))) {
+            if ((VL_OFS(ofs, isa) <= PRFWMAX)
+                    && (VL_OFS(ofs, isa) >= (-1 * PRFWMAX - 1))) {
                 prfw(op_sve, P_ALL_ONE,
-                        ptr(in, static_cast<int32_t>(VL_OFS(ofs))));
+                        ptr(in, static_cast<int32_t>(VL_OFS(ofs, isa))));
             } else {
                 add_imm(reg_add_tmp, in, ofs, reg_tmp_imm);
                 prfw(op_sve, P_ALL_ONE, ptr(reg_add_tmp));

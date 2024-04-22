@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,11 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
+
+// placeholder for data type unimplemented in HW.
+constexpr ngen::DataType ngen_hf8() {
+    return static_cast<ngen::DataType>(0x0D);
+}
 
 template <typename T>
 T to_cpp(const ngen::Immediate &imm) {
@@ -71,6 +76,7 @@ inline ngen::DataType to_ngen(const type_t &type) {
     CASE(u8, ub);
 
     if (type == type_t::byte_ptr()) return ngen::DataType::uq;
+    if (type == type_kind_t::hf8) return ngen_hf8();
 
 #undef CASE
     ir_error_not_expected();

@@ -18,33 +18,32 @@
 #define GPU_JIT_REDUCTION_GENERATOR_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 #include "gpu/compute/device_info.hpp"
-#include "gpu/jit/codegen/register_allocator.hpp"
-#include "gpu/jit/codegen/register_scope.hpp"
-#include "gpu/jit/emulation.hpp"
+#include "gpu/jit/emulated_generator.hpp"
 #include "gpu/jit/jit_generator.hpp"
 #include "gpu/jit/jit_reduction_injector.hpp"
 #include "gpu/jit/ngen/ngen_core.hpp"
 #include "gpu/jit/ngen/ngen_interface.hpp"
+#include "gpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace jit {
 
-using namespace ngen;
-
 template <gpu_gen_t hw>
-class jit_reduction_generator_t : public jit_generator<hw> {
-    friend struct EmulationImplementation;
+class jit_reduction_generator_t : public emulated_generator_t<hw> {
+protected:
     NGEN_FORWARD_OPENCL(hw);
+    FORWARD_EMULATION(hw);
 
 public:
     jit_reduction_generator_t(const compute::device_info_t &device_info,
-            alg_kind_t alg, dim_t stride, dim_t iters)
-        : ra(hw, "ngen_jit_reduction")
-        , emu_strategy(hw, device_info.stepping_id()) {
-        constexpr auto GlobalPtr = ExternalArgumentType::GlobalPtr;
+            alg_kind_t alg, dim_t stride, dim_t iters, int nregs)
+        : emulated_generator_t<hw>(device_info, "ngen_jit_reduction") {
+        constexpr auto GlobalPtr = ngen::ExternalArgumentType::GlobalPtr;
 
         // Number of dst elements computed per thread
         const int grf_bytes = ngen::GRF::bytes(hw);
@@ -55,7 +54,7 @@ public:
         newArgument("dst_ptr", GlobalPtr);
         setDefaultAutoSWSB();
         requireSIMD(simd);
-        requireLocalID(1);
+
         requireLocalSize();
         externalName("ngen_jit_reduction");
         finalizeInterface();
@@ -63,141 +62,125 @@ public:
         prologue();
         setDefaultNoMask();
 
-        ra.claim(r0);
+        ra().claim(r0);
         ngen::Subregister tg_idx0 = r0.ud(1);
         ngen::Subregister tg_idx1 = r0.ud(6);
+        ngen::Subregister tid = r0.ud(2).b(0);
         ngen::Subregister tg_size0 = getLocalSize(0).uw();
-        ngen::Subregister tg_size1 = getLocalSize(1).uw();
-        ngen::GRF lid = getLocalID(0);
         ngen::Subregister src_ptr = getArgument("src_ptr").uq();
         ngen::Subregister dst_ptr = getArgument("dst_ptr").uq();
-        ra.claim(src_ptr);
-        ra.claim(dst_ptr);
-        ra.claim(tg_size0);
-        ra.claim(tg_size1);
-        ra.claim(lid);
+        ra().claim(src_ptr);
+        ra().claim(dst_ptr);
+        ra().claim(tg_size0);
 
-        // SRC offset: (tg_idx0 * simd + tg_idx1 * stride * iters + lid) * sizeof(float)
-        // DST offset: (tg_idx0 * simd + tg_idx1 * stride + lid) * sizeof(float)
-        // - Use the tg_idx0 * simd + lid terms in common for both
-        ngen::GRF off_generic = ra.alloc().ud();
-        emov(simd, off_generic, lid); // uw -> ud
-        emad(simd, off_generic, off_generic, tg_idx0, simd);
+        // SRC offset: tid*grf_bytes*nregs + tg_idx0*tg_size0*dt_size*nregs + tg_idx1*stride*iters*dt_size
+        // DST offset: tid*grf_bytes*nregs + tg_idx0*tg_size0*dt_size*nregs + tg_idx1*stride*dt_size
+        ngen::Subregister inner_off = ra().alloc_sub(ngen::DataType::ud);
+        ngen::Subregister outer_off = ra().alloc_sub(ngen::DataType::ud);
+        emul(1, inner_off, tg_idx0, tg_size0);
+        emul(1, inner_off, inner_off, dt_size * nregs);
+        emad(1, inner_off, inner_off, tid, nregs * grf_bytes);
 
-        ngen::GRF src_off = ra.alloc().ud();
-        ngen::GRF src_addr = ra.alloc_range(2)[0].uq();
-        emad(simd, src_off, off_generic, tg_idx1, stride * iters);
-        emul(simd, src_off, src_off, dt_size);
-        // Change src_off stride before adding to src_ptr
-        emov(simd, src_addr, 0);
-        emov(simd, src_addr.ud(0)(2), src_off);
-        eadd(simd, src_addr, src_addr, src_ptr);
+        emul(1, outer_off, tg_idx1, stride * dt_size);
 
-        ngen::GRF acc = ra.alloc().f();
+        ngen::GRF src_addr = ra().alloc().uq();
+        ngen::GRF dst_addr = ra().alloc().uq();
+        emad(1, src_addr, inner_off, outer_off, iters);
+        eadd(1, src_addr, src_addr, src_ptr);
+        eadd3(1, dst_addr, dst_ptr, inner_off, outer_off);
+        ra().release(inner_off);
+        ra().release(outer_off);
+
+        ngen::GRFRange acc = ra().alloc_range(nregs);
         jit_reduction_injector_f32<hw> reduce(
-                *this, alg, ra, device_info.stepping_id());
+                *this, alg, ra(), device_info.stepping_id());
         reduce.compute(src_addr, acc, stride, iters);
+        ra().release(src_addr);
 
-        finalize(alg, acc, iters);
+        finalize(simd, alg, acc, iters);
 
-        ngen::GRF dst_off = ra.alloc().ud();
-        ngen::GRF dst_addr = ra.alloc_range(2)[0].uq();
-        emad(simd, dst_off, off_generic, tg_idx1, stride);
-        emul(simd, dst_off, dst_off, dt_size);
-        // Change dst_off stride before adding dst_ptr
-        emov(simd, dst_addr, 0);
-        emov(simd, dst_addr.ud(0)(2), dst_off);
-        eadd(simd, dst_addr, dst_addr, dst_ptr);
-        store(simd, ngen::scattered_byte(4), A64, dst_addr, acc);
+        estore(dst_addr, acc);
+
+        ra().release(acc);
+        ra().release(dst_addr);
+
+        ra().release(r0);
+        ra().release(src_ptr);
+        ra().release(dst_ptr);
+        ra().release(tg_size0);
+#ifdef DNNL_DEV_MODE
+        gpu_assert(ra().get_alloced_regs() == 0)
+                << ra().get_alloced_regs()
+                << " registers are allocated that need to be released.";
+#endif
 
         epilogue();
     }
 
 protected:
-    void emov(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0) {
-        EmulationImplementation::emov(*this, mod, dst, src0, emu_strategy);
-    }
-    void emov(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::Immediate &src0) {
-        EmulationImplementation::emov(*this, mod, dst, src0, emu_strategy);
-    }
-    // TODO: Change EmulationState register allocation so it can be handled
-    // by the EmulationImplementation directly, instead of maintaining allocation
-    // for the entire lifetime of the EmulationState. This would eliminate overeager
-    // register allocation when using several injectors which each have emulation.
-    void emul(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::RegData &src1) {
-        EmulationState state;
-        state.temp[0] = ra.alloc();
-        state.temp[1] = ra.alloc();
-        EmulationImplementation::emul(
-                *this, mod, dst, src0, src1, emu_strategy, state);
-        ra.release(state.temp[0]);
-        ra.release(state.temp[1]);
-    }
-    void emul(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::Immediate &src1) {
-        EmulationState state;
-        state.temp[0] = ra.alloc();
-        state.temp[1] = ra.alloc();
-        EmulationImplementation::emul(
-                *this, mod, dst, src0, src1, emu_strategy, state);
-        ra.release(state.temp[0]);
-        ra.release(state.temp[1]);
-    }
-    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::RegData &src1) {
-        EmulationState state;
-        state.temp[0] = ra.alloc();
-        state.temp[1] = ra.alloc();
-        EmulationImplementation::eadd(
-                *this, mod, dst, src0, src1, emu_strategy, state);
-        ra.release(state.temp[0]);
-        ra.release(state.temp[1]);
-    }
-    void eadd(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::Immediate &src1) {
-        EmulationState state;
-        state.temp[0] = ra.alloc();
-        state.temp[1] = ra.alloc();
-        EmulationImplementation::eadd(
-                *this, mod, dst, src0, src1, emu_strategy, state);
-        ra.release(state.temp[0]);
-        ra.release(state.temp[1]);
-    }
-    void emad(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::RegData &src1,
-            const ngen::RegData &src2) {
-        // XXX: mad needs emulation on older hardware < XeLP
-        mad(mod, dst, src0, src1, src2);
-    }
-    void emad(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
-            const ngen::RegData &src0, const ngen::RegData &src1,
-            const ngen::Immediate &src2) {
-        // If src2 is too large (>word), move into a register first
-        if (ngen::getBytes(src2.getType()) > 2) {
-            ngen::Subregister tmp = ra.alloc_sub(src2.getType());
-            mov(1, tmp, src2);
-            emad(mod, dst, src0, src1, tmp);
-            ra.release(tmp);
-        } else {
-            mad(mod, dst, src0, src1, src2);
+    // Store data from a contiguous range of registers into a contiguous
+    // range in global memory (block store)
+    void estore(const ngen::GRF &base_dst_addr, const ngen::GRFRange &src) {
+        const int grf_bytes = ngen::GRF::bytes(hw);
+        int nregs = src.getLen();
+        bool force_legacy = gpu_utils::dev_getenv(
+                "jit_reduction_force_legacy_send", false);
+        bool use_legacy = force_legacy || hw < ngen::HW::XeHPG;
+        const int max_store_size = use_legacy ? 128 : 512;
+        gpu_assert(max_store_size % grf_bytes == 0) << "Unexpected store size";
+        const int max_store_regs = max_store_size / grf_bytes;
+
+        // Load in chunks
+        int reg_start = 0;
+        while (reg_start < nregs) {
+            int store_regs = nstl::min(max_store_regs, nregs - reg_start);
+            // Compute the src address
+            ngen::GRF addr = ra().alloc().uq();
+            eadd(1, addr, base_dst_addr, reg_start * grf_bytes);
+            if (use_legacy) {
+                // Reduce store_regs according to valid store sizes
+                const int oword_per_grf = grf_bytes / 16;
+                for (auto store_owords : {8, 4, 2, 1}) {
+                    if (store_owords / oword_per_grf > store_regs) continue;
+                    store_regs = store_owords / oword_per_grf;
+                    break;
+                }
+
+                // Do the store
+                auto dt = ngen::aligned_block_oword(store_regs * oword_per_grf);
+                store(1, dt, A64, addr, src[reg_start]);
+            } else {
+                // Reduce store_regs according to valid store sizes
+                const int d64_per_grf = grf_bytes / 8;
+                for (auto store_d64s : {64, 32, 16, 8, 4, 3, 2, 1}) {
+                    if (store_d64s / d64_per_grf > store_regs) continue;
+                    store_regs = store_d64s / d64_per_grf;
+                    break;
+                }
+
+                // Do the store
+                ngen::DataSpecLSC lscspec = ngen::CacheSettingsLSC::L1UC_L3WB;
+                lscspec |= ngen::block(
+                        ngen::DataSizeLSC::D64, store_regs * d64_per_grf);
+                store.ugm(1, lscspec, A64, addr, src[reg_start]);
+            }
+            reg_start += store_regs;
+            ra().release(addr);
         }
     }
 
-    void finalize(alg_kind_t alg, const ngen::GRF &acc, dim_t iters) {
-        int simd = ngen::GRF::bytes(hw) / acc.getBytes();
-        switch (alg) {
-            case alg_kind::reduction_mean:
-                mul(simd, acc, acc, 1.0f / iters);
-                break;
-            default: break;
+    void finalize(
+            int simd, alg_kind_t alg, const ngen::GRFRange &acc, dim_t iters) {
+        int nregs = acc.getLen();
+        for (int i = 0; i < nregs; i++) {
+            switch (alg) {
+                case alg_kind::reduction_mean:
+                    mul(simd, acc[i].f(), acc[i].f(), 1.0f / iters);
+                    break;
+                default: break;
+            }
         }
     }
-
-    reg_allocator_t ra;
-    EmulationStrategy emu_strategy;
 };
 
 } // namespace jit

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -467,7 +467,7 @@ TEST(test_large_partition_compile, ConvBiasReluAdd) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 }
 
-TEST(test_large_partition_execute, Int8Mha) {
+TEST(test_large_partition_execute, Int8Mha_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -603,7 +603,7 @@ float bf16_to_f32(uint16_t bf16_val) {
 }
 } // namespace
 
-TEST(test_large_partition_execute, Bf16Mha) {
+TEST(test_large_partition_execute, Bf16Mha_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -679,7 +679,7 @@ TEST(test_large_partition_execute, Bf16Mha) {
     }
 }
 
-TEST(test_large_partition_execute, Int8Bf16Mha) {
+TEST(test_large_partition_execute, Int8Bf16Mha_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 

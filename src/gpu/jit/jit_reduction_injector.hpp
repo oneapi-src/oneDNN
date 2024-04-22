@@ -46,19 +46,18 @@ struct jit_reduction_injector_f32 {
         assert(jit_reduction_injector_f32_is_supported(alg_));
     }
 
-    // Scattered version of the reduction: requires 2 full GRFs to store initial addresses
-    void compute(ngen::GRF &src_ptr, ngen::GRF &acc, dim_t stride, dim_t iters);
-
-    // Block-load version of the reduction: require only a qword subregister to store initial address
-    void compute(ngen::Subregister &src_ptr, ngen::GRF &acc, dim_t stride,
-            dim_t iters);
+    // src_ptr: GRF whose 1st qword subregister holds the first address to be loaded from
+    // acc: Potentially uninitialized GRFRange to store values in
+    // stride: Number of elements to increment the pointer by between iterations
+    // iters: Number of reduction iterations
+    void compute(const ngen::GRF &src_ptr, const ngen::GRFRange &acc,
+            dim_t stride, dim_t iters);
 
 private:
-    void initialize(ngen::GRF &reg);
-    void eload(int simd, int dt_size, ngen::GRF &dst, ngen::GRF &addr,
-            bool block_load);
-    void _compute(ngen::RegData &src_ptr, ngen::GRF &acc, dim_t stride,
-            dim_t iters, bool block_load);
+    void initialize(int simd, const ngen::GRF &reg);
+    // Load data from a contiguous range in global memory into a contiguous
+    // range of registers (block load)
+    void eload(const ngen::GRFRange &dst, const ngen::GRF &base_src_addr);
 
     // Emulation functions
     void emov(jit_generator<hw> &host, const ngen::InstructionModifier &mod,
@@ -83,10 +82,10 @@ private:
     jit_generator<hw> &h;
     reg_allocator_t &ra;
 
-    void sum_fwd(int simd, ngen::GRF &acc, ngen::GRF &val);
-    void max_fwd(int simd, ngen::GRF &acc, ngen::GRF &val);
-    void min_fwd(int simd, ngen::GRF &acc, ngen::GRF &val);
-    void mul_fwd(int simd, ngen::GRF &acc, ngen::GRF &val);
+    void sum_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
+    void max_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
+    void min_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
+    void mul_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
 };
 
 } // namespace jit

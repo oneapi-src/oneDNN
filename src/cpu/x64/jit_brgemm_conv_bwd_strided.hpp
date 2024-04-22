@@ -186,7 +186,7 @@ private:
             int last_n, int last_icc, int last_odb, int last_ohb,
             int last_owb) const;
 
-    status_t add_po_kernel(brgemm_t *bcfg, int ker_idx, bool is_init);
+    status_t add_po_kernel(brgemm_desc_t *bcfg, int ker_idx, bool is_init);
     void add_po_kernels(int i_N, int init_bcast_dim, int po_bcast_dim);
     status_t add_brg_kernel(int bs, int M, int i_N, int i_K, int i_init);
 

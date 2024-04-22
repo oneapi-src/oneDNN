@@ -158,9 +158,9 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::pd_t::init(
                     ? (vM == jcp_.M ? jcp_.brgM : jcp_.brgM_tail)
                     : vM;
             auto brg_idx = get_brg_idx(jcp_.max_batch, i, i_init, i_N, i_K);
-            // if brgemm_t already created then skip this iteration
+            // if brgemm_desc_t already created then skip this iteration
             if ((*brgs_)[brg_idx] != nullptr) continue;
-            brgemm_t brg;
+            brgemm_desc_t brg;
             if (vN == 0 || vK == 0) continue;
             brgemm_strides_t brg_strides;
             brg_strides.stride_a = jcp_.brg_stride_a;
@@ -279,7 +279,7 @@ status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::add_brg_kernel(
 
 template <cpu_isa_t isa, bool is_deconv>
 status_t brgemm_convolution_bwd_strided_t<isa, is_deconv>::add_po_kernel(
-        brgemm_t *bcfg, int ker_idx, bool is_init) {
+        brgemm_desc_t *bcfg, int ker_idx, bool is_init) {
     if (!bcfg) return status::success;
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
@@ -904,25 +904,25 @@ void brgemm_convolution_bwd_strided_t<isa, is_deconv>::cal_compensation(
             if (jcp.s8s8_compensation_required && s8s8_comp_buffer)
                 std::memset(&s8s8_comp_buffer[buffer_offs], 0,
                         sizeof(int32_t) * comp_kw_sz);
-            if (everyone_is(0, kd_e, kd_b, kh_e, kh_b, kw_e, kw_b)) continue;
-            assert(kd_e > kd_b && kh_e > kh_b && kw_e > kw_b);
+            if (!everyone_is(0, kd_e, kd_b, kh_e, kh_b, kw_e, kw_b)) {
+                assert(kd_e > kd_b && kh_e > kh_b && kw_e > kw_b);
 
-            jit_brgemm_conv_comp_pad_call_s p;
+                jit_brgemm_conv_comp_pad_call_s p;
 
-            p.kd_l = div_up(kd_e - kd_b, SD);
-            p.kh_l = div_up(kh_e - kh_b, SH);
-            p.kw_l = div_up(kw_e - kw_b, SW);
-            p.use_inversion = false;
+                p.kd_l = div_up(kd_e - kd_b, SD);
+                p.kh_l = div_up(kh_e - kh_b, SH);
+                p.kw_l = div_up(kw_e - kw_b, SW);
+                p.use_inversion = false;
 
-            p.ptr_in = &weights[wei_offs];
-            p.ptr_zp_out = jcp.src_zero_point ? &src_zp_buffer[buffer_offs]
-                                              : nullptr;
-            p.ptr_cp_out = jcp.s8s8_compensation_required
-                    ? &s8s8_comp_buffer[buffer_offs]
-                    : nullptr;
+                p.ptr_in = &weights[wei_offs];
+                p.ptr_zp_out = jcp.src_zero_point ? &src_zp_buffer[buffer_offs]
+                                                  : nullptr;
+                p.ptr_cp_out = jcp.s8s8_compensation_required
+                        ? &s8s8_comp_buffer[buffer_offs]
+                        : nullptr;
 
-            (*comp_vpad_pbuffer_)(&p);
-
+                (*comp_vpad_pbuffer_)(&p);
+            }
             nd_iterator_step(
                     g, jcp.ngroups, icb, jcp.nb_ic, k, jcp.ker_ranges_size);
         }

@@ -255,6 +255,14 @@ template <>
 struct is_integral<uint8_t> {
     static constexpr bool value = true;
 };
+template <>
+struct is_integral<int4_t> {
+    static constexpr bool value = true;
+};
+template <>
+struct is_integral<uint4_t> {
+    static constexpr bool value = true;
+};
 
 template <typename T, typename U>
 struct is_same {

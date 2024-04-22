@@ -37,7 +37,8 @@ using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 template <typename Wmm>
-jit_brdgmm_kernel_base_t<Wmm>::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
+jit_brdgmm_kernel_base_t<Wmm>::jit_brdgmm_kernel_base_t(
+        const brgemm_desc_t &abrd)
     : jit_generator(jit_name(), abrd.isa_impl)
     , brg(abrd)
     , simd_w_(vreg_traits<Vmm>::vlen / brg.typesize_C)
@@ -1369,7 +1370,7 @@ void jit_brdgmm_kernel_base_t<Wmm>::generate() {
 }
 
 template <typename Wmm>
-brdgmm_kernel_t<Wmm>::brdgmm_kernel_t(const brgemm_t &abrd)
+brdgmm_kernel_t<Wmm>::brdgmm_kernel_t(const brgemm_desc_t &abrd)
     : brgemm_kernel_(new jit_brdgmm_kernel_base_t<Wmm>(abrd)) {}
 
 template <typename Wmm>

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -542,7 +542,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::configure_brgemm(
     return status::success;
 }
 
-status_t init_brgemm_kernel(x64::brgemm_t *desc, x64::cpu_isa_t isa,
+status_t init_brgemm_kernel(x64::brgemm_desc_t *desc, x64::cpu_isa_t isa,
         impl::data_type_t src_type, impl::data_type_t weights_type,
         std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M, dim_t N, dim_t K,
         dim_t LDA, dim_t LDB, dim_t LDC, float beta, dim_t max_bs,
@@ -573,7 +573,7 @@ status_t init_brgemm_kernel(x64::brgemm_t *desc, x64::cpu_isa_t isa,
 };
 
 status_t rnn_brgemm_t<prop_kind::forward>::brgemm_rnn_init_tiles(
-        brgemm_t *desc_array, dim_t size, brgemm_pallete_t pallete) {
+        brgemm_desc_t *desc_array, dim_t size, brgemm_pallete_t pallete) {
 
     for (dim_t it = 0; it < size; ++it) {
         const auto &desc = desc_array[it];
@@ -586,11 +586,11 @@ status_t rnn_brgemm_t<prop_kind::forward>::brgemm_rnn_init_tiles(
 }
 
 status_t rnn_brgemm_t<prop_kind::forward>::brgemm_rnn_init_tiles(
-        brgemm_t *desc_array, brgemm_pallete_t pallete) {
+        brgemm_desc_t *desc_array, brgemm_pallete_t pallete) {
     return brgemm_rnn_init_tiles(desc_array, num_base_kernels_, pallete);
 }
 status_t rnn_brgemm_t<prop_kind::forward>::brgemm_rnn_init_tiles_proj(
-        brgemm_t *desc_array, brgemm_pallete_t pallete) {
+        brgemm_desc_t *desc_array, brgemm_pallete_t pallete) {
     return brgemm_rnn_init_tiles(desc_array, num_proj_kernels_, pallete);
 }
 
@@ -599,7 +599,7 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
         data_type_t weights_type) {
 
     const auto init_brgemm
-            = [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
+            = [&](x64::brgemm_desc_t *desc, x64::cpu_isa_t isa,
                       std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
                       dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
                       float beta, dim_t max_bs) {
@@ -1096,7 +1096,7 @@ static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
         data_type_t weights_type) {
 
     const auto init_brgemm_diff_src
-            = [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
+            = [&](x64::brgemm_desc_t *desc, x64::cpu_isa_t isa,
                       std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
                       dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
                       float beta, dim_t max_bs) {
@@ -1221,7 +1221,7 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
         data_type_t weights_type) {
 
     const auto init_brgemm_diff_wei
-            = [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
+            = [&](x64::brgemm_desc_t *desc, x64::cpu_isa_t isa,
                       std::unique_ptr<x64::brgemm_kernel_t> &ker, dim_t M,
                       dim_t N, dim_t K, dim_t LDA, dim_t LDB, dim_t LDC,
                       float beta, dim_t max_bs) {

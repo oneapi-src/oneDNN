@@ -118,6 +118,7 @@ int init_op(std::unordered_map<int, graph_link_t> &op_graph,
     // Initialize problem settings.
     settings_t settings {}; // settings(op); - instead.
     init_func(settings);
+    settings.finalize();
 
     // Initializa a problem.
     prb_t prb_(settings), *prb = &prb_;

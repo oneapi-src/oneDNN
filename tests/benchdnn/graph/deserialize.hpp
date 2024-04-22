@@ -67,6 +67,8 @@ struct deserialized_op {
     size_t id_;
     std::string name_;
     std::string kind_;
+    std::string fpmath_mode_;
+
     std::unordered_map<std::string, deserialized_attr> attrs_;
     std::vector<deserialized_lt> in_lts_;
     std::vector<deserialized_lt> out_lts_;
@@ -119,6 +121,13 @@ struct deserialized_graph {
 
     // Outputs the information about graph from operator<< into a string.
     std::string get_string() const;
+
+    // Return the fpmath mode attribute
+    const std::string &get_fpmath_mode() const { return fpmath_mode_; }
+
+    void set_fpmath_mode(const std::string &fpmath_mode) {
+        fpmath_mode_ = fpmath_mode;
+    }
 
 private:
     std::string engine_kind_;

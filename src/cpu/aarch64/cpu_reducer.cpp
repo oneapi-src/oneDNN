@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2021 Intel Corporation
-* Copyright 2020-2021 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ void reduce_balancer_t::balance() {
 
 using namespace Xbyak_aarch64;
 
-template <impl::data_type_t data_type>
+template <impl::data_type_t data_type, cpu_isa_t isa>
 struct reducer_2d_driver_t : public jit_generator {
     using data_t = typename prec_traits<data_type>::type;
 
@@ -119,7 +119,7 @@ protected:
 };
 
 template <impl::data_type_t data_type, cpu_isa_t isa>
-struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
+struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type, isa> {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(reducer_2d_driver_f_s_32_t)
 
     using data_t = typename prec_traits<data_type>::type;
@@ -152,7 +152,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
 
     reducer_2d_driver_f_s_32_t(int n_src, size_t src_ld, size_t src_step,
             size_t dst_step, bool nullify_dst)
-        : reducer_2d_driver_t<data_type>(
+        : reducer_2d_driver_t<data_type, isa>(
                 n_src, src_ld, src_step, dst_step, nullify_dst) {}
 
     void uni_load(const Vmm &z1, const XReg &src, size_t off, int load_len) {
@@ -279,7 +279,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
     }
 
     void generate() override {
-        assert(isa == sve_512);
+        assert(isa == sve_512 || isa == sve_256);
 
         this->preamble();
 
@@ -302,11 +302,11 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
     }
 };
 
-template <impl::data_type_t data_type>
-inline reducer_2d_driver_t<data_type> *create_reduce_2d_drv(int n_src,
+template <impl::data_type_t data_type, cpu_isa_t isa>
+inline reducer_2d_driver_t<data_type, isa> *create_reduce_2d_drv(int n_src,
         size_t src_ld, size_t src_step, size_t dst_step, bool nullify_dst) {
-    if (mayiuse(sve_512))
-        return new reducer_2d_driver_f_s_32_t<data_type, sve_512>(
+    if (mayiuse(isa))
+        return new reducer_2d_driver_f_s_32_t<data_type, isa>(
                 n_src, src_ld, src_step, dst_step, nullify_dst);
     assert(!"unimplemented");
     return nullptr;
@@ -314,41 +314,41 @@ inline reducer_2d_driver_t<data_type> *create_reduce_2d_drv(int n_src,
 
 /* cpu_reducer_t */
 
-template <impl::data_type_t data_type>
-void cpu_reducer_t<data_type>::conf_t::init_scratchpad(
+template <impl::data_type_t data_type, cpu_isa_t isa>
+void cpu_reducer_t<data_type, isa>::conf_t::init_scratchpad(
         memory_tracking::registrar_t &scratchpad) const {
     if (balancer_.nthr_per_group_ == 1) return;
 
     const size_t space_size = balancer_.ngroups_
             * (balancer_.nthr_per_group_ - 1)
-            * cpu_reducer_t<data_type>::space_per_thread(balancer_);
+            * cpu_reducer_t<data_type, isa>::space_per_thread(balancer_);
     scratchpad.book<data_t>(key_reducer_space, space_size, PAGE_4K);
     scratchpad.book<simple_barrier::ctx_t>(
             key_reducer_space_bctx, balancer_.ngroups_);
 }
 
-template <impl::data_type_t data_type>
-cpu_reducer_t<data_type>::cpu_reducer_t(const conf_t &conf)
+template <impl::data_type_t data_type, cpu_isa_t isa>
+cpu_reducer_t<data_type, isa>::cpu_reducer_t(const conf_t &conf)
     : conf_(conf), drv_(nullptr) {
     if (balancer().nthr_per_group_ == 1) return;
 
-    drv_ = create_reduce_2d_drv<data_type>(balancer().nthr_per_group_ - 1,
+    drv_ = create_reduce_2d_drv<data_type, isa>(balancer().nthr_per_group_ - 1,
             space_per_thread(balancer()), 0, 0, false);
 }
 
-template <impl::data_type_t data_type>
-cpu_reducer_t<data_type>::~cpu_reducer_t() {
+template <impl::data_type_t data_type, cpu_isa_t isa>
+cpu_reducer_t<data_type, isa>::~cpu_reducer_t() {
     delete drv_;
 }
 
-template <impl::data_type_t data_type>
-status_t cpu_reducer_t<data_type>::create_kernel() {
+template <impl::data_type_t data_type, cpu_isa_t isa>
+status_t cpu_reducer_t<data_type, isa>::create_kernel() {
     return (drv_) ? drv_->create_kernel() : status::success;
 }
 
-template <impl::data_type_t data_type>
-typename cpu_reducer_t<data_type>::data_t *
-cpu_reducer_t<data_type>::get_local_ptr(int ithr, data_t *dst,
+template <impl::data_type_t data_type, cpu_isa_t isa>
+typename cpu_reducer_t<data_type, isa>::data_t *
+cpu_reducer_t<data_type, isa>::get_local_ptr(int ithr, data_t *dst,
         const memory_tracking::grantor_t &scratchpad) const {
     const int id_in_grp = balancer().id_in_group(ithr);
 
@@ -364,8 +364,8 @@ cpu_reducer_t<data_type>::get_local_ptr(int ithr, data_t *dst,
     return space + offset_factor * space_per_thread(balancer());
 }
 
-template <impl::data_type_t data_type>
-void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst,
+template <impl::data_type_t data_type, cpu_isa_t isa>
+void cpu_reducer_t<data_type, isa>::reduce_nolock(int ithr, data_t *dst,
         const memory_tracking::grantor_t &scratchpad) const {
     bool redundant_reduction
             = balancer().nthr_per_group_ == 1 || balancer().idle(ithr);
@@ -406,46 +406,48 @@ void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst,
 #endif
 }
 
-template struct cpu_reducer_t<data_type::f32>;
-template struct cpu_reducer_t<data_type::s32>;
+template struct cpu_reducer_t<data_type::f32, sve_512>;
+template struct cpu_reducer_t<data_type::f32, sve_256>;
+template struct cpu_reducer_t<data_type::s32, sve_512>;
+template struct cpu_reducer_t<data_type::s32, sve_256>;
 
 /* cpu_reducer_2d_t */
 
-template <impl::data_type_t data_type>
-void cpu_reducer_2d_t<data_type>::conf_t::init_scratchpad(
+template <impl::data_type_t data_type, cpu_isa_t isa>
+void cpu_reducer_2d_t<data_type, isa>::conf_t::init_scratchpad(
         memory_tracking::registrar_t &scratchpad) const {
     if (balancer_.nthr_per_group_ == 1) return;
 
     const size_t space_size = balancer_.ngroups_ * balancer_.nthr_per_group_
-            * cpu_reducer_2d_t<data_type>::space_per_thread(balancer_);
+            * cpu_reducer_2d_t<data_type, isa>::space_per_thread(balancer_);
     scratchpad.book<data_t>(key_reducer_space, space_size);
     scratchpad.book<simple_barrier::ctx_t>(
             key_reducer_space_bctx, balancer_.ngroups_);
 }
 
-template <impl::data_type_t data_type>
-cpu_reducer_2d_t<data_type>::cpu_reducer_2d_t(const conf_t &conf)
+template <impl::data_type_t data_type, cpu_isa_t isa>
+cpu_reducer_2d_t<data_type, isa>::cpu_reducer_2d_t(const conf_t &conf)
     : conf_(conf), drv_(nullptr) {
     if (balancer().nthr_per_group_ == 1) return;
 
-    drv_ = create_reduce_2d_drv<data_type>(balancer().nthr_per_group_,
+    drv_ = create_reduce_2d_drv<data_type, isa>(balancer().nthr_per_group_,
             space_per_thread(balancer()), conf_.job_size_x_, conf_.dst_x_,
             true);
 }
 
-template <impl::data_type_t data_type>
-cpu_reducer_2d_t<data_type>::~cpu_reducer_2d_t() {
+template <impl::data_type_t data_type, cpu_isa_t isa>
+cpu_reducer_2d_t<data_type, isa>::~cpu_reducer_2d_t() {
     delete drv_;
 }
 
-template <impl::data_type_t data_type>
-status_t cpu_reducer_2d_t<data_type>::create_kernel() {
+template <impl::data_type_t data_type, cpu_isa_t isa>
+status_t cpu_reducer_2d_t<data_type, isa>::create_kernel() {
     return (drv_) ? drv_->create_kernel() : status::success;
 }
 
-template <impl::data_type_t data_type>
-typename cpu_reducer_2d_t<data_type>::data_t *
-cpu_reducer_2d_t<data_type>::get_local_ptr(
+template <impl::data_type_t data_type, cpu_isa_t isa>
+typename cpu_reducer_2d_t<data_type, isa>::data_t *
+cpu_reducer_2d_t<data_type, isa>::get_local_ptr(
         int ithr, const memory_tracking::grantor_t &scratchpad) const {
     const int id_in_grp = balancer().id_in_group(ithr);
     const int grp_id = balancer().group_id(ithr);
@@ -454,8 +456,8 @@ cpu_reducer_2d_t<data_type>::get_local_ptr(
     return space + offset_factor * space_per_thread(balancer());
 }
 
-template <impl::data_type_t data_type>
-int cpu_reducer_2d_t<data_type>::choose_x_blocking(
+template <impl::data_type_t data_type, cpu_isa_t isa>
+int cpu_reducer_2d_t<data_type, isa>::choose_x_blocking(
         int nx, int ny, int nthr_per_grp) const {
     // find x_blocking for better balance reducing work between threads
     assert(conf_.x_block_ > 0 && nx > conf_.x_block_
@@ -476,8 +478,8 @@ int cpu_reducer_2d_t<data_type>::choose_x_blocking(
     return x_blocking;
 }
 
-template <impl::data_type_t data_type>
-void cpu_reducer_2d_t<data_type>::reduce_block(const data_t *space_base,
+template <impl::data_type_t data_type, cpu_isa_t isa>
+void cpu_reducer_2d_t<data_type, isa>::reduce_block(const data_t *space_base,
         data_t *dst, int job, int start_y, int start_x, int ny_start,
         int nx_start, int ny_step, int nx_step) const {
     data_t *d = dst + (start_y + ny_start) * conf_.dst_x_ + start_x + nx_start;
@@ -498,8 +500,8 @@ void cpu_reducer_2d_t<data_type>::reduce_block(const data_t *space_base,
 #endif
 }
 
-template <impl::data_type_t data_type>
-void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst,
+template <impl::data_type_t data_type, cpu_isa_t isa>
+void cpu_reducer_2d_t<data_type, isa>::reduce_nolock(int ithr, data_t *dst,
         const memory_tracking::grantor_t &scratchpad) const {
     bool redundant_reduction
             = balancer().nthr_per_group_ == 1 || balancer().idle(ithr);
@@ -560,34 +562,38 @@ void cpu_reducer_2d_t<data_type>::reduce_nolock(int ithr, data_t *dst,
     }
 }
 
-template struct cpu_reducer_2d_t<data_type::f32>;
-template struct cpu_reducer_2d_t<data_type::s32>;
+template struct cpu_reducer_2d_t<data_type::f32, sve_512>;
+template struct cpu_reducer_2d_t<data_type::f32, sve_256>;
+template struct cpu_reducer_2d_t<data_type::s32, sve_512>;
+template struct cpu_reducer_2d_t<data_type::s32, sve_256>;
 
 /* accumulator section */
 
-template <impl::data_type_t data_type>
-cpu_accumulator_1d_t<data_type>::cpu_accumulator_1d_t() : drv_(nullptr) {
-    drv_ = create_reduce_2d_drv<data_type>(1, 0, 0, 0, false);
+template <impl::data_type_t data_type, cpu_isa_t isa>
+cpu_accumulator_1d_t<data_type, isa>::cpu_accumulator_1d_t() : drv_(nullptr) {
+    drv_ = create_reduce_2d_drv<data_type, isa>(1, 0, 0, 0, false);
 }
 
-template <impl::data_type_t data_type>
-cpu_accumulator_1d_t<data_type>::~cpu_accumulator_1d_t() {
+template <impl::data_type_t data_type, cpu_isa_t isa>
+cpu_accumulator_1d_t<data_type, isa>::~cpu_accumulator_1d_t() {
     delete drv_;
 }
 
-template <impl::data_type_t data_type>
-status_t cpu_accumulator_1d_t<data_type>::create_kernel() {
+template <impl::data_type_t data_type, cpu_isa_t isa>
+status_t cpu_accumulator_1d_t<data_type, isa>::create_kernel() {
     return drv_->create_kernel();
 }
 
-template <impl::data_type_t data_type>
-void cpu_accumulator_1d_t<data_type>::accumulate(
+template <impl::data_type_t data_type, cpu_isa_t isa>
+void cpu_accumulator_1d_t<data_type, isa>::accumulate(
         data_t *dst, const data_t *src, size_t size) {
     (*drv_)(dst, src, 1, size);
 }
 
-template struct cpu_accumulator_1d_t<data_type::f32>;
-template struct cpu_accumulator_1d_t<data_type::s32>;
+template struct cpu_accumulator_1d_t<data_type::f32, sve_512>;
+template struct cpu_accumulator_1d_t<data_type::f32, sve_256>;
+template struct cpu_accumulator_1d_t<data_type::s32, sve_512>;
+template struct cpu_accumulator_1d_t<data_type::s32, sve_256>;
 
 } // namespace aarch64
 } // namespace cpu

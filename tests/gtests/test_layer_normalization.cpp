@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,6 +64,7 @@ private:
 protected:
     void SetUp() override {
         SKIP_IF_CUDA(true, "Layer normalization not supported by CUDA.");
+        SKIP_IF_HIP(true, "Layer normalization not supported by HIP.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         SKIP_IF(unsupported_data_type(p.src_dt)
@@ -135,6 +136,11 @@ protected:
                         memory::data_type::s8, memory::data_type::u8);
 
         auto aa = allows_attr_t {false};
+        const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
+        aa.po_eltwise = is_cpu;
+        aa.po_binary = is_cpu;
+        aa.po_sum = is_cpu;
+
         if (is_int8) aa.scales = true;
 
         // test all pd ctors

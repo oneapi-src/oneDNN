@@ -211,7 +211,8 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
     }
 
     int n_inputs() const override {
-        return 1 + 2 * stats_are_src() + use_scale() + use_shift();
+        return 1 + 2 * stats_are_src() + use_scale() + use_shift()
+                + n_binary_po_inputs();
     }
     int n_outputs() const override {
         return 1 + 2 * (!stats_are_src()) * is_training();

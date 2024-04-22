@@ -79,10 +79,7 @@ struct prb_t : public prb_vdims_t {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
                 s.sparse_options[0],
 #endif
-                settings_t::get_attr(s.scales[0], s.zero_points[0],
-                        s.post_ops[0], s.scratchpad_mode[0], s.fpmath_mode[0],
-                        s.acc_mode[0]),
-                s.ctx_init[0], s.ctx_exe[0]) {
+                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0]) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 

@@ -161,7 +161,7 @@ struct jit_bnorm_conf_t {
                     if ((C_nthr == C_blks) || (C_nthr == nthr)) C_nthr = 1;
                 }
                 N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
-                // heuristic for training on avx512_core_amx
+                // heuristic for training on sve512_core_amx
                 // TODO: test heuristic when global stats flag is set
                 S_nthr = (int)nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
             } else {

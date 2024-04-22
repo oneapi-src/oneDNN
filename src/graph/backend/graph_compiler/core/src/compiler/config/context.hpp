@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ enum class sc_opt_level : int { lv0 = 0, lv1, lv2, lv3 };
 enum class fusion_opt_level : int { lv0 = 0, lv1, lv2, lv3 };
 
 struct scflags_t {
-    enum class brgemm_t : int { dnnl = 0, max_num };
+    enum class brgemm_backend_t : int { dnnl = 0, max_num };
 
     jit_kind jit_kind_ = jit_kind::cfake;
     sc_opt_level opt_level_ = sc_opt_level::lv3;
@@ -51,7 +51,7 @@ struct scflags_t {
     bool trace_ = false;
     bool dead_write_elimination_ = true;
     int buffer_schedule_ = 3; // 0 off, 1 whole reuse, 2 size first, 3 hot first
-    brgemm_t brgemm_backend_ = brgemm_t::dnnl;
+    brgemm_backend_t brgemm_backend_ = brgemm_backend_t::dnnl;
     int kernel_optim_ = 1; // 0 off, 1 external-runtime-oriented opt,
     bool index2var_ = true;
     bool tensor2var_ = true;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,8 @@ TEST(GCCore_CPU_module_globals_resolver_t, TestGlobalTensorExtract) {
 
     auto null_v = make_expr<constant_node>(UINT64_C(0), datatypes::pointer);
     auto brg_func = builtin::get_brgemm_creator_and_call_func(
-            builtin::brgemm_mode::stride, scflags_t::brgemm_t::dnnl, false)
+            builtin::brgemm_mode::stride, scflags_t::brgemm_backend_t::dnnl,
+            false)
                             .second;
     _function_(datatypes::void_t, aaa, _arg_("args", datatypes::f32)) {
         _bind_(args);

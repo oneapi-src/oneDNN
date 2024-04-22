@@ -171,6 +171,68 @@ void maybe_reshape_dims(int ndims, layout_t &layout, std::vector<dim_t> &dims,
     }
 }
 
+// this method only gets called when ZP precompute is in order;
+// in all other cases ZPs are applied ad-hoc, without a post-op
+view_t conv_post_op_view_mapper_t::create_src_zp_view(uint32_t mask) const {
+    auto map_o2k = [](view_t &v, int idx, int O, int I, int KD, int P, int S) {
+        const bool needs_right_bound = ((O - 1) * S + (KD - P) >= I);
+        expr_t o = v.vvars()[idx];
+        if (KD >= I) {
+            o = o * S;
+        } else {
+            expr_t l, r;
+            int32_t off = P;
+            if (P > 0) l = binary_op_t::make(op_kind_t::_min, o * S - P, 0);
+            if (needs_right_bound) {
+                r = binary_op_t::make(op_kind_t::_max, o * S + (KD - P), I);
+                off -= I;
+            }
+            o = (!l.is_empty()) ? l : o;
+            o = (!r.is_empty()) ? (!l.is_empty()) ? l + r : r : o;
+            o = (off != 0) ? o + off : o;
+        }
+        const auto &x = view_t::placeholder_var();
+        int32_t L = ir_utils::max_unique_pad_states(O, I, KD, P, S, true);
+        bool mask = L < ir_utils::max_unique_pad_states(O, I, KD, P, S, false);
+        v.set_vdim(v.vvars()[idx], (needs_right_bound) ? O : 1);
+        v.set_tdim(idx, o, (mask) ? x < L : expr_t());
+    };
+
+    const auto &vars = cp_view().vvars();
+    auto dst = normalize_conv_layout(zp_dst_, /*with_groups=*/false, prb_.g,
+            prb_.is_dw, prb_.dhw_map, /*add_groups=*/true, /*is_wei=*/false);
+    ir_assert((vars.size() == 6) && (dst.ndims() == 6));
+
+    bool non_1_spatials[3] = {false, false, false};
+    std::vector<block_t> new_blk;
+    for (auto &b : dst.blocks()) {
+        if ((b.dim_idx >= 3) && (b.dim_idx <= 5)) {
+            if (b.block > 1)
+                non_1_spatials[b.dim_idx - 3] = true;
+            else if (non_1_spatials[b.dim_idx - 3])
+                continue;
+        }
+        new_blk.emplace_back(b);
+    }
+    dst = layout_t(dst.type(), dst.ndims(), dst.offset(), new_blk, false);
+
+    const auto KDD = (prb_.kd - 1) * (prb_.dd + 1) + 1;
+    const auto KDH = (prb_.kh - 1) * (prb_.dh + 1) + 1;
+    const auto KDW = (prb_.kw - 1) * (prb_.dw + 1) + 1;
+    view_t view(vars, 6);
+    view.set_vdim(vars[0], 1); // mb
+    view.set_vdim(vars[1], prb_.g);
+    view.set_vdim(vars[2], prb_.oc);
+    view.set_tdim(0, vars[0]);
+    view.set_tdim(1, vars[1]);
+    view.set_tdim(2, vars[2]);
+    map_o2k(view, 3, prb_.od, prb_.id, KDD, prb_.pd, prb_.sd);
+    map_o2k(view, 4, prb_.oh, prb_.ih, KDH, prb_.ph, prb_.sh);
+    map_o2k(view, 5, prb_.ow, prb_.iw, KDW, prb_.pw, prb_.sw);
+    view.set_tlayout(dst);
+    return view;
+}
+
 view_t conv_post_op_view_mapper_t::create_view(const memory_desc_t &md) const {
     int cp_ndims = cp_view().nvdims();
     ir_assert(cp_ndims >= 3);

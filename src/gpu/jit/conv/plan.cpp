@@ -114,6 +114,32 @@ static dim_tile_t create_tile(gemm_schedule_t &gemm_schedule,
     return tile;
 }
 
+// Checks if groups should be iterated first to ensure better access locality
+// for a higher cache hit rate.
+bool set_g_grid_idx_innermost(const hw_t &hw, const layout_t &layout) {
+    const int g_dim_idx = 1;
+    const int c_dim_idx = 2;
+    if (layout.nblocks() <= 1) return false;
+    auto &b0 = layout.blocks()[0];
+    auto &b1 = layout.blocks()[1];
+    // Check that layout has groups followed by channels, i.e. *gc form.
+    if (b0.dim_idx != c_dim_idx || b1.dim_idx != g_dim_idx) return false;
+    // If the full channel dimension exceeds the cache line size, cache reuse
+    // should be already good enough.
+    if (layout.type().size() * b0.block >= hw.cache_line_size()) return false;
+    return true;
+}
+
+bool set_g_grid_idx_innermost(const conv_config_t &cfg) {
+    auto &prb = cfg.prb();
+    if (prb.g == 1) return false;
+
+    if (prb.is_fwd || prb.is_bwd_w) {
+        return set_g_grid_idx_innermost(cfg.hw(), cfg.src_layout().compute());
+    }
+    return set_g_grid_idx_innermost(cfg.hw(), cfg.dst_layout().compute());
+}
+
 void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
         view_t &src_view, view_t &wei_view, view_t &dst_view) {
     auto &prb_ = cfg_.prb();
@@ -247,8 +273,14 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto ic_tile = create_tile(gemm_schedule, cfg_, ic);
     auto kw_tile = create_tile(gemm_schedule, cfg_, kw);
 
-    auto g_ow_grid_idx = gemm_schedule.fuse(
-            {g_tile.grid_idx(), od, oh, ow_tile.grid_idx()});
+    expr_t g_ow_grid_idx;
+    if (set_g_grid_idx_innermost(cfg_)) {
+        g_ow_grid_idx = gemm_schedule.fuse(
+                {od, oh, ow_tile.grid_idx(), g_tile.grid_idx()});
+    } else {
+        g_ow_grid_idx = gemm_schedule.fuse(
+                {g_tile.grid_idx(), od, oh, ow_tile.grid_idx()});
+    }
     auto mb_ow_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), ow_tile.tg_idx());
 
     if (prb_.ab_swap_transpose) {
@@ -434,8 +466,14 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto iw_tile = create_tile(gemm_schedule, cfg_, iw);
     auto oc_tile = create_tile(gemm_schedule, cfg_, oc);
 
-    auto g_isp_grid_idx = gemm_schedule.fuse(
-            {g_tile.grid_idx(), id, ih, iw_tile.grid_idx()});
+    expr_t g_isp_grid_idx;
+    if (set_g_grid_idx_innermost(cfg_)) {
+        g_isp_grid_idx = gemm_schedule.fuse(
+                {id, ih, iw_tile.grid_idx(), g_tile.grid_idx()});
+    } else {
+        g_isp_grid_idx = gemm_schedule.fuse(
+                {g_tile.grid_idx(), id, ih, iw_tile.grid_idx()});
+    }
     auto mb_iw_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), iw_tile.tg_idx());
     if (prb_.ab_swap_transpose /*.ic < 8 && prb_.mb >= 8*/) {
         gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(0));
@@ -636,8 +674,14 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
             {od_tile.grid_idx(), oh_tile.grid_idx(), ow_tile.grid_idx(), kd, kh,
                     kw_tile.grid_idx(), ic_tile.grid_idx()});
 
-    auto g_mb_grid_idx
-            = gemm_schedule.fuse({g_tile.grid_idx(), mb_tile.grid_idx()});
+    expr_t g_mb_grid_idx;
+    if (set_g_grid_idx_innermost(cfg_)) {
+        g_mb_grid_idx
+                = gemm_schedule.fuse({mb_tile.grid_idx(), g_tile.grid_idx()});
+    } else {
+        g_mb_grid_idx
+                = gemm_schedule.fuse({g_tile.grid_idx(), mb_tile.grid_idx()});
+    }
 
     if (prb_.ab_swap_transpose) {
         gemm_schedule.bind(osp_ksp_ic_grid_idx, cfg_.kernel_grid().idx(0));
