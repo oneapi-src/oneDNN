@@ -22,7 +22,8 @@
 
 #define TO_I4 ((DST_DT_U4 || DST_DT_S4) && (!SRC_DT_U4 && !SRC_DT_S4))
 #define FROM_I4 ((SRC_DT_U4 || SRC_DT_S4) && (!DST_DT_U4 && !DST_DT_S4))
-#define GWS_GET_THREAD_ID(index) (get_global_id(index) + offset.array[index])
+#define GWS_GET_THREAD_ID(index) \
+    (off_t)(get_global_id(index) + offset.array[index])
 
 KERNEL_ATTR
 __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
