@@ -33,6 +33,7 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
 
     bool is_transA = pd()->amp_.is_transA;
     bool is_transB = pd()->amp_.is_transB;
+    bool do_transC = pd()->amp_.do_transC;
     bool use_dst_acc = pd()->amp_.use_dst_acc;
 
     std::lock_guard<std::mutex> _lock {this->mtx};
@@ -56,7 +57,7 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
         acl_obj.transB.run();
         acl_obj.src_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
-    } else if (is_transA && is_transB) {
+    } else if (is_transA && is_transB && !do_transC) {
         acl_obj.src_tensor.allocator()->allocate();
         acl_obj.src_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
@@ -70,6 +71,7 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
                 const_cast<data_t *>(src_base));
         acl_obj.wei_tensor.allocator()->import_memory(
                 const_cast<data_t *>(wei_base));
+        if (do_transC) { acl_obj.dst_acc_tensor.allocator()->allocate(); }
     }
 
     // Put the result in a new tensor, if we have a sum post op.
@@ -80,6 +82,8 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     acl_obj.dst_tensor.allocator()->import_memory(dst_base);
 
     acl_obj.gemm.run();
+
+    if (do_transC) { acl_obj.transC.run(); }
 
     acl_obj.src_tensor.allocator()->free();
     acl_obj.wei_tensor.allocator()->free();

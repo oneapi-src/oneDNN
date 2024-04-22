@@ -80,34 +80,54 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     amp.is_transA = helper.transA() == 'T';
     amp.is_transB = IsFixedFormat ? false : helper.transB() == 'T';
 
+    // Do (BA)^T instead of (A^T)(B^T), if the cost of transposing (BA)
+    // which is ~M*N, is less than the cost of tranposing A and B which
+    // is ~(M*K + K*N).
+    amp.do_transC = amp.is_transA && amp.is_transB && M * N <= K * (M + N);
+
     auto acl_src_data_t = acl_utils::get_acl_data_t(src_md.data_type);
     auto acl_wei_data_t = acl_utils::get_acl_data_t(wei_md.data_type);
     auto acl_dst_data_t = acl_utils::get_acl_data_t(dst_md.data_type);
 
-    if (amp.is_transA) {
+    if (amp.is_transA && !amp.do_transC) {
         amp.src_acc_info = arm_compute::TensorInfo(
                 arm_compute::TensorShape(M, K, 1, src_batch), 1,
                 acl_src_data_t);
     }
-    if (amp.is_transB) {
+    if (amp.is_transB && !amp.do_transC) {
         amp.wei_acc_info = arm_compute::TensorInfo(
                 arm_compute::TensorShape(K, N, wei_batch), 1, acl_wei_data_t);
     }
+    if (amp.do_transC) {
+        amp.dst_acc_info = arm_compute::TensorInfo(
+                arm_compute::TensorShape(M, N, 1, dst_batch), 1,
+                acl_dst_data_t);
+        amp.src_tensor_info = arm_compute::TensorInfo(
+                arm_compute::TensorShape(M, K, src_batch), 1, acl_src_data_t);
+        amp.wei_tensor_info = arm_compute::TensorInfo(
+                arm_compute::TensorShape(K, N, 1, wei_batch), 1,
+                acl_wei_data_t);
+    } else {
+        amp.src_tensor_info = arm_compute::TensorInfo(
+                arm_compute::TensorShape(K, M, 1, src_batch), 1,
+                acl_src_data_t);
+        amp.wei_tensor_info = arm_compute::TensorInfo(
+                arm_compute::TensorShape(N, K, wei_batch), 1, acl_wei_data_t);
+    }
 
-    amp.src_tensor_info = arm_compute::TensorInfo(
-            arm_compute::TensorShape(K, M, 1, src_batch), 1, acl_src_data_t);
-    amp.wei_tensor_info = arm_compute::TensorInfo(
-            arm_compute::TensorShape(N, K, wei_batch), 1, acl_wei_data_t);
     amp.dst_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(N, M, 1, dst_batch), 1, acl_dst_data_t);
 
     // Validate ACL transpose
-    if (amp.is_transA)
+    if (amp.is_transA && !amp.do_transC)
         ACL_CHECK_VALID(arm_compute::NETranspose::validate(
                 &amp.src_acc_info, &amp.src_tensor_info));
-    if (amp.is_transB)
+    if (amp.is_transB && !amp.do_transC)
         ACL_CHECK_VALID(arm_compute::NETranspose::validate(
                 &amp.wei_acc_info, &amp.wei_tensor_info));
+    if (amp.do_transC)
+        ACL_CHECK_VALID(arm_compute::NETranspose::validate(
+                &amp.dst_acc_info, &amp.dst_tensor_info));
 
     bool is_fastmath_enabled = utils::one_of(
             attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);

@@ -36,23 +36,37 @@ struct acl_resource_t : public resource_t {
         acl_obj_->src_tensor.allocator()->init(amp.src_tensor_info);
         acl_obj_->wei_tensor.allocator()->init(amp.wei_tensor_info);
         acl_obj_->dst_tensor.allocator()->init(amp.dst_tensor_info);
-        // Configure transpose kernel for src, wei or both
-        if (amp.is_transA) {
+
+        // Configure transpose kernel for src, wei, or dst
+        if (amp.is_transA && !amp.do_transC) {
             acl_obj_->src_acc_tensor.allocator()->init(amp.src_acc_info);
             acl_obj_->transA.configure(
                     &acl_obj_->src_acc_tensor, &acl_obj_->src_tensor);
         }
 
-        if (weights_format_kind_ != format_kind::any) {
-            if (amp.is_transB) {
-                acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
-                acl_obj_->transB.configure(
-                        &acl_obj_->wei_acc_tensor, &acl_obj_->wei_tensor);
-            }
+        if (amp.is_transB && !amp.do_transC) {
+            acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
+            acl_obj_->transB.configure(
+                    &acl_obj_->wei_acc_tensor, &acl_obj_->wei_tensor);
         }
+
+        if (amp.do_transC) {
+            acl_obj_->dst_acc_tensor.allocator()->init(amp.dst_acc_info);
+            acl_obj_->transC.configure(
+                    &acl_obj_->dst_acc_tensor, &acl_obj_->dst_tensor);
+        }
+
         // Configure GEMM
-        acl_obj_->gemm.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
-                nullptr, &acl_obj_->dst_tensor, 1.0f, 0.0f, amp.gemm_info);
+        if (amp.do_transC) {
+            acl_obj_->gemm.configure(&acl_obj_->wei_tensor,
+                    &acl_obj_->src_tensor, nullptr, &acl_obj_->dst_acc_tensor,
+                    1.0f, 0.0f, amp.gemm_info);
+        } else {
+            acl_obj_->gemm.configure(&acl_obj_->src_tensor,
+                    &acl_obj_->wei_tensor, nullptr, &acl_obj_->dst_tensor, 1.0f,
+                    0.0f, amp.gemm_info);
+        }
+
         return status::success;
     }
     acl_matmul_obj_t &get_acl_obj() const { return *acl_obj_; }
@@ -127,9 +141,16 @@ struct acl_matmul_t : public primitive_t {
             amp_.use_dst_acc = post_ops.has_sum();
 
             // Validate ACL GEMM
-            ACL_CHECK_VALID(arm_compute::NEGEMM::validate(&amp_.src_tensor_info,
-                    &amp_.wei_tensor_info, nullptr, &amp_.dst_tensor_info,
-                    amp_.alpha, 0.0f, amp_.gemm_info));
+            if (amp_.do_transC) {
+                ACL_CHECK_VALID(arm_compute::NEGEMM::validate(
+                        &amp_.wei_tensor_info, &amp_.src_tensor_info, nullptr,
+                        &amp_.dst_acc_info, amp_.alpha, 0.0f, amp_.gemm_info));
+            } else {
+                ACL_CHECK_VALID(arm_compute::NEGEMM::validate(
+                        &amp_.src_tensor_info, &amp_.wei_tensor_info, nullptr,
+                        &amp_.dst_tensor_info, amp_.alpha, 0.0f,
+                        amp_.gemm_info));
+            }
 
             auto scratchpad = scratchpad_registry().registrar();
             CHECK(acl_matmul_utils::init_scratchpad(scratchpad, amp_, dst_md_));

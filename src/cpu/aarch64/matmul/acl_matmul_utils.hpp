@@ -30,9 +30,11 @@ struct acl_matmul_obj_t {
     arm_compute::NEGEMM gemm;
     arm_compute::NETranspose transA;
     arm_compute::NETranspose transB;
+    arm_compute::NETranspose transC;
     arm_compute::Tensor src_tensor;
     arm_compute::Tensor src_acc_tensor;
     arm_compute::Tensor wei_acc_tensor;
+    arm_compute::Tensor dst_acc_tensor;
     arm_compute::Tensor wei_tensor;
     arm_compute::Tensor dst_tensor;
 };
@@ -40,14 +42,16 @@ struct acl_matmul_obj_t {
 struct acl_matmul_conf_t {
     bool is_transA;
     bool is_transB;
+    bool do_transC;
     // If this is true, the result of the matmul goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
     bool use_dst_acc;
     arm_compute::TensorInfo src_tensor_info;
-    arm_compute::TensorInfo src_acc_info;
-    arm_compute::TensorInfo wei_acc_info;
     arm_compute::TensorInfo wei_tensor_info;
     arm_compute::TensorInfo dst_tensor_info;
+    arm_compute::TensorInfo src_acc_info;
+    arm_compute::TensorInfo wei_acc_info;
+    arm_compute::TensorInfo dst_acc_info;
     arm_compute::GEMMInfo gemm_info;
     float alpha;
 };
