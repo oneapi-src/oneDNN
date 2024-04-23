@@ -86,7 +86,7 @@ int data_kind2exec_arg(data_kind_t dk) {
 
     BENCHDNN_PRINT(0, "Error: data_kind \'%s\' was not recognized\n",
             data_kind2str(dk));
-    return BENCHDNN_DNNL_ARG_UNDEF;
+    return DNNL_ARG_UNDEF;
 }
 
 const char *data_kind2str(data_kind_t kind) {
