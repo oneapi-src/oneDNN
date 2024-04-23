@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_GPU_PRIMITIVE_HPP
-#define GPU_GPU_PRIMITIVE_HPP
+#ifndef GPU_INTEL_GPU_PRIMITIVE_HPP
+#define GPU_INTEL_GPU_PRIMITIVE_HPP
 
 #include <cassert>
 #include "gpu/intel/compute/utils.hpp"

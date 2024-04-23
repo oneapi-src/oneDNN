@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_ELTWISE_H
-#define GPU_OCL_OCL_ELTWISE_H
+#ifndef GPU_INTEL_OCL_OCL_ELTWISE_H
+#define GPU_INTEL_OCL_OCL_ELTWISE_H
 
 #if WITH_ELTWISE
 #include "gpu/intel/ocl/ocl_types.h"
@@ -348,4 +348,4 @@ float bwd_eltwise(
 
 #endif // WITH_ELTWISE
 
-#endif // GPU_OCL_OCL_ELTWISE_H
+#endif // GPU_INTEL_OCL_OCL_ELTWISE_H

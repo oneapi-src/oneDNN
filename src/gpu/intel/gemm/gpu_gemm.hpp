@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_GEMM_GPU_GEMM_HPP
-#define GPU_GEMM_GPU_GEMM_HPP
+#ifndef GPU_INTEL_GEMM_GPU_GEMM_HPP
+#define GPU_INTEL_GEMM_GPU_GEMM_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"

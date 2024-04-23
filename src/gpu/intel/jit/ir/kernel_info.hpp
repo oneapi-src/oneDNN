@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_KERNEL_INFO_HPP
-#define GPU_JIT_IR_KERNEL_INFO_HPP
+#ifndef GPU_INTEL_JIT_IR_KERNEL_INFO_HPP
+#define GPU_INTEL_JIT_IR_KERNEL_INFO_HPP
 
 #include <limits>
 #include <memory>

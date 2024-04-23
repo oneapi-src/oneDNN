@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_C_TYPES_MAP_HPP
-#define GPU_OCL_OCL_C_TYPES_MAP_HPP
+#ifndef GPU_INTEL_OCL_OCL_C_TYPES_MAP_HPP
+#define GPU_INTEL_OCL_OCL_C_TYPES_MAP_HPP
 
 #include "oneapi/dnnl/dnnl_ocl_types.h"
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CONV_CONFIG_HPP
-#define GPU_JIT_CONV_CONFIG_HPP
+#ifndef GPU_INTEL_JIT_CONV_CONFIG_HPP
+#define GPU_INTEL_JIT_CONV_CONFIG_HPP
 
 #include <iostream>
 #include <sstream>

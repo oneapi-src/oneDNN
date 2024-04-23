@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_KERNEL_ARG_LIST_HPP
-#define GPU_COMPUTE_KERNEL_ARG_LIST_HPP
+#ifndef GPU_INTEL_COMPUTE_KERNEL_ARG_LIST_HPP
+#define GPU_INTEL_COMPUTE_KERNEL_ARG_LIST_HPP
 
 #include <cassert>
 #include <cstddef>
@@ -323,4 +323,4 @@ void set_scalar_arg_cvt(kernel_arg_list_t &arg_list, int index, T scalar,
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_COMPUTE_KERNEL_ARG_LIST_HPP
+#endif // GPU_INTEL_COMPUTE_KERNEL_ARG_LIST_HPP

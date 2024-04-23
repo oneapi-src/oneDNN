@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_KERNEL_CACHE_HPP
-#define GPU_KERNEL_CACHE_HPP
+#ifndef GPU_INTEL_KERNEL_CACHE_HPP
+#define GPU_INTEL_KERNEL_CACHE_HPP
 
 #include <memory>
 #include <type_traits>
@@ -187,4 +187,4 @@ extern template status_t get_cached_kernels<compute::kernel_bundle_t>(
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_JIT_DESC_HPP
+#endif // GPU_INTEL_KERNEL_CACHE_HPP

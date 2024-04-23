@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_ZERO_POINTS_H
-#define GPU_OCL_OCL_ZERO_POINTS_H
+#ifndef GPU_INTEL_OCL_OCL_ZERO_POINTS_H
+#define GPU_INTEL_OCL_OCL_ZERO_POINTS_H
 
 #if WITH_SRC_ZPOINTS
 #if WITH_SRC_ZPOINTS_PER_IC
@@ -229,4 +229,4 @@ float4 zero_pad_dst_32c(float4 dst, const int oc) {
 
 #endif // WITH_SRC_ZPOINTS || WITH_DST_ZPOINTS
 
-#endif // GPU_OCL_OCL_ZERO_POINTS_H
+#endif // GPU_INTEL_OCL_OCL_ZERO_POINTS_H

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_CONTEXT_HPP
-#define GPU_COMPUTE_CONTEXT_HPP
+#ifndef GPU_INTEL_COMPUTE_CONTEXT_HPP
+#define GPU_INTEL_COMPUTE_CONTEXT_HPP
 
 #include <memory>
 

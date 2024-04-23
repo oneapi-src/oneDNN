@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_UTILS_HPP
-#define GPU_OCL_OCL_UTILS_HPP
+#ifndef GPU_INTEL_OCL_OCL_UTILS_HPP
+#define GPU_INTEL_OCL_OCL_UTILS_HPP
 
 #include <string.h>
 #include <string>

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_XE_SYSTOLIC_GEMM_COPY_KERNEL_HPP
-#define GPU_OCL_GEMM_XE_SYSTOLIC_GEMM_COPY_KERNEL_HPP
+#ifndef GPU_INTEL_OCL_GEMM_XE_SYSTOLIC_GEMM_COPY_KERNEL_HPP
+#define GPU_INTEL_OCL_GEMM_XE_SYSTOLIC_GEMM_COPY_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"

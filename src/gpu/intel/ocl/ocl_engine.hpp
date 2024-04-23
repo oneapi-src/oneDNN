@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_ENGINE_HPP
-#define GPU_OCL_OCL_ENGINE_HPP
+#ifndef GPU_INTEL_OCL_OCL_ENGINE_HPP
+#define GPU_INTEL_OCL_OCL_ENGINE_HPP
 
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 
@@ -82,4 +82,4 @@ public:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_OCL_OCL_ENGINE_HPP
+#endif // GPU_INTEL_OCL_OCL_ENGINE_HPP

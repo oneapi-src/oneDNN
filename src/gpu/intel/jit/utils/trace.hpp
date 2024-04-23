@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_UTILS_TRACE_HPP
-#define GPU_JIT_UTILS_TRACE_HPP
+#ifndef GPU_INTEL_JIT_UTILS_TRACE_HPP
+#define GPU_INTEL_JIT_UTILS_TRACE_HPP
 
 #include "gpu/intel/jit/utils/utils.hpp"
 

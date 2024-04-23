@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef GPU_UTILS_HPP
-#define GPU_UTILS_HPP
+#ifndef GPU_INTEL_UTILS_HPP
+#define GPU_INTEL_UTILS_HPP
 
 #include <iostream>
 #include <sstream>

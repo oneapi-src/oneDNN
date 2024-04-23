@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_RNN_RNN_TYPES_H
-#define GPU_OCL_RNN_RNN_TYPES_H
+#ifndef GPU_INTEL_OCL_RNN_RNN_TYPES_H
+#define GPU_INTEL_OCL_RNN_RNN_TYPES_H
 
 #include "gpu/intel/ocl/ocl_types.h"
 #include "gpu/intel/ocl/types_interop.h"

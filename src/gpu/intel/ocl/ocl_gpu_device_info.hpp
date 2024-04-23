@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_GPU_DEVICE_INFO_HPP
-#define GPU_OCL_OCL_GPU_DEVICE_INFO_HPP
+#ifndef GPU_INTEL_OCL_OCL_GPU_DEVICE_INFO_HPP
+#define GPU_INTEL_OCL_OCL_GPU_DEVICE_INFO_HPP
 
 #include <string>
 #include <vector>
@@ -46,4 +46,4 @@ protected:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_OCL_OCL_GPU_DEVICE_INFO_HPP
+#endif // GPU_INTEL_OCL_OCL_GPU_DEVICE_INFO_HPP

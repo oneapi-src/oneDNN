@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_IR_HPP
-#define GPU_JIT_IR_IR_HPP
+#ifndef GPU_INTEL_JIT_IR_IR_HPP
+#define GPU_INTEL_JIT_IR_IR_HPP
 
 #include <algorithm>
 #include <map>

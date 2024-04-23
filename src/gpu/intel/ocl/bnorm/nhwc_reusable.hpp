@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_NHWC_REUSABLE_BNORM_HPP
-#define GPU_OCL_NHWC_REUSABLE_BNORM_HPP
+#ifndef GPU_INTEL_OCL_BNORM_NHWC_REUSABLE_HPP
+#define GPU_INTEL_OCL_BNORM_NHWC_REUSABLE_HPP
 
 #include <assert.h>
 

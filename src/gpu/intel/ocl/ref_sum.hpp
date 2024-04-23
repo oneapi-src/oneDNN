@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_REF_SUM_HPP
-#define GPU_OCL_REF_SUM_HPP
+#ifndef GPU_INTEL_OCL_REF_SUM_HPP
+#define GPU_INTEL_OCL_REF_SUM_HPP
 
 #include <mutex>
 

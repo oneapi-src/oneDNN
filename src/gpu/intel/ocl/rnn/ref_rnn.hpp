@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_RNN_REF_RNN_HPP
-#define GPU_OCL_RNN_REF_RNN_HPP
+#ifndef GPU_INTEL_OCL_RNN_REF_RNN_HPP
+#define GPU_INTEL_OCL_RNN_REF_RNN_HPP
 
 #include <stdio.h>
 

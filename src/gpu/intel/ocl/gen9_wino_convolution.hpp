@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEN9_WINO_CONVOLUTION_HPP
-#define GPU_OCL_GEN9_WINO_CONVOLUTION_HPP
+#ifndef GPU_INTEL_OCL_GEN9_WINO_CONVOLUTION_HPP
+#define GPU_INTEL_OCL_GEN9_WINO_CONVOLUTION_HPP
 
 #include <assert.h>
 

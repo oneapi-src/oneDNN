@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_STREAM_PROFILER_HPP
-#define GPU_COMPUTE_STREAM_PROFILER_HPP
+#ifndef GPU_INTEL_COMPUTE_STREAM_PROFILER_HPP
+#define GPU_INTEL_COMPUTE_STREAM_PROFILER_HPP
 
 #include <cassert>
 #include <limits>

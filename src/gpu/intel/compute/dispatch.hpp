@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_DISPATCH_HPP
-#define GPU_COMPUTE_DISPATCH_HPP
+#ifndef GPU_INTEL_COMPUTE_DISPATCH_HPP
+#define GPU_INTEL_COMPUTE_DISPATCH_HPP
 
 #include <cassert>
 #include <string>

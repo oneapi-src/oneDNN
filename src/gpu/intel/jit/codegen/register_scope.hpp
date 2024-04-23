@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CODEGEN_REGISTER_SCOPE_HPP
-#define GPU_JIT_CODEGEN_REGISTER_SCOPE_HPP
+#ifndef GPU_INTEL_JIT_CODEGEN_REGISTER_SCOPE_HPP
+#define GPU_INTEL_JIT_CODEGEN_REGISTER_SCOPE_HPP
 
 #include "gpu/intel/jit/codegen/ngen_helpers.hpp"
 #include "gpu/intel/jit/codegen/reg_buf.hpp"

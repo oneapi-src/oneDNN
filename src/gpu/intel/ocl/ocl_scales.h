@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_SCALES_H
-#define GPU_OCL_OCL_SCALES_H
+#ifndef GPU_INTEL_OCL_OCL_SCALES_H
+#define GPU_INTEL_OCL_OCL_SCALES_H
 
 inline void block_read_scales(float4 *data, int idx, int sg_local_id,
         __global float *runtime_scales) {

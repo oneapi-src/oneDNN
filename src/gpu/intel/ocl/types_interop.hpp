@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_OCL_TYPES_INTEROP_HPP
-#define GPU_OCL_TYPES_INTEROP_HPP
+#ifndef GPU_INTEL_OCL_TYPES_INTEROP_HPP
+#define GPU_INTEL_OCL_TYPES_INTEROP_HPP
 
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/ocl/types_interop.h"

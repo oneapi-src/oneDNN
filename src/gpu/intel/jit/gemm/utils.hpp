@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_GEMM_UTILS_HPP
-#define GPU_JIT_GEMM_UTILS_HPP
+#ifndef GPU_INTEL_JIT_GEMM_UTILS_HPP
+#define GPU_INTEL_JIT_GEMM_UTILS_HPP
 
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
@@ -74,4 +74,4 @@ static inline int largest_pow2_divisor(int x) {
 } // namespace impl
 } // namespace dnnl
 
-#endif /* GPU_JIT_GEMM_UTILS_HPP */
+#endif /* GPU_INTEL_JIT_GEMM_UTILS_HPP */

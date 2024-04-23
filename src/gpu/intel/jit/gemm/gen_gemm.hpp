@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_GEMM_GEN_GEMM_HPP
-#define GPU_JIT_GEMM_GEN_GEMM_HPP
+#ifndef GPU_INTEL_JIT_GEMM_GEN_GEMM_HPP
+#define GPU_INTEL_JIT_GEMM_GEN_GEMM_HPP
 
 #include <assert.h>
 #include <memory>

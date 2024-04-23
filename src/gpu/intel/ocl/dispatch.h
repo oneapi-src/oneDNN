@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_DISPATCH_H
-#define GPU_OCL_DISPATCH_H
+#ifndef GPU_INTEL_OCL_DISPATCH_H
+#define GPU_INTEL_OCL_DISPATCH_H
 
 #define ROUND_UP(a, b) (((a) + (b)-1) / (b))
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_JIT_JIT_POST_OP_INJECTOR_HPP
-#define GPU_JIT_JIT_POST_OP_INJECTOR_HPP
+#ifndef GPU_INTEL_JIT_JIT_POST_OP_INJECTOR_HPP
+#define GPU_INTEL_JIT_JIT_POST_OP_INJECTOR_HPP
 
 #include "common/primitive_attr.hpp"
 #include "gpu/intel/gpu_post_ops.hpp"
@@ -97,4 +97,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_JIT_JIT_POST_OP_INJECTOR_HPP
+#endif // GPU_INTEL_JIT_JIT_POST_OP_INJECTOR_HPP

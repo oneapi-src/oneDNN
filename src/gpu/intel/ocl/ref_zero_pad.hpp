@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_ZERO_PAD_REF_ZERO_PAD_HPP
-#define GPU_OCL_ZERO_PAD_REF_ZERO_PAD_HPP
+#ifndef GPU_INTEL_OCL_REF_ZERO_PAD_HPP
+#define GPU_INTEL_OCL_REF_ZERO_PAD_HPP
 
 #include "gpu/gpu_zero_pad_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"

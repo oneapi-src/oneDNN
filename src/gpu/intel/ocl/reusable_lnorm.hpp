@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_REUSABLE_LNORM_HPP
-#define GPU_OCL_REUSABLE_LNORM_HPP
+#ifndef GPU_INTEL_OCL_REUSABLE_LNORM_HPP
+#define GPU_INTEL_OCL_REUSABLE_LNORM_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/layer_normalization_pd.hpp"

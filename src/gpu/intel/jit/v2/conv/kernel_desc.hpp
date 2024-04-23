@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_CONV_PLAN_DESC_HPP
-#define GPU_JIT_V2_CONV_PLAN_DESC_HPP
+#ifndef GPU_INTEL_JIT_V2_CONV_KERNEL_DESC_HPP
+#define GPU_INTEL_JIT_V2_CONV_KERNEL_DESC_HPP
 
 #include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_CONTEXT_HPP
-#define GPU_OCL_OCL_CONTEXT_HPP
+#ifndef GPU_INTEL_OCL_OCL_CONTEXT_HPP
+#define GPU_INTEL_OCL_OCL_CONTEXT_HPP
 
 #include "gpu/intel/compute/context.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_HW_HPP
-#define GPU_JIT_IR_HW_HPP
+#ifndef GPU_INTEL_JIT_IR_HW_HPP
+#define GPU_INTEL_JIT_IR_HW_HPP
 
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/device_info.hpp"

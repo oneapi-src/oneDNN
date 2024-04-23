@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_JIT_EMULATED_GENERATOR_HPP
-#define GPU_JIT_EMULATED_GENERATOR_HPP
+#ifndef GPU_INTEL_JIT_EMULATED_GENERATOR_HPP
+#define GPU_INTEL_JIT_EMULATED_GENERATOR_HPP
 
 // Must be included before emulation.hpp
 #include "gpu/intel/jit/ngen/ngen.hpp"
@@ -131,4 +131,4 @@ void eadd3(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_JIT_JIT_REDUCTION_GENERATOR_HPP
+#endif // GPU_INTEL_JIT_EMULATED_GENERATOR_HPP

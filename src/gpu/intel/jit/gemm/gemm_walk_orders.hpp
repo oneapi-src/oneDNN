@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_GEMM_GEMM_WALK_ORDERS_HPP
-#define GPU_JIT_GEMM_GEMM_WALK_ORDERS_HPP
+#ifndef GPU_INTEL_JIT_GEMM_GEMM_WALK_ORDERS_HPP
+#define GPU_INTEL_JIT_GEMM_GEMM_WALK_ORDERS_HPP
 
 #include "common/utils.hpp"
 #include "gpu/intel/compute/utils.hpp"

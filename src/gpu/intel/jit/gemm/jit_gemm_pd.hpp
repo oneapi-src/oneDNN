@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_GEMM_PD_HPP
-#define GPU_JIT_GEMM_PD_HPP
+#ifndef GPU_INTEL_JIT_GEMM_JIT_GEMM_PD_HPP
+#define GPU_INTEL_JIT_GEMM_JIT_GEMM_PD_HPP
 
 #include <vector>
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CODEGEN_NGEN_HELPERS_HPP
-#define GPU_JIT_CODEGEN_NGEN_HELPERS_HPP
+#ifndef GPU_INTEL_JIT_CODEGEN_NGEN_HELPERS_HPP
+#define GPU_INTEL_JIT_CODEGEN_NGEN_HELPERS_HPP
 
 #include "gpu/intel/jit/ir/core.hpp"
 #include "gpu/intel/jit/ngen/ngen.hpp"

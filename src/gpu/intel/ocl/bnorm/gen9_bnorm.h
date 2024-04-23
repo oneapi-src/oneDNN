@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef GPU_OCL_GEN9_BNORM_H
-#define GPU_OCL_GEN9_BNORM_H
+#ifndef GPU_INTEL_OCL_BNORM_GEN9_BNORM_H
+#define GPU_INTEL_OCL_BNORM_GEN9_BNORM_H
 
 #define VECT_DT_N VECT_SIZE
 #include "gpu/intel/ocl/dispatch.h"
@@ -304,4 +304,4 @@ void gen9_calc_fused_reduction(volatile __global atomic_float *diff_scale,
 }
 #endif // IS_BWD
 #endif // FUSED_ATOMICS_REDUCTION
-#endif // GPU_OCL_GEN9_BNORM_H
+#endif // GPU_INTEL_OCL_BNORM_GEN9_BNORM_H

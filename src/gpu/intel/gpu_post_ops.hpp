@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef GPU_GPU_POST_OPS_HPP
-#define GPU_GPU_POST_OPS_HPP
+#ifndef GPU_INTEL_GPU_POST_OPS_HPP
+#define GPU_INTEL_GPU_POST_OPS_HPP
 
 #include "common/primitive_attr.hpp"
 #include "gpu/intel/block_structure.hpp"

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CONV_NORMALIZATION_HPP
-#define GPU_JIT_CONV_NORMALIZATION_HPP
+#ifndef GPU_INTEL_JIT_CONV_NORMALIZATION_HPP
+#define GPU_INTEL_JIT_CONV_NORMALIZATION_HPP
 
 #include "gpu/intel/jit/ir/post_ops.hpp"
 

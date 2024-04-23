@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_DATA_TYPE_CONVERTER_HPP
-#define GPU_COMPUTE_DATA_TYPE_CONVERTER_HPP
+#ifndef GPU_INTEL_COMPUTE_DATA_TYPE_CONVERTER_HPP
+#define GPU_INTEL_COMPUTE_DATA_TYPE_CONVERTER_HPP
 
 #include "common/c_types_map.hpp"
 #include "gpu/intel/compute/kernel_ctx.hpp"

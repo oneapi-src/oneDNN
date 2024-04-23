@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_COMPUTE_STREAM_HPP
-#define GPU_COMPUTE_COMPUTE_STREAM_HPP
+#ifndef GPU_INTEL_COMPUTE_COMPUTE_STREAM_HPP
+#define GPU_INTEL_COMPUTE_COMPUTE_STREAM_HPP
 
 #include "common/stream.hpp"
 #include "gpu/intel/compute/context.hpp"

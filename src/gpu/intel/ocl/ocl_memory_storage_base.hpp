@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_MEMORY_STORAGE_BASE_HPP
-#define GPU_OCL_OCL_MEMORY_STORAGE_BASE_HPP
+#ifndef GPU_INTEL_OCL_OCL_MEMORY_STORAGE_BASE_HPP
+#define GPU_INTEL_OCL_OCL_MEMORY_STORAGE_BASE_HPP
 
 #include "common/memory_storage.hpp"
 #include "gpu/intel/ocl/ocl_c_types_map.hpp"
@@ -42,4 +42,4 @@ public:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_OCL_OCL_MEMORY_STORAGE_BASE_HPP
+#endif // GPU_INTEL_OCL_OCL_MEMORY_STORAGE_BASE_HPP

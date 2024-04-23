@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CONV_MESSAGE_PATTERNS_HPP
-#define GPU_JIT_CONV_MESSAGE_PATTERNS_HPP
+#ifndef GPU_INTEL_JIT_CONV_MESSAGE_PATTERNS_HPP
+#define GPU_INTEL_JIT_CONV_MESSAGE_PATTERNS_HPP
 
 #include "common/type_helpers.hpp"
 #include "gpu/intel/jit/conv/config.hpp"

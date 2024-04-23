@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_MATH_UTILS_H
-#define GPU_OCL_OCL_MATH_UTILS_H
+#ifndef GPU_INTEL_OCL_OCL_MATH_UTILS_H
+#define GPU_INTEL_OCL_OCL_MATH_UTILS_H
 
 #include "gpu/intel/ocl/ocl_utils.h"
 

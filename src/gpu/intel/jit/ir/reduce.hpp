@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_REDUCE_HPP
-#define GPU_JIT_IR_REDUCE_HPP
+#ifndef GPU_INTEL_JIT_IR_REDUCE_HPP
+#define GPU_INTEL_JIT_IR_REDUCE_HPP
 
 #include "gpu/intel/jit/ir/ir.hpp"
 #include "gpu/intel/jit/ir/reorder.hpp"

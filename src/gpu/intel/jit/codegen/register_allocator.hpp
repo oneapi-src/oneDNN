@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CODEGEN_REGISTER_ALLOCATOR_HPP
-#define GPU_JIT_CODEGEN_REGISTER_ALLOCATOR_HPP
+#ifndef GPU_INTEL_JIT_CODEGEN_REGISTER_ALLOCATOR_HPP
+#define GPU_INTEL_JIT_CODEGEN_REGISTER_ALLOCATOR_HPP
 
 #include "common/z_magic.hpp"
 #include "gpu/intel/jit/ngen/ngen.hpp"

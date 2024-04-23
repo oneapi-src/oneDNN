@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_UTILS_HPP
-#define GPU_COMPUTE_UTILS_HPP
+#ifndef GPU_INTEL_COMPUTE_UTILS_HPP
+#define GPU_INTEL_COMPUTE_UTILS_HPP
 
 #include <array>
 #include <cassert>
@@ -163,4 +163,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_COMPUTE_UTILS_HPP
+#endif // GPU_INTEL_COMPUTE_UTILS_HPP

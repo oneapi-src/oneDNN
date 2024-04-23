@@ -17,8 +17,8 @@
 // Proxy classes for selected nGEN functionality to minimize dependency on
 // template-heavy nGEN headers, and reduce compilation time.
 
-#ifndef GPU_JIT_UTILS_NGEN_PROXY_HPP
-#define GPU_JIT_UTILS_NGEN_PROXY_HPP
+#ifndef GPU_INTEL_JIT_UTILS_NGEN_PROXY_HPP
+#define GPU_INTEL_JIT_UTILS_NGEN_PROXY_HPP
 
 #include "gpu/intel/jit/utils/utils.hpp"
 

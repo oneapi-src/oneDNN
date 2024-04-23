@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_CONCAT_COMMON_H
-#define GPU_OCL_CONCAT_COMMON_H
+#ifndef GPU_INTEL_OCL_CONCAT_COMMON_H
+#define GPU_INTEL_OCL_CONCAT_COMMON_H
 
 #define REDUCE_STAGE_0(cat, f)
 #define REDUCE_STAGE_1(cat, f) f(0)

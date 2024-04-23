@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_JIT_BINARY_FORMAT_HPP
-#define GPU_JIT_BINARY_FORMAT_HPP
+#ifndef GPU_INTEL_JIT_BINARY_FORMAT_HPP
+#define GPU_INTEL_JIT_BINARY_FORMAT_HPP
 
 #include "common/engine.hpp"
 
@@ -31,4 +31,4 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine);
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_JIT_BINARY_FORMAT_HPP
+#endif // GPU_INTEL_JIT_BINARY_FORMAT_HPP

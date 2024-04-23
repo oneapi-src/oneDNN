@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_KERNEL_CTX_HPP
-#define GPU_COMPUTE_KERNEL_CTX_HPP
+#ifndef GPU_INTEL_COMPUTE_KERNEL_CTX_HPP
+#define GPU_INTEL_COMPUTE_KERNEL_CTX_HPP
 
 #include <cassert>
 #include <map>
@@ -162,4 +162,4 @@ inline int64_t kernel_ctx_t::get_scalar(const std::string &name) const {
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_COMPUTE_KERNEL_CTX_HPP
+#endif // GPU_INTEL_COMPUTE_KERNEL_CTX_HPP

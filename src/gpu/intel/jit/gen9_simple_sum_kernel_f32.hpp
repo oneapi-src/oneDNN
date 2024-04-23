@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_JIT_GEN9_SIMPLE_SUM_KERNEL_F32_HPP
-#define GPU_JIT_GEN9_SIMPLE_SUM_KERNEL_F32_HPP
+#ifndef GPU_INTEL_JIT_GEN9_SIMPLE_SUM_KERNEL_F32_HPP
+#define GPU_INTEL_JIT_GEN9_SIMPLE_SUM_KERNEL_F32_HPP
 
 #include "common/c_types_map.hpp"
 #include "gpu/intel/jit/jit_generator.hpp"
@@ -87,4 +87,4 @@ public:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_JIT_GEN9_SIMPLE_SUM_KERNEL_F32_HPP
+#endif // GPU_INTEL_JIT_GEN9_SIMPLE_SUM_KERNEL_F32_HPP

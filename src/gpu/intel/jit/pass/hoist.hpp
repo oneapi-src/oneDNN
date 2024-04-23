@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_PASS_HOIST_HPP
-#define GPU_JIT_PASS_HOIST_HPP
+#ifndef GPU_INTEL_JIT_PASS_HOIST_HPP
+#define GPU_INTEL_JIT_PASS_HOIST_HPP
 
 #include "gpu/intel/jit/ir/ir.hpp"
 

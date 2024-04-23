@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_REORDER_GEN_REORDER_HPP
-#define GPU_JIT_REORDER_GEN_REORDER_HPP
+#ifndef GPU_INTEL_JIT_REORDER_GEN_REORDER_HPP
+#define GPU_INTEL_JIT_REORDER_GEN_REORDER_HPP
 
 #include <memory>
 

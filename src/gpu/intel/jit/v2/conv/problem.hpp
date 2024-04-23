@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_CONV_PROBLEM_HPP
-#define GPU_JIT_V2_CONV_PROBLEM_HPP
+#ifndef GPU_INTEL_JIT_V2_CONV_PROBLEM_HPP
+#define GPU_INTEL_JIT_V2_CONV_PROBLEM_HPP
 
 #include "gpu/intel/jit/conv/problem.hpp"
 #include "gpu/intel/jit/ir/tensor_config.hpp"

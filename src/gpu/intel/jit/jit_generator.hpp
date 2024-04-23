@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_JIT_GENERATOR_HPP
-#define GPU_JIT_JIT_GENERATOR_HPP
+#ifndef GPU_INTEL_JIT_JIT_GENERATOR_HPP
+#define GPU_INTEL_JIT_JIT_GENERATOR_HPP
 
 #include <memory>
 
@@ -240,4 +240,4 @@ compute::kernel_t make_kernel(
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_JIT_JIT_GENERATOR_HPP
+#endif // GPU_INTEL_JIT_JIT_GENERATOR_HPP

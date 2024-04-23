@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_GPU_PRIMITIVE_ATTR_HPP
-#define GPU_GPU_PRIMITIVE_ATTR_HPP
+#ifndef GPU_INTEL_GPU_PRIMITIVE_ATTR_HPP
+#define GPU_INTEL_GPU_PRIMITIVE_ATTR_HPP
 
 #include "common/primitive_attr.hpp"
 #include "common/serialization_stream.hpp"

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_IR_PLAN_UTILS_HPP
-#define GPU_JIT_V2_IR_PLAN_UTILS_HPP
+#ifndef GPU_INTEL_JIT_V2_IR_PLAN_UTILS_HPP
+#define GPU_INTEL_JIT_V2_IR_PLAN_UTILS_HPP
 
 #include "gpu/intel/jit/ir/hw.hpp"
 

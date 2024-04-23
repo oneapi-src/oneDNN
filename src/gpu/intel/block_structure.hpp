@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_BLOCK_STRUCTURE_HPP
-#define GPU_BLOCK_STRUCTURE_HPP
+#ifndef GPU_INTEL_BLOCK_STRUCTURE_HPP
+#define GPU_INTEL_BLOCK_STRUCTURE_HPP
 
 #include <sstream>
 #include <vector>

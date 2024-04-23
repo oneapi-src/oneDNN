@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_IR_PRB_REQS_HPP
-#define GPU_JIT_V2_IR_PRB_REQS_HPP
+#ifndef GPU_INTEL_JIT_V2_IR_REQS_HPP
+#define GPU_INTEL_JIT_V2_IR_REQS_HPP
 
 #include "gpu/intel/jit/ir/ir.hpp"
 #include "gpu/intel/jit/ir/problem.hpp"

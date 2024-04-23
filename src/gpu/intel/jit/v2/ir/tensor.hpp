@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_IR_TENSOR_HPP
-#define GPU_JIT_V2_IR_TENSOR_HPP
+#ifndef GPU_INTEL_JIT_V2_IR_TENSOR_HPP
+#define GPU_INTEL_JIT_V2_IR_TENSOR_HPP
 
 #include "common/math_utils.hpp"
 #include "gpu/intel/jit/ir/linear_expr.hpp"

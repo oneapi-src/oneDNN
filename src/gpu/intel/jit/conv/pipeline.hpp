@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CONV_PIPELINE_HPP
-#define GPU_JIT_CONV_PIPELINE_HPP
+#ifndef GPU_INTEL_JIT_CONV_PIPELINE_HPP
+#define GPU_INTEL_JIT_CONV_PIPELINE_HPP
 
 #include "gpu/intel/jit/conv/config.hpp"
 #include "gpu/intel/jit/utils/trace.hpp"

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_MATMUL_HPP
-#define GPU_OCL_GEMM_MATMUL_HPP
+#ifndef GPU_INTEL_OCL_GEMM_MATMUL_HPP
+#define GPU_INTEL_OCL_GEMM_MATMUL_HPP
 
 #include "common/gemm_utils.hpp"
 #include "common/primitive.hpp"

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEN9_CONCAT_HPP
-#define GPU_OCL_GEN9_CONCAT_HPP
+#ifndef GPU_INTEL_OCL_GEN9_CONCAT_HPP
+#define GPU_INTEL_OCL_GEN9_CONCAT_HPP
 
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
@@ -98,4 +98,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif //GPU_OCL_GEN9_CONCAT_HPP
+#endif //GPU_INTEL_OCL_GEN9_CONCAT_HPP

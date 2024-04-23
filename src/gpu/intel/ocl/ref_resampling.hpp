@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_REF_RESAMPLING_HPP
-#define GPU_OCL_REF_RESAMPLING_HPP
+#ifndef GPU_INTEL_OCL_REF_RESAMPLING_HPP
+#define GPU_INTEL_OCL_REF_RESAMPLING_HPP
 
 #include "gpu/gpu_resampling_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"

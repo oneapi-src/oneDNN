@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_atomic_REDUCTION_HPP
-#define GPU_atomic_REDUCTION_HPP
+#ifndef GPU_INTEL_OCL_REDUCTION_ATOMIC_REDUCTION_HPP
+#define GPU_INTEL_OCL_REDUCTION_ATOMIC_REDUCTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"

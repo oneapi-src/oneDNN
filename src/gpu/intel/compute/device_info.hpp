@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_DEVICE_INFO_HPP
-#define GPU_COMPUTE_DEVICE_INFO_HPP
+#ifndef GPU_INTEL_COMPUTE_DEVICE_INFO_HPP
+#define GPU_INTEL_COMPUTE_DEVICE_INFO_HPP
 
 #include <stdint.h>
 #include <stdlib.h>

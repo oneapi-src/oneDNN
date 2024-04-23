@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_POOLING_IR_BUILDER_HPP
-#define GPU_JIT_POOLING_IR_BUILDER_HPP
+#ifndef GPU_INTEL_JIT_POOLING_IR_BUILDER_HPP
+#define GPU_INTEL_JIT_POOLING_IR_BUILDER_HPP
 
 #include "gpu/intel/jit/ir/gemm_schedule.hpp"
 #include "gpu/intel/jit/ir/ir.hpp"

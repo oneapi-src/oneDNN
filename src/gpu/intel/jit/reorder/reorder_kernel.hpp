@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_REORDER_REORDER_KERNEL_HPP
-#define GPU_JIT_REORDER_REORDER_KERNEL_HPP
+#ifndef GPU_INTEL_JIT_REORDER_REORDER_KERNEL_HPP
+#define GPU_INTEL_JIT_REORDER_REORDER_KERNEL_HPP
 
 #include "gpu/intel/jit/codegen/codegen.hpp"
 #include "gpu/intel/jit/codegen/kernel.hpp"

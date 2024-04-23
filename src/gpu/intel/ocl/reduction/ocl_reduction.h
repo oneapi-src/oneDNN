@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_REDUCTION_H
-#define GPU_OCL_OCL_REDUCTION_H
+#ifndef GPU_INTEL_OCL_REDUCTION_OCL_REDUCTION_H
+#define GPU_INTEL_OCL_REDUCTION_OCL_REDUCTION_H
 
 #include "gpu/intel/ocl/ocl_utils.h"
 

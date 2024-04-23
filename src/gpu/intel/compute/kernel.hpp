@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_KERNEL_HPP
-#define GPU_COMPUTE_KERNEL_HPP
+#ifndef GPU_INTEL_COMPUTE_KERNEL_HPP
+#define GPU_INTEL_COMPUTE_KERNEL_HPP
 
 #include <functional>
 #include <memory>
@@ -200,4 +200,4 @@ public:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_COMPUTE_KERNEL_HPP
+#endif // GPU_INTEL_COMPUTE_KERNEL_HPP

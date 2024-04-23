@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_GPU_KERNEL_HPP
-#define GPU_OCL_OCL_GPU_KERNEL_HPP
+#ifndef GPU_INTEL_OCL_OCL_GPU_KERNEL_HPP
+#define GPU_INTEL_OCL_OCL_GPU_KERNEL_HPP
 
 #include <string>
 #include <CL/cl.h>
@@ -67,4 +67,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_OCL_OCL_GPU_KERNEL_HPP
+#endif // GPU_INTEL_OCL_OCL_GPU_KERNEL_HPP

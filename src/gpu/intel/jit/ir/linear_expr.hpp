@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_LINEAR_EXPR_HPP
-#define GPU_JIT_IR_LINEAR_EXPR_HPP
+#ifndef GPU_INTEL_JIT_IR_LINEAR_EXPR_HPP
+#define GPU_INTEL_JIT_IR_LINEAR_EXPR_HPP
 
 #include <iostream>
 #include <string>

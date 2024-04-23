@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_NHWC_BATCH_NORMALIZATION_HPP
-#define GPU_OCL_NHWC_BATCH_NORMALIZATION_HPP
+#ifndef GPU_INTEL_OCL_BNORM_NHWC_BATCH_NORMALIZATION_HPP
+#define GPU_INTEL_OCL_BNORM_NHWC_BATCH_NORMALIZATION_HPP
 
 #include "common/primitive.hpp"
 #include "gpu/gpu_batch_normalization_pd.hpp"
@@ -326,4 +326,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_OCL_NHWC_BATCH_NORMALIZATION_HPP
+#endif // GPU_INTEL_OCL_BNORM_NHWC_BATCH_NORMALIZATION_HPP

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CODEGEN_REDUCE_HPP
-#define GPU_JIT_CODEGEN_REDUCE_HPP
+#ifndef GPU_INTEL_JIT_CODEGEN_REDUCE_HPP
+#define GPU_INTEL_JIT_CODEGEN_REDUCE_HPP
 
 #include "gpu/intel/jit/codegen/register_scope.hpp"
 #include "gpu/intel/jit/codegen/reorder.hpp"

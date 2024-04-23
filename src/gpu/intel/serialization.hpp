@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_SERIALIZATION_HPP
-#define GPU_SERIALIZATION_HPP
+#ifndef GPU_INTEL_SERIALIZATION_HPP
+#define GPU_INTEL_SERIALIZATION_HPP
 
 #include <iomanip>
 #include <sstream>

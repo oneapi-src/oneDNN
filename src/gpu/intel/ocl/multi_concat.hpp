@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_MULTI_CONCAT_HPP
-#define GPU_OCL_MULTI_CONCAT_HPP
+#ifndef GPU_INTEL_OCL_MULTI_CONCAT_HPP
+#define GPU_INTEL_OCL_MULTI_CONCAT_HPP
 
 #include "common/concat.hpp"
 #include "common/engine.hpp"

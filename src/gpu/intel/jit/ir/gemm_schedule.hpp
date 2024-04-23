@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_GEMM_SCHEDULE_HPP
-#define GPU_JIT_IR_GEMM_SCHEDULE_HPP
+#ifndef GPU_INTEL_JIT_IR_GEMM_SCHEDULE_HPP
+#define GPU_INTEL_JIT_IR_GEMM_SCHEDULE_HPP
 
 #include <functional>
 #include <limits>

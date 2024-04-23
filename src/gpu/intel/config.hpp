@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_CONFIG_HPP
-#define GPU_CONFIG_HPP
+#ifndef GPU_INTEL_CONFIG_HPP
+#define GPU_INTEL_CONFIG_HPP
 
 #include <algorithm>
 #include <functional>

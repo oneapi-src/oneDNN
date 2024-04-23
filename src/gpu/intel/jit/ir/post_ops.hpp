@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_POST_OPS_HPP
-#define GPU_JIT_IR_POST_OPS_HPP
+#ifndef GPU_INTEL_JIT_IR_POST_OPS_HPP
+#define GPU_INTEL_JIT_IR_POST_OPS_HPP
 
 #include <string>
 #include <vector>

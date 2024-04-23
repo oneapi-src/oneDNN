@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_UTILS_RANGE_HPP
-#define GPU_JIT_UTILS_RANGE_HPP
+#ifndef GPU_INTEL_JIT_UTILS_RANGE_HPP
+#define GPU_INTEL_JIT_UTILS_RANGE_HPP
 
 #include "gpu/intel/jit/utils/iterator.hpp"
 

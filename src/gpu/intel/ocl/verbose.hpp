@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_VERBOSE_HPP
-#define GPU_OCL_VERBOSE_HPP
+#ifndef GPU_INTEL_OCL_VERBOSE_HPP
+#define GPU_INTEL_OCL_VERBOSE_HPP
 
 #include <cstdio>
 

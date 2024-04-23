@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_ELTWISE_HPP
-#define GPU_JIT_IR_ELTWISE_HPP
+#ifndef GPU_INTEL_JIT_IR_ELTWISE_HPP
+#define GPU_INTEL_JIT_IR_ELTWISE_HPP
 
 #include <string>
 #include <vector>

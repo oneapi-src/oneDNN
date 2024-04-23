@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_SLM_REDUCE_BUILDER_HPP
-#define GPU_JIT_IR_SLM_REDUCE_BUILDER_HPP
+#ifndef GPU_INTEL_JIT_IR_SLM_REDUCE_BUILDER_HPP
+#define GPU_INTEL_JIT_IR_SLM_REDUCE_BUILDER_HPP
 
 #include "gpu/intel/jit/ir/hw.hpp"
 #include "gpu/intel/jit/ir/ir.hpp"

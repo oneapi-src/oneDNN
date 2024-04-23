@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_CONV_GEN_CONVOLUTION_HPP
-#define GPU_JIT_V2_CONV_GEN_CONVOLUTION_HPP
+#ifndef GPU_INTEL_JIT_V2_CONV_GEN_CONVOLUTION_HPP
+#define GPU_INTEL_JIT_V2_CONV_GEN_CONVOLUTION_HPP
 
 #include <memory>
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_GPU_HW_INFO_HPP
-#define GPU_OCL_OCL_GPU_HW_INFO_HPP
+#ifndef GPU_INTEL_OCL_OCL_GPU_HW_INFO_HPP
+#define GPU_INTEL_OCL_OCL_GPU_HW_INFO_HPP
 
 #include <CL/cl.h>
 
@@ -37,4 +37,4 @@ void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_OCL_OCL_GPU_HW_INFO_HPP
+#endif // GPU_INTEL_OCL_OCL_GPU_HW_INFO_HPP

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CODEGEN_BANK_CONFLICT_ALLOCATION_HPP
-#define GPU_JIT_CODEGEN_BANK_CONFLICT_ALLOCATION_HPP
+#ifndef GPU_INTEL_JIT_CODEGEN_BANK_CONFLICT_ALLOCATION_HPP
+#define GPU_INTEL_JIT_CODEGEN_BANK_CONFLICT_ALLOCATION_HPP
 
 #include "gpu/intel/jit/codegen/reg_buf.hpp"
 #include "gpu/intel/jit/codegen/register_allocator.hpp"

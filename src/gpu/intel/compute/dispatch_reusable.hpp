@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_DISPATCH_REUSABLE_HPP
-#define GPU_COMPUTE_DISPATCH_REUSABLE_HPP
+#ifndef GPU_INTEL_COMPUTE_DISPATCH_REUSABLE_HPP
+#define GPU_INTEL_COMPUTE_DISPATCH_REUSABLE_HPP
 
 #include <sstream>
 #include <string>

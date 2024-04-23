@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CODEGEN_SEND_HPP
-#define GPU_JIT_CODEGEN_SEND_HPP
+#ifndef GPU_INTEL_JIT_CODEGEN_SEND_HPP
+#define GPU_INTEL_JIT_CODEGEN_SEND_HPP
 
 #include "gpu/intel/jit/codegen/kernel.hpp"
 #include "gpu/intel/jit/codegen/register_scope.hpp"

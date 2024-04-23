@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_OCL_OFFSETS_H
-#define GPU_OCL_OFFSETS_H
+#ifndef GPU_INTEL_OCL_OFFSETS_H
+#define GPU_INTEL_OCL_OFFSETS_H
 
 int off_ncdhw(int n, int c, int d, int h, int w, int C, int D, int H, int W) {
     int off = 0;
@@ -189,4 +189,4 @@ int dst_off(int n, int c, int d, int h, int w) {
 #endif
 }
 
-#endif // GPU_OCL_OFFSETS_H
+#endif // GPU_INTEL_OCL_OFFSETS_H

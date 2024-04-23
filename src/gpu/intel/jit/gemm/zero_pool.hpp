@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_GEMM_ZERO_POOL_HPP
-#define GPU_JIT_GEMM_ZERO_POOL_HPP
+#ifndef GPU_INTEL_JIT_GEMM_ZERO_POOL_HPP
+#define GPU_INTEL_JIT_GEMM_ZERO_POOL_HPP
 
 #include <array>
 #include <mutex>

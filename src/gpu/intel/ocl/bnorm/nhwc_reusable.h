@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef GPU_OCL_NHWC_REUSABLE_BNORM_H
-#define GPU_OCL_NHWC_REUSABLE_BNORM_H
+#ifndef GPU_INTEL_OCL_BNORM_NHWC_REUSABLE_H
+#define GPU_INTEL_OCL_BNORM_NHWC_REUSABLE_H
 
 #define SG_SIZE 16
 #define VECT_DT_N VECT_SIZE
@@ -106,4 +106,4 @@ SUM_DATA_T summation(ACCUM_DATA_T input, SUM_DATA_T state) {
     ret.s0 = t;
     return ret;
 }
-#endif // GPU_OCL_NHWC_REUSABLE_BNORM_H
+#endif // GPU_INTEL_OCL_BNORM_NHWC_REUSABLE_H

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_combined_REDUCTION_HPP
-#define GPU_combined_REDUCTION_HPP
+#ifndef GPU_INTEL_OCL_REDUCTION_COMBINED_REDUCTION_HPP
+#define GPU_INTEL_OCL_REDUCTION_COMBINED_REDUCTION_HPP
 
 #include "common/primitive.hpp"
 #include "gpu/gpu_reduction_pd.hpp"

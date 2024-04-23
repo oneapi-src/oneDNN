@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CONV_MODEL_DATA_HPP
-#define GPU_JIT_CONV_MODEL_DATA_HPP
+#ifndef GPU_INTEL_JIT_CONV_MODEL_DATA_HPP
+#define GPU_INTEL_JIT_CONV_MODEL_DATA_HPP
 
 #include <cstdint>
 #include <vector>

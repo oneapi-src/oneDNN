@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_PASS_SHUFFLE_SPLITTER_HPP
-#define GPU_JIT_PASS_SHUFFLE_SPLITTER_HPP
+#ifndef GPU_INTEL_JIT_PASS_SHUFFLE_SPLITTER_HPP
+#define GPU_INTEL_JIT_PASS_SHUFFLE_SPLITTER_HPP
 
 #include "gpu/intel/jit/ir/ir.hpp"
 

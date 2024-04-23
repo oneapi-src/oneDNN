@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_GPU_RESOURCE_HPP
-#define GPU_GPU_RESOURCE_HPP
+#ifndef GPU_INTEL_GPU_RESOURCE_HPP
+#define GPU_INTEL_GPU_RESOURCE_HPP
 
 #include <memory>
 #include <unordered_map>

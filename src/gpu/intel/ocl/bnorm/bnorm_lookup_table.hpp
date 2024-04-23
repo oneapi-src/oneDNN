@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_BNORM_LOOKUP_TABLE_HPP
-#define GPU_OCL_BNORM_LOOKUP_TABLE_HPP
+#ifndef GPU_INTEL_OCL_BNORM_BNORM_LOOKUP_TABLE_HPP
+#define GPU_INTEL_OCL_BNORM_BNORM_LOOKUP_TABLE_HPP
 
 #include <string>
 #include <vector>

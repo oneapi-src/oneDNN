@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_OCL_TYPES_INTEROP_H
-#define GPU_OCL_TYPES_INTEROP_H
+#ifndef GPU_INTEL_OCL_TYPES_INTEROP_H
+#define GPU_INTEL_OCL_TYPES_INTEROP_H
 
 // Structures intended for use in both OpenCL C and C++ code. This is especially
 // helpful for parameter transfer.

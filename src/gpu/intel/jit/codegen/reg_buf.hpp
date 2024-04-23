@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CODEGEN_REG_BUF_HPP
-#define GPU_JIT_CODEGEN_REG_BUF_HPP
+#ifndef GPU_INTEL_JIT_CODEGEN_REG_BUF_HPP
+#define GPU_INTEL_JIT_CODEGEN_REG_BUF_HPP
 
 #include <vector>
 #include <unordered_set>

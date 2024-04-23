@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_COMPUTE_BLOCK_MANIPULATION_HPP
-#define GPU_COMPUTE_BLOCK_MANIPULATION_HPP
+#ifndef GPU_INTEL_COMPUTE_BLOCK_MANIPULATION_HPP
+#define GPU_INTEL_COMPUTE_BLOCK_MANIPULATION_HPP
 
 #include <cstddef>
 #include <unordered_map>

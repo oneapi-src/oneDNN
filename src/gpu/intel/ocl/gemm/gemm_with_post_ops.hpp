@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_GEMM_WITH_POST_OPS_HPP
-#define GPU_OCL_GEMM_GEMM_WITH_POST_OPS_HPP
+#ifndef GPU_INTEL_OCL_GEMM_GEMM_WITH_POST_OPS_HPP
+#define GPU_INTEL_OCL_GEMM_GEMM_WITH_POST_OPS_HPP
 
 #include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/intel/gemm/gpu_gemm.hpp"

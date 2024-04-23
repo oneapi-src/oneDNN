@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_GEMM_GPU_GEMM_EXEC_TYPES_HPP
-#define GPU_GEMM_GPU_GEMM_EXEC_TYPES_HPP
+#ifndef GPU_INTEL_GEMM_GPU_GEMM_EXEC_TYPES_HPP
+#define GPU_INTEL_GEMM_GPU_GEMM_EXEC_TYPES_HPP
 
 #include "common/memory_storage.hpp"
 #include "common/primitive_exec_types.hpp"

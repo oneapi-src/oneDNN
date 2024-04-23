@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_IR_SEND_HPP
-#define GPU_JIT_V2_IR_SEND_HPP
+#ifndef GPU_INTEL_JIT_V2_IR_SEND_HPP
+#define GPU_INTEL_JIT_V2_IR_SEND_HPP
 
 #include "gpu/intel/jit/ir/block_2d_utils.hpp"
 #include "gpu/intel/jit/v2/ir/plan_utils.hpp"

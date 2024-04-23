@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_POST_OPS_INNER_PRODUCT_HPP
-#define GPU_OCL_GEMM_POST_OPS_INNER_PRODUCT_HPP
+#ifndef GPU_INTEL_OCL_GEMM_POST_OPS_INNER_PRODUCT_HPP
+#define GPU_INTEL_OCL_GEMM_POST_OPS_INNER_PRODUCT_HPP
 
 #include <assert.h>
 

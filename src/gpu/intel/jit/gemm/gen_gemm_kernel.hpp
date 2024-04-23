@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_GEMM_GEN_GEMM_KERNEL_HPP
-#define GPU_JIT_GEMM_GEN_GEMM_KERNEL_HPP
+#ifndef GPU_INTEL_JIT_GEMM_GEN_GEMM_KERNEL_HPP
+#define GPU_INTEL_JIT_GEMM_GEN_GEMM_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
 #include "gpu/intel/compute/device_info.hpp"

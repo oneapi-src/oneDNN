@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_BLOCKING_HPP
-#define GPU_JIT_IR_BLOCKING_HPP
+#ifndef GPU_INTEL_JIT_IR_BLOCKING_HPP
+#define GPU_INTEL_JIT_IR_BLOCKING_HPP
 
 #include "gpu/intel/jit/ir/core.hpp"
 #include "gpu/intel/jit/ir/problem.hpp"

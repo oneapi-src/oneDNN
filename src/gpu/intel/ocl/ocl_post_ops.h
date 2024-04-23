@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_POST_OPS_H
-#define GPU_OCL_OCL_POST_OPS_H
+#ifndef GPU_INTEL_OCL_OCL_POST_OPS_H
+#define GPU_INTEL_OCL_OCL_POST_OPS_H
 
 #if WITH_POST_OP
 

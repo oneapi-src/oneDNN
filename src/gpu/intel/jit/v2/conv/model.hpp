@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_V2_CONV_MODEL_HPP
-#define GPU_JIT_V2_CONV_MODEL_HPP
+#ifndef GPU_INTEL_JIT_V2_CONV_MODEL_HPP
+#define GPU_INTEL_JIT_V2_CONV_MODEL_HPP
 
 #include "gpu/intel/jit/v2/conv/bench_data.hpp"
 #include "gpu/intel/jit/v2/conv/ml.hpp"

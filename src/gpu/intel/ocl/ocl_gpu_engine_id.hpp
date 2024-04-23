@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_GPU_ENGINE_ID_HPP
-#define GPU_OCL_OCL_GPU_ENGINE_ID_HPP
+#ifndef GPU_INTEL_OCL_OCL_GPU_ENGINE_ID_HPP
+#define GPU_INTEL_OCL_OCL_GPU_ENGINE_ID_HPP
 
 #include "gpu/intel/ocl/ocl_utils.hpp"
 

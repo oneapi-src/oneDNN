@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_CUSTOM_TYPES_H
-#define GPU_OCL_OCL_CUSTOM_TYPES_H
+#ifndef GPU_INTEL_OCL_OCL_CUSTOM_TYPES_H
+#define GPU_INTEL_OCL_OCL_CUSTOM_TYPES_H
 
 #define dim_t long // 64 bit per the OpenCL specification
 

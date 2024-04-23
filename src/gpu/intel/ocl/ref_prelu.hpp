@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_REF_PRELU_HPP
-#define GPU_OCL_REF_PRELU_HPP
+#ifndef GPU_INTEL_OCL_REF_PRELU_HPP
+#define GPU_INTEL_OCL_REF_PRELU_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"

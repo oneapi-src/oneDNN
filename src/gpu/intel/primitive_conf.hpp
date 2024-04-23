@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_PRIMITIVE_CONF_HPP
-#define GPU_PRIMITIVE_CONF_HPP
+#ifndef GPU_INTEL_PRIMITIVE_CONF_HPP
+#define GPU_INTEL_PRIMITIVE_CONF_HPP
 
 #include <stdint.h>
 

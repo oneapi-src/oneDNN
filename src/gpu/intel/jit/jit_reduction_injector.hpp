@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_JIT_REDUCTION_INJECTOR_HPP
-#define GPU_JIT_JIT_REDUCTION_INJECTOR_HPP
+#ifndef GPU_INTEL_JIT_JIT_REDUCTION_INJECTOR_HPP
+#define GPU_INTEL_JIT_JIT_REDUCTION_INJECTOR_HPP
 
 #include <assert.h>
 
@@ -93,4 +93,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_JIT_JIT_REDUCTION_INJECTOR_HPP
+#endif // GPU_INTEL_JIT_JIT_REDUCTION_INJECTOR_HPP

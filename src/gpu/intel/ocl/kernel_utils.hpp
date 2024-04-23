@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_KERNEL_UTILS_HPP
-#define GPU_OCL_KERNEL_UTILS_HPP
+#ifndef GPU_INTEL_OCL_KERNEL_UTILS_HPP
+#define GPU_INTEL_OCL_KERNEL_UTILS_HPP
 
 #include <vector>
 #include <unordered_map>

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_POOLING_GEN_POOLING_HPP
-#define GPU_JIT_POOLING_GEN_POOLING_HPP
+#ifndef GPU_INTEL_JIT_POOLING_GEN_POOLING_HPP
+#define GPU_INTEL_JIT_POOLING_GEN_POOLING_HPP
 
 #include <memory>
 

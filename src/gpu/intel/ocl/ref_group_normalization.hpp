@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_REF_GROUP_NORMALIZATION_HPP
-#define GPU_OCL_REF_GROUP_NORMALIZATION_HPP
+#ifndef GPU_INTEL_OCL_REF_GROUP_NORMALIZATION_HPP
+#define GPU_INTEL_OCL_REF_GROUP_NORMALIZATION_HPP
 
 #include "common/group_normalization_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"

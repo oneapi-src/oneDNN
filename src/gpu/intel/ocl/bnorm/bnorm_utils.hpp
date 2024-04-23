@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_BATCH_NORMALIZATION_UTILS_HPP
-#define GPU_BATCH_NORMALIZATION_UTILS_HPP
+#ifndef GPU_INTEL_OCL_BNORM_BNORM_UTILS_HPP
+#define GPU_INTEL_OCL_BNORM_BNORM_UTILS_HPP
 
 #include "common/batch_normalization_pd.hpp"
 #include "gpu/intel/compute/utils.hpp"

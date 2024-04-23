@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CONV_PROBLEM_HPP
-#define GPU_JIT_CONV_PROBLEM_HPP
+#ifndef GPU_INTEL_JIT_CONV_PROBLEM_HPP
+#define GPU_INTEL_JIT_CONV_PROBLEM_HPP
 
 #include <string>
 #include <vector>

@@ -13,8 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#ifndef GPU_BATCH_NORMALIZATION_MODEL_HPP
-#define GPU_BATCH_NORMALIZATION_MODEL_HPP
+#ifndef GPU_INTEL_OCL_BNORM_BNORM_MODEL_HPP
+#define GPU_INTEL_OCL_BNORM_BNORM_MODEL_HPP
 
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/ocl/bnorm/nhwc_batch_normalization.hpp"

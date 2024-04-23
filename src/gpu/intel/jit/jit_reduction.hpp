@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_JIT_REDUCTION_HPP
-#define GPU_JIT_JIT_REDUCTION_HPP
+#ifndef GPU_INTEL_JIT_JIT_REDUCTION_HPP
+#define GPU_INTEL_JIT_JIT_REDUCTION_HPP
 
 // A small wrapper on the jit_reduction_generator_t, used to test its functionality.
 // Only valid in dev mode for now, until performance is improved.

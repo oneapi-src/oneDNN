@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_CONV_CONV_KERNEL_HPP
-#define GPU_JIT_CONV_CONV_KERNEL_HPP
+#ifndef GPU_INTEL_JIT_CONV_CONV_KERNEL_HPP
+#define GPU_INTEL_JIT_CONV_CONV_KERNEL_HPP
 
 #include "common/cpp_compat.hpp"
 

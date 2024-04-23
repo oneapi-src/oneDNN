@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_JIT_GENERATOR_BASE_HPP
-#define GPU_JIT_JIT_GENERATOR_BASE_HPP
+#ifndef GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
+#define GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
 
 #include <vector>
 #include <CL/cl.h>
@@ -40,4 +40,4 @@ struct jit_generator_base {
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_JIT_JIT_GENERATOR_BASE_HPP
+#endif // GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP

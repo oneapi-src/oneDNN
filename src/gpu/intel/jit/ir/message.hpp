@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_IR_MESSAGE_HPP
-#define GPU_JIT_IR_MESSAGE_HPP
+#ifndef GPU_INTEL_JIT_IR_MESSAGE_HPP
+#define GPU_INTEL_JIT_IR_MESSAGE_HPP
 
 #include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/ir/gemm_schedule.hpp"
