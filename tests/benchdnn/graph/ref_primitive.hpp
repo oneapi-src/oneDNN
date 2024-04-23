@@ -80,6 +80,8 @@ public:
     }
     const dnn_mem_t &get_arg(const int arg) const { return args_.find(arg); }
     ::dnnl::graph::op::kind get_kind() const { return kind_; }
+    // Displaces scale values in a memory object with scale values from `op`.
+    int displace_scales() const;
 
 private:
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(ref_primitive_t);

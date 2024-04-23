@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ private:
     std::unordered_map<size_t, std::reference_wrapper<const deserialized_op>>
             out_lt_2_op_;
 
-    ::std::unordered_map<size_t, displace_t> quantize_displace;
+    ::std::unordered_map<size_t, displace_t> quantize_displace_;
 
     int gen_quantize_filling(const ::graph::deserialized_op &main_op, int arg,
             dnn_mem_t &mem, const ::std::string &dt, res_t *res);

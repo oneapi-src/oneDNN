@@ -610,7 +610,7 @@ enabled.
                 |   /
               [bias]*
                 |
-            [unary/binary]*
+            [unary/binary]*[0,MAX_REPETITION)
                 |
     [typecast_out -> quant_out]*
                 |
@@ -663,11 +663,13 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_post_ops)
                     auto postop_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pop = postop_graph->append_alternation(
                             get_unary_binary_ops());
+                    pop->allow_internal_inputs();
                     postop_graph->create_input_port(0, pop, 0);
                     postop_graph->create_input_port(1, pop, 1);
                     postop_graph->create_output_port(0, pop, 0);
 
-                    auto prep = pgraph->append_optional(postop_graph,
+                    auto prep = pgraph->append_repetition(postop_graph, {0, 0},
+                            0, MAX_REPETITION,
                             in_edges_t {in_edge(0, popt_bias, 0)});
 
                     // Optional typecast_out + quant_out

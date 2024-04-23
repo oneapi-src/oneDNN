@@ -376,14 +376,16 @@ private:
         auto &cfg = data.pd_cfg;
         const bool needs_zp_precalc = cfg.zp_cfg().needs_src_precalc;
 
-        auto scratchpad = pd->scratchpad_registry().registrar();
         auto &conv_info = create_kernel_info(pd, kernel_id_t::convolution);
         auto &zp_precalc_info = (needs_zp_precalc)
                 ? create_kernel_info(pd, kernel_id_t::zp_precalc)
                 : conv_info;
 
+        static_assert(DNNL_ARG_UNDEF == memory_tracking::names::key_none,
+                "Undefined argument and empty scratchpad key are out of sync!");
+
         // Initialize kernel arguments.
-        int scratchpad_key = 0;
+        int scratchpad_key = memory_tracking::names::key_none;
         for (auto &t : data.tensor_cfg.tensors()) {
             const bool src_zp_precalc
                     = needs_zp_precalc && (t.name == "src_zero_points");
@@ -391,6 +393,13 @@ private:
             const auto compute_buf = make_buffer(t.name);
             size_t compute_size = t.compute_layout.size();
             int compute_arg_key = t.arg_key;
+
+            if (compute_arg_key == DNNL_ARG_UNDEF) {
+                ir_assert(!t.needs_reorder);
+                ir_assert(!t.needs_zero_out);
+                ir_error_not_expected();
+                continue;
+            }
 
             auto add_compute_arg = [&](kernel_info_t &ki, const expr_t &buf,
                                            bool is_input) {
@@ -400,13 +409,21 @@ private:
                 else
                     ki.register_user_arg(buf, compute_arg_key, is_input);
             };
-
-            if (compute_arg_key == -1) {
-                ir_assert(!t.needs_reorder);
-                ir_assert(!t.needs_zero_out);
-                ir_error_not_expected();
-                continue;
-            }
+            auto scratchpad_book = [&](int key) {
+                pd->scratchpad_registry().registrar().book(
+                        gpu_utils::into<uint32_t>(key), compute_size, 1,
+                        ocl::OCL_BUFFER_ALIGNMENT);
+            };
+            auto create_zero_out_info = [&]() -> kernel_info_t & {
+                auto &zero_out_info
+                        = create_kernel_info(pd, kernel_id_t::zero_out);
+                auto size_var = var_t::make(type_t::u32(), "size");
+                zero_out_info.register_internal_arg(
+                        size_var, gpu_utils::into<uint32_t>(compute_size));
+                zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
+                        cfg.simd(), gpu_utils::into<int>(compute_size)));
+                return zero_out_info;
+            };
 
             if (t.needs_reorder || src_zp_precalc) {
                 int user_arg_key = compute_arg_key;
@@ -432,19 +449,9 @@ private:
                             cfg.exec_cfg(), t.compute_layout, t.user_layout));
                 }
                 if (src_zp_precalc) {
-                    ++scratchpad_key;
-                    scratchpad.book(uint32_t(scratchpad_key), compute_size, 1,
-                            ocl::OCL_BUFFER_ALIGNMENT);
-
-                    auto &zero_out_info
-                            = create_kernel_info(pd, kernel_id_t::zero_out);
-                    zero_out_info.register_scratchpad_arg(compute_buf,
+                    scratchpad_book(++scratchpad_key);
+                    create_zero_out_info().register_scratchpad_arg(compute_buf,
                             scratchpad_key, /*is_input=*/false, compute_size);
-                    auto size_var = var_t::make(type_t::u32(), "size");
-                    zero_out_info.register_internal_arg(
-                            size_var, uint32_t(compute_size));
-                    zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
-                            cfg.simd(), int(compute_size)));
 
                     zp_precalc_info.register_scratchpad_arg(compute_buf,
                             scratchpad_key, /*is_input=*/true, compute_size);
@@ -462,18 +469,10 @@ private:
                             / std::min(KDW, prb.iw) / (prb.g * prb.ic);
                     add_compute_arg(zp_precalc_info, make_buffer("dst"), false);
                 }
-                scratchpad.book(uint32_t(compute_arg_key), compute_size, 1,
-                        ocl::OCL_BUFFER_ALIGNMENT);
+                scratchpad_book(compute_arg_key);
             }
             if (t.needs_zero_out) {
-                auto &zero_out_info
-                        = create_kernel_info(pd, kernel_id_t::zero_out);
-                add_compute_arg(zero_out_info, compute_buf, false);
-                auto size_var = var_t::make(type_t::u32(), "size");
-                zero_out_info.register_internal_arg(
-                        size_var, uint32_t(compute_size));
-                zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
-                        cfg.simd(), int(compute_size)));
+                add_compute_arg(create_zero_out_info(), compute_buf, false);
             }
             add_compute_arg(conv_info, compute_buf, t.is_input && !t.is_output);
         }

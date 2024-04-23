@@ -272,4 +272,41 @@ void ref_primitive_t::check_correctness(
     }
 }
 
+int ref_primitive_t::displace_scales() const {
+    // Runtime data for scales attribute is supported for quantization ops only.
+    if (op_.kind_ != "Dequantize" && op_.kind_ != "Quantize") return OK;
+
+    const auto it_attr_scales = op_.attrs_.find("scales");
+    const bool has_scales = it_attr_scales != op_.attrs_.end();
+    if (!has_scales) return OK;
+
+    int arg = BENCHDNN_DNNL_ARG_UNDEF;
+    bool scales_found = false;
+    for (auto it = mems_.begin(); it != mems_.end(); it++) {
+        const int cur_arg = (*it).first;
+        const bool is_scales_arg = (cur_arg & DNNL_ARG_ATTR_SCALES);
+        if (!is_scales_arg) continue;
+        // Protection from the cases when somehow scales are applied to more
+        // than a single argument (which is unexpected).
+        if (scales_found) {
+            assert(!"scales are applied to more than a single arg");
+            return FAIL;
+        }
+        scales_found = true;
+        arg = cur_arg;
+    }
+
+    // No correspondent memory was found. Nothing to update.
+    if (arg == BENCHDNN_DNNL_ARG_UNDEF) return OK;
+
+    // Updating values.
+    const auto &mem = mems_.at(arg);
+    const auto &f32_vector = it_attr_scales->second.f32_vector_;
+    for (size_t i = 0; i < f32_vector.size(); i++) {
+        mem.set_elem(i, f32_vector[i]);
+    }
+
+    return OK;
+}
+
 } // namespace graph

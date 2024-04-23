@@ -244,8 +244,8 @@ void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
 ///     * Where: pre-VNNI hardware; When: s8s8 kernel; For: compensation buffer.
 ///     * In rest scenarios is not used.
 ///
-void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const void *addr_B,
+void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
+        int bs, const void *addr_A, const void *addr_B,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
         const brgemm_post_ops_data_t &post_ops_data, void *scratch = nullptr,
         const brgemm_dynamic_values_t *dynamic_values = nullptr);

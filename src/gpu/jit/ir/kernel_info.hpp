@@ -153,7 +153,8 @@ public:
 
     void register_internal_arg(
             const expr_t &var, const expr_t &value = expr_t()) {
-        register_arg(var, arg_kind_t::internal, -1, /*is_input=*/true);
+        register_arg(
+                var, arg_kind_t::internal, DNNL_ARG_UNDEF, /*is_input=*/true);
         set_internal_arg(var.as<var_t>().name, value);
     }
 

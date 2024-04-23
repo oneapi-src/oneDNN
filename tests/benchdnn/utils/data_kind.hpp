@@ -17,8 +17,6 @@
 #ifndef UTILS_DATA_KIND_HPP
 #define UTILS_DATA_KIND_HPP
 
-#define BENCHDNN_DNNL_ARG_UNDEF 0
-
 enum data_kind_t {
     SRC = 0,
     WEI,
