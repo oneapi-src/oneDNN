@@ -709,6 +709,24 @@ public:
         return k_loop < k;
     }
 
+    std::vector<expr_t> get_root_vars(const expr_t &var) const {
+        std::vector<expr_t> ret;
+        std::function<void(const expr_t &)> walk;
+        walk = [&](const expr_t &v) {
+            auto &loop = find_loop(v);
+            if (loop.is_root()) {
+                ret.push_back(loop.var());
+                return;
+            }
+            ir_assert(loop.is_fused_child() || loop.is_split_child());
+            for (auto &pv : loop.parent_vars()) {
+                walk(pv);
+            }
+        };
+        walk(var);
+        return ret;
+    }
+
     void finalize() {
         init_problem_tiles();
         init_constraint_set();
