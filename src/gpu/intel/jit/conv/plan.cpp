@@ -141,6 +141,36 @@ bool set_g_grid_idx_innermost(const conv_config_t &cfg) {
     return set_g_grid_idx_innermost(cfg.hw(), cfg.dst_layout().compute());
 }
 
+void bind_grid_idx(const conv_config_t &cfg, gemm_schedule_t &gemm_schedule,
+        const expr_t &var, bool is_tg) {
+    auto &grid_dims = is_tg ? get_thread_group_grid_conv_dims(cfg.prb())
+                            : get_kernel_grid_conv_dims(cfg.prb());
+    int grid_idx = -1;
+    for (auto &v : gemm_schedule.get_root_vars(var)) {
+        auto v_dim = prb_dim_t::from_name(v.as<var_t>().name);
+        for (int i = 0; i < 3; i++) {
+            if (grid_dims[i].has(v_dim)) {
+                ir_assert(grid_idx == -1 || grid_idx == i);
+                grid_idx = i;
+            }
+        }
+    }
+    ir_assert(grid_idx != -1);
+    gemm_schedule.bind(var,
+            is_tg ? cfg.thread_group_grid().idx(grid_idx)
+                  : cfg.kernel_grid().idx(grid_idx));
+}
+
+void bind_kernel_grid_idx(const conv_config_t &cfg,
+        gemm_schedule_t &gemm_schedule, const expr_t &var) {
+    bind_grid_idx(cfg, gemm_schedule, var, /*is_tg=*/false);
+}
+
+void bind_thread_group_grid_idx(const conv_config_t &cfg,
+        gemm_schedule_t &gemm_schedule, const expr_t &var) {
+    bind_grid_idx(cfg, gemm_schedule, var, /*is_tg=*/true);
+}
+
 void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
         view_t &src_view, view_t &wei_view, view_t &dst_view) {
     auto &prb_ = cfg_.prb();
@@ -284,21 +314,12 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     }
     auto mb_ow_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), ow_tile.tg_idx());
 
-    if (prb_.ab_swap_transpose) {
-        gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(0));
-        gemm_schedule.bind(oc_tile.grid_idx(), cfg_.kernel_grid().idx(1));
-        gemm_schedule.bind(g_ow_grid_idx, cfg_.kernel_grid().idx(2));
-        gemm_schedule.bind(mb_ow_tg_idx, cfg_.thread_group_grid().idx(0));
-        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
-        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(2));
-    } else {
-        gemm_schedule.bind(oc_tile.grid_idx(), cfg_.kernel_grid().idx(0));
-        gemm_schedule.bind(g_ow_grid_idx, cfg_.kernel_grid().idx(1));
-        gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(2));
-        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
-        gemm_schedule.bind(mb_ow_tg_idx, cfg_.thread_group_grid().idx(1));
-        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(2));
-    }
+    bind_kernel_grid_idx(cfg_, gemm_schedule, oc_tile.grid_idx());
+    bind_kernel_grid_idx(cfg_, gemm_schedule, g_ow_grid_idx);
+    bind_kernel_grid_idx(cfg_, gemm_schedule, mb_tile.grid_idx());
+    bind_thread_group_grid_idx(cfg_, gemm_schedule, oc_tile.tg_idx());
+    bind_thread_group_grid_idx(cfg_, gemm_schedule, mb_ow_tg_idx);
+    bind_thread_group_grid_idx(cfg_, gemm_schedule, ic_tile.tg_idx());
 
     gemm_schedule.tensorize(g_tile.iter_idx());
     gemm_schedule.tensorize(oc_tile.iter_idx());
@@ -476,21 +497,12 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
                 {g_tile.grid_idx(), id, ih, iw_tile.grid_idx()});
     }
     auto mb_iw_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), iw_tile.tg_idx());
-    if (prb_.ab_swap_transpose /*.ic < 8 && prb_.mb >= 8*/) {
-        gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(0));
-        gemm_schedule.bind(ic_tile.grid_idx(), cfg_.kernel_grid().idx(1));
-        gemm_schedule.bind(g_isp_grid_idx, cfg_.kernel_grid().idx(2));
-        gemm_schedule.bind(mb_iw_tg_idx, cfg_.thread_group_grid().idx(0));
-        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
-        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(2));
-    } else {
-        gemm_schedule.bind(ic_tile.grid_idx(), cfg_.kernel_grid().idx(0));
-        gemm_schedule.bind(g_isp_grid_idx, cfg_.kernel_grid().idx(1));
-        gemm_schedule.bind(mb_tile.grid_idx(), cfg_.kernel_grid().idx(2));
-        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
-        gemm_schedule.bind(mb_iw_tg_idx, cfg_.thread_group_grid().idx(1));
-        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(2));
-    }
+    bind_kernel_grid_idx(cfg_, gemm_schedule, ic_tile.grid_idx());
+    bind_kernel_grid_idx(cfg_, gemm_schedule, g_isp_grid_idx);
+    bind_kernel_grid_idx(cfg_, gemm_schedule, mb_tile.grid_idx());
+    bind_thread_group_grid_idx(cfg_, gemm_schedule, ic_tile.tg_idx());
+    bind_thread_group_grid_idx(cfg_, gemm_schedule, mb_iw_tg_idx);
+    bind_thread_group_grid_idx(cfg_, gemm_schedule, oc_tile.tg_idx());
 
     gemm_schedule.tensorize(g_tile.iter_idx());
     gemm_schedule.tensorize(ic_tile.iter_idx());
@@ -684,19 +696,11 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
                 = gemm_schedule.fuse({g_tile.grid_idx(), mb_tile.grid_idx()});
     }
 
-    if (prb_.ab_swap_transpose) {
-        gemm_schedule.bind(osp_ksp_ic_grid_idx, cfg_.kernel_grid().idx(0));
-        gemm_schedule.bind(g_mb_grid_idx, cfg_.kernel_grid().idx(1));
-        gemm_schedule.bind(oc_tile.grid_idx(), cfg_.kernel_grid().idx(2));
-        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
-        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
-    } else {
-        gemm_schedule.bind(oc_tile.grid_idx(), cfg_.kernel_grid().idx(0));
-        gemm_schedule.bind(osp_ksp_ic_grid_idx, cfg_.kernel_grid().idx(1));
-        gemm_schedule.bind(g_mb_grid_idx, cfg_.kernel_grid().idx(2));
-        gemm_schedule.bind(oc_tile.tg_idx(), cfg_.thread_group_grid().idx(0));
-        gemm_schedule.bind(ic_tile.tg_idx(), cfg_.thread_group_grid().idx(1));
-    }
+    bind_kernel_grid_idx(cfg_, gemm_schedule, oc_tile.grid_idx());
+    bind_kernel_grid_idx(cfg_, gemm_schedule, osp_ksp_ic_grid_idx);
+    bind_kernel_grid_idx(cfg_, gemm_schedule, g_mb_grid_idx);
+    bind_thread_group_grid_idx(cfg_, gemm_schedule, oc_tile.tg_idx());
+    bind_thread_group_grid_idx(cfg_, gemm_schedule, ic_tile.tg_idx());
 
     gemm_schedule.reorder({od_tile.loop_idx(), oh_tile.loop_idx(),
             ow_tile.loop_idx(), mb_tile.loop_idx()});
