@@ -1219,18 +1219,13 @@ const std::array<prb_tile_t, 3> &get_kernel_grid_conv_dims(
     static const prb_tile_t bwd_w_2({prb_dims::g, prb_dims::mb});
 
     using prb_tile_3 = std::array<prb_tile_t, 3>;
-    // non-transposed
     static const prb_tile_3 fwd = {fwd_0, fwd_1, fwd_2};
     static const prb_tile_3 bwd_d = {bwd_d_0, bwd_d_1, bwd_d_2};
     static const prb_tile_3 bwd_w = {bwd_w_0, bwd_w_1, bwd_w_2};
-    // transposed
-    static const prb_tile_3 t_fwd = {fwd_2, fwd_0, fwd_1};
-    static const prb_tile_3 t_bwd_d = {bwd_d_2, bwd_d_0, bwd_d_1};
-    static const prb_tile_3 t_bwd_w = {bwd_w_1, bwd_w_2, bwd_w_0};
 
-    if (prb.is_fwd) return (prb.ab_swap_transpose) ? t_fwd : fwd;
-    if (prb.is_bwd_d) return (prb.ab_swap_transpose) ? t_bwd_d : bwd_d;
-    if (prb.is_bwd_w) return (prb.ab_swap_transpose) ? t_bwd_w : bwd_w;
+    if (prb.is_fwd) return fwd;
+    if (prb.is_bwd_d) return bwd_d;
+    if (prb.is_bwd_w) return bwd_w;
     ir_error_not_expected();
     return fwd;
 }
