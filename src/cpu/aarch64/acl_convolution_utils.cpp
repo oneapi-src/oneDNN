@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Arm Ltd. and affiliates
+* Copyright 2020-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,10 +106,6 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     // On the other hand l(t)_pad are guaranteed to be non-negative.
     const int r_pad = std::max(static_cast<int>(cd.padding[1][1]), 0);
     const int b_pad = std::max(static_cast<int>(cd.padding[1][0]), 0);
-
-    if (is_depthwise
-            && (t_pad >= kh || b_pad >= kh || l_pad >= kw || r_pad >= kw))
-        return status::unimplemented;
 
     acp.padstride_info = arm_compute::PadStrideInfo(stride_w, stride_h,
             static_cast<unsigned int>(l_pad), static_cast<unsigned int>(r_pad),
