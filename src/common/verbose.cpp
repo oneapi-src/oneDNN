@@ -1411,7 +1411,7 @@ std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
 
     ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
     ss << " dst_" << dst_md;
-    if (diff_dst_md) ss << " diff_dst_" << diff_dst_md;
+    if (!types::is_zero_md(diff_dst_md)) ss << " diff_dst_" << diff_dst_md;
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->alg_kind() << " axis:" << pd->axis() << ",";
