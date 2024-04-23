@@ -280,7 +280,7 @@ int ref_primitive_t::displace_scales() const {
     const bool has_scales = it_attr_scales != op_.attrs_.end();
     if (!has_scales) return OK;
 
-    int arg = BENCHDNN_DNNL_ARG_UNDEF;
+    int arg = DNNL_ARG_UNDEF;
     bool scales_found = false;
     for (auto it = mems_.begin(); it != mems_.end(); it++) {
         const int cur_arg = (*it).first;
@@ -297,7 +297,7 @@ int ref_primitive_t::displace_scales() const {
     }
 
     // No correspondent memory was found. Nothing to update.
-    if (arg == BENCHDNN_DNNL_ARG_UNDEF) return OK;
+    if (arg == DNNL_ARG_UNDEF) return OK;
 
     // Updating values.
     const auto &mem = mems_.at(arg);
