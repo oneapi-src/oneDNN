@@ -527,6 +527,120 @@ TEST(test_large_partition_execute, Int8Mha_CPU) {
     strm->wait();
 }
 
+TEST(test_large_partition_execute, Int8DistilBertMha) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    graph::graph_t g(eng->kind());
+    utils::construct_select_int8_MHA(&g);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 13U);
+
+    graph::pass::pass_base_ptr apass = get_pass("int8_sdp_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 6U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<uint8_t>();
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_ts.emplace_back(compiled_output, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
+TEST(test_large_partition_execute, Int8GptMha) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    graph::graph_t g(eng->kind());
+    utils::construct_select_int8_MHA(&g, 1, 32, 16, 4096, false, false, true);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 14U);
+
+    graph::pass::pass_base_ptr apass = get_pass("int8_fp32_gpt_sdp");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 7U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<uint8_t>();
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_ts.emplace_back(compiled_output, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
 TEST(test_large_partition_execute, F32Mha) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
@@ -549,6 +663,121 @@ TEST(test_large_partition_execute, F32Mha) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
     ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<float>();
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_ts.emplace_back(compiled_output, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
+TEST(test_large_partition_execute, F32DistilBertMha) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    graph::graph_t g(eng->kind());
+    utils::construct_select_float_MHA(&g);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 7U);
+
+    graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 6U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<float>();
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_ts.emplace_back(compiled_output, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
+TEST(test_large_partition_execute, F32GptMha) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    graph::graph_t g(eng->kind());
+    utils::construct_select_float_MHA(
+            &g, graph::data_type::f32, 1, 32, 16, 4096, false, false, true);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 8U);
+
+    graph::pass::pass_base_ptr apass = get_pass("float_gpt_sdp");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 7U);
     ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const graph::logical_tensor_t *> inputs, outputs;
@@ -679,6 +908,133 @@ TEST(test_large_partition_execute, Bf16Mha_CPU) {
     }
 }
 
+TEST(test_large_partition_execute, Bf16GptMha) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+    SKIP_IF(eng->kind() == graph::engine_kind::gpu, "skip on gpu");
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
+    graph::graph_t g(eng->kind());
+    utils::construct_select_float_MHA(
+            &g, graph::data_type::bf16, 1, 32, 16, 4096, false, false, true);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 10U);
+
+    graph::pass::pass_base_ptr apass = get_pass("bfloat16_gpt_sdp");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 7U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<float>();
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_ts.emplace_back(compiled_output, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
+TEST(test_large_partition_execute, Bf16DistilBertMha) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+    SKIP_IF(eng->kind() == graph::engine_kind::gpu, "skip on gpu");
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
+    graph::graph_t g(eng->kind());
+    utils::construct_select_float_MHA(&g, dnnl::impl::data_type::bf16);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 7U);
+
+    graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 6U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<float>();
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_ts.emplace_back(compiled_output, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
 TEST(test_large_partition_execute, Int8Bf16Mha_CPU) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
@@ -708,6 +1064,124 @@ TEST(test_large_partition_execute, Int8Bf16Mha_CPU) {
     auto partition_inputs = p.get_inputs();
     auto partition_outputs = p.get_outputs();
     ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : partition_inputs) {
+        inputs_ts.emplace_back(lt, eng);
+    }
+
+    for (auto &lt : partition_outputs) {
+        outputs_ts.emplace_back(lt, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
+TEST(test_large_partition_execute, Int8Bf16DistilBertMha_CPU) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    SKIP_IF(eng->kind() == graph::engine_kind::gpu, "skip on gpu");
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
+    graph::graph_t g(eng->kind());
+    utils::construct_int8_bf16_MHA(
+            &g, 1, 128, 12, 768, false, true, true, false);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 19U);
+
+    graph::pass::pass_base_ptr apass = get_pass("int8_bf16_sdp_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 6U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : partition_inputs) {
+        inputs_ts.emplace_back(lt, eng);
+    }
+
+    for (auto &lt : partition_outputs) {
+        outputs_ts.emplace_back(lt, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
+TEST(test_large_partition_execute, Int8Bf16GptMha_CPU) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    SKIP_IF(eng->kind() == graph::engine_kind::gpu, "skip on gpu");
+
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
+    graph::graph_t g(eng->kind());
+    utils::construct_int8_bf16_MHA(
+            &g, 1, 32, 16, 4096, false, true, false, true);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 20U);
+
+    graph::pass::pass_base_ptr apass = get_pass("int8_bf16_gpt_sdp");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 7U);
     ASSERT_EQ(partition_outputs.size(), 1U);
 
     std::vector<const graph::logical_tensor_t *> inputs, outputs;
