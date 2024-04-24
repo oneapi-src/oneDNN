@@ -944,6 +944,9 @@ public:
         /// Specifies a weights_format of an op. The value can be "OIX", "XIO",
         /// "IOX", or "XOI". Different operations may support different values.
         weights_format = dnnl_graph_op_attr_weights_format,
+
+        /// Specifies the end of all above exteral attributes for check.
+        end = dnnl_graph_op_attr_end,
     };
 
     /// Constructs an op object with an unique ID, an operation kind, and a name

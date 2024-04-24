@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ inline std::vector<op_t *> get_raw_ptrs(
 } // namespace
 
 struct key_t {
-    key_t(size_t partition_id, const impl::engine_t *engine,
+    key_t(const impl::engine_t *engine,
             const std::vector<std::shared_ptr<op_t>> &ops,
             const std::vector<const logical_tensor_t *> &ins,
             const std::vector<const logical_tensor_t *> &outs);
@@ -67,7 +67,6 @@ struct key_t {
                 && impl::is_native_runtime(engine_id_.runtime_kind()));
     }
 
-    mutable size_t partition_id_;
     mutable std::vector<op_t *> ops_;
     mutable std::vector<logical_tensor_t> ins_;
     mutable std::vector<logical_tensor_t> outs_;
@@ -80,8 +79,6 @@ private:
     // primitive to handle some multithread scenarios.
     std::thread::id thread_id_;
 };
-
-size_t get_op_hash(const op_t &op);
 
 template <typename T>
 size_t get_array_hash(size_t seed, const T *v, size_t size) {
@@ -108,11 +105,11 @@ inline size_t get_array_hash<logical_tensor_t>(
     return seed;
 }
 
-template <>
-inline size_t get_array_hash<op_t>(size_t seed, const op_t *v, size_t size) {
-    for (size_t i = 0; i < size; i++) {
-        seed = hash_combine(seed, get_op_hash(v[i]));
-    }
+size_t get_op_hash(const op_t &op);
+
+inline size_t get_array_hash(size_t seed, std::vector<op_t *> &ops) {
+    for (const auto *op : ops)
+        seed = hash_combine(seed, get_op_hash(*op));
     return seed;
 }
 
@@ -149,13 +146,12 @@ struct hash<dnnl::impl::graph::partition_hashing::key_t> {
         using namespace dnnl::impl::graph::partition_hashing;
 
         size_t seed = 0;
-        // Compute hash for partition_id_, nthread_, engine_kind_
-        seed = dnnl::impl::hash_combine(seed, key.partition_id_);
+        // Compute hash for nthread_, engine_kind_
         seed = dnnl::impl::hash_combine(seed, key.nthread_);
         seed = dnnl::impl::hash_combine(seed, key.engine_id_.hash());
 
         // Combine hash for op_kinds & attributes with the computed hash
-        seed = get_array_hash(seed, key.ops_.data(), key.ops_.size());
+        seed = get_array_hash(seed, key.ops_);
 
         // Combine hash for input and output ports with the computed hash
         seed = get_array_hash(seed, key.ins_.data(), key.ins_.size());

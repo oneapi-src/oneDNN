@@ -260,6 +260,10 @@ const op_attr_t mode = dnnl_graph_op_attr_mode;
 const op_attr_t qtype = dnnl_graph_op_attr_qtype;
 const op_attr_t rounding_type = dnnl_graph_op_attr_rounding_type;
 
+// Used to indicate the end of all external attributes, note all the new
+// attribute should be added above this one.
+const op_attr_t end = dnnl_graph_op_attr_end;
+
 // internal attributes
 const op_attr_t matched = 0x100;
 const op_attr_t backend = 0x101;
