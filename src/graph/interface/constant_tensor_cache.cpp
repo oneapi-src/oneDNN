@@ -28,7 +28,7 @@
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "gpu/ocl/ocl_engine.hpp"
+#include "gpu/intel/ocl/ocl_engine.hpp"
 #endif
 
 #ifdef DNNL_WITH_SYCL

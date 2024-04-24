@@ -34,7 +34,7 @@
 #include "graph/utils/ocl_check.hpp"
 #include "graph/utils/ocl_usm_utils.hpp"
 
-#include "gpu/ocl/ocl_usm_utils.hpp"
+#include "gpu/intel/ocl/ocl_usm_utils.hpp"
 
 #include "oneapi/dnnl/dnnl_ocl.hpp"
 #endif

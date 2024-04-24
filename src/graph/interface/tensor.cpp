@@ -32,7 +32,7 @@ static const size_t DNNL_SYCL_MEMALIGNMENT = 64;
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "gpu/ocl/ocl_engine.hpp"
+#include "gpu/intel/ocl/ocl_engine.hpp"
 static const size_t DNNL_OCL_MEMALIGNMENT = 0;
 using namespace dnnl::impl::gpu::intel::ocl;
 #endif

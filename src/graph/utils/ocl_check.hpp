@@ -31,6 +31,6 @@
 #endif
 #endif
 
-#include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/ocl_utils.hpp"
 
 #endif
