@@ -234,6 +234,7 @@ struct brgemm_desc_t {
     bool with_binary = false;
     bool with_scales = false;
     bool skip_zp_b_compensation = false;
+    bool skip_scales = false;
 
     brgemm_broadcast_t zp_type_a = brgemm_broadcast_t::none;
     brgemm_broadcast_t zp_type_b = brgemm_broadcast_t::none;

@@ -1210,10 +1210,18 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.with_scales = !src_scales.has_default_values()
             || !wei_scales.has_default_values();
     if (bgmmc.with_scales) {
-        bgmmc.is_oscale_per_n = wei_scales.mask_ == 1 << (bgmmc.ndims - 1);
+        const auto wei_qmask_N = 1 << (bgmmc.ndims - 1);
+        const auto wei_qmask_K = 1 << (bgmmc.ndims - 2);
+        bgmmc.is_oscale_per_k = wei_scales.mask_ & wei_qmask_K;
+        bgmmc.is_oscale_per_n = wei_scales.mask_ & wei_qmask_N;
+        bgmmc.apply_scales_in_buffer_b = bgmmc.is_oscale_per_k
+                && bgmmc.with_wei_decompression && bgmmc.N * bgmmc.K != 1;
 
         // only common and per-oc-channel scales are supported
-        VCONDCHECK_BG(wei_scales.mask_ == 0 || bgmmc.is_oscale_per_n,
+        // only per-ic-channel scales is supprted with weight decompression
+        VCONDCHECK_BG(wei_scales.mask_ == 0 || bgmmc.is_oscale_per_n
+                        || IMPLICATION(bgmmc.is_oscale_per_k,
+                                bgmmc.with_wei_decompression),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
@@ -1306,6 +1314,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.transposed_B = bm_conf_utils.check_is_transposed(bgmmc.wei_tag)
             || bgmmc.wei_tag == adbc;
     bgmmc.use_buffer_b = bm_conf_utils.use_buffer_b();
+    bgmmc.req_transpose_scales = bgmmc.apply_scales_in_buffer_b
+            && bgmmc.is_oscale_per_k && bgmmc.is_oscale_per_n
+            && bgmmc.transposed_B;
 
     const bool transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
     // if M == 1 we can still treat formally transposed A as plain

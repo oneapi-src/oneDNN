@@ -95,6 +95,7 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
     matmul_conf_for_reorder_.blocked_B = !utils::one_of(itag, ab, abc);
     matmul_conf_for_reorder_.is_bf16_with_int_wei = is_bf16_with_int_wei;
     matmul_conf_for_reorder_.with_wei_decompression = with_wei_decompression;
+    matmul_conf_for_reorder_.apply_scales_in_buffer_b = false;
     matmul_conf_for_reorder_.orig_wei_dt = type_i;
     matmul_conf_for_reorder_.wei_tag = itag;
     matmul_conf_for_reorder_.batch = ndims > 2 ? dims[ndims - 3] : 1;

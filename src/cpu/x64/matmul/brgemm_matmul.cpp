@@ -105,6 +105,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::scales_runtime_data_type
                             | primitive_attr_t::skip_mask_t::
+                                    scales_runtime_groups
+                            | primitive_attr_t::skip_mask_t::
                                     zero_points_runtime_data_type
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt
@@ -156,9 +158,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         int bs = get_brg_batchsize(bgmmc_, i_bs, i_K);
         int idx = get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K);
         if (idx < 0) continue;
+
         brgemm_desc_t &brg = brg_descs_[idx];
-        if (bgmmc_.with_wei_decompression && bgmmc_.has_zero_point_b)
-            brg.skip_zp_b_compensation = true;
         auto LDA = i_K && bgmmc_.use_buffer_a_tail_only
                 ? (dim_t)bgmmc_.wei_k_blk
                 : bgmmc_.LDA;
@@ -168,6 +169,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                 LDA, bgmmc_.LDB, bgmmc_.LDC, vM, vN, vK));
 
         auto LDD = bgmmc_.LDD;
+        if (bgmmc_.with_wei_decompression && bgmmc_.has_zero_point_b)
+            brg.skip_zp_b_compensation = true;
+        if (bgmmc_.apply_scales_in_buffer_b) brg.skip_scales = true;
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, bgmmc_.bia_dt));
 
@@ -195,7 +199,10 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
     auto scratchpad = scratchpad_registry().registrar();
     init_scratchpad(scratchpad, bgmmc_);
-    book_precomputed_scales(scratchpad, attr()->scales_, N());
+    const auto wei_scale_count = bgmmc_.is_oscale_per_k
+            ? (bgmmc_.is_oscale_per_n ? N() * K() : K())
+            : N();
+    book_precomputed_scales(scratchpad, attr()->scales_, wei_scale_count);
 
     return status::success;
 }
@@ -245,9 +252,14 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
     }
 
     // JIT to precompute scales
+    // TODO: enable transpose in JIT scales
     const bool is_jit_supported = mayiuse(avx512_core);
     const auto attr = pd()->attr();
-    if (is_jit_supported && pd()->N() > 1 && req_copy_scales(attr)) {
+    const auto wei_scale_count = bgmmc.is_oscale_per_k
+            ? (bgmmc.is_oscale_per_n ? pd()->N() * pd()->K() : pd()->K())
+            : pd()->N();
+    if (is_jit_supported && wei_scale_count > 1 && req_copy_scales(attr)
+            && !bgmmc.req_transpose_scales) {
         const auto &attr_scales = attr->scales_;
         int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
         if (wei_scale_mask != 0) {
@@ -750,6 +762,7 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = nstl::min(bgmmc.K_blk, bgmmc.K);
+        ctx.scales_ptr = (void *)brgmm_ctx.get_oscales_ptr(n, k);
         if (bgmmc.blocked_B && isa == avx512_core_fp16) {
             cvt_float16_to_float((float *)ctx.tr_src, (float16_t *)ctx.src,
                     bgmmc.wei_n_blk * ctx.current_K_iters);
@@ -766,6 +779,7 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = bgmmc.K % bgmmc.K_blk;
+        ctx.scales_ptr = (void *)brgmm_ctx.get_oscales_ptr(n, k);
         if (bgmmc.blocked_B && isa == avx512_core_fp16) {
             cvt_float16_to_float((float *)ctx.tr_src, (float16_t *)ctx.src,
                     bgmmc.wei_n_blk * ctx.current_K_iters);
@@ -1337,8 +1351,15 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 + n_blk_local * bgmmc_.s8s8_comp_n_str;
     }
 
-    const float *get_oscales_ptr(int n) const {
-        return oscales_ptr_ + bgmmc_.is_oscale_per_n * n;
+    const float *get_oscales_ptr(int n, int k = 0) const {
+        const auto offset = bgmmc_.req_transpose_scales
+                ? bgmmc_.is_oscale_per_k * k
+                        + (bgmmc_.is_oscale_per_n * n
+                                * (bgmmc_.is_oscale_per_k ? bgmmc_.K : 1))
+                : bgmmc_.is_oscale_per_n * n
+                        + (bgmmc_.is_oscale_per_k * k
+                                * (bgmmc_.is_oscale_per_n ? bgmmc_.N : 1));
+        return oscales_ptr_ + offset;
     }
 
     const float *get_dst_scales_ptr() const { return dst_scales_ptr_; }
