@@ -228,9 +228,15 @@ int partition_data_displacer_t::gen_quantize_filling(
         // replace output with x8
         op.out_lts_[0].data_type_ = dt;
     } else if (op.out_lts_[0].data_type_ != "bf16") {
-        // set output as f32 to avoid the data type not support problem at this stage
-        // x8x8bf16 or x8x8f32 is supported for conv/deconv/matmul driver
-        op.out_lts_[0].data_type_ = "f32";
+        if (op.in_lts_.size() > 1 && op.in_lts_[1].data_type_ == "s8") {
+            // Use u8 as output data type for two-input operations to avoid
+            // data overflow due to the specific driver logic.
+            op.out_lts_[0].data_type_ = "u8";
+        } else {
+            // Use f32 as output data type since not all primitives support
+            // different data types for input and output.
+            op.out_lts_[0].data_type_ = "f32";
+        }
     }
     ::std::unordered_set<size_t> empty_set;
 
