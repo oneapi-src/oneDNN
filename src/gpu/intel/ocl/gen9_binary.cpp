@@ -20,6 +20,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 // For cases with src0 and dst blocked, and s1 in plain layout
@@ -310,6 +311,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

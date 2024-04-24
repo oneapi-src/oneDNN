@@ -30,6 +30,7 @@ const alg_kind_t binary_prelu = eltwise_relu;
 };
 
 namespace gpu {
+namespace intel {
 
 namespace post_op {
 
@@ -564,6 +565,7 @@ private:
     std::vector<entry_t> ops_;
 };
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

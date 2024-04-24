@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Eliminates let statements from the outer loops to be able to unroll loop
@@ -53,6 +54,7 @@ stmt_t update_loops_for_unrolling(const stmt_t &s, ir_context_t &ir_ctx);
 stmt_t unroll_loops(const stmt_t &s, ir_context_t &ir_ctx);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

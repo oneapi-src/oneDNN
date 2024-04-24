@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 status_t gen_reorder_t::pd_t::init(
@@ -221,6 +222,7 @@ status_t gen_reorder_t::execute(const exec_ctx_t &ctx) const {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

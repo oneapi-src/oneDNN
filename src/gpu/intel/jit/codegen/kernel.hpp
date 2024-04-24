@@ -36,6 +36,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 template <template <ngen::HW> class KernelT>
@@ -45,11 +46,11 @@ struct ir_generator_t : public jit_generator_base {
 
     const char *kernel_name() const override { return kernel_name_.c_str(); }
 
-    gpu::compute::binary_t get_binary(
+    gpu::intel::compute::binary_t get_binary(
             cl_context context, cl_device_id device) override {
         kernel_info_t kernel_info;
         auto status = kernel_desc_.init_kernel_info(kernel_info);
-        if (status != status::success) return gpu::compute::binary_t();
+        if (status != status::success) return gpu::intel::compute::binary_t();
         try {
 #define CASE(hw) \
     case ngen::HW::hw: { \
@@ -68,9 +69,9 @@ struct ir_generator_t : public jit_generator_base {
             }
 #undef CASE
         } catch (ngen::out_of_registers_exception &) {
-            return gpu::compute::binary_t();
+            return gpu::intel::compute::binary_t();
         }
-        return gpu::compute::binary_t();
+        return gpu::intel::compute::binary_t();
     }
 
 private:
@@ -983,6 +984,7 @@ protected:
     using ir_kernel_t<hw>::ra_;
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

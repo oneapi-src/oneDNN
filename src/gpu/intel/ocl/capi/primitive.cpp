@@ -44,14 +44,14 @@ status_t dnnl_ocl_interop_primitive_execute(
             && IMPLICATION(ndeps > 0, deps != nullptr);
     if (!ok) return status::invalid_arguments;
 
-    auto *ocl_stream = utils::downcast<gpu::ocl::ocl_stream_t *>(stream);
+    auto *ocl_stream = utils::downcast<gpu::intel::ocl::ocl_stream_t *>(stream);
 
     ocl_stream->before_exec_hook();
 
     if (deps != nullptr) {
-        std::vector<gpu::ocl::ocl_wrapper_t<cl_event>> events(ndeps);
+        std::vector<gpu::intel::ocl::ocl_wrapper_t<cl_event>> events(ndeps);
         for (int i = 0; i < ndeps; i++) {
-            events[i] = gpu::ocl::ocl_wrapper_t<cl_event>(deps[i], true);
+            events[i] = gpu::intel::ocl::ocl_wrapper_t<cl_event>(deps[i], true);
         }
         ocl_stream->ocl_ctx().set_deps(events);
     }

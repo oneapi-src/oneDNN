@@ -35,6 +35,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
@@ -177,6 +178,7 @@ status_t gen_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

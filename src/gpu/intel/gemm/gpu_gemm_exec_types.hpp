@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 #define GEMM_CTX_ARG_STORAGE(argument) \
     (ctx.args().argument ? *(ctx.args().argument) \
@@ -97,6 +98,7 @@ private:
     const memory_tracking::grantor_t *scratchpad_grantor_ = nullptr;
 };
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Splits shuffles to enable better common subexpression elimnation. The target
@@ -30,6 +31,7 @@ namespace jit {
 stmt_t split_shuffle(const stmt_t &s, ir_context_t &ir_ctx);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

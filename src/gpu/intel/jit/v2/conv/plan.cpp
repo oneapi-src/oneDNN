@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 namespace v2 {
 namespace conv {
@@ -808,6 +809,7 @@ plan_t create_conv_plan_and_finalize_desc(kernel_desc_t &desc) {
 } // namespace conv
 } // namespace v2
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

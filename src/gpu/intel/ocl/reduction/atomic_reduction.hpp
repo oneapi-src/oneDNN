@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 struct atomic_reduction_key_params_t
@@ -154,6 +155,7 @@ private:
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

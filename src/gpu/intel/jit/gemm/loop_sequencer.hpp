@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 namespace loop_sequencer {
@@ -266,6 +267,7 @@ static inline LoopSequencer::Requirements checkOptional() {
 using loop_sequencer::LoopSequencer;
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

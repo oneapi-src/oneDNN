@@ -23,7 +23,7 @@
 #include "gpu/intel/ocl/ocl_engine.hpp"
 
 using namespace dnnl::impl;
-using namespace dnnl::impl::gpu::ocl;
+using namespace dnnl::impl::gpu::intel::ocl;
 
 status_t dnnl_ocl_interop_engine_create(
         engine_t **engine, cl_device_id device, cl_context context) {

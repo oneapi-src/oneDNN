@@ -36,6 +36,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 enum gemm_kind_t {
@@ -261,6 +262,7 @@ private:
 using ref_rnn_fwd_t = _ref_rnn_common_t<prop_kind::forward>;
 using ref_rnn_bwd_t = _ref_rnn_common_t<prop_kind::backward>;
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

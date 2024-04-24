@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 inline bool jit_eltwise_injector_f32_is_supported(alg_kind_t alg) {
@@ -152,6 +153,7 @@ private:
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Implements reduction of GRF buffer for given layout.
@@ -71,6 +72,7 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
         uint32_t reduction_mask, bool drop_dims = true);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

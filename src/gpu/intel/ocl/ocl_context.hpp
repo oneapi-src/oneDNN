@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 struct ocl_event_t final : compute::event_t {
@@ -59,7 +60,7 @@ struct ocl_event_t final : compute::event_t {
     std::vector<ocl_wrapper_t<cl_event>> events;
 };
 
-struct ocl_context_t final : public gpu::compute::context_t {
+struct ocl_context_t final : public gpu::intel::compute::context_t {
     ocl_context_t() = default;
     ocl_context_t(const std::vector<ocl_wrapper_t<cl_event>> &&events)
         : events_(std::move(events)) {};
@@ -73,8 +74,10 @@ struct ocl_context_t final : public gpu::compute::context_t {
 
     ocl_event_t &get_ocl_deps() { return events_; }
     const ocl_event_t &get_ocl_deps() const { return events_; }
-    gpu::compute::event_t &get_deps() override { return events_; }
-    const gpu::compute::event_t &get_deps() const override { return events_; }
+    gpu::intel::compute::event_t &get_deps() override { return events_; }
+    const gpu::intel::compute::event_t &get_deps() const override {
+        return events_;
+    }
 
     void set_deps(std::vector<ocl_wrapper_t<cl_event>> &&event) {
         events_ = ocl_event_t(std::move(event));
@@ -90,6 +93,7 @@ private:
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

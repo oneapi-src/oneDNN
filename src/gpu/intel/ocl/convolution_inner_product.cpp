@@ -25,6 +25,7 @@ using namespace dnnl::impl::memory_tracking;
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 static int adjust_dims(dims_t &dims, const memory_desc_t *dst, int ndims) {
@@ -217,6 +218,7 @@ status_t convolution_inner_product_fwd_t::execute_forward(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

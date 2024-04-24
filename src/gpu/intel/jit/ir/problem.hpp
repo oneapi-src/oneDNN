@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 enum class tensor_kind_t {
@@ -445,6 +446,7 @@ prb_dim_t index_to_prb_dim(const expr_t &var);
 prb_dim_t size_to_prb_dim(const expr_t &var);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

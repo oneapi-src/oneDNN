@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 class kernel_ctx_t {
@@ -158,6 +159,7 @@ inline int64_t kernel_ctx_t::get_scalar(const std::string &name) const {
 }
 
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

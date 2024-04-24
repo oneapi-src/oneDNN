@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Merges all SLM buffers into a single one.
@@ -33,6 +34,7 @@ stmt_t inject_slm_reorder(const stmt_t &s, ir_context_t &ir_ctx,
         const grid_info_t &tg_grid, bool has_slm_usage);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

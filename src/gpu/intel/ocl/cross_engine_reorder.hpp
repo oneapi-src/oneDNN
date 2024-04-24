@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 // Cross-engine reorder manages all reorders between GPU and CPU engines.
@@ -71,6 +72,7 @@ private:
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

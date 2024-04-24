@@ -22,12 +22,14 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Adds {Atomic} modifier to dpas/dpasw instructions when applicable.
 stmt_t inject_atomic(const stmt_t &stmt);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

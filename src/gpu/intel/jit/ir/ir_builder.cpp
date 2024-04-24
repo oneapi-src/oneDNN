@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 void ir_builder_t::init_kernel_grid(const grid_info_t &kernel_grid,
@@ -48,6 +49,7 @@ void ir_builder_t::init_kernel_grid(const grid_info_t &kernel_grid,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

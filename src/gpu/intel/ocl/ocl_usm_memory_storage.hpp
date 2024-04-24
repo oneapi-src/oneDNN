@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 class ocl_usm_memory_storage_t : public ocl_memory_storage_base_t {
@@ -102,6 +103,7 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(ocl_usm_memory_storage_t);
 };
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 namespace ir_utils {
 
@@ -26,6 +27,7 @@ thread_local int ir_check_log_level_t::level_ = LOG_CHECK_DEFAULT;
 
 }
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

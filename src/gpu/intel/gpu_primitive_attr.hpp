@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 struct gpu_primitive_attr_t : public primitive_attr_item_t {
     gpu_primitive_attr_t(int threads_per_eu = 0)
@@ -51,6 +52,7 @@ private:
     int threads_per_eu_;
 };
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

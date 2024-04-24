@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 template <gpu_gen_t hw>
@@ -184,6 +185,7 @@ protected:
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 namespace v2 {
 namespace conv {
@@ -60,7 +61,7 @@ inline jit::layout_t to_ir(const layout_t &layout) {
     ir_assert(layout.has_zero_base());
     ir_assert(layout.has_const_sizes());
     ir_assert(layout.has_const_strides());
-    std::vector<gpu::block_t> blocks;
+    std::vector<gpu::intel::block_t> blocks;
     for (auto &b : layout.blocks()) {
         int dim_idx = layout.desc().dim_index(b.dim);
         blocks.emplace_back(dim_idx, b.int_size(), b.int_stride());
@@ -121,6 +122,7 @@ inline problem_t to_problem(
 } // namespace conv
 } // namespace v2
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

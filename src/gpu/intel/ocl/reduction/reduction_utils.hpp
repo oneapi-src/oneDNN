@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 // Same as reduction portions of alg_kind_t, plus:
@@ -203,6 +204,7 @@ status_t generate_reduction_phases(const memory_desc_t *src,
         const memory_desc_t *dst, std::vector<reduction_subproblem_t> &subprbs);
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

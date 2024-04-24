@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 const std::vector<prb_dim_t> &conv_dims() {
@@ -342,6 +343,7 @@ prb_tile_t to_gemm(const prb_tile_t &t, prop_kind_t prop, bool is_transpose) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

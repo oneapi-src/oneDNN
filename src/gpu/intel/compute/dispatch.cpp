@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 // Compute optimal local work size for the given global work size.
@@ -361,6 +362,7 @@ void dispatch_t::define_dim_with_md_hint(
 }
 
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

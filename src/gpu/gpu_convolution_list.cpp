@@ -49,21 +49,21 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_CONV_P({
     {{forward}, {
         V2_CONV_FWD_INSTANCE
-        INSTANCE(jit::gen_convolution_fwd_t)
-        INSTANCE(ocl::gen9_wino_convolution_fwd_t)
-        INSTANCE(ocl::ref_convolution_fwd_t)
+        INSTANCE(intel::jit::gen_convolution_fwd_t)
+        INSTANCE(intel::ocl::gen9_wino_convolution_fwd_t)
+        INSTANCE(intel::ocl::ref_convolution_fwd_t)
         nullptr,
     }},
     {{backward_data}, REG_BWD_D_PK({
         V2_CONV_BWD_D_INSTANCE
-        INSTANCE(jit::gen_convolution_bwd_data_t)
-        INSTANCE(ocl::ref_convolution_bwd_data_t)
+        INSTANCE(intel::jit::gen_convolution_bwd_data_t)
+        INSTANCE(intel::ocl::ref_convolution_bwd_data_t)
         nullptr,
     })},
     {{backward_weights}, REG_BWD_PK({
         V2_CONV_BWD_W_INSTANCE
-        INSTANCE(jit::gen_convolution_bwd_weights_t)
-        INSTANCE(ocl::ref_convolution_bwd_weights_t)
+        INSTANCE(intel::jit::gen_convolution_bwd_weights_t)
+        INSTANCE(intel::ocl::ref_convolution_bwd_weights_t)
         nullptr,
     })},
 });

@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class constraint_set_t;
@@ -967,6 +968,7 @@ inline stmt_t zero_out(const expr_t &buf, int size) {
 } // namespace funcs
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

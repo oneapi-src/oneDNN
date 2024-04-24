@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 template <ngen::HW hw = ngen::HW::Unknown>
@@ -58,6 +59,7 @@ public:
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 slm_reduce_builder_t::slm_reduce_builder_t(ir_context_t &ir_ctx,
@@ -136,6 +137,7 @@ void slm_reduce_builder_t::build() {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

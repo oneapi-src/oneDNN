@@ -37,6 +37,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 struct jit_reduction_t : public gpu_primitive_t {
@@ -111,6 +112,7 @@ private:
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

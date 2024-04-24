@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 using namespace gpu_utils;
@@ -271,6 +272,7 @@ status_t reusable_ref_reduction_t::execute(const exec_ctx_t &ctx) const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

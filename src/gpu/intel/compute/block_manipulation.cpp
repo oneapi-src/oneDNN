@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 // All blocks in a bin are:
@@ -77,6 +78,7 @@ std::string block_bin_t::str() const {
 }
 
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 std::string get_kernel_name(cl_kernel kernel);
@@ -172,7 +173,8 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
 #define MAYBE_REPORT_OCL_ERROR(s) \
     do { \
         VERROR(primitive, ocl, "errcode %d,%s,%s:%d", int(s), \
-                gpu::ocl::convert_cl_int_to_str(s), __FILENAME__, __LINE__); \
+                gpu::intel::ocl::convert_cl_int_to_str(s), __FILENAME__, \
+                __LINE__); \
     } while (0)
 
 #define OCL_CHECK_V(x) \
@@ -189,7 +191,7 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
         cl_int s = x; \
         if (s != CL_SUCCESS) { \
             MAYBE_REPORT_OCL_ERROR(s); \
-            return dnnl::impl::gpu::ocl::convert_to_dnnl(s); \
+            return dnnl::impl::gpu::intel::ocl::convert_to_dnnl(s); \
         } \
     } while (0)
 
@@ -435,10 +437,10 @@ void debugdump_processed_source(const std::string &source,
         const std::string &options, const std::string &ocl_options);
 
 status_t get_kernel_arg_types(cl_kernel ocl_kernel,
-        std::vector<gpu::compute::scalar_type_t> *arg_types);
+        std::vector<gpu::intel::compute::scalar_type_t> *arg_types);
 
-status_t get_ocl_device_eu_count(
-        cl_device_id device, gpu::compute::gpu_arch_t arch, int32_t *eu_count);
+status_t get_ocl_device_eu_count(cl_device_id device,
+        gpu::intel::compute::gpu_arch_t arch, int32_t *eu_count);
 
 status_t get_ocl_device_enabled_systolic_intel(
         cl_device_id device, bool &systolic_enabled);
@@ -448,17 +450,20 @@ status_t get_ocl_device_enabled_native_float_atomics(
 
 status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
 
-status_t create_ocl_program(gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program,
-        cl_device_id dev, cl_context ctx, const gpu::compute::binary_t &binary);
+status_t create_ocl_program(
+        gpu::intel::ocl::ocl_wrapper_t<cl_program> &ocl_program,
+        cl_device_id dev, cl_context ctx,
+        const gpu::intel::compute::binary_t &binary);
 
 status_t get_device_uuid(
-        gpu::compute::device_uuid_t &uuid, cl_device_id ocl_dev);
+        gpu::intel::compute::device_uuid_t &uuid, cl_device_id ocl_dev);
 
 status_t get_ocl_devices(std::vector<cl_device_id> *devices,
         std::vector<ocl_wrapper_t<cl_device_id>> *sub_devices,
         cl_device_type device_type);
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

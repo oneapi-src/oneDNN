@@ -17,6 +17,6 @@
 #include "gpu/intel/jit/v2/conv/planner/planner.hpp"
 
 int main(int argc, const char **argv) {
-    dnnl::impl::gpu::jit::v2::conv::planner::planner_main(argc, argv);
+    dnnl::impl::gpu::intel::jit::v2::conv::planner::planner_main(argc, argv);
     return 0;
 }

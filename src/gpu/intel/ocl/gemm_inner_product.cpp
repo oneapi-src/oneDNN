@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t gemm_inner_product_fwd_t::execute_forward(
@@ -122,6 +123,7 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

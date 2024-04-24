@@ -32,16 +32,16 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_IP_P({
     {{forward}, {
-        INSTANCE(ocl::gemm_inner_product_fwd_t)
-        INSTANCE(ocl::convolution_inner_product_fwd_t)
-        INSTANCE(ocl::ref_inner_product_fwd_t)
+        INSTANCE(intel::ocl::gemm_inner_product_fwd_t)
+        INSTANCE(intel::ocl::convolution_inner_product_fwd_t)
+        INSTANCE(intel::ocl::ref_inner_product_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        INSTANCE(ocl::gemm_inner_product_bwd_data_t)
-        INSTANCE(ocl::gemm_inner_product_bwd_weights_t)
-        INSTANCE(ocl::ref_inner_product_bwd_data_t)
-        INSTANCE(ocl::ref_inner_product_bwd_weights_t)
+        INSTANCE(intel::ocl::gemm_inner_product_bwd_data_t)
+        INSTANCE(intel::ocl::gemm_inner_product_bwd_weights_t)
+        INSTANCE(intel::ocl::ref_inner_product_bwd_data_t)
+        INSTANCE(intel::ocl::ref_inner_product_bwd_weights_t)
         nullptr,
     })},
 });

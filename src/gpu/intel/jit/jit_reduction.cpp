@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 using namespace gpu_utils;
@@ -123,6 +124,7 @@ status_t jit_reduction_t::execute(const exec_ctx_t &ctx) const {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

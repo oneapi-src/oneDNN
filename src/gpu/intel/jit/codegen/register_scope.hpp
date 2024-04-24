@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Maintains scoped allocations which are automatically released when the scope
@@ -158,6 +159,7 @@ private:
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

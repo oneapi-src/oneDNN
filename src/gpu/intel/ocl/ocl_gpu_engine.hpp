@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 class ocl_gpu_engine_t : public compute::compute_engine_t {
@@ -136,6 +137,7 @@ private:
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

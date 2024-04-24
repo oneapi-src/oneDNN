@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 // Returns the next factor of big_num less than (or equal to) target
@@ -512,6 +513,7 @@ status_t combined_reduction_t::execute_combined(const exec_ctx_t &ctx) const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

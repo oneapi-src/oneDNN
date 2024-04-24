@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
@@ -139,6 +140,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

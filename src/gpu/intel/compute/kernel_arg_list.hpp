@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 enum class kernel_arg_kind_t {
@@ -319,6 +320,7 @@ void set_scalar_arg_cvt(kernel_arg_list_t &arg_list, int index, T scalar,
 }
 
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

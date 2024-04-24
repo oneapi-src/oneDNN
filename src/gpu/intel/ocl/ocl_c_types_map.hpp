@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 using memory_kind_t = dnnl_ocl_interop_memory_kind_t;
@@ -31,6 +32,7 @@ const memory_kind_t buffer = dnnl_ocl_interop_buffer;
 } // namespace memory_kind
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

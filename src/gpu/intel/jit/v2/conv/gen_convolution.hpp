@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class exec_plan_t;
@@ -115,6 +116,7 @@ private:
 } // namespace conv
 } // namespace v2
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

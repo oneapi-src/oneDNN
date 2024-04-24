@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Implements reorder between GRF buffers in given layouts. Conversion between
@@ -75,6 +76,7 @@ inline stmt_t create_reorder_stmt(const layout_t &src, const layout_t &dst,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

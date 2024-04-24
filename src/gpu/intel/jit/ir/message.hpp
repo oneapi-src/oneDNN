@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 enum class send_kind_t {
@@ -579,6 +580,7 @@ inline access_builder_t make_access_builder(ir_context_t &ir_ctx,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

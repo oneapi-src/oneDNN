@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class gen9_simple_sum_kernel_f32_t : public jit_generator<gpu_gen9> {
@@ -83,6 +84,7 @@ public:
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

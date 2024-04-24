@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 namespace v2 {
 
@@ -425,6 +426,7 @@ bool prover_t::require(const expr_t &_e) const {
 
 } // namespace v2
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

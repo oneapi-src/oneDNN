@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 std::ostream &operator<<(std::ostream &out, const send_op_t op) {
@@ -1236,6 +1237,7 @@ send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

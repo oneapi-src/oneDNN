@@ -20,6 +20,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 // define kernel runtime common environment variables
@@ -231,6 +232,7 @@ status_t ref_group_normalization_bwd_t::execute(const exec_ctx_t &ctx) const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

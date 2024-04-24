@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
@@ -274,6 +275,7 @@ status_t ref_inner_product_bwd_weights_t::execute_backward_weights(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 struct gpu_gemm_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
@@ -56,6 +57,7 @@ inline const gpu_gemm_t *gpu_gemm(const std::shared_ptr<primitive_t> &p) {
     return utils::downcast<gpu_gemm_t *>(p.get());
 }
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

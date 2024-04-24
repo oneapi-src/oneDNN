@@ -20,6 +20,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 int calculate_spatial_chunk(const pool_conf_t &conf, engine_t *engine) {
@@ -228,6 +229,7 @@ status_t gen9_global_pooling_bwd_t::execute_backward(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

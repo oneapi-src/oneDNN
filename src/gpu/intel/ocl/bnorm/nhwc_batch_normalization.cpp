@@ -26,6 +26,7 @@ using namespace dnnl::impl::memory_tracking::names;
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 using namespace bn_lookup_table;
 using namespace bn_utils;
@@ -684,6 +685,7 @@ status_t nhwc_batch_normalization_bwd_t::execute_backward(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

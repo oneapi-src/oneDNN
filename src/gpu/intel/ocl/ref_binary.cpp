@@ -20,6 +20,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
@@ -185,6 +186,7 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

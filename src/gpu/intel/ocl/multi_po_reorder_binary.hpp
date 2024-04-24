@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 struct multi_po_reorder_binary : public gpu_primitive_t {
@@ -171,6 +172,7 @@ private:
     std::vector<std::shared_ptr<primitive_t>> reorder_primitive_list;
 };
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

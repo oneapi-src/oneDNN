@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 class kernel_list_t {
@@ -48,6 +49,7 @@ private:
 };
 
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

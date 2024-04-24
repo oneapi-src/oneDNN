@@ -38,6 +38,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 struct nhwc_reusable_bnorm_compile_params_t {
@@ -281,6 +282,7 @@ private:
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -26,9 +26,9 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_ref_sum_t : public ::dnnl::impl::gpu::ocl::ref_sum_t {
+struct cudnn_ref_sum_t : public ::dnnl::impl::gpu::intel::ocl::ref_sum_t {
 
-    using base_t = dnnl::impl::gpu::ocl::ref_sum_t;
+    using base_t = dnnl::impl::gpu::intel::ocl::ref_sum_t;
     using base_t::base_t;
     using base_pd_t = base_t::pd_t;
 

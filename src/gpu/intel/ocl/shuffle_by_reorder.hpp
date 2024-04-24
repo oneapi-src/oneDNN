@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 // Implements shuffle using reorder kernel.
@@ -131,6 +132,7 @@ private:
     std::shared_ptr<primitive_t> reorder_;
 };
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

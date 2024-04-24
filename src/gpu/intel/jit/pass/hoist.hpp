@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Moves invariant expressions out of loops.
@@ -39,6 +40,7 @@ stmt_t hoist_send_masks(const stmt_t &s, ir_context_t &ir_ctx,
         const stmt_label_t &label, bool split_by_and, int reserved_regs);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -39,6 +39,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 stmt_t inject_external_var_let(const stmt_t &_stmt, ir_context_t &ir_ctx);
@@ -62,6 +63,7 @@ stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx);
 stmt_t optimize_int64_exprs(const stmt_t &s, ir_context_t &ir_ctx);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

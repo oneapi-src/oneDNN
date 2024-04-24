@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 namespace bn_model {
 
@@ -114,6 +115,7 @@ status_t get_params_by_model(nhwc_bnorm_params_t &conf,
 
 } // namespace bn_model
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

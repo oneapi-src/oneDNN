@@ -20,6 +20,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
@@ -259,6 +260,7 @@ bool post_op_context_t::init_need_to_restore_zero_padding(
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

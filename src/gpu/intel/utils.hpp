@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace gpu_utils {
 
 // Replacement implementation of std::enable_if_t from C++14, included here for
@@ -89,12 +90,12 @@ private:
 #if !defined(NDEBUG) || defined(DNNL_DEV_MODE)
 #define gpu_assert(cond) \
     !(cond) \
-            && dnnl::impl::gpu::gpu_utils::error_stream_t( \
+            && dnnl::impl::gpu::intel::gpu_utils::error_stream_t( \
                     __FILE__, __LINE__, #cond)
 #else
 #define gpu_assert(cond) \
     (false) && !(cond) \
-            && dnnl::impl::gpu::gpu_utils::error_stream_t( \
+            && dnnl::impl::gpu::intel::gpu_utils::error_stream_t( \
                     __FILE__, __LINE__, #cond)
 #endif
 
@@ -228,6 +229,7 @@ status_t dump_kernel_binary(
         const std::vector<uint8_t> &binary, const std::string &name);
 
 } // namespace gpu_utils
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

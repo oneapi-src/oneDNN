@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 std::vector<expr_t> op_split(op_kind_t kind, const expr_t &e) {
@@ -446,6 +447,7 @@ void split_to_linear(const expr_t &expr, const std::vector<expr_t> &idxs,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

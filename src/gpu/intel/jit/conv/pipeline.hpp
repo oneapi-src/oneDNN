@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 stmt_t inject_prefetch_pipeline(
@@ -40,6 +41,7 @@ stmt_t inject_unrolling(const stmt_t &s, ir_context_t &ir_ctx,
         const conv_config_t &cfg, int ab_slm_size);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

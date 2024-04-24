@@ -20,6 +20,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 // -------- Common functions ----------- //
@@ -224,6 +225,7 @@ status_t vectorized_resampling_bwd_t::execute_backward(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

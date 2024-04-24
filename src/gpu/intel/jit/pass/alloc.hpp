@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Lifts alloc statements out of loops.
@@ -30,6 +31,7 @@ stmt_t lift_alloc(const stmt_t &s, ir_context_t &ir_ctx, bool reuse_headers);
 stmt_t optimize_alloc_let(const stmt_t &s, ir_context_t &ir_ctx);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

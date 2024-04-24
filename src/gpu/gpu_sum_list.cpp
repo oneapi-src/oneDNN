@@ -40,11 +40,11 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t sum_impl_list[] = REG_SUM_P({
-        SUM_INSTANCE(ocl::multi_po_reorder_sum)
-        SUM_INSTANCE(ocl::gen9_sum_t)
-        SUM_INSTANCE(ocl::many_inputs_sum_t)
-        SUM_INSTANCE(ocl::simple_sum_t<data_type::f32>)
-        SUM_INSTANCE(ocl::ref_sum_t)
+        SUM_INSTANCE(intel::ocl::multi_po_reorder_sum)
+        SUM_INSTANCE(intel::ocl::gen9_sum_t)
+        SUM_INSTANCE(intel::ocl::many_inputs_sum_t)
+        SUM_INSTANCE(intel::ocl::simple_sum_t<data_type::f32>)
+        SUM_INSTANCE(intel::ocl::ref_sum_t)
         nullptr,
 });
 // clang-format on

@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 using namespace format_tag;
@@ -91,6 +92,7 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
 template status_t ref_shuffle_t::execute_<any>(const exec_ctx_t &ctx) const;
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

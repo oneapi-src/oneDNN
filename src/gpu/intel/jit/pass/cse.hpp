@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Pass for common subexpression elimination (CSE).
@@ -34,6 +35,7 @@ stmt_t eliminate_common_subexprs(const stmt_t &stmt, ir_context_t &ir_ctx,
         int reserved_regs, int gmem_bufs);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

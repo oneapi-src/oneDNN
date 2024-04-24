@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // FIXME: Use convolution-agnostic mechanism to skip zero-points related calls.
@@ -154,6 +155,7 @@ stmt_t inject_bank_conflict_attribute(const stmt_t &s, ir_context_t &ir_ctx) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

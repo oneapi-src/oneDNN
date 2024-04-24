@@ -38,6 +38,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 struct conv_pd_data_t {
@@ -589,6 +590,7 @@ status_t gen_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

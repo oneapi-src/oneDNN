@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 struct reorder_plan_t : public base_plan_t {
@@ -249,6 +250,7 @@ class conv_config_t;
 status_t init_plan(conv_config_t &cfg);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

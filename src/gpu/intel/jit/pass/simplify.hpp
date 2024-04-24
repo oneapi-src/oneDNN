@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Determine the maximum constant factor of an expression, returns 0 in the
@@ -59,6 +60,7 @@ expr_t simplify_propagate_shuffle(const expr_t &e);
 stmt_t simplify(const stmt_t &s, ir_context_t &ir_ctx);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

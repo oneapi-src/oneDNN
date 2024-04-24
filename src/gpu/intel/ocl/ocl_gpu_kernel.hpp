@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 class ocl_gpu_kernel_cache_t;
@@ -32,7 +33,7 @@ class ocl_gpu_kernel_cache_t;
 class ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
     ocl_gpu_kernel_t(cl_kernel ocl_kernel,
-            const std::vector<gpu::compute::scalar_type_t> &arg_types);
+            const std::vector<gpu::intel::compute::scalar_type_t> &arg_types);
     ~ocl_gpu_kernel_t() override;
 
     cl_kernel ocl_kernel() const { return ocl_kernel_; }
@@ -46,7 +47,8 @@ public:
             const compute::kernel_arg_list_t &arg_list,
             const compute::event_t &deps, compute::event_t &out_dep) override;
 
-    const std::vector<gpu::compute::scalar_type_t> &arg_types() const override {
+    const std::vector<gpu::intel::compute::scalar_type_t> &
+    arg_types() const override {
         return arg_types_;
     }
 
@@ -57,12 +59,13 @@ public:
 
 private:
     cl_kernel ocl_kernel_;
-    std::vector<gpu::compute::scalar_type_t> arg_types_;
+    std::vector<gpu::intel::compute::scalar_type_t> arg_types_;
     std::shared_ptr<ocl_gpu_kernel_cache_t> cache_;
     bool save_events_;
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

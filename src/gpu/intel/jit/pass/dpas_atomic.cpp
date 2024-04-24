@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 stmt_t inject_atomic(const stmt_t &stmt) {
@@ -49,6 +50,7 @@ stmt_t inject_atomic(const stmt_t &stmt) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

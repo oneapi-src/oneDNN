@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 namespace usm {
 
@@ -50,6 +51,7 @@ ocl_usm_kind_t DNNL_API get_pointer_type(engine_t *engine, const void *ptr);
 
 } // namespace usm
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

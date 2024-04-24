@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 using namespace ir_utils;
@@ -2311,6 +2312,7 @@ stmt_t simplify(const stmt_t &s, ir_context_t &ir_ctx) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

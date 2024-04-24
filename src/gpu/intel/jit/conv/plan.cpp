@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Represents hierarchy of tile levels and corresponding loop/grid indices.
@@ -2468,6 +2469,7 @@ status_t init_plan(conv_config_t &cfg) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

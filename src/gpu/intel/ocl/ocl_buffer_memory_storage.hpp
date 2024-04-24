@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 class ocl_buffer_memory_storage_t : public ocl_memory_storage_base_t {
@@ -76,6 +77,7 @@ private:
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

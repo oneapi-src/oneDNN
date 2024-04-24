@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Injects an allocation attribute to store information about buffer usages in
@@ -30,6 +31,7 @@ namespace jit {
 stmt_t inject_bank_conflict_attribute(const stmt_t &s, ir_context_t &ir_ctx);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

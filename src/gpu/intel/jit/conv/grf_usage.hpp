@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 enum class grf_usage_label_t {
@@ -171,6 +172,7 @@ void verify_grf_usage(
         const conv_config_t &cfg, const stmt_t &body, int external_usage);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

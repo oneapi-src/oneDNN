@@ -24,7 +24,7 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-struct sycl_stream_profiler_t : public gpu::compute::stream_profiler_t {
+struct sycl_stream_profiler_t : public gpu::intel::compute::stream_profiler_t {
     sycl_stream_profiler_t(const stream_t *stream)
         : stream_profiler_t(stream) {}
 

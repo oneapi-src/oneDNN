@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t gen9_eltwise_jit_params_t::init(engine_t *engine,
@@ -173,6 +174,7 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

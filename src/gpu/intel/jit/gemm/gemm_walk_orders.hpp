@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 inline uint32_t uint32_reciprocal(uint32_t x) {
@@ -189,6 +190,7 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

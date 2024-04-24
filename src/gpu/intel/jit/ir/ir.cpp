@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 using namespace ir_utils;
@@ -1082,6 +1083,7 @@ int constraint_set_t::max_proven_gcd(const expr_t &var) const {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

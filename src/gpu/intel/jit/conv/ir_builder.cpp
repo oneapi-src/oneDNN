@@ -46,6 +46,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class buffer_access_verifier_t : public ir_visitor_t {
@@ -789,6 +790,7 @@ void conv_ir_builder_t::build() {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

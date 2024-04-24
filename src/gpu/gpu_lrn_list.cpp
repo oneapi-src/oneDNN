@@ -29,11 +29,11 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_LRN_P({
     {{forward}, {
-        INSTANCE(ocl::ref_lrn_fwd_t)
+        INSTANCE(intel::ocl::ref_lrn_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        INSTANCE(ocl::ref_lrn_bwd_t)
+        INSTANCE(intel::ocl::ref_lrn_bwd_t)
         nullptr,
     })},
 });

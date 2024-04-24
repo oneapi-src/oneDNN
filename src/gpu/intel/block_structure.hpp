@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 class stride_t {
 public:
@@ -261,6 +262,7 @@ private:
 std::vector<block_t> normalize_blocks(
         const std::vector<block_t> &blocks, bool remove_size_1_blocks = true);
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

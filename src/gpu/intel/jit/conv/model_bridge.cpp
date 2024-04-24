@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 namespace model {
 
@@ -186,6 +187,7 @@ float get_score(const conv_config_t &cfg, const blocking_params_t &params) {
 
 } // namespace model
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

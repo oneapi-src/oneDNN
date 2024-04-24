@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 const std::vector<uint64_t> &get_conv_lookup_table_data();
@@ -118,6 +119,7 @@ conv_lookup_table_t &conv_lookup_table() {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

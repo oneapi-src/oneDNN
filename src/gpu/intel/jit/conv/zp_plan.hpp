@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 struct zp_plan_impl_t;
@@ -64,6 +65,7 @@ struct zp_plan_t : public base_plan_t {
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

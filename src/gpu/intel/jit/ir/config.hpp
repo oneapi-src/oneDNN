@@ -31,9 +31,10 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
-class layout_param_t : public dnnl::impl::gpu::param_t {
+class layout_param_t : public dnnl::impl::gpu::intel::param_t {
 public:
     const layout_t &user() const { return user_; }
     const layout_t &compute() const { return compute_; }
@@ -477,6 +478,7 @@ protected:
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

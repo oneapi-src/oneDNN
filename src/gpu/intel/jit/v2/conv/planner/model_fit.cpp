@@ -21,6 +21,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 namespace v2 {
 namespace conv {
@@ -85,6 +86,7 @@ model_t model_fit(const bench_data_t &bd) {
 } // namespace conv
 } // namespace v2
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

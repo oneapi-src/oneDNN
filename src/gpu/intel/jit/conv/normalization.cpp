@@ -21,6 +21,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 layout_t insert_dimension(const layout_t &layout, int dim_idx) {
@@ -328,6 +329,7 @@ bool conv_post_op_view_mapper_t::can_use_scales() const {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

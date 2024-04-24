@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 #define GEMM_MAX_PO 36
@@ -212,6 +213,7 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

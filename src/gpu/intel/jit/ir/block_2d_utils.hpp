@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 inline int block_2d_base_alignment(const hw_t &hw) {
@@ -82,6 +83,7 @@ inline int block_2d_max_count(
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

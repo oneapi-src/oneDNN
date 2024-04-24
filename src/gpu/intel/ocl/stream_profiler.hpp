@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 struct ocl_stream_profiler_t : public compute::stream_profiler_t {
@@ -33,6 +34,7 @@ struct ocl_stream_profiler_t : public compute::stream_profiler_t {
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

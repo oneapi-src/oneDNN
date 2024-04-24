@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 const char *get_kernel_source(const char *name);
@@ -68,6 +69,7 @@ inline status_t create_kernels(const compute::compute_engine_t *engine,
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

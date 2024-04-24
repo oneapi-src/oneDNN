@@ -27,7 +27,7 @@ namespace {
 
 constexpr impl_list_item_t cuda_concat_impl_list[]
         = {impl_list_item_t::concat_type_deduction_helper_t<
-                   gpu::ocl::ref_concat_t::pd_t>(),
+                   gpu::intel::ocl::ref_concat_t::pd_t>(),
                 nullptr};
 } // namespace
 

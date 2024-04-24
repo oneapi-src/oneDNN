@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 status_t gen9_simple_sum_t::init(engine_t *engine) {
@@ -38,6 +39,7 @@ status_t gen9_simple_sum_t::init(engine_t *engine) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

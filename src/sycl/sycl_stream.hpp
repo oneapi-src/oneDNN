@@ -46,7 +46,7 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-struct sycl_stream_t : public gpu::compute::compute_stream_t {
+struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
     static status_t create_stream(
             stream_t **stream, engine_t *engine, unsigned flags) {
         std::unique_ptr<sycl_stream_t> sycl_stream(
@@ -95,11 +95,13 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return profiler_->get_info(data_kind, num_entries, data);
     }
 
-    const gpu::compute::stream_profiler_t &profiler() const override {
+    const gpu::intel::compute::stream_profiler_t &profiler() const override {
         return *profiler_;
     }
 
-    gpu::compute::stream_profiler_t &profiler() override { return *profiler_; }
+    gpu::intel::compute::stream_profiler_t &profiler() override {
+        return *profiler_;
+    }
 
     ::sycl::queue &queue() { return *queue_; }
 
@@ -131,8 +133,8 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     }
 
     status_t copy(const memory_storage_t &src, const memory_storage_t &dst,
-            size_t size, const gpu::compute::event_t &deps,
-            gpu::compute::event_t &out_dep) override {
+            size_t size, const gpu::intel::compute::event_t &deps,
+            gpu::intel::compute::event_t &out_dep) override {
         if (size == 0) return status::success;
         // TODO: add src and dst sizes check
 
@@ -234,8 +236,8 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     }
 
     status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
-            const gpu::compute::event_t &deps,
-            gpu::compute::event_t &out_dep) override {
+            const gpu::intel::compute::event_t &deps,
+            gpu::intel::compute::event_t &out_dep) override {
         auto *sycl_dst
                 = utils::downcast<const sycl_memory_storage_base_t *>(&dst);
         bool usm = sycl_dst->memory_kind() == memory_kind::usm;
@@ -286,8 +288,10 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 = const_cast<const sycl_stream_t *>(this)->sycl_ctx();
         return *const_cast<sycl_context_t *>(&ctx);
     }
-    gpu::compute::context_t &ctx() override { return sycl_ctx(); }
-    const gpu::compute::context_t &ctx() const override { return sycl_ctx(); }
+    gpu::intel::compute::context_t &ctx() override { return sycl_ctx(); }
+    const gpu::intel::compute::context_t &ctx() const override {
+        return sycl_ctx();
+    }
 
     ::sycl::event get_output_event() const {
         // Fast path: if only one event, return it.
@@ -315,9 +319,9 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
 
 protected:
     sycl_stream_t(engine_t *engine, unsigned flags)
-        : gpu::compute::compute_stream_t(engine, flags) {}
+        : gpu::intel::compute::compute_stream_t(engine, flags) {}
     sycl_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
-        : gpu::compute::compute_stream_t(engine, flags)
+        : gpu::intel::compute::compute_stream_t(engine, flags)
         , queue_(new ::sycl::queue(queue)) {}
 
     static status_t init_flags(unsigned *flags, ::sycl::queue &queue) {
@@ -332,7 +336,7 @@ protected:
     }
 
     std::unique_ptr<::sycl::queue> queue_;
-    std::unique_ptr<gpu::compute::stream_profiler_t> profiler_;
+    std::unique_ptr<gpu::intel::compute::stream_profiler_t> profiler_;
     mutable utils::thread_local_storage_t<sycl_context_t> ctx_;
 
     // XXX: this is a temporary solution to make sycl_memory_arg_t

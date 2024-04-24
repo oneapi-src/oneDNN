@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Splits nested associative binary operations into a vector of expressions.
@@ -59,6 +60,7 @@ void split_to_linear(const expr_t &expr, const std::vector<expr_t> &idxs,
         expr_t &init, std::vector<expr_t> &incs);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

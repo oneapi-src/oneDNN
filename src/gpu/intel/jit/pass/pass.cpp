@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class external_var_visitor_t : public scope_visitor_t {
@@ -220,6 +221,7 @@ stmt_t optimize_int64_exprs(const stmt_t &s, ir_context_t &ir_ctx) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

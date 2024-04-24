@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class conv_problem_t;
@@ -77,6 +78,7 @@ void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
         bool add_groups);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

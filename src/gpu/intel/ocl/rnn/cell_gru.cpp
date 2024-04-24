@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 #define PART_ONE 1
 #define PART_TWO 2
@@ -154,6 +155,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
 template cell_execution_sig(ref_rnn_fwd_t::cell_execution_gru);
 template cell_execution_sig(ref_rnn_bwd_t::cell_execution_gru);
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

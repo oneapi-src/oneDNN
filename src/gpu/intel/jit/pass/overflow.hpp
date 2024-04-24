@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Detects and fixes overflows of operations with 32-bit integers.
@@ -32,6 +33,7 @@ namespace jit {
 stmt_t fix_int32_overflow(const stmt_t &s, ir_context_t &ir_ctx);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

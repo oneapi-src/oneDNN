@@ -21,6 +21,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class shuffle_splitter_t : public ir_mutator_t {
@@ -260,6 +261,7 @@ stmt_t split_shuffle(const stmt_t &s, ir_context_t &ir_ctx) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

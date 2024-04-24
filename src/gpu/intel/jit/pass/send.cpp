@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class buffer_offset_lifter_t : public ir_mutator_t {
@@ -184,6 +185,7 @@ stmt_t lift_send_2d_header_store(const stmt_t &s, ir_context_t &ir_ctx) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

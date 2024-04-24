@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 range_t get_optimal_lws(const range_t &gws, const int mapped_vec_dim_idx,
@@ -145,6 +146,7 @@ protected:
 };
 
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

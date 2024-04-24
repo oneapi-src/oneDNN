@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 enum class ngen_operand_kind_t {
@@ -195,6 +196,7 @@ T to_cpp(ngen::HW hw, const ngen_operand_t &op) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

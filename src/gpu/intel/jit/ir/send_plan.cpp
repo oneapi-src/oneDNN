@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class send_plan_impl_t {
@@ -2710,6 +2711,7 @@ send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

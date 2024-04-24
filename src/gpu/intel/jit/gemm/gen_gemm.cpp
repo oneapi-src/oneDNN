@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
@@ -464,6 +465,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

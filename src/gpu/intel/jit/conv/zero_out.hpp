@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 template <ngen::HW hw = ngen::HW::Unknown>
@@ -135,6 +136,7 @@ template <ngen::HW hw>
 const int zero_out_kernel_t<hw>::bytes_per_thr = 128;
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

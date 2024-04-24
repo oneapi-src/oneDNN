@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
@@ -252,6 +253,7 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

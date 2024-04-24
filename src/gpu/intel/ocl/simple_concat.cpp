@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 // For inputs and output that have the same format tag, we can reduce formats to
@@ -585,6 +586,7 @@ status_t simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
     return status;
 }
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

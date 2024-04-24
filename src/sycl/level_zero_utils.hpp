@@ -28,7 +28,7 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-gpu::compute::device_uuid_t get_device_uuid(const ::sycl::device &dev);
+gpu::intel::compute::device_uuid_t get_device_uuid(const ::sycl::device &dev);
 
 // including sycl_engine_base.hpp leads to circular dependencies, w/a for now.
 class sycl_engine_base_t;
@@ -36,7 +36,7 @@ class sycl_engine_base_t;
 status_t sycl_create_kernel_with_level_zero(
         std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const std::string &kernel_name, const sycl_engine_base_t *sycl_engine,
-        const gpu::compute::binary_t &binary);
+        const gpu::intel::compute::binary_t &binary);
 
 bool compare_ze_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
 

@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class zero_pool_t {
@@ -72,6 +73,7 @@ status_t lookup_zero_pool(compute::compute_engine_t *engine, size_t chunk_size,
 void release_zero_pool(zero_pool_t *pool);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

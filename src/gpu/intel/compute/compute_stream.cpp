@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 status_t compute_stream_t::zero_pad(
         const memory_t *memory, const exec_ctx_t &ctx) {
@@ -93,6 +94,7 @@ status_t compute_stream_t::notify_profiling_complete() const {
     return profiler().notify_profiling_complete();
 }
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

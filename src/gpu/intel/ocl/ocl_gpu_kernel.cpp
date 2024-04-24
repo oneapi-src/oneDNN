@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 // Kernel wrapper storing a per-thread copy of cl_kernel.
@@ -106,7 +107,7 @@ private:
 };
 
 ocl_gpu_kernel_t::ocl_gpu_kernel_t(cl_kernel ocl_kernel,
-        const std::vector<gpu::compute::scalar_type_t> &arg_types)
+        const std::vector<gpu::intel::compute::scalar_type_t> &arg_types)
     : ocl_kernel_(ocl_kernel), arg_types_(arg_types), save_events_(false) {
     OCL_CHECK_V(clRetainKernel(ocl_kernel_));
     cache_ = std::make_shared<ocl_gpu_kernel_cache_t>(ocl_kernel_);
@@ -247,6 +248,7 @@ std::string ocl_gpu_kernel_t::name() const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

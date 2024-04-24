@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 using namespace bn_lookup_table;
@@ -36,7 +37,7 @@ using namespace bn_model;
 using namespace bn_utils::kernel_id;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::memory_tracking::names;
-using namespace dnnl::impl::gpu::gpu_utils;
+using namespace dnnl::impl::gpu::intel::gpu_utils;
 
 static status_t init_reusable_confs_basic(
         nhwc_reusable_bnorm_compile_params_t &cmpl_conf,
@@ -643,6 +644,7 @@ status_t nhwc_reusable_batch_normalization_bwd_t::execute_backward(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

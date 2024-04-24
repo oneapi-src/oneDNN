@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 template <ngen::HW hw>
@@ -46,6 +47,7 @@ REG_XEHPC_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,
         const expr_binding_t &expr_binding));
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

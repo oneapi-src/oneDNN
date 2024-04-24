@@ -43,6 +43,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 dim_t reorder_ir_builder_t::count_block_messages(
@@ -827,6 +828,7 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

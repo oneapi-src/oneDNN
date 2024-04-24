@@ -48,10 +48,11 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 using namespace dnnl::impl::utils;
-using namespace dnnl::impl::gpu::gpu_utils;
+using namespace dnnl::impl::gpu::intel::gpu_utils;
 using namespace dnnl::impl::math;
 using namespace prop_kind;
 using namespace alg_kind;
@@ -127,64 +128,74 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
             return status::unimplemented;
     }
 
-    off.src_layer = gpu::get_outer_strides(src_layer_d);
-    ocl_conf.inner_layouts.src_layer = gpu::get_inner_layout(src_layer_d);
-    off.src_iter = gpu::get_outer_strides(src_iter_d);
-    ocl_conf.inner_layouts.src_iter = gpu::get_inner_layout(src_iter_d);
+    off.src_layer = gpu::intel::get_outer_strides(src_layer_d);
+    ocl_conf.inner_layouts.src_layer
+            = gpu::intel::get_inner_layout(src_layer_d);
+    off.src_iter = gpu::intel::get_outer_strides(src_iter_d);
+    ocl_conf.inner_layouts.src_iter = gpu::intel::get_inner_layout(src_iter_d);
     if (ocl_conf.with_src_iter_c) {
-        off.src_iter_c = gpu::get_outer_strides(src_iter_c_d);
-        ocl_conf.inner_layouts.src_iter_c = gpu::get_inner_layout(src_iter_c_d);
+        off.src_iter_c = gpu::intel::get_outer_strides(src_iter_c_d);
+        ocl_conf.inner_layouts.src_iter_c
+                = gpu::intel::get_inner_layout(src_iter_c_d);
     }
-    off.weights_layer = gpu::get_outer_strides(weights_layer_d);
+    off.weights_layer = gpu::intel::get_outer_strides(weights_layer_d);
     ocl_conf.inner_layouts.weights_layer
-            = gpu::get_inner_layout(weights_layer_d);
+            = gpu::intel::get_inner_layout(weights_layer_d);
     off.weights_layer_comp_off
             = weights_layer_d.dims()[0] * weights_layer_d.strides()[0];
-    off.weights_iter = gpu::get_outer_strides(weights_iter_d);
-    ocl_conf.inner_layouts.weights_iter = gpu::get_inner_layout(weights_iter_d);
+    off.weights_iter = gpu::intel::get_outer_strides(weights_iter_d);
+    ocl_conf.inner_layouts.weights_iter
+            = gpu::intel::get_inner_layout(weights_iter_d);
     off.weights_iter_comp_off
             = weights_iter_d.dims()[0] * weights_iter_d.strides()[0];
-    off.bias = gpu::get_outer_strides(bias_d);
-    ocl_conf.inner_layouts.bias = gpu::get_inner_layout(bias_d);
-    off.dst_layer = gpu::get_outer_strides(dst_layer_d);
-    ocl_conf.inner_layouts.dst_layer = gpu::get_inner_layout(dst_layer_d);
-    off.dst_iter = gpu::get_outer_strides(dst_iter_d);
-    ocl_conf.inner_layouts.dst_iter = gpu::get_inner_layout(dst_iter_d);
+    off.bias = gpu::intel::get_outer_strides(bias_d);
+    ocl_conf.inner_layouts.bias = gpu::intel::get_inner_layout(bias_d);
+    off.dst_layer = gpu::intel::get_outer_strides(dst_layer_d);
+    ocl_conf.inner_layouts.dst_layer
+            = gpu::intel::get_inner_layout(dst_layer_d);
+    off.dst_iter = gpu::intel::get_outer_strides(dst_iter_d);
+    ocl_conf.inner_layouts.dst_iter = gpu::intel::get_inner_layout(dst_iter_d);
     if (ocl_conf.with_dst_iter_c) {
-        off.dst_iter_c = gpu::get_outer_strides(dst_iter_c_d);
-        ocl_conf.inner_layouts.dst_iter_c = gpu::get_inner_layout(dst_iter_c_d);
+        off.dst_iter_c = gpu::intel::get_outer_strides(dst_iter_c_d);
+        ocl_conf.inner_layouts.dst_iter_c
+                = gpu::intel::get_inner_layout(dst_iter_c_d);
     }
 
     if (!ocl_conf.is_fwd) {
-        off.diff_src_layer = gpu::get_outer_strides(diff_src_layer_d);
+        off.diff_src_layer = gpu::intel::get_outer_strides(diff_src_layer_d);
         ocl_conf.inner_layouts.diff_src_layer
-                = gpu::get_inner_layout(diff_src_layer_d);
-        off.diff_src_iter = gpu::get_outer_strides(diff_src_iter_d);
+                = gpu::intel::get_inner_layout(diff_src_layer_d);
+        off.diff_src_iter = gpu::intel::get_outer_strides(diff_src_iter_d);
         ocl_conf.inner_layouts.diff_src_iter
-                = gpu::get_inner_layout(diff_src_iter_d);
+                = gpu::intel::get_inner_layout(diff_src_iter_d);
         if (ocl_conf.with_src_iter_c) {
-            off.diff_src_iter_c = gpu::get_outer_strides(diff_src_iter_c_d);
+            off.diff_src_iter_c
+                    = gpu::intel::get_outer_strides(diff_src_iter_c_d);
             ocl_conf.inner_layouts.diff_src_iter_c
-                    = gpu::get_inner_layout(diff_src_iter_c_d);
+                    = gpu::intel::get_inner_layout(diff_src_iter_c_d);
         }
-        off.diff_weights_layer = gpu::get_outer_strides(diff_weights_layer_d);
+        off.diff_weights_layer
+                = gpu::intel::get_outer_strides(diff_weights_layer_d);
         ocl_conf.inner_layouts.diff_weights_layer
-                = gpu::get_inner_layout(diff_weights_layer_d);
-        off.diff_weights_iter = gpu::get_outer_strides(diff_weights_iter_d);
+                = gpu::intel::get_inner_layout(diff_weights_layer_d);
+        off.diff_weights_iter
+                = gpu::intel::get_outer_strides(diff_weights_iter_d);
         ocl_conf.inner_layouts.diff_weights_iter
-                = gpu::get_inner_layout(diff_weights_iter_d);
-        off.diff_bias = gpu::get_outer_strides(diff_bias_d);
-        ocl_conf.inner_layouts.diff_bias = gpu::get_inner_layout(diff_bias_d);
-        off.diff_dst_layer = gpu::get_outer_strides(diff_dst_layer_d);
+                = gpu::intel::get_inner_layout(diff_weights_iter_d);
+        off.diff_bias = gpu::intel::get_outer_strides(diff_bias_d);
+        ocl_conf.inner_layouts.diff_bias
+                = gpu::intel::get_inner_layout(diff_bias_d);
+        off.diff_dst_layer = gpu::intel::get_outer_strides(diff_dst_layer_d);
         ocl_conf.inner_layouts.diff_dst_layer
-                = gpu::get_inner_layout(diff_dst_layer_d);
-        off.diff_dst_iter = gpu::get_outer_strides(diff_dst_iter_d);
+                = gpu::intel::get_inner_layout(diff_dst_layer_d);
+        off.diff_dst_iter = gpu::intel::get_outer_strides(diff_dst_iter_d);
         ocl_conf.inner_layouts.diff_dst_iter
-                = gpu::get_inner_layout(diff_dst_iter_d);
+                = gpu::intel::get_inner_layout(diff_dst_iter_d);
         if (ocl_conf.with_dst_iter_c) {
-            off.diff_dst_iter_c = gpu::get_outer_strides(diff_dst_iter_c_d);
+            off.diff_dst_iter_c
+                    = gpu::intel::get_outer_strides(diff_dst_iter_c_d);
             ocl_conf.inner_layouts.diff_dst_iter_c
-                    = gpu::get_inner_layout(diff_dst_iter_c_d);
+                    = gpu::intel::get_inner_layout(diff_dst_iter_c_d);
         }
     }
 
@@ -1761,6 +1772,7 @@ template struct _ref_rnn_common_t<prop_kind::forward>;
 template struct _ref_rnn_common_t<prop_kind::backward>;
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

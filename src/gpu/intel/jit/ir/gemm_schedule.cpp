@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 layout_t bmnk_mapper_t::map_to_bmnk(abc_kind_t abc_kind,
@@ -133,6 +134,7 @@ bool bmnk_block_mapper_t::pop_block(std::vector<block_t> &bmnk_blocks,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

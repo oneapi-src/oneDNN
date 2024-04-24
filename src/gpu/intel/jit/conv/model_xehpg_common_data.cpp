@@ -20,6 +20,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // clang-format off
@@ -14268,6 +14269,7 @@ const std::vector<uint64_t> &get_conv_model_xehpg_common_data() {
 // clang-format on
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

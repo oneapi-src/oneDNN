@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 namespace {
@@ -841,6 +842,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

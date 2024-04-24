@@ -98,7 +98,7 @@ void print_header(const filter_status_t &filter_status) noexcept {
         // these fail (not printing a header is reasonable in this case)
         try {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-            gpu::ocl::print_verbose_header();
+            gpu::intel::ocl::print_verbose_header();
 #endif
 #ifdef DNNL_WITH_SYCL
             sycl::print_verbose_header();

@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 struct ocl_stream_t : public compute::compute_stream_t {
@@ -108,8 +109,10 @@ struct ocl_stream_t : public compute::compute_stream_t {
                 = const_cast<const ocl_stream_t *>(this)->ocl_ctx();
         return *const_cast<ocl_context_t *>(&ctx);
     }
-    gpu::compute::context_t &ctx() override { return ocl_ctx(); }
-    const gpu::compute::context_t &ctx() const override { return ocl_ctx(); }
+    gpu::intel::compute::context_t &ctx() override { return ocl_ctx(); }
+    const gpu::intel::compute::context_t &ctx() const override {
+        return ocl_ctx();
+    }
 
     const ocl_wrapper_t<cl_event> &get_output_event() const {
         auto &deps = ocl_event_t::from(ctx().get_deps());
@@ -157,6 +160,7 @@ private:
 };
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

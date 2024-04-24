@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 stmt_t lift_buffer_offsets_in_send(const stmt_t &s, ir_context_t &ir_ctx);
@@ -32,6 +33,7 @@ stmt_t inject_send(const stmt_t &s, ir_context_t &ir_ctx);
 stmt_t lift_send_2d_header_store(const stmt_t &s, ir_context_t &ir_ctx);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

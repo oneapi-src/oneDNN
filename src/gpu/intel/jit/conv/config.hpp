@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Special optimization techniques for backward by data convolution.
@@ -638,6 +639,7 @@ const std::array<prb_tile_t, 3> &get_thread_group_grid_conv_dims(
         const conv_problem_t &prb);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

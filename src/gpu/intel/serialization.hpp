@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 #define assert_trivially_serializable(cls) \
     static_assert(serialized_data_t::is_trivially_serialized<cls>::value, \
@@ -262,6 +263,7 @@ struct trivially_serializable_t {
     }
 };
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

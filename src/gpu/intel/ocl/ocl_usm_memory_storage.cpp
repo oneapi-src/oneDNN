@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 struct map_usm_tag;
@@ -105,6 +106,7 @@ std::unique_ptr<memory_storage_t> ocl_usm_memory_storage_t::clone() const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

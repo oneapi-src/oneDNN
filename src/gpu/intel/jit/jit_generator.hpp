@@ -36,6 +36,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 using gpu_gen_t = ngen::HW;
@@ -236,6 +237,7 @@ compute::kernel_t make_kernel(
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

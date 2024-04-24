@@ -33,7 +33,7 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t cuda_reorder_impl_list[] = {
-        REORDER_INSTANCE(gpu::ocl::cross_engine_reorder_t::pd_t)
+        REORDER_INSTANCE(gpu::intel::ocl::cross_engine_reorder_t::pd_t)
         REORDER_INSTANCE(cudnn_reorder_t::pd_t)
         nullptr,
 };

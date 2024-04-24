@@ -23,11 +23,12 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 namespace bn_model {
 using namespace dnnl::impl::utils;
-using namespace dnnl::impl::gpu::gpu_utils;
-using namespace dnnl::impl::gpu::ocl::bn_utils;
+using namespace dnnl::impl::gpu::intel::gpu_utils;
+using namespace dnnl::impl::gpu::intel::ocl::bn_utils;
 
 int get_nhwc_vect_size(int ic, int max_vect_size, int simd) {
     int vect_size = max_vect_size;
@@ -731,6 +732,7 @@ status_t get_params_by_model(nhwc_bnorm_params_t &conf,
 
 } // namespace bn_model
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

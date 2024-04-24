@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 class kernel_impl_t {
@@ -89,7 +90,7 @@ public:
             auto &arg = arg_list.get(i);
             auto req_arg_type = arg_types()[i];
             if (!arg.is_global() && !arg.is_local() && !arg.is_svm_pointer()) {
-                if (req_arg_type == gpu::compute::scalar_type_t::undef) {
+                if (req_arg_type == gpu::intel::compute::scalar_type_t::undef) {
                     // Types of kernel arguments may not be available when zebin
                     // is used.
                     continue;
@@ -196,6 +197,7 @@ public:
 };
 
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

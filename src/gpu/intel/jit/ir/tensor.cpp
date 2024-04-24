@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 layout_t::layout_t(const type_t &type, const expr_t &offset, int ndims,
@@ -616,6 +617,7 @@ layout_t spatials_to_3d(const layout_t &layout, bool with_groups,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

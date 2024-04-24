@@ -28,6 +28,7 @@ using namespace dnnl::impl::memory_tracking::names;
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 using namespace dnnl::impl::data_type;
@@ -439,6 +440,7 @@ status_t gen9_wino_convolution_fwd_t::execute_forward(
     return status;
 }
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

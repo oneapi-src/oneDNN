@@ -63,6 +63,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 namespace bn_utils {
 
@@ -97,6 +98,7 @@ std::string get_prb_desc_str(const batch_normalization_pd_t *pd);
 
 } // namespace bn_utils
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

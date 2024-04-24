@@ -27,8 +27,8 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_SHUFFLE_P({
-        INSTANCE(ocl::shuffle_by_reorder_t)
-        INSTANCE(ocl::ref_shuffle_t)
+        INSTANCE(intel::ocl::shuffle_by_reorder_t)
+        INSTANCE(intel::ocl::ref_shuffle_t)
         nullptr,
 });
 // clang-format on

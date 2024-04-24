@@ -45,7 +45,7 @@ status_t func_zeKernelCreate(
 
 namespace compat {
 
-using namespace gpu::compute;
+using namespace gpu::intel::compute;
 
 namespace {
 template <typename sycl_object_t>
@@ -80,10 +80,10 @@ void *get_native(const ::sycl::context &ctx) {
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const sycl_engine_base_t *sycl_engine,
-        const gpu::compute::binary_t &binary, const char *kernel_name) {
+        const gpu::intel::compute::binary_t &binary, const char *kernel_name) {
     auto backend = get_sycl_backend(sycl_engine->device());
     if (backend == backend_t::opencl) {
-        gpu::ocl::ocl_wrapper_t<cl_program> ocl_program;
+        gpu::intel::ocl::ocl_wrapper_t<cl_program> ocl_program;
         CHECK(create_ocl_program(ocl_program, sycl_engine->ocl_device(),
                 sycl_engine->ocl_context(), binary));
         cl_int err;

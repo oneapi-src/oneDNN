@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
@@ -61,6 +62,7 @@ status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

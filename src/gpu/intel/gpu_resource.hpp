@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 struct gpu_resource_t : public resource_t {
     using key_memory_t = int;
@@ -51,6 +52,7 @@ private:
     std::unordered_map<key_memory_t, mapped_memory_t> idx_to_memory_storage_;
 };
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

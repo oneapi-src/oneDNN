@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 void maybe_print_build_info(const std::vector<const char *> &kernel_names,
@@ -168,7 +169,7 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
                 clCreateKernel(program, kernel_name.c_str(), &err));
         OCL_CHECK(err);
 
-        std::vector<gpu::compute::scalar_type_t> arg_types;
+        std::vector<gpu::intel::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
         OCL_CHECK(err);
 
@@ -282,7 +283,7 @@ status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
             = make_ocl_wrapper(clCreateKernel(program, kernel_name, &err));
     OCL_CHECK(err);
 
-    std::vector<gpu::compute::scalar_type_t> arg_types;
+    std::vector<gpu::intel::compute::scalar_type_t> arg_types;
     CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
     std::shared_ptr<compute::kernel_impl_t> kernel_impl
@@ -355,7 +356,7 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
         ocl_wrapper_t<cl_kernel> ocl_kernel
                 = clCreateKernel(program, kernel_names[i], &err);
         OCL_CHECK(err);
-        std::vector<gpu::compute::scalar_type_t> arg_types;
+        std::vector<gpu::intel::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
         std::shared_ptr<compute::kernel_impl_t> kernel_impl
@@ -399,6 +400,7 @@ status_t ocl_gpu_engine_t::serialize_device(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

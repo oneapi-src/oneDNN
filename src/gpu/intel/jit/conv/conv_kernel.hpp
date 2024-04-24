@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 template <ngen::HW hw>
@@ -117,6 +118,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -31,14 +31,14 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_SOFTMAX_P({
     {{forward}, {
-        INSTANCE(ocl::gen9_softmax_fwd_t)
-        INSTANCE(ocl::ref_softmax_fwd_t)
-        INSTANCE(ocl::reusable_softmax_fwd_t)
+        INSTANCE(intel::ocl::gen9_softmax_fwd_t)
+        INSTANCE(intel::ocl::ref_softmax_fwd_t)
+        INSTANCE(intel::ocl::reusable_softmax_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        INSTANCE(ocl::gen9_softmax_bwd_t)
-        INSTANCE(ocl::ref_softmax_bwd_t)
+        INSTANCE(intel::ocl::gen9_softmax_bwd_t)
+        INSTANCE(intel::ocl::ref_softmax_bwd_t)
         nullptr,
     })},
 });

@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Common subexpression elimination support.
@@ -853,6 +854,7 @@ stmt_t eliminate_common_subexprs(const stmt_t &stmt, ir_context_t &ir_ctx,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

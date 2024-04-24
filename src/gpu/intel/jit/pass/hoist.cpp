@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class sum_expr_t {
@@ -506,6 +507,7 @@ stmt_t hoist_send_masks(const stmt_t &s, ir_context_t &ir_ctx,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

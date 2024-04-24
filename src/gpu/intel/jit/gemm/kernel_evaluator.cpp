@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 template <typename T1, typename T2>
@@ -592,6 +593,7 @@ void modifyStrategy(GEMMStrategy &strategy, const EvaluateAuxOutput &aux) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

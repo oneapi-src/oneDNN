@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t ocl_gpu_device_info_t::init_arch(engine_t *engine) {
@@ -204,6 +205,7 @@ std::string ocl_gpu_device_info_t::get_cl_ext_options() const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

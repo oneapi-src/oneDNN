@@ -28,9 +28,9 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_BINARY_P({
-        INSTANCE(ocl::multi_po_reorder_binary)
-        INSTANCE(ocl::gen9_binary_t)
-        INSTANCE(ocl::ref_binary_t)
+        INSTANCE(intel::ocl::multi_po_reorder_binary)
+        INSTANCE(intel::ocl::gen9_binary_t)
+        INSTANCE(intel::ocl::ref_binary_t)
         nullptr,
 });
 // clang-format on

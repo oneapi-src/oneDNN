@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 void parseStrategy(const char *str, ngen::HW hw, const GEMMProblem &problem,
@@ -31,6 +32,7 @@ void adjustStrategy(ngen::HW hw, const GEMMProblem &problem,
         GEMMStrategy &strategy, const char *tags = nullptr);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

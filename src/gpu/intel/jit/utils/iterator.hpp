@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Iterator filter
@@ -260,6 +261,7 @@ inner_tiles_t<IterT> inner_tiles(const IterT &iter, int ndims) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

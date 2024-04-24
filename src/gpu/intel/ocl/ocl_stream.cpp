@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t ocl_stream_t::init() {
@@ -305,6 +306,7 @@ status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

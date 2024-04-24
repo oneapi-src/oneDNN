@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 #define MAX_NDIMS 6
 #define MAX_POST_OPS_SUPPORTED 32
@@ -1538,6 +1539,7 @@ inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,
     dispatch.def_kernel_macros(kernel_ctx);
 }
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

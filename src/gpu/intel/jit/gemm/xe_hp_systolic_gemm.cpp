@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
@@ -1062,6 +1063,7 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

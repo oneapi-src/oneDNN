@@ -21,6 +21,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 std::string to_string(tensor_kind_t tensor) {
@@ -167,6 +168,7 @@ prb_dim_t size_to_prb_dim(const expr_t &var) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

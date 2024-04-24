@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 // Enables the use of intel subgroups in the kernel.
@@ -311,7 +312,7 @@ private:
 
 // Used in compute_terms to store the block_t data and info about
 // where it's mapped to in the GWS
-struct gws_mapped_block_t : public gpu::block_t {
+struct gws_mapped_block_t : public gpu::intel::block_t {
     gws_mapped_block_t() = default;
     gws_mapped_block_t(
             const block_t &block, size_t gws_idx, stride_t gws_stride)
@@ -536,6 +537,7 @@ void dispatch_compile_params_t::def_kernel_macros(
 }
 
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

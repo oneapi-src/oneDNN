@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 using namespace ngen;
@@ -593,6 +594,7 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

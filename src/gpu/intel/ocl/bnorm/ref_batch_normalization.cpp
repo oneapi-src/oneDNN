@@ -28,6 +28,7 @@ using namespace dnnl::impl::memory_tracking::names;
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 static void init_calculate_stats_conf(bnorm_conf_t &conf,
@@ -384,6 +385,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

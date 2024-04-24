@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 static status_t init_conf_common(
@@ -162,6 +163,7 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -27,8 +27,8 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
-        INSTANCE(ocl::gemm_matmul_t)
-        INSTANCE(ocl::ref_matmul_t)
+        INSTANCE(intel::ocl::gemm_matmul_t)
+        INSTANCE(intel::ocl::ref_matmul_t)
         nullptr,
 });
 // clang-format on

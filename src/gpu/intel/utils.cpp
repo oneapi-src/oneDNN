@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace gpu_utils {
 
 bool is_jit_dump_enabled() {
@@ -61,6 +62,7 @@ status_t dump_kernel_binary(
 }
 
 } // namespace gpu_utils
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

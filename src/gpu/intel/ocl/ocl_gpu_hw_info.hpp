@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
@@ -33,6 +34,7 @@ void init_gpu_hw_info(engine_t *engine, cl_device_id device, cl_context context,
         bool &mayiuse_ngen_kernels);
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

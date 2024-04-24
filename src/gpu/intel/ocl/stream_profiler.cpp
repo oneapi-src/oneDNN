@@ -28,11 +28,12 @@
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
 using namespace dnnl::impl;
-using namespace dnnl::impl::gpu::ocl;
+using namespace dnnl::impl::gpu::intel::ocl;
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t ocl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
@@ -67,6 +68,7 @@ status_t ocl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

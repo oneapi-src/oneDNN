@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 std::vector<int> tile_info_t::iter_blocks(int size) const {
@@ -400,6 +401,7 @@ params_distance_t::params_distance_t(
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

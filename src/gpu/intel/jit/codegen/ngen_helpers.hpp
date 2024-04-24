@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // placeholder for data type unimplemented in HW.
@@ -203,6 +204,7 @@ inline ngen::Subregister get_subregister(const ngen::RegData &rd) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

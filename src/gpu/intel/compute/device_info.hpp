@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 enum class gpu_arch_t {
@@ -350,7 +351,7 @@ private:
 };
 
 } // namespace compute
-} // namespace gpu
+}} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class conv_lookup_table_t {
@@ -58,6 +59,7 @@ const conv_lookup_table_t &const_conv_lookup_table();
 conv_lookup_table_t &conv_lookup_table();
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

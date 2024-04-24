@@ -29,12 +29,12 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_DECONV_P({
     {{forward}, {
-        INSTANCE(ocl::ref_deconvolution_fwd_t)
+        INSTANCE(intel::ocl::ref_deconvolution_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        INSTANCE(ocl::ref_deconvolution_bwd_data_t)
-        INSTANCE(ocl::ref_deconvolution_bwd_weights_t)
+        INSTANCE(intel::ocl::ref_deconvolution_bwd_data_t)
+        INSTANCE(intel::ocl::ref_deconvolution_bwd_weights_t)
         nullptr,
     })},
 });

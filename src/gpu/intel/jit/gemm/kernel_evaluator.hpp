@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 struct SizeParams {
@@ -71,6 +72,7 @@ double evaluate(const kcatalog::Entry &e, const DerivedEvaluateParams &p,
 void modifyStrategy(GEMMStrategy &strategy, const EvaluateAuxOutput &aux);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

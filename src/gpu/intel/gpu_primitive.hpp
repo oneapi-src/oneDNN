@@ -40,6 +40,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 struct gpu_primitive_t : public primitive_t {
     using primitive_t::primitive_t;
@@ -315,6 +316,7 @@ private:
     int32_t version_ = -1;
 };
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

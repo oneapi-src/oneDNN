@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace compute {
 
 uint64_t get_future_extensions(
@@ -101,28 +102,28 @@ bool device_info_t::has_native(data_type_t type) const {
 
 int device_info_t::max_eus_per_wg(gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
-        case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::gen11:
-        case gpu::compute::gpu_arch_t::xe2:
-        case gpu::compute::gpu_arch_t::xe_hpc: return 8;
-        case gpu::compute::gpu_arch_t::xe_lp:
-        case gpu::compute::gpu_arch_t::xe_hp:
-        case gpu::compute::gpu_arch_t::xe_hpg: return 16;
-        case gpu::compute::gpu_arch_t::unknown: return 8;
+        case gpu::intel::compute::gpu_arch_t::gen9:
+        case gpu::intel::compute::gpu_arch_t::gen11:
+        case gpu::intel::compute::gpu_arch_t::xe2:
+        case gpu::intel::compute::gpu_arch_t::xe_hpc: return 8;
+        case gpu::intel::compute::gpu_arch_t::xe_lp:
+        case gpu::intel::compute::gpu_arch_t::xe_hp:
+        case gpu::intel::compute::gpu_arch_t::xe_hpg: return 16;
+        case gpu::intel::compute::gpu_arch_t::unknown: return 8;
     }
     return 8;
 }
 
 int device_info_t::max_subgroup_size(gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
-        case gpu::compute::gpu_arch_t::gen9: return 16;
-        case gpu::compute::gpu_arch_t::gen11:
-        case gpu::compute::gpu_arch_t::xe2:
-        case gpu::compute::gpu_arch_t::xe_hpc: return 32;
-        case gpu::compute::gpu_arch_t::xe_lp:
-        case gpu::compute::gpu_arch_t::xe_hp:
-        case gpu::compute::gpu_arch_t::xe_hpg:
-        case gpu::compute::gpu_arch_t::unknown: return 16;
+        case gpu::intel::compute::gpu_arch_t::gen9: return 16;
+        case gpu::intel::compute::gpu_arch_t::gen11:
+        case gpu::intel::compute::gpu_arch_t::xe2:
+        case gpu::intel::compute::gpu_arch_t::xe_hpc: return 32;
+        case gpu::intel::compute::gpu_arch_t::xe_lp:
+        case gpu::intel::compute::gpu_arch_t::xe_hp:
+        case gpu::intel::compute::gpu_arch_t::xe_hpg:
+        case gpu::intel::compute::gpu_arch_t::unknown: return 16;
     }
     return 16;
 }
@@ -147,8 +148,8 @@ int device_info_t::min_subgroup_size() const {
 
 int device_info_t::max_exec_size(gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
-        case gpu::compute::gpu_arch_t::xe2:
-        case gpu::compute::gpu_arch_t::xe_hpc: return 128;
+        case gpu::intel::compute::gpu_arch_t::xe2:
+        case gpu::intel::compute::gpu_arch_t::xe_hpc: return 128;
         default: return 64;
     }
     return 64;
@@ -168,14 +169,15 @@ size_t device_info_t::max_wg_size(bool large_grf_mode) const {
 
 int device_info_t::threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode) {
     switch (gpu_arch) {
-        case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::gen11:
-        case gpu::compute::gpu_arch_t::xe_lp: return 7;
-        case gpu::compute::gpu_arch_t::xe_hp:
-        case gpu::compute::gpu_arch_t::xe_hpg:
-        case gpu::compute::gpu_arch_t::xe2:
-        case gpu::compute::gpu_arch_t::xe_hpc: return large_grf_mode ? 4 : 8;
-        case gpu::compute::gpu_arch_t::unknown: return 7;
+        case gpu::intel::compute::gpu_arch_t::gen9:
+        case gpu::intel::compute::gpu_arch_t::gen11:
+        case gpu::intel::compute::gpu_arch_t::xe_lp: return 7;
+        case gpu::intel::compute::gpu_arch_t::xe_hp:
+        case gpu::intel::compute::gpu_arch_t::xe_hpg:
+        case gpu::intel::compute::gpu_arch_t::xe2:
+        case gpu::intel::compute::gpu_arch_t::xe_hpc:
+            return large_grf_mode ? 4 : 8;
+        case gpu::intel::compute::gpu_arch_t::unknown: return 7;
     }
     return 7;
 }
@@ -183,22 +185,26 @@ int device_info_t::threads_per_eu(gpu_arch_t gpu_arch, bool large_grf_mode) {
 int device_info_t::max_slm_size(gpu_arch_t gpu_arch) {
     int slm_size = 0; // SLM size per SS or DSS.
     switch (gpu_arch) {
-        case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::gen11:
-        case gpu::compute::gpu_arch_t::xe_lp: slm_size = (1 << 16); break;
-        case gpu::compute::gpu_arch_t::xe_hp:
-        case gpu::compute::gpu_arch_t::xe_hpc:
-        case gpu::compute::gpu_arch_t::xe2:
-        case gpu::compute::gpu_arch_t::xe_hpg: slm_size = (1 << 17); break;
-        case gpu::compute::gpu_arch_t::unknown: assert(!"not expected");
+        case gpu::intel::compute::gpu_arch_t::gen9:
+        case gpu::intel::compute::gpu_arch_t::gen11:
+        case gpu::intel::compute::gpu_arch_t::xe_lp:
+            slm_size = (1 << 16);
+            break;
+        case gpu::intel::compute::gpu_arch_t::xe_hp:
+        case gpu::intel::compute::gpu_arch_t::xe_hpc:
+        case gpu::intel::compute::gpu_arch_t::xe2:
+        case gpu::intel::compute::gpu_arch_t::xe_hpg:
+            slm_size = (1 << 17);
+            break;
+        case gpu::intel::compute::gpu_arch_t::unknown: assert(!"not expected");
     }
     return slm_size;
 }
 
 int device_info_t::max_slm_size_per_tg(gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
-        case gpu::compute::gpu_arch_t::xe_hp:
-        case gpu::compute::gpu_arch_t::xe_hpg: return (1 << 16);
+        case gpu::intel::compute::gpu_arch_t::xe_hp:
+        case gpu::intel::compute::gpu_arch_t::xe_hpg: return (1 << 16);
         default: return max_slm_size(gpu_arch);
     }
 }
@@ -214,42 +220,42 @@ int device_info_t::max_slm_size_per_tg(
 
 int device_info_t::slm_memory_bank_count(gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
-        case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::gen11:
-        case gpu::compute::gpu_arch_t::xe_lp: return 16;
-        case gpu::compute::gpu_arch_t::xe_hp: return 65;
-        case gpu::compute::gpu_arch_t::xe2:
-        case gpu::compute::gpu_arch_t::xe_hpc: return 64;
-        case gpu::compute::gpu_arch_t::xe_hpg: return 32;
-        case gpu::compute::gpu_arch_t::unknown: assert(!"not expected");
+        case gpu::intel::compute::gpu_arch_t::gen9:
+        case gpu::intel::compute::gpu_arch_t::gen11:
+        case gpu::intel::compute::gpu_arch_t::xe_lp: return 16;
+        case gpu::intel::compute::gpu_arch_t::xe_hp: return 65;
+        case gpu::intel::compute::gpu_arch_t::xe2:
+        case gpu::intel::compute::gpu_arch_t::xe_hpc: return 64;
+        case gpu::intel::compute::gpu_arch_t::xe_hpg: return 32;
+        case gpu::intel::compute::gpu_arch_t::unknown: assert(!"not expected");
     }
     return 32;
 }
 // Returns SLM bank granularity in bytes.
 int device_info_t::slm_memory_bank_granularity(gpu_arch_t gpu_arch) {
     switch (gpu_arch) {
-        case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::gen11:
-        case gpu::compute::gpu_arch_t::xe_lp:
-        case gpu::compute::gpu_arch_t::xe_hp: return 4;
-        case gpu::compute::gpu_arch_t::xe2:
-        case gpu::compute::gpu_arch_t::xe_hpc:
-        case gpu::compute::gpu_arch_t::xe_hpg: return 8;
-        case gpu::compute::gpu_arch_t::unknown: assert(!"not expected");
+        case gpu::intel::compute::gpu_arch_t::gen9:
+        case gpu::intel::compute::gpu_arch_t::gen11:
+        case gpu::intel::compute::gpu_arch_t::xe_lp:
+        case gpu::intel::compute::gpu_arch_t::xe_hp: return 4;
+        case gpu::intel::compute::gpu_arch_t::xe2:
+        case gpu::intel::compute::gpu_arch_t::xe_hpc:
+        case gpu::intel::compute::gpu_arch_t::xe_hpg: return 8;
+        case gpu::intel::compute::gpu_arch_t::unknown: assert(!"not expected");
     }
     return 4;
 }
 
 size_t device_info_t::icache_size() const {
     switch (gpu_arch_) {
-        case gpu::compute::gpu_arch_t::gen9:
-        case gpu::compute::gpu_arch_t::gen11:
-        case gpu::compute::gpu_arch_t::xe_lp:
-        case gpu::compute::gpu_arch_t::xe_hp: return 48 * 1024;
-        case gpu::compute::gpu_arch_t::xe_hpg: return 96 * 1024;
-        case gpu::compute::gpu_arch_t::xe_hpc: return 80 * 1024;
-        case gpu::compute::gpu_arch_t::xe2: return 96 * 1024;
-        case gpu::compute::gpu_arch_t::unknown: assert(!"not expected");
+        case gpu::intel::compute::gpu_arch_t::gen9:
+        case gpu::intel::compute::gpu_arch_t::gen11:
+        case gpu::intel::compute::gpu_arch_t::xe_lp:
+        case gpu::intel::compute::gpu_arch_t::xe_hp: return 48 * 1024;
+        case gpu::intel::compute::gpu_arch_t::xe_hpg: return 96 * 1024;
+        case gpu::intel::compute::gpu_arch_t::xe_hpc: return 80 * 1024;
+        case gpu::intel::compute::gpu_arch_t::xe2: return 96 * 1024;
+        case gpu::intel::compute::gpu_arch_t::unknown: assert(!"not expected");
     }
     return 0;
 }
@@ -368,6 +374,7 @@ status_t device_info_t::init_from_cache_blob(
 }
 
 } // namespace compute
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

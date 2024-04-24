@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t ref_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
@@ -61,6 +62,7 @@ status_t ref_lrn_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -37,6 +37,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class tensor_t {
@@ -1932,6 +1933,7 @@ layout_t spatials_to_3d(const layout_t &layout, bool with_groups,
         const std::array<int, 3> &dhw_map);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

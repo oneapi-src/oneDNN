@@ -20,6 +20,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 template <data_type_t data_type>
@@ -54,6 +55,7 @@ status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
 template struct simple_sum_t<data_type::f32>;
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -26,7 +26,7 @@
 #include "gpu/intel/ocl/ocl_stream.hpp"
 
 using namespace dnnl::impl;
-using namespace dnnl::impl::gpu::ocl;
+using namespace dnnl::impl::gpu::intel::ocl;
 
 status_t dnnl_ocl_interop_stream_create(
         stream_t **stream, engine_t *engine, cl_command_queue queue) {

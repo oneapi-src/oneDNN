@@ -37,10 +37,10 @@ namespace {
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
         JIT_REDUCTION_INSTANCE
-        INSTANCE(ocl::atomic_reduction_t)
-        INSTANCE(ocl::combined_reduction_t)
-        INSTANCE(ocl::ref_reduction_t)
-        INSTANCE(ocl::reusable_ref_reduction_t)
+        INSTANCE(intel::ocl::atomic_reduction_t)
+        INSTANCE(intel::ocl::combined_reduction_t)
+        INSTANCE(intel::ocl::ref_reduction_t)
+        INSTANCE(intel::ocl::reusable_ref_reduction_t)
         nullptr,
 });
 // clang-format on

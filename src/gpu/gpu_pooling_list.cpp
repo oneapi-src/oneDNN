@@ -34,16 +34,16 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_POOLING_P({
     {{forward}, {
-        INSTANCE(jit::gen_pooling_fwd_t)
-        INSTANCE(ocl::gen9_global_pooling_fwd_t)
-        INSTANCE(ocl::gen9_pooling_fwd_t)
-        INSTANCE(ocl::ref_pooling_fwd_t)
+        INSTANCE(intel::jit::gen_pooling_fwd_t)
+        INSTANCE(intel::ocl::gen9_global_pooling_fwd_t)
+        INSTANCE(intel::ocl::gen9_pooling_fwd_t)
+        INSTANCE(intel::ocl::ref_pooling_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        INSTANCE(ocl::gen9_global_pooling_bwd_t)
-        INSTANCE(ocl::gen9_pooling_bwd_t)
-        INSTANCE(ocl::ref_pooling_bwd_t)
+        INSTANCE(intel::ocl::gen9_global_pooling_bwd_t)
+        INSTANCE(intel::ocl::gen9_pooling_bwd_t)
+        INSTANCE(intel::ocl::ref_pooling_bwd_t)
         nullptr,
     })},
 });

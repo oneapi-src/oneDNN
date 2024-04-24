@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 using namespace compute;
 
@@ -86,6 +87,7 @@ template status_t get_cached_kernels<kernel_bundle_t>(
         std::vector<kernel_t> &kernels,
         const std::vector<const char *> &kernel_names);
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

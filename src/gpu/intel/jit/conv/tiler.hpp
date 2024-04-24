@@ -27,6 +27,7 @@ namespace impl {
 struct primitive_t;
 
 namespace gpu {
+namespace intel {
 namespace jit {
 
 class conv_config_t;
@@ -54,6 +55,7 @@ private:
 };
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

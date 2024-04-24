@@ -33,6 +33,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 // Helper functions.
@@ -1666,6 +1667,7 @@ int estimate_register_count(const conv_config_t &cfg) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

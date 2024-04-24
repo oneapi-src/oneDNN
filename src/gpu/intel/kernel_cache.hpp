@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 template <typename T>
 struct trivial_key_validator_t {
@@ -183,6 +184,7 @@ extern template status_t get_cached_kernels<compute::kernel_bundle_t>(
         std::vector<compute::kernel_t> &kernels,
         const std::vector<const char *> &kernel_names);
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

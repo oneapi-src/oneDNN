@@ -35,12 +35,12 @@ namespace {
 // clang-format off
 constexpr impl_list_item_t impl_list[] = {
 #ifdef DNNL_DEV_MODE
-        INSTANCE(ocl::conv_gemm_t)
+        INSTANCE(intel::ocl::conv_gemm_t)
 #endif
-        INSTANCE(jit::xe_hp_systolic_gemm_t)
-        INSTANCE(ocl::gemm_with_post_ops_t)
-        INSTANCE(jit::gen_gemm_t)
-        INSTANCE(ocl::ref_gemm_t)
+        INSTANCE(intel::jit::xe_hp_systolic_gemm_t)
+        INSTANCE(intel::ocl::gemm_with_post_ops_t)
+        INSTANCE(intel::jit::gen_gemm_t)
+        INSTANCE(intel::ocl::ref_gemm_t)
         nullptr,
 };
 // clang-format on

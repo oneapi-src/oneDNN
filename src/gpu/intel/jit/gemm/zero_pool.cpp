@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 static std::unordered_map<engine_id_t, zero_pool_t *> zero_pool_cache;
@@ -181,6 +182,7 @@ void zero_pool_t::async_release(int token, const compute::event_t &ev) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

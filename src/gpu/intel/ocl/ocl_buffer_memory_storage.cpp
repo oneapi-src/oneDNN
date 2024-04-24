@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 status_t ocl_buffer_memory_storage_t::init_allocate(size_t size) {
@@ -142,6 +143,7 @@ cl_mem ocl_buffer_memory_storage_t::parent_mem_object() const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

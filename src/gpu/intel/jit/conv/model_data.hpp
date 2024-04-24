@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 const std::vector<uint64_t> &get_conv_model_xehpc_dw_data();
@@ -31,6 +32,7 @@ const std::vector<uint64_t> &get_conv_model_xehpg_dw_data();
 const std::vector<uint64_t> &get_conv_model_xehpg_common_data();
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 struct gen9_softmax_fwd_t : public gpu_primitive_t {
@@ -372,6 +373,7 @@ protected:
     compute::kernel_t kernel_;
 };
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

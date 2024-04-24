@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 std::pair<int, int> gen9_concat_t::pd_t::calculate_iter_dim_idx_chunk(
@@ -224,6 +225,7 @@ status_t gen9_concat_t::execute_concat(const exec_ctx_t &ctx) const {
 }
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 bool is_conv_index(const prb_dim_t &dim);
@@ -263,6 +264,7 @@ inline prb_tile_t to_gemm(const prb_tile_t &t, const conv_problem_t &prb) {
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

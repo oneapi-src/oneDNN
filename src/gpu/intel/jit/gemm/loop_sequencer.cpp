@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 namespace loop_sequencer {
@@ -420,6 +421,7 @@ void LoopSequencer::adjustActionTriggers(int shift) {
 } /* namespace loop_sequencer */
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

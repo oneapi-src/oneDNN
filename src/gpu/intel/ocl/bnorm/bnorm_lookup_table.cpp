@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 namespace bn_lookup_table {
 
@@ -458,6 +459,7 @@ std::string params_t::str() const {
 
 } // namespace bn_lookup_table
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

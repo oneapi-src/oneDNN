@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 
 block_layout_t block_layout_t::normalized(bool remove_size_1_blocks) const {
     if (num_blocks == 0) return block_layout_t();
@@ -89,6 +90,7 @@ block_layout_t::block_layout_t(
     if (do_normalize) *this = normalized();
 }
 
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

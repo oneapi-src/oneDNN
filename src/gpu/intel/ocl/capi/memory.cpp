@@ -27,7 +27,7 @@
 #include "gpu/intel/ocl/ocl_memory_storage.hpp"
 
 using namespace dnnl::impl;
-using namespace dnnl::impl::gpu::ocl;
+using namespace dnnl::impl::gpu::intel::ocl;
 
 status_t dnnl_ocl_interop_memory_create(memory_t **memory,
         const memory_desc_t *md, engine_t *engine, memory_kind_t memory_kind,
@@ -52,7 +52,8 @@ status_t dnnl_ocl_interop_memory_create(memory_t **memory,
     std::unique_ptr<memory_storage_t> mem_storage;
     if (is_usm) {
         const auto *ocl_engine
-                = utils::downcast<gpu::compute::compute_engine_t *>(engine);
+                = utils::downcast<gpu::intel::compute::compute_engine_t *>(
+                        engine);
         if (handle != DNNL_MEMORY_NONE && handle != DNNL_MEMORY_ALLOCATE
                 && usm::get_pointer_type(engine, handle)
                         == usm::ocl_usm_kind_t::unknown

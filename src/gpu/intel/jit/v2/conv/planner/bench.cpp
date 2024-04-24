@@ -40,6 +40,7 @@ extern "C" dnnl_status_t dnnl_query_profiling_data(dnnl_stream_t stream,
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 namespace v2 {
 namespace conv {
@@ -55,8 +56,8 @@ static void fill_mem(stream &strm, const memory &mem) {
     auto md = mem.get_desc();
     size_t size = md.get_size();
     uint8_t pattern = 0;
-    impl::gpu::ocl::usm::fill(strm.get(), ptr, &pattern, sizeof(pattern), size,
-            0, nullptr, nullptr);
+    impl::gpu::intel::ocl::usm::fill(strm.get(), ptr, &pattern, sizeof(pattern),
+            size, 0, nullptr, nullptr);
 }
 
 class memory_pool_t {
@@ -169,11 +170,11 @@ private:
     uint64_t time_ = 0;
 };
 
-using problem_t = dnnl::impl::gpu::jit::v2::conv::problem_t;
-using kernel_desc_t = dnnl::impl::gpu::jit::v2::conv::kernel_desc_t;
-using bench_data_t = dnnl::impl::gpu::jit::v2::conv::bench_data_t;
-using prb_tile_t = dnnl::impl::gpu::jit::prb_tile_t;
-namespace prb_dims = dnnl::impl::gpu::jit::prb_dims;
+using problem_t = dnnl::impl::gpu::intel::jit::v2::conv::problem_t;
+using kernel_desc_t = dnnl::impl::gpu::intel::jit::v2::conv::kernel_desc_t;
+using bench_data_t = dnnl::impl::gpu::intel::jit::v2::conv::bench_data_t;
+using prb_tile_t = dnnl::impl::gpu::intel::jit::prb_tile_t;
+namespace prb_dims = dnnl::impl::gpu::intel::jit::prb_dims;
 
 class bench_task_t : public bench_task_base_t {
 public:
@@ -425,6 +426,7 @@ bench_data_t bench(
 } // namespace conv
 } // namespace v2
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

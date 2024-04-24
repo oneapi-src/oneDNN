@@ -39,6 +39,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace ocl {
 
 #ifdef DNNL_GPU_ENABLE_MDAPI
@@ -221,6 +222,7 @@ double mdapi_helper_t::get_freq(cl_event event) const {
 #endif
 
 } // namespace ocl
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

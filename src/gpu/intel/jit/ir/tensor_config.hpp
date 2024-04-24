@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 struct tensor_info_t {
@@ -152,6 +153,7 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
         tensor_config_t &tensor_cfg);
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -19,6 +19,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 void init_extra_tensors(const zero_points_config_t &zp_cfg,
@@ -81,6 +82,7 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
 }
 
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace intel {
 namespace jit {
 
 struct conv_stride_layout_t : public stride_layout_t<prb_dim_t> {
@@ -207,6 +208,7 @@ inline std::ostream &operator<<(
     return out;
 }
 } // namespace jit
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

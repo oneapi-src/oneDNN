@@ -34,10 +34,10 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t concat_impl_list[] = REG_CONCAT_P({
-        CONCAT_INSTANCE(ocl::simple_concat_t)
-        CONCAT_INSTANCE(ocl::gen9_concat_t)
-        CONCAT_INSTANCE(ocl::multi_concat_t)
-        CONCAT_INSTANCE(ocl::ref_concat_t)
+        CONCAT_INSTANCE(intel::ocl::simple_concat_t)
+        CONCAT_INSTANCE(intel::ocl::gen9_concat_t)
+        CONCAT_INSTANCE(intel::ocl::multi_concat_t)
+        CONCAT_INSTANCE(intel::ocl::ref_concat_t)
         nullptr,
 });
 // clang-format on
