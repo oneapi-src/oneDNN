@@ -586,9 +586,12 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
 
+    const int wei_scale_mask
+            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
     const float *oscales = scale_utils::precompute_scales(
-            ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->OC(),
-            pd()->attr(), jit_scale_precompute_.get());
+            ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->IC(),
+            pd()->OC(), false, wei_scale_mask != 0, pd()->attr(),
+            jit_scale_precompute_.get());
 
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const size_t wei_size = weights_d.size();

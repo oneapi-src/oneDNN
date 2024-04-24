@@ -1297,9 +1297,12 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::execute(
 
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
 
+    const int wei_scale_mask
+            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
     const float *oscales = scale_utils::precompute_scales(scratchpad,
-            src_scales, wei_scales, pd()->OC(), pd()->attr(),
-            jit_scale_precompute_.get(), jcp.scale_adjust_factor);
+            src_scales, wei_scales, pd()->IC(), pd()->OC(), false,
+            wei_scale_mask != 0, pd()->attr(), jit_scale_precompute_.get(),
+            jcp.scale_adjust_factor);
 
     brgemm_exec_ctx_t brgemm_ctx(ctx, _pd);
 

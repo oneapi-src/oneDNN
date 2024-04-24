@@ -694,9 +694,12 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
+    const int wei_scale_mask
+            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
     const float *oscales = scale_utils::precompute_scales(scratchpad,
-            src_scales, wei_scales, pd()->OC(), pd()->attr(),
-            jit_scale_precompute_.get(), jcp.scale_adjust_factor);
+            src_scales, wei_scales, pd()->IC(), pd()->OC(), false,
+            wei_scale_mask != 0, pd()->attr(), jit_scale_precompute_.get(),
+            jcp.scale_adjust_factor);
 
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
