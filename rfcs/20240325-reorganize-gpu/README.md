@@ -68,14 +68,14 @@ All vendor-specific code should be enclosed in a namespace that has the vendor's
 Based on the GPU directory structure described above the following namespaces will be
 introduced:
 * `dnnl::gpu`
-    *  `dnnl::gpu::intel`
-        * `dnnl::gpu::intel::compute`
-        * `dnnl::gpu::intel::ocl`
-        * `dnnl::gpu::intel::jit`
-    * `dnnl::gpu::nvidia`
-    * `dnnl::gpu::amd`
-    * `dnnl::gpu::generic`
-        * `dnnl::gpu::generic::sycl`
+    *  `dnnl::impl::gpu::intel`
+        * `dnnl::impl::gpu::intel::compute`
+        * `dnnl::impl::gpu::intel::ocl`
+        * `dnnl::impl::gpu::intel::jit`
+    * `dnnl::impl::gpu::nvidia`
+    * `dnnl::impl::gpu::amd`
+    * `dnnl::impl::gpu::generic`
+        * `dnnl::impl::gpu::generic::sycl`
 
 Given that the namespaces already prevent name collisions adding the prefixes
 such as `sycl_`, `ocl_`, etc are redundant and therefore the suggestion is to
