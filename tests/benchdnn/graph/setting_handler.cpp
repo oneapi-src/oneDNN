@@ -201,16 +201,21 @@ namespace custom {
             res->state = res_state_t::INVALID_ARGUMENTS;
             return op_setting;
     }
+    // Select op has boolean weights. It requires special handling for dt
+    // conversion because custom driver prb values directly translate into graph
+    // objects, there's no intermediate primitive layer that can be instructed
+    // to have f32 data type.
+    const bool op_is_select = opkind == ::graph::op::kind::Select;
+
     for (size_t i = 0; i < base_op_ref.in_lts_.size(); i++) {
-        auto arg = get_prim_arg_name_from_graph_op_input_offset(
+        const auto arg = get_prim_arg_name_from_graph_op_input_offset(
                 opkind, static_cast<int>(i));
-        auto dim = base_op_ref.in_lts_[i].shape_;
-        auto dt = rewrite_lt_ids.find(base_op_ref.in_lts_[i].id_)
-                        == rewrite_lt_ids.end()
-                ? convert_dt(base_op_ref.in_lts_[i].get_data_type())
-                : dnnl_f32;
-        auto tag = strides2memory_tag(base_op_ref.in_lts_[i].stride_.size(),
-                base_op_ref.in_lts_[i].stride_, false);
+        const auto &lt = base_op_ref.in_lts_[i];
+        auto dim = lt.shape_;
+        const auto orig_dt = convert_dt(lt.get_data_type());
+        const auto dt
+                = op_is_select && arg == DNNL_ARG_WEIGHTS ? orig_dt : dnnl_f32;
+        auto tag = strides2memory_tag(lt.stride_.size(), lt.stride_, false);
 
         // 0-dim means scalar input in graph, extend to 1-dim to match behavior.
         if (dim.empty()) {
@@ -222,13 +227,12 @@ namespace custom {
     for (size_t i = 0; i < base_op_ref.out_lts_.size(); i++) {
         auto arg = get_prim_arg_name_from_graph_op_output_offset(
                 opkind, static_cast<int>(i));
-        auto dim = base_op_ref.out_lts_[i].shape_;
-        auto dt = rewrite_lt_ids.find(base_op_ref.out_lts_[i].id_)
-                        == rewrite_lt_ids.end()
-                ? convert_dt(base_op_ref.out_lts_[i].get_data_type())
-                : dnnl_f32;
-        auto tag = strides2memory_tag(base_op_ref.out_lts_[i].stride_.size(),
-                base_op_ref.out_lts_[i].stride_, false);
+        const auto &lt = base_op_ref.out_lts_[i];
+        auto dim = lt.shape_;
+        const auto orig_dt = convert_dt(lt.get_data_type());
+        const auto dt
+                = op_is_select && arg == DNNL_ARG_WEIGHTS ? orig_dt : dnnl_f32;
+        auto tag = strides2memory_tag(lt.stride_.size(), lt.stride_, false);
 
         // 0-dim means scalar input in graph, extend to 1-dim to match behavior.
         if (dim.empty()) {

@@ -170,7 +170,8 @@ int partition_data_displacer_t::displace_input_data(
 
         ref_primitive_t ref_prim(op);
         ref_prim.init_prb(empty_set, &res);
-        SAFE_V(ref_prim.init_prim(get_cpu_engine(), &res));
+        SAFE_V(ref_prim.init_prim(
+                get_cpu_engine(), &res, /* force_override = */ true));
 
         ref_prim.init_memory_args(get_cpu_engine());
         SAFE_V(ref_prim.init_ref_memory_args(get_cpu_engine(), &res));
@@ -243,7 +244,8 @@ int partition_data_displacer_t::gen_quantize_filling(
     ref_primitive_t ref_prim(op);
     ref_prim.init_prb(empty_set, res);
     if (res->state == INVALID_ARGUMENTS) return FAIL;
-    SAFE_V(ref_prim.init_prim(get_cpu_engine(), res));
+    SAFE_V(ref_prim.init_prim(
+            get_cpu_engine(), res, /* force_override = */ true));
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     ref_prim.init_memory_args(get_cpu_engine());
     SAFE_V(ref_prim.init_ref_memory_args(get_cpu_engine(), res));

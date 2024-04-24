@@ -95,7 +95,16 @@ int ref_primitive_t::init_prb(
     return OK;
 }
 
-int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
+int ref_primitive_t::init_prim(
+        const engine_t &ref_eng, res_t *res, bool force_override) {
+    const bool is_quant_or_dequant = kind_ == dnnl::graph::op::kind::Dequantize
+            || kind_ == dnnl::graph::op::kind::Quantize
+            || kind_ == dnnl::graph::op::kind::DynamicDequantize
+            || kind_ == dnnl::graph::op::kind::DynamicQuantize;
+    // (De-)Quantize op is built on reorder which expects int8 dt for
+    // zero-points attribute. Thus, skip them for forcing.
+    const bool force_f32_prim_dt = !force_override && !is_quant_or_dequant;
+
 #define CASE_INIT_PRIM(driver) \
     case dnnl_driver_t::driver: { \
         const ::driver::prb_t *prb = prb_wrapper_->get<::driver::prb_t>(); \
@@ -103,7 +112,7 @@ int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
         if (is_special_backward_op_) { \
             SAFE(create_primitive(fwd_prim_, ref_eng, ::driver::init_pd, prb, \
                          res, FLAG_FWD, nullptr, prb->dir &FLAG_BWD, nullptr, \
-                         false), \
+                         force_f32_prim_dt), \
                     WARN); \
             if (res->state == SKIPPED || res->state == UNIMPLEMENTED) \
                 return OK; \
@@ -118,7 +127,7 @@ int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
         SAFE(create_primitive(prim_, ref_eng, ::driver::init_pd, prb, res, \
                      prb->dir, \
                      is_special_backward_op_ ? query_pd(fwd_prim_) : nullptr, \
-                     false, nullptr, false), \
+                     false, nullptr, force_f32_prim_dt), \
                 WARN); \
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK; \
         break; \
