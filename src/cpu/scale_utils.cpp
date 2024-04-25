@@ -73,6 +73,15 @@ bool req_copy_scales(
 }
 
 const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
+        const float *src_scales, const float *wei_scales, dim_t oc,
+        const primitive_attr_t *attr, float scale_adjust_factor) {
+    // Note: per-ic-channel is no supported in default
+    const int wei_scale_mask = attr->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    return precompute_scales(scratchpad, src_scales, wei_scales, 1, oc, false,
+            wei_scale_mask != 0, attr, scale_adjust_factor, false);
+}
+
+const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
         const float *src_scales, const float *wei_scales, dim_t IC, dim_t OC,
         const bool wei_scale_per_ic, const bool wei_scale_per_oc,
         const primitive_attr_t *attr, float scale_adjust_factor,
