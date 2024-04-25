@@ -510,7 +510,7 @@ private:
     static bool can_skip_zero_out(
             const kernel_info_t &info, const conv_config_t &cfg) {
         ir_assert(info.id() == kernel_id_t::zero_out);
-        auto &buf_name = info.arg_var(0).as<var_t>().name;
+        auto &buf_name = info.arg_var(1).as<var_t>().name;
         if (buf_name == "wei") return cfg.can_skip_wei_zero_out();
         if (buf_name == "bia") return cfg.can_skip_bia_zero_out();
         return false;
