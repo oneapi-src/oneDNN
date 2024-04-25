@@ -116,3 +116,4 @@
 --reset --in-shapes=0:1x128x150x150*acdb+1:1x128x150x150*acdb+2:1x128x150x150*acdb --op-attrs=3:axis:0 --case=pattern/int8/int8_concat_fusion_3.json
 #layernorm
 --reset --case=pattern/int8/int8_lnorm_gelu_quantize.json
+--reset --case=pattern/int8/int8_lnorm_multiply_quantize.json
