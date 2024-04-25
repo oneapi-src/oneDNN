@@ -226,6 +226,7 @@ public:
         CHECK(init_runtime_version(engine));
         CHECK(init_extensions(engine));
         CHECK(init_attributes(engine));
+        fixup_l3_cache_size();
 
         CHECK(init_attributes_common(engine));
 
@@ -262,7 +263,7 @@ public:
     static int max_slm_size_per_tg(gpu_arch_t gpu_arch);
     static int max_slm_size_per_tg(
             gpu_arch_t gpu_arch, int tg_size, bool large_grf_mode = false);
-    size_t llc_cache_size() const { return llc_cache_size_; }
+    size_t l3_cache_size() const { return l3_cache_size_; }
     size_t icache_size() const;
 
     const runtime_version_t &runtime_version() const {
@@ -330,7 +331,7 @@ protected:
     int32_t max_subgroup_size_ = 16;
     int max_exec_size_ = 0;
     size_t max_wg_size_ = 0;
-    size_t llc_cache_size_ = 0;
+    size_t l3_cache_size_ = 0;
 
     // extensions_ and gpu_arch_ describe effective extensions and GPU architecture.
     uint64_t extensions_ = 0;
@@ -342,6 +343,7 @@ private:
     status_t init_serialized_device_info(
             const std::vector<uint8_t> &cache_blob = {});
     status_t init_from_cache_blob(const std::vector<uint8_t> &cache_blob);
+    void fixup_l3_cache_size();
 
     bool mayiuse_non_uniform_work_groups_ = false;
 

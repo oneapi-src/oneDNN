@@ -150,6 +150,12 @@ status_t ocl_gpu_device_info_t::init_attributes(engine_t *engine) {
     OCL_CHECK(err);
     max_wg_size_ = max_wg_size;
 
+    cl_ulong mem_cache_size;
+    err = clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
+            sizeof(mem_cache_size), &mem_cache_size, nullptr);
+    OCL_CHECK(err);
+    l3_cache_size_ = mem_cache_size;
+
 #ifdef cl_intel_unified_shared_memory
     cl_device_unified_shared_memory_capabilities_intel
             system_memory_capabilities_intel
