@@ -72,6 +72,11 @@ enabled individually
 All vendor-specific code should be enclosed in a namespace that has the vendor's name.
 Based on the GPU directory structure described above the following namespaces will be
 introduced:
+* `dnnl::impl`
+    * `dnnl::impl::sycl`
+    * `dnnl::impl::ocl`
+* `dnnl::cpu`
+    * `dnnl::impl::cpu::sycl`
 * `dnnl::gpu`
     *  `dnnl::impl::gpu::intel`
         * `dnnl::impl::gpu::intel::compute`
