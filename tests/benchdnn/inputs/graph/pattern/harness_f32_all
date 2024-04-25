@@ -68,7 +68,7 @@
 --reset --in-shapes=0:2x4x2+1:2x4x2+2:1x1x1 --op-attrs=1:auto_broadcast:none --case=pattern/f32/binary_3d_post_ops_add_fusion.json
 --reset --in-shapes=0:2x4x2+1:2x4x2+2:1x4x1 --op-attrs=1:auto_broadcast:none --case=pattern/f32/binary_3d_post_ops_add_fusion.json
 # conv
---reset --attr-fpmath=strict,bf16 --case=pattern/f32/conv_bias_add_fusion.json
+--reset --attr-fpmath=strict,bf16,tf32 --case=pattern/f32/conv_bias_add_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64+3:1x1x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_add_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64+3:1x64x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_add_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64+3:50x64x56x56 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_add_fusion.json
@@ -125,7 +125,7 @@
 --reset --in-shapes=0:2x17x21+1:2x17x17+2:1x1x1 --op-attrs=13:scales:0.809524 --case=pattern/f32/interpolate_post_ops_chain_fusion.json
 --reset --in-shapes=0:2x17x21+1:2x17x17+2:1x17x1 --op-attrs=13:scales:0.809524 --case=pattern/f32/interpolate_post_ops_chain_fusion_2.json
 # matmul
---reset --attr-fpmath=strict,bf16 --case=pattern/f32/matmul_post_ops_add_add_fusion.json
+--reset --attr-fpmath=strict,bf16,tf32 --case=pattern/f32/matmul_post_ops_add_add_fusion.json
 --reset --in-shapes=0:384x4096+1:4096x1024+2:384x1024 --case=pattern/f32/matmul_post_ops_sum_relu_fusion.json
 --reset --in-shapes=0:384x512+1:512x1024+2:384x1024 --case=pattern/f32/matmul_post_ops_sum_relu_fusion.json
 --reset --in-shapes=0:16x1024+1:1024x1024+2:1x1+3:1x1 --case=pattern/f32/matmul_post_ops_chain_fusion.json
