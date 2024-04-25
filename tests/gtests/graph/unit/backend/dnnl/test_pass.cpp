@@ -43,6 +43,8 @@ using op_ptr = std::shared_ptr<dnnl::impl::graph::op_t>;
 #define for_ for
 
 namespace {
+using namespace dnnl::impl::graph::dnnl_impl::platform;
+
 dnnl::impl::graph::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     auto &backend_ptr
             = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
@@ -61,10 +63,44 @@ bool is_supported_partition(const std::shared_ptr<graph::partition_impl_t> &p) {
             && (p->get_assigned_backend()->get_name() != "fake_backend");
 }
 
-bool is_supported_dtype(data_type_t dt) {
-    using namespace dnnl::impl::graph::dnnl_impl::platform;
+static inline dir_t get_op_dir(dnnl::impl::graph::op_kind_t op_kind) {
+    using namespace dnnl::impl::graph::op_kind;
+    dir_t dir = dir_t::FLAG_INF;
+    static std::unordered_set<op_kind_t> backward_op_kind = {
+            AbsBackward,
+            AvgPoolBackward,
+            BatchNormTrainingBackward,
+            BiasAddBackward,
+            ConvolutionBackwardData,
+            ConvolutionBackwardWeights,
+            ConvTransposeBackwardData,
+            ConvTransposeBackwardWeights,
+            HardSigmoidBackward,
+            InterpolateBackward,
+            LayerNormBackward,
+            LogSoftmaxBackward,
+            MaxPoolBackward,
+            MishBackward,
+            PReLUBackward,
+            ReLUBackward,
+            SigmoidBackward,
+            SoftPlusBackward,
+            TanhBackward,
+    };
+
+    if (backward_op_kind.find(op_kind) != backward_op_kind.end())
+        dir = dir_t::FLAG_BWD;
+    else if (op_kind == dnnl::impl::graph::op_kind::BatchNormForwardTraining)
+        // Currently, batchnorm forward training is the only forward op
+        // that provides extra output for training purpose.
+        dir = dir_t::FLAG_FWD;
+
+    return dir;
+}
+
+static bool is_supported_dtype(data_type_t dt, dir_t dir = dir_t::FLAG_INF) {
     static graph::engine_t *engine = get_engine();
-    return get_dtype_support_status(engine->kind(), dt, dir_t::FLAG_INF);
+    return get_dtype_support_status(engine->kind(), dt, dir);
 }
 
 } // namespace
@@ -4795,7 +4831,7 @@ public:
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
-        if (!is_supported_dtype(params.data_type)) {
+        if (!is_supported_dtype(params.data_type, get_op_dir(params.op_kind))) {
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
             auto p = agraph.get_partitions().front();
