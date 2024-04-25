@@ -74,7 +74,8 @@ struct prb_t {
 
 std::string case_to_str(const std::string &json_file,
         const std::map<size_t, std::string> &in_shapes,
-        const std::map<size_t, std::string> &op_attrs, const int64_t mb);
+        const std::map<size_t, std::string> &op_attrs,
+        const std::string &fpmath_mode, const int64_t mb);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const std::string case_str, const char *perf_template)
