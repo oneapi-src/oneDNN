@@ -70,7 +70,7 @@ enabled individually
 ### Namespaces and Prefixes
 
 All vendor-specific code should be enclosed in a namespace that has the vendor's name.
-Based on the GPU directory structure described above the following namespaces will be
+Based on the directory structure described above the following namespaces will be
 introduced:
 * `dnnl::impl`
     * `dnnl::impl::sycl`
