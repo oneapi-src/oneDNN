@@ -33,11 +33,12 @@ namespace {
 using namespace dnnl::impl::prop_kind;
 
 #ifdef DNNL_DEV_MODE
-#define V2_CONV_FWD_INSTANCE INSTANCE(jit::v2::conv::gen_convolution_fwd_t)
+#define V2_CONV_FWD_INSTANCE \
+    INSTANCE(intel::jit::v2::conv::gen_convolution_fwd_t)
 #define V2_CONV_BWD_D_INSTANCE \
-    INSTANCE(jit::v2::conv::gen_convolution_bwd_data_t)
+    INSTANCE(intel::jit::v2::conv::gen_convolution_bwd_data_t)
 #define V2_CONV_BWD_W_INSTANCE \
-    INSTANCE(jit::v2::conv::gen_convolution_bwd_weights_t)
+    INSTANCE(intel::jit::v2::conv::gen_convolution_bwd_weights_t)
 #else
 #define V2_CONV_FWD_INSTANCE
 #define V2_CONV_BWD_D_INSTANCE
