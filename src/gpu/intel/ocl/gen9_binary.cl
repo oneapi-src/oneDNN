@@ -117,11 +117,8 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
                 po_dims0[1], 1, po_dims0[2], 1, po_dims0[3], 1, po_dims0[4], 1,
                 po_dims0[5], 1);
         tmp[idx] = d_i;
-#if !HAS_TAIL
         po_dims0[NDIMS - 1] += SUB_GROUP_SIZE;
-#endif
     }
-
     WRITE_DATA(NVECT, DST, (&tmp[0]), (&dst[0]));
 }
 
