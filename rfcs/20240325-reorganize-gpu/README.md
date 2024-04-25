@@ -46,8 +46,13 @@ the generic vendor can be enabled along with nvidia or amd, or it can be
 enabled individually
 
 ```bash
+├── common/ # Common files for the library (e.g. API, basic abstractions, etc)
+│   ├── sycl/ # Common, vendor agnostic code for SYCL runtime
+│   ├── ocl/ # Common, vendor agnostic code for OpenCL runtime
+│   └── ...
 ├── cpu/ # CPU code
-├── sycl/ # A common place for basic CPU and GPU SYCL code, e.g. `sycl_cpu_engine_t`
+│   ├── sycl/ # CPU specific SYCL code (e.g. `sycl_cpu_engine_t`)
+│   └── ...
 └── gpu/ # GPU code. Basic GPU code resides in the GPU directory directly, e.g. `gpu_engine_t`.
     ├── intel/ # Intel-specific code
     │   ├── compute/ # Compute layer abstractions
