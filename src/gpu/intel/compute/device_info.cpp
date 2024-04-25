@@ -261,20 +261,6 @@ size_t device_info_t::icache_size() const {
 }
 
 status_t device_info_t::init_attributes_common(engine_t *engine) {
-    // TODO: Fix for discrete GPUs. The code below is written for
-    // integrated GPUs assuming that last-level cache for GPU is shared
-    // with CPU.
-    // Integrated GPUs share LLC with CPU which is L3 cache on CPU.
-
-    // XXX: this is the only place where GPU runtime functionally depends on
-    // CPU runtime. The `llc_cache_size_` is used only in one kernel for gen9.
-    // The idea is to use approximate cache size.
-
-    // llc_cache_size_ = cpu::platform::get_per_core_cache_size(3)
-    //        * cpu::platform::get_num_cores();
-    // Assumption is that HT is likely enabled on client systems.
-    llc_cache_size_ = std::thread::hardware_concurrency() * (1 << 20);
-
     bool ocl_backend = true;
 
 #ifdef DNNL_WITH_SYCL
@@ -314,7 +300,7 @@ status_t device_info_t::init_serialized_device_info(
     serialized_device_info_.write(&max_subgroup_size_);
     serialized_device_info_.write(&max_exec_size_);
     serialized_device_info_.write(&max_wg_size_);
-    serialized_device_info_.write(&llc_cache_size_);
+    serialized_device_info_.write(&l3_cache_size_);
     serialized_device_info_.write(&extensions_);
     serialized_device_info_.write(&native_extensions_);
     serialized_device_info_.write(&mayiuse_systolic_);
@@ -352,7 +338,7 @@ status_t device_info_t::init_from_cache_blob(
     DESERIALIZE(max_subgroup_size_, int32_t);
     DESERIALIZE(max_exec_size_, int);
     DESERIALIZE(max_wg_size_, size_t);
-    DESERIALIZE(llc_cache_size_, size_t);
+    DESERIALIZE(l3_cache_size_, size_t);
     DESERIALIZE(extensions_, uint64_t);
     DESERIALIZE(native_extensions_, uint64_t);
     DESERIALIZE(mayiuse_systolic_, bool);
@@ -371,6 +357,14 @@ status_t device_info_t::init_from_cache_blob(
     assert(pos == cache_blob.size());
 
     return status::success;
+}
+
+void device_info_t::fixup_l3_cache_size() {
+    // XXX: OpenCL/DPCPP does not report correct cache size for this
+    // configuration.
+    if (gpu_arch() == gpu_arch_t::xe2 && eu_count() <= 64) {
+        l3_cache_size_ = (1 << 23);
+    }
 }
 
 } // namespace compute
