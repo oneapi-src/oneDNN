@@ -39,13 +39,6 @@ status_t ref_reorder_t::pd_t::init_conf(engine_t *engine) {
 
     status_t status = status::success;
 
-    if (!IMPLICATION(
-                utils::one_of(src_mdw.data_type(), data_type::s4, data_type::u4)
-                        || utils::one_of(dst_mdw.data_type(), data_type::s4,
-                                data_type::u4),
-                dst_mdw.is_plain() && src_mdw.is_plain()))
-        return status::unimplemented;
-
     const auto &padded_dims = dst_mdw.padded_dims();
     conf.src_quant = {attr(), src_mdw, DNNL_ARG_SRC};
     conf.dst_quant = {attr(), dst_mdw, DNNL_ARG_DST};
@@ -116,12 +109,16 @@ status_t ref_reorder_t::pd_t::init_kernel_ctx(
         auto &dst_blk = dst_md()->format_desc.blocking;
 
         int dst_contig_dim = -1;
-        if (dst_blk.inner_nblks > 0)
-            dst_contig_dim = dst_blk.inner_idxs[0];
-        else
+        if (dst_blk.inner_nblks > 0) {
+            for (int i = dst_md()->ndims; i >= 0; i--)
+                if (dst_blk.inner_idxs[i] != 0) {
+                    dst_contig_dim = dst_blk.inner_idxs[i];
+                    break;
+                }
+        } else {
             for (int i = 0; i < dst_md()->ndims; i++)
                 if (dst_blk.strides[i] == 1) dst_contig_dim = i;
-
+        }
         // TODO: also check that innermost block or dimension has even size
         if (dst_contig_dim < 0) return status::unimplemented;
 
