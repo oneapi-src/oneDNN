@@ -88,7 +88,7 @@ introduced:
         * `dnnl::impl::gpu::generic::sycl`
 
 Given that the namespaces already prevent name collisions adding the prefixes
-such as `sycl_`, `ocl_`, etc are redundant and therefore the suggestion is to
+such as `sycl_`, `ocl_`, etc is redundant and therefore the suggestion is to
 drop the prefixes. For example, `dnnl::impl::gpu::ocl::ocl_gpu_engine_t` will
 be converted to `dnnl::impl::gpu::intel::ocl::engine_t`.
 
