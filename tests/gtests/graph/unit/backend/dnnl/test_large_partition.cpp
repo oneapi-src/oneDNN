@@ -27,6 +27,15 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
+static inline void custom_setenv(
+        const char *name, const char *value, int overwrite) {
+#ifdef _WIN32
+    SetEnvironmentVariable(name, value);
+#else
+    ::setenv(name, value, overwrite);
+#endif
+}
+
 static void fill_data(
         std::vector<float> &buffer, dnnl::impl::data_type_t dtype) {
     if (dtype == dnnl::impl::data_type::u8) {
@@ -905,8 +914,13 @@ TEST(test_large_partition_execute, F32JaxMqa) {
         outputs.emplace_back(&lt);
     }
 
+    // Enable large partition test
+    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    // Set back to avoid affecting other tests
+    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
 
     std::vector<test_tensor> inputs_ts, outputs_ts;
 
