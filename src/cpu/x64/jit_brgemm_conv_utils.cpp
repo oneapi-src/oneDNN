@@ -2159,7 +2159,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
                 * jcp.od_block * jcp.oh_block * jcp.ow_block;
         // Disable exec_vpad for large shapes on avx2 for better performance
         // the threshold is approximate and empiric
-        if (!must_exec_vpad && jcp.isa == avx2 && work_amount >= jcp.nthr * 8
+        if (!must_exec_vpad && jcp.isa == avx2
+                && work_amount >= static_cast<dim_t>(jcp.nthr) * 8
                 && jcp.ic >= 512 && jcp.oc >= 256
                 && thr_work_amount > 2 * brg_blocking_t::L1
                 && jcp.prop_kind == prop_kind::forward)
