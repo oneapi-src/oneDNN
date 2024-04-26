@@ -28,7 +28,10 @@ approach thus achieves:
 
 ![Integration scheme](images/arch.png)
 
-The compiler will be packaged into a python wheel and installed along with 
+The compiler will be packaged into a python wheel (the compiler may have a
+separate Python API but it is not used in the described scenario) and installed
+along with PyTorch. An existing instance of OneDNN then will search and load the
+compiler shared library.
 
 The changes required are grouped by the component.
 
