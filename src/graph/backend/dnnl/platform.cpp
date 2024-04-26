@@ -76,8 +76,8 @@ bool get_dtype_support_status(engine_kind_t eng, data_type_t dtype, dir_t dir) {
             break;
         }
         case dnnl_f16: {
-            // f16 is supported on GPU for inference only.
-            is_supported = is_gpu(eng) && (dir & dir_t::FLAG_FWD);
+            // TODO(zhitao): f16 for backward on gpu?
+            is_supported = is_gpu(eng);
             break;
         }
         case dnnl_f8_e5m2: {
