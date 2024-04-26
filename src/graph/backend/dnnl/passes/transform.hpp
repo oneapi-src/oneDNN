@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -171,10 +171,30 @@ impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg);
 // have the opportunity to be fused into computation operators
 impl::status_t lift_up_typecast(std::shared_ptr<subgraph_t> &sg);
 
+/// This pass will move add after matmul and insert reshape and transpose before
+/// src1 of add. So that it can have the opportunity to be fused into matmul.
+///                                                          src1(4D)
+///                                                          /
+///          |                                  |        transpose
+///          |                                  |          / (4D)
+///        matmul(3D)                         matmul    reshape
+///          |                                  |      / (3D)
+///        reshape             ----->         add(3D)
+///          | (4D)                             |
+///       transpose   src1(4D)                reshape
+///          |      /                           |(4D)
+///         add(4D)                          transpose
+///          |                                  |
+///
+impl::status_t lift_up_post_add_for_matmul(std::shared_ptr<subgraph_t> &sg);
+
 // This pass will move reshape before Quantize and Dequantize for depthwiseconv.
 // So that it can have the opportunity to be fused into computation operators
 impl::status_t lift_up_weight_reshape_for_depthwiseconv(
         std::shared_ptr<subgraph_t> &sg);
+
+// This pass will compute matmul with the src layout of transpose before matmul
+impl::status_t fuse_src_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg);
 
 // This pass will compute matmul with the dst layout of following transpose if
 // the operator after transpose need a dense layout

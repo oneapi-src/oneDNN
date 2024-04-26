@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,6 +130,9 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, fold_pre_mul_scale_into_bn);
         BACKEND_DNNL_ADD_PASS(pipeline, fold_post_mul_scale_into_bn);
 
+        // MQA pattern fusion
+        BACKEND_DNNL_ADD_PASS(pipeline, lift_up_post_add_for_matmul);
+
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
         BACKEND_DNNL_ADD_PASS(pipeline, fold_mul_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
@@ -179,6 +182,7 @@ public:
             memory_planner_t &mem_planner, bool enable_constant_cache) {
         pipeline.reset_visualize_arg(true, false);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_transpose_to_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_transpose_to_matmul);
         BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
         BACKEND_DNNL_ADD_PASS(pipeline, common_reorder_elimination);

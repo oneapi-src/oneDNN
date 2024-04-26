@@ -813,6 +813,120 @@ TEST(test_large_partition_execute, F32GptMha) {
     strm->wait();
 }
 
+TEST(test_large_partition_execute, F32JaxMha) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    graph::graph_t g(eng->kind());
+    utils::construct_dnnl_float_JAX_MHA(&g);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 9U);
+
+    graph::pass::pass_base_ptr apass = get_pass("float_sdp_jax_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 5U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<float>();
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_ts.emplace_back(compiled_output, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
+TEST(test_large_partition_execute, F32JaxMqa) {
+    graph::engine_t *eng = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    graph::graph_t g(eng->kind());
+    utils::construct_dnnl_float_JAX_MQA(&g);
+    g.finalize();
+
+    ASSERT_EQ(g.get_ops().size(), 8U);
+
+    graph::pass::pass_base_ptr apass = get_pass("float_mqa_jax_fusion");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    auto partition_inputs = p.get_inputs();
+    auto partition_outputs = p.get_outputs();
+    ASSERT_EQ(partition_inputs.size(), 4U);
+    ASSERT_EQ(partition_outputs.size(), 1U);
+
+    std::vector<const graph::logical_tensor_t *> inputs, outputs;
+    for (auto &lt : partition_inputs) {
+        inputs.emplace_back(&lt);
+    }
+    for (auto &lt : partition_outputs) {
+        // set output to be strided
+        lt = utils::logical_tensor_init(
+                lt.id, lt.data_type, graph::layout_type::strided);
+        outputs.emplace_back(&lt);
+    }
+
+    graph::compiled_partition_t cp(p);
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
+
+    std::vector<test_tensor> inputs_ts, outputs_ts;
+
+    for (auto &lt : inputs) {
+        inputs_ts.emplace_back(*lt, eng);
+        inputs_ts.back().fill<float>();
+    }
+
+    for (auto &lt : outputs) {
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(lt->id, &compiled_output);
+        outputs_ts.emplace_back(compiled_output, eng);
+    }
+
+    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
+                      test_tensor::to_graph_tensor(outputs_ts)),
+            graph::status::success);
+    strm->wait();
+}
+
 namespace {
 union bit32_t {
     float f32;
