@@ -199,7 +199,7 @@ public:
 
     void set_from_str(const std::string &s) override {
         tile_ = prb_tile_t();
-        for (auto &kv : ir_utils::to_string_int_map(s)) {
+        for (auto &kv : ir_utils::to_string_int_pairs(s)) {
             tile_[prb_dim_t::from_name(kv.first)] = kv.second;
         }
     }

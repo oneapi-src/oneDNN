@@ -227,7 +227,7 @@ public:
     dim_map_t(const std::string &s) {
         is_set_.fill(false);
         values_.fill(ValueT());
-        for (auto &kv : ir_utils::to_string_int_map(s)) {
+        for (auto &kv : ir_utils::to_string_int_pairs(s)) {
             operator[](KeyT::from_name(kv.first)) = ValueT(kv.second);
         }
     }

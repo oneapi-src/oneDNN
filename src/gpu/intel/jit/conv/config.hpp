@@ -380,7 +380,7 @@ public:
     void set_from_str(const std::string &s) override {
         a_ = 1;
         b_ = 1;
-        for (auto &kv : ir_utils::to_string_int_map(s)) {
+        for (auto &kv : ir_utils::to_string_int_pairs(s)) {
             if (kv.first == "a") {
                 a_ = kv.second;
             } else if (kv.first == "b") {
