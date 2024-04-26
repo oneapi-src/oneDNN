@@ -27,8 +27,10 @@ Both kinds of experimental features can be enabled simultaneously.
 | Build time option                          | Description                                                        |
 |:-------------------------------------------|:-------------------------------------------------------------------|
 | ONEDNN_EXPERIMENTAL_SPARSE                 | Enable experimental API and functionality for sparse domain.       |
-| ONEDNN_EXPERIMENTAL_PROFILING              | Enable experimental profiling API.
+| ONEDNN_EXPERIMENTAL_UKERNEL                | Enable experimental microkernel APIs and functionalities.          |
+| ONEDNN_EXPERIMENTAL_PROFILING              | Enable experimental profiling API.                                 |
 | ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND | Enable experimental graph compiler backend of the graph component. |
+
 
 ## Features details
 
@@ -191,6 +193,17 @@ destination tensor should also work for the sparse one.
 * Sparse memory and memory descriptor can only be used with the Matrix
 Multiplication and Reorder primitives
 * Sparse memory can be created only for a CPU engine
+
+### ONEDNN_EXPERIMENTAL_UKERNEL
+
+This option enables a new set of CPU-only APIs to support block-level
+functionalities. By composing these low-level, sequential operations, users can
+implement their own custom operations/fusions, and tailor blocking/threading
+logic to their applications.
+
+More details on this API are available in the [Microkernel APIs
+section](@ref dev_guide_ukernel_basic_concepts).
+
 
 ### ONEDNN_EXPERIMENTAL_PROFILING
 This option enables profiling API that can be used to query different
