@@ -24,6 +24,7 @@
 
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -771,18 +772,28 @@ private:
     Xbyak::Ymm yreg_bias_acc1 = Xbyak::Ymm(3);
     Xbyak::Ymm yreg_bias_ddst0 = Xbyak::Ymm(2);
     Xbyak::Ymm yreg_bias_ddst1 = Xbyak::Ymm(4);
+    Xbyak::Ymm yreg_bias_ddst00 = Xbyak::Ymm(5);
+    Xbyak::Ymm yreg_bias_ddst01 = Xbyak::Ymm(6);
+
+    Xbyak::Ymm yreg_permute_to_vnni = Xbyak::Ymm(14);
+    Xbyak::Ymm yreg_permute_to_plain = Xbyak::Ymm(15);
+
+    Xbyak::Zmm emu_reserv_1 = Xbyak::Zmm(30);
+    Xbyak::Zmm emu_reserv_2 = Xbyak::Zmm(29);
+    Xbyak::Zmm emu_reserv_3 = Xbyak::Zmm(28);
+    Xbyak::Zmm emu_reserv_4 = Xbyak::Zmm(27);
+    Xbyak::Zmm emu_reserv_5 = Xbyak::Zmm(26);
+    Xbyak::Reg64 emu_scratch = r10;
+    Xbyak::Opmask emu_mask = Xbyak::Opmask(4);
+
+    std::unique_ptr<fp8_emulation_base_t> f8_emu;
 
     void compute_diff_bias_row(int ocb);
     void compute_diff_bias(int nb_oc_blocking);
 
     void generate() override;
 
-    inline dim_t get_ddst_offset(dim_t w_idx, dim_t hd_idx = 0) {
-        int ow_per_oc = 2;
-        dim_t w_off = w_idx / ow_per_oc * ow_per_oc * jcp.oc_block
-                + w_idx % ow_per_oc;
-        return jcp.typesize_in * (w_off + jcp.tr_ow * jcp.oc_block * hd_idx);
-    }
+    dim_t get_ddst_offset(dim_t w_idx, dim_t hd_idx = 0) const;
 };
 
 } // namespace x64
