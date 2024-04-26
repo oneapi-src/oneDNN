@@ -82,6 +82,18 @@
 /// DPC++ runtime
 #define DNNL_RUNTIME_DPCPP DNNL_RUNTIME_SYCL
 
+/// No vendor (corresponding runtime is disabled)
+#define DNNL_VENDOR_NONE 0u
+
+/// Intel vendor
+#define DNNL_VENDOR_INTEL 1u
+
+/// NVIDIA vendor
+#define DNNL_VENDOR_NVIDIA 2u
+
+/// AMD vendor
+#define DNNL_VENDOR_AMD 4u
+
 /// @} dnnl_api_service
 
 // oneDNN CPU threading runtime
@@ -92,6 +104,9 @@
 
 // oneDNN GPU engine runtime
 #cmakedefine DNNL_GPU_RUNTIME DNNL_RUNTIME_${DNNL_GPU_RUNTIME}
+
+// oneDNN GPU vendor
+#cmakedefine DNNL_GPU_VENDOR DNNL_VENDOR_${DNNL_GPU_VENDOR}
 
 // clang-format on
 
