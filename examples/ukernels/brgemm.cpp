@@ -17,8 +17,13 @@
 /// @example brgemm.cpp
 /// > Annotated version: @ref brgemm_example_cpp
 ///
+/// @page brgemm_example_cpp_short
+///
 /// This C++ API example demonstrates how to create and execute a BRGeMM
 /// ukernel.
+///
+/// @page brgemm_example_cpp Example of using BRGeMM ukernel to implement Matmul
+/// @copydetails brgemm_example_cpp_short
 ///
 /// @include brgemm.cpp
 

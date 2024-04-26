@@ -135,3 +135,11 @@ you to make an operation fusion:
 
 The programming model for the graph extension is detailed in the
 [graph basic concepts section](@ref dev_guide_graph_basic_concepts).
+
+## Micro-kernel Extension
+
+The Micro-kernel API extension (ukernel API) is a low-level abstraction in
+oneDNN that implements sequential, block-level operations. This abstraction
+typically allows users to implement custom operations by composing those
+block-level computations. Users of the ukernel API has full control of the
+threading and blocking logic, so they can be tailored to their application.
