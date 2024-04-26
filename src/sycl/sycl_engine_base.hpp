@@ -73,7 +73,7 @@ public:
             if (!ocl_kernels[i]) continue;
             auto *k = utils::downcast<gpu::intel::ocl::ocl_gpu_kernel_t *>(
                     ocl_kernels[i].impl());
-            gpu::intel::compute::binary_t binary;
+            hrt::binary_t binary;
             CHECK(k->get_binary(ocl_engine, binary));
             CHECK(create_kernel_from_binary(
                     kernels[i], binary, kernel_names[i]));
@@ -82,7 +82,7 @@ public:
     }
 
     status_t create_kernel_from_binary(gpu::intel::compute::kernel_t &kernel,
-            const gpu::intel::compute::binary_t &binary,
+            const hrt::binary_t &binary,
             const char *kernel_name) const override {
         std::vector<gpu::intel::compute::scalar_type_t> arg_types;
 
@@ -133,7 +133,7 @@ public:
 
         auto kernel_name = jitter->kernel_name();
 
-        gpu::intel::compute::binary_t binary = jitter->get_binary(
+        hrt::binary_t binary = jitter->get_binary(
                 ocl_engine->context(), ocl_engine->device());
         return create_kernel_from_binary(*kernel, binary, kernel_name);
     }
@@ -171,7 +171,7 @@ public:
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return gpu::intel::ocl::make_ocl_wrapper(
+        return hrt::ocl::make_wrapper(
                 compat::get_native<cl_device_id>(device()));
     }
     cl_context ocl_context() const {
@@ -180,7 +180,7 @@ public:
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return gpu::intel::ocl::make_ocl_wrapper(
+        return hrt::ocl::make_wrapper(
                 compat::get_native<cl_context>(context()));
     }
 

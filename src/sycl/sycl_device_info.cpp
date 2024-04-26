@@ -44,9 +44,9 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
         cl_int err = CL_SUCCESS;
 
         auto ocl_dev = compat::get_native<cl_device_id>(device);
-        auto ocl_dev_wrapper = gpu::intel::ocl::make_ocl_wrapper(ocl_dev);
+        auto ocl_dev_wrapper = hrt::ocl::make_wrapper(ocl_dev);
 
-        auto ocl_ctx_wrapper = gpu::intel::ocl::make_ocl_wrapper(
+        auto ocl_ctx_wrapper = hrt::ocl::make_wrapper(
                 clCreateContext(nullptr, 1, &ocl_dev, nullptr, nullptr, &err));
         OCL_CHECK(err);
 

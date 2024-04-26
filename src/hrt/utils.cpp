@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,31 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
-#define GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
-
+#include <tuple>
 #include <vector>
-#include <CL/cl.h>
 
 #include "hrt/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
-namespace jit {
+namespace hrt {
 
-struct jit_generator_base {
-    virtual ~jit_generator_base() = default;
-    virtual const char *kernel_name() const = 0;
-    virtual hrt::binary_t get_binary(cl_context context, cl_device_id device)
-            = 0;
-};
+size_t device_uuid_hasher_t::operator()(const device_uuid_t &uuid) const {
+    const size_t seed = hash_combine(0, std::get<0>(uuid));
+    return hash_combine(seed, std::get<1>(uuid));
+}
 
-} // namespace jit
-} // namespace intel
-} // namespace gpu
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl
-
-#endif // GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP

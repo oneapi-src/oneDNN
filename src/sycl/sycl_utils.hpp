@@ -21,6 +21,7 @@
 #include "common/utils.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
+#include "hrt/utils.hpp"
 
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>
@@ -173,8 +174,7 @@ status_t create_ocl_engine(
                 *ocl_engine,
         const sycl_engine_base_t *engine);
 
-status_t get_kernel_binary(
-        const ::sycl::kernel &kernel, gpu::intel::compute::binary_t &binary);
+status_t get_kernel_binary(const ::sycl::kernel &kernel, hrt::binary_t &binary);
 
 status_t create_ocl_engine(
         std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>

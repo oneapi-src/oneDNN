@@ -703,7 +703,7 @@ void gen_gemm_kernel_t::init_interface() {
     interface_.externalName(kernel_name());
 }
 
-gpu::intel::compute::binary_t gen_gemm_kernel_t::get_binary(
+hrt::binary_t gen_gemm_kernel_t::get_binary(
         cl_context context, cl_device_id device) {
     init_interface();
 

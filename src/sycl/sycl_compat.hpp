@@ -28,8 +28,8 @@ class sycl_engine_base_t;
 namespace compat {
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const sycl_engine_base_t *sycl_engine,
-        const gpu::intel::compute::binary_t &binary, const char *kernel_name);
+        const sycl_engine_base_t *sycl_engine, const hrt::binary_t &binary,
+        const char *kernel_name);
 
 void *get_native(const ::sycl::device &dev);
 void *get_native(const ::sycl::context &ctx);

@@ -122,6 +122,10 @@ if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     add_subdirectory(gpu)
 endif()
 
+if(DNNL_WITH_SYCL OR DNNL_GPU_RUNTIME STREQUAL "OCL")
+    add_subdirectory(hrt)
+endif()
+
 if(DNNL_WITH_SYCL)
     # Enable linking SYCL kernels.
     if(DNNL_SYCL_CUDA)

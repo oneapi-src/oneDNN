@@ -79,12 +79,12 @@ void *get_native(const ::sycl::context &ctx) {
 }
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const sycl_engine_base_t *sycl_engine,
-        const gpu::intel::compute::binary_t &binary, const char *kernel_name) {
+        const sycl_engine_base_t *sycl_engine, const hrt::binary_t &binary,
+        const char *kernel_name) {
     auto backend = get_sycl_backend(sycl_engine->device());
     if (backend == backend_t::opencl) {
-        gpu::intel::ocl::ocl_wrapper_t<cl_program> ocl_program;
-        CHECK(create_ocl_program(ocl_program, sycl_engine->ocl_device(),
+        hrt::ocl::wrapper_t<cl_program> ocl_program;
+        CHECK(hrt::ocl::create_program(ocl_program, sycl_engine->ocl_device(),
                 sycl_engine->ocl_context(), binary));
         cl_int err;
         cl_kernel ocl_kernel = clCreateKernel(ocl_program, kernel_name, &err);

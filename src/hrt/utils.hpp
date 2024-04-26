@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,31 +14,30 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
-#define GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
+#ifndef COMMON_HRT_UTILS_HPP
+#define COMMON_HRT_UTILS_HPP
 
+#include <tuple>
 #include <vector>
-#include <CL/cl.h>
 
-#include "hrt/utils.hpp"
+#include "common/utils.hpp"
+
+// This file contains utility functionality for heterogeneous runtimes such
+// as OpenCL and SYCL.
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
-namespace jit {
+namespace hrt {
 
-struct jit_generator_base {
-    virtual ~jit_generator_base() = default;
-    virtual const char *kernel_name() const = 0;
-    virtual hrt::binary_t get_binary(cl_context context, cl_device_id device)
-            = 0;
+using binary_t = std::vector<uint8_t>;
+using device_uuid_t = std::tuple<uint64_t, uint64_t>;
+
+struct device_uuid_hasher_t {
+    size_t operator()(const device_uuid_t &uuid) const;
 };
 
-} // namespace jit
-} // namespace intel
-} // namespace gpu
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
+#endif

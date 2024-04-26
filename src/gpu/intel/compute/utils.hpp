@@ -33,16 +33,6 @@ namespace gpu {
 namespace intel {
 namespace compute {
 
-using binary_t = std::vector<uint8_t>;
-using device_uuid_t = std::tuple<uint64_t, uint64_t>;
-
-struct device_uuid_hasher_t {
-    size_t operator()(const device_uuid_t &uuid) const {
-        const size_t seed = hash_combine(0, std::get<0>(uuid));
-        return hash_combine(seed, std::get<1>(uuid));
-    }
-};
-
 class range_t {
 public:
     static constexpr size_t max_ndims = 3;
