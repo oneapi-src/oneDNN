@@ -109,12 +109,21 @@ struct acl_lowp_matmul_t : public primitive_t {
 
             VDISPATCH_MATMUL(
                     set_default_formats(), "failed to set default formats");
-            VDISPATCH_MATMUL(attr()->scales_.has_default_values({DNNL_ARG_DST}),
-                    "dst scales are unsupported");
-            VDISPATCH_MATMUL(
-                    attr()->has_default_values(), "post ops are unsupported");
+            using smask_t = primitive_attr_t::skip_mask_t;
+            VDISPATCH_MATMUL(attr()->has_default_values(smask_t::scales_runtime
+                                     | smask_t::zero_points_runtime),
+                    "only scale and zero point attrs supported");
+            VDISPATCH_MATMUL(attr()->scales_.get(DNNL_ARG_SRC).mask_ == 0
+                            && attr()->zero_points_.get(DNNL_ARG_SRC) == 0
+                            && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0
+                            && attr()->zero_points_.get(DNNL_ARG_WEIGHTS) == 0,
+                    "Common scales and zero points only");
+
             VDISPATCH_MATMUL(!has_runtime_dims_or_strides(),
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+            VDISPATCH_MATMUL(attr()->scales_.has_default_values(
+                                     {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}),
+                    "only src and weights scales are supported");
 
             const memory_desc_wrapper src_d(src_md_);
             const memory_desc_wrapper wei_d(weights_md_);
@@ -219,10 +228,10 @@ struct acl_lowp_matmul_t : public primitive_t {
         }
         acl_obj.dst_tensor.allocator()->import_memory(dst);
 
-        DEFINE_ARG_SCALES_BUFFER(src_scale, DNNL_ARG_SRC_0);
-        DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC_0);
+        DEFINE_ARG_SCALES_BUFFER(src_scale, DNNL_ARG_SRC);
+        DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
         DEFINE_ARG_SCALES_BUFFER(wei_scale, DNNL_ARG_WEIGHTS);
-        DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_SRC_0);
+        DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
 
         // Note that we set the offset to be -zero_point, this is a known
         // inconsistency with most other operators in the ACL API
