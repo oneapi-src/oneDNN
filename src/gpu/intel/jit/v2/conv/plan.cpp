@@ -350,6 +350,7 @@ public:
     }
 
     bool is_compatible(tensor_kind_t abc, const layout_t &layout) const {
+        if (!fma_type_supported(layout.type())) return false;
         switch (abc) {
             case tensor_kind_t::a: return layout.is_blocked_by(a_inner_);
             case tensor_kind_t::b: return layout.is_blocked_by(b_inner_);
@@ -366,6 +367,7 @@ public:
             case tensor_kind_t::b: ret.block_by(b_inner_.blocks()); break;
             default: ir_error_not_expected();
         }
+        ret = get_fma_type_layout(ret);
         return ret;
     }
 
@@ -390,12 +392,47 @@ private:
     void init_acc_type() {
         ir_assert(a_type_.size() == b_type_.size());
         switch (fma_) {
-            case fma_kind_t::mad: acc_type_ = a_type_; break;
+            case fma_kind_t::mad:
+                acc_type_ = a_type_.is_fp() ? type_t::f32() : type_t::s32();
+                break;
             case fma_kind_t::dpas:
                 acc_type_ = a_type_.is_fp() ? type_t::f32() : type_t::s32();
                 break;
             default: ir_error_not_expected();
         }
+    }
+
+    bool fma_type_supported(const type_t &type) const {
+        switch (fma_) {
+            case fma_kind_t::mad:
+                return utils::one_of(type, type_t::f32(), type_t::s16());
+                break;
+            case fma_kind_t::dpas:
+                return utils::one_of(type, type_t::u8(), type_t::s8(),
+                        type_t::f16(), type_t::bf16());
+                break;
+            default: ir_error_not_expected();
+        }
+        return false;
+    }
+
+    layout_t get_fma_type_layout(const layout_t &layout) const {
+        if (fma_ == fma_kind_t::mad) {
+            auto blocks = layout.blocks();
+            if (utils::one_of(layout.type(), type_t::s8(), type_t::u8())) {
+
+                for (auto &b : blocks) {
+                    b.stride *= 2;
+                }
+                return layout_t(
+                        layout.desc(), type_t::s16(), layout.base(), blocks);
+            }
+            if (utils::one_of(layout.type(), type_t::f16(), type_t::bf16(),
+                        type_t::f32()))
+                return layout_t(
+                        layout.desc(), type_t::f32(), layout.base(), blocks);
+        }
+        return layout;
     }
 
     bool init(const layout_desc_t &a_desc, const layout_desc_t &b_desc,
