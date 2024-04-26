@@ -508,12 +508,6 @@ status_t brgemm_inner_product_fwd_t<isa>::execute_forward(
     });
 
     if (jbgp.nthr_ic_b > 1) {
-        const bool is_f32
-                = everyone_is(f32, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt);
-        const bool is_f32_compute = is_f32 && !jbgp.is_bf32;
-        MAYBE_UNUSED(is_f32_compute);
-        assert(jbgp.use_buffer && is_f32_compute);
-
         const auto get_dst_reduced_off = [&](int ithr_ic, int osb, int ocb) {
             assert(jbgp.nthr_ic_b > 1);
             int os = osb * jbgp.os_block;
