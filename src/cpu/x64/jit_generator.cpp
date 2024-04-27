@@ -38,7 +38,6 @@ void jit_generator::transpose(const Xbyak::Reg64 &reg_src,
             = vreg_traits<Xbyak::Ymm>::vlen / types::data_type_size(dt);
     assert(is_valid_isa(avx2));
     assert(nrows <= transpose_size && ncolumns <= transpose_size);
-    assert(!is_valid_isa(avx512_core)); // not-optimal
 
     assert(dt == data_type::f32
             && "transpose utils not supported for current data type");
