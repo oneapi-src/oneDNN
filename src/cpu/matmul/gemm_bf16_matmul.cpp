@@ -203,8 +203,11 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
+    const int wei_scale_mask
+            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
     const float *scales = precompute_scales(scratchpad, src_scales, wei_scales,
-            dst_d.dims()[ndims - 1], pd()->attr());
+            src_d.dims()[ndims - 1], dst_d.dims()[ndims - 1], false,
+            wei_scale_mask != 0, pd()->attr());
 
     if (src_d.has_zero_dim() || weights_d.has_zero_dim()
             || dst_d.has_zero_dim())

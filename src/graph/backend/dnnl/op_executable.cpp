@@ -2097,6 +2097,8 @@ arg_indices_t layernorm_executable_t::get_arg_indices(
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
 
+    get_arg_indices_for_post_ops(op, mgr, arg_indices, in_index);
+
     if (fusion_info.with_runtime_scales(false, 0)) {
         arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
                 indices_t {input, in_index++}});

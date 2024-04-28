@@ -23,6 +23,9 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 #include "oneapi/dnnl/dnnl_graph_sycl.h"
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "oneapi/dnnl/dnnl_graph_ocl.h"
+#endif
 
 #include "common/stream.hpp"
 #include "common/verbose.hpp"
@@ -38,6 +41,10 @@
 
 #ifdef DNNL_WITH_SYCL
 #include "graph/utils/sycl_check.hpp"
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "graph/utils/ocl_check.hpp"
 #endif
 
 using namespace dnnl::impl::graph;
@@ -435,6 +442,86 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
 #endif
 }
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+status_t DNNL_API dnnl_graph_ocl_interop_compiled_partition_execute(
+        const compiled_partition_t *compiled_partition, stream_t *stream,
+        size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
+        const tensor_t **outputs, const cl_event *deps, int ndeps,
+        cl_event *ocl_event) {
+    if (utils::any_null(stream, compiled_partition, inputs, outputs))
+        return status::invalid_arguments;
+    if (stream->engine()->kind() != engine_kind::gpu) {
+        return status::invalid_arguments;
+    }
+
+    std::vector<tensor_t> ins, outs;
+    ins.reserve(num_inputs);
+    outs.reserve(num_outputs);
+    for (size_t i = 0; i < num_inputs; ++i) {
+        ins.emplace_back(**(inputs + i));
+    }
+    for (size_t i = 0; i < num_outputs; ++i) {
+        outs.emplace_back(**(outputs + i));
+    }
+#ifndef NDEBUG
+    if (get_verbose(dnnl::impl::verbose_t::exec_profile,
+                dnnl::impl::component_t::graph)) {
+        allocator_t *alloc = reinterpret_cast<allocator_t *>(
+                compiled_partition->get_engine()->get_allocator());
+        allocator_t::monitor_t &monitor = alloc->get_monitor();
+        monitor.reset_peak_temp_memory();
+        stream->wait();
+        double start_ms = dnnl::impl::get_msec();
+        if (deps != nullptr) {
+            std::vector<cl_event> ocl_deps(deps, deps + ndeps);
+            CHECK(compiled_partition->execute_ocl(
+                    stream, ins, outs, ocl_deps, ocl_event));
+        } else {
+            CHECK(compiled_partition->execute_ocl(
+                    stream, ins, outs, {}, ocl_event));
+        }
+        stream->wait();
+        double duration_ms = dnnl::impl::get_msec() - start_ms;
+        VFORMAT(start_ms, graph, exec, VERBOSE_profile, "%s,%g,%zu,%s,%zu,%zu",
+                compiled_partition->info(), duration_ms, alloc->id(),
+                utils::thread_id_to_str(std::this_thread::get_id()).c_str(),
+                monitor.get_total_persist_memory(),
+                monitor.get_peak_temp_memory());
+    } else if (get_verbose(dnnl::impl::verbose_t::exec_profile,
+                       dnnl::impl::component_t::graph)) {
+#else
+    if (get_verbose(dnnl::impl::verbose_t::exec_profile,
+                dnnl::impl::component_t::graph)) {
+#endif
+        stream->wait();
+        double start_ms = dnnl::impl::get_msec();
+        if (deps != nullptr) {
+            std::vector<cl_event> ocl_deps(deps, deps + ndeps);
+            CHECK(compiled_partition->execute_ocl(
+                    stream, ins, outs, ocl_deps, ocl_event));
+        } else {
+            CHECK(compiled_partition->execute_ocl(
+                    stream, ins, outs, {}, ocl_event));
+        }
+        stream->wait();
+        double duration_ms = dnnl::impl::get_msec() - start_ms;
+        VPROF(start_ms, graph, exec, VERBOSE_profile,
+                compiled_partition->info(), duration_ms);
+    } else {
+        if (deps != nullptr) {
+            std::vector<cl_event> ocl_deps(deps, deps + ndeps);
+            CHECK(compiled_partition->execute_ocl(
+                    stream, ins, outs, ocl_deps, ocl_event));
+        } else {
+            CHECK(compiled_partition->execute_ocl(
+                    stream, ins, outs, {}, ocl_event));
+        }
+    }
+
+    return status::success;
+}
+#endif
+
 status_t DNNL_API dnnl_graph_compiled_partition_destroy(
         compiled_partition_t *compiled_partition) {
     delete compiled_partition;
@@ -667,6 +754,8 @@ status_t dnnl_graph_compiled_partition::execute(const stream_t *astream,
     if (astream->engine()->kind() == engine_kind::gpu) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         return execute_sycl(astream, inputs, outputs, {}, nullptr);
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        return execute_ocl(astream, inputs, outputs, {}, nullptr);
 #else
         return status::runtime_error;
 #endif
@@ -723,3 +812,30 @@ status_t dnnl_graph_compiled_partition::execute_sycl(const stream_t *astream,
     return ret;
 }
 #endif // DNNL_WITH_SYCL
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+// It looks very similar to execute_sycl(). Consider to merge them in the
+// future.
+graph::status_t dnnl_graph_compiled_partition::execute_ocl(
+        const graph::stream_t *astream,
+        const std::vector<graph::tensor_t> &inputs,
+        const std::vector<graph::tensor_t> &outputs,
+        const std::vector<cl_event> &ocl_deps, cl_event *ocl_event) const {
+    if (!astream || (astream->engine()->kind() != pimpl_->get_engine()->kind()))
+        return status::invalid_arguments;
+
+    status_t ret;
+
+    const backend_t *backend = src_partition_.get_assigned_backend();
+    if (!backend) return status::invalid_arguments;
+
+    std::vector<tensor_t> processed_inputs, processed_outputs;
+    pre_process(processed_inputs, inputs, backend);
+    pre_process(processed_outputs, outputs, backend);
+
+    ret = pimpl_->execute_ocl(
+            astream, processed_inputs, processed_outputs, ocl_deps, ocl_event);
+
+    return ret;
+}
+#endif

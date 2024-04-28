@@ -3,3 +3,6 @@
 
 # Curious edge case in GPU JIT-reorder-based binary
 --reset --alg=ADD --stag=ABcd32a16b:ABcd32a16b --dtag=acdb --sdt=f16:f16 --ddt=f16 64x168x42x42:64x168x42x42
+
+# Mixed src1/post-op src broadcast
+--reset --attr-post-ops=add:f32:2 1x17:1x1

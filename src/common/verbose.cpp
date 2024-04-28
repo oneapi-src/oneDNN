@@ -62,7 +62,7 @@
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "gpu/ocl/verbose.hpp"
+#include "gpu/intel/ocl/verbose.hpp"
 #endif
 
 #ifdef DNNL_WITH_SYCL
@@ -98,7 +98,7 @@ void print_header(const filter_status_t &filter_status) noexcept {
         // these fail (not printing a header is reasonable in this case)
         try {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-            gpu::ocl::print_verbose_header();
+            gpu::intel::ocl::print_verbose_header();
 #endif
 #ifdef DNNL_WITH_SYCL
             sycl::print_verbose_header();
@@ -1411,7 +1411,7 @@ std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
 
     ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
     ss << " dst_" << dst_md;
-    if (diff_dst_md) ss << " diff_dst_" << diff_dst_md;
+    if (!types::is_zero_md(diff_dst_md)) ss << " diff_dst_" << diff_dst_md;
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->alg_kind() << " axis:" << pd->axis() << ",";

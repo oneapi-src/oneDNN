@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,6 +84,19 @@ public:
         // We don't need to resort the inputs and outputs
         return kernel_->execute_sycl(
                 g_stream, inputs, outputs, sycl_deps, sycl_event);
+    }
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    // It looks very similar to execute_sycl. Consider to merge them in the
+    // future.
+    status_t execute_ocl(const stream_t *g_stream,
+            const std::vector<tensor_t> &inputs,
+            const std::vector<tensor_t> &outputs,
+            const std::vector<cl_event> &ocl_deps,
+            cl_event *ocl_event) override {
+        return kernel_->execute_ocl(
+                g_stream, inputs, outputs, ocl_deps, ocl_event);
     }
 #endif
 

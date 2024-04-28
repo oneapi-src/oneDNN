@@ -1,0 +1,219 @@
+{
+  "version": "3.5.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "input_ports": [
+    0, 
+    1, 
+    2, 
+    4
+  ],
+  "output_ports": [
+    6
+  ],
+  "graph": [
+    {
+      "id": 0,
+      "name": "layernorm",
+      "kind": "LayerNorm",
+      "attrs": {
+        "begin_norm_axis": {
+          "type": "s64",
+          "value": -1
+        },
+        "use_affine": {
+          "type": "bool",
+          "value": 1
+        },
+        "keep_stats": {
+          "type": "bool",
+          "value": 0
+        },
+        "epsilon": {
+          "type": "f32",
+          "value": 0.0625
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            128, 
+            512
+          ],
+          "stride": [
+            65536, 
+            512, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            512
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            512
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            128, 
+            512
+          ],
+          "stride": [
+            65536, 
+            512, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 1,
+      "name": "multiply",
+      "kind": "Multiply",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            128, 
+            512
+          ],
+          "stride": [
+            65536, 
+            512, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 4,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            128, 
+            512
+          ],
+          "stride": [
+            65536, 
+            512, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 5,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            128, 
+            512
+          ],
+          "stride": [
+            65536, 
+            512, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 2,
+      "name": "quantize",
+      "kind": "Quantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 0
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            0.5
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 5,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            128, 
+            512
+          ],
+          "stride": [
+            65536, 
+            512, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6,
+          "dtype": "s8",
+          "shape": [
+            1, 
+            128, 
+            512
+          ],
+          "stride": [
+            65536, 
+            512, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}

@@ -24,6 +24,11 @@
 #ifdef DNNL_WITH_SYCL
 #include "dnnl_sycl.hpp"
 #endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "oneapi/dnnl/dnnl_graph_ocl.hpp"
+#endif
+
 #include "utils.hpp"
 #include "utils/timer.hpp"
 
@@ -73,8 +78,11 @@ void compiled_partition_executor(dnnl::graph::compiled_partition &cp,
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         dnnl::graph::sycl_interop::execute(cp, stream, inputs,
                 const_cast<std::vector<dnnl::graph::tensor> &>(outputs));
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        dnnl::graph::ocl_interop::execute(cp, stream, inputs,
+                const_cast<std::vector<dnnl::graph::tensor> &>(outputs));
 #else
-        assert(!"GPU only support DPCPP runtime now");
+        assert(!"unsupported gpu runtime");
 #endif
     }
 }
@@ -1356,8 +1364,13 @@ cpp_engine_t::cpp_engine_t() {
                         sycl_malloc_wrapper, sycl_free_wrapper)};
         engine_ = make_engine_with_allocator(dnnl::engine::kind::gpu,
                 static_cast<size_t>(engine_index), alloc);
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        // needs to prepare ocl_malloc_wrapper and ocl_free_wrapper and call
+        // make_engine_with_allocator instead.
+        engine_ = dnnl::engine(
+                dnnl::engine::kind::gpu, static_cast<size_t>(engine_index));
 #else
-        assert(!"GraphAPI GPU only support DPCPP runtime now");
+        assert(!"unsupported gpu runtime");
 #endif
     }
 }

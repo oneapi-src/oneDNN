@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/ocl/gen9_eltwise.hpp"
-#include "gpu/ocl/ref_eltwise.hpp"
+#include "gpu/intel/ocl/gen9_eltwise.hpp"
+#include "gpu/intel/ocl/ref_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,13 +30,13 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_ELTWISE_P({
     {{forward}, {
-        INSTANCE(ocl::gen9_eltwise_fwd_t)
-        INSTANCE(ocl::ref_eltwise_fwd_t)
+        INSTANCE(intel::ocl::gen9_eltwise_fwd_t)
+        INSTANCE(intel::ocl::ref_eltwise_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        INSTANCE(ocl::gen9_eltwise_bwd_t)
-        INSTANCE(ocl::ref_eltwise_bwd_t)
+        INSTANCE(intel::ocl::gen9_eltwise_bwd_t)
+        INSTANCE(intel::ocl::ref_eltwise_bwd_t)
         nullptr,
     })},
 });

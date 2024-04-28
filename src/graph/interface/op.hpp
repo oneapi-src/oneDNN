@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,12 +97,24 @@ public:
         return &(inputs_[index]->get_producer());
     }
 
-    // TODO(xxx): we need to improve by checking more information
     bool operator==(const dnnl_graph_op &other) const {
         return this->get_id() == other.get_id()
                 && this->get_kind() == other.get_kind()
                 && this->get_name() == other.get_name()
-                && this->is_internal() == other.is_internal();
+                && this->is_internal() == other.is_internal()
+                && attributes_equal(other);
+    }
+
+    bool attributes_equal(const dnnl_graph_op &other) const {
+        for (auto attr : this->attributes_) {
+            // There is no need to check internal attributes.
+            if (attr.first >= dnnl_graph_op_attr_t::dnnl_graph_op_attr_end)
+                continue;
+            if (other.attributes_.find(attr.first) == other.attributes_.end())
+                return false;
+            if (attr.second != other.attributes_.at(attr.first)) return false;
+        }
+        return true;
     }
 
     // some getters

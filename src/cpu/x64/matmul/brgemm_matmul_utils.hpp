@@ -103,6 +103,10 @@ struct brgemm_matmul_conf_t {
     bool s8s8_compensation_required;
     bool packed_sparse_weights;
     bool is_oscale_per_n;
+    bool is_oscale_per_k;
+    bool apply_scales_in_buffer_b;
+    bool req_transpose_scales;
+    bool with_wei_decompression;
     brgemm_broadcast_t src_zp_type;
     brgemm_broadcast_t wei_zp_type;
     brgemm_broadcast_t dst_zp_type;
@@ -217,6 +221,7 @@ struct brgemm_matmul_conf_utils_t {
     inline bool use_buffer_b(bool use_heuristic = true) const {
         if (bgmmc.is_runtime_N) return true;
         if (bgmmc.is_bf16_with_int_wei) return true;
+        if (bgmmc.apply_scales_in_buffer_b) return true;
 
         if (bgmmc.is_amx)
             // use b_buffer for AMX when:

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_pooling_pd.hpp"
-#include "gpu/primitive_conf.hpp"
+#include "gpu/intel/primitive_conf.hpp"
 #include "gpu/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/sycl/sycl_io_helper.hpp"
 #include "gpu/sycl/sycl_post_ops.hpp"
@@ -86,7 +86,7 @@ struct ref_pooling_fwd_t : public sycl_gpu_primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
+    intel::compute::kernel_t kernel_;
 };
 
 struct ref_pooling_bwd_t : public sycl_gpu_primitive_t {
@@ -136,7 +136,7 @@ struct ref_pooling_bwd_t : public sycl_gpu_primitive_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
+    intel::compute::kernel_t kernel_;
 };
 
 } // namespace sycl

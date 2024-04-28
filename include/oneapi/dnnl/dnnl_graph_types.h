@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -373,6 +373,9 @@ typedef enum {
     /// Specifies a weights_format of an op. The value can be "OIX", "XIO",
     /// "IOX", or "XOI". Different operations may support different values.
     dnnl_graph_op_attr_weights_format,
+
+    /// Specifies the end of all above exteral attributes for check.
+    dnnl_graph_op_attr_end = 0xFF,
 } dnnl_graph_op_attr_t;
 
 /// An opaque structure to describe an operation.

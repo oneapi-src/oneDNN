@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "api/test_api_common.hpp"
+
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
 #include "oneapi/dnnl/dnnl_sycl.hpp"
@@ -26,7 +27,7 @@
 using namespace dnnl::graph;
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-TEST(tensor_test, gpu_engine) {
+TEST(SYCLApi, Tensor) {
     SKIP_IF(api_test_engine_kind == dnnl_cpu, "skip sycl test for cpu engine.");
     sycl::device dev {dnnl::impl::sycl::compat::gpu_selector_v};
     sycl::context ctx {dev};

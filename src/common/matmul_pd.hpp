@@ -152,9 +152,16 @@ struct matmul_pd_t : public primitive_desc_t {
         bool ok = attr()->scales_.has_default_values(supported_args);
         for (int arg : supported_args) {
             const auto &mask = attr()->scales_.get(arg).mask_;
-            if (arg == DNNL_ARG_WEIGHTS)
-                ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
-            else
+            if (arg == DNNL_ARG_WEIGHTS) {
+                const auto &sc = attr()->scales_.get(arg);
+                ok = ok
+                        && utils::one_of(mask, 0, wei_qmask_N(),
+                                wei_qmask_K() + wei_qmask_N());
+                ok = ok && utils::one_of(sc.ndims_, 0, 2)
+                        && IMPLICATION(sc.ndims_ == 2,
+                                sc.group_dims_[1] == 1
+                                        && K() % sc.group_dims_[0] == 0);
+            } else
                 ok = ok && (mask == 0);
         }
         return ok;

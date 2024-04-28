@@ -50,6 +50,8 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
     const bool is_s8s8 = type_i == data_type::s8 && type_o == data_type::s8;
     const bool is_bf16_with_int_wei = type_o == data_type::bf16
             && utils::one_of(type_i, data_type::s8, data_type::u8);
+    const bool with_wei_decompression = type_i != type_o
+            && utils::one_of(type_i, data_type::s8, data_type::u8);
     const bool has_adj_scale
             = od.extra().flags & memory_extra_flags::scale_adjust;
     const bool args_ok = true && dt_ok && id.is_dense()
@@ -92,6 +94,8 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
     // initialize all required fields to generate copy_b kernel
     matmul_conf_for_reorder_.blocked_B = !utils::one_of(itag, ab, abc);
     matmul_conf_for_reorder_.is_bf16_with_int_wei = is_bf16_with_int_wei;
+    matmul_conf_for_reorder_.with_wei_decompression = with_wei_decompression;
+    matmul_conf_for_reorder_.apply_scales_in_buffer_b = false;
     matmul_conf_for_reorder_.orig_wei_dt = type_i;
     matmul_conf_for_reorder_.wei_tag = itag;
     matmul_conf_for_reorder_.batch = ndims > 2 ? dims[ndims - 3] : 1;

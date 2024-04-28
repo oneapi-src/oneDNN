@@ -16,12 +16,12 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/ocl/bnorm/gen9_batch_normalization.hpp"
-#include "gpu/ocl/bnorm/nhwc_batch_normalization.hpp"
-#include "gpu/ocl/bnorm/nhwc_reusable.hpp"
-#include "gpu/ocl/bnorm/ref_batch_normalization.hpp"
-#include "gpu/ocl/bnorm/reusable_bnorm.hpp"
-#include "gpu/ocl/bnorm/simple_bnorm.hpp"
+#include "gpu/intel/ocl/bnorm/gen9_batch_normalization.hpp"
+#include "gpu/intel/ocl/bnorm/nhwc_batch_normalization.hpp"
+#include "gpu/intel/ocl/bnorm/nhwc_reusable.hpp"
+#include "gpu/intel/ocl/bnorm/ref_batch_normalization.hpp"
+#include "gpu/intel/ocl/bnorm/reusable_bnorm.hpp"
+#include "gpu/intel/ocl/bnorm/simple_bnorm.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,9 +32,9 @@ using namespace dnnl::impl::prop_kind;
 
 #ifdef DNNL_DEV_MODE
 #define NHWC_REUSABLE_FWD_INSTANCE \
-    INSTANCE(ocl::nhwc_reusable_batch_normalization_fwd_t)
+    INSTANCE(intel::ocl::nhwc_reusable_batch_normalization_fwd_t)
 #define NHWC_REUSABLE_BWD_INSTANCE \
-    INSTANCE(ocl::nhwc_reusable_batch_normalization_bwd_t)
+    INSTANCE(intel::ocl::nhwc_reusable_batch_normalization_bwd_t)
 #else
 #define NHWC_REUSABLE_FWD_INSTANCE
 #define NHWC_REUSABLE_BWD_INSTANCE
@@ -45,20 +45,20 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_BNORM_P({
     {{forward}, {
         NHWC_REUSABLE_FWD_INSTANCE
-        INSTANCE(ocl::nhwc_batch_normalization_fwd_t)
-        INSTANCE(ocl::gen9_batch_normalization_fwd_t)
-        INSTANCE(ocl::simple_batch_normalization_fwd_t)
-        INSTANCE(ocl::reusable_batch_normalization_fwd_t)
-        INSTANCE(ocl::ref_batch_normalization_fwd_t)
+        INSTANCE(intel::ocl::nhwc_batch_normalization_fwd_t)
+        INSTANCE(intel::ocl::gen9_batch_normalization_fwd_t)
+        INSTANCE(intel::ocl::simple_batch_normalization_fwd_t)
+        INSTANCE(intel::ocl::reusable_batch_normalization_fwd_t)
+        INSTANCE(intel::ocl::ref_batch_normalization_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
         NHWC_REUSABLE_BWD_INSTANCE
-        INSTANCE(ocl::nhwc_batch_normalization_bwd_t)
-        INSTANCE(ocl::gen9_batch_normalization_bwd_t)
-        INSTANCE(ocl::simple_batch_normalization_bwd_t)
-        INSTANCE(ocl::reusable_batch_normalization_bwd_t)
-        INSTANCE(ocl::ref_batch_normalization_bwd_t)
+        INSTANCE(intel::ocl::nhwc_batch_normalization_bwd_t)
+        INSTANCE(intel::ocl::gen9_batch_normalization_bwd_t)
+        INSTANCE(intel::ocl::simple_batch_normalization_bwd_t)
+        INSTANCE(intel::ocl::reusable_batch_normalization_bwd_t)
+        INSTANCE(intel::ocl::ref_batch_normalization_bwd_t)
         nullptr,
     })},
 });

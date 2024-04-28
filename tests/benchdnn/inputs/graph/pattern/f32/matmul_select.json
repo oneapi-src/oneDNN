@@ -112,24 +112,6 @@
                         1
                     ],
                     "layout_type": "strided",
-                    "property_type": "constant"
-                },
-                {
-                    "id": 2,
-                    "dtype": "f32",
-                    "shape": [
-                        1,
-                        1,
-                        32,
-                        32
-                    ],
-                    "stride": [
-                        1024,
-                        1024,
-                        32,
-                        1
-                    ],
-                    "layout_type": "strided",
                     "property_type": "undef"
                 },
                 {
@@ -142,7 +124,25 @@
                         1
                     ],
                     "layout_type": "strided",
-                    "property_type": "constant"
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2,
+                    "dtype": "f32",
+                    "shape": [
+                        1,
+                        16,
+                        32,
+                        32
+                    ],
+                    "stride": [
+                        16384,
+                        1024,
+                        32,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
                 }
             ],
             "outputs": [

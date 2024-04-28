@@ -3402,6 +3402,76 @@ impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
+impl::status_t lift_up_post_add_for_matmul(std::shared_ptr<subgraph_t> &sg) {
+    subgraph_rewriter_t rewriter(sg);
+    for (const auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
+        auto matmul_out = cur_op->get_output_value(0);
+        if (matmul_out->get_consumers().size() != 1) continue;
+        auto &post_reshape = matmul_out->get_consumers()[0].get_op();
+        if (post_reshape.get_kind() != op_kind::dnnl_reshape) continue;
+        auto reshape_in = post_reshape.get_input_value(0);
+        auto reshape_out = post_reshape.get_output_value(0);
+        if (reshape_out->get_consumers().size() != 1) continue;
+        auto &post_transpose = reshape_out->get_consumers()[0].get_op();
+        if (post_transpose.get_kind() != op_kind::dnnl_transpose) continue;
+        auto transpose_out = post_transpose.get_output_value(0);
+        if (transpose_out->get_consumers().size() != 1) continue;
+        auto &post_add = transpose_out->get_consumers()[0].get_op();
+
+        if (post_add.get_kind() == op_kind::dnnl_binary) {
+            const auto alg_kind = static_cast<dnnl::algorithm>(
+                    post_add.get_attr<int64_t>(op_attr::alg_kind));
+            if (alg_kind != dnnl::algorithm::binary_add) continue;
+            int32_t add_ndims
+                    = post_add.get_input_value(0)->get_logical_tensor().ndims;
+            int32_t matmul_ndims
+                    = post_add.get_input_value(0)->get_logical_tensor().ndims;
+            // A little bit tricky here, it's only served for MQA case now.
+            if (add_ndims != 4 && matmul_ndims != 3) continue;
+
+            auto add_in_val = post_add.get_input_value(0);
+            auto add_out_val = post_add.get_output_value(0);
+            auto &post_op = add_out_val->get_consumers()[0].get_op();
+
+            // move add after matmul
+            matmul_out->remove_consumer(post_reshape, 0);
+            post_add.connect_input(0, matmul_out);
+            logical_tensor_t new_lt = empty_logical_tensor_with_default_id();
+            auto new_val = std::make_shared<value_t>(post_add, 0, new_lt, true);
+            new_val->set_data_type(add_out_val->get_logical_tensor().data_type);
+            post_add.connect_output(0, new_val);
+            post_reshape.connect_input(0, new_val);
+            post_op.connect_input(0, add_in_val);
+            add_out_val->remove_consumer(post_op, 0);
+
+            // insert transpose op before src1 of post-add
+            auto transpose_op = std::make_shared<op_t>(op_kind::dnnl_transpose);
+            std::vector<int64_t> order
+                    = post_transpose.get_attr<std::vector<int64_t>>(
+                            op_attr::order);
+            std::vector<int64_t> reverse_order(order.size());
+            for (size_t i = 0; i < order.size(); i++) {
+                reverse_order[order[i]] = i;
+            }
+            transpose_op->set_attr<std::vector<int64_t>>(
+                    op_attr::order, reverse_order);
+            rewriter.insert_op_before(
+                    transpose_op, post_add.shared_from_this(), 1, 0, 0);
+            // insert reshape op before src1 of post-add
+            auto reshape_op = std::make_shared<op_t>(op_kind::dnnl_reshape);
+            std::vector<int64_t> shape
+                    = ltw(reshape_in->get_logical_tensor()).vdims();
+            reshape_op->set_attr<std::vector<int64_t>>(op_attr::shape, shape);
+            reshape_op->set_attr<bool>(op_attr::special_zero, false);
+            rewriter.insert_op_before(
+                    reshape_op, post_add.shared_from_this(), 1, 0, 0);
+        }
+    }
+    rewriter.run();
+    return infer_shape(sg);
+}
+
 impl::status_t lift_up_weight_reshape_for_depthwiseconv(
         std::shared_ptr<subgraph_t> &sg) {
     std::unordered_map<op_t *, std::vector<op_t *>> to_be_swapped;
@@ -3456,6 +3526,70 @@ impl::status_t lift_up_weight_reshape_for_depthwiseconv(
     }
 
     return infer_shape(sg);
+}
+
+impl::status_t fuse_src_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> transpose_ops;
+    for (const auto &cur_op : sg->get_ops()) {
+        // This pass works for the following certain pattern, can be expanded in
+        // the future: (softmax + transpose + reshape/reorder + matmul)
+        if (cur_op->get_kind() != op_kind::dnnl_transpose) continue;
+        if (!(cur_op->get_input_value(0)->has_producer()
+                    && cur_op->get_input_value(0)->get_producer().get_kind()
+                            == op_kind::dnnl_softmax))
+            continue;
+        auto transpose_out = cur_op->get_output_value(0);
+        if (transpose_out->get_consumers().size() != 1) continue;
+        auto &post_op = transpose_out->get_consumers()[0].get_op();
+        if (post_op.get_kind() != op_kind::dnnl_reshape
+                && !is_layout_reorder(&post_op))
+            continue;
+        auto post_out = post_op.get_output_value(0);
+        if (post_out->get_consumers().size() != 1) continue;
+        auto &ppost_op = post_out->get_consumers()[0].get_op();
+        if (ppost_op.get_kind() == op_kind::dnnl_matmul) {
+            transpose_ops.emplace_back(cur_op);
+        }
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &transpose_op : transpose_ops) {
+        value_ptr in_val = transpose_op->get_input_value(0);
+        auto in_lt = in_val->get_logical_tensor();
+        value_ptr out_val = transpose_op->get_output_value(0);
+        std::vector<int64_t> order
+                = transpose_op->get_attr<std::vector<int64_t>>(op_attr::order);
+        // if order < 0, convert it to positive order
+        if (!order.empty()) {
+            for (int64_t &axis : order) {
+                if (axis < 0) axis += ltw(in_lt).ndims();
+            }
+        } else {
+            return impl::status::success;
+        }
+
+        std::vector<int> axes = dnnl_impl::utils::fmap(order,
+                [](int64_t index) { return static_cast<int32_t>(index); });
+        // calculate the expected transposed layout by permuting the md
+        auto expected_stride = get_dense_strides(ltw(in_lt).vdims());
+        auto &consumer = transpose_op->get_output_value(0)
+                                 ->get_consumers()[0]
+                                 .get_op();
+        if (is_layout_reorder(&consumer)) {
+            value_ptr reorder_out_val = consumer.get_output_value(0);
+            if (ltw(reorder_out_val->get_logical_tensor()).layout_type()
+                    == layout_type::strided) {
+                rewriter.fuse_op_to_successor(consumer.shared_from_this());
+            }
+        }
+        dnnl::memory::desc in_md {ltw(in_lt).vdims(),
+                static_cast<dnnl::memory::data_type>(ltw(in_lt).data_type()),
+                expected_stride};
+        dnnl::memory::desc expected_in_md = in_md.permute_axes(axes);
+        const auto &strides = expected_in_md.get_strides();
+        out_val->set_strides(strides);
+    }
+    return impl::status::success;
 }
 
 impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
@@ -3515,6 +3649,11 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
                 static_cast<dnnl::memory::data_type>(ltw(out_lt).data_type()),
                 expected_stride};
         dnnl::memory::desc expected_out_md = out_md.permute_axes(axes);
+        // Special check to avoid low matmul performance with adbc layout.
+        // TODO: remove this once the performance is improved.
+        if (get_format_tag(expected_out_md) == dnnl::memory::format_tag::adbc) {
+            return impl::status::success;
+        }
         const auto &strides = expected_out_md.get_strides();
         in_val->set_strides(strides);
         auto &matmul = transpose_op->get_input_value(0)->get_producer();

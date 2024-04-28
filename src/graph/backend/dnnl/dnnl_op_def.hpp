@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -984,8 +984,8 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_logsoftmax, 1,
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_layernorm, 1,
         op_schema_t()
-                .set_inputs_option(op_schema_t::param_num_option::optional)
-                .set_num_inputs(std::set<size_t>({1, 2, 3, 4}))
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>({1, 32}))
                 .set_outputs_option(op_schema_t::param_num_option::optional)
                 .set_num_outputs(std::set<size_t>({2, 4}))
                 .set_input(0, "input")

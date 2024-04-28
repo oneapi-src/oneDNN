@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,13 +27,18 @@
 
 #include "graph/interface/c_types_map.hpp"
 
-#include "graph/utils/allocator.hpp"
+#include "graph/utils/alloc.hpp"
 #include "graph/utils/id.hpp"
 #include "graph/utils/utils.hpp"
 #include "graph/utils/verbose.hpp"
 
 #ifdef DNNL_WITH_SYCL
 #include "graph/utils/sycl_check.hpp"
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "graph/utils/ocl_check.hpp"
+#include "oneapi/dnnl/dnnl_graph_ocl.h"
 #endif
 
 struct dnnl_graph_allocator final : public dnnl::impl::graph::utils::id_t {
@@ -50,14 +55,25 @@ public:
         : sycl_malloc_(sycl_malloc), sycl_free_(sycl_free) {}
 #endif
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    dnnl_graph_allocator(dnnl_graph_ocl_allocate_f ocl_malloc,
+            dnnl_graph_ocl_deallocate_f ocl_free)
+        : ocl_malloc_(ocl_malloc), ocl_free_(ocl_free) {}
+#endif
+
     dnnl_graph_allocator(const dnnl_graph_allocator &alloc) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        ocl_malloc_ = alloc.ocl_malloc_;
+        ocl_free_ = alloc.ocl_free_;
+#endif
+
 #ifdef DNNL_WITH_SYCL
         sycl_malloc_ = alloc.sycl_malloc_;
         sycl_free_ = alloc.sycl_free_;
-#else
+#endif
+
         host_malloc_ = alloc.host_malloc_;
         host_free_ = alloc.host_free_;
-#endif
     }
 
     ~dnnl_graph_allocator() = default;
@@ -66,13 +82,17 @@ public:
         // check self-assignment
         if (this == &alloc) return *this;
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        ocl_malloc_ = alloc.ocl_malloc_;
+        ocl_free_ = alloc.ocl_free_;
+#endif
+
 #ifdef DNNL_WITH_SYCL
         sycl_malloc_ = alloc.sycl_malloc_;
         sycl_free_ = alloc.sycl_free_;
-#else
+#endif
         host_malloc_ = alloc.host_malloc_;
         host_free_ = alloc.host_free_;
-#endif
         return *this;
     }
 
@@ -174,6 +194,21 @@ public:
     }
 #endif
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    void *allocate(size_t size, const cl_device_id dev, const cl_context ctx,
+            mem_attr_t attr = {}) const {
+#ifndef NDEBUG
+        monitor_.lock_write();
+        void *buffer = ocl_malloc_(size, attr.alignment_, dev, ctx);
+        monitor_.record_allocate(buffer, size, attr.type_);
+        monitor_.unlock_write();
+#else
+        void *buffer = ocl_malloc_(size, attr.alignment_, dev, ctx);
+#endif
+        return buffer;
+    }
+#endif
+
     template <typename T>
     T *allocate(size_t nelem, mem_attr_t attr = {}) {
         const size_t size = nelem * sizeof(T);
@@ -185,6 +220,16 @@ public:
     template <typename T>
     T *allocate(size_t nelem, const ::sycl::device &dev,
             const ::sycl::context &ctx, mem_attr_t attr = {}) {
+        const size_t size = nelem * sizeof(T);
+        void *buffer = allocate(size, dev, ctx, attr);
+        return reinterpret_cast<T *>(buffer);
+    }
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    template <typename T>
+    T *allocate(size_t nelem, const cl_device_id dev, const cl_context ctx,
+            mem_attr_t attr = {}) {
         const size_t size = nelem * sizeof(T);
         void *buffer = allocate(size, dev, ctx, attr);
         return reinterpret_cast<T *>(buffer);
@@ -223,6 +268,24 @@ public:
         }
     }
 #endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    void deallocate(void *buffer, const cl_device_id dev, const cl_context ctx,
+            cl_event deps) const {
+        if (buffer) {
+#ifndef NDEBUG
+            monitor_.lock_write();
+            monitor_.record_deallocate(buffer);
+            ocl_free_(buffer, dev, ctx, deps);
+            monitor_.unlock_write();
+#else
+            ocl_free_(buffer, dev, ctx, deps);
+#endif
+            buffer = nullptr;
+        }
+    }
+#endif
+
     monitor_t &get_monitor() { return monitor_; }
 
 private:
@@ -237,6 +300,15 @@ private:
     dnnl_graph_sycl_deallocate_f sycl_free_ {
             dnnl::impl::graph::utils::sycl_allocator_t::free};
 #endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    // By default, use the malloc and free functions provided by the library.
+    dnnl_graph_ocl_allocate_f ocl_malloc_ {
+            dnnl::impl::graph::utils::ocl_allocator_t::malloc};
+    dnnl_graph_ocl_deallocate_f ocl_free_ {
+            dnnl::impl::graph::utils::ocl_allocator_t::free};
+#endif
+
     mutable monitor_t monitor_;
 };
 
