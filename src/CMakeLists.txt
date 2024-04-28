@@ -134,7 +134,7 @@ endif()
 if(ONEDNN_BUILD_GRAPH)
     message(STATUS "Graph component is enabled")
 
-    if (NOT DNNL_GPU_VENDOR STREQUAL "INTEL")
+    if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE" AND NOT DNNL_GPU_VENDOR STREQUAL "INTEL")
         message(FATAL_ERROR "Graph API does not support ${DNNL_GPU_VENDOR} GPU. "
             "Either disable Graph API with ONEDNN_BUILD_GRAPH=OFF or change GPU "
             "vendor to INTEL with ONEDNN_GPU_VENDOR=INTEL.")
