@@ -1601,9 +1601,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     VDISPATCH_CONV_IC(IMPLICATION(is_f32, one_of(isa, avx512_core, avx2)),
             "unsupported isa for current datatype combination");
 
-    VDISPATCH_CONV_IC(post_ops_ok(jcp, attr, diff_src_d, is_deconv),
-            VERBOSE_UNSUPPORTED_POSTOP);
-
     jcp.amx_h = 16;
     jcp.amx_w = 64 / jcp.src_dsz;
 
@@ -1655,6 +1652,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
 
     CHECK(init_tag(jcp.src_tag, diff_dst_md, diff_dst_d, src_tag));
+    CHECK(init_tag(jcp.dst_tag, diff_src_md, diff_src_d, src_tag));
+    CHECK(attr.set_default_formats(&diff_src_md));
+
+    VDISPATCH_CONV_IC(post_ops_ok(jcp, attr, diff_src_d, is_deconv),
+            VERBOSE_UNSUPPORTED_POSTOP);
 
     return status::success;
 }
@@ -2010,7 +2012,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = div_up(rnd_up(jcp.gemm_batch_size * sc_size, P4K), sc_size);
 
     CHECK(pick_tags(jcp, diff_dst_md, weights_md, diff_src_md, bias_md));
-    CHECK(attr.set_default_formats(&diff_src_md));
 
     jcp.buffer_size = jcp.LDC * (jcp.M > 0 ? jcp.M : jcp.M_tail);
 

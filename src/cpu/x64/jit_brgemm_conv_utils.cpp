@@ -1773,9 +1773,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             IMPLICATION(is_f32, one_of(isa, avx512_core, avx2) || jcp.is_bf32),
             "unsupported isa for current datatype combination");
 
-    VDISPATCH_CONV_IC(
-            post_ops_ok(jcp, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
-
     jcp.amx_h = 16;
     jcp.amx_w = 64 / (jcp.is_bf32 ? types::data_type_size(bf16) : jcp.src_dsz);
 
@@ -1817,9 +1814,16 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!jcp.wei_plain && jcp.prop_kind != prop_kind::backward_weights) {
         // fast check data layout before spending time for blocking selection
         format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
-        CHECK(init_tag(
-                jcp.src_tag, src_md, src_d, src_tag, is_any_eligible(jcp)));
+        const bool any_eligible = is_any_eligible(jcp);
+        CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
+        CHECK(init_tag(jcp.dst_tag, dst_md, dst_d, src_tag, any_eligible));
     }
+
+    CHECK(attr.set_default_formats(&dst_md));
+
+    VDISPATCH_CONV_IC(
+            post_ops_ok(jcp, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
+
     if (jcp.with_bias) {
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
@@ -2217,7 +2221,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
 
     if (!jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
-    CHECK(attr.set_default_formats(&dst_md));
 
     jcp.buffer_size = jcp.LDC * jcp.M;
 
