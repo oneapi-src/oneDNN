@@ -19,7 +19,7 @@
 #include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_engine_base.hpp"
 
-#include "sycl/level_zero_utils.hpp"
+#include "gpu/intel/sycl/l0/utils.hpp"
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
@@ -87,7 +87,9 @@ bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs) {
         return lhs_ocl_handle == rhs_ocl_handle;
     }
 
-    if (lhs_be == backend_t::level0) { return compare_ze_devices(lhs, rhs); }
+    if (lhs_be == backend_t::level0) {
+        return gpu::intel::sycl::compare_ze_devices(lhs, rhs);
+    }
 
 #ifdef DNNL_SYCL_CUDA
     if (lhs_be == backend_t::nvidia) {
@@ -121,7 +123,7 @@ device_id_t sycl_device_id(const ::sycl::device &dev) {
         case backend_t::level0: {
             device_id = std::tuple_cat(
                     std::make_tuple(static_cast<int>(backend_t::level0)),
-                    get_device_uuid(dev));
+                    gpu::intel::sycl::get_device_uuid(dev));
             break;
         }
         case backend_t::unknown: assert(!"unknown backend"); break;
@@ -265,7 +267,8 @@ status_t sycl_dev2ocl_dev(cl_device_id *ocl_dev, const ::sycl::device &dev) {
 
     if (uuid2ocl_dev.empty()) return status::runtime_error;
 
-    const hrt::device_uuid_t l0_dev_uuid = get_device_uuid(dev);
+    const hrt::device_uuid_t l0_dev_uuid
+            = gpu::intel::sycl::get_device_uuid(dev);
     auto d = uuid2ocl_dev.get(l0_dev_uuid);
 
     if (!d) return status::runtime_error;
@@ -337,10 +340,10 @@ status_t get_kernel_binary(
             auto module = module_vec[0];
             size_t module_binary_size;
             hrt::binary_t module_binary;
-            CHECK(func_zeModuleGetNativeBinary(
+            CHECK(gpu::intel::sycl::func_zeModuleGetNativeBinary(
                     module, &module_binary_size, nullptr));
             module_binary.resize(module_binary_size);
-            CHECK(func_zeModuleGetNativeBinary(
+            CHECK(gpu::intel::sycl::func_zeModuleGetNativeBinary(
                     module, &module_binary_size, module_binary.data()));
             {
                 std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t,
