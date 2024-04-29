@@ -232,6 +232,8 @@ public:
         auto &od = padded[2], &oh = padded[3], &ow = padded[4];
 
         const bool is_scalar = (prb.kd * prb.kh * prb.kw == 1);
+        const bool is_small = (prb.kh * prb.kw <= 9);
+        const bool is_xe2 = (exec.hw().to_ngen() == ngen::HW::Xe2);
 
         const int src_type_size = src.type().size();
         const int acc_type_size = acc_type(1).size();
@@ -248,10 +250,11 @@ public:
                 cut_dim(dim, null, 1);
         };
 
-        if (!is_scalar && (prb.kh * prb.kw <= 9)) {
+        if (!is_scalar && is_small) {
             // SMALL FILTERS
 
-            mb = utils::rnd_up(mb, std::min(8, utils::rnd_up_pow2(mb)));
+            if (is_xe2)
+                mb = utils::rnd_up(mb, std::min(8, utils::rnd_up_pow2(mb)));
 
             const int max_tg = exec.hw().max_tg_size(exec.regs(), exec.simd());
             ir_assert(max_tg == utils::rnd_up_pow2(max_tg));
@@ -322,14 +325,15 @@ public:
                 } else {
                     lg[1] = utils::max_div(oc_blk / simd, simds_per_line);
                 }
-                if (lg[1] == utils::rnd_up_pow2(lg[1])) {
+                if ((is_xe2 || (lg[1] < optimal_oc))
+                        && (lg[1] == utils::rnd_up_pow2(lg[1]))) {
                     const int oc_simds_per_line = simds_per_line / lg[1];
                     lg[0] = (mb <= oc_simds_per_line)
                             ? mb
                             : utils::max_div(mb, oc_simds_per_line);
                 }
             }
-            lg[0] = calc_non_sp(1, mb, 1, lg[0]);
+            lg[0] = calc_non_sp(1, (is_xe2) ? mb : prb.mb, 1, lg[0]);
             if (src.dim(0) % lg[0] == 0) mb = src.dim(0);
 
             const dim_t total_simds = dim_t(mb) * (oc / simd) * od * oh * ow;

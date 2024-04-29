@@ -144,6 +144,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     const auto &src_layout = cfg.src_layout().user();
     const auto &dst_layout = cfg.dst_layout().user();
 
+    const bool is_xe2_small_kdhw = !(prb.kd * prb.kh * prb.kw == 1)
+            && (prb.kh * prb.kw <= 9) && (exec.hw().to_ngen() == ngen::HW::Xe2);
+
     ir_assert(src_layout.ndims() == dst_layout.ndims());
 
     // Create loop variables.
@@ -188,7 +191,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     // Source.
     auto src_view = view_t({mb, oc, od, oh, ow, kd, kh, kw}, 5);
-    src_view.set_vdim(mb, prb.mb);
+    src_view.set_vdim(mb, (!is_xe2_small_kdhw) ? dims[0] : prb.mb);
     src_view.set_vdim(oc, dims[1]);
     src_view.set_vdim(od, dims[2]);
     src_view.set_vdim(oh, dims[3]);
@@ -209,7 +212,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     // Destination.
     auto dst_view = view_t({mb, oc, od, oh, ow}, 5);
-    dst_view.set_vdim(mb, prb.mb);
+    dst_view.set_vdim(mb, (!is_xe2_small_kdhw) ? dims[0] : prb.mb);
     dst_view.set_vdim(oc, dims[1]);
     dst_view.set_vdim(od, dims[2]);
     dst_view.set_vdim(oh, dims[3]);
@@ -521,6 +524,12 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                                             : (od < prb.od);
     if (!exit_cond.is_empty())
         stmt = if_t::make(shuffle_t::make_broadcast(exit_cond, simd), stmt);
+
+    if (!is_xe2_small_kdhw && ((dims[0] - prb.mb) / lg[0] >= 1)) {
+        auto stop = gen_zero_out(simd, false, acc_buf, dst_tile, write_layout);
+        stmt = if_t::make(shuffle_t::make_broadcast(mb >= prb.mb, simd),
+                stop.append(write_stmt), stmt);
+    }
 
     stmt = schedule.create_bind_stmt(stmt);
     stmt = inject_let_stmts(stmt, init_stmts);
