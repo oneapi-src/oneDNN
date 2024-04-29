@@ -256,6 +256,9 @@ impl::status_t fold_pre_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg);
 ///  ==> dst = (new_gamma * (src - mean) / sqrt(variance + epsilon)) + new_beta
 impl::status_t fold_post_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg);
 
+/// This pass replaces the output logical tensor to remove the consumer. It is
+/// mainly to use the "get_output_ops" function.
+impl::status_t replace_select_values(std::shared_ptr<subgraph_t> &sg);
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
