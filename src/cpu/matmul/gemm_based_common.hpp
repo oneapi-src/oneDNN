@@ -109,10 +109,14 @@ inline bool check_gemm_binary_per_oc_compatible_formats(const matmul_pd_t &pd) {
     const dims_t &dims = dst_d.dims();
     const int ndims = dst_d.ndims();
 
+    for (auto d : dims)
+        if (d == DNNL_RUNTIME_DIM_VAL) return false;
+
     // check d, h, w... (b2, m, n... for matmul) dimensions are continuous
     bool ok = true;
     for (int i = 2; i < ndims - 1; i++)
         ok = ok && strides[i] == strides[i + 1] * dims[i + 1];
+
     // only allowed for nchw and nhwc (b0xb1xMxN or b0xMxNxb1 for matmul)
     return ok && (strides[ndims - 1] == 1 || strides[1] == 1);
 }
