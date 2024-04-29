@@ -24,7 +24,7 @@ file(GLOB_RECURSE SOURCES
 include("${PROJECT_SOURCE_DIR}/cmake/gen_gpu_kernel_list.cmake")
 
 file(GLOB_RECURSE CL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.cl)
-file(GLOB_RECURSE CL_HEADERS ${PROJECT_SOURCE_DIR}/src/gpu/*.h)
+file(GLOB_RECURSE CL_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
 
 set(kernel_list_templ "${PROJECT_SOURCE_DIR}/src/gpu/intel/ocl/ocl_kernel_list.cpp.in")
 set(kernel_list_src "${PROJECT_BINARY_DIR}/src/gpu/intel/ocl/ocl_kernel_list.cpp")
