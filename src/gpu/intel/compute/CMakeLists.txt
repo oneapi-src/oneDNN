@@ -21,7 +21,7 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_compute)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_intel_compute)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
