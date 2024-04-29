@@ -1836,12 +1836,11 @@ static arg_indices_t get_arg_indices_for_siso_op(
             ? mgr.get_info(op->get_attr<int64_t>(op_attr::fusion_info_key))
             : fusion_info_t();
 
+    get_arg_indices_for_post_ops(op, mgr, arg_indices, index);
     if (fusion_info.with_runtime_scales(false, 0)) {
         arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
                 indices_t {input, index++}});
     }
-
-    get_arg_indices_for_post_ops(op, mgr, arg_indices, index);
 
     // add output args
     arg_indices.insert({DNNL_ARG_TO, indices_t {output, 0}});
@@ -2173,11 +2172,6 @@ arg_indices_t reorder_executable_t::get_arg_indices(
                 indices_t {input, index++}});
     }
 
-    if (fusion_info.with_runtime_scales(false, 0)) {
-        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
-                indices_t {input, index++}});
-    }
-
     if ((op->has_attr(op_attr::with_runtime_src_zps)
                 && op->get_attr<bool>(op_attr::with_runtime_src_zps))
             || fusion_info.with_runtime_zero_points(true, 0)) {
@@ -2186,6 +2180,11 @@ arg_indices_t reorder_executable_t::get_arg_indices(
     }
 
     get_arg_indices_for_post_ops(op, mgr, arg_indices, index);
+
+    if (fusion_info.with_runtime_scales(false, 0)) {
+        arg_indices.insert({DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST,
+                indices_t {input, index++}});
+    }
 
     if ((op->has_attr(op_attr::with_runtime_dst_zps)
                 && op->get_attr<bool>(op_attr::with_runtime_dst_zps))
