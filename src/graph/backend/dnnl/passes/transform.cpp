@@ -3775,6 +3775,33 @@ impl::status_t fold_post_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
+impl::status_t replace_select_values(std::shared_ptr<subgraph_t> &sg) {
+    std::unordered_set<op_kind_t> select_kind
+            = {op_kind::dnnl_eltwise, op_kind::dnnl_binary};
+    std::vector<op_ptr> out_ops;
+    for (const auto &cur_op : sg->get_ops()) {
+        if (select_kind.count(cur_op->get_kind())) {
+            auto out_val = cur_op->get_output_value(0);
+            if (out_val->get_consumers().size() == 1) {
+                auto consumer = out_val->get_consumers()[0].get_op();
+                if (consumer.get_kind() == op_kind::dnnl_matmul) {
+                    out_ops.emplace_back(cur_op);
+                }
+            }
+        }
+    }
+    int index = 1;
+    for (const auto &cur_op : out_ops) {
+        auto out_val = cur_op->get_output_value(0);
+        logical_tensor_t new_lt(out_val->get_logical_tensor());
+        new_lt.id -= index;
+        index++;
+        auto new_val = std::make_shared<value_t>(*cur_op, 0, new_lt);
+        cur_op->connect_output(0, new_val);
+    }
+    return infer_shape(sg);
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
