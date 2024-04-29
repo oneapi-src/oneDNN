@@ -45,6 +45,17 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
         , brg(abrg)
         , postops_injector_(nullptr) {
 
+        if (brg.is_fp8_via_convert()
+                && one_of(data_type::f8_e5m2, brg.dt_a, brg.dt_b, brg.dt_d))
+            f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(this,
+                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
+                    fp8_tmp_mask, fp8_tmp_reg);
+        if (brg.is_fp8_via_convert()
+                && one_of(data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_d))
+            f8_e4m3_emulator_ = utils::make_unique<fp8_emulation_e4m3_t>(this,
+                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
+                    fp8_emu_xmm_4(), fp8_emu_xmm_5(), fp8_tmp_reg);
+
         if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 
             static constexpr bool preserve_gpr = true;
@@ -70,15 +81,26 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                     GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(data_C_ptr_),
                     dst_md_wrapper, static_cast<size_t>(brg.ldb_tail),
                     ld_tail_mask, use_exact_tail_scalar_bcast};
-            const binary_injector::static_params_t bsp {
-                    this->param1, enabled_bcast_strategy, rhs_sp};
+
+            fp8_emulation_base_t *f8_emu = nullptr;
+            if (brg.dt_d == data_type::f8_e5m2)
+                f8_emu = f8_e5m2_emulator_.get();
+            else if (brg.dt_d == data_type::f8_e4m3)
+                f8_emu = f8_e4m3_emulator_.get();
+
+            const binary_injector::static_params_t bsp(
+                    this->param1, enabled_bcast_strategy, rhs_sp, f8_emu);
 
             eltwise_injector::static_params_t esp;
             esp.preserve_vmm = preserve_vmm;
             esp.preserve_p_table = false;
 
-            postops_injector_ = utils::make_unique<po_injector_t>(
-                    this, brg.attr()->post_ops_, bsp, esp);
+            auto st = safe_ptr_assign(postops_injector_,
+                    po_injector_t::create(this, brg.isa_impl,
+                            brg.attr()->post_ops_, bsp, esp));
+            if (st != status::success) {
+                assert(!"postops_injector creation failed");
+            }
 
             using namespace dnnl::impl::cpu::binary_injector_utils;
             std::tie(with_binary_per_oc_bcast_, with_binary_per_oc_sp_bcast_,
@@ -102,17 +124,6 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                     || with_binary_per_w_bcast_ || with_binary_batch_bcast_
                     || with_binary_spatial_bcast_ || with_binary_no_bcast_;
         }
-        if (brg.is_fp8_via_convert()
-                && one_of(data_type::f8_e5m2, brg.dt_a, brg.dt_b, brg.dt_d))
-            f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(this,
-                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
-                    fp8_tmp_mask, fp8_tmp_reg);
-        if (brg.is_fp8_via_convert()
-                && one_of(data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_d))
-            f8_e4m3_emulator_ = utils::make_unique<fp8_emulation_e4m3_t>(this,
-                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
-                    fp8_emu_xmm_4(), fp8_emu_xmm_5(), fp8_tmp_reg);
-
         use_ils_ = brg.brgattr.use_interleave_stores;
     }
 
@@ -121,8 +132,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
     brgemm_desc_t brg;
 
 private:
-    static constexpr cpu_isa_t po_isa_ = avx512_core_fp16;
-    using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_>;
+    using po_injector_t = injector::jit_uni_postops_injector_base_t<Zmm>;
     std::unique_ptr<po_injector_t> postops_injector_;
 
     std::unique_ptr<fp8_emulation_base_t> f8_e5m2_emulator_;

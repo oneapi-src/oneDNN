@@ -65,6 +65,11 @@ public:
     // value in compliance with same vector length.
     static jit_uni_postops_injector_base_t *create(jit_generator *host,
             cpu_isa_t isa, const post_ops_t &post_ops,
+            const binary_injector::static_params_t &binary_static_params,
+            const eltwise_injector::static_params_t &eltwise_static_params);
+
+    static jit_uni_postops_injector_base_t *create(jit_generator *host,
+            cpu_isa_t isa, const post_ops_t &post_ops,
             const binary_injector::static_params_t &binary_static_params);
 
     virtual ~jit_uni_postops_injector_base_t() = default;
