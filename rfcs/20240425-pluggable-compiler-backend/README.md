@@ -6,7 +6,7 @@ This RFC covers the integration part for the new standalone MLIR-based
 version of the [Graph Compiler](202230110-graph-compiler). It focuses on the
 general approach rather than specific details.
 
-Here's a set of goals that we would like to achieve by this proposal:
+Here's a set of goals that we would like to achieve:
 * Create a standalone MLIR-based compiler to benefit from the upstream and can
 support multiple targets
 * Provide an interface that is (a) transparent change for the user and 
