@@ -161,10 +161,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
     static bool applicable(const prb_t &p) {
         using namespace data_type;
 
-        bool bf16_ok = (mayiuse_bf16() && (p.itype == bf16) && (p.otype == bf16)
-                               && !interim_f32_needed(p, false))
+        bool bf16_ok
+                = (mayiuse_bf16() && (p.itype == bf16) && (p.otype == bf16)
+                          && !interim_f32_needed(p, false) && p.beta == 0.f)
                 || (p.itype != bf16 && p.otype != bf16)
-                || (p.itype == f32 && mayiuse_bf16());
+                || (p.itype == f32 && p.otype == bf16 && mayiuse_bf16()
+                        && p.beta == 0.f);
 
         bool ok = true && p.ndims > 0
                 && utils::one_of(p.itype, f32, bf16, s32, data_type::s8, u8)
