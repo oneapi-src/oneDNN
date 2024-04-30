@@ -1105,7 +1105,8 @@ public:
                         = res->mem_map[sdp_cfg_.sub_mm1_post_mem[start_index++]
                                                .get()][tid];
                 auto mask_input = inputs[sdp_cfg_.graph_inport[3]];
-                auto mask_strides = mask_input.get_logical_tensor().dims;
+                auto mask_strides
+                        = ltw(mask_input.get_logical_tensor()).vstrides();
                 sub_mm1_post_add_tid.set_data_handle(
                         static_cast<char *>(mask_input.get_data_handle())
                         + bo * mask_strides[1]
