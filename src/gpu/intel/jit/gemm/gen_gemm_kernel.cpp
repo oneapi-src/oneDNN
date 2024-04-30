@@ -71,14 +71,6 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
     adjustStrategy(hw_, problem_, strategy_, tags);
     modifyStrategy(strategy_, aux_params_);
 
-    // Check for legal 2D quantization group size.
-    if (problem_.aoPtrDims == 2 || problem_.aScale2D)
-        if (problem_.aqGroupK % strategy_.aqGroupKGranularity())
-            return status::unimplemented;
-    if (problem_.boPtrDims == 2 || problem_.bScale2D)
-        if (problem_.bqGroupK % strategy_.bqGroupKGranularity())
-            return status::unimplemented;
-
     if (hw_ == ngen::HW::Xe2) {
         // Temporary hack to use XeHPC register banking on Xe2, in order
         //   to successfully reuse XeHPC strategies.
@@ -145,6 +137,14 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
 
     strategy_.systolicAvailable &= !disable_systolic_;
     strategy_.preflight(hw_, problem_);
+
+    // Check for legal 2D quantization group size.
+    if (problem_.aoPtrDims == 2 || problem_.aScale2D)
+        if (problem_.aqGroupK % strategy_.aqGroupKGranularity())
+            return status::unimplemented;
+    if (problem_.boPtrDims == 2 || problem_.bScale2D)
+        if (problem_.bqGroupK % strategy_.bqGroupKGranularity())
+            return status::unimplemented;
 
     update_driver_info();
 
