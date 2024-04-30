@@ -10734,6 +10734,10 @@ void gemm_kernel_generator_t<hw>::gemmScalarBinaryOpC(BinaryOp op,
         const GEMMStrategy &strategy, GEMMState &state) {
     auto offsetTc = offset.reinterpret(0, state.Tacc.ngen());
     if (offset != offsetTc) emov(1, offsetTc, offset, strategy, state);
+    if (op == BinaryOp::Div && one_of(state.Tacc, Type::f32, Type::f16)) {
+        inv(1, offsetTc, offsetTc);
+        op = BinaryOp::Mul;
+    }
 
     map(hw, state.Tacc, state.C_regs[0], state.C_layout, strategy,
             [&](int simd, const RegData &r) {
@@ -10781,6 +10785,13 @@ void gemm_kernel_generator_t<hw>::gemmVectorBinaryOpC(BinaryOp op, bool column,
                 repackOffsets, 0, 0, false, strategy, state);
         crosspack = 1;
         offsetsPtr = &repackOffsets;
+
+        // Late inversion, for binary divide.
+        if (op == BinaryOp::Div && one_of(Tacc, Type::f32, Type::f16)) {
+            map(hw, Tacc, repackOffsets, repackOffsets, strategy,
+                    [&](int simd, GRF r, GRF) { inv(simd, r, r); });
+            op = BinaryOp::Mul;
+        }
     }
 
     if (y0 < 0) y0 = 0;
@@ -10825,11 +10836,10 @@ bool gemm_kernel_generator_t<hw>::gemmBinaryOpC(BinaryOp op, bool row,
     auto globalCM = isLayoutColMajor(state.C_layout);
 
     bool recip = false;
-    if (op == BinaryOp::Div) {
+    if (op == BinaryOp::Div && one_of(Tco, Type::f32, Type::f16)) {
         // Implement div as inv+mul for speed, especially when broadcasting.
         recip = true;
         op = BinaryOp::Mul;
-        if (!one_of(Tco, Type::f32, Type::f16)) stub();
     }
 
     bool matrix = row && column;

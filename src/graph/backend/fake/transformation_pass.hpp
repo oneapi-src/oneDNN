@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,6 +53,11 @@ public:
 
         // for each pattern. match it
         std::vector<op_t *> matched_op_list;
+        if (get_verbose(verbose_t::create_dispatch, component_t::graph)) {
+            printf("onednn_verbose,graph,create:dispatch,pattern_"
+                   "matcher,%s,fake_backend\n",
+                    get_pass_name().c_str());
+        }
         pu.match(agraph, pgraph, matched_op_list);
         if (!matched_op_list.empty()) {
             // temporary solution here for showing which pattern matched
