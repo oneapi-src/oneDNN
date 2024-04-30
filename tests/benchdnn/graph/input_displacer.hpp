@@ -21,9 +21,20 @@
 
 namespace graph {
 
-// tuple< main op, main op offset, the tensor as a displace starting point, data type >
+enum class filling_type_t {
+    undef = 0,
+    quantization,
+    pow2,
+};
+
+// tuple<
+//     main op,
+//     main op offset,
+//     the tensor as a displace starting point,
+//     filling_type
+// >
 using displace_t = ::std::tuple<::graph::deserialized_op, size_t,
-        ::graph::deserialized_lt>;
+        ::graph::deserialized_lt, filling_type_t>;
 
 class partition_data_displacer_t {
 public:
@@ -41,6 +52,9 @@ private:
 
     int gen_quantize_filling(const ::graph::deserialized_op &main_op, int arg,
             dnn_mem_t &mem, const ::std::string &dt, res_t *res);
+    // Generates floating-point power-of-2 values in the target memory.
+    int gen_pow2_filling(
+            dnn_mem_t &mem, const_dnnl_memory_desc_t lt, res_t *res) const;
 };
 
 } // namespace graph

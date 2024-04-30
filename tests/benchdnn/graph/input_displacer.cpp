@@ -14,8 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "input_displacer.hpp"
+#include <random>
+
 #include "dnnl_common.hpp"
+#include "input_displacer.hpp"
 #include "ref_partition.hpp"
 
 namespace graph {
@@ -67,7 +69,16 @@ partition_data_displacer_t::partition_data_displacer_t(
             for (auto *lt = &aop.in_lts_[i]; true;
                     lt = &parent_op->in_lts_[0]) {
                 parent_op = &dg_->get_op_by_out_lt(lt->id_);
-                if (parent_op->empty()) break;
+                if (parent_op->empty()) {
+                    if (aop.kind_ == "Divide") {
+                        // There's a special case for Divide, when second (user)
+                        // input should be displaced with power-of-2 values.
+                        quantize_displace_.emplace(lt->id_,
+                                std::make_tuple(
+                                        aop, i, *lt, filling_type_t::pow2));
+                    }
+                    break;
+                }
 
                 if (parent_op->kind_ == "Dequantize") {
                     // Dequantize is accepted when it doesn't have any
@@ -80,7 +91,8 @@ partition_data_displacer_t::partition_data_displacer_t(
                             || op_ids_set_.find(prev_parent_op.id_)
                                     == op_ids_set_.end()) {
                         quantize_displace_.emplace(parent_op_in_lt.id_,
-                                std::make_tuple(aop, i, parent_op_in_lt));
+                                std::make_tuple(aop, i, parent_op_in_lt,
+                                        filling_type_t::quantization));
                         break;
                     }
                 }
@@ -110,6 +122,7 @@ int partition_data_displacer_t::displace_input_data(
     const auto &main_op = ::std::get<0>(displace);
     auto main_op_offset = ::std::get<1>(displace);
     auto tensor = ::std::get<2>(displace);
+    const auto filling_type = ::std::get<3>(displace);
 
     auto opkind = opstr2kind(main_op.kind_);
     int main_op_arg = get_prim_arg_name_from_graph_op_input_offset(
@@ -119,15 +132,21 @@ int partition_data_displacer_t::displace_input_data(
             data_kind2str(exec_arg2data_kind(main_op_arg)));
 
     dnn_mem_t mem_replace;
-    SAFE(gen_quantize_filling(
-                 main_op, main_op_arg, mem_replace, tensor.data_type_, res),
-            WARN);
+    if (filling_type == filling_type_t::quantization) {
+        SAFE(gen_quantize_filling(
+                     main_op, main_op_arg, mem_replace, tensor.data_type_, res),
+                WARN);
+    } else if (filling_type == filling_type_t::pow2) {
+        SAFE(gen_pow2_filling(mem_replace, mem.md_, res), WARN);
+    } else {
+        assert(!"unexepcted filling type");
+    }
 
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     // do the reverse job
     auto *parent_op = &dg_->get_op_by_out_lt(tensor.id_);
-    while (!parent_op->empty()
+    while (filling_type == filling_type_t::quantization && !parent_op->empty()
             && op_ids_set_.find(parent_op->id_) != op_ids_set_.end()) {
         // generate the reverse op based on OP kind
         // make a copy of deserialized_op to avoid impact on graph execution
@@ -261,6 +280,44 @@ int partition_data_displacer_t::gen_quantize_filling(
 
     mem = ::std::move(const_cast<dnn_mem_t &>(ref_prim.get_arg(arg)));
 
+    return OK;
+}
+
+int partition_data_displacer_t::gen_pow2_filling(
+        dnn_mem_t &mem, const_dnnl_memory_desc_t md, res_t *res) const {
+
+    dnn_mem_t m(md, get_test_engine());
+    const int64_t nelems = m.nelems();
+
+    // These values are picked with the purpose of shrinking the output in case
+    // only second operand is updated. It is done to have more chances of ending
+    // with exact lower data type representative in the output, which in turn
+    // decreases number of points with non-zero absolute diff.
+    static float pow2_vals[] = {2.f, 4.f, 8.f};
+    const int n_vals = sizeof(pow2_vals) / sizeof(*pow2_vals);
+
+    /* Do fixed partitioning to have same filling for any number of threads */
+    static constexpr int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(idx_start + 1);
+        int_seed.discard(1);
+
+        std::uniform_int_distribution<> gen(0, n_vals - 1);
+
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            const float val = pow2_vals[gen(int_seed)];
+            m.set_elem(idx, val);
+        }
+    });
+
+    mem = std::move(m);
     return OK;
 }
 
