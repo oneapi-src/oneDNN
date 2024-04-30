@@ -20531,14 +20531,12 @@ void gemm_kernel_generator_t<hw>::gemmScaleInputs(const GEMMProblem &problem,
     if (ldaq.isInvalid()) ldaq = inputs.m;
     if (ldbq.isInvalid()) ldbq = inputs.n;
 
-    if (problem.aoPtrDims == 2) {
-        scale(problem.Tao, inputs.ldao, ldaq);
+    if (problem.aoPtrDims == 2) scale(problem.Tao, inputs.ldao, ldaq);
+    if (problem.aoPtrDims >= 0)
         scale(problem.Tao, inputs.offsetAO, inputs.offsetAq);
-    }
-    if (problem.boPtrDims == 2) {
-        scale(problem.Tbo, inputs.ldbo, ldbq);
+    if (problem.boPtrDims == 2) scale(problem.Tbo, inputs.ldbo, ldbq);
+    if (problem.boPtrDims >= 0)
         scale(problem.Tbo, inputs.offsetBO, inputs.offsetBq);
-    }
     if (problem.aScale2D) {
         scale(problem.Ta_scale, inputs.ldaScale, ldaq);
         scale(problem.Ta_scale, inputs.offsetAScale, inputs.offsetAq);
