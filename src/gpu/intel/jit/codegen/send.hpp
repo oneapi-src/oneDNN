@@ -70,20 +70,19 @@ public:
 
     template <typename GeneratorT, typename T>
     void emit(GeneratorT *host, ngen_register_scope_t &scope,
-            const ngen::InstructionModifier &mod,
-            const ngen::RegData &surf_base_addr, int surf_bti,
-            const ngen::RegData &header, const T &data) {
+            const ngen::InstructionModifier &mod, const ngen::RegData &header,
+            const T &data) {
         if (send_.is_2d()) {
             emit_2d(host, mod, data, header);
             return;
         }
 
         if (send_.is_lsc) {
-            emit_lsc(host, mod, data, surf_bti, header);
+            emit_lsc(host, mod, data, header);
             return;
         }
 
-        auto address_base = to_address_base(send_.address, surf_bti);
+        auto address_base = to_address_base(send_.address);
 
         int elems = send_.type.elems();
         switch (send_.type.kind()) {
@@ -114,18 +113,17 @@ public:
     template <typename GeneratorT, typename T>
     void emit(GeneratorT *host, ngen_register_scope_t &scope,
             const ngen::InstructionModifier &mod, const T &dst,
-            const ngen::RegData &surf_base_addr, int surf_bti,
             const ngen::RegData &header, const T &data) {
         switch (send_.type.kind()) {
             case type_kind_t::dword:
                 emit_atomic_cmpwr(host, mod, dst,
                         ngen::scattered_dword(send_.type.elems()),
-                        to_address_base(send_.address, surf_bti), header, data);
+                        to_address_base(send_.address), header, data);
                 break;
             case type_kind_t::qword:
                 emit_atomic_cmpwr(host, mod, dst,
                         ngen::scattered_qword(send_.type.elems()),
-                        to_address_base(send_.address, surf_bti), header, data);
+                        to_address_base(send_.address), header, data);
                 break;
             default: ir_error_not_expected() << send_.type;
         }
@@ -161,8 +159,7 @@ private:
 
     template <typename GeneratorT>
     void emit_lsc(GeneratorT *host, const ngen::InstructionModifier &mod,
-            const ngen::RegData &data, int surf_bti,
-            const ngen::RegData &header) {
+            const ngen::RegData &data, const ngen::RegData &header) {
 
         auto get_lsc_type = [&](const type_t &type, bool is_block) {
             if (!send_.is_block()) return type;
@@ -206,7 +203,7 @@ private:
                 host->store.ugm(mod, *lsc_spec, host->A64, header, data);
             } else if (send_.is_atomic()) {
                 host->atomic.ugm(ngen::AtomicOp::fadd, mod, *lsc_spec,
-                        to_address_base(send_.address, surf_bti), header, data);
+                        to_address_base(send_.address), header, data);
             }
         } else {
             ir_error_not_expected();
@@ -268,12 +265,9 @@ private:
         return std::make_pair(ngen::DataSizeLSC::D8, 1);
     }
 
-    static ngen::AddressBase to_address_base(
-            send_address_t address, int surf_bti) {
+    static ngen::AddressBase to_address_base(send_address_t address) {
         switch (address) {
             case send_address_t::a64: return ngen::AddressBase::createA64(true);
-            case send_address_t::bts:
-                return ngen::AddressBase::createBTS(surf_bti);
             case send_address_t::slm: return ngen::AddressBase::createSLM();
             default: ir_error_not_expected();
         }

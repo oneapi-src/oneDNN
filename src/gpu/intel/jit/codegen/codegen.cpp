@@ -144,7 +144,6 @@ public:
         } else if (func.is<send_t>()) {
             auto &send_func = func.as<send_t>();
             auto args = obj.args;
-            auto &mem_buf = send_t::arg_mem_buf(args);
             auto &mask = send_t::arg_mask(args);
             // If all channels are disabled for writing, quick return.
             if (all_of(mask, expr_t(false))) {
@@ -158,7 +157,7 @@ public:
             // If all channels are enabled, do not use mask.
             if (all_of(mask, expr_t(true))) mask = expr_t();
             auto arg_ops = ir_to_ngen_t<hw>::eval(args, scope);
-            send(scope, func.as<send_t>(), mem_buf, arg_ops, obj.attr);
+            send(scope, func.as<send_t>(), arg_ops, obj.attr);
         } else if (func.is<reorder_t>()) {
             auto arg_ops = eval(obj.args, scope);
             ir_assert(obj.attr.is_empty()) << "Unexpected attribute.";
@@ -565,8 +564,7 @@ private:
 
     void send_atomic_add_emu(ngen_register_scope_t &scope,
             const send_t &send_func, const ngen_operand_t &mask_op,
-            ngen::InstructionModifier &mod, const ngen::RegData &mem_buf_rd,
-            const int &surf_bti, const ngen::RegData &mem_off_op,
+            ngen::InstructionModifier &mod, const ngen::RegData &mem_off_op,
             ngen::RegData &rd) const {
         int size = send_func.payload_size();
         ir_assert(utils::one_of(send_func.type.kind(), type_kind_t::dword,
@@ -594,7 +592,7 @@ private:
         ngen::Label atomic_label;
         rd.setType(is_df ? ngen::DataType::df : ngen::DataType::f);
 
-        load.emit(host_, scope, mod, mem_buf_rd, surf_bti, mem_off_op,
+        load.emit(host_, scope, mod, mem_off_op,
                 is_df ? new_val[0].df(0) : new_val[0].f(0));
 
         if (mask_op.is_invalid())
@@ -615,8 +613,8 @@ private:
         auto ne_mod = esize | flag | host_->ne | flag;
         auto eq_mod = esize | flag | host_->eq | flag;
         host_->add(esize, region, old_region, rd.setRegion(4, 4, 1));
-        cmpwr.emit(host_, scope, mod | flag, old_region, mem_buf_rd, surf_bti,
-                mem_off_op, old_region);
+        cmpwr.emit(
+                host_, scope, mod | flag, old_region, mem_off_op, old_region);
         host_->cmp(ne_mod, old_save_region, old_region);
         // The previous comparison always fails for NaNs so check for NaNs
         // explictly to prevent an infinite loop.
@@ -625,29 +623,13 @@ private:
     }
 
     void send(ngen_register_scope_t &scope, const send_t &send_func,
-            const expr_t &mem_buf, const std::vector<ngen_operand_t> &args,
+            const std::vector<ngen_operand_t> &args,
             const func_call_attr_t &attr) const {
         send_impl_t spec_impl(send_func);
         auto &mem_off_op = send_t::arg_mem_off(args);
         auto &reg_buf_op = send_t::arg_reg_buf(args);
         auto &mask_op = send_t::arg_mask(args);
 
-        ngen::RegData mem_buf_rd;
-        int surf_bti = -1;
-        switch (send_func.address) {
-            case send_address_t::slm: break;
-            case send_address_t::bts: {
-                auto &buf_name = mem_buf.as<var_t>().name;
-                surf_bti = host_->getArgumentSurface(buf_name);
-                break;
-            }
-            case send_address_t::a64: {
-                auto &mem_buf_op = send_t::arg_mem_buf(args);
-                mem_buf_rd = mem_buf_op.reg_data();
-                break;
-            }
-            default: ir_error_not_expected();
-        }
         ngen::InstructionModifier mod = send_func.nmasks();
         ir_assert(math::is_pow2(mod.getExecSize()));
         if (!attr.is_empty())
@@ -679,11 +661,10 @@ private:
                 || (hw == ngen::HW::XeHPG && send_func.is_atomic()
                         && send_func.type.kind() == type_kind_t::qword
                         && !with_atomic_fp64_)) {
-            send_atomic_add_emu(scope, send_func, mask_op, mod, mem_buf_rd,
-                    surf_bti, mem_off_op.reg_data(), rd);
+            send_atomic_add_emu(
+                    scope, send_func, mask_op, mod, mem_off_op.reg_data(), rd);
         } else {
-            spec_impl.emit(host_, scope, mod, mem_buf_rd, surf_bti,
-                    mem_off_op.reg_data(), rd);
+            spec_impl.emit(host_, scope, mod, mem_off_op.reg_data(), rd);
         }
     }
 

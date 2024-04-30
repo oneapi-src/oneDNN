@@ -81,7 +81,6 @@ std::ostream &operator<<(std::ostream &out, const send_op_t value);
 // Send address model.
 enum class send_address_t {
     a64,
-    bts,
     slm,
 };
 
@@ -270,7 +269,6 @@ public:
         return is_load_2d() || is_store_2d() || is_prefetch_2d();
     }
     bool is_a64() const { return address == send_address_t::a64; }
-    bool is_bts() const { return address == send_address_t::bts; }
     bool is_slm() const { return address == send_address_t::slm; }
 
     bool is_block() const {

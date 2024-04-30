@@ -48,12 +48,10 @@ public:
         }
 
         int simd_size = getSIMD();
-        // XXX: Stateful messages don't work on XeHPC.
-        bool use_a64 = (hw >= ngen::HW::XeHPC);
+        bool use_lsc = (hw >= ngen::HW::XeHPG);
 
         auto size = getArgument(arg_names[0]);
         auto ptr = getArgument(arg_names[1]);
-        auto surf = Surface(getArgumentSurfaceIfExists(arg_names[1]));
         auto global_id = ra_.template alloc_sub<uint32_t>();
         auto off0 = ra_.template alloc_sub<uint32_t>();
 
@@ -94,30 +92,26 @@ public:
                             src1, idx_vec.uw((i % grf_size) * 2)(2))),
                     ngen_operand_t(reg_buf_data_t(src0, off0)),
                     ngen_operand_t(i));
-            if (use_a64) {
-                auto ptr_sub_vec = get_subregister(
-                        hw, ngen::DataType::uq, ptr_vec, i)(1);
-                auto off_sub_vec_q_strided = get_subregister(
-                        hw, ngen::DataType::ud, off_vec_q_strided, i * 2)(2);
-                emov(8, off_sub_vec_q_strided, off_sub_vec);
-                eadd(8, ptr_sub_vec, ptr, off_sub_vec_q_strided);
-            }
+            auto ptr_sub_vec
+                    = get_subregister(hw, ngen::DataType::uq, ptr_vec, i)(1);
+            auto off_sub_vec_q_strided = get_subregister(
+                    hw, ngen::DataType::ud, off_vec_q_strided, i * 2)(2);
+            emov(8, off_sub_vec_q_strided, off_sub_vec);
+            eadd(8, ptr_sub_vec, ptr, off_sub_vec_q_strided);
         }
 
         for (int i = 0; i < bytes_per_thr; i += bytes_per_store) {
             auto off_sub_vec
                     = get_subregister(hw, ngen::DataType::ud, off_vec, i)(1);
             cmp(16 | lt | f0[0], off_sub_vec, size);
-            if (use_a64) {
-                auto h_a64
-                        = get_subregister(hw, ngen::DataType::uq, ptr_vec, i);
+            auto h = get_subregister(hw, ngen::DataType::uq, ptr_vec, i);
+            if (use_lsc) {
                 std::unique_ptr<ngen::DataSpecLSC> lsc_spec;
                 lsc_spec = utils::make_unique<ngen::DataSpecLSC>(
                         ngen::scattered(ngen::DataSizeLSC::D8U32, 1));
-                store.ugm(16 | f0[0], *lsc_spec, A64, h_a64, zero[0]);
+                store.ugm(16 | f0[0], *lsc_spec, A64, h, zero[0]);
             } else {
-                auto h_bts = off_sub_vec;
-                store(16 | f0[0], ngen::scattered_byte(), surf, h_bts, zero[0]);
+                store(16 | f0[0], ngen::scattered_byte(), A64, h, zero[0]);
             }
         }
 
