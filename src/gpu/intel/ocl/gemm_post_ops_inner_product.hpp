@@ -57,16 +57,26 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                     = primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;
 
-            bool ok = is_fwd() && set_default_params() == success
-                    && dense_consistency_check(src_md(), weights_md(), dst_md())
-                    && dense_gemm_consistency_check(
-                            src_md(), weights_md(), dst_md())
-                    && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type)
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
-                            one_of(attr()->output_scales_.mask_, 0, 1 << 1));
-            if (!ok) return unimplemented;
+            VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    dense_consistency_check(src_md(), weights_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src, weights", "dst");
+            VDISPATCH_INNER_PRODUCT(dense_gemm_consistency_check(
+                                            src_md(), weights_md(), dst_md()),
+                    VERBOSE_INCONSISTENT_MDS, "src, weights", "dst");
+            VDISPATCH_INNER_PRODUCT(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT(
+                    post_ops_with_binary_ok(attr(), dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(
+                    IMPLICATION(!attr()->output_scales_.has_default_values(),
+                            one_of(attr()->output_scales_.mask_, 0, 1 << 1)),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             attr_info_ = attr_info_t::create(attr());
 
@@ -79,18 +89,22 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             is_int8_ = weights_md()->data_type == s8;
 
             memory_desc_t a_md, b_md, c_md;
-            CHECK(init_2d_desc(&a_md, src_md()));
-            CHECK(init_2d_desc(&b_md, weights_md(), true));
-            CHECK(init_2d_desc(&c_md, dst_md()));
+            VDISPATCH_INNER_PRODUCT(init_2d_desc(&a_md, src_md()),
+                    VERBOSE_DESC_CREATION_FAIL, "2d memory");
+            VDISPATCH_INNER_PRODUCT(init_2d_desc(&b_md, weights_md(), true),
+                    VERBOSE_DESC_CREATION_FAIL, "2d memory");
+            VDISPATCH_INNER_PRODUCT(init_2d_desc(&c_md, dst_md()),
+                    VERBOSE_DESC_CREATION_FAIL, "2d memory");
             c_md.data_type = desc()->accum_data_type;
             bool gemm_ok = status::success
                     == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
                             &glob_zero_md, desc()->accum_data_type, &gemm_attr,
                             true);
-            if (!gemm_ok) return status::unimplemented;
+            VDISPATCH_INNER_PRODUCT(
+                    gemm_ok, VERBOSE_PRIMITIVE_CREATION_FAIL, "gemm");
 
-            status_t scratchpad_status = init_ip_scratchpad_md();
-            if (scratchpad_status != success) return scratchpad_status;
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_ip_scratchpad_md(), VERBOSE_SCRATCHPAD_INIT);
             init_scratchpad();
 
             return success;
