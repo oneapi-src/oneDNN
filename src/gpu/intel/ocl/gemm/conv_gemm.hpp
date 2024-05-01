@@ -43,11 +43,12 @@ struct conv_gemm_t : public gpu_gemm_t {
             // This is currently only used for experimentation purposes
             bool enable_conv_gemm
                     = gpu_utils::dev_getenv("enable_conv_gemm", false);
-            if (!enable_conv_gemm) return status::unimplemented;
+            VDISPATCH_GEMM(enable_conv_gemm, VERBOSE_UNSUPPORTED_DEVICE_FEATURE,
+                    "conv_gemm");
 
-            if (!attr()->has_default_values(
-                        primitive_attr_t::skip_mask_t::gpu_attr))
-                return status::unimplemented;
+            VDISPATCH_GEMM(attr()->has_default_values(
+                                   primitive_attr_t::skip_mask_t::gpu_attr),
+                    VERBOSE_UNSUPPORTED_ATTR);
 
             auto conv_desc = convolution_desc_t();
 
@@ -59,7 +60,8 @@ struct conv_gemm_t : public gpu_gemm_t {
             auto with_bias = gemm_bias_desc->format_kind != format_kind::undef;
 
             auto add_width = [&](memory_desc_t &desc) {
-                if (desc.ndims != 2) return status::unimplemented;
+                VDISPATCH_GEMM(
+                        desc.ndims == 2, VERBOSE_BAD_NDIMS, "desc", desc.ndims);
 
                 // Add width dimension with size 1
                 constexpr int width_idx = 2;
@@ -72,10 +74,11 @@ struct conv_gemm_t : public gpu_gemm_t {
                     auto &blk = desc.format_desc.blocking;
                     blk.strides[width_idx] = blk.strides[0];
                     return status::success;
-                } else if (desc.format_kind == format_kind::any)
-                    return status::success;
-                else
-                    return status::unimplemented;
+                } else {
+                    VDISPATCH_GEMM(desc.format_kind == format_kind::any,
+                            VERBOSE_UNSUPPORTED_FORMAT_KIND);
+                }
+                return status::success;
             };
 
             auto transpose = [&](memory_desc_t &desc, int i, int j) {
@@ -116,8 +119,11 @@ struct conv_gemm_t : public gpu_gemm_t {
                 // GEMM Bias has dimensions mxn with broadcasting semantics, but
                 // Conv bias only has 1 dimension along oc. This could likely be
                 // replaced with a binary add post-op for full support.
-                if (bias_desc.ndims != 2 || bias_desc.dims[0] != 1)
-                    return status::unimplemented;
+                VDISPATCH_GEMM(bias_desc.ndims == 2, VERBOSE_BAD_NDIMS, "bias",
+                        bias_desc.ndims);
+                VDISPATCH_GEMM(
+                        bias_desc.dims[0] == 1, VERBOSE_BAD_DIM, "bias", 0);
+
                 if (bias_desc.format_kind == format_kind::any) {
                     bias_desc.format_kind = format_kind::blocked;
                     auto &blk = bias_desc.format_desc.blocking;
@@ -139,10 +145,10 @@ struct conv_gemm_t : public gpu_gemm_t {
                     engine, (op_desc_t *)&conv_desc, attr(), nullptr);
 
             conv_pd = *(++it);
-            if (!conv_pd) return status::unimplemented;
-            if (strstr(conv_pd->name(), "jit:ir") == nullptr) {
-                return status::unimplemented;
-            }
+            VDISPATCH_GEMM(conv_pd, VERBOSE_PRIMITIVE_CREATION_FAIL, "conv");
+
+            VDISPATCH_GEMM(strstr(conv_pd->name(), "jit:ir") != nullptr,
+                    VERBOSE_NULL_ARG);
 
             desc_.a_desc = *conv_pd->src_md();
             if (use_spatial_m) transpose(desc_.a_desc, 0, 2);
