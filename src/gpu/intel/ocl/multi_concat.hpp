@@ -51,10 +51,11 @@ struct multi_concat_t : public gpu_primitive_t {
         }
 
         status_t init(engine_t *engine) {
-            bool ok = max_batch_size() != batch_failure
-                    && attr()->has_default_values()
-                    && set_default_params() == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONCAT(max_batch_size() != batch_failure,
+                    VERBOSE_SKIP_PRIMITIVE_IMPL);
+            VDISPATCH_CONCAT(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONCAT_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
 
             auto n_batches = utils::div_up(n_inputs(), max_batch_size());
             concat_pds_.resize(n_batches);
@@ -81,7 +82,8 @@ struct multi_concat_t : public gpu_primitive_t {
                 if (status != status::success) {
                     concat_pds_.clear();
                     dst_chunk_mds_.clear();
-                    return status;
+                    VDISPATCH_CONCAT(
+                            false, VERBOSE_DESC_CREATION_FAIL, "dst submemory");
                 }
                 status = concat_primitive_desc_create(concat_pds_[i], engine,
                         &dst_chunk_mds_[i], batch_size, concat_dim_,
@@ -89,7 +91,8 @@ struct multi_concat_t : public gpu_primitive_t {
                 if (status != status::success) {
                     concat_pds_.clear();
                     dst_chunk_mds_.clear();
-                    return status;
+                    VDISPATCH_CONCAT(
+                            false, VERBOSE_PRIMITIVE_CREATION_FAIL, "concat");
                 }
                 concat_dim_offset += batch_width;
             }
