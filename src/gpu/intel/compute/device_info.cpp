@@ -253,7 +253,7 @@ status_t device_info_t::init_attributes_common(engine_t *engine) {
     using namespace impl::sycl;
     if (engine->runtime_kind() == runtime_kind::sycl) {
         auto *sycl_engine = utils::downcast<const sycl_engine_base_t *>(engine);
-        ocl_backend = (sycl_engine->backend() == backend_t::opencl);
+        ocl_backend = (sycl_engine->backend() == hrt::sycl::backend_t::opencl);
     }
 #endif
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
+#include "gpu/intel/sycl/utils.hpp"
 #include "sycl/sycl_c_types_map.hpp"
 #include "sycl/sycl_memory_storage_base.hpp"
-#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,7 +37,7 @@ public:
     sycl_buffer_memory_storage_t(
             engine_t *engine, const memory_storage_t *parent_storage);
 
-    buffer_u8_t &buffer() const { return *buffer_; }
+    hrt::sycl::buffer_u8_t &buffer() const { return *buffer_; }
 
     memory_kind_t memory_kind() const override { return memory_kind::buffer; }
 
@@ -49,8 +49,8 @@ public:
     status_t set_data_handle(void *handle) override {
         if (!handle) return status::success;
 
-        auto *buf_u8_ptr = static_cast<buffer_u8_t *>(handle);
-        buffer_.reset(new buffer_u8_t(*buf_u8_ptr));
+        auto *buf_u8_ptr = static_cast<hrt::sycl::buffer_u8_t *>(handle);
+        buffer_.reset(new hrt::sycl::buffer_u8_t(*buf_u8_ptr));
         return status::success;
     }
 
@@ -78,9 +78,9 @@ protected:
     status_t init_allocate(size_t size) override;
 
 private:
-    buffer_u8_t &parent_buffer() const;
+    hrt::sycl::buffer_u8_t &parent_buffer() const;
 
-    std::shared_ptr<buffer_u8_t> buffer_;
+    std::shared_ptr<hrt::sycl::buffer_u8_t> buffer_;
     size_t base_offset_ = 0;
 };
 

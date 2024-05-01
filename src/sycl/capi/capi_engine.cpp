@@ -19,8 +19,8 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
+#include "hrt/sycl/utils.hpp"
 #include "sycl/sycl_engine.hpp"
-#include "sycl/sycl_utils.hpp"
 
 using dnnl::impl::engine_t;
 using dnnl::impl::status_t;
@@ -37,7 +37,7 @@ status_t dnnl_sycl_interop_engine_create(
     engine_kind_t kind;
     if (sycl_dev.is_gpu())
         kind = engine_kind::gpu;
-    else if (sycl_dev.is_cpu() || dnnl::impl::sycl::is_host(sycl_dev))
+    else if (sycl_dev.is_cpu() || dnnl::impl::hrt::sycl::is_host(sycl_dev))
         kind = engine_kind::cpu;
     else
         VERROR_ENGINE(
@@ -52,7 +52,7 @@ status_t dnnl_sycl_interop_engine_create(
     VERROR_ENGINE(ef, status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
 
     size_t index;
-    CHECK(dnnl::impl::sycl::get_sycl_device_index(&index, sycl_dev));
+    CHECK(dnnl::impl::hrt::sycl::get_device_index(&index, sycl_dev));
 
     return ef->engine_create(engine, sycl_dev, sycl_ctx, index);
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,8 +19,8 @@
 #include "common/utils.hpp"
 #include "hip/hip_runtime.h"
 
+#include "hrt/sycl/utils.hpp"
 #include "miopen/miopen.h"
-#include "sycl/sycl_utils.hpp"
 
 #include "gpu/amd/miopen_batch_normalization.hpp"
 #include "gpu/amd/miopen_binary.hpp"
@@ -136,7 +136,7 @@ rocblas_handle *sycl_hip_engine_t::get_rocblas_handle() {
 }
 
 device_id_t sycl_hip_engine_t::device_id() const {
-    return device_id_t(static_cast<int>(impl::sycl::backend_t::amd),
+    return device_id_t(static_cast<int>(hrt::sycl::backend_t::amd),
             static_cast<uint64_t>(compat::get_native<hipDevice_t>(device())),
             static_cast<uint64_t>(0));
 }

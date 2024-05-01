@@ -15,12 +15,12 @@
 *******************************************************************************/
 
 #include "sycl/sycl_device_info.hpp"
-#include "sycl/sycl_compat.hpp"
-#include "sycl/sycl_utils.hpp"
+#include "gpu/intel/sycl/utils.hpp"
 
 #include "gpu/intel/ocl/ocl_engine.hpp"
 #include "gpu/intel/ocl/ocl_gpu_hw_info.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/sycl/compat.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 
 #include "cpu/platform.hpp"
@@ -37,13 +37,13 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
     if (!device.is_gpu()) return status::success;
 
     // skip other vendors
-    if (!is_intel_device(device)) return status::success;
+    if (!hrt::sycl::is_intel_device(device)) return status::success;
 
-    backend_t be = get_sycl_backend(device);
-    if (be == backend_t::opencl) {
+    auto be = hrt::sycl::get_backend(device);
+    if (be == hrt::sycl::backend_t::opencl) {
         cl_int err = CL_SUCCESS;
 
-        auto ocl_dev = compat::get_native<cl_device_id>(device);
+        auto ocl_dev = hrt::sycl::compat::get_native<cl_device_id>(device);
         auto ocl_dev_wrapper = hrt::ocl::make_wrapper(ocl_dev);
 
         auto ocl_ctx_wrapper = hrt::ocl::make_wrapper(
@@ -53,7 +53,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
         gpu::intel::ocl::init_gpu_hw_info(engine, ocl_dev_wrapper,
                 ocl_ctx_wrapper, gpu_arch_, stepping_id_, native_extensions_,
                 mayiuse_systolic_, mayiuse_ngen_kernels_);
-    } else if (be == backend_t::level0) {
+    } else if (be == hrt::sycl::backend_t::level0) {
         // TODO: add support for L0 binary ngen check
         // XXX: query from ocl_engine for now
         gpu::intel::ocl::ocl_engine_factory_t f(engine_kind::gpu);
@@ -105,7 +105,7 @@ status_t sycl_device_info_t::init_extensions(engine_t *engine) {
 
     auto &device
             = utils::downcast<const sycl_engine_base_t *>(engine)->device();
-    extensions_ = compat::init_extensions(device);
+    extensions_ = gpu::intel::sycl::compat::init_extensions(device);
 
     // Handle future extensions, not yet supported by the DPC++ API
     extensions_
@@ -117,18 +117,20 @@ status_t sycl_device_info_t::init_extensions(engine_t *engine) {
 status_t sycl_device_info_t::init_attributes(engine_t *engine) {
     auto &device
             = utils::downcast<const sycl_engine_base_t *>(engine)->device();
-    if (device.is_gpu() && is_intel_device(device)) {
-        backend_t be = get_sycl_backend(device);
-        if (be == backend_t::opencl) {
+    if (device.is_gpu() && hrt::sycl::is_intel_device(device)) {
+        hrt::sycl::backend_t be = hrt::sycl::get_backend(device);
+        if (be == hrt::sycl::backend_t::opencl) {
             // XXX: OpenCL backend get_info() queries below are not yet
             // supported so query OpenCL directly.
-            cl_device_id ocl_dev = compat::get_native<cl_device_id>(device);
+            cl_device_id ocl_dev
+                    = hrt::sycl::compat::get_native<cl_device_id>(device);
             CHECK(gpu::intel::ocl::get_ocl_device_eu_count(
                     ocl_dev, gpu_arch_, &eu_count_));
         } else {
-            auto slices = device.get_info<compat::ext_intel_gpu_slices>();
+            auto slices = device.get_info<
+                    hrt::sycl::compat::ext_intel_gpu_slices>();
             auto sub_slices = device.get_info<
-                    compat::ext_intel_gpu_subslices_per_slice>();
+                    hrt::sycl::compat::ext_intel_gpu_subslices_per_slice>();
             auto eus_per_subslice = device.get_info<::sycl::info::device::
                             ext_intel_gpu_eu_count_per_subslice>();
             if (gpu_arch_ == gpu::intel::compute::gpu_arch_t::xe2)

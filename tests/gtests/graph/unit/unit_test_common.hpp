@@ -33,7 +33,7 @@
 #include "tests/gtests/dnnl_test_common.hpp"
 
 #ifdef DNNL_WITH_SYCL
-#include "sycl/sycl_compat.hpp"
+#include "gpu/intel/sycl/compat.hpp"
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>
 #elif __has_include(<CL/sycl.hpp>)

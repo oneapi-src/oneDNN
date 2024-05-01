@@ -16,8 +16,8 @@
 
 #include <type_traits>
 
+#include "gpu/intel/sycl/utils.hpp"
 #include "oneapi/dnnl/dnnl_config.h"
-#include "sycl/sycl_utils.hpp"
 
 #include "gpu/intel/sycl/l0/level_zero/ze_api.h"
 
@@ -33,12 +33,14 @@
 
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
+#include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/l0/utils.hpp"
-#include "sycl/sycl_compat.hpp"
 #include "sycl/sycl_engine_base.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
+namespace intel {
 namespace sycl {
 
 status_t func_zeKernelCreate(
@@ -48,42 +50,11 @@ namespace compat {
 
 using namespace gpu::intel::compute;
 
-namespace {
-template <typename sycl_object_t>
-void *get_native_impl(backend_t backend, const sycl_object_t &sycl_object) {
-    if (backend == backend_t::opencl) {
-        return ::sycl::get_native<::sycl::backend::opencl>(sycl_object);
-    } else if (backend == backend_t::level0) {
-        return ::sycl::get_native<::sycl::backend::ext_oneapi_level_zero>(
-                sycl_object);
-    } else {
-        assert(!"unexpected");
-        return nullptr;
-    }
-    return nullptr;
-}
-
-} // namespace
-
-void *get_native(const ::sycl::device &dev) {
-    auto backend = get_sycl_backend(dev);
-    return get_native_impl(backend, dev);
-}
-
-void *get_native(const ::sycl::context &ctx) {
-    auto devices = ctx.get_devices();
-    assert(!devices.empty());
-    if (devices.empty()) return nullptr;
-    // backend is expected to be the same for all devices in a context.
-    auto backend = get_sycl_backend(devices[0]);
-    return get_native_impl(backend, ctx);
-}
-
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const sycl_engine_base_t *sycl_engine, const hrt::binary_t &binary,
-        const char *kernel_name) {
-    auto backend = get_sycl_backend(sycl_engine->device());
-    if (backend == backend_t::opencl) {
+        const impl::sycl::sycl_engine_base_t *sycl_engine,
+        const hrt::binary_t &binary, const char *kernel_name) {
+    auto backend = hrt::sycl::get_backend(sycl_engine->device());
+    if (backend == hrt::sycl::backend_t::opencl) {
         hrt::ocl::wrapper_t<cl_program> ocl_program;
         CHECK(hrt::ocl::create_program(ocl_program, sycl_engine->ocl_device(),
                 sycl_engine->ocl_context(), binary));
@@ -93,7 +64,7 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         sycl_kernel = utils::make_unique<::sycl::kernel>(
                 ::sycl::make_kernel<::sycl::backend::opencl>(
                         ocl_kernel, sycl_engine->context()));
-    } else if (backend == backend_t::level0) {
+    } else if (backend == hrt::sycl::backend_t::level0) {
         CHECK(sycl_create_kernel_with_level_zero(
                 sycl_kernel, kernel_name, sycl_engine, binary));
     } else {
@@ -160,5 +131,7 @@ uint64_t init_extensions(const ::sycl::device &dev) {
 
 } // namespace compat
 } // namespace sycl
+} // namespace intel
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl

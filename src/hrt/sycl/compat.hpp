@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,22 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_SYCL_COMPAT_HPP
-#define SYCL_SYCL_COMPAT_HPP
+#ifndef COMMON_HRT_SYCL_COMPAT_HPP
+#define COMMON_HRT_SYCL_COMPAT_HPP
 
-#include "sycl/sycl_utils.hpp"
+// This file contains a common SYCL compatibility layer. All vendor specific
+// SYCL code that requires compatbility must reside in the vendor directories.
+
+#include "hrt/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace hrt {
 namespace sycl {
-
-class sycl_engine_base_t;
-
 namespace compat {
-
-status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const sycl_engine_base_t *sycl_engine, const hrt::binary_t &binary,
-        const char *kernel_name);
 
 void *get_native(const ::sycl::device &dev);
 void *get_native(const ::sycl::context &ctx);
@@ -58,8 +55,6 @@ inline void host_task(H &cgh, F &&f) {
     // host_task option if both are available.
     host_task_impl(cgh, f, 0);
 }
-
-uint64_t init_extensions(const ::sycl::device &dev);
 
 constexpr auto target_device = ::sycl::target::device;
 
@@ -95,6 +90,7 @@ inline const auto &gpu_selector_v = ::sycl::gpu_selector_v;
 
 } // namespace compat
 } // namespace sycl
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl
 

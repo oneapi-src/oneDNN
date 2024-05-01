@@ -14,178 +14,42 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "sycl/sycl_utils.hpp"
+#include "gpu/intel/sycl/utils.hpp"
 #include "gpu/intel/ocl/ocl_engine.hpp"
-#include "sycl/sycl_compat.hpp"
+#include "gpu/intel/sycl/compat.hpp"
 #include "sycl/sycl_engine_base.hpp"
 
 #include "gpu/intel/sycl/l0/utils.hpp"
+#include "hrt/ocl/utils.hpp"
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
-#ifdef DNNL_SYCL_CUDA
-// Do not include sycl_cuda_utils.hpp because it's intended for use in
-// gpu/nvidia directory only.
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace nvidia {
-bool compare_cuda_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
-}
-} // namespace gpu
-} // namespace impl
-} // namespace dnnl
-#endif
-
-#ifdef DNNL_SYCL_HIP
-// Do not include sycl_cuda_utils.hpp because it's intended for use in
-// gpu/amd directory only.
-namespace dnnl {
-namespace impl {
-namespace gpu {
-namespace amd {
-bool compare_hip_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
-}
-} // namespace gpu
-} // namespace impl
-} // namespace dnnl
-#endif
-namespace dnnl {
-namespace impl {
+namespace intel {
 namespace sycl {
 
-backend_t get_sycl_gpu_backend() {
-    // Create default GPU device and query its backend (assumed as default)
-    static backend_t default_backend = []() {
-        const backend_t fallback = backend_t::opencl;
+::sycl::nd_range<3> to_sycl_nd_range(
+        const gpu::intel::compute::nd_range_t &range) {
+    const auto &local_range = range.local_range();
+    const auto &global_range = range.global_range();
 
-        const auto gpu_type = ::sycl::info::device_type::gpu;
-        if (::sycl::device::get_devices(gpu_type).empty()) return fallback;
+    assert(range.ndims() <= 3);
+    auto sycl_global_range = ::sycl::range<3>(
+            global_range.ndims() >= 3 ? global_range[2] : 1,
+            global_range.ndims() >= 2 ? global_range[1] : 1, global_range[0]);
 
-        ::sycl::device dev {compat::gpu_selector_v};
-        backend_t backend = get_sycl_backend(dev);
-
-        return backend;
-    }();
-
-    return default_backend;
-}
-
-bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs) {
-    auto lhs_be = get_sycl_backend(lhs);
-    auto rhs_be = get_sycl_backend(rhs);
-    if (lhs_be != rhs_be) return false;
-
-    // Only one host device exists.
-    if (lhs_be == backend_t::host) return true;
-
-    if (lhs_be == backend_t::opencl) {
-        // Use wrapper objects to avoid memory leak.
-        auto lhs_ocl_handle = compat::get_native<cl_device_id>(lhs);
-        auto rhs_ocl_handle = compat::get_native<cl_device_id>(rhs);
-        return lhs_ocl_handle == rhs_ocl_handle;
+    if (!local_range) {
+        assert(!"not expected");
+        return ::sycl::nd_range<3>(
+                sycl_global_range, ::sycl::range<3>(1, 1, 1));
     }
 
-    if (lhs_be == backend_t::level0) {
-        return gpu::intel::sycl::compare_ze_devices(lhs, rhs);
-    }
-
-#ifdef DNNL_SYCL_CUDA
-    if (lhs_be == backend_t::nvidia) {
-        return gpu::nvidia::compare_cuda_devices(lhs, rhs);
-    }
-#endif
-
-#ifdef DNNL_SYCL_HIP
-    if (lhs_be == backend_t::amd) {
-        return gpu::amd::compare_hip_devices(lhs, rhs);
-    }
-#endif
-    assert(!"not expected");
-    return false;
-}
-
-device_id_t sycl_device_id(const ::sycl::device &dev) {
-    if (is_host(dev))
-        return std::make_tuple(static_cast<int>(backend_t::host), 0, 0);
-
-    device_id_t device_id
-            = device_id_t {static_cast<int>(backend_t::unknown), 0, 0};
-    switch (get_sycl_backend(dev)) {
-        case backend_t::opencl: {
-            auto ocl_device = hrt::ocl::make_wrapper(
-                    compat::get_native<cl_device_id>(dev));
-            device_id = std::make_tuple(static_cast<int>(backend_t::opencl),
-                    reinterpret_cast<uint64_t>(ocl_device.get()), 0);
-            break;
-        }
-        case backend_t::level0: {
-            device_id = std::tuple_cat(
-                    std::make_tuple(static_cast<int>(backend_t::level0)),
-                    gpu::intel::sycl::get_device_uuid(dev));
-            break;
-        }
-        case backend_t::unknown: assert(!"unknown backend"); break;
-        default: assert(!"unreachable");
-    }
-    assert(std::get<0>(device_id) != static_cast<int>(backend_t::unknown));
-    return device_id;
-}
-
-bool dev_ctx_consistency_check(
-        const ::sycl::device &dev, const ::sycl::context &ctx) {
-    auto ctx_devs = ctx.get_devices();
-
-    // Try to find the given device in the given context.
-    auto it = std::find_if(ctx_devs.begin(), ctx_devs.end(),
-            [&](const ::sycl::device &ctx_dev) {
-                return are_equal(ctx_dev, dev);
-            });
-    // If found.
-    if (it != ctx_devs.end()) return true;
-
-    // If not found and the given device is not a sub-device.
-    if (!is_subdevice(dev)) return false;
-
-    // Try to find a parent device of the given sub-device in the given
-    // context.
-    while (is_subdevice(dev)) {
-        auto parent_dev = get_parent_device(dev);
-        it = std::find_if(ctx_devs.begin(), ctx_devs.end(),
-                [&](const ::sycl::device &ctx_dev) {
-                    return are_equal(ctx_dev, parent_dev);
-                });
-        // If found.
-        if (it != ctx_devs.end()) return true;
-    }
-
-    return false;
-}
-
-status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
-        const ::sycl::context &ctx) {
-    // Check device and context consistency.
-    VERROR_ENGINE(dev_ctx_consistency_check(dev, ctx),
-            status::invalid_arguments, VERBOSE_DEVICE_CTX_MISMATCH);
-
-    // Check engine kind and device consistency.
-    VERROR_ENGINE(
-            !(eng_kind == engine_kind::cpu && !dev.is_cpu() && !is_host(dev)),
-            status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
-    VERROR_ENGINE(!(eng_kind == engine_kind::gpu && !dev.is_gpu()),
-            status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
-
-#if !defined(DNNL_SYCL_CUDA) && !defined(DNNL_SYCL_HIP)
-    // Check that platform is an Intel platform.
-    VERROR_ENGINE(!(!is_host(dev) && !is_intel_platform(dev.get_platform())),
-            status::invalid_arguments, VERBOSE_INVALID_PLATFORM, "sycl",
-            "intel",
-            dev.get_platform()
-                    .get_info<::sycl::info::platform::name>()
-                    .c_str());
-#endif
-    return status::success;
+    auto sycl_local_range = ::sycl::range<3>(
+            local_range.ndims() >= 3 ? local_range[2] : 1,
+            local_range.ndims() >= 2 ? local_range[1] : 1, local_range[0]);
+    return ::sycl::nd_range<3>(sycl_global_range, sycl_local_range);
 }
 
 struct uuid2ocl_dev_t {
@@ -230,8 +94,8 @@ status_t sycl_dev2ocl_dev(cl_device_id *ocl_dev, const ::sycl::device &dev) {
 #error "cl_khr_device_uuid is required"
 #endif
     using namespace gpu::intel::compute;
-    assert(get_sycl_backend(dev) == backend_t::level0);
-    if (get_sycl_backend(dev) != backend_t::level0)
+    assert(hrt::sycl::get_backend(dev) == hrt::sycl::backend_t::level0);
+    if (hrt::sycl::get_backend(dev) != hrt::sycl::backend_t::level0)
         return status::runtime_error;
 
     static const uuid2ocl_dev_t uuid2ocl_dev = []() {
@@ -284,21 +148,22 @@ static status_t create_ocl_engine(
         const ::sycl::device &sycl_dev,
         const ::sycl::context *sycl_ctx = nullptr) {
     gpu::intel::ocl::ocl_engine_factory_t f(engine_kind::gpu);
-    const auto backend = get_sycl_backend(sycl_dev);
+    const auto backend = hrt::sycl::get_backend(sycl_dev);
 
     // The SYCL context is always provided for OpenCL backend.
-    if (backend == backend_t::opencl && !sycl_ctx) return status::runtime_error;
+    if (backend == hrt::sycl::backend_t::opencl && !sycl_ctx)
+        return status::runtime_error;
     hrt::ocl::wrapper_t<cl_device_id> ocl_dev;
     hrt::ocl::wrapper_t<cl_context> ocl_ctx;
 
     switch (backend) {
-        case backend_t::opencl:
+        case hrt::sycl::backend_t::opencl:
             ocl_dev = hrt::ocl::make_wrapper(
-                    compat::get_native<cl_device_id>(sycl_dev));
+                    hrt::sycl::compat::get_native<cl_device_id>(sycl_dev));
             ocl_ctx = hrt::ocl::make_wrapper(
-                    compat::get_native<cl_context>(*sycl_ctx));
+                    hrt::sycl::compat::get_native<cl_context>(*sycl_ctx));
             break;
-        case backend_t::level0: {
+        case hrt::sycl::backend_t::level0: {
             cl_device_id d {nullptr};
             CHECK(sycl_dev2ocl_dev(&d, sycl_dev));
             ocl_dev = hrt::ocl::make_wrapper(d, true);
@@ -323,7 +188,7 @@ static status_t create_ocl_engine(
 status_t create_ocl_engine(
         std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
                 *ocl_engine,
-        const sycl_engine_base_t *engine) {
+        const impl::sycl::sycl_engine_base_t *engine) {
     const auto sycl_ctx = engine->context();
     return create_ocl_engine(ocl_engine, engine->device(), &sycl_ctx);
 }
@@ -332,8 +197,8 @@ status_t get_kernel_binary(
         const ::sycl::kernel &kernel, hrt::binary_t &binary) {
     auto devs = kernel.get_context().get_devices();
     assert(!devs.empty());
-    switch (get_sycl_backend(devs[0])) {
-        case backend_t::level0: {
+    switch (hrt::sycl::get_backend(devs[0])) {
+        case hrt::sycl::backend_t::level0: {
             auto bundle = kernel.get_kernel_bundle();
             auto module_vec = ::sycl::get_native<
                     ::sycl::backend::ext_oneapi_level_zero>(bundle);
@@ -366,7 +231,7 @@ status_t get_kernel_binary(
             }
             return status::success;
         }
-        case backend_t::opencl: {
+        case hrt::sycl::backend_t::opencl: {
             auto ocl_kernel
                     = ::sycl::get_native<::sycl::backend::opencl>(kernel);
             CHECK(gpu::intel::ocl::get_ocl_kernel_binary(ocl_kernel, binary));
@@ -377,5 +242,7 @@ status_t get_kernel_binary(
 }
 
 } // namespace sycl
+} // namespace intel
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl

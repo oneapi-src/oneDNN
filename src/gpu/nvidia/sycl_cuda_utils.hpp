@@ -30,7 +30,7 @@
 #include "common/primitive_attr.hpp"
 #include "common/z_magic.hpp"
 
-#include "sycl/sycl_utils.hpp"
+#include "hrt/sycl/utils.hpp"
 
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
 
@@ -325,7 +325,7 @@ template <typename T>
     auto event = q.submit([&, src](::sycl::handler &cgh) {
         // Retrieve a  write accessor to a global buffer
         auto acc = dst.template get_access<::sycl::access::mode::write,
-                impl::sycl::compat::target_device>(cgh);
+                hrt::sycl::compat::target_device>(cgh);
         // Copy from the input pointer into the buffer associated with the
         // accessor
         cgh.copy(src, acc);
@@ -339,7 +339,7 @@ template <typename T>
     auto event = q.submit([&, dst](::sycl::handler &cgh) {
         // Retrieve a read accessor to a global buffer
         auto acc = src.template get_access<::sycl::access::mode::read,
-                impl::sycl::compat::target_device>(cgh);
+                hrt::sycl::compat::target_device>(cgh);
         // Copy from the buffer associated with the accessor into the output
         // pointer
         cgh.copy(acc, dst);

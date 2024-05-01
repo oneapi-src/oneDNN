@@ -92,12 +92,13 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
         storage->buffer_ = buffer_;
     } else {
         gpu_assert(IMPLICATION(
-                is_intel_device(
+                hrt::sycl::is_intel_device(
                         utils::downcast<const sycl_engine_base_t *>(engine())
                                 ->device()),
                 offset % gpu::intel::ocl::OCL_BUFFER_ALIGNMENT == 0));
-        buffer_u8_t *sub_buffer = buffer_
-                ? new buffer_u8_t(parent_buffer(), base_offset_ + offset, size)
+        hrt::sycl::buffer_u8_t *sub_buffer = buffer_
+                ? new hrt::sycl::buffer_u8_t(
+                        parent_buffer(), base_offset_ + offset, size)
                 : nullptr;
         storage->buffer_.reset(sub_buffer);
         storage->base_offset_ = base_offset_ + offset;
@@ -126,12 +127,12 @@ status_t sycl_buffer_memory_storage_t::init_allocate(size_t size) {
         return status::out_of_memory;
     }
 
-    buffer_ = std::make_shared<buffer_u8_t>(::sycl::range<1>(size));
+    buffer_ = std::make_shared<hrt::sycl::buffer_u8_t>(::sycl::range<1>(size));
     if (!buffer_) return status::out_of_memory;
     return status::success;
 }
 
-buffer_u8_t &sycl_buffer_memory_storage_t::parent_buffer() const {
+hrt::sycl::buffer_u8_t &sycl_buffer_memory_storage_t::parent_buffer() const {
     return utils::downcast<const sycl_buffer_memory_storage_t *>(
             parent_storage())
             ->buffer();

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,17 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_LEVEL_ZERO_UTILS_HPP
-#define SYCL_LEVEL_ZERO_UTILS_HPP
+#ifndef GPU_INTEL_SYCL_UTILS_HPP
+#define GPU_INTEL_SYCL_UTILS_HPP
 
-#include <memory>
-#include <string>
-#include <vector>
+#include "gpu/intel/compute/utils.hpp"
+#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
+#include "hrt/sycl/utils.hpp"
 
-#include "gpu/intel/compute/kernel.hpp"
-#include "gpu/intel/sycl/compat.hpp"
-
-// including sycl_engine_base.hpp leads to circular dependencies, w/a for now.
 namespace dnnl {
 namespace impl {
 namespace sycl {
@@ -39,18 +35,20 @@ namespace gpu {
 namespace intel {
 namespace sycl {
 
-hrt::device_uuid_t get_device_uuid(const ::sycl::device &dev);
+::sycl::nd_range<3> to_sycl_nd_range(
+        const gpu::intel::compute::nd_range_t &range);
 
-status_t sycl_create_kernel_with_level_zero(
-        std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name,
-        const impl::sycl::sycl_engine_base_t *sycl_engine,
-        const hrt::binary_t &binary);
+status_t create_ocl_engine(
+        std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                *ocl_engine,
+        const impl::sycl::sycl_engine_base_t *engine);
 
-bool compare_ze_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
+status_t get_kernel_binary(const ::sycl::kernel &kernel, hrt::binary_t &binary);
 
-status_t func_zeModuleGetNativeBinary(ze_module_handle_t hModule, size_t *pSize,
-        uint8_t *pModuleNativeBinary);
+status_t create_ocl_engine(
+        std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                *ocl_engine,
+        const impl::sycl::sycl_engine_base_t *engine);
 
 } // namespace sycl
 } // namespace intel
@@ -58,4 +56,4 @@ status_t func_zeModuleGetNativeBinary(ze_module_handle_t hModule, size_t *pSize,
 } // namespace impl
 } // namespace dnnl
 
-#endif // SYCL_LEVEL_ZERO_UTILS_HPP
+#endif

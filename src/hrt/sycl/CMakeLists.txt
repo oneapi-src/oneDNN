@@ -14,22 +14,14 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB SOURCES
+file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-if(DNNL_WITH_SYCL)
-    add_subdirectory(sycl)
-endif()
-
-# TODO: When the dependency of nvidia and amd on intel vendor is removed the
-# `ocl` directory will have to be added only for the intel vendor.
-add_subdirectory(ocl)
-
-set(OBJ_LIB ${LIB_PACKAGE_NAME}_hrt)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_hrt_sycl)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)

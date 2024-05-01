@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,23 +14,41 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_STREAM_SUBMIT_CPU_DISPATCH_HPP
-#define SYCL_STREAM_SUBMIT_CPU_DISPATCH_HPP
+#ifndef GPU_INTEL_SYCL_COMPAT_HPP
+#define GPU_INTEL_SYCL_COMPAT_HPP
 
-#include "common/c_types_map.hpp"
-#include "hrt/sycl/utils.hpp"
-#include "sycl/sycl_stream_cpu_thunk.hpp"
+#include "hrt/sycl/compat.hpp"
 
-#include <vector>
+#include "gpu/intel/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
-void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
-        const exec_ctx_t &exec_ctx, ::sycl::handler &cgh);
+class sycl_engine_base_t;
 
+}
+} // namespace impl
+} // namespace dnnl
+
+namespace dnnl {
+namespace impl {
+namespace gpu {
+namespace intel {
+namespace sycl {
+
+namespace compat {
+
+status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
+        const impl::sycl::sycl_engine_base_t *sycl_engine,
+        const hrt::binary_t &binary, const char *kernel_name);
+
+uint64_t init_extensions(const ::sycl::device &dev);
+
+} // namespace compat
 } // namespace sycl
+} // namespace intel
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
