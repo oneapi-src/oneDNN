@@ -406,6 +406,7 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
                                     broadcasting_strategy_t::per_mb_w,
                                     broadcasting_strategy_t::per_w,
                                     broadcasting_strategy_t::batch,
+                                    broadcasting_strategy_t::spatial,
                                     broadcasting_strategy_t::no_broadcast})))
         return status::unimplemented;
 

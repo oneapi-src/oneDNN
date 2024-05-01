@@ -62,7 +62,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                             broadcasting_strategy_t::per_mb_spatial,
                             broadcasting_strategy_t::per_mb_w,
                             broadcasting_strategy_t::per_w,
-                            broadcasting_strategy_t::batch,
+                            broadcasting_strategy_t::spatial,
                             broadcasting_strategy_t::no_broadcast};
             const binary_injector::rhs_arg_static_params_t rhs_sp {
                     static_cast<size_t>(Xbyak::Zmm(1).getIdx()), this->r14,
@@ -84,7 +84,8 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
             std::tie(with_binary_per_oc_bcast_, with_binary_per_oc_sp_bcast_,
                     with_binary_per_mb_bcast_, with_binary_channel_bcast_,
                     with_binary_per_mb_w_bcast_, with_binary_per_w_bcast_,
-                    with_binary_batch_bcast_, with_binary_no_bcast_)
+                    with_binary_batch_bcast_, with_binary_spatial_bcast_,
+                    with_binary_no_bcast_)
                     = bcast_strategies_present_tup(brg.attr()->post_ops_.entry_,
                             dst_md_wrapper, broadcasting_strategy_t::per_oc,
                             broadcasting_strategy_t::per_oc_spatial,
@@ -93,12 +94,13 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                             broadcasting_strategy_t::per_mb_w,
                             broadcasting_strategy_t::per_w,
                             broadcasting_strategy_t::batch,
+                            broadcasting_strategy_t::spatial,
                             broadcasting_strategy_t::no_broadcast);
             handle_binary_po_offset_ = with_binary_per_oc_bcast_
                     || with_binary_per_oc_sp_bcast_ || with_binary_per_mb_bcast_
                     || with_binary_channel_bcast_ || with_binary_per_mb_w_bcast_
                     || with_binary_per_w_bcast_ || with_binary_batch_bcast_
-                    || with_binary_no_bcast_;
+                    || with_binary_spatial_bcast_ || with_binary_no_bcast_;
         }
         if (brg.is_fp8_via_convert()
                 && one_of(data_type::f8_e5m2, brg.dt_a, brg.dt_b, brg.dt_d))
@@ -190,6 +192,7 @@ private:
     bool with_binary_per_mb_w_bcast_ = false;
     bool with_binary_per_w_bcast_ = false;
     bool with_binary_batch_bcast_ = false;
+    bool with_binary_spatial_bcast_ = false;
     bool with_binary_no_bcast_ = false;
     bool prepare_post_ops_registers_once_ = false;
 

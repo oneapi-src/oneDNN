@@ -325,7 +325,7 @@ TEST(test_mqa_decomp_execute, F32MqaCorr_CPU) {
 
     ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
             /*rtol*/ 0.01f,
-            /*atol*/ 1.f));
+            /*atol*/ 1e-6f));
 }
 
 // Test correctness
@@ -413,5 +413,5 @@ TEST(test_mqa_decomp_execute, Bf16MqaCorr_CPU) {
 
     ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
             /*rtol*/ 0.01f,
-            /*atol*/ 1.f));
+            /*atol*/ 1e-6f));
 }

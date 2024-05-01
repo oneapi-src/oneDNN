@@ -653,7 +653,7 @@ TEST(test_sdp_decomp_execute, F32SdpCorr_CPU) {
 
             ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
                     /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+                    /*atol*/ 1e-6f));
         }
     }
 }
@@ -769,7 +769,7 @@ TEST(test_sdp_decomp_execute, F32DistilBertSdpCorr_CPU) {
 
         ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
                 /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
+                /*atol*/ 1e-6f));
     }
 }
 
@@ -787,7 +787,7 @@ TEST(test_sdp_decomp_execute, Bf16SdpCorr_CPU) {
             "Skip bf16 tests for systems that do not support avx512_core.");
 
     size_t ndims = 4;
-    int batch_size = 56, seq_len = 2, num_head = 2, head_dim = 64,
+    int batch_size = 56, seq_len = 2, num_head = 16, head_dim = 64,
         size_per_head = head_dim / num_head;
     //query,value format tag: acbd, abcd
     std::vector<dims> QUERY_VALUE_STRIDES = {
@@ -894,7 +894,7 @@ TEST(test_sdp_decomp_execute, Bf16SdpCorr_CPU) {
 
             ASSERT_TRUE(allclose<bfloat16_t>(outputs1_ts[0], outputs2_ts[0],
                     /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+                    /*atol*/ 1e-6f));
         }
     }
 }
@@ -1015,7 +1015,7 @@ TEST(test_sdp_decomp_execute, Bf16DistilBertSdpCorr_CPU) {
 
         ASSERT_TRUE(allclose<bfloat16_t>(outputs1_ts[0], outputs2_ts[0],
                 /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
+                /*atol*/ 1e-6f));
     }
 }
 
@@ -1029,7 +1029,7 @@ TEST(test_sdp_decomp_execute, Int8SdpCorr_CPU) {
             "Skip for GPU - not supported yet.");
 
     size_t ndims = 4;
-    int batch_size = 56, seq_len = 2, num_head = 2, head_dim = 64,
+    int batch_size = 56, seq_len = 2, num_head = 16, head_dim = 64,
         size_per_head = head_dim / num_head;
 
     //query,value format tag: acbd, abcd
@@ -1124,7 +1124,7 @@ TEST(test_sdp_decomp_execute, Int8SdpCorr_CPU) {
 
             ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs2_ts[0],
                     /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+                    /*atol*/ 1e-6f));
         }
     }
 }
@@ -1144,7 +1144,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr_CPU) {
             "Skip bf16 tests for systems that do not support avx512_core.");
 
     size_t ndims = 4;
-    int batch_size = 56, seq_len = 2, num_head = 2, head_dim = 64,
+    int batch_size = 56, seq_len = 2, num_head = 16, head_dim = 64,
         size_per_head = head_dim / num_head;
 
     //query,value format tag: acbd, abcd
@@ -1239,7 +1239,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr_CPU) {
 
             ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs2_ts[0],
                     /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+                    /*atol*/ 1e-6f));
         }
     }
 }
@@ -1346,7 +1346,7 @@ TEST(test_sdp_decomp_execute, Int8DistilBertSdpCorr_CPU) {
 
         ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs2_ts[0],
                 /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
+                /*atol*/ 1e-6f));
     }
 }
 
@@ -1458,7 +1458,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16DistilBertSdpCorr_CPU) {
 
         ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs2_ts[0],
                 /*rtol*/ 0.01f,
-                /*atol*/ 1.f));
+                /*atol*/ 1e-6f));
     }
 }
 
@@ -1475,7 +1475,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecompCorr_CPU) {
             "Skip bf16 tests for systems that do not support avx512_core.");
 
     size_t ndims = 4;
-    int batch_size = 56, seq_len = 2, num_head = 2, head_dim = 64,
+    int batch_size = 56, seq_len = 2, num_head = 16, head_dim = 64,
         size_per_head = head_dim / num_head;
 
     //query,value format tag: acbd, abcd
@@ -1566,7 +1566,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecompCorr_CPU) {
                         graph::status::success);
             ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs_ts[0],
                     /*rtol*/ 0.01f,
-                    /*atol*/ 1.f));
+                    /*atol*/ 1e-6f));
         };
 
         std::thread t1(func);
