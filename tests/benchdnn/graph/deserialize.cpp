@@ -456,6 +456,28 @@ const deserialized_op &deserialized_graph::get_op(size_t id) const {
     return dummy;
 }
 
+const deserialized_op &deserialized_graph::get_op_by_out_lt(
+        size_t out_lt_id) const {
+    for_(const auto &op : ops_)
+    for (const auto &out_lt : op.out_lts_) {
+        if (out_lt.id_ == out_lt_id) return op;
+    }
+
+    static deserialized_op dummy;
+    return dummy;
+}
+
+const deserialized_op &deserialized_graph::get_op_by_in_lt(
+        size_t in_lt_id) const {
+    for_(const auto &op : ops_)
+    for (const auto &in_lt : op.in_lts_) {
+        if (in_lt.id_ == in_lt_id) return op;
+    }
+
+    static deserialized_op dummy;
+    return dummy;
+}
+
 bool deserialized_graph::check_tensor_with_mb(size_t tensor_id) const {
     if (in_lt_2_ops_.find(tensor_id) == in_lt_2_ops_.end()) return true;
 

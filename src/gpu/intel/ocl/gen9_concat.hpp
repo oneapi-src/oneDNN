@@ -48,13 +48,17 @@ struct gen9_concat_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
 
             using sm = primitive_attr_t::skip_mask_t;
-            bool ok = n_inputs() <= 16
-                    && attr()->has_default_values(sm::scales_runtime)
-                    && set_default_params() == status::success
-                    && !memory_desc_ndims_ok(dst_md());
-            if (!ok) return status::unimplemented;
 
-            return init_conf(engine);
+            VDISPATCH_CONCAT(n_inputs() <= 16, VERBOSE_BAD_PARAM, "n_inputs");
+            VDISPATCH_CONCAT(attr()->has_default_values(sm::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONCAT_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONCAT(!memory_desc_ndims_ok(dst_md()), VERBOSE_BAD_NDIMS,
+                    "dst", dst_md()->ndims);
+
+            VDISPATCH_CONCAT_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "concat");
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);

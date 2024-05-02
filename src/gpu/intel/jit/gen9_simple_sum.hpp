@@ -36,23 +36,25 @@ struct gen9_simple_sum_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            if (!compute_engine->mayiuse_ngen_kernels())
-                return status::unimplemented;
+            VDISPATCH_SUM(compute_engine->mayiuse_ngen_kernels(),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "ngen_kernels");
 
             const int n = n_inputs();
 
             constexpr auto data_type = data_type::f32;
 
-            bool ok = gpu_sum_pd_t::init(engine) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM_SC(gpu_sum_pd_t::init(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "sum");
 
             const memory_desc_wrapper o_d(dst_md());
-            ok = ok && o_d.data_type() == data_type && o_d.is_dense();
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM(o_d.data_type() == data_type,
+                    VERBOSE_INVALID_DATATYPE, "o_d");
+            VDISPATCH_SUM(o_d.is_dense(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
 
             for (int i = 0; i < n; ++i) {
                 const memory_desc_wrapper i_d(src_md(i));
-                if (i_d != o_d) return status::unimplemented;
+                VDISPATCH_SUM(
+                        i_d == o_d, VERBOSE_INCONSISTENT_MDS, "i_d", "o_d");
             }
 
             return status::success;

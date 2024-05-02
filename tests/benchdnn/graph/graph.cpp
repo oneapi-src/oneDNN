@@ -405,6 +405,8 @@ void skip_unimplemented_ops(const dnnl::graph::partition &partition,
                     return dg_op_kind == kind;
                 });
         if (has_unimplemented_op) {
+            BENCHDNN_PRINT(
+                    2, "[INFO]: Unimplemented op: %s.\n", dg_op_kind.c_str());
             res->state = SKIPPED;
             res->reason = CASE_NOT_SUPPORTED;
             return;
@@ -652,6 +654,7 @@ int doit(const prb_t *prb, res_t *res) {
         input_ts_all.emplace_back(input_ts);
         output_ts_all.emplace_back(output_ts);
 
+        BENCHDNN_PRINT(3, "[INFO]: Start execution of partition #%zd.\n", i);
         c_partitions[i - idx_offset].execute(strm, input_ts, output_ts);
         strm.wait();
 

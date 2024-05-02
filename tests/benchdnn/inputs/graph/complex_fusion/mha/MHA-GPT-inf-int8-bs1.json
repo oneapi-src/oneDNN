@@ -1,0 +1,1201 @@
+{
+  "version": "3.2.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "input_ports": [
+    5,
+    4,
+    3,
+    17,
+    2,
+    1,
+    0
+  ],
+  "output_ports": [
+    55
+  ],
+  "graph": [
+    {
+      "id": 22707966976,
+      "name": "aten::dequantize",
+      "kind": "Dequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            127
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            0.111737
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 5,
+          "dtype": "u8",
+          "shape": [
+            1,
+            16,
+            32,
+            256
+          ],
+          "stride": [
+            131072,
+            8192,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            32,
+            256
+          ],
+          "stride": [
+            131072,
+            8192,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707954624,
+      "name": "aten::to",
+      "kind": "TypeCast",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 6,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            32,
+            256
+          ],
+          "stride": [
+            131072,
+            8192,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 10,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            256
+          ],
+          "stride": [
+            131072,
+            8192,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707954944,
+      "name": "aten::dequantize",
+      "kind": "Dequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            132
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            0.197757
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 4,
+          "dtype": "u8",
+          "shape": [
+            1,
+            16,
+            256,
+            33
+          ],
+          "stride": [
+            135168,
+            8448,
+            1,
+            256
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 11,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            256,
+            33
+          ],
+          "stride": [
+            135168,
+            8448,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707957504,
+      "name": "aten::to",
+      "kind": "TypeCast",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 11,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            256,
+            33
+          ],
+          "stride": [
+            135168,
+            8448,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 15,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            256,
+            33
+          ],
+          "stride": [
+            135168,
+            8448,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707958144,
+      "name": "aten::matmul",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 10,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            256
+          ],
+          "stride": [
+            131072,
+            8192,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 15,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            256,
+            33
+          ],
+          "stride": [
+            135168,
+            8448,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 16,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707961024,
+      "name": "aten::where",
+      "kind": "Select",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 3,
+          "dtype": "boolean",
+          "shape": [
+            1,
+            1,
+            32,
+            33
+          ],
+          "stride": [
+            1056,
+            1,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 16,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 17,
+          "dtype": "bf16",
+          "shape": [],
+          "stride": [],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 18,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707296832,
+      "name": "aten::div",
+      "kind": "Divide",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 18,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 2,
+          "dtype": "bf16",
+          "shape": [],
+          "stride": [],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 19,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707292032,
+      "name": "aten::add",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 19,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 1,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            1,
+            1,
+            33
+          ],
+          "stride": [
+            33,
+            33,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 21,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707930048,
+      "name": "aten::softmax",
+      "kind": "SoftMax",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 3
+        }
+      },
+      "inputs": [
+        {
+          "id": 21,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 24,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707932928,
+      "name": "aten::to",
+      "kind": "TypeCast",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 24,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 28,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707271616,
+      "name": "aten::quantize_per_tensor",
+      "kind": "Quantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            0.00392157
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 28,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 32,
+          "dtype": "u8",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707921536,
+      "name": "aten::dequantize",
+      "kind": "Dequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            0
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            0.00392157
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 32,
+          "dtype": "u8",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 33,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707925056,
+      "name": "aten::to",
+      "kind": "TypeCast",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 33,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 37,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707926336,
+      "name": "aten::dequantize",
+      "kind": "Dequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            150
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            0.0402784
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "u8",
+          "shape": [
+            1,
+            16,
+            33,
+            256
+          ],
+          "stride": [
+            135168,
+            8448,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 38,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            33,
+            256
+          ],
+          "stride": [
+            135168,
+            8448,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707694080,
+      "name": "aten::to",
+      "kind": "TypeCast",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 38,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            33,
+            256
+          ],
+          "stride": [
+            135168,
+            8448,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 42,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            33,
+            256
+          ],
+          "stride": [
+            135168,
+            8448,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707694720,
+      "name": "aten::matmul",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 37,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            33
+          ],
+          "stride": [
+            16896,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 42,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            33,
+            256
+          ],
+          "stride": [
+            135168,
+            8448,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 43,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            256
+          ],
+          "stride": [
+            131072,
+            8192,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707696000,
+      "name": "aten::permute",
+      "kind": "StaticTranspose",
+      "attrs": {
+        "order": {
+          "type": "s64[]",
+          "value": [
+            0,
+            2,
+            1,
+            3
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 43,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            16,
+            32,
+            256
+          ],
+          "stride": [
+            131072,
+            8192,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 45,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            16,
+            256
+          ],
+          "stride": [
+            131072,
+            4096,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707692160,
+      "name": "aten::contiguous",
+      "kind": "Reorder",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 45,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            16,
+            256
+          ],
+          "stride": [
+            131072,
+            4096,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 47,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            16,
+            256
+          ],
+          "stride": [
+            131072,
+            4096,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707914624,
+      "name": "aten::to",
+      "kind": "TypeCast",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 47,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            16,
+            256
+          ],
+          "stride": [
+            131072,
+            4096,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 51,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            16,
+            256
+          ],
+          "stride": [
+            131072,
+            4096,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 22707917184,
+      "name": "aten::quantize_per_tensor",
+      "kind": "Quantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 1
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_tensor"
+        },
+        "zps": {
+          "type": "s64[]",
+          "value": [
+            152
+          ]
+        },
+        "scales": {
+          "type": "f32[]",
+          "value": [
+            0.0328244
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 51,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            16,
+            256
+          ],
+          "stride": [
+            131072,
+            4096,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 55,
+          "dtype": "u8",
+          "shape": [
+            1,
+            32,
+            16,
+            256
+          ],
+          "stride": [
+            131072,
+            4096,
+            256,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }
+  ]
+}

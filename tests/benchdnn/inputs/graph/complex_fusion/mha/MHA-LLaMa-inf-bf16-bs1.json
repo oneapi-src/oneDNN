@@ -1,0 +1,494 @@
+{
+  "version": "3.2.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "input_ports": [
+    3,
+    4,
+    2,
+    1,
+    13,
+    0
+  ],
+  "output_ports": [
+    22
+  ],
+  "graph": [
+    {
+      "id": 8790977984,
+      "name": "aten::matmul",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 3,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            128
+          ],
+          "stride": [
+            131072,
+            128,
+            4096,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 4,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            128,
+            33
+          ],
+          "stride": [
+            135168,
+            4224,
+            1,
+            128
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 5,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 8790982656,
+      "name": "aten::div",
+      "kind": "Divide",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 5,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 2,
+          "dtype": "bf16",
+          "shape": [],
+          "stride": [],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 8789246272,
+      "name": "aten::add",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 6,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 1,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            1,
+            32,
+            33
+          ],
+          "stride": [
+            1056,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 8,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 8789094144,
+      "name": "aten::to",
+      "kind": "TypeCast",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 8,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 12,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 8790977664,
+      "name": "aten::max",
+      "kind": "Maximum",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 12,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 13,
+          "dtype": "f32",
+          "shape": [],
+          "stride": [],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 14,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 8790977344,
+      "name": "aten::softmax",
+      "kind": "SoftMax",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": 3
+        }
+      },
+      "inputs": [
+        {
+          "id": 14,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 17,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 8790976704,
+      "name": "aten::to",
+      "kind": "TypeCast",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 17,
+          "dtype": "f32",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 21,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    },
+    {
+      "id": 8789023296,
+      "name": "aten::matmul",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 21,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            33
+          ],
+          "stride": [
+            33792,
+            1056,
+            33,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        },
+        {
+          "id": 0,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            33,
+            128
+          ],
+          "stride": [
+            135168,
+            4224,
+            128,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 22,
+          "dtype": "bf16",
+          "shape": [
+            1,
+            32,
+            32,
+            128
+          ],
+          "stride": [
+            131072,
+            4096,
+            128,
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "variable"
+        }
+      ]
+    }
+  ]
+}

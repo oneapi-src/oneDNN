@@ -38,11 +38,13 @@ struct simple_concat_t : public gpu_primitive_t {
         DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
 
         status_t init(engine_t *engine) {
-            bool ok = n_inputs() <= 64 && attr()->has_default_values()
-                    && set_default_params() == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONCAT(n_inputs() <= 64, VERBOSE_BAD_PARAM, "n_inputs");
+            VDISPATCH_CONCAT(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONCAT_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
 
-            CHECK(init_conf(engine));
+            VDISPATCH_CONCAT_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "concat");
 
             return status::success;
         }

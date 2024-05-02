@@ -42,8 +42,10 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
     assert(engine->kind() == engine_kind::gpu);
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
-    if (!compute_engine->mayiuse_ngen_kernels()) return status::unimplemented;
-    if (!compute_engine->mayiuse_large_grf_mode()) return status::unimplemented;
+    VDISPATCH_GEMM(compute_engine->mayiuse_ngen_kernels(),
+            VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "ngen kernels");
+    VDISPATCH_GEMM(compute_engine->mayiuse_large_grf_mode(),
+            VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "large grf mode");
 
     dev_info_ = compute_engine->device_info();
     auto arch = dev_info_->gpu_arch();
@@ -64,12 +66,13 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
         c_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
     }
 
-    auto status = set_default_formats(d->a_type());
-    if (status != status::success) return status;
+    VDISPATCH_GEMM_SC(
+            set_default_formats(d->a_type()), VERBOSE_UNSUPPORTED_TAG);
 
-    CHECK(attr_.set_default_formats(dst_md(0)));
+    VDISPATCH_GEMM_SC(
+            attr_.set_default_formats(dst_md(0)), VERBOSE_UNSUPPORTED_TAG);
 
-    if (use_nocopy()) return status::unimplemented;
+    VDISPATCH_GEMM(!use_nocopy(), VERBOSE_SKIP_PRIMITIVE_IMPL);
 
     // LIMITATIONS:
     // - batch is not supported for unpacked inputs.
@@ -92,31 +95,37 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
     bool arch_ok = utils::one_of(
             arch, arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc, arch_t::xe2);
 
-    bool ok = limits_ok && (dt_float_ok || dt_int_ok) && arch_ok
-            && compute_engine->mayiuse(compute::device_ext_t::
-                            intel_subgroup_split_matrix_multiply_accumulate)
-            && attr()->has_default_values(attr_skip_mask)
-            && desc()->sum_ab == sum_ab::sum_none
-            && IMPLICATION(with_bias(),
-                    utils::one_of(d->bias_type(), d->a_type(), f32)
-                            && utils::one_of(bias_cmask(), 0, 1, 2, 3));
+    VDISPATCH_GEMM(limits_ok, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VDISPATCH_GEMM((dt_float_ok || dt_int_ok), VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_GEMM(arch_ok, VERBOSE_UNSUPPORTED_ARCH, "gpu");
+    VDISPATCH_GEMM(
+            compute_engine->mayiuse(compute::device_ext_t::
+                            intel_subgroup_split_matrix_multiply_accumulate),
+            VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "systolic array");
+    VDISPATCH_GEMM(attr()->has_default_values(attr_skip_mask),
+            VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_GEMM(desc()->sum_ab == sum_ab::sum_none,
+            VERBOSE_UNSUPPORTED_FEATURE, "bias reduction");
+    VDISPATCH_GEMM(IMPLICATION(with_bias(),
+                           utils::one_of(d->bias_type(), d->a_type(), f32)
+                                   && utils::one_of(bias_cmask(), 0, 1, 2, 3)),
+            VERBOSE_UNSUPPORTED_BIAS_CFG);
 
-    status = init_post_ops();
-    if (status != status::success) return status;
+    VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
 
     if (dt_int_ok) {
-        ok &= IMPLICATION(a_zp_, !packed_b())
-                && IMPLICATION(b_zp_, !packed_a());
+        VDISPATCH_GEMM(IMPLICATION(a_zp_, !packed_b())
+                        && IMPLICATION(b_zp_, !packed_a()),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
 
         int cmask_a = 0, cmask_b = 0, cmask_c = 0;
         CHECK(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b));
         CHECK(attr()->zero_points_.get(DNNL_ARG_SRC, &cmask_a));
         CHECK(attr()->zero_points_.get(DNNL_ARG_DST, &cmask_c));
-        ok &= (cmask_a == 0) && (cmask_b == 0)
-                && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
+        VDISPATCH_GEMM((cmask_a == 0) && (cmask_b == 0)
+                        && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
     }
-
-    if (!ok) return status::unimplemented;
 
     init_scratchpad();
 

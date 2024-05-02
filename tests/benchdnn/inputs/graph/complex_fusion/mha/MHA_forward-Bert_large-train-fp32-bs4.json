@@ -1,0 +1,607 @@
+{
+    "version": "3.2.0",
+    "engine_kind": "cpu",
+    "fpmath_mode": "strict",
+    "input_ports": [
+        2514,
+        2518,
+        2520,
+        2543,
+        2506,
+        2547,
+        2525
+    ],
+    "output_ports": [
+        2545,
+        2548,
+        2551
+    ],
+    "graph": [
+        {
+            "id": 4809,
+            "name": "bert/encoder/layer_0/attention/self/MatMul",
+            "kind": "MatMul",
+            "attrs": {
+                "transpose_a": {
+                    "type": "bool",
+                    "value": 0
+                },
+                "transpose_b": {
+                    "type": "bool",
+                    "value": 1
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2514,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2518,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 2519,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 4810,
+            "name": "bert/encoder/layer_0/attention/self/Mul",
+            "kind": "Multiply",
+            "attrs": {
+                "auto_broadcast": {
+                    "type": "string",
+                    "value": "numpy"
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2519,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2520,
+                    "dtype": "f32",
+                    "shape": [],
+                    "stride": [],
+                    "layout_type": "strided",
+                    "property_type": "constant"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 2521,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 4831,
+            "name": "bert/encoder/layer_0/attention/self/add",
+            "kind": "Add",
+            "attrs": {
+                "auto_broadcast": {
+                    "type": "string",
+                    "value": "numpy"
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2521,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2543,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        1,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        262144,
+                        262144,
+                        512,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 2544,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 4832,
+            "name": "bert/encoder/layer_0/attention/self/Softmax",
+            "kind": "SoftMax",
+            "attrs": {
+                "axis": {
+                    "type": "s64",
+                    "value": -1
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2544,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 2545,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 4833,
+            "name": "bert/encoder/layer_0/attention/self/dropout/Mul",
+            "kind": "Multiply",
+            "attrs": {
+                "auto_broadcast": {
+                    "type": "string",
+                    "value": "numpy"
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2545,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2506,
+                    "dtype": "f32",
+                    "shape": [],
+                    "stride": [],
+                    "layout_type": "strided",
+                    "property_type": "constant"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 2546,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 4834,
+            "name": "bert/encoder/layer_0/attention/self/dropout/SelectV2",
+            "kind": "Multiply",
+            "attrs": {
+                "auto_broadcast": {
+                    "type": "string",
+                    "value": "numpy"
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2546,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2547,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        4194304,
+                        262144,
+                        512,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 2548,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 4835,
+            "name": "bert/encoder/layer_0/attention/self/MatMul_1",
+            "kind": "MatMul",
+            "attrs": {
+                "transpose_a": {
+                    "type": "bool",
+                    "value": 0
+                },
+                "transpose_b": {
+                    "type": "bool",
+                    "value": 0
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2548,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2525,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 2549,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 4836,
+            "name": "bert/encoder/layer_0/attention/self/transpose_3",
+            "kind": "StaticTranspose",
+            "attrs": {
+                "order": {
+                    "type": "s64[]",
+                    "value": [
+                        0,
+                        2,
+                        1,
+                        3
+                    ]
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2549,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 2550,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        512,
+                        16,
+                        64
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 4837,
+            "name": "bert/encoder/layer_0/attention/self/Reshape_3",
+            "kind": "StaticReshape",
+            "attrs": {
+                "shape": {
+                    "type": "s64[]",
+                    "value": [
+                        2048,
+                        1024
+                    ]
+                },
+                "special_zero": {
+                    "type": "bool",
+                    "value": 0
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2550,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        512,
+                        16,
+                        64
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 2551,
+                    "dtype": "f32",
+                    "shape": [
+                        2048,
+                        1024
+                    ],
+                    "stride": [
+                        1024,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 4838,
+            "name": "end",
+            "kind": "End",
+            "attrs": {},
+            "inputs": [
+                {
+                    "id": 2545,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "id": 4839,
+            "name": "end",
+            "kind": "End",
+            "attrs": {},
+            "inputs": [
+                {
+                    "id": 2548,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "id": 4840,
+            "name": "end",
+            "kind": "End",
+            "attrs": {},
+            "inputs": [
+                {
+                    "id": 2551,
+                    "dtype": "f32",
+                    "shape": [
+                        2048,
+                        1024
+                    ],
+                    "stride": [
+                        1024,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": []
+        }
+    ]
+}

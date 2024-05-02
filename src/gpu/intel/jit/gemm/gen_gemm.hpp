@@ -56,8 +56,6 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             // LIMITATIONS:
             // - runtime dims are not supported
-            bool ok = true;
-
             auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops
                     | smask_t::fpmath_mode;
             auto &attr_zps = attr()->zero_points_;
@@ -123,46 +121,65 @@ struct gen_gemm_t : public gpu_gemm_t {
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8, u4, s4)) {
-                ok &= (utils::one_of(d->b_type(), u8, s8) || wei_decomp_);
+                VDISPATCH_GEMM(
+                        (utils::one_of(d->b_type(), u8, s8) || wei_decomp_),
+                        VERBOSE_UNSUPPORTED_DT);
                 attr_skip_mask |= smask_t::zero_points_runtime;
 
-                ok = ok
-                        && IMPLICATION(
-                                utils::one_of(d->c_type(), f32, s8, u8, f16),
-                                arch_ >= arch_t::xe_hp);
+                VDISPATCH_GEMM(IMPLICATION(utils::one_of(d->c_type(), f32, s8,
+                                                   u8, f16),
+                                       arch_ >= arch_t::xe_hp),
+                        VERBOSE_ISA_DT_MISMATCH);
             } else if (d->a_type() == bf16) {
-                ok = ok && d->b_type() == bf16
-                        && utils::one_of(d->c_type(), bf16, f32)
-                        && utils::one_of(d->acc_type, bf16, f32);
+                VDISPATCH_GEMM(
+                        d->b_type() == bf16, VERBOSE_INCONSISTENT_DT, "a", "b");
+                VDISPATCH_GEMM(utils::one_of(d->c_type(), bf16, f32),
+                        VERBOSE_INCONSISTENT_DT, "a", "c");
+                VDISPATCH_GEMM(utils::one_of(d->acc_type, bf16, f32),
+                        VERBOSE_INCONSISTENT_DT, "a", "acc");
             } else if (!wei_decomp_) {
-                ok = ok
-                        && utils::one_of(
-                                d->a_type(), f32, f16, f8_e5m2, f8_e4m3)
-                        && d->b_type() == d->a_type()
-                        && utils::one_of(d->acc_type, d->a_type(), f32)
-                        && IMPLICATION(
-                                utils::one_of(f8_e5m2, f8_e4m3, d->a_type(),
-                                        d->b_type(), d->c_type()),
-                                arch_ >= arch_t::xe_hpc);
+                VDISPATCH_GEMM(
+                        utils::one_of(d->a_type(), f32, f16, f8_e5m2, f8_e4m3),
+                        VERBOSE_UNSUPPORTED_DT);
+                VDISPATCH_GEMM(d->b_type() == d->a_type(),
+                        VERBOSE_INCONSISTENT_DT, "a", "b");
+                VDISPATCH_GEMM(utils::one_of(d->acc_type, d->a_type(), f32),
+                        VERBOSE_UNSUPPORTED_DT);
+                VDISPATCH_GEMM(
+                        IMPLICATION(utils::one_of(f8_e5m2, f8_e4m3, d->a_type(),
+                                            d->b_type(), d->c_type()),
+                                arch_ >= arch_t::xe_hpc),
+                        VERBOSE_ISA_DT_MISMATCH);
             }
 
-            ok = ok && !has_blocks() && batch_dims() <= 2
-                    && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
-                            d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
-                    && IMPLICATION(with_bias(),
+            VDISPATCH_GEMM(!has_blocks(), VERBOSE_BLOCKING_FAIL, "");
+            VDISPATCH_GEMM(
+                    batch_dims() <= 2, VERBOSE_BAD_DIM, "batch", batch_dims());
+            VDISPATCH_GEMM(
+                    !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k(),
+                            d->lda(), d->ldb(), d->ldc(), d->batch()),
+                    VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+            VDISPATCH_GEMM(
+                    IMPLICATION(with_bias(),
                             utils::one_of(d->bias_type(), f32, bf16, f16,
                                     f8_e5m2, f8_e4m3)
                                     && (d->bias_desc.ndims <= 3)
-                                    && utils::one_of(bias_cmask(), 0, 1, 2, 3))
-                    && compute_engine->mayiuse_ngen_kernels()
-                    && attr()->has_default_values(attr_skip_mask)
-                    && attr()->output_scales_.mask_ == 0
-                    && IMPLICATION(with_sum_ab(),
-                            !with_bias()
-                                    && (attr_zps.has_default_values(
-                                            DNNL_ARG_DST)))
-                    && attr()->post_ops_.check_sum_consistency(
-                            d->c_type(), utils::one_of(d->a_type(), s8, u8));
+                                    && utils::one_of(bias_cmask(), 0, 1, 2, 3)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_GEMM(compute_engine->mayiuse_ngen_kernels(),
+                    VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "ngen_kernels");
+            VDISPATCH_GEMM(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_GEMM(attr()->output_scales_.mask_ == 0,
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_GEMM(IMPLICATION(with_sum_ab(),
+                                   !with_bias()
+                                           && (attr_zps.has_default_values(
+                                                   DNNL_ARG_DST))),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_GEMM(attr()->post_ops_.check_sum_consistency(d->c_type(),
+                                   utils::one_of(d->a_type(), s8, u8)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             if (!attr()->zero_points_.has_default_values()) {
                 bool a_zp = !attr_zps.has_default_values(DNNL_ARG_A);
@@ -175,9 +192,11 @@ struct gen_gemm_t : public gpu_gemm_t {
 
                 wei_zp = a_zp;
                 wei_zp_2d = wei_decomp_ && (cmask_a == ((1 << 0) | (1 << 1)));
-                ok &= (utils::one_of(cmask_a, 0, 1 << 1, 1 << 2) || wei_zp_2d)
-                        && utils::one_of(cmask_b, 0, 1 << 0)
-                        && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1);
+                VDISPATCH_GEMM(
+                        (utils::one_of(cmask_a, 0, 1 << 1, 1 << 2) || wei_zp_2d)
+                                && utils::one_of(cmask_b, 0, 1 << 0)
+                                && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1),
+                        VERBOSE_UNSUPPORTED_ZP_CFG);
 
                 ao_dims_ = a_zp ? (cmask_a != 0 ? 1 : 0) : -1;
                 bo_dims_ = b_zp ? (cmask_b != 0 ? 1 : 0) : -1;
@@ -199,24 +218,27 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto mask = attr()->scales_.get(s).mask_;
-                ok &= utils::one_of(mask, 0, 1 << 0, 1 << 1, 1 << 2)
-                        || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_);
+                VDISPATCH_GEMM(utils::one_of(mask, 0, 1 << 0, 1 << 1, 1 << 2)
+                                || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_),
+                        VERBOSE_UNSUPPORTED_SCALES_CFG);
             }
 
             if (wei_scales_2d_) {
-                if (wei_zp && (ao_dims_ == 1 || bo_dims_ == 1))
-                    return status::unimplemented;
+                VDISPATCH_GEMM(!(wei_zp && (ao_dims_ == 1 || bo_dims_ == 1)),
+                        VERBOSE_UNSUPPORTED_ZP_CFG);
                 auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
                 wei_scales_type = wei_scales.data_type_;
                 auto scales_group_k
                         = wei_scales.ndims_ > 0 ? wei_scales.group_dims_[0] : 1;
                 if (!wei_zp_2d)
                     wei_q2d_group_k = scales_group_k;
-                else if (wei_q2d_group_k != scales_group_k)
-                    return status::unimplemented;
+                else {
+                    VDISPATCH_GEMM((wei_q2d_group_k == scales_group_k),
+                            VERBOSE_UNSUPPORTED_SCALES_CFG);
+                }
             }
 
-            CHECK(init_post_ops());
+            VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
 
             bool with_binary = (post_ops_.find(binary) != -1)
                     || (post_ops_.find(prelu) != -1);
@@ -226,10 +248,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                     arch_t::xe_lp, arch_t::xe_hp, arch_t::xe_hpg,
                     arch_t::xe_hpc, arch_t::xe2);
 
-            ok &= arch_ok;
-            ok &= IMPLICATION(with_binary, arch_ >= arch_t::xe_hp);
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_GEMM(arch_ok, VERBOSE_UNSUPPORTED_ARCH, "gpu");
+            VDISPATCH_GEMM(IMPLICATION(with_binary, arch_ >= arch_t::xe_hp),
+                    VERBOSE_UNSUPPORTED_ARCH, "gpu");
 
             bool has_systolic
                     = compute_engine->mayiuse(compute::device_ext_t::
@@ -241,9 +262,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             if (with_sum_ab()) {
                 auto mnk = d->m() * d->n() * d->k();
                 if (arch_ == arch_t::xe_hpc && d->a_type() == f32)
-                    ok &= (mnk <= 256 * 1024 * 1024);
-
-                if (!ok) return status::unimplemented;
+                    VDISPATCH_GEMM(
+                            (mnk <= 256 * 1024 * 1024), VERBOSE_LARGE_SHAPES);
             }
 
             // choose kernel
@@ -263,7 +283,9 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (types::data_type_size(acc_type) < 4) {
                 // Limited post-op support for low-precision accumulation.
-                ok &= !with_binary && IMPLICATION(with_sum_, sum_at_begin_);
+                VDISPATCH_GEMM(
+                        !with_binary && IMPLICATION(with_sum_, sum_at_begin_),
+                        VERBOSE_UNSUPPORTED_POSTOP);
             }
 
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
@@ -301,15 +323,15 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && !kernel_desc_.driver_info()->fusedPostOps()) {
                 bool with_eltwise = (post_ops_.find(eltwise) != -1);
 
-                ok &= !with_eltwise && !with_binary
-                        && utils::one_of(d->c_type(), f32, s32);
+                VDISPATCH_GEMM(!with_eltwise && !with_binary
+                                && utils::one_of(d->c_type(), f32, s32),
+                        VERBOSE_UNSUPPORTED_POSTOP);
             }
 
             // Ensure kernel can be run deterministically if required.
             if (attr()->deterministic_)
-                ok &= !kernel_desc_.driver_info()->nondeterministic();
-
-            if (!ok) return status::unimplemented;
+                VDISPATCH_GEMM(!kernel_desc_.driver_info()->nondeterministic(),
+                        VERBOSE_DETERMINISTIC_FAIL);
 
             init_scratchpad();
 

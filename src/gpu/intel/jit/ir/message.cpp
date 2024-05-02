@@ -50,7 +50,7 @@ stmt_t send_t::create_offset_store(const expr_t &header_buf,
     ir_assert(is_var(mem_buf));
     int header_off = 0;
     int unit_size = 1;
-    if (!is_lsc && is_block() && (is_slm() || is_bts())) {
+    if (!is_lsc && is_block() && is_slm()) {
         header_off = 2 * address_type().size();
         // Convert byte offset to dwords/owords/hwords offset.
         unit_size = type.scalar().size();
@@ -560,7 +560,7 @@ static stmt_t try_promote_to_lsc(const stmt_t &_call) {
     auto &send = call.func.as<send_t>();
     if (send.is_lsc || send.is_2d()) return call;
     if (send.hw < ngen::HW::XeHPG) return call;
-    if (send.is_slm() || send.is_bts()) return call;
+    if (send.is_slm()) return call;
     if (!send.is_block()) return call;
 
     auto mask = try_scalarize(send_t::arg_mask(call));

@@ -18,12 +18,14 @@
 #define BENCHDNN_GRAPH_REF_PARTITION_HPP
 
 #include <list>
-#include "deserialize.hpp"
+#include <unordered_set>
+
 #include "dnnl_common.hpp"
+
+#include "deserialize.hpp"
 #include "graph_memory.hpp"
 #include "input_displacer.hpp"
 #include "ref_primitive.hpp"
-#include <unordered_set>
 
 namespace graph {
 
@@ -53,20 +55,19 @@ public:
     }
 
 private:
-    // check whether partition input ops support bf16-in-f32-out rewrite
-    bool check_valid_bf16_in() const;
+    // Returns `true` if an `op` has a parent op in the partition.
+    bool has_parent_op(const deserialized_op &op) const;
+    // Returns `true` if an `op` has a child op in the partition.
+    // If `child_op_ptr` is not empty, updates the pointer with a child op.
+    //
+    // Note: double pointer is needed to initialize a pointer. A pointer is
+    // needed to avoid a copy of an `child_op` object.
+    bool has_child_op(const deserialized_op &op,
+            const deserialized_op **child_op_ptr) const;
+    // Returns `true` if unfusable transcendental op should have cropped output.
+    bool need_unfusable_output_crop(const deserialized_op &op) const;
 
-    // check whether partition output ops support bf16-in-f32-out rewrite
-    bool check_valid_bf16_out() const;
-
-    bool is_bf16_partition_support_f32_intermediate_result() const;
-
-    // bf16 cases:use f32 as intermediate tensor dt to improve accuracy
-    void handle_special_case_bf16(res_t *res);
-
-    // rewrite x16->f32 from typecast (f32->x16) to typecast (x16->f32)
-    void handle_typecast_x16();
-
+    const deserialized_graph *dg_;
     // Objects below are constructed.
     // OPs in the partition, which is Topo ordered
     op_ref_list_t partition_ops_ref_;
@@ -79,9 +80,6 @@ private:
     std::vector<size_t> partition_in_ids_;
     // partition out logical tensors' ids
     std::vector<size_t> partition_out_ids_;
-    // Objects below are modified at special bf16 and int8 cases.
-    // IDs of logical tensors to replace bf16 data type with fp32.
-    std::unordered_set<size_t> bf16_to_f32_rewrite_lt_id_;
 
     // reference primitives for a single partition
     std::unordered_map<size_t, ::std::shared_ptr<ref_primitive_t>> ref_prims_;

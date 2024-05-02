@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cctype>
 #include <cstring>
+#include <vector>
 
 namespace dnnl {
 namespace impl {
@@ -198,6 +199,19 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns,
         }
     }
 
+    /* Temporarily reuse XeHPC strategies for Xe2 until more Xe2 strategies are
+       in the catalog*/
+    if (!bestEntry && patterns[0].selector.hw == kcatalog::HWTagXe2) {
+        std::vector<MatchParams> override_patterns;
+        override_patterns.reserve(npatterns);
+        for (int i = 0; i < npatterns; i++) {
+            override_patterns.emplace_back(patterns[i]);
+            override_patterns.back().selector.hw = kcatalog::HWTagXeHPC;
+        }
+        return select(
+                catalog, npatterns, override_patterns.data(), eparams, aux);
+    }
+
     // Late tag checking. If late tags do not match, we abandon the kernel and
     //  force the calling code to take another path.
     if (bestEntry
@@ -248,8 +262,7 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, const GEMMProblem &problem) {
         case ngen::HW::XeHP: selector.hw = kcatalog::HWTagXeHP; break;
         case ngen::HW::XeHPG: selector.hw = kcatalog::HWTagXeHPG; break;
         case ngen::HW::XeHPC: selector.hw = kcatalog::HWTagXeHPC; break;
-        /* Temporarily reuse all XeHPC strategies for Xe2 */
-        case ngen::HW::Xe2: selector.hw = kcatalog::HWTagXeHPC; break;
+        case ngen::HW::Xe2: selector.hw = kcatalog::HWTagXe2; break;
     }
 
     auto &C = problem.C;

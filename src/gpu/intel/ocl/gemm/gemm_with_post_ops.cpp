@@ -37,23 +37,26 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
                               && utils::one_of(d->a_type(), u8, s8, u4, s4)
                               && utils::one_of(d->b_type(), f16, f32, bf16))
             && attr()->mayiconvert(d->a_type(), f32);
-    bool ok = d->c_desc.ndims <= 4
-            && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k())
-            && attr()->has_default_values(attr_skip_mask);
-    if (!ok) return status::unimplemented;
+    VDISPATCH_GEMM(
+            d->c_desc.ndims <= 4, VERBOSE_UNSUPPORTED_MD_FLAG, "c_desc.ndims");
+    VDISPATCH_GEMM(!utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k()),
+            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VDISPATCH_GEMM(attr()->has_default_values(attr_skip_mask),
+            VERBOSE_UNSUPPORTED_ATTR);
 
     const primitive_attr_t *attributes_with_po = attr();
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
         const auto &mask = attr()->scales_.get(arg).mask_;
         if (arg == DNNL_ARG_WEIGHTS && !wei_decomp)
-            ok = ok && (mask == 0 || mask == (1 << (dst_md()->ndims - 1)));
+            VDISPATCH_GEMM((mask == 0 || mask == (1 << (dst_md()->ndims - 1))),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
         else
-            ok = ok && (mask == 0);
+            VDISPATCH_GEMM((mask == 0), VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
-    if (!ok) return status::unimplemented;
     attr_info_ = attr_info_t::create(attributes_with_po);
 
-    if (d->sum_ab != sum_ab::sum_none) return status::unimplemented;
+    VDISPATCH_GEMM(d->sum_ab == sum_ab::sum_none, VERBOSE_UNSUPPORTED_FEATURE,
+            "bias reduction");
 
     const auto impl_list = engine->get_implementation_list(op_desc());
     int current_impl_idx
@@ -70,8 +73,9 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     auto arch = compute_engine->device_info()->gpu_arch();
     bool is_xe_hp = arch >= compute::gpu_arch_t::xe_hp;
     auto skip_impl = is_xe_hp ? "ocl" : "ref";
-    if (gemm_pd_ && strstr(gemm_pd_->name(), skip_impl) == nullptr)
-        return status::unimplemented;
+    VDISPATCH_GEMM(
+            !(gemm_pd_ && strstr(gemm_pd_->name(), skip_impl) == nullptr),
+            VERBOSE_PRIMITIVE_CREATION_FAIL, gemm_pd_->name());
     auto gemm_desc = *desc();
     auto dst_type = gemm_desc.c_desc.data_type;
     gemm_desc.c_desc.data_type = engine->mayiuse_f16_accumulator_with_f16()
@@ -103,8 +107,10 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
             current_impl_idx /* skip implementation */);
     if (!it_gemm_without_po.is_initialized()) return status::invalid_arguments;
     gemm_pd_ = *(++it_gemm_without_po);
-    if (!gemm_pd_ || strstr(gemm_pd_->name(), skip_impl) != nullptr)
-        return status::unimplemented;
+    VDISPATCH_GEMM(
+            !(!gemm_pd_ || strstr(gemm_pd_->name(), skip_impl) != nullptr),
+            VERBOSE_PRIMITIVE_CREATION_FAIL, gemm_pd_->name());
+
     //set tags for end user
     desc_.a_desc = *gemm_pd_->arg_md(DNNL_ARG_SRC_0);
     desc_.b_desc = *gemm_pd_->arg_md(DNNL_ARG_SRC_1);
@@ -112,7 +118,7 @@ status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
     desc_.c_desc.data_type = dst_type;
     desc_.acc_type = gemm_desc.c_desc.data_type;
     CHECK(attr_.set_default_formats(dst_md(0)));
-    if (!set_default_formats()) return status::unimplemented;
+    VDISPATCH_GEMM(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
 
     compute::kernel_ctx_t kernel_ctx;
     use_scratchpad_with_post_op_worker = use_reorder

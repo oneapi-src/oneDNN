@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -109,12 +109,16 @@ inline bool check_gemm_binary_per_oc_compatible_formats(const matmul_pd_t &pd) {
     const dims_t &dims = dst_d.dims();
     const int ndims = dst_d.ndims();
 
+    for (auto d : dims)
+        if (d == DNNL_RUNTIME_DIM_VAL) return false;
+
     // check d, h, w... (b2, m, n... for matmul) dimensions are continuous
     bool ok = true;
     for (int i = 2; i < ndims - 1; i++)
         ok = ok && strides[i] == strides[i + 1] * dims[i + 1];
+
     // only allowed for nchw and nhwc (b0xb1xMxN or b0xMxNxb1 for matmul)
-    return ok && strides[0] == utils::array_product(dims + 1, ndims - 1);
+    return ok && (strides[ndims - 1] == 1 || strides[1] == 1);
 }
 
 inline size_t get_scratchpad_block_elements(const dim_t batch, dim_t M,

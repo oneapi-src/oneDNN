@@ -74,12 +74,11 @@ ref_primitive_t::ref_primitive_t(const deserialized_op &op) {
         } \
     }
 
-int ref_primitive_t::init_prb(
-        ::std::unordered_set<size_t> &bf16_rewrite, res_t *res) {
+int ref_primitive_t::init_prb(res_t *res) {
 #define CASE_INIT_PRB(driver) \
     case dnnl_driver_t::driver: { \
         ::driver::settings_t setting \
-                = get_setting<::driver::settings_t>(op_, bf16_rewrite, res); \
+                = get_setting<::driver::settings_t>(op_, res); \
         if (res->state == INVALID_ARGUMENTS) return FAIL; \
         setting.finalize(); \
         auto pprb = ::std::make_shared<::driver::prb_t>(setting); \
@@ -95,7 +94,16 @@ int ref_primitive_t::init_prb(
     return OK;
 }
 
-int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
+int ref_primitive_t::init_prim(
+        const engine_t &ref_eng, res_t *res, bool force_override) {
+    const bool is_quant_or_dequant = kind_ == dnnl::graph::op::kind::Dequantize
+            || kind_ == dnnl::graph::op::kind::Quantize
+            || kind_ == dnnl::graph::op::kind::DynamicDequantize
+            || kind_ == dnnl::graph::op::kind::DynamicQuantize;
+    // (De-)Quantize op is built on reorder which expects int8 dt for
+    // zero-points attribute. Thus, skip them for forcing.
+    const bool force_f32_prim_dt = !force_override && !is_quant_or_dequant;
+
 #define CASE_INIT_PRIM(driver) \
     case dnnl_driver_t::driver: { \
         const ::driver::prb_t *prb = prb_wrapper_->get<::driver::prb_t>(); \
@@ -103,7 +111,7 @@ int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
         if (is_special_backward_op_) { \
             SAFE(create_primitive(fwd_prim_, ref_eng, ::driver::init_pd, prb, \
                          res, FLAG_FWD, nullptr, prb->dir &FLAG_BWD, nullptr, \
-                         false), \
+                         force_f32_prim_dt), \
                     WARN); \
             if (res->state == SKIPPED || res->state == UNIMPLEMENTED) \
                 return OK; \
@@ -118,7 +126,7 @@ int ref_primitive_t::init_prim(const engine_t &ref_eng, res_t *res) {
         SAFE(create_primitive(prim_, ref_eng, ::driver::init_pd, prb, res, \
                      prb->dir, \
                      is_special_backward_op_ ? query_pd(fwd_prim_) : nullptr, \
-                     false, nullptr, false), \
+                     false, nullptr, force_f32_prim_dt), \
                 WARN); \
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK; \
         break; \
@@ -250,25 +258,49 @@ void ref_primitive_t::check_correctness(
         cmp.set_has_eltwise_post_op(has_eltwise);
         cmp.set_op_output_has_nans(has_nans);
         dnn_mem_t mem_fp_abx(mem_fp, dnnl_f32, tag::abx, ::get_cpu_engine());
-        if (cmp.compare(mem_fp_abx, mem_dt, attr, res) == FAIL) {
-            const std::string p2p_check_fail
-                    = "P2P check failed, fall back to use norm check!";
-            BENCHDNN_PRINT(0, "%s\n", p2p_check_fail.c_str());
+        auto st = cmp.compare(mem_fp_abx, mem_dt, attr, res);
+        if (st == OK) continue;
 
-            // TODO: we need a reasonable threshold here for GC Backend cases
-            // once the complex fusion validation is enabled.
+        // If comparison failed, try a norm comparison. However, at this point,
+        // to limit the risk of hiding issues, the norm comparison is enabled
+        // if number of affected points is really small compared to the total
+        // number of points - 1 point per every 1024.
+        // This can be revisited later.
+        const size_t allowed_error_points = res->total / 1024;
+        const bool norm_check_allowed = allowed_error_points >= res->errors;
 
-            // Fall back to norm check if P2P check failed.
-            res->state = EXECUTED;
-            res->errors = 0;
-            cmp.set_norm_validation_mode(true);
-            if (cmp.compare(mem_fp_abx, mem_dt, attr, res) == FAIL) {
-                const std::string norm_check_fail = "Norm check failed, quit!";
-                BENCHDNN_PRINT(
-                        0, "Output arg %d: %s\n", arg, norm_check_fail.c_str());
-                break;
-            }
-        }
+        BENCHDNN_PRINT(0,
+                "[COMPARE_STATS] Norm check is %s; error_to_total_ratio: "
+                "%zu/%zu; allowed_ratio: %zu/%zu;\n",
+                norm_check_allowed ? "allowed" : "prohibited", res->errors,
+                res->total, allowed_error_points, res->total);
+
+        if (!norm_check_allowed) continue;
+
+        // Reset the `res` statistics state.
+        res->state = EXECUTED;
+        res->errors = 0;
+        res->total = 0;
+
+        // TODO: there's an open question with how to determine the threshold
+        // and what the criteria to use. Unless a partition says it is some
+        // complex fusion (such as SDP) with a specific data type, setting such
+        // unconditional threshold is potentially unsafe.
+        //
+        // So far, the issue only with pure bf16 patterns, and here's why:
+        // * f32 supposed to be exact on both ends as computations repeat each
+        //   other on both ends.
+        // * int8 softmax's output are integer values which in turn makes second
+        //   matmul's output precise.
+        // * bf16 softmax's output contains irregular floating-point values that
+        //   potentially get accumulated in a different order on each end, and
+        //   it leads to an output mismatch.
+        //
+        // Note: the following threshold is obtained from actual runs on
+        // different hardware.
+        cmp.set_threshold(7e-5f);
+        cmp.set_norm_validation_mode(true);
+        cmp.compare(mem_fp_abx, mem_dt, attr, res);
     }
 }
 
@@ -307,6 +339,19 @@ int ref_primitive_t::displace_scales() const {
     }
 
     return OK;
+}
+
+dnnl_data_type_t ref_primitive_t::get_lt_dt(size_t id) const {
+    for (size_t i = 0; i < op_.in_lts_.size(); i++) {
+        if (op_.in_lts_[i].id_ == id)
+            return str2dt(op_.in_lts_[i].data_type_.c_str());
+    }
+    for (size_t i = 0; i < op_.out_lts_.size(); i++) {
+        if (op_.out_lts_[i].id_ == id)
+            return str2dt(op_.out_lts_[i].data_type_.c_str());
+    }
+    assert(!"id not found");
+    return dnnl_data_type_undef;
 }
 
 } // namespace graph
