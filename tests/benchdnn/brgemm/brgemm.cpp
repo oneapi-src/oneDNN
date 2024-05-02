@@ -180,8 +180,7 @@ std::string prepare_wei_format_string(
     return wtag;
 }
 
-namspace_impl::brgemm_batch_kind_t str2batch_kind(
-        const std::string &str) {
+namspace_impl::brgemm_batch_kind_t str2batch_kind(const std::string &str) {
     if (str == "addr")
         return namspace_impl::brgemm_batch_kind_t::brgemm_addr;
     else if (str == "offs")
@@ -293,7 +292,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 // A special wrapper needed to match internal infrastructure.
 dnnl_status_t brgemm_kernel_execute_postops_wrapper(
-        const namspace_impl::brgemm_kernel_t *brgemm_kernel, namspace_impl::brgemm_batch_kind_t batch_kind, int batch_size,
+        const namspace_impl::brgemm_kernel_t *brgemm_kernel,
+        namspace_impl::brgemm_batch_kind_t batch_kind, int batch_size,
         const void *src_ptr, const void *wei_ptr,
         const namspace_impl::brgemm_batch_element_t *batch_element,
         void *acc_ptr, void *dst_ptr,
@@ -304,8 +304,7 @@ dnnl_status_t brgemm_kernel_execute_postops_wrapper(
     if (batch_kind == namspace_impl::brgemm_batch_kind_t::brgemm_addr) {
         brgemm_kernel_execute_postops(brgemm_kernel, batch_size, batch_element,
                 acc_ptr, dst_ptr, post_ops_data, scratchpad_ptr);
-    } else if (batch_kind
-            == namspace_impl::brgemm_batch_kind_t::brgemm_offs) {
+    } else if (batch_kind == namspace_impl::brgemm_batch_kind_t::brgemm_offs) {
         brgemm_kernel_execute_postops(brgemm_kernel, batch_size, src_ptr,
                 wei_ptr, batch_element, acc_ptr, dst_ptr, post_ops_data,
                 scratchpad_ptr);
