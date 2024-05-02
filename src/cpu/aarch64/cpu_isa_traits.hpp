@@ -19,10 +19,10 @@
 #ifndef CPU_AARCH64_CPU_ISA_TRAITS_HPP
 #define CPU_AARCH64_CPU_ISA_TRAITS_HPP
 
-#include <type_traits>
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "dnnl_types.h"
+#include <type_traits>
 
 /* in order to make selinux happy memory that would be marked with X-bit should
  * be obtained with mmap */
