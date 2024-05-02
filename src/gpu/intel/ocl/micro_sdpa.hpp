@@ -72,8 +72,6 @@ struct micro_sdpa_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_microkernels(engine_t *engine);
-
         status_t set_default_format(memory_desc_t &md, bool transposed) {
             using namespace format_tag;
             memory_desc_wrapper mdw(md);
@@ -97,77 +95,28 @@ struct micro_sdpa_t : public gpu_primitive_t {
         const micro::Package &gemm_kq() const { return gemm_kq_; }
         const micro::Package &gemm_vs() const { return gemm_vs_; }
 
+        int sg_size() const { return sg_size_; }
+
+        // Block size for head_size, which must be hard-coded into the kernel.
+        int d_max() const { return utils::rnd_up(desc()->head_size(), 32); }
+
+        compute::gpu_arch_t arch() const { return arch_; }
+
     private:
         micro::Package gemm_kq_, gemm_vs_;
+        int sg_size_ = 0;
+        compute::gpu_arch_t arch_;
+
+        status_t init_microkernels(engine_t *engine);
     };
 
-    status_t init(engine_t *engine) override {
-        using namespace micro;
-
-        assert(engine->kind() == engine_kind::gpu);
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
-        sg_size_ = compute_engine->device_info()->min_subgroup_size();
-
-        compute::kernel_ctx_t kernel_ctx;
-
-        kernel_ctx.set_data_type(pd()->dst_md()->data_type);
-
-        int ndims = 4;
-        const memory_desc_wrapper qry_mdw(pd()->qry_md());
-        const memory_desc_wrapper key_mdw(pd()->key_md());
-        const memory_desc_wrapper val_mdw(pd()->val_md());
-        const memory_desc_wrapper dst_mdw(pd()->dst_md());
-        const memory_desc_wrapper msk_mdw(pd()->attn_mask_md());
-        using offset_t = decltype(offsets_t().src_off);
-        offset_t qry_off, key_off, val_off, dst_off, msk_off;
-        set_offsets(qry_mdw, qry_off);
-        set_offsets(key_mdw, key_off);
-        set_offsets(val_mdw, val_off);
-        set_offsets(dst_mdw, dst_off);
-        set_offsets(msk_mdw, msk_off);
-        def_offsets(qry_off, kernel_ctx, "QRY", ndims);
-        def_offsets(key_off, kernel_ctx, "KEY", ndims);
-        def_offsets(val_off, kernel_ctx, "VAL", ndims);
-        def_offsets(dst_off, kernel_ctx, "DST", ndims);
-        def_offsets(msk_off, kernel_ctx, "MSK", ndims);
-        kernel_ctx.define_int("NDIMS", ndims);
-
-        kernel_ctx.define_int("SUBGROUP_SIZE", sg_size_);
-        kernel_ctx.define_int("INVERT_SCALE", pd()->desc()->invert_scale);
-        kernel_ctx.define_int("WITH_ATTN_MASK", pd()->with_attn_mask());
-        def_data_type(kernel_ctx, pd()->desc()->scale_dt, "SCALE");
-
-        /* Generate microkernel shims */
-        ShimOptions shimOptions;
-        shimOptions.subgroupSize = sg_size_;
-        shimOptions.useTileOps = true;
-        shimOptions.decorator = "kq";
-
-        kernel_ctx.add_custom_header("gemm_kq.h",
-                micro::generateShim(
-                        pd()->gemm_kq(), HostLanguage::OpenCL_C, shimOptions));
-
-        shimOptions.microkernelID++;
-        shimOptions.decorator = "vs";
-
-        kernel_ctx.add_custom_header("gemm_vs.h",
-                micro::generateShim(
-                        pd()->gemm_vs(), HostLanguage::OpenCL_C, shimOptions));
-
-        if (pd()->gemm_kq().grfMin > 128 || pd()->gemm_vs().grfMin > 128)
-            kernel_ctx.add_option("-cl-intel-256-GRF-per-thread");
-
-        CHECK(create_kernel(engine, &kernel_, "micro_sdpa", kernel_ctx));
-        if (!kernel_) return status::runtime_error;
-        return status::success;
-    }
+    status_t init(engine_t *engine) override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute(const exec_ctx_t &ctx) const override;
+
     compute::kernel_t kernel_;
-    int sg_size_ = 0;
 };
 
 } // namespace ocl

@@ -33,6 +33,23 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
+static inline Type convert_dnnl_to_kernel_type(data_type_t type) {
+    switch (type) {
+        default: assert(!"Unknown type");
+        case data_type::f32: return Type::f32;
+        case data_type::f16: return Type::f16;
+        case data_type::bf16: return Type::bf16;
+        case data_type::f8_e5m2: return Type::bf8;
+        case data_type::f8_e4m3: return Type::hf8;
+        case data_type::s32: return Type::s32;
+        case data_type::u8: return Type::u8;
+        case data_type::s8: return Type::s8;
+        case data_type::u4: return Type::u4;
+        case data_type::s4: return Type::s4;
+        case data_type::undef: return Type::invalid;
+    }
+}
+
 struct gen_gemm_kernel_desc_t {
     friend struct gen_gemm_kernel_t;
 
@@ -75,23 +92,6 @@ struct gen_gemm_kernel_desc_t {
     };
 
 protected:
-    static Type convert_dnnl_to_kernel_type(data_type_t type) {
-        switch (type) {
-            default: assert(!"Unknown type");
-            case data_type::f32: return Type::f32;
-            case data_type::f16: return Type::f16;
-            case data_type::bf16: return Type::bf16;
-            case data_type::f8_e5m2: return Type::bf8;
-            case data_type::f8_e4m3: return Type::hf8;
-            case data_type::s32: return Type::s32;
-            case data_type::u8: return Type::u8;
-            case data_type::s8: return Type::s8;
-            case data_type::u4: return Type::u4;
-            case data_type::s4: return Type::s4;
-            case data_type::undef: return Type::invalid;
-        }
-    }
-
     compute::gpu_arch_t arch_;
     ngen::HW hw_ = ngen::HW::Unknown;
     int stepping_ = 0;
