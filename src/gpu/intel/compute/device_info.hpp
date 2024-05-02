@@ -47,6 +47,20 @@ enum class gpu_arch_t {
     xe2,
 };
 
+static inline std::string to_string(gpu_arch_t arch) {
+#define CASE(_case) \
+    if (arch == gpu_arch_t::_case) return STRINGIFY(_case)
+    CASE(gen9);
+    CASE(gen11);
+    CASE(xe_lp);
+    CASE(xe_hp);
+    CASE(xe_hpg);
+    CASE(xe_hpc);
+    CASE(xe2);
+    return "unknown";
+#undef CASE
+}
+
 static inline gpu_arch_t str2gpu_arch(const char *str) {
 #define CASE(_case) \
     if (!strcmp(STRINGIFY(_case), str)) return gpu_arch_t::_case
