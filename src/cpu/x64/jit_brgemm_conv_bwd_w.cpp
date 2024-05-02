@@ -158,6 +158,8 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
 void brgemm_convolution_bwd_weights_t::pd_t::copy2jit_jcp() {
     jit_jcp_ = zero<decltype(jit_jcp_)>();
     jit_jcp_.prop_kind = jcp_.prop_kind;
+    jit_jcp_.src_dt = jcp_.src_dt;
+    jit_jcp_.dst_dt = jcp_.dst_dt;
     jit_jcp_.has_vnni = true; // Needed for transpose routines
     jit_jcp_.harness = jcp_.harness;
     jit_jcp_.simd_w = jcp_.simd_w;
