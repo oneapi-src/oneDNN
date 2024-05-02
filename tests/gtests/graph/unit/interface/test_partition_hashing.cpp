@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,8 +27,7 @@ namespace graph = dnnl::impl::graph;
 
 TEST(test_interface_partition_hashing, ThreadId) {
     graph::engine_t &engine = *get_engine();
-    size_t id = 10056;
-    graph::partition_hashing::key_t key {id, &engine, {}, {}, {}};
+    graph::partition_hashing::key_t key {&engine, {}, {}, {}};
     ASSERT_EQ(std::this_thread::get_id(), key.thread_id());
 }
 

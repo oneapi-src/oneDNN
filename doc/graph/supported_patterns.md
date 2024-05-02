@@ -95,6 +95,7 @@ ReduceProd | ReduceSum]
 | Dequantize\f$_{>t1}\f$, Dequantize + [AvgPool \| MaxPool] + Add\f$_{<t1}\f$ + Quantize\f$_{>out}\f$ |N/A |
 | Dequantize + Reorder + Quantize\f$_{>out}\f$ |N/A |
 | Dequantize\f$_{>t1}\f$, Dequantize + Reorder + Add\f$_{<t1}\f$ + Quantize\f$_{>out}\f$ |N/A |
+| [SoftMax \| LayerNorm] + [Unary \| Binary\f$_{<t2}\f$]\f$^{0-3}\f$ + Quantize\f$^?\f$\f$_{>out}\f$ | This pattern is used in SmoothQuant to fuse scales and quantization into previous layers |
 
 ### Training
 

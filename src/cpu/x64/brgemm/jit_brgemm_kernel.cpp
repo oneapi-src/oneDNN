@@ -73,6 +73,7 @@ struct jit_brgemm_kernel_t : public jit_generator {
                             broadcasting_strategy_t::per_mb_w,
                             broadcasting_strategy_t::per_w,
                             broadcasting_strategy_t::batch,
+                            broadcasting_strategy_t::spatial,
                             broadcasting_strategy_t::no_broadcast};
             const binary_injector::rhs_arg_static_params_t rhs_sp {
                     static_cast<size_t>(vmm_tmp(0).getIdx()), this->r14,
@@ -1779,12 +1780,10 @@ void jit_brgemm_kernel_t<Wmm>::restore_A_B_matrices() {
         mov(reg_aux1_A, reg_A);
         mov(reg_aux1_B, reg_B);
 
-        if (restore_reg_batch) {
-            if (brg.type == brgemm_offs)
-                mov(reg_offs_batch, ptr[rsp + origin_offs_batch_offs_]);
-            else
-                mov(reg_strd_batch, ptr[rsp + origin_strd_batch_offs_]);
-        }
+        if (brg.type == brgemm_offs)
+            mov(reg_offs_batch, ptr[rsp + origin_offs_batch_offs_]);
+        else
+            mov(reg_strd_batch, ptr[rsp + origin_strd_batch_offs_]);
     }
 }
 

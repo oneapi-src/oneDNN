@@ -21,15 +21,29 @@
 
 #include "graph/interface/c_types_map.hpp"
 
+#define IMPLICATION(cause, effect) (!(cause) || !!(effect))
+
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace dnnl_impl {
 namespace platform {
 
+enum dir_t {
+    DIR_UNDEF = 0,
+    FLAG_DAT = 1,
+    FLAG_WEI = 2,
+    FLAG_BIA = 4,
+    FLAG_FWD = 32,
+    FLAG_BWD = 64,
+    FLAG_INF = 128,
+};
+
 bool has_cpu_data_type_support(data_type_t data_type);
 
-bool get_dtype_support_status(engine_kind_t eng, data_type_t dtype);
+bool has_cpu_training_support(data_type_t data_type);
+
+bool get_dtype_support_status(engine_kind_t eng, data_type_t dtype, dir_t dir);
 
 inline bool is_gpu(engine_kind_t eng) {
     return eng == engine_kind_t::dnnl_gpu;

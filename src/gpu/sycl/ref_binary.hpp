@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,25 +49,13 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
 
             const bool ok = set_default_params() == status::success
                     && check_data_types(src0_d, src1_d, dst_d)
-                    && check_formats(src0_d, src1_d, dst_d) && is_tensor_op()
+                    && check_formats(src0_d, src1_d, dst_d)
                     && attr()->has_default_values(
                             sm::scales_runtime | sm::post_ops)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask())
                     && post_ops_ok();
             if (!ok) return status::unimplemented;
-            // TODO: extend sycl device info to check supported sub-group sizes.
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
-            const auto supported_sub_group_sizes
-                    = sycl_engine->device()
-                              .template get_info<
-                                      ::sycl::info::device::sub_group_sizes>();
-            if (!std::any_of(supported_sub_group_sizes.cbegin(),
-                        supported_sub_group_sizes.cend(),
-                        [](size_t size) { return size == 32; })) {
-                return status::unimplemented;
-            }
 
             return init_conf();
         }
@@ -134,7 +122,7 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
+    intel::compute::kernel_t kernel_;
 };
 
 } // namespace sycl

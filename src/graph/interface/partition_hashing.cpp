@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,12 +26,11 @@ namespace impl {
 namespace graph {
 namespace partition_hashing {
 
-key_t::key_t(size_t partition_id, const impl::engine_t *engine,
+key_t::key_t(const impl::engine_t *engine,
         const std::vector<std::shared_ptr<op_t>> &ops,
         const std::vector<const logical_tensor_t *> &ins,
         const std::vector<const logical_tensor_t *> &outs)
-    : partition_id_(partition_id)
-    , ops_(get_raw_ptrs(ops))
+    : ops_(get_raw_ptrs(ops))
     , nthread_(dnnl_get_max_threads())
     , engine_id_(engine->engine_id())
     , thread_id_(std::this_thread::get_id()) {
@@ -48,7 +47,7 @@ key_t::key_t(size_t partition_id, const impl::engine_t *engine,
 key_t::key_t(const partition_t *partition, const impl::engine_t *engine,
         const std::vector<const logical_tensor_t *> &ins,
         const std::vector<const logical_tensor_t *> &outs)
-    : key_t(partition->id(), engine, partition->get_ops(), ins, outs) {}
+    : key_t(engine, partition->get_ops(), ins, outs) {}
 
 bool key_t::operator==(const key_t &rhs) const {
     if (this == &rhs) return true;
@@ -61,8 +60,7 @@ bool key_t::operator==(const key_t &rhs) const {
     const size_t rhs_num_outs = rhs.outs_.size();
 
     bool ret = true && lhs_num_ops == rhs_num_ops && lhs_num_ins == rhs_num_ins
-            && lhs_num_outs == rhs_num_outs
-            && partition_id_ == rhs.partition_id_ && nthread_ == rhs.nthread_
+            && lhs_num_outs == rhs_num_outs && nthread_ == rhs.nthread_
             && engine_id_ == rhs.engine_id_;
     if (!ret) return false;
 
@@ -97,11 +95,60 @@ bool key_t::operator==(const key_t &rhs) const {
     return true;
 }
 
+size_t get_logical_tensors_hash(
+        const std::vector<std::shared_ptr<value_t>> &values) {
+    size_t seed = 0;
+    for (auto &value : values) {
+        seed = hash_combine(seed,
+                logical_tensor_wrapper_t(value->get_logical_tensor()).hash());
+    }
+    return seed;
+}
+
+using attribute_value_t = dnnl::impl::graph::utils::attribute_value_t;
+
+size_t get_attributes_hash(
+        const std::unordered_map<op_attr_t, attribute_value_t> &attributes) {
+    size_t seed = 0;
+    for (auto &attr : attributes) {
+        seed = hash_combine(seed, static_cast<size_t>(attr.first));
+        auto kind = attr.second.get_kind();
+        switch (kind) {
+            case attribute_kind::f:
+                seed = hash_combine(seed, attr.second.get<float>());
+                break;
+            case attribute_kind::i:
+                seed = hash_combine(seed, attr.second.get<int64_t>());
+                break;
+            case attribute_kind::s:
+                seed = hash_combine(seed, attr.second.get<std::string>());
+                break;
+            case attribute_kind::b:
+                seed = hash_combine(seed, attr.second.get<bool>());
+                break;
+            case attribute_kind::fs:
+                seed = get_array_hash(seed,
+                        attr.second.get<std::vector<float>>().data(),
+                        attr.second.get<std::vector<float>>().size());
+                break;
+            case attribute_kind::is:
+                seed = get_array_hash(seed,
+                        attr.second.get<std::vector<int64_t>>().data(),
+                        attr.second.get<std::vector<int64_t>>().size());
+                break;
+            default: break;
+        }
+    }
+    return seed;
+}
+
 size_t get_op_hash(const op_t &op) {
     size_t seed = 0;
-    // TODO(zixuanwe): `id` might be sufficient to cover all attributes.
     seed = hash_combine(seed, op.get_id());
     seed = hash_combine(seed, static_cast<size_t>(op.get_kind()));
+    seed = hash_combine(seed, get_logical_tensors_hash(op.get_input_values()));
+    seed = hash_combine(seed, get_logical_tensors_hash(op.get_output_values()));
+    seed = hash_combine(seed, get_attributes_hash(op.get_attributes()));
     return seed;
 }
 

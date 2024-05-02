@@ -24,6 +24,11 @@
 --batch=shapes_2d
 --batch=shapes_3d
 
+--reset
+--dt=bf16
+--attr-post-ops=mul:bf16,div:bf16
+30x40:40x50_n"bf16_binary_po_special_kinds"
+
 # Different tags
 --reset
 --dt=f32,bf16,f16,f8_e5m2,f8_e4m3,u8:s8:s8,s8:s8:f32

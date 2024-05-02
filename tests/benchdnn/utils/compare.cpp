@@ -223,6 +223,12 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     if (dump) dump_norm_values(diff_norm, get_kind_str());
 
     if (res->errors) res->state = FAILED;
+
+    // Status may be propagated from previous tensor. Use stats from cur tensor.
+    BENCHDNN_PRINT((res->errors ? 0 : 6),
+            "[COMPARE_STATS]%s: trh=%g (compare against [L2] rel_diff)\n",
+            get_kind_str().c_str(), trh_);
+
     if (res->state == EXECUTED) res->state = PASSED;
 
     return res->state == FAILED ? FAIL : OK;

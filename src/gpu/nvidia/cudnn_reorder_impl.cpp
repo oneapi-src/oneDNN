@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,9 +16,9 @@
 *******************************************************************************/
 #include "common/engine.hpp"
 #include "common/impl_list_item.hpp"
+#include "gpu/intel/ocl/cross_engine_reorder.hpp"
 #include "gpu/nvidia/cudnn_reorder.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
-#include "gpu/ocl/cross_engine_reorder.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,7 +33,7 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t cuda_reorder_impl_list[] = {
-        REORDER_INSTANCE(gpu::ocl::cross_engine_reorder_t::pd_t)
+        REORDER_INSTANCE(gpu::intel::ocl::cross_engine_reorder_t::pd_t)
         REORDER_INSTANCE(cudnn_reorder_t::pd_t)
         nullptr,
 };

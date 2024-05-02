@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/gpu/ocl/ocl_usm_utils.hpp"
+#include "src/gpu/intel/ocl/ocl_usm_utils.hpp"
 
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
@@ -25,7 +25,7 @@
 #include <cstdint>
 #include <vector>
 
-using namespace dnnl::impl::gpu::ocl;
+using namespace dnnl::impl::gpu::intel::ocl;
 
 namespace dnnl {
 
@@ -194,13 +194,13 @@ TEST(ocl_memory_usm_test, ErrorMakeMemoryUsingSystemMemory) {
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, DeviceMapUnmap) {
-    test_usm_map_unmap(dnnl::impl::gpu::ocl::usm::malloc_device,
-            dnnl::impl::gpu::ocl::usm::free);
+    test_usm_map_unmap(dnnl::impl::gpu::intel::ocl::usm::malloc_device,
+            dnnl::impl::gpu::intel::ocl::usm::free);
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, SharedMapUnmap) {
-    test_usm_map_unmap(dnnl::impl::gpu::ocl::usm::malloc_shared,
-            dnnl::impl::gpu::ocl::usm::free);
+    test_usm_map_unmap(dnnl::impl::gpu::intel::ocl::usm::malloc_shared,
+            dnnl::impl::gpu::intel::ocl::usm::free);
 }
 
 } // namespace dnnl

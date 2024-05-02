@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ struct ref_sycl_lrn_fwd_t : public sycl_gpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    compute::kernel_t kernel_;
+    intel::compute::kernel_t kernel_;
 };
 
 struct ref_sycl_lrn_bwd_t : public sycl_gpu_primitive_t {
@@ -115,7 +115,7 @@ struct ref_sycl_lrn_bwd_t : public sycl_gpu_primitive_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
+    intel::compute::kernel_t kernel_;
 };
 
 } // namespace sycl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,12 +19,12 @@
 #include "common/impl_list_item.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_sum_pd.hpp"
-#include "gpu/jit/gen9_simple_sum.hpp"
-#include "gpu/ocl/gen9_sum.hpp"
-#include "gpu/ocl/many_inputs_sum.hpp"
-#include "gpu/ocl/multi_po_reorder_sum.hpp"
-#include "gpu/ocl/ref_sum.hpp"
-#include "gpu/ocl/simple_sum.hpp"
+#include "gpu/intel/jit/gen9_simple_sum.hpp"
+#include "gpu/intel/ocl/gen9_sum.hpp"
+#include "gpu/intel/ocl/many_inputs_sum.hpp"
+#include "gpu/intel/ocl/multi_po_reorder_sum.hpp"
+#include "gpu/intel/ocl/ref_sum.hpp"
+#include "gpu/intel/ocl/simple_sum.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -40,11 +40,11 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t sum_impl_list[] = REG_SUM_P({
-        SUM_INSTANCE(ocl::multi_po_reorder_sum)
-        SUM_INSTANCE(ocl::gen9_sum_t)
-        SUM_INSTANCE(ocl::many_inputs_sum_t)
-        SUM_INSTANCE(ocl::simple_sum_t<data_type::f32>)
-        SUM_INSTANCE(ocl::ref_sum_t)
+        SUM_INSTANCE(intel::ocl::multi_po_reorder_sum)
+        SUM_INSTANCE(intel::ocl::gen9_sum_t)
+        SUM_INSTANCE(intel::ocl::many_inputs_sum_t)
+        SUM_INSTANCE(intel::ocl::simple_sum_t<data_type::f32>)
+        SUM_INSTANCE(intel::ocl::ref_sum_t)
         nullptr,
 });
 // clang-format on

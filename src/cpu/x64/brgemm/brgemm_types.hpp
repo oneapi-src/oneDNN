@@ -28,6 +28,8 @@ namespace x64 {
 
 // The type defines organization of batch of matrices
 typedef enum {
+    // Undefined brgemm batch kind
+    brgemm_batch_kind_undef = 0,
     // A and B arrays of pointers
     brgemm_addr = 1,
     // Base address and array of offsets from base address.
@@ -231,6 +233,8 @@ struct brgemm_desc_t {
     bool with_eltwise = false;
     bool with_binary = false;
     bool with_scales = false;
+    bool skip_zp_b_compensation = false;
+    bool skip_scales = false;
 
     brgemm_broadcast_t zp_type_a = brgemm_broadcast_t::none;
     brgemm_broadcast_t zp_type_b = brgemm_broadcast_t::none;

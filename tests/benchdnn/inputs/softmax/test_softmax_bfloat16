@@ -44,3 +44,5 @@
 --axis=0,1
 --batch=set_0d
 --batch=shapes_2d
+
+--reset --stag=acbd --dtag=acbd --sdt=bf16 --ddt=bf16 --axis=3 1x16x384x384_n"neighbor_dim_to_axis_has_larger_stride"

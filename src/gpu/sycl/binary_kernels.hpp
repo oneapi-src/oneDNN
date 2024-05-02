@@ -30,6 +30,7 @@ namespace sycl {
 
 struct binary_kernel_vec_t {
     static constexpr int vec_len = 8;
+    static constexpr int max_supported_ndims = 5;
 
     binary_kernel_vec_t(const sycl_binary_conf_t &conf,
             sycl_in_memory_arg_t &src0, sycl_in_memory_arg_t &src1,
@@ -63,8 +64,17 @@ struct binary_kernel_vec_t {
                         ? load_float_value(scales_dt_, src1_scale_ptr(), 0)
                         : 1.f);
 
-        if (sg_base_idx + (sg.get_local_range()[0] * conf_.block_size)
-                < conf_.wk_size) {
+        dims_t dims, off;
+        bool any_broadcast = false;
+        for (int i = 0; i < max_supported_ndims; i++) {
+            dims[i] = (i < src0_md().ndims()) ? src0_md().dims()[i] : 1;
+            if (i < src0_md().ndims()) {
+                any_broadcast |= conf_.broadcast_dims[i];
+            }
+        }
+        if (!any_broadcast
+                && sg_base_idx + (sg.get_local_range()[0] * conf_.block_size)
+                        < conf_.wk_size) {
             for (int i = 0; i < conf_.block_size / vec_len; i++) {
                 auto src0_vec = load_float_vec<vec_len>(
                         src0_md().data_type(), src0_ptr(), vec_base_idx + i);
@@ -90,10 +100,21 @@ struct binary_kernel_vec_t {
             for (int i = 0; i < conf_.block_size; i++) {
                 int idx = base_idx + i;
                 if (idx < conf_.wk_size) {
+                    utils::l_dims_by_l_offset(
+                            off, idx, dims, max_supported_ndims);
+
+                    for (int i = 0; i < max_supported_ndims; i++) {
+                        if (conf_.broadcast_dims[i] && i < src0_md().ndims()) {
+                            off[i] = 0;
+                        }
+                    }
+
+                    int idx1 = src1_md().off_v(off);
+
                     auto src0 = load_float_value(
                             src0_md().data_type(), src0_ptr(), idx);
                     auto src1 = load_float_value(
-                            src1_md().data_type(), src1_ptr(), idx);
+                            src1_md().data_type(), src1_ptr(), idx1);
                     auto dst = load_float_value(
                             dst_md().data_type(), dst_ptr(), idx);
 

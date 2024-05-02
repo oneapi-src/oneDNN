@@ -16,11 +16,11 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/jit/jit_reduction.hpp"
-#include "gpu/ocl/reduction/atomic_reduction.hpp"
-#include "gpu/ocl/reduction/combined_reduction.hpp"
-#include "gpu/ocl/reduction/ref_reduction.hpp"
-#include "gpu/ocl/reduction/reusable_ref_reduction.hpp"
+#include "gpu/intel/jit/jit_reduction.hpp"
+#include "gpu/intel/ocl/reduction/atomic_reduction.hpp"
+#include "gpu/intel/ocl/reduction/combined_reduction.hpp"
+#include "gpu/intel/ocl/reduction/ref_reduction.hpp"
+#include "gpu/intel/ocl/reduction/reusable_ref_reduction.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -29,7 +29,7 @@ namespace gpu {
 namespace {
 
 #ifdef DNNL_DEV_MODE
-#define JIT_REDUCTION_INSTANCE INSTANCE(jit::jit_reduction_t)
+#define JIT_REDUCTION_INSTANCE INSTANCE(intel::jit::jit_reduction_t)
 #else
 #define JIT_REDUCTION_INSTANCE
 #endif
@@ -37,10 +37,10 @@ namespace {
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
         JIT_REDUCTION_INSTANCE
-        INSTANCE(ocl::atomic_reduction_t)
-        INSTANCE(ocl::combined_reduction_t)
-        INSTANCE(ocl::ref_reduction_t)
-        INSTANCE(ocl::reusable_ref_reduction_t)
+        INSTANCE(intel::ocl::atomic_reduction_t)
+        INSTANCE(intel::ocl::combined_reduction_t)
+        INSTANCE(intel::ocl::ref_reduction_t)
+        INSTANCE(intel::ocl::reusable_ref_reduction_t)
         nullptr,
 });
 // clang-format on

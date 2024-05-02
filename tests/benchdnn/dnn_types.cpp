@@ -110,12 +110,12 @@ static int str2arg(const std::string &str) {
         if (str_index.empty() /* TODO: || non-digit string */) {
             BENCHDNN_PRINT(0, "%s\n",
                     "Error: \'msrc\' argument requires index to be specified.");
-            return BENCHDNN_DNNL_ARG_UNDEF;
+            return DNNL_ARG_UNDEF;
         }
         const auto index = stoul(str_index);
         return DNNL_ARG_MULTIPLE_SRC + index;
     }
-    return BENCHDNN_DNNL_ARG_UNDEF;
+    return DNNL_ARG_UNDEF;
 }
 
 static std::string arg2str(int arg) {
@@ -393,7 +393,7 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
         size_t subs_pos = 0;
 
         auto arg = str2arg(parser::get_substr(subs, subs_pos, ':'));
-        if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
+        if (arg == DNNL_ARG_UNDEF || subs_pos == std::string::npos
                 || subs_pos >= subs.size()) {
             BENCHDNN_PRINT(0,
                     "Error: argument name \'%s\' was not recognized.\n",
@@ -424,7 +424,7 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
         size_t subs_pos = 0;
 
         auto arg = str2arg(parser::get_substr(subs, subs_pos, ':'));
-        if (arg == BENCHDNN_DNNL_ARG_UNDEF || subs_pos == std::string::npos
+        if (arg == DNNL_ARG_UNDEF || subs_pos == std::string::npos
                 || subs_pos >= s.size()) {
             BENCHDNN_PRINT(0,
                     "Error: argument name \'%s\' was not recognized.\n",
@@ -558,7 +558,7 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks(
     for (int idx = 0; idx < len(); ++idx) {
         const auto &e = this->entry[idx];
         int mask = -1;
-        int arg = BENCHDNN_DNNL_ARG_UNDEF;
+        int arg = DNNL_ARG_UNDEF;
         if (e.is_binary_kind()) {
             using mask_input_t = entry_t::binary_t::mask_input_t;
             auto mask_input = e.binary.mask_input;
@@ -1638,5 +1638,3 @@ int sparse_options_t::from_str(const std::string &s) {
     return options_count == expected_num_options ? OK : FAIL;
 }
 #endif
-
-#undef BENCHDNN_DNNL_ARG_UNDEF

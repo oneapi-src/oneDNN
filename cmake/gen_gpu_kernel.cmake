@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2023 Intel Corporation
+# Copyright 2019-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ else()
 endif()
 
 set(cl_file_contents "namespace ocl {\n${cl_file_contents}\n}")
+set(cl_file_contents "namespace intel {\n${cl_file_contents}\n}")
 set(cl_file_contents "namespace gpu {\n${cl_file_contents}\n}")
 set(cl_file_contents "namespace impl {\n${cl_file_contents}\n}")
 set(cl_file_contents "namespace dnnl {\n${cl_file_contents}\n}")

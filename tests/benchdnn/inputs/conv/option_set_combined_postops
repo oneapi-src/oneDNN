@@ -13,6 +13,6 @@
 --attr-post-ops=sum+soft_relu:0.5 --batch=shapes_tails
 --attr-post-ops=sum+pow:0.5:0.33 --batch=shapes_tails
 
---attr-post-ops=add:f32:per_oc,add:f32:per_tensor --batch=shapes_tails
+--attr-post-ops=add:f32:per_oc,add:f32:per_tensor,add:f32:3 --batch=shapes_tails
 
 --attr-post-ops=prelu:per_oc,sum+prelu:per_oc --batch=shapes_tails

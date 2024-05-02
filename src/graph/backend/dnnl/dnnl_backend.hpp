@@ -88,6 +88,21 @@ struct kernel_base_t {
             = 0;
 #endif
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    status_t execute_ocl(const stream_t *astream,
+            const std::vector<tensor_t> &inputs,
+            const std::vector<tensor_t> &outputs,
+            const std::vector<cl_event> &ocl_deps, cl_event *ocl_event) {
+        return ocl_execute_impl(astream, inputs, outputs, ocl_deps, ocl_event);
+    }
+
+    virtual status_t ocl_execute_impl(const stream_t *astream,
+            const std::vector<tensor_t> &inputs,
+            const std::vector<tensor_t> &outputs,
+            const std::vector<cl_event> &ocl_deps, cl_event *ocl_event)
+            = 0;
+#endif
+
     virtual status_t compile_impl(const dnnl_partition_impl_t *part,
             const engine_t *aengine,
             const std::vector<logical_tensor_t> &inputs,
@@ -146,7 +161,8 @@ public:
                     engine_kind::cpu,
 #endif
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL \
+        || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
                     engine_kind::gpu,
 #endif
                 };

@@ -62,13 +62,13 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         switch (exec_arg) {
             case DNNL_ARG_SRC_0:
-                SAFE(::custom::fill_mem(mem, ref_mem, 0, 1), WARN);
+                SAFE(::custom::fill_mem(mem, ref_mem, 0, 4), WARN);
                 break;
             case DNNL_ARG_SRC_1:
-                SAFE(::custom::fill_mem(mem, ref_mem, 0, 1), WARN);
+                SAFE(::custom::fill_mem(mem, ref_mem, -2, 1), WARN);
                 break;
             case DNNL_ARG_WEIGHTS:
-                SAFE(::custom::fill_mem(mem, ref_mem, 0, 2), WARN);
+                SAFE(::custom::fill_mem(mem, ref_mem, 0, 1), WARN);
                 break;
             default: break;
         }
@@ -128,7 +128,9 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         switch (exec_arg) {
             case DNNL_ARG_SRC:
-                SAFE(::custom::fill_mem(mem, ref_mem, -32, 32), WARN);
+                // Use `7` not to mess with scales for s8 which may create a
+                // `8 * 8 (= 128) = -128` for s8.
+                SAFE(::custom::fill_mem(mem, ref_mem, -8, 7), WARN);
                 break;
             default: break;
         }
@@ -172,7 +174,9 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         switch (exec_arg) {
             case DNNL_ARG_SRC:
-                SAFE(::custom::fill_mem(mem, ref_mem, -32, 32), WARN);
+                // Use `7` not to mess with scales for s8 which may create a
+                // `8 * 8 (= 128) = -128` for s8.
+                SAFE(::custom::fill_mem(mem, ref_mem, -8, 7), WARN);
                 break;
             default: break;
         }
@@ -233,7 +237,7 @@ int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max) {
     benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
-        std::minstd_rand int_seed(mem_dt.dt() * nelems + idx_start + 1);
+        std::minstd_rand int_seed(nelems + idx_start + 1);
         std::uniform_int_distribution<> gen(f_min, f_max);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             float value = gen(int_seed);

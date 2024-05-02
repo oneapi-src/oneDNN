@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -147,6 +147,8 @@ std::string prb_t::set_repro_line() {
         s << "--bs=" << batch_size << " ";
     if (canonical || brgemm_attr != def.brgemm_attr[0])
         s << "--brgemm-attr=" << brgemm_attr << " ";
+    if (canonical || batch_kind != def.batch_kind[0])
+        s << "--batch-kind=" << batch_kind << " ";
 
     s << attr;
     s << static_cast<const prb_vdims_t &>(*this);

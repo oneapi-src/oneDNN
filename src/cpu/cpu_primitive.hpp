@@ -141,7 +141,8 @@
                 const int32_t *, DNNL_ARG_ATTR_ZERO_POINTS | mem_arg); \
         VCHECK_ATTR(zero_points_ptr != nullptr, \
                 "Zero points buffer for arg %d is missing", mem_arg); \
-        zero_point = *zero_points_ptr; \
+        zero_point = cpu::io::load_int_value( \
+                zero_points_d.data_type(), zero_points_ptr, 0); \
     } \
     MAYBE_UNUSED(zero_point);
 
