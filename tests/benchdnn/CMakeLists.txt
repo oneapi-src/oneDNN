@@ -158,8 +158,8 @@ foreach(driver ${all_drivers})
     file(GLOB test_files_smoke RELATIVE ${driver_dir} inputs/${driver}/test_*_smoke)
     file(GLOB test_files_cpu RELATIVE ${driver_dir} inputs/${driver}/test_*)
     file(GLOB test_files_with_all RELATIVE ${driver_dir}
-        inputs/conv/test_conv_all inputs/graph/test_graph_all
-        inputs/rnn/test_lstm_all)
+        inputs/brgemm/test_brgemm_all inputs/conv/test_conv_all
+        inputs/graph/test_graph_all inputs/rnn/test_lstm_all)
 
     if(DNNL_TEST_SET_COVERAGE EQUAL DNNL_TEST_SET_SMOKE)
         if(has_gpu)

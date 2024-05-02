@@ -1,0 +1,12 @@
+--reset
+
+--batch=harness_brgemm_f32
+
+--batch=harness_brgemm_fpmath
+
+--reset
+--brgemm-attr=generate_skip_accumulation:1
+--beta=0,1
+--bia_dt=f32
+--dt=f32
+--batch=option_set_f32

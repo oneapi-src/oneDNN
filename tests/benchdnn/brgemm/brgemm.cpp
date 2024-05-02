@@ -364,6 +364,7 @@ int doit(const prb_t *prb, res_t *res) {
             prb->k, nullptr /* strides */);
     SAFE(check_dnnl_status(status_init, prb, res), WARN);
     if (res->state == SKIPPED) return OK;
+    if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
     attr_args_t attr_args;
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
@@ -458,8 +459,6 @@ int doit(const prb_t *prb, res_t *res) {
         bia_md = dnn_mem_t::init_md(
                 prb->ndims, bia_dims, prb->bia_dt, tag::abx);
     }
-
-    if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
     const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
