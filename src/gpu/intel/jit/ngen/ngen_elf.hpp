@@ -89,6 +89,8 @@ protected:
         interface_.newArgument(name, exttype, access);
     }
 
+    void allowArgumentRearrangement(bool allow)                          { return interface_.allowArgumentRearrangement(allow); }
+
     Subregister getArgument(const std::string &name) const               { return interface_.getArgument(name); }
     Subregister getArgumentIfExists(const std::string &name) const       { return interface_.getArgumentIfExists(name); }
     int getArgumentSurface(const std::string &name) const                { return interface_.getArgumentSurface(name); }
@@ -308,6 +310,7 @@ template <typename... Targs> void requireWalkOrder(Targs&&... args) { NGEN_NAMES
 template <typename... Targs> void requireWorkgroup(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::requireWorkgroup(std::forward<Targs>(args)...); } \
 template <typename... Targs> void finalizeInterface(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::finalizeInterface(std::forward<Targs>(args)...); } \
 template <typename... Targs> void newArgument(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::newArgument(std::forward<Targs>(args)...); } \
+template <typename... Targs> void allowArgumentRearrangement(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::allowArgumentRearrangement(std::forward<Targs>(args)...); } \
 template <typename... Targs> NGEN_NAMESPACE::Subregister getArgument(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getArgument(std::forward<Targs>(args)...); } \
 template <typename... Targs> NGEN_NAMESPACE::Subregister getArgumentIfExists(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getArgumentIfExists(std::forward<Targs>(args)...); } \
 template <typename... Targs> int getArgumentSurface(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getArgumentSurface(std::forward<Targs>(args)...); } \
