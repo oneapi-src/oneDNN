@@ -38,7 +38,7 @@ primitive is present in the primitive cache, the one from primitive cache will
 be returned to the user, and the given cache blob will not be used. Otherwise,
 the cache blob will be used to speed up the primitive creation. The information
 about how the primitive was created (`cache_miss`, `cache_hit` or
-`from_cache_blob`) is part of the verbose output for verbose level 2
+`persistent_cache_hit`) is part of the verbose output for verbose level 2
 (@ref dev_guide_verbose).
 
 ### API Usage Example
