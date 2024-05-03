@@ -46,6 +46,10 @@ struct ref_sdpa_t : public gpu_primitive_t {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
+            /* Reference SDPA is only enabled on-demand, for testing. */
+            bool enable_ref = gpu_utils::dev_getenv("enable_ref_sdpa", false);
+            VDISPATCH_SDPA(enable_ref, VERBOSE_SKIP_PRIMITIVE_IMPL);
+
             VDISPATCH_SDPA(attr()->has_default_values(smask_t::scales_runtime),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_SDPA(
