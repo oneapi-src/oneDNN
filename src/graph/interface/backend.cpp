@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,6 +44,18 @@ size_t backend_registry_t::extract_layout_id(size_t layout_id) {
 
 size_t backend_registry_t::extract_backend_id(size_t layout_id) {
     return layout_id & (size_t)((1 << BACKEND_ID_LENGTH) - 1);
+}
+
+void backend_registry_t::invoke_backend_registration() {
+    // Note: `std::call_once` should be kept in a single translation unit since
+    // GCC 11.
+    std::call_once(register_flag_, []() {
+        register_dnnl_backend();
+        register_fake_backend();
+#ifdef DNNL_ENABLE_COMPILER_BACKEND
+        register_compiler_backend();
+#endif
+    });
 }
 
 } // namespace graph

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -196,15 +196,7 @@ private:
     backend_registry_t &operator=(const backend_registry_t &) = delete;
     backend_registry_t &operator=(backend_registry_t &&) = delete;
 
-    inline void invoke_backend_registration() {
-        std::call_once(register_flag_, []() {
-            register_dnnl_backend();
-            register_fake_backend();
-#ifdef DNNL_ENABLE_COMPILER_BACKEND
-            register_compiler_backend();
-#endif
-        });
-    }
+    void invoke_backend_registration();
 
     std::mutex m_;
 
