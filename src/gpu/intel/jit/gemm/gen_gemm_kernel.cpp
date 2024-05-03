@@ -617,6 +617,10 @@ void gen_gemm_kernel_t::init_interface() {
 
     if (strategy.needsTempC(problem))
         interface_.newArgument("temp_C", ExternalArgumentType::GlobalPtr);
+    interface_.newArgument("flags", DataType::ud);
+    if ((strategy.kParallel || strategy.kParallelLocal)
+            && !strategy.kParallelVariable)
+        interface_.newArgument("k0", DataType::d);
     for (size_t i = 0; i < problem.postOps.len(); i++) {
         if (!problem.postOps[i].is_binary()) continue;
         auto bname = "binary" + std::to_string(i);
@@ -625,10 +629,6 @@ void gen_gemm_kernel_t::init_interface() {
         if (problem.binaryRow[i] && problem.binaryCol[i])
             interface_.newArgument("ld" + bname, DataType::d);
     }
-    interface_.newArgument("flags", DataType::ud);
-    if ((strategy.kParallel || strategy.kParallelLocal)
-            && !strategy.kParallelVariable)
-        interface_.newArgument("k0", DataType::d);
     if (problem.batch == BatchMode::Strided) {
         if (problem.batchDims > 1) {
             interface_.newArgument("stride_A1", DataType::d);
@@ -685,6 +685,7 @@ void gen_gemm_kernel_t::init_interface() {
     if (problem.boPtrDims >= 1 || problem.bScale2D)
         interface_.newArgument("offset_Bq", DataType::d);
 
+    if (desc()->hw_ >= HW::XeHPG) interface_.allowArgumentRearrangement(false);
     interface_.externalName(kernel_name());
 }
 
