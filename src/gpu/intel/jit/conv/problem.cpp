@@ -257,7 +257,8 @@ void conv_problem_t::init_transpose(const hw_t &hw) {
     bool allow_ab_transpose = gpu_utils::dev_getenv("allow_ab_transpose", true);
     bool any_zp = !attr->has_default_values(attr_skip_mask);
     bool any_f64 = utils::one_of(data_type::f64, src_data_type, dst_data_type);
-    if (!allow_ab_transpose || any_zp || any_f64 || with_groups) {
+    if (!allow_ab_transpose || any_zp || any_f64 || with_groups
+            || hw <= ngen::HW::Gen9) {
         ab_swap_transpose = gpu_utils::dev_getenv("ab_swap_transpose", false);
         return;
     }
