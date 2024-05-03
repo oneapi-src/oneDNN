@@ -43,9 +43,8 @@ struct dnnl_api_traits<dnnl::impl::cpu::x64::brgemm_kernel_t *> {
         DNN_SAFE_V(dnnl::impl::cpu::x64::brgemm_kernel_destroy(t));
     }
 };
-#endif
 
-#if defined(DNNL_AARCH64) && DNNL_AARCH64 == 1 \
+#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1 \
         && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 template <>
 struct dnnl_api_traits<dnnl::impl::cpu::aarch64::brgemm_kernel_t *> {
