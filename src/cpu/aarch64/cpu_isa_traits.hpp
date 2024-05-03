@@ -25,7 +25,6 @@
 #include "common/utils.hpp"
 #include "dnnl_types.h"
 
-
 /* in order to make selinux happy memory that would be marked with X-bit should
  * be obtained with mmap */
 #if !defined(_WIN32)
