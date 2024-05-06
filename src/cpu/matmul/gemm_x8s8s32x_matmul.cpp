@@ -369,7 +369,7 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                     case data_type::s8: {
                         const int8_t *curr_src_ptr
                                 = reinterpret_cast<const int8_t *>(curr_src);
-                        st_thr = gemm_s8x8s32(&transB, &transA, "F", &gemm_N,
+                        st_thr = gemm_s8s8s32(&transB, &transA, "F", &gemm_N,
                                 &gemm_M, &K, &alpha, curr_weights, &ldb,
                                 &gemm_off_b, curr_src_ptr, &lda,
                                 &gemm_off_a_int8, &beta, curr_acc, &acc_ldc,
@@ -395,7 +395,7 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                     case data_type::u8: {
                         const uint8_t *curr_src_ptr
                                 = reinterpret_cast<const uint8_t *>(curr_src);
-                        st_thr = gemm_s8x8s32(&transB, &transA, "F", &gemm_N,
+                        st_thr = gemm_s8u8s32(&transB, &transA, "F", &gemm_N,
                                 &gemm_M, &K, &alpha, curr_weights, &ldb,
                                 &gemm_off_b, curr_src_ptr, &lda,
                                 &gemm_off_a_uint8, &beta, curr_acc, &acc_ldc,
@@ -455,13 +455,13 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         switch (src_d.data_type()) {
             case data_type::s8: {
                 const int8_t *src_ = reinterpret_cast<const int8_t *>(src);
-                st = gemm_s8x8s32(&transB, &transA, "F", &N, &M, &K, &alpha,
+                st = gemm_s8s8s32(&transB, &transA, "F", &N, &M, &K, &alpha,
                         weights, &ldb, &gemm_off_b, src_, &lda,
                         &gemm_off_a_int8, &beta, acc, &acc_ldc, &gemm_off_c);
             } break;
             case data_type::u8: {
                 const uint8_t *src_ = reinterpret_cast<const uint8_t *>(src);
-                st = gemm_s8x8s32(&transB, &transA, "F", &N, &M, &K, &alpha,
+                st = gemm_s8u8s32(&transB, &transA, "F", &N, &M, &K, &alpha,
                         weights, &ldb, &gemm_off_b, src_, &lda,
                         &gemm_off_a_uint8, &beta, acc, &acc_ldc, &gemm_off_c);
             } break;

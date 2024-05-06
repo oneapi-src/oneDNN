@@ -79,13 +79,13 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
     if (smd.data_type == data_type::s8) {
         const int8_t off_b = 0;
         const int8_t *src_ = reinterpret_cast<const int8_t *>(src);
-        CHECK(gemm_s8x8s32(wei_tr ? "T" : "N", src_tr ? "T" : "N", "F", &M, &N,
+        CHECK(gemm_s8s8s32(wei_tr ? "T" : "N", src_tr ? "T" : "N", "F", &M, &N,
                 &K, &onef, weights, wei_tr ? &K : &M, &off_a, src_,
                 src_tr ? &N : &K, &off_b, &zerof, acc, &M, &off_c));
     } else if (smd.data_type == data_type::u8) {
         const uint8_t off_b = 0;
         const uint8_t *src_ = reinterpret_cast<const uint8_t *>(src);
-        CHECK(gemm_s8x8s32(wei_tr ? "T" : "N", src_tr ? "T" : "N", "F", &M, &N,
+        CHECK(gemm_s8u8s32(wei_tr ? "T" : "N", src_tr ? "T" : "N", "F", &M, &N,
                 &K, &onef, weights, wei_tr ? &K : &M, &off_a, src_,
                 src_tr ? &N : &K, &off_b, &zerof, acc, &M, &off_c));
     } else {
