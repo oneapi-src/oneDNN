@@ -78,6 +78,7 @@ struct nhwc_reusable_bnorm_compile_params_t {
 
     data_type_t data_type;
     int vect_size;
+    int sub_group_size;
     bool use_scale;
     bool use_shift;
     bool is_training;

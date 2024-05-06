@@ -16,7 +16,6 @@
 #ifndef GPU_INTEL_OCL_BNORM_NHWC_REUSABLE_H
 #define GPU_INTEL_OCL_BNORM_NHWC_REUSABLE_H
 
-#define SG_SIZE 16
 #define VECT_DT_N VECT_SIZE
 #include "gpu/intel/ocl/dispatch.h"
 #include "gpu/intel/ocl/ocl_types.h"

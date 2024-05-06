@@ -89,7 +89,7 @@ void nhwc_reusable_calc_fused_reduction(volatile __global atomic_float *dst,
 }
 
 // Calculate mean, regular algorithm
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
         volatile __global atomic_float *mean, off_t ic_size, off_t ic_block,
         off_t sp_size, off_t stat_sp_block, off_t reduce_stat_nblocks,
@@ -161,7 +161,7 @@ nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
 }
 
 // Calculate variance, regular algorithm
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
         __global float *reduce_temp, volatile __global atomic_float *variance,
         off_t ic_size, off_t ic_block, off_t sp_size, off_t stat_sp_block,
@@ -246,7 +246,7 @@ nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
 }
 
 // Calculate mean and variance at once, 1pass algorithm
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
         volatile __global atomic_float *mean,
         volatile __global atomic_float *variance, off_t ic_size, off_t ic_block,
@@ -335,7 +335,7 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
 }
 
 // Main FWD kernel, common for regular and 1pass algorithms
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 nhwc_reusable_norm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global float *shift, __global char *ws,
@@ -502,7 +502,7 @@ void nhwc_reusable_bwd_calc_fused_reduction(
 }
 
 // Calculate stats for BWD pass
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
         __global DATA_T *diff_dst, __global char *ws,
         __global float *temp_reduce, __global float *temp_reduce_shift,
@@ -631,7 +631,7 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
 }
 
 // Main BWD pass kernel
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 nhwc_reusable_norm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global char *ws,
@@ -778,7 +778,7 @@ __kernel void nhwc_reusable_reduce_aux(__global float *ptr1,
 }
 
 // Reduction thru scratchpad, FWD pass, regular algorithm
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 nhwc_reusable_reduce_fwd_reg(__global float *reduce_scratchpad,
         off_t scratchpad_off, __global float *dst, off_t ic_size,
         off_t reduce_ic_sub_groups, off_t reduce_stat_nblocks, off_t sp_size,
@@ -809,7 +809,7 @@ nhwc_reusable_reduce_fwd_reg(__global float *reduce_scratchpad,
 }
 
 // Reduction thru scratchpad, FWD pass, 1pass algorithm
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 nhwc_reusable_reduce_fwd_1pass(__global float *reduce_temp,
         __global float *mean, __global float *variance, off_t ic_size,
         off_t reduce_ic_sub_groups, off_t reduce_stat_nblocks, off_t sp_size,
@@ -860,7 +860,7 @@ nhwc_reusable_reduce_fwd_1pass(__global float *reduce_temp,
 }
 
 // Reduction thru scratchpad, BWD pass
-__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 nhwc_reusable_reduce_stat(__global float *temp_reduce,
         __global float *temp_reduce_shift, __global float *diff_scale,
         __global float *diff_shift, __global float *variance, float eps,

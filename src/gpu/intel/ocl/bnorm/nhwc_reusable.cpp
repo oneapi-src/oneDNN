@@ -140,8 +140,8 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     // TODO: implement it, possible perf boost could be ~ 2x
     if (bn_conf.ic % 8 == 0 && bn_conf.ic % 16 && cmpl_conf.use_stats_one_pass)
         cmpl_conf.use_stats_one_pass = false;
-
-    bn_conf.sub_group_size = 16;
+    // Temporary for performance tuning. TODO: add subgroup size to perf model
+    bn_conf.sub_group_size = dev_getenv("SG", 16);
     // reshape to xc
     bn_conf.sp = bn_conf.mb * bn_conf.id * bn_conf.ih * bn_conf.iw;
 
@@ -168,6 +168,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     CHECK(get_params_by_model(bn_conf, pd, hw_params, true));
 
     cmpl_conf.vect_size = bn_conf.vect_size;
+    cmpl_conf.sub_group_size = bn_conf.sub_group_size;
 
     // For performance debuging and analisys
     std::string prb_str = get_prb_desc_str(pd);
@@ -211,6 +212,7 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("USE_SCALE", cmpl_conf.use_scale);
     kernel_ctx.define_int("USE_SHIFT", cmpl_conf.use_shift);
     kernel_ctx.define_int("VECT_SIZE", cmpl_conf.vect_size);
+    kernel_ctx.define_int("SG_SIZE", cmpl_conf.sub_group_size);
     kernel_ctx.add_option("-cl-std=CL2.0");
     if (cmpl_conf.data_type == data_type::s8)
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
