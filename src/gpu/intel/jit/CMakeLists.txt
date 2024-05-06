@@ -59,3 +59,10 @@ if(DNNL_GPU_CONV_PLANNER)
     endif()
     add_subdirectory(v2/conv/planner)
 endif()
+
+# Workaround for LTO bug in some versions of GCC.
+# Known bad versions: 10.5, 11.4, 12.3
+if(CMAKE_COMPILER_IS_GNUCC)
+    set_source_files_properties(gemm/loop_sequencer.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
+    set_source_files_properties(gemm/gen_gemm_kernel_generator.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
+endif()
