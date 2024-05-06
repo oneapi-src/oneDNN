@@ -140,8 +140,11 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     // TODO: implement it, possible perf boost could be ~ 2x
     if (bn_conf.ic % 8 == 0 && bn_conf.ic % 16 && cmpl_conf.use_stats_one_pass)
         cmpl_conf.use_stats_one_pass = false;
-    // Temporary for performance tuning. TODO: add subgroup size to perf model
+
+    // Temporary for performance tuning. TODO: consider adding it to a perf model
     bn_conf.sub_group_size = dev_getenv("SG", 16);
+    bn_conf.max_ic_block = dev_getenv("MAX_IC_BLOCK", 128);
+
     // reshape to xc
     bn_conf.sp = bn_conf.mb * bn_conf.id * bn_conf.ih * bn_conf.iw;
 

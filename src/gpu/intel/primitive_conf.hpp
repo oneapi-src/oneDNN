@@ -485,6 +485,7 @@ struct bnorm_conf_t {
     bool skip_reduce_stat;
     bool use_stats_one_pass;
     int calc_stat_ic;
+    int max_ic_block;
 };
 
 // Layer Normalization
