@@ -23,12 +23,12 @@
 --reset --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
 
 # Rewrited graphs
---reset --in-shapes=4:4x1x32x256+5:4x1x256x33+0:4x1x33x256 --case=complex_fusion/mha/MHA-GPT-inf-fp32-bs1.json
---reset --in-shapes=4:4x1x32x256+5:4x1x256x33+0:4x1x33x256 --case=complex_fusion/mha/MHA-GPT-inf-bf16-bs1.json
---reset --in-shapes=5:4x1x32x256+4:4x1x256x33+0:4x1x33x256 --case=complex_fusion/mha/MHA-GPT-inf-int8-bs1.json
---reset --in-shapes=3:4x1x32x128+4:4x1x128x33+0:4x1x33x128 --case=complex_fusion/mha/MHA-LLaMa-inf-fp32-bs1.json
---reset --in-shapes=3:4x1x32x128+4:4x1x128x33+0:4x1x33x128 --case=complex_fusion/mha/MHA-LLaMa-inf-bf16-bs1.json
---reset --in-shapes=4:4x1x32x128+3:4x1x128x33+0:4x1x33x128 --case=complex_fusion/mha/MHA-LLaMa-inf-int8-bs1.json
+--reset --in-shapes=4:4x16x32x256+5:4x16x256x33+0:4x16x33x256+1:4x1x1x33+3:4x1x32x33 --case=complex_fusion/mha/MHA-GPT-inf-fp32-bs1.json
+--reset --in-shapes=4:4x16x32x256+5:4x16x256x33+0:4x16x33x256+1:4x1x1x33+3:4x1x32x33 --case=complex_fusion/mha/MHA-GPT-inf-bf16-bs1.json
+--reset --in-shapes=5:4x16x32x256+4:4x16x256x33+0:4x16x33x256+1:4x1x1x33+3:4x1x32x33 --case=complex_fusion/mha/MHA-GPT-inf-int8-bs1.json
+--reset --in-shapes=3:4x32x32x128+4:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-fp32-bs1.json
+--reset --in-shapes=3:4x32x32x128+4:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-bf16-bs1.json
+--reset --in-shapes=4:4x32x32x128+3:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-int8-bs1.json
 --reset --in-shapes=3:56x16x384x64+4:56x16x64x384+0:56x16x384x64+1:56x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-fp32-bs1.json
 --reset --in-shapes=3:56x16x384x64+4:56x16x64x384+0:56x16x384x64+1:56x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-bf16-bs1.json
 --reset --in-shapes=4:56x16x384x64+3:56x16x64x384+0:56x16x384x64+1:56x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-int8-bs1.json
