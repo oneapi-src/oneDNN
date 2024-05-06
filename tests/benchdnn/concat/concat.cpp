@@ -125,7 +125,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
                     (prb->sdt == dnnl_f32 || prb->sdt == prb->ddt));
 
     if (is_cpu() && (!valid_xf16_input || !valid_xf16_output)) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
         return;
     }
 }

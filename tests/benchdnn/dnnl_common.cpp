@@ -660,7 +660,8 @@ void skip_unimplemented_data_type(
             default: break;
         }
         if (need_skip) {
-            res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::data_type_not_supported;
             return;
         }
     }
@@ -684,7 +685,8 @@ void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
             if (e.sum.zero_point != 0) {
                 // Sum with zero-point is only supported for int8
                 if (!is_integral_dt(src_dt)) {
-                    res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                    res->state = SKIPPED;
+                    res->reason = skip_reason::case_not_supported;
                     return;
                 } else {
                     // Only quantized sum operand can have zero point
@@ -692,7 +694,8 @@ void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
                             = e.sum.dt == dnnl_data_type_undef ? dst_dt
                                                                : e.sum.dt;
                     if (!is_integral_dt(e_sum_dt)) {
-                        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                        res->state = SKIPPED;
+                        res->reason = skip_reason::case_not_supported;
                         return;
                     }
                 }
@@ -700,19 +703,22 @@ void skip_unimplemented_sum_po(const attr_t &attr, res_t *res,
 
             // Sum with zero-point is not supported on GPU
             if (is_gpu() && e.sum.zero_point != 0) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                res->state = SKIPPED;
+                res->reason = skip_reason::case_not_supported;
                 break;
             }
             // Each sum must have same data on CPU
             if (is_cpu() && e.sum.dt != sum_dt) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                res->state = SKIPPED;
+                res->reason = skip_reason::case_not_supported;
                 break;
             }
             // Sum must have data type with the same size like dst on both
             if (dst_dt != dnnl_data_type_undef && sum_dt != dnnl_data_type_undef
                     && dnnl_data_type_size(dst_dt)
                             != dnnl_data_type_size(e.sum.dt)) {
-                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                res->state = SKIPPED;
+                res->reason = skip_reason::case_not_supported;
                 return;
             }
         }
@@ -732,14 +738,18 @@ void skip_unimplemented_prelu_po(
         case dnnl_deconvolution:
         case dnnl_inner_product:
         case dnnl_matmul: return; break;
-        default: res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED; break;
+        default:
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
+            break;
     }
 }
 
 void skip_unimplemented_arg_scale(const attr_t &attr, res_t *res) {
     for (const auto &arg_s : attr.scales.scales) {
         if (arg_s.second.policy != policy_t::COMMON) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
     }
@@ -756,13 +766,15 @@ void skip_invalid_inplace(res_t *res, dnnl_data_type_t sdt,
     // General limitation of in-place mode is having same amount of memory on
     // input and output.
     if (sdt != ddt) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 
     if (dtag == tag::any) return;
     if (stag != dtag) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 }
@@ -1036,7 +1048,7 @@ static int check_total_size(
                     "[CHECK_MEM][%s]: Not enough device RAM for a problem.\n",
                     dir_c_str());
             res->state = SKIPPED;
-            res->reason = NOT_ENOUGH_RAM;
+            res->reason = skip_reason::not_enough_ram;
         }
 
         const bool all_allocation_fit_limit = std::all_of(
@@ -1053,7 +1065,7 @@ static int check_total_size(
                 });
         if (!all_allocation_fit_limit) {
             res->state = SKIPPED;
-            res->reason = NOT_ENOUGH_RAM;
+            res->reason = skip_reason::not_enough_ram;
         }
 
         BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
@@ -1091,7 +1103,7 @@ static int check_total_size(
         } else {
             res->state = SKIPPED;
         }
-        res->reason = NOT_ENOUGH_RAM;
+        res->reason = skip_reason::not_enough_ram;
     }
 
     BENCHDNN_PRINT((!fits_cpu_ram ? 2 : 6),

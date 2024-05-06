@@ -48,7 +48,7 @@ struct deserialized_lt;
 
 struct bdnn_state_t {
     res_state_t state;
-    skip_reason_t reason;
+    std::string reason;
 };
 
 extern bdnn_state_t convert_state(const dnnl_status_t &s);

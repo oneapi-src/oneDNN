@@ -249,7 +249,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     };
     if (!IMPLICATION(is_xf16(prb->bia_dt) || is_xf16(prb->dst_dt()),
                 is_xf16(prb->wei_dt()))) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
         return;
     }
     skip_unimplemented_data_type(
@@ -262,7 +263,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     // Unconditionally skip remaining unimplemented cases.
     // TODO: stop doing it.
     res->state = SKIPPED;
-    res->reason = CASE_NOT_SUPPORTED;
+    res->reason = skip_reason::case_not_supported;
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -275,7 +276,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     const bool req_s8_comp = prb->src_dt() == dnnl_s8;
     const bool req_zp_comp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     if (is_bad_ldb && (req_s8_comp || req_zp_comp)) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
         return;
     }
 }
@@ -592,12 +594,16 @@ int doit(const prb_t *prb, res_t *res) {
         // It requires enabling f32 -> u8 reorder with compensation on the
         // library side. When enabled, it produces incorrect results for cases
         // with K=1. Likely there's a bug inside. Postpone supporting it.
-        return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return OK;
     }
 
     if (prb->attr.post_ops.binary_index() >= 0) {
         // TODO: binary post-op is not supported yet.
-        return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return OK;
     }
 
     brgemm_post_ops_data_t post_ops_data(

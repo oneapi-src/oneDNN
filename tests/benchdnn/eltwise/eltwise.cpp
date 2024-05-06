@@ -300,7 +300,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         default: break;
     };
     if (is_invalid) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 
@@ -308,7 +309,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     // let forward path overwrite it.
     is_invalid = (prb->dir & FLAG_BWD) && !prb->use_dst() && prb->inplace;
     if (is_invalid) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 

@@ -774,13 +774,15 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
         // FIXME: this will disable int8 RNN testing if the library is built with
         //        Intel MKL that does have packed IGEMM
         if (prb.is_int8()) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 #endif
         // cpu backward only supports `any` or `abx` layouts for weights
         if (IMPLICATION(prb.prop == dnnl_backward, prb.tag[1] != tag::abx)) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 
@@ -788,7 +790,8 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
         const bool is_f16_not_ok
                 = prb.cfg[SRC_LAYER].dt == dnnl_f16 && !(dir & FLAG_INF);
         if (is_f16_not_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 
@@ -796,7 +799,8 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
         const bool is_acl_f16_not_ok = prb.cfg[SRC_LAYER].dt == dnnl_f16
                 && dnnl::impl::cpu::platform::has_data_type_support(dnnl_f16);
         if (is_acl_f16_not_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 #endif
@@ -806,25 +810,30 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
     // only LSTM and GRU cell kinds support int8 so far;
     if (prb.is_int8()) {
         if (!prb.trivial_strides) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
         if (prb.alg != VANILLA_LSTM && prb.alg != VANILLA_GRU) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
         if (prb.prop != dnnl_forward_inference) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
         if (is_cpu()
                 && (prb.tag[0] != tag::abx || prb.tag[1] != tag::any
                         || prb.tag[2] != tag::abx)) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
         if (is_gpu() && prb.tag[1] != tag::any) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
     }
@@ -833,7 +842,8 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
     if (prb.is_lstm_projection()
             && (prb.cfg[SRC_LAYER].dt == dnnl_bf16
                     || prb.cfg[SRC_LAYER].dt == dnnl_f16)) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
         return;
     }
 
@@ -841,29 +851,35 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
     if (is_gpu()) {
         bool is_AUGRU = prb.alg == VANILLA_AUGRU || prb.alg == LBR_AUGRU;
         if (is_AUGRU) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
         if (prb.is_lstm_projection() || prb.is_lstm_peephole()) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
         if (prb.is_int8() && prb.alg != VANILLA_LSTM) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
         if (prb.is_s8() && prb.alg == VANILLA_LSTM) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
         // Implemented only for CPU
         if (prb.cfg[BIAS].dt == dnnl_bf16 || prb.cfg[SRC_ITER_C].dt == dnnl_bf16
                 || prb.cfg[DST_ITER_C].dt == dnnl_bf16) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
         if (prb.flags != NONE) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
     }
@@ -885,7 +901,8 @@ void skip_invalid_prb(const prb_t *prb_, res_t *res) {
                     && prb.direction == dnnl_unidirectional_left2right);
     if (!consistent_proj || !consistent_L || !consistent_T || !consistent_GRU
             || !consistent_AUGRU) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 
@@ -895,7 +912,8 @@ void skip_invalid_prb(const prb_t *prb_, res_t *res) {
     bool is_lstm_projection
             = IMPLICATION(prb.with_projection, prb.alg == VANILLA_LSTM);
     if (!is_lstm_peephole || !is_lstm_projection) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 
@@ -903,7 +921,8 @@ void skip_invalid_prb(const prb_t *prb_, res_t *res) {
     // the output, which doesn't allow to validate numerical stability.
     if (has_bench_mode_bit(mode_bit_t::bitwise) && (prb.prop == dnnl_backward)
             && prb.flags != DIFF_WEIGHTS_OVERWRITE) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 
@@ -911,7 +930,8 @@ void skip_invalid_prb(const prb_t *prb_, res_t *res) {
     // With tag::any, strides are not defined.
     if (!prb.trivial_strides
             && (prb.tag[0] == tag::any || prb.tag[2] == tag::any)) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 }
