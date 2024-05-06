@@ -89,17 +89,16 @@ void fuseMicrokernel(std::vector<uint8_t> &binary,
                 "IGC did not generate a valid zebin program binary");
 
     auto *insn = reinterpret_cast<const uint32_t *>(base + text->offset);
-    int icount = text->size >> 4;
+    auto *iend = reinterpret_cast<const uint32_t *>(
+            base + text->offset + text->size);
 
     const uint8_t *spliceStart = nullptr;
     const uint8_t *spliceEnd = nullptr;
 
-    for (int inum = 0; inum < icount; inum++, insn += 4) {
+    for (; insn < iend; insn += 4) {
         if (insn[0] & (1u << 29))
-            throw std::runtime_error(
-                    "Found a compacted instruction. Please run with the "
-                    "environment variable IGC_disableCompaction=1");
-        if (insn[3] == (sigilStart ^ id))
+            insn -= 2;
+        else if (insn[3] == (sigilStart ^ id))
             spliceStart = reinterpret_cast<const uint8_t *>(insn);
         else if (insn[3] == (sigilEnd ^ id)) {
             spliceEnd = reinterpret_cast<const uint8_t *>(insn);
@@ -178,10 +177,14 @@ void fuseMicrokernels(std::vector<uint8_t> &binary, const char *source) {
 }
 
 static void fixupJumpTargets(uint8_t *start, size_t len, ptrdiff_t adjust) {
-    auto insn = reinterpret_cast<int32_t *>(start);
-    auto icount = len >> 4;
+    auto istart = reinterpret_cast<int32_t *>(start);
+    auto iend = reinterpret_cast<int32_t *>(start + len);
 
-    for (size_t inum = 0; inum < icount; inum++, insn += 4) {
+    for (auto insn = istart; insn < iend; insn += 4) {
+        if (insn[0] & (1u << 29)) {
+            insn -= 2; /* skip compacted instructions */
+            continue;
+        }
         uint8_t op = insn[0] & 0xFF;
         if ((op & 0xF0) != 0x20) continue; /* skip non-jumps */
         if (op == 0x2B || op == 0x2D) continue; /* skip ret/calla */
@@ -189,12 +192,13 @@ static void fixupJumpTargets(uint8_t *start, size_t len, ptrdiff_t adjust) {
                 || op == 0x2A || op == 0x2E);
 
         auto jumpFixup = [=](int32_t &ip) {
-            auto target = ptrdiff_t(inum << 4) + ip;
+            auto target = ((insn - istart) << 2) + ip;
             if (target < 0 || target >= ptrdiff_t(len)) ip += adjust;
         };
 
         if (hasUIP) jumpFixup(insn[2]);
         jumpFixup(insn[3]);
+        insn += 4;
     }
 }
 
