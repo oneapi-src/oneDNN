@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,6 +74,7 @@ bool fast_ref {default_fast_ref};
 bool allow_enum_tags_only {true};
 int test_start {0};
 bool attr_same_pd_check {false};
+bool check_ref_impl {false};
 
 int main(int argc, char **argv) {
     using namespace parser;

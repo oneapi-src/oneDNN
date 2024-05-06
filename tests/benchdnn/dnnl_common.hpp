@@ -434,6 +434,8 @@ int check_pd_w_and_wo_attr(dnnl_engine_t engine, const func_t &init_pd_func,
     return OK;
 }
 
+int check_ref_impl_hit(res_t *res);
+
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, const prb_t *prb, res_t *res,
@@ -489,6 +491,8 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         SAFE(check_pd_w_and_wo_attr(
                      get_test_engine(), init_pd_func, prb, res, dir, hint),
                 WARN);
+        // Check if unexpected ref impl was hit.
+        SAFE(check_ref_impl_hit(res), WARN);
     }
 
     user_prim.reset(primw.release());

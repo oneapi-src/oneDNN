@@ -93,6 +93,7 @@ extern int verbose;
 extern bool canonical;
 extern bool mem_check;
 extern bool attr_same_pd_check;
+extern bool check_ref_impl;
 extern std::string skip_impl; /* empty or "" means skip nothing */
 extern std::string driver_name;
 

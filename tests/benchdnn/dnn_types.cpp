@@ -860,6 +860,8 @@ std::ostream &dump_global_params(std::ostream &s) {
         s << "--cpu-isa-hints=" << isa_hints_t::hints2str(hints) << " ";
     if (canonical || attr_same_pd_check != false)
         s << "--attr-same-pd-check=" << bool2str(attr_same_pd_check) << " ";
+    if (canonical || check_ref_impl != false)
+        s << "--check-ref-impl=" << bool2str(check_ref_impl) << " ";
 #if defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (canonical || memory_kind != default_memory_kind)
         s << "--memory-kind=" << memory_kind << " ";

@@ -791,6 +791,19 @@ int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res) {
     return FAIL;
 }
 
+// Checks if unexpected reference implementation was hit.
+int check_ref_impl_hit(res_t *res) {
+    if (!check_ref_impl) return OK;
+
+    const auto &impl_name = res->impl_name;
+    if (impl_name.find("ref") != std::string::npos) {
+        res->state = FAILED;
+        res->reason = "Ref Impl Not Expected";
+        return FAIL;
+    }
+    return OK;
+}
+
 bool is_cpu(const dnnl_engine_t &engine) {
     return query_engine_kind(engine) == dnnl_cpu;
 }

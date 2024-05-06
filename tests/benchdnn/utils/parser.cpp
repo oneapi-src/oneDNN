@@ -762,6 +762,17 @@ static bool parse_canonical(
             canonical, false, str2bool, str, option_name, help);
 }
 
+static bool parse_check_ref_impl(
+        const char *str, const std::string &option_name = "check-ref-impl") {
+    static const std::string help
+            = "BOOL    (Default: `false`)\n    Instructs the driver to compare "
+              "an implementation name against the \'ref\' string pattern.\n    "
+              "When set to `true`, the check would return an error if the "
+              "implementation name contains such pattern.\n";
+    return parse_single_value_option(
+            check_ref_impl, false, str2bool, str, option_name, help);
+}
+
 static bool parse_cold_cache(
         const char *str, const std::string &option_name = "cold-cache") {
     static const std::string help
@@ -1236,12 +1247,12 @@ bool parse_bench_settings(const char *str) {
 
     bool parsed = parse_allow_enum_tags_only(str)
             || parse_attr_same_pd_check(str) || parse_canonical(str)
-            || parse_cold_cache(str) || parse_cpu_isa_hints(str)
-            || parse_engine(str) || parse_fast_ref(str)
-            || parse_fast_ref_gpu(str) || parse_fix_times_per_prb(str)
-            || parse_max_ms_per_prb(str) || parse_num_streams(str)
-            || parse_repeats_per_prb(str) || parse_mem_check(str)
-            || parse_memory_kind(str) || parse_mode(str)
+            || parse_check_ref_impl(str) || parse_cold_cache(str)
+            || parse_cpu_isa_hints(str) || parse_engine(str)
+            || parse_fast_ref(str) || parse_fast_ref_gpu(str)
+            || parse_fix_times_per_prb(str) || parse_max_ms_per_prb(str)
+            || parse_num_streams(str) || parse_repeats_per_prb(str)
+            || parse_mem_check(str) || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_skip_impl(str)
             || parse_start(str) || parse_stream_kind(str) || parse_verbose(str);
 
