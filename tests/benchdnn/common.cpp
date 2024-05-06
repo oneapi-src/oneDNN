@@ -105,12 +105,19 @@ void parse_result(res_t &res, const char *pstr) {
                 BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.passed++;
             break;
-        case FAILED:
+        case FAILED: {
             bs.failed++;
-            BENCHDNN_PRINT(0, "%d:%s (errors:%lu total:%lu) __REPRO: %s\n",
-                    bs.tests, state, (unsigned long)res.errors,
-                    (unsigned long)res.total, pstr);
-            break;
+            std::string error_stat;
+            if (res.errors > 0) {
+                error_stat = " (errors:" + std::to_string(res.errors)
+                        + " total:" + std::to_string(res.total) + ")";
+            }
+
+            std::string reason;
+            if (!res.reason.empty()) { reason = " (" + res.reason + ")"; }
+            BENCHDNN_PRINT(0, "%d:%s%s%s __REPRO: %s\n", bs.tests, state,
+                    reason.c_str(), error_stat.c_str(), pstr);
+        } break;
         case SKIPPED:
             BENCHDNN_PRINT(0, "%d:%s (%s) __REPRO: %s\n", bs.tests, state,
                     res.reason.c_str(), pstr);
