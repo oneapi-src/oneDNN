@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 * Copyright 2021-2022 Arm Ltd. and affiliates
 *
@@ -45,6 +45,8 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_ELTWISE_P({
         {{forward}, {
+            CPU_INSTANCE_X64(jit_uni_eltwise_fwd_t<avx512_core_amx, f8_e4m3>)
+            CPU_INSTANCE_X64(jit_uni_eltwise_fwd_t<avx512_core_amx, f8_e5m2>)
             CPU_INSTANCE_X64(jit_uni_eltwise_fwd_t<avx512_core_fp16, f16>)
             CPU_INSTANCE_X64(jit_uni_eltwise_fwd_t<avx512_core, f32>)
             CPU_INSTANCE_X64(jit_uni_eltwise_fwd_t<avx512_core, bf16>)
@@ -80,6 +82,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
+            CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_core_amx, f8_e4m3>)
+            CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_core_amx, f8_e5m2>)
             CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_core_fp16, f16>)
             CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_core, f32>)
             CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_core, bf16>)
