@@ -16,8 +16,7 @@
 #include "gpu/intel/ocl/bnorm/nhwc_reusable.h"
 
 // Atomic-based reduction for 1pass algorithm
-void nhwc_reusable_mean_var_fused_reduction(
-        volatile __global atomic_float *mean,
+void nhwc_reusable_1pass_fused_reduction(volatile __global atomic_float *mean,
         volatile __global atomic_float *variance, off_t dst_offset,
         SUM_DATA_T *sum, SUM_DATA_T *sum_sq, __local SUM_DATA_T *local_sum,
         __local SUM_DATA_T *local_sum_sq, off_t vect_size) {
@@ -57,7 +56,7 @@ void nhwc_reusable_mean_var_fused_reduction(
 }
 
 // Atomic-based reduction for regular algorithm
-void nhwc_reusable_calc_fused_reduction(volatile __global atomic_float *dst,
+void nhwc_reusable_reg_fused_reduction(volatile __global atomic_float *dst,
         off_t dst_offset, float *sum, __local float *local_sum,
         off_t vect_size) {
     const int local_id = get_local_id(1);
@@ -125,7 +124,7 @@ nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
         // store res
         if (use_fused_atomics_reduction) {
             const int dst_off = ic_block_offset + sg * VECT_SIZE * SG_SIZE;
-            nhwc_reusable_calc_fused_reduction(
+            nhwc_reusable_reg_fused_reduction(
                     mean, dst_off, (float *)(&v_mean), local_sum, VECT_SIZE);
         } else {
             const int sg_off = sg * VECT_SIZE * SG_SIZE;
@@ -151,7 +150,7 @@ nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
         if (use_fused_atomics_reduction) {
             const int dst_off
                     = ic_block_offset + (ic_vect_sgroups + sg) * SG_SIZE;
-            nhwc_reusable_calc_fused_reduction(
+            nhwc_reusable_reg_fused_reduction(
                     mean, dst_off, &v_mean, local_sum, 1);
         } else {
             const int sg_off = (ic_vect_sgroups + sg) * SG_SIZE;
@@ -175,7 +174,7 @@ nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
     const int src_off
             = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
-    // exp reduce_temp layout: reduce_stat_nblocks rows x ic columns
+    // reduce_temp layout: reduce_stat_nblocks rows x ic columns
     const int reduce_off = ic_block_offset + sp_block_idx * ic_size;
 
     src += src_off;
@@ -205,7 +204,7 @@ nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
         // store res
         if (use_fused_atomics_reduction) {
             const int dst_off = ic_block_offset + sg * VECT_SIZE * SG_SIZE;
-            nhwc_reusable_calc_fused_reduction(
+            nhwc_reusable_reg_fused_reduction(
                     variance, dst_off, (float *)(&v_var), local_sum, VECT_SIZE);
         } else {
             const int sg_off = sg * VECT_SIZE * SG_SIZE;
@@ -236,7 +235,7 @@ nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
         if (use_fused_atomics_reduction) {
             const int dst_off
                     = ic_block_offset + (ic_vect_sgroups + sg) * SG_SIZE;
-            nhwc_reusable_calc_fused_reduction(
+            nhwc_reusable_reg_fused_reduction(
                     variance, dst_off, &v_var, local_sum, 1);
         } else {
             const int sg_off = (ic_vect_sgroups + sg) * SG_SIZE;
@@ -297,7 +296,7 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
         // store res
         if (use_fused_atomics_reduction) {
             const int dst_off = ic_block_offset + sg * VECT_SIZE * SG_SIZE;
-            nhwc_reusable_mean_var_fused_reduction(mean, variance, dst_off, sum,
+            nhwc_reusable_1pass_fused_reduction(mean, variance, dst_off, sum,
                     sum_sq, local_sum, local_sum_sq, VECT_SIZE);
         } else {
 
@@ -324,8 +323,8 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
         if (use_fused_atomics_reduction) {
             const int dst_off
                     = ic_block_offset + (ic_vect_sgroups + sg) * SG_SIZE;
-            nhwc_reusable_mean_var_fused_reduction(mean, variance, dst_off,
-                    &sum, &sum_sq, local_sum, local_sum_sq, 1);
+            nhwc_reusable_1pass_fused_reduction(mean, variance, dst_off, &sum,
+                    &sum_sq, local_sum, local_sum_sq, 1);
         } else {
             const int sg_off = (ic_vect_sgroups + sg) * SG_SIZE;
             STORE_FLOAT_1x16(&reduce_temp[sg_off], sum.s0);
@@ -461,7 +460,7 @@ nhwc_reusable_norm_fwd(__global DATA_T *src, __global float *mean,
 }
 
 // Atomic-based reduction, BWD pass
-void nhwc_reusable_bwd_calc_fused_reduction(
+void nhwc_reusable_bwd_fused_reduction(
         volatile __global atomic_float *diff_scale,
         volatile __global atomic_float *diff_shift, off_t dst_offset,
         float *diff_gamma, float *diff_beta, __local float *local_sums,
@@ -563,9 +562,9 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
         // store results
         if (use_fused_atomics_reduction) {
             const int dst_off = ic_block_offset + sg * VECT_SIZE * SG_SIZE;
-            nhwc_reusable_bwd_calc_fused_reduction(diff_scale, diff_shift,
-                    dst_off, (float *)(&diff_gamma), (float *)(&diff_beta),
-                    local_sums, VECT_SIZE, calc_slm_size);
+            nhwc_reusable_bwd_fused_reduction(diff_scale, diff_shift, dst_off,
+                    (float *)(&diff_gamma), (float *)(&diff_beta), local_sums,
+                    VECT_SIZE, calc_slm_size);
         } else {
             // Two different scratchpads: for diff_gamma and diff_beta
             // scratchpad layout (elements):
@@ -619,9 +618,9 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
         if (use_fused_atomics_reduction) {
             const int dst_off
                     = ic_block_offset + (ic_vect_sgroups + sg) * SG_SIZE;
-            nhwc_reusable_bwd_calc_fused_reduction(diff_scale, diff_shift,
-                    dst_off, (float *)(&diff_gamma), (float *)(&diff_beta),
-                    local_sums, 1, calc_slm_size);
+            nhwc_reusable_bwd_fused_reduction(diff_scale, diff_shift, dst_off,
+                    (float *)(&diff_gamma), (float *)(&diff_beta), local_sums,
+                    1, calc_slm_size);
         } else {
             const int sg_off = (ic_vect_sgroups + sg) * SG_SIZE;
             STORE_FLOAT_1x16(&temp_reduce[sg_off], diff_gamma);
