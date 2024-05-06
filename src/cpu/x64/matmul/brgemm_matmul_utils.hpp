@@ -103,6 +103,10 @@ struct brgemm_matmul_conf_t {
     bool s8s8_compensation_required;
     bool packed_sparse_weights;
     bool is_oscale_per_n;
+    bool is_oscale_per_k;
+    bool apply_scales_in_buffer_b;
+    bool req_transpose_scales;
+    bool with_wei_decompression;
     brgemm_broadcast_t src_zp_type;
     brgemm_broadcast_t wei_zp_type;
     brgemm_broadcast_t dst_zp_type;
@@ -205,7 +209,8 @@ struct brgemm_matmul_conf_utils_t {
         return blocked_B_layouts_allowed && !bgmmc.is_runtime_N
                 && utils::one_of(matrix_b_tag, blocked_64n_B_layout_tag,
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
-                        blocked_16n_B_layout_tag);
+                        blocked_24n_B_layout_tag, blocked_16n_B_layout_tag,
+                        blocked_8n_B_layout_tag);
     }
 
     inline bool get_blocked_B() const {
@@ -216,6 +221,7 @@ struct brgemm_matmul_conf_utils_t {
     inline bool use_buffer_b(bool use_heuristic = true) const {
         if (bgmmc.is_runtime_N) return true;
         if (bgmmc.is_bf16_with_int_wei) return true;
+        if (bgmmc.apply_scales_in_buffer_b) return true;
 
         if (bgmmc.is_amx)
             // use b_buffer for AMX when:
@@ -226,11 +232,15 @@ struct brgemm_matmul_conf_utils_t {
 
         // Values based on measured performance difference
         // between plain and copy-to-blocked routine.
-        size_t big_LDB = bgmmc.N > 256;
+        const bool is_avx2_f32 = this->is_f32() && bgmmc.isa == avx2;
+        size_t big_LDB = is_avx2_f32 ? bgmmc.N >= 128 : bgmmc.N > 256;
         bool is_pow2 = math::is_pow2(bgmmc.N);
+        bool is_avx2_simd_tail = is_avx2_f32 && bgmmc.N > 64 && bgmmc.N % 8 != 0
+                && !bgmmc.blocked_B;
         bool use_copy_buffer = IMPLICATION(
                 this->is_f32(), use_heuristic && (big_LDB && is_pow2));
-        return (this->is_f16() && bgmmc.isa == avx512_core_fp16)
+        return is_avx2_simd_tail
+                || (this->is_f16() && bgmmc.isa == avx512_core_fp16)
                 || (use_copy_buffer && this->check_is_plain(bgmmc.wei_tag))
                 || this->check_is_transposed(bgmmc.wei_tag)
                 || (bgmmc.wei_tag == format_tag::acbd)
@@ -294,6 +304,7 @@ struct brgemm_matmul_conf_utils_t {
 
     inline cpu_isa_t get_isa() const { return isa_; }
 
+    int get_default_n_block(format_tag_t matrix_b_tag) const;
     status_t set_or_check_B_tag(
             memory_desc_t &B_md, bool init_n_tag = true) const;
     status_t update_and_check_B_tag(memory_desc_t &B_md, int n_blk_size) const;
@@ -315,7 +326,8 @@ private:
     const format_tag_t plain_tensor_layout_tag;
     const format_tag_t transposed_tensor_layout_tag;
     const format_tag_t blocked_64n_B_layout_tag, blocked_48n_B_layout_tag,
-            blocked_32n_B_layout_tag, blocked_16n_B_layout_tag;
+            blocked_32n_B_layout_tag, blocked_24n_B_layout_tag,
+            blocked_16n_B_layout_tag, blocked_8n_B_layout_tag;
     const bool blocked_B_layouts_allowed;
     const bool n_blk_fixed;
     const cpu_isa_t isa_;
@@ -333,7 +345,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const brgemm_matmul_conf_t &bgmmc);
 
-int get_default_n_block(format_tag_t matrix_b_tag);
+int get_n_block_from_tag(format_tag_t matrix_b_tag);
 
 } // namespace matmul
 } // namespace x64

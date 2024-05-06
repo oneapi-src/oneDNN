@@ -22,8 +22,12 @@
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
+#include "verbose.hpp"
 
 #include "type_helpers.hpp"
+
+#define VCHECK_MEMORY(cond, stat, msg, ...) \
+    VCONDCHECK(common, create, check, memory, (cond), stat, msg, ##__VA_ARGS__)
 
 namespace dnnl {
 namespace impl {

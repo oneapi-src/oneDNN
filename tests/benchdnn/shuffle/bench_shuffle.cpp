@@ -45,15 +45,10 @@ void check_correctness(
     for_(const auto &i_tag : s.tag)
     for_(const auto &i_group : s.group)
     for_(const auto &i_axis : s.axis)
-    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_acc_mode : s.acc_mode)
-    for_(const auto &i_deterministic : s.deterministic)
+    for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        auto attr = settings_t::get_attr(
-                i_scratchpad_mode, i_acc_mode, i_deterministic);
-
-        const prb_t prb(s.prb_dims, i_dir, i_dt, i_tag, i_axis, i_group, attr,
+        const prb_t prb(s.prb_dims, i_dir, i_dt, i_tag, i_axis, i_group, i_attr,
                 i_ctx_init, i_ctx_exe);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
@@ -81,10 +76,7 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(
                         s.group, def.group, atoi, argv[0], "group", help_group)
                 || parse_axis(s.axis, def.axis, argv[0])
-                || parse_attr_scratchpad_mode(
-                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_attr_deterministic(
-                        s.deterministic, def.deterministic, argv[0])
+                || parse_attributes(s, def, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
@@ -95,6 +87,7 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             parse_prb_dims(s.prb_dims, argv[0]);
+            s.finalize();
             check_correctness(s, task_executor);
         }
     }

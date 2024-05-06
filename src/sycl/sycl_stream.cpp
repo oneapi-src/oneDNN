@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #include "sycl/sycl_stream.hpp"
 
 #include "common/verbose.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/ocl_utils.hpp"
 #include "sycl/stream_profiler.hpp"
 #include "sycl/sycl_engine.hpp"
 

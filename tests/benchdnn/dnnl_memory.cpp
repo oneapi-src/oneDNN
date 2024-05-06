@@ -29,7 +29,7 @@
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "oneapi/dnnl/dnnl_ocl.hpp"
-#include "src/gpu/ocl/ocl_usm_utils.hpp"
+#include "src/gpu/intel/ocl/ocl_usm_utils.hpp"
 #endif
 
 #include "tests/test_thread.hpp"
@@ -378,7 +378,7 @@ void dnn_mem_t::memset(int value, size_t size) const {
             case memory_kind_ext_t::usm:
             case memory_kind_ext_t::usm_device:
             case memory_kind_ext_t::usm_shared: {
-                DNN_SAFE_V(dnnl::impl::gpu::ocl::usm::memset(
+                DNN_SAFE_V(dnnl::impl::gpu::intel::ocl::usm::memset(
                         stream, mem_handle, value, size));
                 DNN_SAFE_V(dnnl_stream_wait(stream));
                 return;
@@ -605,11 +605,11 @@ int dnn_mem_t::initialize_memory_create_opencl(
             is_data_owner_ = true;
             size_t sz = dnnl_memory_desc_get_size(md_padded);
             if (memory_kind == memory_kind_ext_t::usm_device) {
-                data_.push_back(
-                        dnnl::impl::gpu::ocl::usm::malloc_device(engine_, sz));
+                data_.push_back(dnnl::impl::gpu::intel::ocl::usm::malloc_device(
+                        engine_, sz));
             } else {
-                data_.push_back(
-                        dnnl::impl::gpu::ocl::usm::malloc_shared(engine_, sz));
+                data_.push_back(dnnl::impl::gpu::intel::ocl::usm::malloc_shared(
+                        engine_, sz));
             }
             assert(data_.size() == 1);
             DNN_SAFE((sz > 0 && !data_[0]) ? dnnl_out_of_memory : dnnl_success,
@@ -752,7 +752,7 @@ static int cleanup_opencl(
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared:
             for (void *p : data)
-                dnnl::impl::gpu::ocl::usm::free(engine, p);
+                dnnl::impl::gpu::intel::ocl::usm::free(engine, p);
             break;
         default: break;
     }
@@ -866,8 +866,6 @@ static int check_zero_padding_impl(
     int errors = 0;
     std::atomic<int> ok(true);
 
-    const T *mem_ptr = (const T *)mem;
-
     for (int dim_m_idx = 0; dim_m_idx < ndims; ++dim_m_idx) {
         if (dims[dim_m_idx] == pdims[dim_m_idx]) continue;
 
@@ -878,7 +876,7 @@ static int check_zero_padding_impl(
             for (dnnl_dim_t m = dims[dim_m_idx]; m < pdims[dim_m_idx]; ++m) {
                 auto l_idx = (l * pdims[dim_m_idx] + m) * dim_r + r;
                 auto idx = md_off_l(nullptr, mem, l_idx, true);
-                if (!(mem_ptr[idx] == 0)) ok = false;
+                if (!(mem.get_elem(idx) == 0)) ok = false;
             }
         });
 
@@ -892,7 +890,7 @@ static int check_zero_padding_impl(
                 dnnl_dims_t pos = {};
                 auto idx = md_off_l(pos, mem, l_idx, true);
 
-                bool idx_ok = (mem_ptr[idx] == 0);
+                bool idx_ok = (mem.get_elem(idx) == 0);
                 if (!idx_ok) errors++;
 
                 const bool dump = (!idx_ok && (errors < 10 || verbose >= 10))
@@ -937,8 +935,8 @@ int check_zero_padding(
             CASE(dnnl_s32, int32_t);
             CASE(dnnl_s8, int8_t);
             CASE(dnnl_u8, uint8_t);
-            CASE(dnnl_s4, int8_t);
-            CASE(dnnl_u4, uint8_t);
+            CASE(dnnl_s4, dnnl::impl::int4_t);
+            CASE(dnnl_u4, dnnl::impl::uint4_t);
         default: assert(!"bad data_type");
     };
 #undef CASE

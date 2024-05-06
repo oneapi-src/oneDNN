@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ file(GLOB API_SYCL_TEST_SOURCES
 
 foreach(TEST_FILE ${API_SYCL_TEST_SOURCES})
     get_filename_component(exe_name ${TEST_FILE} NAME_WE)
+    string(REPLACE "test_" "test_graph_" exe_name ${exe_name}_sycl)
     add_executable(${exe_name} ${TEST_FILE} ${COMMON_API_TEST_DEPS})
     target_link_libraries(${exe_name}
         dnnl_gtest

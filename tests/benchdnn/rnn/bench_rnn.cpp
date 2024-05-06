@@ -63,19 +63,13 @@ void check_correctness(
     for_(const auto &i_n_layer : s.n_layer)
     for_(const auto &i_n_iter : s.n_iter)
     for_(const auto &i_mb : s.mb)
-    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_fpmath_mode : s.fpmath_mode)
-    for_(const auto &i_acc_mode : s.acc_mode)
-    for_(const auto &i_deterministic : s.deterministic)
+    for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        auto attr = settings_t::get_attr(
-                i_scratchpad_mode, i_fpmath_mode, i_acc_mode, i_deterministic);
-
         auto prb = std::make_shared<prb_t>(s.desc,
-                dt_conf_t::create(i_cfg, attr), i_tag, i_prop, i_alg,
+                dt_conf_t::create(i_cfg, i_attr), i_tag, i_prop, i_alg,
                 i_with_peephole, i_with_projection, i_direction, i_scale_policy,
-                i_scale_proj_policy, i_flags, i_activation, attr, i_ctx_init,
+                i_scale_proj_policy, i_flags, i_activation, i_attr, i_ctx_init,
                 i_ctx_exe, s.alpha, s.beta, i_skip_nonlinear, i_trivial_strides,
                 i_n_layer, i_n_iter, i_mb);
 
@@ -186,12 +180,7 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.with_projection, def.with_projection,
                         str2bool, argv[0], "with-projection",
                         help_with_projection)
-                || parse_attr_scratchpad_mode(
-                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_attr_fpmath_mode(
-                        s.fpmath_mode, def.fpmath_mode, argv[0])
-                || parse_attr_deterministic(
-                        s.deterministic, def.deterministic, argv[0])
+                || parse_attributes(s, def, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
@@ -203,6 +192,7 @@ int bench(int argc, char **argv) {
             SAFE(str2desc(&s.desc, argv[0]), CRIT);
 
             SAFE(verify_input(s), WARN);
+            s.finalize();
             check_correctness(s, task_executor);
         }
     }

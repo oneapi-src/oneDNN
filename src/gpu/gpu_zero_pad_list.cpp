@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "gpu/ocl/ref_zero_pad.hpp"
+#include "gpu/intel/ocl/ref_zero_pad.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -26,7 +26,7 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = {
-        INSTANCE(ocl::ref_zero_pad_t)
+        INSTANCE(intel::ocl::ref_zero_pad_t)
         nullptr,
 };
 // clang-format on

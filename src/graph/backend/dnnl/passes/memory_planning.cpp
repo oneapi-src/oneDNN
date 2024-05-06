@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -156,8 +156,30 @@ std::shared_ptr<execution_args_set_t> execution_args_set_t::clone() const {
     // clone
     ret->value_mem_map_.reserve(value_mem_map_.size());
     for (auto &val_mem : value_mem_map_) {
-        memory cloned_mem(val_mem.second.get_desc(),
-                val_mem.second.get_engine(), nullptr);
+        memory cloned_mem;
+        if (val_mem.second.get_engine().get_kind() == dnnl::engine::kind::gpu) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+            dnnl::ocl_interop::memory_kind m_kind
+                    = dnnl::ocl_interop::get_memory_kind(val_mem.second);
+            if (m_kind == dnnl::ocl_interop::memory_kind::usm) {
+                cloned_mem = dnnl::ocl_interop::make_memory(
+                        val_mem.second.get_desc(), val_mem.second.get_engine(),
+                        dnnl::ocl_interop::memory_kind::usm, nullptr);
+            } else {
+                cloned_mem = dnnl::ocl_interop::make_memory(
+                        val_mem.second.get_desc(), val_mem.second.get_engine(),
+                        nullptr);
+            }
+
+#else
+            cloned_mem = memory(val_mem.second.get_desc(),
+                    val_mem.second.get_engine(), nullptr);
+#endif
+
+        } else {
+            cloned_mem = memory(val_mem.second.get_desc(),
+                    val_mem.second.get_engine(), nullptr);
+        }
         ret->value_mem_map_.insert({val_mem.first, cloned_mem});
     }
 

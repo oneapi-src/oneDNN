@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ struct ref_shuffle_t : public sycl_gpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute(const exec_ctx_t &ctx) const override;
-    compute::kernel_t kernel_;
+    intel::compute::kernel_t kernel_;
 };
 
 } // namespace sycl

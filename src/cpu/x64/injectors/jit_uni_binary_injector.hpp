@@ -32,6 +32,7 @@
 #include "cpu/binary_injector_utils.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/injectors/injector_utils.hpp"
+#include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
@@ -168,6 +169,10 @@ private:
 struct static_params_t {
     static_params_t(const Xbyak::Reg64 &param1,
             const bcast_set_t &supported_strategy_set,
+            const rhs_arg_static_params_t &rhs_arg_static_params,
+            fp8_emulation_base_t *f8_emu);
+    static_params_t(const Xbyak::Reg64 &param1,
+            const bcast_set_t &supported_strategy_set,
             const rhs_arg_static_params_t &rhs_arg_static_params);
     static_params_t(const Xbyak::Reg64 &param1,
             const rhs_arg_static_params_t &rhs_arg_static_params);
@@ -175,6 +180,7 @@ struct static_params_t {
     Xbyak::Reg64 param1;
     const bcast_set_t supported_strategy_set;
     rhs_arg_static_params_t rhs_arg_static_params;
+    fp8_emulation_base_t *f8_emu_ {nullptr};
 };
 
 /*
@@ -480,6 +486,29 @@ private:
             const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
             std::size_t elem_size_bytes) const;
 
+    void append_mb_oc_offset(
+            const std::map<int, Xbyak::Address> &vmm_idx_to_out_addr,
+            const std::map<int, Xbyak::Reg64> &vmm_idx_to_out_reg,
+            const std::map<int, size_t> &vmm_idx_to_out_elem_off_val,
+            int vmm_idx, const Xbyak::Reg64 &addr_reg,
+            const Xbyak::Reg64 &tmp_reg, std::size_t elem_size_bytes,
+            bool is_first) const;
+    void calculate_mb_oc_ncsp_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_mb_oc_ncsp_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_oc_nspc_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_mb_oc_nspc_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+    void calculate_mb_oc_cspn_base(
+            const dim_t *strides, const Xbyak::Reg64 &tmp_reg) const;
+    void calculate_mb_oc_cspn_partial(const dim_t *strides,
+            const std::size_t offset, const Xbyak::Reg64 &tmp_reg,
+            std::size_t elem_size_bytes) const;
+
     template <typename T>
     typename std::enable_if<std::is_same<T, Xbyak::Zmm>::value
             || std::is_same<T, Xbyak::Address>::value>::type
@@ -550,6 +579,7 @@ private:
     Xbyak::Opmask get_aux_kmask() const;
 
     jit_generator *host_;
+    fp8_emulation_base_t *f8_emu_ {nullptr};
     const rhs_arg_static_params_t rhs_arg_static_params_;
     const Xbyak::Reg64 param1_;
     const bcast_set_t supported_strategy_set_;

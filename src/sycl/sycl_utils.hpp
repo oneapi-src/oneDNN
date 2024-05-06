@@ -19,8 +19,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
-#include "gpu/compute/utils.hpp"
-#include "gpu/ocl/ocl_gpu_engine.hpp"
+#include "gpu/intel/compute/utils.hpp"
+#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>
@@ -53,7 +53,7 @@ namespace sycl {
 using buffer_u8_t = ::sycl::buffer<uint8_t, 1>;
 
 inline ::sycl::nd_range<3> to_sycl_nd_range(
-        const gpu::compute::nd_range_t &range) {
+        const gpu::intel::compute::nd_range_t &range) {
     const auto &local_range = range.local_range();
     const auto &global_range = range.global_range();
 
@@ -169,15 +169,15 @@ inline ::sycl::device get_parent_device(const ::sycl::device &dev) {
 
 class sycl_engine_base_t;
 status_t create_ocl_engine(
-        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+        std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
                 *ocl_engine,
         const sycl_engine_base_t *engine);
 
 status_t get_kernel_binary(
-        const ::sycl::kernel &kernel, gpu::compute::binary_t &binary);
+        const ::sycl::kernel &kernel, gpu::intel::compute::binary_t &binary);
 
 status_t create_ocl_engine(
-        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+        std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
                 *ocl_engine,
         const sycl_engine_base_t *engine);
 

@@ -45,6 +45,17 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
         , brg(abrg)
         , postops_injector_(nullptr) {
 
+        if (brg.is_fp8_via_convert()
+                && one_of(data_type::f8_e5m2, brg.dt_a, brg.dt_b, brg.dt_d))
+            f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(this,
+                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
+                    fp8_tmp_mask, fp8_tmp_reg);
+        if (brg.is_fp8_via_convert()
+                && one_of(data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_d))
+            f8_e4m3_emulator_ = utils::make_unique<fp8_emulation_e4m3_t>(this,
+                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
+                    fp8_emu_xmm_4(), fp8_emu_xmm_5(), fp8_tmp_reg);
+
         if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
 
             static constexpr bool preserve_gpr = true;
@@ -62,7 +73,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                             broadcasting_strategy_t::per_mb_spatial,
                             broadcasting_strategy_t::per_mb_w,
                             broadcasting_strategy_t::per_w,
-                            broadcasting_strategy_t::batch,
+                            broadcasting_strategy_t::spatial,
                             broadcasting_strategy_t::no_broadcast};
             const binary_injector::rhs_arg_static_params_t rhs_sp {
                     static_cast<size_t>(Xbyak::Zmm(1).getIdx()), this->r14,
@@ -70,21 +81,33 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                     GET_OFF(post_ops_binary_rhs_arg_vec), GET_OFF(data_C_ptr_),
                     dst_md_wrapper, static_cast<size_t>(brg.ldb_tail),
                     ld_tail_mask, use_exact_tail_scalar_bcast};
-            const binary_injector::static_params_t bsp {
-                    this->param1, enabled_bcast_strategy, rhs_sp};
+
+            fp8_emulation_base_t *f8_emu = nullptr;
+            if (brg.dt_d == data_type::f8_e5m2)
+                f8_emu = f8_e5m2_emulator_.get();
+            else if (brg.dt_d == data_type::f8_e4m3)
+                f8_emu = f8_e4m3_emulator_.get();
+
+            const binary_injector::static_params_t bsp(
+                    this->param1, enabled_bcast_strategy, rhs_sp, f8_emu);
 
             eltwise_injector::static_params_t esp;
             esp.preserve_vmm = preserve_vmm;
             esp.preserve_p_table = false;
 
-            postops_injector_ = utils::make_unique<po_injector_t>(
-                    this, brg.attr()->post_ops_, bsp, esp);
+            auto st = safe_ptr_assign(postops_injector_,
+                    po_injector_t::create(this, brg.isa_impl,
+                            brg.attr()->post_ops_, bsp, esp));
+            if (st != status::success) {
+                assert(!"postops_injector creation failed");
+            }
 
             using namespace dnnl::impl::cpu::binary_injector_utils;
             std::tie(with_binary_per_oc_bcast_, with_binary_per_oc_sp_bcast_,
                     with_binary_per_mb_bcast_, with_binary_channel_bcast_,
                     with_binary_per_mb_w_bcast_, with_binary_per_w_bcast_,
-                    with_binary_batch_bcast_, with_binary_no_bcast_)
+                    with_binary_batch_bcast_, with_binary_spatial_bcast_,
+                    with_binary_no_bcast_)
                     = bcast_strategies_present_tup(brg.attr()->post_ops_.entry_,
                             dst_md_wrapper, broadcasting_strategy_t::per_oc,
                             broadcasting_strategy_t::per_oc_spatial,
@@ -93,24 +116,14 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                             broadcasting_strategy_t::per_mb_w,
                             broadcasting_strategy_t::per_w,
                             broadcasting_strategy_t::batch,
+                            broadcasting_strategy_t::spatial,
                             broadcasting_strategy_t::no_broadcast);
             handle_binary_po_offset_ = with_binary_per_oc_bcast_
                     || with_binary_per_oc_sp_bcast_ || with_binary_per_mb_bcast_
                     || with_binary_channel_bcast_ || with_binary_per_mb_w_bcast_
                     || with_binary_per_w_bcast_ || with_binary_batch_bcast_
-                    || with_binary_no_bcast_;
+                    || with_binary_spatial_bcast_ || with_binary_no_bcast_;
         }
-        if (brg.is_fp8_via_convert()
-                && one_of(data_type::f8_e5m2, brg.dt_a, brg.dt_b, brg.dt_d))
-            f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(this,
-                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
-                    fp8_tmp_mask, fp8_tmp_reg);
-        if (brg.is_fp8_via_convert()
-                && one_of(data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_d))
-            f8_e4m3_emulator_ = utils::make_unique<fp8_emulation_e4m3_t>(this,
-                    fp8_emu_xmm_1(), fp8_emu_xmm_2(), fp8_emu_xmm_3(),
-                    fp8_emu_xmm_4(), fp8_emu_xmm_5(), fp8_tmp_reg);
-
         use_ils_ = brg.brgattr.use_interleave_stores;
     }
 
@@ -119,8 +132,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
     brgemm_desc_t brg;
 
 private:
-    static constexpr cpu_isa_t po_isa_ = avx512_core_fp16;
-    using po_injector_t = injector::jit_uni_postops_injector_t<po_isa_>;
+    using po_injector_t = injector::jit_uni_postops_injector_base_t<Zmm>;
     std::unique_ptr<po_injector_t> postops_injector_;
 
     std::unique_ptr<fp8_emulation_base_t> f8_e5m2_emulator_;
@@ -190,6 +202,7 @@ private:
     bool with_binary_per_mb_w_bcast_ = false;
     bool with_binary_per_w_bcast_ = false;
     bool with_binary_batch_bcast_ = false;
+    bool with_binary_spatial_bcast_ = false;
     bool with_binary_no_bcast_ = false;
     bool prepare_post_ops_registers_once_ = false;
 
@@ -678,12 +691,10 @@ size_t jit_brgemm_amx_uker_base_t::A_offset(
     const auto bs_offs = (brg.type == brgemm_static_offs)
             ? brg.brgattr.static_offsets[bi.bsi->idx].offset.A
             : 0;
-    auto rd_block = bi.rdi->block(0);
-    if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
     const auto bdb_offs
             = ununroll_bd_loop ? bi.bdi->rel_pos(bdb) : bi.bdi->pos(bdb);
     return bdb_offs * LDA2_size_ + bs_offs
-            + bi.rdi->pos(0) * rd_block * brg.typesize_A;
+            + bi.rdi->pos(0) * brg.rd_block * brg.typesize_A;
 }
 
 size_t jit_brgemm_amx_uker_base_t::B_offset(
@@ -692,9 +703,7 @@ size_t jit_brgemm_amx_uker_base_t::B_offset(
             ? brg.brgattr.static_offsets[bi.bsi->idx].offset.B
             : 0;
 
-    auto rd_block = bi.rdi->block(0);
-    if (brg.is_bf32) rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
-    const auto rdb_B_offset = bi.rdi->pos(0) * rd_block * LDB_size_;
+    const auto rdb_B_offset = bi.rdi->pos(0) * brg.rd_block * LDB_size_;
 
     const auto ldb_B_offset = bi.ldi->pos(0) * ld_block_B_size_ * brg.ld_step;
 

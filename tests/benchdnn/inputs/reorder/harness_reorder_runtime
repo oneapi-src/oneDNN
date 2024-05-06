@@ -32,7 +32,7 @@
 --dtag=abx,gOIhw16i16o
 3x32x32x2x2
 
---attr-scales=src:common:0+dst:common:0
+--attr-scales=src:common:2+dst:common:0.5
 --stag=abx,axb
 --dtag=abx,axb
 2x8x8 # special 8x8 kernel
@@ -65,7 +65,7 @@
 --dtag=abx,gOIhw16i16o
 3x32x32x2x2
 
---attr-scales=,src:common:0.+dst:common:0.
+--attr-scales=,src:common:2+dst:common:0.5
 --stag=abx,axb
 --dtag=abx,axb
 2x8x8 # special 8x8 kernel

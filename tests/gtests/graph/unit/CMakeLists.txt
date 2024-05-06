@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,12 +72,12 @@ get_property(test_suite_names GLOBAL PROPERTY GRAPH_UNIT_TEST_SUITES)
 get_property(test_filters GLOBAL PROPERTY GRAPH_UNIT_TEST_FILTERS)
 list(LENGTH test_suite_names count)
 math(EXPR count "${count}-1")
-set(sycl_rt_pattern "(SYCL|DPCPP)")
+set(gpu_rt_pattern "(SYCL|DPCPP|OCL)")
 foreach(i RANGE ${count})
     list(GET test_suite_names ${i} s)
     list(GET test_filters ${i} f)
     if(${s} MATCHES "_usm")
-        if(DNNL_GPU_RUNTIME MATCHES ${sycl_rt_pattern})
+        if(DNNL_GPU_RUNTIME MATCHES ${gpu_rt_pattern})
             add_test(${s}_gpu ${BINARY_NAME} --gtest_filter=${f} --engine=gpu)
             maybe_configure_windows_test(${s}_gpu TEST)
         endif()

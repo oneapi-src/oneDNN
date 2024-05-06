@@ -237,7 +237,12 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // https://github.com/oneapi-src/oneDNN/issues/1819
     const float trh = trh_f32;
 #else
-    const float trh = is_flt_or_dbl ? trh_f32 : 0.f;
+    const bool is_strict_acc
+            = prb->attr.acc_mode == dnnl_accumulation_mode_strict;
+    // Relaxed fp16 computation can get an ulp difference with f32 ref values.
+    const float trh = is_flt_or_dbl || (trh_dt == dnnl_f16 && !is_strict_acc)
+            ? trh_f32
+            : 0.f;
 #endif
     cmp.set_threshold(trh);
 

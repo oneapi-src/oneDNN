@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,6 +66,11 @@ struct dnnl_allocator_t {
 #ifdef DNNL_WITH_SYCL
     static void free(void *p, const dnnl::engine &p_engine,
             const allocator_t *alc, const ::sycl::event &deps);
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    static void free(void *p, const dnnl::engine &p_engine,
+            const allocator_t *alc, const cl_event &deps);
 #endif
 };
 

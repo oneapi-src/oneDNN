@@ -171,7 +171,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     d *= src_scales[0];
                     ref_post_ops_t::args_t args;
                     args.ctx = &ctx;
-                    args.l_offset = offset * C + c;
+                    args.l_offset = N_start * C_padded + off;
                     args.dst_md = pd()->dst_md();
                     ref_post_ops->execute(d, args);
                     d *= dst_scales[0];
@@ -187,7 +187,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     d *= src_scales[0];
                     ref_post_ops_t::args_t args;
                     args.ctx = &ctx;
-                    args.l_offset = offset * C + c;
+                    args.l_offset = N_start * C_padded + off;
                     args.dst_md = pd()->dst_md();
                     ref_post_ops->execute(d, args);
                     d *= dst_scales[0];
@@ -204,7 +204,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     d *= src_scales[0];
                     ref_post_ops_t::args_t args;
                     args.ctx = &ctx;
-                    args.l_offset = offset * C + c;
+                    args.l_offset = N_start * C_padded + off;
                     args.dst_md = pd()->dst_md();
                     ref_post_ops->execute(d, args);
                     d *= dst_scales[0];
@@ -220,7 +220,7 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
                     d *= src_scales[0];
                     ref_post_ops_t::args_t args;
                     args.ctx = &ctx;
-                    args.l_offset = offset * C + c;
+                    args.l_offset = N_start * C_padded + off;
                     args.dst_md = pd()->dst_md();
                     ref_post_ops->execute(d, args);
                     d *= dst_scales[0];

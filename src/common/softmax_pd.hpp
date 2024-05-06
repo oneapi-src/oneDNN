@@ -81,10 +81,6 @@ struct softmax_pd_t : public primitive_desc_t {
                 dst_desc().dims + axis() + 1, ndims() - 1 - axis());
     }
 
-    dim_t outer_stride() const {
-        const memory_desc_wrapper dst_d(dst_desc());
-        return axis() > 0 ? dst_d.blocking_desc().strides[axis() - 1] : 1;
-    }
     dim_t axis_stride() const {
         const memory_desc_wrapper dst_d(dst_desc());
         return dst_d.blocking_desc().strides[axis()];

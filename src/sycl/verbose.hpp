@@ -19,7 +19,7 @@
 
 #include <cstdio>
 
-#include "gpu/compute/device_info.hpp"
+#include "gpu/intel/compute/device_info.hpp"
 #include "sycl/sycl_engine.hpp"
 
 namespace dnnl {

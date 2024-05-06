@@ -73,8 +73,10 @@ static const dnnl::engine &get_dnnl_engine() {
         static dnnl::engine eng
                 = dnnl::graph::sycl_interop::make_engine_with_allocator(
                         get_device(), get_context(), alloc);
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        static dnnl::engine eng(dnnl::engine::kind::gpu, 0);
 #else
-        assert(!"GPU only support DPCPP runtime now");
+        assert(!"GPU only support DPCPP and OCL runtime now");
         static dnnl::graph::allocator alloc {};
         static dnnl::engine eng
                 = make_engine_with_allocator(dnnl::engine::kind::gpu, 0, alloc);
@@ -103,8 +105,10 @@ static const dnnl::stream &get_dnnl_stream() {
                 ::sycl::property::queue::in_order {}};
         static dnnl::stream strm
                 = dnnl::sycl_interop::make_stream(get_dnnl_engine(), q);
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        static dnnl::stream strm(get_dnnl_engine());
 #else
-        assert(!"GPU only support DPCPP runtime now");
+        assert(!"GPU only support DPCPP and OCL runtime now");
         static dnnl::stream strm(get_dnnl_engine());
 
 #endif

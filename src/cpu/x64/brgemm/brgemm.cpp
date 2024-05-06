@@ -240,6 +240,8 @@ status_t brgemm_desc_init(brgemm_desc_t *brg, cpu_isa_t isa,
     */
     if (brg == nullptr) return status::invalid_arguments;
     if (transA || transB) return status::unimplemented;
+    if (type == brgemm_batch_kind_t::brgemm_batch_kind_undef)
+        return status::invalid_arguments;
 
     brgemm_utils::init_brgemm_conf(brg, isa, type, dt_a, dt_b, layout, alpha,
             beta, LDA, LDB, LDC, M, N, K, strides);
@@ -346,13 +348,13 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
                                 data_type::f16)))
         return status::unimplemented;
     const auto bias_f8_e5m2_compatible
-            = one_of(dt_d, data_type::f32, data_type::f8_e5m2)
-            && one_of(dt_bias, data_type::undef, data_type::f32,
-                    data_type::f8_e5m2);
+            = one_of(dt_d, data_type::f32, data_type::f16, data_type::f8_e5m2)
+            && one_of(dt_bias, data_type::undef, data_type::f32, data_type::f16,
+                    data_type::f8_e5m2, data_type::f8_e4m3);
     const auto bias_f8_e4m3_compatible
-            = one_of(dt_d, data_type::f32, data_type::f8_e4m3)
-            && one_of(dt_bias, data_type::undef, data_type::f32,
-                    data_type::f8_e4m3);
+            = one_of(dt_d, data_type::f32, data_type::f16, data_type::f8_e4m3)
+            && one_of(dt_bias, data_type::undef, data_type::f32, data_type::f16,
+                    data_type::f8_e4m3, data_type::f8_e5m2);
     if (!IMPLICATION(brg->is_fp8,
                 bias_f8_e5m2_compatible || bias_f8_e4m3_compatible))
         return status::unimplemented;
@@ -404,6 +406,7 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
                                     broadcasting_strategy_t::per_mb_w,
                                     broadcasting_strategy_t::per_w,
                                     broadcasting_strategy_t::batch,
+                                    broadcasting_strategy_t::spatial,
                                     broadcasting_strategy_t::no_broadcast})))
         return status::unimplemented;
 
@@ -421,9 +424,10 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
 
     const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
-    brg->with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values()
-            || brg->with_weights_scale_adjust;
+    brg->with_scales = !brg->skip_scales
+            && (!src_scales.has_default_values()
+                    || !wei_scales.has_default_values()
+                    || brg->with_weights_scale_adjust);
     if (brg->with_scales) {
         // Note. the current version supports only two different output scale
         // types:
@@ -453,7 +457,9 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
         // common zero point type is supported for now
         if (!zero_points.common(mem_arg)) return status::unimplemented;
 
-        zp_type = zero_points.has_default_values(mem_arg)
+        const bool skip_zero_point
+                = mem_arg == DNNL_ARG_WEIGHTS && brg->skip_zp_b_compensation;
+        zp_type = zero_points.has_default_values(mem_arg) || skip_zero_point
                 ? brgemm_broadcast_t::none
                 : brgemm_broadcast_t::per_tensor;
         return status::success;

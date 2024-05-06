@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,6 +72,11 @@ void api_test_dnnl_engine_create(
                     dnnl_success);
         };
         *engine = engine_handle.engine;
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        static dnnl::engine eng(dnnl::engine::kind::gpu, 0);
+        *engine = eng.get();
+#else
+        throw "unsupported gpu runtime";
 #endif
     }
 }

@@ -29,20 +29,13 @@ where *brgemm-knobs* are:
             The format is: KEY:VALUE[+KEY:VALUE[...]] following post-ops
             notation. STRING may have `,` to iterate over multiple attribute
             settings. Refer to internal brgemm headers for more details.
- - `--attr-scales=STRING` -- scale primitive attribute. No scale is
-            set by default. Refer to [attributes](knobs_attr.md) for details.
- - `--attr-zero-points=STRING` -- zero points primitive attribute. No zero
-            points are set by default. Refer to [attributes](knobs_attr.md)
-            for details.
- - `--attr-post-ops=STRING` -- post operation primitive attribute. No post
-            operations are set by default. Refer to [attributes](knobs_attr.md)
-            for details.
- - `--attr-fpmath=STRING` -- fpmath mode primitive attribute. `strict` math mode
-            is set by default. Refer to [attributes](knobs_attr.md) for details.
+ - `--batch-kind=STRING` -- specifies brgemm batch kind. Supported values are:
+            `addr` (the default), `offs`.
  - `--match=REGEX` -- skip problems not matching the regular expression in
             `REGEX`. By default no pattern is applied (run everything).
             Note: Windows may interpret only string arguments surrounded by
             double quotation marks.
+ - Any attributes options. Refer to [attributes](knobs_attr.md) for details.
 
 and *brgemm-desc* is a problem descriptor. The canonical form is:
 ```

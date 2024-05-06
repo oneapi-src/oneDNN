@@ -112,10 +112,7 @@ status_t sycl_cuda_stream_t::interop_task(
         });
         this->sycl_ctx().get_sycl_deps().events = {event};
         return status::success;
-    } catch (std::runtime_error &e) {
-        error::wrap_c_api(status::runtime_error, e.what());
-        return status::runtime_error;
-    }
+    } catch (std::runtime_error &e) { return status::runtime_error; }
 }
 
 } // namespace nvidia

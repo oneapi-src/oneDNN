@@ -36,23 +36,37 @@ struct acl_resource_t : public resource_t {
         acl_obj_->src_tensor.allocator()->init(amp.src_tensor_info);
         acl_obj_->wei_tensor.allocator()->init(amp.wei_tensor_info);
         acl_obj_->dst_tensor.allocator()->init(amp.dst_tensor_info);
-        // Configure transpose kernel for src, wei or both
-        if (amp.is_transA) {
+
+        // Configure transpose kernel for src, wei, or dst
+        if (amp.is_transA && !amp.do_transC) {
             acl_obj_->src_acc_tensor.allocator()->init(amp.src_acc_info);
             acl_obj_->transA.configure(
                     &acl_obj_->src_acc_tensor, &acl_obj_->src_tensor);
         }
 
-        if (weights_format_kind_ != format_kind::any) {
-            if (amp.is_transB) {
-                acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
-                acl_obj_->transB.configure(
-                        &acl_obj_->wei_acc_tensor, &acl_obj_->wei_tensor);
-            }
+        if (amp.is_transB && !amp.do_transC) {
+            acl_obj_->wei_acc_tensor.allocator()->init(amp.wei_acc_info);
+            acl_obj_->transB.configure(
+                    &acl_obj_->wei_acc_tensor, &acl_obj_->wei_tensor);
         }
+
+        if (amp.do_transC) {
+            acl_obj_->dst_acc_tensor.allocator()->init(amp.dst_acc_info);
+            acl_obj_->transC.configure(
+                    &acl_obj_->dst_acc_tensor, &acl_obj_->dst_tensor);
+        }
+
         // Configure GEMM
-        acl_obj_->gemm.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
-                nullptr, &acl_obj_->dst_tensor, 1.0f, 0.0f, amp.gemm_info);
+        if (amp.do_transC) {
+            acl_obj_->gemm.configure(&acl_obj_->wei_tensor,
+                    &acl_obj_->src_tensor, nullptr, &acl_obj_->dst_acc_tensor,
+                    1.0f, 0.0f, amp.gemm_info);
+        } else {
+            acl_obj_->gemm.configure(&acl_obj_->src_tensor,
+                    &acl_obj_->wei_tensor, nullptr, &acl_obj_->dst_tensor, 1.0f,
+                    0.0f, amp.gemm_info);
+        }
+
         return status::success;
     }
     acl_matmul_obj_t &get_acl_obj() const { return *acl_obj_; }
@@ -109,7 +123,7 @@ struct acl_matmul_t : public primitive_t {
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
             if (weights_format_kind_ == format_kind::any) {
-                CHECK(acl_matmul_utils::init_conf_matmul_fixed_format(
+                CHECK(acl_matmul_utils::init_conf_matmul<true>(
                         amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
             } else {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
@@ -117,7 +131,7 @@ struct acl_matmul_t : public primitive_t {
                 if (threadpool_utils::get_active_threadpool() == nullptr)
                     return status::unimplemented;
 #endif
-                CHECK(acl_matmul_utils::init_conf_matmul_non_fixed_format(
+                CHECK(acl_matmul_utils::init_conf_matmul<false>(
                         amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
             }
 
@@ -127,9 +141,19 @@ struct acl_matmul_t : public primitive_t {
             amp_.use_dst_acc = post_ops.has_sum();
 
             // Validate ACL GEMM
-            ACL_CHECK_VALID(arm_compute::NEGEMM::validate(&amp_.src_tensor_info,
-                    &amp_.wei_tensor_info, nullptr, &amp_.dst_tensor_info,
-                    amp_.alpha, 0.0f, amp_.gemm_info));
+            if (amp_.do_transC) {
+                ACL_CHECK_VALID(arm_compute::NEGEMM::validate(
+                        &amp_.wei_tensor_info, &amp_.src_tensor_info, nullptr,
+                        &amp_.dst_acc_info, amp_.alpha, 0.0f, amp_.gemm_info));
+            } else {
+                ACL_CHECK_VALID(arm_compute::NEGEMM::validate(
+                        &amp_.src_tensor_info, &amp_.wei_tensor_info, nullptr,
+                        &amp_.dst_tensor_info, amp_.alpha, 0.0f,
+                        amp_.gemm_info));
+            }
+
+            auto scratchpad = scratchpad_registry().registrar();
+            CHECK(acl_matmul_utils::init_scratchpad(scratchpad, amp_, dst_md_));
 
             return status::success;
         }
@@ -166,17 +190,17 @@ struct acl_matmul_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->weights_format_kind_ == format_kind::any) {
-            return execute_forward_fixed_format(ctx);
+            return execute_forward<true>(ctx);
         } else {
-            return execute_forward_non_fixed_format(ctx);
+            return execute_forward<false>(ctx);
         }
     }
 
 private:
     // To guard the const execute_forward(), the mutex must be 'mutable'
     mutable std::mutex mtx;
-    status_t execute_forward_non_fixed_format(const exec_ctx_t &ctx) const;
-    status_t execute_forward_fixed_format(const exec_ctx_t &ctx) const;
+    template <bool IsFixedFormat>
+    status_t execute_forward(const exec_ctx_t &ctx) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 }; // acl_matmul_t

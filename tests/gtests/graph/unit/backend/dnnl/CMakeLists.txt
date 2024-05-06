@@ -59,6 +59,7 @@ FILE(GLOB DNNL_OP_EXECUTION_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_large_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layer_norm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_matmul.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_mqa_decomp.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_prelu.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_quantize.cpp

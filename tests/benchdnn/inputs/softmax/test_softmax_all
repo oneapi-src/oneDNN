@@ -55,6 +55,8 @@
 --axis=0
 --batch=shapes_large
 
+--reset --stag=acbd --dtag=acbd --sdt=f32 --ddt=f32 --axis=3 1x16x384x384_n"neighbor_dim_to_axis_has_larger_stride"
+
 --batch=test_softmax_bfloat16
 
 --batch=test_softmax_float16

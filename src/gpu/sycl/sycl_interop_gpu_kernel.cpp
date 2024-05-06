@@ -17,11 +17,11 @@
 #include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
-#include "gpu/compute/utils.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/stream_profiler.hpp"
-#include "gpu/ocl/types_interop.hpp"
-#include "gpu/utils.hpp"
+#include "gpu/intel/compute/utils.hpp"
+#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/stream_profiler.hpp"
+#include "gpu/intel/ocl/types_interop.hpp"
+#include "gpu/intel/utils.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_c_types_map.hpp"
 #include "sycl/sycl_stream.hpp"
@@ -35,8 +35,8 @@ namespace sycl {
 using namespace impl::sycl;
 
 static void set_scalar_arg(::sycl::handler &cgh, int index,
-        compute::scalar_type_t type, const void *value) {
-    using scalar_type_t = compute::scalar_type_t;
+        intel::compute::scalar_type_t type, const void *value) {
+    using scalar_type_t = intel::compute::scalar_type_t;
     switch (type) {
         case scalar_type_t::_char:
         case scalar_type_t::_uchar:
@@ -86,9 +86,10 @@ static void set_scalar_arg(::sycl::handler &cgh, int index,
 }
 
 status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
-        const gpu::compute::nd_range_t &range,
-        const gpu::compute::kernel_arg_list_t &arg_list,
-        const gpu::compute::event_t &deps, gpu::compute::event_t &out_dep) {
+        const gpu::intel::compute::nd_range_t &range,
+        const gpu::intel::compute::kernel_arg_list_t &arg_list,
+        const gpu::intel::compute::event_t &deps,
+        gpu::intel::compute::event_t &out_dep) {
     if (range.is_zero()) return status::success;
     auto *sycl_stream = utils::downcast<sycl_stream_t *>(&stream);
     auto &queue = sycl_stream->queue();
@@ -177,9 +178,9 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
 }
 
 status_t sycl_interop_gpu_kernel_t::dump() const {
-    compute::binary_t binary;
+    intel::compute::binary_t binary;
     CHECK(get_kernel_binary(sycl_kernel(), binary));
-    return gpu_utils::dump_kernel_binary(binary, name());
+    return gpu::intel::gpu_utils::dump_kernel_binary(binary, name());
 }
 
 } // namespace sycl

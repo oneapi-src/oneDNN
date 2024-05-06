@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@ struct jit_brgemm_matmul_copy_b_t {
         const void *compensation_ptr;
         const void *zp_a_compensation_ptr;
         const void *zp_a_neg_value_ptr;
+        const void *zp_b_value_ptr;
+        const void *scales_ptr;
 
         dim_t current_K_start;
         dim_t current_K_iters;

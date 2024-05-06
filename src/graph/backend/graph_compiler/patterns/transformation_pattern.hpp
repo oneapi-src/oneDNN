@@ -67,6 +67,11 @@ public:
                 continue;
             // match the given pattern in the graph
             std::vector<std::vector<op_t *>> matched_pairs_list;
+            if (get_verbose(verbose_t::create_dispatch, component_t::graph)) {
+                printf("onednn_verbose,graph,create:dispatch,pattern_"
+                       "matcher,%s,compiler_backend\n",
+                        get_pass_name().c_str());
+            }
             pu.match(agraph, pgraph, matched_pairs_list);
             if (!matched_pairs_list.empty()) {
                 // temporary solution here for showing which pattern matched

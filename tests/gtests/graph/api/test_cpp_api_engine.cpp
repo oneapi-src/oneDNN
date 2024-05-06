@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ using lt = logical_tensor::layout_type;
 
 // construct a partition with single convolution op and execute it with a given
 // engine.
-void execute_single_conv(const dnnl::engine &eng) {
+void execute_single_conv(dnnl::engine &eng, size_t seed = 0) {
     const engine::kind ek = eng.get_kind();
     graph g(ek);
 
@@ -38,7 +38,7 @@ void execute_single_conv(const dnnl::engine &eng) {
     logical_tensor wei = logical_tensor(1, dt::f32, wei_dims, lt::strided);
     logical_tensor dst = logical_tensor(2, dt::f32, 4, lt::strided);
 
-    op conv = op(3, op::kind::Convolution, "_conv");
+    op conv = op(0 + seed, op::kind::Convolution, "_conv");
     conv.set_attr<std::vector<int64_t>>(op::attr::strides, {1, 1});
     conv.set_attr<std::vector<int64_t>>(op::attr::pads_begin, {0, 0});
     conv.set_attr<std::vector<int64_t>>(op::attr::pads_end, {0, 0});
@@ -81,7 +81,7 @@ TEST(APIEngine, DefaultEngineAllocator) {
     // use the native engine to compile and execute a graph partition. The
     // native engine should contain a default allocator.
     engine eng = engine(engine::kind::cpu, 0);
-    execute_single_conv(eng);
+    execute_single_conv(eng, 100);
 }
 
 static dnnl::engine create_cpu_engine() {
@@ -99,5 +99,5 @@ TEST(APIEngine, UserAllocator) {
     // use a local allocator to create engine. The allocator object will be
     // invalidated when exiting this function.
     engine eng = create_cpu_engine();
-    execute_single_conv(eng);
+    execute_single_conv(eng, 200);
 }

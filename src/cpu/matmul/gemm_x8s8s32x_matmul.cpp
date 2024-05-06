@@ -203,8 +203,11 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     auto &scratchpad = ctx.get_scratchpad_grantor();
+    const int wei_scale_mask
+            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
     const float *scales = precompute_scales(scratchpad, src_scales, wei_scales,
-            dst_d.dims()[ndims - 1], pd()->attr());
+            src_d.dims()[ndims - 1], dst_d.dims()[ndims - 1], false,
+            wei_scale_mask != 0, pd()->attr());
 
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(weights_zero_point, DNNL_ARG_WEIGHTS);

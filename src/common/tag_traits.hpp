@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,6 +66,10 @@ enum class inner_blk_t {
     _64b,
     _64c,
 
+    _2a8b,
+    _2b8c,
+    _2a24b,
+    _2b24c,
     _4a4b,
     _4b4a,
     _4b4c,
@@ -73,6 +77,8 @@ enum class inner_blk_t {
     _8a2b,
     _8a4b,
     _8a8b,
+    _8a16b,
+    _8a24b,
     _8b2a,
     _8b4a,
     _8b8a,
@@ -80,6 +86,8 @@ enum class inner_blk_t {
     _8b4c,
     _8b16a,
     _8b24a,
+    _8b16c,
+    _8b24c,
     _8b32a,
     _8b8c,
     _8c2b,
@@ -222,16 +230,20 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
                     ib::_16b48c, ib::_16b64c, ib::_16b32c2b, ib::_16b48c2b,
                     ib::_16b64c2b, ib::_16b16c4b, ib::_16b32c4b, ib::_16b48c4b,
                     ib::_16b64c4b, ib::_24a2b, ib::_24a4b, ib::_24b2a,
-                    ib::_24b4a, ib::_24b2c, ib::_24b4c, ib::_24c2b, ib::_24c4b),
+                    ib::_24b4a, ib::_24b2c, ib::_24b4c, ib::_24c2b, ib::_24c4b,
+                    ib::_2a8b, ib::_2b8c, ib::_2a24b, ib::_2b24c, ib::_8a16b,
+                    ib::_8b16c, ib::_8a24b, ib::_8b24c),
             "unexpected inner_blk format");
 
     // clang-format off
     return false ? 0
+        : (utils::one_of(f, ib::_2a8b, ib::_2b8c)) ? 8 * x0 + x1
+        : (utils::one_of(f, ib::_2a24b, ib::_2b24c, ib::_8a24b, ib::_8b24c)) ? 24 * x0 + x1
         : (f == ib::_4a4b || f == ib::_4b4c) ? 4 * x0 + x1
         : (f == ib::_4b4a || f == ib::_4c4b) ? 4 * x1 + x0
         : (f == ib::_8a8b || f == ib::_8b8c) ? 8 * x0 + x1
         : (f == ib::_8b8a || f == ib::_8c8b) ? 8 * x1 + x0
-        : (f == ib::_16a16b || f == ib::_16b16c) ? 16 * x0 + x1
+        : (utils::one_of(f, ib::_16a16b, ib::_16b16c, ib::_8a16b, ib::_8b16c)) ? 16 * x0 + x1
         : (f == ib::_16b64a) ? 64 * x1 + x0
         : (f == ib::_16b48a) ? 48 * x1 + x0
         : (f == ib::_8b32a || f == ib::_16b32a) ? 32 * x1 + x0
@@ -927,6 +939,16 @@ DECL_TRAITS(ABcd8b24a2b, _AB, _8b24a2b, 4);
 DECL_TRAITS(AcdB8b24a2b, _AB, _8b24a2b, 4);
 DECL_TRAITS(ABcde8b24a2b, _AB, _8b24a2b, 5);
 DECL_TRAITS(AcdeB8b24a2b, _AB, _8b24a2b, 5);
+DECL_TRAITS(BA2a24b, _AB, _2a24b, 2);
+DECL_TRAITS(aCB2b24c, _BC, _2b24c, 2);
+DECL_TRAITS(BA2a8b, _AB, _2a8b, 2);
+DECL_TRAITS(aCB2b8c, _BC, _2b8c, 2);
+DECL_TRAITS(BA8a24b, _AB, _8a24b, 2);
+DECL_TRAITS(aCB8b24c, _BC, _8b24c, 2);
+DECL_TRAITS(BA8a16b, _AB, _8a16b, 2);
+DECL_TRAITS(aCB8b16c, _BC, _8b16c, 2);
+DECL_TRAITS(BA8a8b, _AB, _8a8b, 2);
+DECL_TRAITS(aCB8b8c, _BC, _8b8c, 2);
 } // namespace impl
 } // namespace dnnl
 

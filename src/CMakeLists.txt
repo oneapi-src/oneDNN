@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2023 Intel Corporation
+# Copyright 2016-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -133,11 +133,6 @@ endif()
 
 if(ONEDNN_BUILD_GRAPH)
     message(STATUS "Graph component is enabled")
-    if (DNNL_GPU_RUNTIME STREQUAL "OCL")
-        message(FATAL_ERROR "Graph API does not support OCL GPU runtime. "
-            "Either disable Graph API with ONEDNN_BUILD_GRAPH=OFF or change GPU "
-            "runtime to SYCL with ONEDNN_GPU_RUNTIME=SYCL.")
-    endif()
 
     if (NOT DNNL_GPU_VENDOR STREQUAL "INTEL")
         message(FATAL_ERROR "Graph API does not support ${DNNL_GPU_VENDOR} GPU. "

@@ -242,7 +242,8 @@ bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
             false /*sum_at_pos_0_only*/, false /*sum_requires_scale_one*/,
             false /*sum_requires_zp_zero*/, true /*sum_requires_same_params*/,
             {broadcasting_strategy_t::per_oc, broadcasting_strategy_t::scalar,
-                    broadcasting_strategy_t::no_broadcast}));
+                    broadcasting_strategy_t::no_broadcast,
+                    broadcasting_strategy_t::spatial}));
 }
 
 bool is_groups_ok(jit_brgemm_conv_conf_t &jcp) {
@@ -1775,9 +1776,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             IMPLICATION(is_f32, one_of(isa, avx512_core, avx2) || jcp.is_bf32),
             VERBOSE_ISA_DT_MISMATCH);
 
-    VDISPATCH_CONV_IC(
-            post_ops_ok(jcp, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
-
     jcp.amx_h = 16;
     jcp.amx_w = 64 / (jcp.is_bf32 ? types::data_type_size(bf16) : jcp.src_dsz);
 
@@ -1819,9 +1817,16 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!jcp.wei_plain && jcp.prop_kind != prop_kind::backward_weights) {
         // fast check data layout before spending time for blocking selection
         format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
-        CHECK(init_tag(
-                jcp.src_tag, src_md, src_d, src_tag, is_any_eligible(jcp)));
+        const bool any_eligible = is_any_eligible(jcp);
+        CHECK(init_tag(jcp.src_tag, src_md, src_d, src_tag, any_eligible));
+        CHECK(init_tag(jcp.dst_tag, dst_md, dst_d, src_tag, any_eligible));
     }
+
+    CHECK(attr.set_default_formats(&dst_md));
+
+    VDISPATCH_CONV_IC(
+            post_ops_ok(jcp, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
+
     if (jcp.with_bias) {
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
@@ -2159,7 +2164,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
                 * jcp.od_block * jcp.oh_block * jcp.ow_block;
         // Disable exec_vpad for large shapes on avx2 for better performance
         // the threshold is approximate and empiric
-        if (!must_exec_vpad && jcp.isa == avx2 && work_amount >= jcp.nthr * 8
+        if (!must_exec_vpad && jcp.isa == avx2
+                && work_amount >= static_cast<dim_t>(jcp.nthr) * 8
                 && jcp.ic >= 512 && jcp.oc >= 256
                 && thr_work_amount > 2 * brg_blocking_t::L1
                 && jcp.prop_kind == prop_kind::forward)
@@ -2224,7 +2230,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
 
     if (!jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
-    CHECK(attr.set_default_formats(&dst_md));
 
     jcp.buffer_size = jcp.LDC * jcp.M;
 

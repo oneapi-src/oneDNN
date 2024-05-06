@@ -31,6 +31,7 @@ namespace dnnl_impl {
 namespace pattern {
 
 namespace {
+
 bool is_reorder_type(op_kind_t op_kind) {
     using namespace dnnl::impl::graph::op_kind;
     static const std::unordered_set<int> reorder_ops {Reorder, Quantize,
@@ -38,6 +39,33 @@ bool is_reorder_type(op_kind_t op_kind) {
 
     return (reorder_ops.find(op_kind) != reorder_ops.end());
 }
+
+bool is_backward_op(op_kind_t op_kind) {
+    using namespace dnnl::impl::graph::op_kind;
+    static std::unordered_set<op_kind_t> backward_op_kind = {
+            AbsBackward,
+            AvgPoolBackward,
+            BatchNormTrainingBackward,
+            BiasAddBackward,
+            ConvolutionBackwardData,
+            ConvolutionBackwardWeights,
+            ConvTransposeBackwardData,
+            ConvTransposeBackwardWeights,
+            HardSigmoidBackward,
+            InterpolateBackward,
+            LayerNormBackward,
+            LogSoftmaxBackward,
+            MaxPoolBackward,
+            MishBackward,
+            PReLUBackward,
+            ReLUBackward,
+            SigmoidBackward,
+            SoftPlusBackward,
+            TanhBackward,
+    };
+    return backward_op_kind.find(op_kind) != backward_op_kind.end();
+}
+
 } // namespace
 
 /*!
@@ -63,13 +91,21 @@ public:
                 && get_engine_kind() != graph_engine_kind)
             return impl::status::success;
 
-        std::vector<data_type_t> unsupported_dt;
-        for (const auto &dt : dt_to_check_) {
-            bool has_dtype_support
-                    = platform::get_dtype_support_status(graph_engine_kind, dt);
-            if (!has_dtype_support) unsupported_dt.emplace_back(dt);
+        const std::vector<platform::dir_t> dir_to_check {
+                platform::dir_t::FLAG_INF, platform::dir_t::FLAG_FWD,
+                platform::dir_t::FLAG_BWD};
+
+        std::unordered_map<int, std::vector<data_type_t>> unsupported_dt;
+        unsupported_dt.reserve(dir_to_check.size());
+
+        for (const auto dir : dir_to_check) {
+            unsupported_dt.emplace(dir, std::vector<data_type_t> {});
+            for (const auto &dt : dt_to_check_) {
+                bool has_dtype_support = platform::get_dtype_support_status(
+                        graph_engine_kind, dt, dir);
+                if (!has_dtype_support) unsupported_dt.at(dir).emplace_back(dt);
+            }
         }
-        if (unsupported_dt.empty()) return impl::status::success;
 
         std::vector<op_t *> matched_op_list;
         std::vector<std::vector<op_t *>> reorder_fusion_list;
@@ -80,15 +116,26 @@ public:
         // e.g. int8-bf16 patterns such as dequant->tc->matmul->tc->quant.
 
         for (const std::shared_ptr<op_t> &aop : agraph.get_ops()) {
-            const auto &op_kind = aop->get_kind();
 
             bool meet_unsupported_dt {false};
             bool meet_reorder {false};
 
+            const auto &op_kind = aop->get_kind();
+            platform::dir_t dir = platform::dir_t::FLAG_INF;
+            if (is_backward_op(op_kind))
+                dir = platform::dir_t::FLAG_BWD;
+            else if (op_kind
+                    == dnnl::impl::graph::op_kind::BatchNormForwardTraining)
+                // Currently, batchnorm forward training is the only forward op
+                // that provides extra output for training purpose.
+                dir = platform::dir_t::FLAG_FWD;
+
+            const auto &dt_with_dir = unsupported_dt.at(dir);
+
             for (size_t i = 0; i < aop->num_inputs(); ++i) {
                 const logical_tensor_t &iport
                         = aop->get_input_value(i)->get_logical_tensor();
-                if (std::any_of(unsupported_dt.begin(), unsupported_dt.end(),
+                if (std::any_of(dt_with_dir.begin(), dt_with_dir.end(),
                             [&iport](data_type_t dt) {
                                 return dt == iport.data_type;
                             })) {
@@ -105,8 +152,8 @@ public:
                 for (size_t i = 0; i < aop->num_outputs(); ++i) {
                     const logical_tensor_t &oport
                             = aop->get_output_value(i)->get_logical_tensor();
-                    if (std::any_of(unsupported_dt.begin(),
-                                unsupported_dt.end(), [&oport](data_type_t dt) {
+                    if (std::any_of(dt_with_dir.begin(), dt_with_dir.end(),
+                                [&oport](data_type_t dt) {
                                     return dt == oport.data_type;
                                 })) {
                         if (is_reorder_type(op_kind)) {

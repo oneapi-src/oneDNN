@@ -49,19 +49,12 @@ void check_correctness(
     for_(const auto &i_stat_tag : s.stat_tag)
     for_(const auto &i_ss_dt : s.ss_dt)
     for_(const auto &i_flags : s.flags)
-    for_(const auto &i_scales : s.scales)
-    for_(const auto &i_post_ops : s.post_ops)
-    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for_(const auto &i_acc_mode : s.acc_mode)
-    for_(const auto &i_deterministic : s.deterministic)
+    for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
-        auto attr = settings_t::get_attr(i_post_ops, i_scales,
-                i_scratchpad_mode, i_acc_mode, i_deterministic);
-
         const prb_t prb(s.prb_dims, i_tag, i_stat_tag, i_ss_dt, i_dir, i_dt,
-                i_flags, attr, i_ctx_init, i_ctx_exe, i_inplace, s.check_alg);
+                i_flags, i_attr, i_ctx_init, i_ctx_exe, i_inplace, s.check_alg);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(
@@ -125,12 +118,7 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.flags, def.flags, str2flags, argv[0],
                         "flags", help_flags)
                 || parse_inplace(s.inplace, def.inplace, argv[0])
-                || parse_attr_post_ops(s.post_ops, argv[0])
-                || parse_attr_scales(s.scales, argv[0])
-                || parse_attr_scratchpad_mode(
-                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
-                || parse_attr_deterministic(
-                        s.deterministic, def.deterministic, argv[0])
+                || parse_attributes(s, def, argv[0])
                 || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
                 || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
@@ -143,6 +131,7 @@ int bench(int argc, char **argv) {
             parse_prb_dims(s.prb_dims, argv[0]);
 
             SAFE(verify_input(s, def), WARN);
+            s.finalize();
             check_correctness(s, task_executor);
         }
     }
