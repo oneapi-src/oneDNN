@@ -23,8 +23,7 @@ namespace brgemm {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #if defined(DNNL_X64) && DNNL_X64 == 1
 #define brg_x64
-#endif
-#if defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
+#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
 #define brg_aarch64
 #endif
 #endif
