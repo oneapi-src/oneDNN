@@ -75,6 +75,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE(ref_eltwise_fwd_t<s32>)
             CPU_INSTANCE(ref_eltwise_fwd_t<s8>)
             CPU_INSTANCE(ref_eltwise_fwd_t<u8>)
+            CPU_INSTANCE(ref_eltwise_fwd_t<f8_e4m3>)
+            CPU_INSTANCE(ref_eltwise_fwd_t<f8_e5m2>)
             nullptr,
         }},
         {{backward}, REG_BWD_PK({
@@ -90,6 +92,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE(ref_eltwise_bwd_t<f32>)
             CPU_INSTANCE(ref_eltwise_bwd_t<bf16>)
             CPU_INSTANCE(ref_eltwise_bwd_t<f16>)
+            CPU_INSTANCE(ref_eltwise_bwd_t<f8_e4m3>)
+            CPU_INSTANCE(ref_eltwise_bwd_t<f8_e5m2>)
             nullptr,
         })},
     });
