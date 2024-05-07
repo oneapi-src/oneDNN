@@ -277,10 +277,7 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Matmul) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -861,10 +858,7 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -1502,8 +1496,6 @@ TEST(test_subgraph_pass_int8_matmul_passes_with_diff_inputs,
     std::vector<op_kind_t> scale_kinds {Multiply, Divide};
     for (auto scale_kind : scale_kinds) {
         graph::engine_t *g_eng = get_engine();
-        // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
-        SKIP_IF(g_eng->kind() == graph::engine_kind::gpu, "skip on gpu");
         dnnl::engine p_eng
                 = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
         graph_t agraph;
@@ -1570,7 +1562,7 @@ TEST(test_subgraph_pass_int8_matmul_passes_with_diff_inputs,
 
         agraph.finalize();
 
-        pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops_cpu");
+        pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
         ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -1943,10 +1935,7 @@ TEST(test_subgraph_pass_subgraph_pass, FuseTypecastBeforeFusePostops) {
     g.add_op(&qdst_op);
     g.finalize();
 
-    pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
 

@@ -930,10 +930,7 @@ TEST(test_matmul_compile, MatmulInt8WeightScaleSupport) {
         g.add_op(&qout_op);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1000,10 +997,6 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2d) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = 0;
-        // The following cmd will be skiped by benchdnn, since oneDNN didn't
-        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
         int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -1083,10 +1076,8 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2d) {
                           {dst_s8_ts}, *engine, *strm),
                 graph::status::success);
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
+
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1124,13 +1115,11 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2d) {
     }
 }
 
-TEST(test_matmul_execute_subgraph_int8, MatmulU8U8_CPU) {
+TEST(test_matmul_execute_subgraph_int8, MatmulU8U8) {
     // compare results between:
     // case 1: [quantize] - [dequantize] - [fp32_matmul] - [quantize]
     // case 2: [quantize] - [int8_matmul]
     graph::engine_t *engine = get_engine();
-    SKIP_IF(engine->kind() != graph::engine_kind::cpu,
-            "only cpu u8 to s8 for matmul");
     graph::stream_t *strm = get_stream();
 
     std::vector<std::string> qtypes {"per_tensor"};
@@ -1231,10 +1220,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulU8U8_CPU) {
                           {dst_f32_ts}, *engine, *strm),
                 graph::status::success);
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -1309,10 +1295,6 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx1d) {
             float scale_out = 1;
             int64_t zp_src = 0;
             int64_t zp_wei = 0;
-            // The following cmd will be skiped by benchdnn, since oneDNN didn't
-            // support reorder with zps on GPU: "./tests/benchdnn/benchdnn
-            // --reorder --engine=gpu --mode=C --sdt=f32 --ddt=s8
-            // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
             int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
             graph::op_t dqdata_op(1, graph::op_kind::Dequantize, "dqdata_op");
@@ -1391,9 +1373,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx1d) {
 
             // -------------------------case 2----------------------------------
             graph::pass::pass_base_ptr apass
-                    = get_pass(engine->kind() == graph::engine_kind::gpu
-                                    ? "x8s8x_matmul_post_ops_gpu"
-                                    : "x8x8x_matmul_post_ops_cpu");
+                    = get_pass("x8x8x_matmul_post_ops");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
@@ -1474,10 +1454,6 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2dWithTranspose) {
             float scale_out = 1;
             int64_t zp_src = 0;
             int64_t zp_wei = 0;
-            // The following cmd will be skiped by benchdnn, since oneDNN didn't
-            // support reorder with zps on GPU: "./tests/benchdnn/benchdnn
-            // --reorder --engine=gpu --mode=C --sdt=f32 --ddt=s8
-            // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
             int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
             // -------------------------case 1----------------------------------
@@ -1561,9 +1537,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2dWithTranspose) {
 
             // -------------------------case 2----------------------------------
             graph::pass::pass_base_ptr apass
-                    = get_pass(engine->kind() == graph::engine_kind::gpu
-                                    ? "x8s8x_matmul_post_ops_gpu"
-                                    : "x8x8x_matmul_post_ops_cpu");
+                    = get_pass("x8x8x_matmul_post_ops");
             apass->run(g);
             ASSERT_EQ(g.get_num_partitions(), 1U);
             auto part = g.get_partitions()[0];
@@ -1661,10 +1635,6 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasSumNdx2d) {
                         || engine->kind() == graph::engine_kind::gpu
                 ? 0
                 : 128;
-        // The following cmd will be skiped by benchdnn, since oneDNN didn't
-        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
         int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -1865,10 +1835,6 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasBinary) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = 0;
-        // The following cmd will be skiped by benchdnn, since oneDNN didn't
-        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
         int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -1960,10 +1926,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasBinary) {
                           {dst_s8_ts}, *engine, *strm),
                 graph::status::success);
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2069,10 +2032,6 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasAddMul) {
                         || engine->kind() == graph::engine_kind::gpu
                 ? 0
                 : 128;
-        // The following cmd will be skiped by benchdnn, since oneDNN didn't
-        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
         int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -2336,10 +2295,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasNdx2dX8s8f32) {
                           {dst_f32_ts}, *engine, *strm),
                 graph::status::success);
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2470,10 +2426,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2dX8s8f32) {
                           *strm),
                 graph::status::success);
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2620,10 +2573,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasGeluNdx2dX8s8f32) {
                           {dst_f32_ts}, *engine, *strm),
                 graph::status::success);
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2771,10 +2721,6 @@ TEST(test_matmul_execute_subgraph_int8, Matmul2dx3dWithTranspose) {
         float scale_out = 1;
         int64_t zp_src = 0;
         int64_t zp_wei = 0;
-        // The following cmd will be skiped by benchdnn, since oneDNN didn't
-        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
         int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         graph::op_t qdata_op(0, graph::op_kind::Quantize, "qdata_op");
@@ -2855,10 +2801,7 @@ TEST(test_matmul_execute_subgraph_int8, Matmul2dx3dWithTranspose) {
         g.add_op(&qout_op);
         g.finalize();
 
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -2917,10 +2860,6 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasSumGetInplacePair_CPU) {
         float scale_out = 1;
         int64_t zp_src = 0;
         int64_t zp_other = other_qtype == "symmetric" ? 0 : 128;
-        // The following cmd will be skiped by benchdnn, since oneDNN didn't
-        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
         int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -3070,8 +3009,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasSumGetInplacePair_CPU) {
 
         graph::pass::pass_base_ptr apass1
                 = get_pass("x8x8x8_matmul_add_post_ops_cpu");
-        graph::pass::pass_base_ptr apass2
-                = get_pass("x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass2 = get_pass("x8x8x_matmul_post_ops");
         apass1->run(g);
         apass2->run(g);
         ASSERT_EQ(g.get_num_partitions(), 2U);
@@ -3207,10 +3145,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasU8s8bf16_CPU) {
     g.add_op(&tcweight_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -3233,6 +3168,116 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasU8s8bf16_CPU) {
     test_tensor dst_ts(dst_bf16, engine);
     cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get(), bias_bf16_ts.get()},
             {dst_ts.get()});
+    strm->wait();
+}
+
+TEST(test_matmul_execute_subgraph_int8, MatmulU8U8bf16) {
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
+
+    std::string qtype = "per_channel";
+    std::vector<int64_t> src_shape = {1, 8, 16};
+    std::vector<int64_t> weight_shape = {8, 16};
+    std::vector<int64_t> dst_shape = {1, 8, 8};
+
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<int8_t> weight_data(product(weight_shape));
+
+    // random generate src, weight data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> distribution(0.0f, 255.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return distribution(generator); });
+    std::uniform_real_distribution<float> distribution2(-127.0f, 127.0f);
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return distribution2(generator); });
+    float scale_src = 1 / 255.f; // map to 0~255
+    int64_t zp_src = 110;
+
+    size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
+    std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+    std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+
+    graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(graph::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+    graph::op_t dqweight_op(1, graph::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(graph::op_attr::qtype, qtype);
+    dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(graph::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+    graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
+    graph::op_t tcweight_op {3, graph::op_kind::TypeCast, "typecast_weight"};
+
+    graph::op_t matmul_op(4, graph::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>(graph::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(graph::op_attr::transpose_b, true);
+
+    // prepare logical tensor
+    graph::logical_tensor_t src_u8
+            = utils::logical_tensor_init(0, src_shape, graph::data_type::u8);
+    graph::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(1, src_shape, graph::data_type::f32);
+    graph::logical_tensor_t src_bf16
+            = utils::logical_tensor_init(2, src_shape, graph::data_type::bf16);
+    graph::logical_tensor_t weight_u8
+            = utils::logical_tensor_init(3, weight_shape, graph::data_type::u8);
+    graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+            4, weight_shape, graph::data_type::f32);
+    graph::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+            5, weight_shape, graph::data_type::bf16);
+    graph::logical_tensor_t dst_bf16
+            = utils::logical_tensor_init(7, dst_shape, graph::data_type::bf16);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    dqweight_op.add_input(weight_u8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    tcdata_op.add_input(src_f32_dq);
+    tcdata_op.add_output(src_bf16);
+
+    tcweight_op.add_input(weight_f32_dq);
+    tcweight_op.add_output(weight_bf16);
+
+    matmul_op.add_input(src_bf16);
+    matmul_op.add_input(weight_bf16);
+    matmul_op.add_output(dst_bf16);
+
+    graph::graph_t g(engine->kind());
+    g.add_op(&dqdata_op);
+    g.add_op(&dqweight_op);
+    g.add_op(&matmul_op);
+    g.add_op(&tcdata_op);
+    g.add_op(&tcweight_op);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+
+    graph::compiled_partition_t cp(p);
+
+    std::vector<const graph::logical_tensor_t *> lt_ins {&src_u8, &weight_u8};
+    std::vector<const graph::logical_tensor_t *> lt_outs {&dst_bf16};
+
+    p.compile(&cp, lt_ins, lt_outs, engine);
+
+    test_tensor src_u8_ts(src_u8, engine, src_data);
+    test_tensor weight_s8_ts(weight_u8, engine, weight_data);
+    test_tensor dst_ts(dst_bf16, engine);
+    cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()}, {dst_ts.get()});
     strm->wait();
 }
 
@@ -3348,10 +3393,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasAddBF16U8s8bf16_CPU) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -3384,10 +3426,9 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddAddBF16U8s8bf16_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
-    // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
+    // gpu doesn't support mixed int8-bf16 matmul
     SKIP_IF(engine->kind() == graph::engine_kind::gpu,
-            "skip on gpu for unsupported mixed int8-bf16 matmul with runtime "
-            "zero points");
+            "skip on gpu for unsupported mixed int8-bf16 matmul with runtime ");
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -3523,10 +3564,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddAddBF16U8s8bf16_CPU) {
     g.add_op(&add_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -3670,10 +3708,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasU8s8u8MixBf16) {
     g.add_op(&qout_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -3845,10 +3880,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddU8s8u8MixBf16) {
     g.add_op(&qout_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -4188,10 +4220,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddGeluU8s8u8MixBf16) {
     g.add_op(&qout_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -4755,10 +4784,6 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasSumNdx2d) {
         // reorder with zps is not supported on GPU
         int64_t zp_src = engine->kind() == graph::engine_kind::gpu ? 0 : zp;
         int64_t zp_other = engine->kind() == graph::engine_kind::gpu ? 0 : zp;
-        // The following cmd will be skiped by benchdnn, since oneDNN didn't
-        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
         int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : zp;
 
         auto generate_zps = [&]() {
@@ -5074,10 +5099,7 @@ TEST(test_matmul_execute_subgraph_int8, U8S8U8MatmulAddF32) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -5160,10 +5182,6 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasNdx2dWithTranspose) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = 0;
-        // The following cmd will be skiped by benchdnn, since oneDNN didn't
-        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
         int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -5263,10 +5281,7 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasNdx2dWithTranspose) {
                           {dst_s8_ts}, *engine, *strm),
                 graph::status::success);
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -5329,10 +5344,6 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasReluNdx2d) {
         float scale_src = 1 / 255.f; // map to 0~255
         float scale_out = 1;
         int64_t zp_src = 0;
-        // The following cmd will be skiped by benchdnn, since oneDNN didn't
-        // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-        // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-        // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
         int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
         size_t scales_wei_sizes = qtype == "per_tensor" ? 1 : dst_shape.back();
@@ -5436,10 +5447,7 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasReluNdx2d) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -6637,10 +6645,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulReluFusion) {
     float scale_out = 1;
     int64_t zp_src = 0;
     int64_t zp_wei = 0;
-    // The following cmd will be skiped by benchdnn, since oneDNN didn't
-    // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-    // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-    // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
+
     int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
     // -------------------------case 1----------------------------------
@@ -6718,10 +6723,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulReluFusion) {
                       *strm),
             graph::status::success);
     // -------------------------case 2----------------------------------
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
@@ -7894,10 +7896,6 @@ TEST(test_matmul_execute_subgraph_int8, ShareCachedWeight) {
     float scale_src = 1 / 255.f; // map to 0~255
     float scale_out = 1;
     int64_t zp_src = 0;
-    // The following cmd will be skiped by benchdnn, since oneDNN didn't
-    // support reorder with zps on GPU: "./tests/benchdnn/benchdnn --reorder
-    // --engine=gpu --mode=C --sdt=f32 --ddt=s8
-    // --attr-zero-points=dst:common:78 --stag=aBc8b --dtag=abc 1x8x10"
     int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
 
     size_t scales_wei_sizes = weight_shape.back();
@@ -7957,10 +7955,7 @@ TEST(test_matmul_execute_subgraph_int8, ShareCachedWeight) {
     g.add_op(&qout_op);
     g.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
