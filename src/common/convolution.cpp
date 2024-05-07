@@ -149,7 +149,6 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
         const primitive_attr_t *attr) {
     using smask_t = primitive_attr_t::skip_mask_t;
 
-    if (attr == nullptr) return status::success;
     if (attr->has_default_values()) return status::success;
 
     // Check attributes
@@ -230,9 +229,6 @@ status_t dnnl_convolution_forward_primitive_desc_create(
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t dilates, const dims_t padding_l,
         const dims_t padding_r, const primitive_attr_t *attr) {
-    if (!one_of(prop_kind, forward_training, forward_inference))
-        return invalid_arguments;
-
     auto conv_desc = convolution_desc_t();
     CHECK(dnnl::impl::conv_desc_init(&conv_desc, prop_kind, alg_kind, src_desc,
             weights_desc, bias_desc, dst_desc, strides, dilates, padding_l,

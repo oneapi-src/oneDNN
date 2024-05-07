@@ -29,10 +29,6 @@ namespace impl {
 status_t fill_blocked(memory_desc_t &md, std::initializer_list<int> perm,
         std::initializer_list<int> inner_blks,
         std::initializer_list<int> inner_idxs) {
-    const bool ok = true && perm.size() == (size_t)md.ndims
-            && inner_blks.size() == inner_idxs.size();
-    if (!ok) return status::invalid_arguments;
-
     md.offset0 = 0;
 
     blocking_desc_t &blk = md.format_desc.blocking;

@@ -112,8 +112,6 @@ struct memory_desc_wrapper : public c_compatible {
     /** returns the number of elements including padding if \param with_padding
      * is true, and the number of data elements otherwise */
     dim_t nelems(bool with_padding = false) const {
-        if (is_zero()) return 0;
-        if (has_runtime_dims()) return DNNL_RUNTIME_DIM_VAL;
         return utils::array_product(
                 with_padding ? padded_dims() : dims(), ndims());
     }

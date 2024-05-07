@@ -1567,7 +1567,6 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
 dnnl_status_t dnnl_set_verbose(int level) {
     using namespace dnnl::impl::status;
     using namespace dnnl::impl;
-    if (level < 0 || level > 2) return invalid_arguments;
 
     uint32_t verbose_level = verbose_t::none;
     if (level == 1) verbose_level = verbose_t::error | verbose_t::exec_profile;
