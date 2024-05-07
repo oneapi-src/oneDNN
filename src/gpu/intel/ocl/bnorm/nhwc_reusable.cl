@@ -27,12 +27,12 @@ void nhwc_reusable_1pass_fused_reduction(volatile __global atomic_float *mean,
         __local SUM_DATA_T *local_sum_sq, off_t vect_size) {
     const int local_id = get_local_id(1);
     const int simd_id = get_sub_group_local_id();
-    const int row_size = vect_size * SG_SIZE;
+    const int row_size = vect_size * SUB_GROUP_SIZE;
     const int group_size = get_local_size(1);
     if (local_id > 0) {
         unroll_4_for(int v_idx = 0; v_idx < vect_size; v_idx++) {
             const int slm_offset
-                    = local_id * row_size + v_idx * SG_SIZE + simd_id;
+                    = local_id * row_size + v_idx * SUB_GROUP_SIZE + simd_id;
             local_sum[slm_offset] = sum[v_idx];
             local_sum_sq[slm_offset] = sum_sq[v_idx];
         }
@@ -41,7 +41,8 @@ void nhwc_reusable_1pass_fused_reduction(volatile __global atomic_float *mean,
     if (local_id == 0) {
         unroll_16_for(int l_id = 1; l_id < group_size; l_id++) {
             for (int v_idx = 0; v_idx < vect_size; v_idx++) {
-                const int off = l_id * row_size + v_idx * SG_SIZE + simd_id;
+                const int off
+                        = l_id * row_size + v_idx * SUB_GROUP_SIZE + simd_id;
                 SUM_DATA_T tmp = local_sum[off];
                 SUM_DATA_T tmp_sq = local_sum_sq[off];
                 sum[v_idx] = summation(tmp.s1, sum[v_idx]);
@@ -51,7 +52,7 @@ void nhwc_reusable_1pass_fused_reduction(volatile __global atomic_float *mean,
             }
         }
         unroll_4_for(int v_idx = 0; v_idx < vect_size; v_idx++) {
-            const int off = v_idx * SG_SIZE + simd_id;
+            const int off = v_idx * SUB_GROUP_SIZE + simd_id;
             atomic_add_global(&mean[dst_offset + off], sum[v_idx].s0);
             atomic_add_global(&variance[dst_offset + off], sum_sq[v_idx].s0);
         }
@@ -70,11 +71,12 @@ void nhwc_reusable_1pass_fused_reduction_buff(
     const int simd_id = get_sub_group_local_id();
     const int row_size = ic_block;
     const int group_size = get_local_size(1);
-    const int ic_block_sgroups = ic_block / SG_SIZE;
+    const int ic_block_sgroups = ic_block / SUB_GROUP_SIZE;
 
     if (local_id > 0) {
         unroll_16_for(int sg = 0; sg < ic_block_sgroups; sg++) {
-            const int slm_offset = local_id * row_size + sg * SG_SIZE + simd_id;
+            const int slm_offset
+                    = local_id * row_size + sg * SUB_GROUP_SIZE + simd_id;
             local_sum[slm_offset] = sum[sg];
             local_sum_sq[slm_offset] = sum_sq[sg];
         }
@@ -83,7 +85,7 @@ void nhwc_reusable_1pass_fused_reduction_buff(
     if (local_id == 0) {
         unroll_16_for(int l_id = 1; l_id < group_size; l_id++) {
             unroll_4_for(int sg = 0; sg < ic_block_sgroups; sg++) {
-                const int off = l_id * row_size + sg * SG_SIZE + simd_id;
+                const int off = l_id * row_size + sg * SUB_GROUP_SIZE + simd_id;
                 SUM_DATA_T tmp = local_sum[off];
                 SUM_DATA_T tmp_sq = local_sum_sq[off];
                 sum[sg] = summation(tmp.s1, sum[sg]);
@@ -93,7 +95,7 @@ void nhwc_reusable_1pass_fused_reduction_buff(
             }
         }
         unroll_4_for(int sg = 0; sg < ic_block_sgroups; sg++) {
-            const int off = sg * SG_SIZE + simd_id;
+            const int off = sg * SUB_GROUP_SIZE + simd_id;
             atomic_add_global(&mean[dst_offset + off], sum[sg].s0);
             atomic_add_global(&variance[dst_offset + off], sum_sq[sg].s0);
         }
@@ -107,12 +109,12 @@ void nhwc_reusable_reg_fused_reduction(volatile __global atomic_float *dst,
         off_t vect_size) {
     const int local_id = get_local_id(1);
     const int simd_id = get_sub_group_local_id();
-    const int row_size = vect_size * SG_SIZE;
+    const int row_size = vect_size * SUB_GROUP_SIZE;
     const int group_size = get_local_size(1);
     if (local_id > 0) {
         unroll_4_for(int v_idx = 0; v_idx < vect_size; v_idx++) {
             const int slm_offset
-                    = local_id * row_size + v_idx * SG_SIZE + simd_id;
+                    = local_id * row_size + v_idx * SUB_GROUP_SIZE + simd_id;
             local_sum[slm_offset] = sum[v_idx];
         }
     }
@@ -120,12 +122,13 @@ void nhwc_reusable_reg_fused_reduction(volatile __global atomic_float *dst,
     if (local_id == 0) {
         unroll_16_for(int l_id = 1; l_id < group_size; l_id++) {
             for (int v_idx = 0; v_idx < vect_size; v_idx++) {
-                const int off = l_id * row_size + v_idx * SG_SIZE + simd_id;
+                const int off
+                        = l_id * row_size + v_idx * SUB_GROUP_SIZE + simd_id;
                 sum[v_idx] += local_sum[off];
             }
         }
         unroll_4_for(int v_idx = 0; v_idx < vect_size; v_idx++) {
-            const int off = v_idx * SG_SIZE + simd_id;
+            const int off = v_idx * SUB_GROUP_SIZE + simd_id;
             atomic_add_global(&dst[dst_offset + off], sum[v_idx]);
         }
     }
@@ -143,11 +146,12 @@ void nhwc_reusable_reg_fused_reduction_buff(volatile __global atomic_float *dst,
     const int simd_id = get_sub_group_local_id();
     const int group_size = get_local_size(1);
     const int row_size = ic_block;
-    const int ic_block_sgroups = ic_block / SG_SIZE;
+    const int ic_block_sgroups = ic_block / SUB_GROUP_SIZE;
 
     if (local_id > 0) {
         unroll_16_for(int sg = 0; sg < ic_block_sgroups; sg++) {
-            const int slm_offset = local_id * row_size + sg * SG_SIZE + simd_id;
+            const int slm_offset
+                    = local_id * row_size + sg * SUB_GROUP_SIZE + simd_id;
             local_sum[slm_offset] = sum[sg];
         }
     }
@@ -155,12 +159,12 @@ void nhwc_reusable_reg_fused_reduction_buff(volatile __global atomic_float *dst,
     if (local_id == 0) {
         unroll_16_for(int l_id = 1; l_id < group_size; l_id++) {
             unroll_4_for(int sg = 0; sg < ic_block_sgroups; sg++) {
-                const int off = l_id * row_size + sg * SG_SIZE + simd_id;
+                const int off = l_id * row_size + sg * SUB_GROUP_SIZE + simd_id;
                 sum[sg] += local_sum[off];
             }
         }
         unroll_4_for(int sg = 0; sg < ic_block_sgroups; sg++) {
-            const int off = sg * SG_SIZE + simd_id;
+            const int off = sg * SUB_GROUP_SIZE + simd_id;
             atomic_add_global(&dst[dst_offset + off], sum[sg]);
         }
     }
@@ -168,7 +172,7 @@ void nhwc_reusable_reg_fused_reduction_buff(volatile __global atomic_float *dst,
 }
 
 // Calculate mean, regular algorithm, no private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
         volatile __global atomic_float *mean, off_t ic_size, off_t ic_block,
         off_t sp_size, off_t stat_sp_block, off_t reduce_stat_nblocks,
@@ -176,7 +180,7 @@ nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
     const int c = get_global_id(0);
     const int sp_block_idx = get_global_id(1);
 
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
     const int src_off
             = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
@@ -189,7 +193,7 @@ nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
     const int sp_idx_bnd = sp_size % stat_sp_block
             ? min(stat_sp_block, sp_size - sp_block_idx * stat_sp_block)
             : stat_sp_block;
-    const int ic_block_sgroups = ic_block / SG_SIZE;
+    const int ic_block_sgroups = ic_block / SUB_GROUP_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups - ic_tail_sgroups;
 
@@ -199,17 +203,18 @@ nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
         // reduce
         for (int sp = 0; sp < sp_idx_bnd; ++sp) {
             v_mean += LOAD_VECT_DATA(
-                    &src[sg * SG_SIZE * VECT_SIZE + sp * ic_size]);
+                    &src[sg * SUB_GROUP_SIZE * VECT_SIZE + sp * ic_size]);
         }
         // store res
         if (use_fused_atomics_reduction) {
-            const int dst_off = ic_block_offset + sg * VECT_SIZE * SG_SIZE;
+            const int dst_off
+                    = ic_block_offset + sg * VECT_SIZE * SUB_GROUP_SIZE;
             nhwc_reusable_reg_fused_reduction(
                     mean, dst_off, (float *)(&v_mean), local_sum, VECT_SIZE);
         } else {
-            const int sg_off = sg * VECT_SIZE * SG_SIZE;
+            const int sg_off = sg * VECT_SIZE * SUB_GROUP_SIZE;
             for (int v_idx = 0; v_idx < VECT_SIZE; v_idx++) {
-                STORE_FLOAT_1x16(&reduce_temp[sg_off + v_idx * SG_SIZE],
+                STORE_FLOAT_1x16(&reduce_temp[sg_off + v_idx * SUB_GROUP_SIZE],
 #if VECT_SIZE > 1
                         v_mean[v_idx]);
 #else
@@ -224,23 +229,24 @@ nhwc_reusable_calc_mean(__global DATA_T *src, __global float *reduce_temp,
         // reduce
         for (int sp = 0; sp < sp_idx_bnd; ++sp) {
             v_mean += LOAD_DATA_1x16(
-                    &src[(ic_vect_sgroups + sg) * SG_SIZE + sp * ic_size]);
+                    &src[(ic_vect_sgroups + sg) * SUB_GROUP_SIZE
+                            + sp * ic_size]);
         }
         // store res
         if (use_fused_atomics_reduction) {
             const int dst_off
-                    = ic_block_offset + (ic_vect_sgroups + sg) * SG_SIZE;
+                    = ic_block_offset + (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
             nhwc_reusable_reg_fused_reduction(
                     mean, dst_off, &v_mean, local_sum, 1);
         } else {
-            const int sg_off = (ic_vect_sgroups + sg) * SG_SIZE;
+            const int sg_off = (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
             STORE_FLOAT_1x16(&reduce_temp[sg_off], v_mean);
         }
     }
 }
 
 // Calculate mean, regular algorithm, private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_calc_mean_buff(__global DATA_T *src, __global float *reduce_temp,
         volatile __global atomic_float *mean, off_t ic_size, off_t ic_block,
         off_t sp_size, off_t stat_sp_block, off_t reduce_stat_nblocks,
@@ -249,7 +255,7 @@ nhwc_reusable_calc_mean_buff(__global DATA_T *src, __global float *reduce_temp,
     const int c = get_global_id(0);
     const int sp_block_idx = get_global_id(1);
 
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
     const int src_off
             = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
@@ -263,7 +269,7 @@ nhwc_reusable_calc_mean_buff(__global DATA_T *src, __global float *reduce_temp,
             ? min(stat_sp_block, sp_size - sp_block_idx * stat_sp_block)
             : stat_sp_block;
     const int ic_block_sgroups
-            = min(ic_size - ic_block_offset, ic_block) / SG_SIZE;
+            = min(ic_size - ic_block_offset, ic_block) / SUB_GROUP_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups / VECT_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
 
@@ -273,7 +279,7 @@ nhwc_reusable_calc_mean_buff(__global DATA_T *src, __global float *reduce_temp,
         for (int sg = 0; sg < ic_vect_sgroups; ++sg) {
             float s_vect[VECT_SIZE];
             AS_VECT_FLOAT(s_vect)
-                    = LOAD_VECT_DATA(&src[sg * SG_SIZE * VECT_SIZE]);
+                    = LOAD_VECT_DATA(&src[sg * SUB_GROUP_SIZE * VECT_SIZE]);
             for (int vect = 0; vect < VECT_SIZE; ++vect) {
                 v_mean[sg * VECT_SIZE + vect] += s_vect[vect];
             }
@@ -282,7 +288,7 @@ nhwc_reusable_calc_mean_buff(__global DATA_T *src, __global float *reduce_temp,
         // tails
         for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
             const int sg_idx = ic_vect_sgroups * VECT_SIZE + sg;
-            v_mean[sg_idx] += LOAD_DATA_1x16(&src[sg_idx * SG_SIZE]);
+            v_mean[sg_idx] += LOAD_DATA_1x16(&src[sg_idx * SUB_GROUP_SIZE]);
         }
 #endif // HAS_IC_VECT_TAIL
         src += ic_size;
@@ -294,14 +300,14 @@ nhwc_reusable_calc_mean_buff(__global DATA_T *src, __global float *reduce_temp,
                 mean, ic_block_offset, (float *)(&v_mean), local_sum, ic_block);
     } else {
         for (int sg = 0; sg < ic_block_sgroups; ++sg) {
-            const int sg_off = sg * SG_SIZE;
+            const int sg_off = sg * SUB_GROUP_SIZE;
             STORE_FLOAT_1x16(&reduce_temp[sg_off], v_mean[sg]);
         }
     }
 }
 
 // Calculate variance, regular algorithm, no private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
         __global float *reduce_temp, volatile __global atomic_float *variance,
         off_t ic_size, off_t ic_block, off_t sp_size, off_t stat_sp_block,
@@ -311,7 +317,7 @@ nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
     const int c = get_global_id(0);
     const int sp_block_idx = get_global_id(1);
 
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
     const int src_off
             = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
@@ -325,7 +331,7 @@ nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
     const int sp_idx_bnd = sp_size % stat_sp_block
             ? min(stat_sp_block, sp_size - sp_block_idx * stat_sp_block)
             : stat_sp_block;
-    const int ic_block_sgroups = ic_block / SG_SIZE;
+    const int ic_block_sgroups = ic_block / SUB_GROUP_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups - ic_tail_sgroups;
 
@@ -333,24 +339,25 @@ nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
     for (int sg = 0; sg < ic_block_sgroups / VECT_SIZE; ++sg) {
         VECT_FLOAT_T v_var = 0.0f;
         const VECT_FLOAT_T v_mean
-                = LOAD_VECT_FLOAT(&mean[sg * SG_SIZE * VECT_SIZE]);
+                = LOAD_VECT_FLOAT(&mean[sg * SUB_GROUP_SIZE * VECT_SIZE]);
         // reduce
         for (int sp = 0; sp < sp_idx_bnd; ++sp) {
             const VECT_FLOAT_T v0
-                    = LOAD_VECT_DATA(
-                              &src[sg * SG_SIZE * VECT_SIZE + sp * ic_size])
+                    = LOAD_VECT_DATA(&src[sg * SUB_GROUP_SIZE * VECT_SIZE
+                              + sp * ic_size])
                     - v_mean;
             v_var = fma(v0, v0, v_var);
         }
         // store res
         if (use_fused_atomics_reduction) {
-            const int dst_off = ic_block_offset + sg * VECT_SIZE * SG_SIZE;
+            const int dst_off
+                    = ic_block_offset + sg * VECT_SIZE * SUB_GROUP_SIZE;
             nhwc_reusable_reg_fused_reduction(
                     variance, dst_off, (float *)(&v_var), local_sum, VECT_SIZE);
         } else {
-            const int sg_off = sg * VECT_SIZE * SG_SIZE;
+            const int sg_off = sg * VECT_SIZE * SUB_GROUP_SIZE;
             for (int v_idx = 0; v_idx < VECT_SIZE; v_idx++) {
-                STORE_FLOAT_1x16(&reduce_temp[sg_off + v_idx * SG_SIZE],
+                STORE_FLOAT_1x16(&reduce_temp[sg_off + v_idx * SUB_GROUP_SIZE],
 #if VECT_SIZE > 1
                         v_var[v_idx]);
 #else
@@ -362,31 +369,32 @@ nhwc_reusable_calc_var(__global DATA_T *src, __global float *mean,
     // tails
     for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
         float v_var = 0.0f;
-        const float v_mean
-                = LOAD_FLOAT_1x16(&mean[(ic_vect_sgroups + sg) * SG_SIZE]);
+        const float v_mean = LOAD_FLOAT_1x16(
+                &mean[(ic_vect_sgroups + sg) * SUB_GROUP_SIZE]);
         // reduce
         for (int sp = 0; sp < sp_idx_bnd; ++sp) {
             const float v0
-                    = LOAD_DATA_1x16(&src[(ic_vect_sgroups + sg) * SG_SIZE
-                              + sp * ic_size])
+                    = LOAD_DATA_1x16(
+                              &src[(ic_vect_sgroups + sg) * SUB_GROUP_SIZE
+                                      + sp * ic_size])
                     - v_mean;
             v_var = fma(v0, v0, v_var);
         }
         // store res
         if (use_fused_atomics_reduction) {
             const int dst_off
-                    = ic_block_offset + (ic_vect_sgroups + sg) * SG_SIZE;
+                    = ic_block_offset + (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
             nhwc_reusable_reg_fused_reduction(
                     variance, dst_off, &v_var, local_sum, 1);
         } else {
-            const int sg_off = (ic_vect_sgroups + sg) * SG_SIZE;
+            const int sg_off = (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
             STORE_FLOAT_1x16(&reduce_temp[sg_off], v_var);
         }
     }
 }
 
 // Calculate variance, regular algorithm, private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_calc_var_buff(__global DATA_T *src, __global float *mean,
         __global float *reduce_temp, volatile __global atomic_float *variance,
         off_t ic_size, off_t ic_block, off_t sp_size, off_t stat_sp_block,
@@ -396,7 +404,7 @@ nhwc_reusable_calc_var_buff(__global DATA_T *src, __global float *mean,
     const int c = get_global_id(0);
     const int sp_block_idx = get_global_id(1);
 
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
     const int src_off
             = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
@@ -411,14 +419,14 @@ nhwc_reusable_calc_var_buff(__global DATA_T *src, __global float *mean,
             ? min(stat_sp_block, sp_size - sp_block_idx * stat_sp_block)
             : stat_sp_block;
     const int ic_block_sgroups
-            = min(ic_size - ic_block_offset, ic_block) / SG_SIZE;
+            = min(ic_size - ic_block_offset, ic_block) / SUB_GROUP_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups / VECT_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
 
     float v_mean[MAX_IC_BLOCK_SGROUPS] = {0.0f};
     for (int sg = 0; sg < ic_block_sgroups; ++sg) {
         v_mean[sg] = as_float(intel_sub_group_block_read(
-                (const __global uint *)(&mean[(sg * SG_SIZE)])));
+                (const __global uint *)(&mean[(sg * SUB_GROUP_SIZE)])));
     }
 
     float v_var[MAX_IC_BLOCK_SGROUPS] = {0.0f};
@@ -429,7 +437,7 @@ nhwc_reusable_calc_var_buff(__global DATA_T *src, __global float *mean,
         for (int sg = 0; sg < ic_vect_sgroups; ++sg) {
             float s_vect[VECT_SIZE];
             AS_VECT_FLOAT(s_vect)
-                    = LOAD_VECT_DATA(&src[sg * SG_SIZE * VECT_SIZE]);
+                    = LOAD_VECT_DATA(&src[sg * SUB_GROUP_SIZE * VECT_SIZE]);
             for (int vect = 0; vect < VECT_SIZE; ++vect) {
                 int sg_idx = sg * VECT_SIZE + vect;
                 v0[sg_idx] = s_vect[vect] - v_mean[sg_idx];
@@ -441,7 +449,7 @@ nhwc_reusable_calc_var_buff(__global DATA_T *src, __global float *mean,
         // tails
         for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
             const int sg_idx = ic_vect_sgroups * VECT_SIZE + sg;
-            float s_tail = LOAD_DATA_1x16(&src[sg_idx * SG_SIZE]);
+            float s_tail = LOAD_DATA_1x16(&src[sg_idx * SUB_GROUP_SIZE]);
             v0[sg_idx] = s_tail - v_mean[sg_idx];
             v_var[sg_idx] = fma(v0[sg_idx], v0[sg_idx], v_var[sg_idx]);
         }
@@ -455,7 +463,7 @@ nhwc_reusable_calc_var_buff(__global DATA_T *src, __global float *mean,
                 (float *)(&v_var), local_sum, ic_block);
     } else {
         for (int sg = 0; sg < ic_block_sgroups; ++sg) {
-            const int sg_off = sg * SG_SIZE;
+            const int sg_off = sg * SUB_GROUP_SIZE;
             STORE_FLOAT_1x16(&reduce_temp[sg_off], v_var[sg]);
         }
     }
@@ -463,7 +471,7 @@ nhwc_reusable_calc_var_buff(__global DATA_T *src, __global float *mean,
 
 // Calculate mean and variance at once, 1pass algorithm
 // no private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
         volatile __global atomic_float *mean,
         volatile __global atomic_float *variance, off_t ic_size, off_t ic_block,
@@ -474,7 +482,7 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
     const int sp_block_idx = get_global_id(1);
     const int simd_id = get_sub_group_local_id();
 
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
     const int src_off
             = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
@@ -489,7 +497,7 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
     const int sp_idx_bnd = sp_size % stat_sp_block
             ? min(stat_sp_block, sp_size - sp_block_idx * stat_sp_block)
             : stat_sp_block;
-    const int ic_block_sgroups = ic_block / SG_SIZE;
+    const int ic_block_sgroups = ic_block / SUB_GROUP_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups - ic_tail_sgroups;
 
@@ -500,7 +508,7 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
         // reduce
         for (int sp = 0; sp < sp_idx_bnd; ++sp) {
             const VECT_FLOAT_T s_vect = LOAD_VECT_DATA(
-                    &src[sg * SG_SIZE * VECT_SIZE + sp * ic_size]);
+                    &src[sg * SUB_GROUP_SIZE * VECT_SIZE + sp * ic_size]);
             for (int v_idx = 0; v_idx < VECT_SIZE; ++v_idx) {
 #if VECT_SIZE > 1
 #define S_VECT s_vect[v_idx]
@@ -513,14 +521,15 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
         }
         // store res
         if (use_fused_atomics_reduction) {
-            const int dst_off = ic_block_offset + sg * VECT_SIZE * SG_SIZE;
+            const int dst_off
+                    = ic_block_offset + sg * VECT_SIZE * SUB_GROUP_SIZE;
             nhwc_reusable_1pass_fused_reduction(mean, variance, dst_off, sum,
                     sum_sq, local_sum, local_sum_sq, VECT_SIZE);
         } else {
 
-            const int sg_off = sg * VECT_SIZE * SG_SIZE;
+            const int sg_off = sg * VECT_SIZE * SUB_GROUP_SIZE;
             for (int v_idx = 0; v_idx < VECT_SIZE; v_idx++) {
-                const int reduce_off = sg_off + v_idx * SG_SIZE;
+                const int reduce_off = sg_off + v_idx * SUB_GROUP_SIZE;
                 STORE_FLOAT_1x16(&reduce_temp[reduce_off], sum[v_idx].s0);
                 STORE_FLOAT_1x16(&reduce_temp[variance_off + reduce_off],
                         sum_sq[v_idx].s0);
@@ -533,18 +542,19 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
         SUM_DATA_T sum_sq = 0.0f;
         for (int sp = 0; sp < sp_idx_bnd; ++sp) {
             const float src_v = LOAD_DATA_1x16(
-                    &src[(ic_vect_sgroups + sg) * SG_SIZE + sp * ic_size]);
+                    &src[(ic_vect_sgroups + sg) * SUB_GROUP_SIZE
+                            + sp * ic_size]);
             sum = summation(src_v, sum);
             sum_sq = summation(src_v * src_v, sum_sq);
         }
         // store res
         if (use_fused_atomics_reduction) {
             const int dst_off
-                    = ic_block_offset + (ic_vect_sgroups + sg) * SG_SIZE;
+                    = ic_block_offset + (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
             nhwc_reusable_1pass_fused_reduction(mean, variance, dst_off, &sum,
                     &sum_sq, local_sum, local_sum_sq, 1);
         } else {
-            const int sg_off = (ic_vect_sgroups + sg) * SG_SIZE;
+            const int sg_off = (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
             STORE_FLOAT_1x16(&reduce_temp[sg_off], sum.s0);
             STORE_FLOAT_1x16(&reduce_temp[variance_off + sg_off], sum_sq.s0);
         }
@@ -553,7 +563,7 @@ nhwc_reusable_calc_mean_var(__global DATA_T *src, __global float *reduce_temp,
 
 // Calculate mean and variance at once, 1pass algorithm,
 // private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_calc_mean_var_buff(__global DATA_T *src,
         __global float *reduce_temp, volatile __global atomic_float *mean,
         volatile __global atomic_float *variance, off_t ic_size, off_t ic_block,
@@ -565,7 +575,7 @@ nhwc_reusable_calc_mean_var_buff(__global DATA_T *src,
     const int sp_block_idx = get_global_id(1);
     const int simd_id = get_sub_group_local_id();
 
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
     const int src_off
             = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
@@ -581,7 +591,7 @@ nhwc_reusable_calc_mean_var_buff(__global DATA_T *src,
             ? min(stat_sp_block, sp_size - sp_block_idx * stat_sp_block)
             : stat_sp_block;
     const int ic_block_sgroups
-            = min(ic_size - ic_block_offset, ic_block) / SG_SIZE;
+            = min(ic_size - ic_block_offset, ic_block) / SUB_GROUP_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups / VECT_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
 
@@ -593,7 +603,7 @@ nhwc_reusable_calc_mean_var_buff(__global DATA_T *src,
         for (int sg = 0; sg < ic_vect_sgroups; ++sg) {
             float s_vect[VECT_SIZE];
             AS_VECT_FLOAT(s_vect)
-                    = LOAD_VECT_DATA(&src[sg * SG_SIZE * VECT_SIZE]);
+                    = LOAD_VECT_DATA(&src[sg * SUB_GROUP_SIZE * VECT_SIZE]);
             for (int vect = 0; vect < VECT_SIZE; ++vect) {
                 const int sum_idx = sg * VECT_SIZE + vect;
                 sum[sum_idx] = summation(s_vect[vect], sum[sum_idx]);
@@ -605,7 +615,7 @@ nhwc_reusable_calc_mean_var_buff(__global DATA_T *src,
         // tails
         for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
             const int sg_idx = ic_vect_sgroups * VECT_SIZE + sg;
-            float s_tail = LOAD_DATA_1x16(&src[sg_idx * SG_SIZE]);
+            float s_tail = LOAD_DATA_1x16(&src[sg_idx * SUB_GROUP_SIZE]);
             sum[sg_idx] = summation(s_tail, sum[sg_idx]);
             sum_sq[sg_idx] = summation(s_tail * s_tail, sum_sq[sg_idx]);
         }
@@ -619,7 +629,7 @@ nhwc_reusable_calc_mean_var_buff(__global DATA_T *src,
                 ic_block);
     } else {
         for (int sg = 0; sg < ic_block_sgroups; ++sg) {
-            const int reduce_off = sg * SG_SIZE;
+            const int reduce_off = sg * SUB_GROUP_SIZE;
             STORE_FLOAT_1x16(&reduce_temp[reduce_off], sum[sg].s0);
             STORE_FLOAT_1x16(
                     &reduce_temp[variance_off + reduce_off], sum_sq[sg].s0);
@@ -629,7 +639,7 @@ nhwc_reusable_calc_mean_var_buff(__global DATA_T *src,
 
 // Main FWD kernel, common for regular and 1pass algorithms
 // no private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_norm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global float *shift, __global char *ws,
@@ -638,7 +648,7 @@ nhwc_reusable_norm_fwd(__global DATA_T *src, __global float *mean,
     const int c = get_global_id(0);
     const int sp = get_global_id(1) * update_sp_block;
 
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
     mean += ic_block_offset;
     variance += ic_block_offset;
     shift += ic_block_offset;
@@ -658,11 +668,11 @@ nhwc_reusable_norm_fwd(__global DATA_T *src, __global float *mean,
     const int sp_idx_bnd = has_sp_block_tail
             ? min(update_sp_block, sp_size - sp)
             : update_sp_block;
-    const int ic_block_sgroups = ic_block / SG_SIZE;
+    const int ic_block_sgroups = ic_block / SUB_GROUP_SIZE;
     for (int sp_idx = 0; sp_idx < sp_idx_bnd; sp_idx++) {
         // vectorized part
         for (int sg = 0; sg < ic_block_sgroups / VECT_SIZE; ++sg) {
-            const int sg_idx = sg * SG_SIZE * VECT_SIZE;
+            const int sg_idx = sg * SUB_GROUP_SIZE * VECT_SIZE;
             const VECT_FLOAT_T sm = USE_SCALE
                     ? LOAD_VECT_FLOAT(&scaleshift[sg_idx])
                     : (VECT_FLOAT_T)1.0f;
@@ -701,13 +711,13 @@ nhwc_reusable_norm_fwd(__global DATA_T *src, __global float *mean,
             STORE_VECT_DATA(&dst[sg_idx], d_vect);
         } // sg loop
 
-        const int ic_tail_sgroups = (ic_block / SG_SIZE) % VECT_SIZE;
+        const int ic_tail_sgroups = (ic_block / SUB_GROUP_SIZE) % VECT_SIZE;
         const int ic_vect_sgroups = ic_block_sgroups - ic_tail_sgroups;
         const bool has_ic_vect_tail = ic_tail_sgroups > 0;
         if (has_ic_vect_tail) {
             // tails
             for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
-                const int sg_idx = (ic_vect_sgroups + sg) * SG_SIZE;
+                const int sg_idx = (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
 
                 const float sm_tail = USE_SCALE
                         ? LOAD_FLOAT_1x16(&scaleshift[sg_idx])
@@ -756,7 +766,7 @@ nhwc_reusable_norm_fwd(__global DATA_T *src, __global float *mean,
 
 // Main FWD kernel, common for regular and 1pass algorithms,
 // private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_norm_fwd_buff(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global float *shift, __global char *ws,
@@ -766,7 +776,7 @@ nhwc_reusable_norm_fwd_buff(__global DATA_T *src, __global float *mean,
     const int c = get_global_id(0);
     const int sp = get_global_id(1) * update_sp_block;
 
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
 
     mean += ic_block_offset;
     variance += ic_block_offset;
@@ -793,13 +803,13 @@ nhwc_reusable_norm_fwd_buff(__global DATA_T *src, __global float *mean,
             : update_sp_block;
 
     const int ic_block_sgroups
-            = min(ic_size - ic_block_offset, ic_block) / SG_SIZE;
+            = min(ic_size - ic_block_offset, ic_block) / SUB_GROUP_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups / VECT_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
     const bool has_ic_vect_tail = ic_tail_sgroups > 0;
 
     for (int sg = 0; sg < ic_vect_sgroups; ++sg) {
-        const int sg_idx = sg * SG_SIZE * VECT_SIZE;
+        const int sg_idx = sg * SUB_GROUP_SIZE * VECT_SIZE;
         const int sgv = sg * VECT_SIZE;
 
         AS_VECT_FLOAT(&sm[sgv]) = USE_SCALE
@@ -816,7 +826,7 @@ nhwc_reusable_norm_fwd_buff(__global DATA_T *src, __global float *mean,
 #if MAY_HAVE_IC_TAIL
     for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
         const int sgv = ic_vect_sgroups * VECT_SIZE + sg;
-        const int sg_idx = (ic_vect_sgroups * VECT_SIZE + sg) * SG_SIZE;
+        const int sg_idx = (ic_vect_sgroups * VECT_SIZE + sg) * SUB_GROUP_SIZE;
         sm[sgv] = USE_SCALE ? LOAD_FLOAT_1x16(&scaleshift[sg_idx]) : 1.0f;
         sv[sgv] = USE_SHIFT ? LOAD_FLOAT_1x16(&shift[sg_idx]) : 0.0f;
         v_mean[sgv] = LOAD_FLOAT_1x16(&mean[sg_idx]);
@@ -828,7 +838,7 @@ nhwc_reusable_norm_fwd_buff(__global DATA_T *src, __global float *mean,
     for (int sp_idx = 0; sp_idx < sp_idx_bnd; sp_idx++) {
         // vectorized part
         for (int sg = 0; sg < ic_vect_sgroups; ++sg) {
-            const int sg_idx = sg * SG_SIZE * VECT_SIZE;
+            const int sg_idx = sg * SUB_GROUP_SIZE * VECT_SIZE;
             const int sgv = sg * VECT_SIZE;
 
             VECT_FLOAT_T d_vect;
@@ -866,7 +876,8 @@ nhwc_reusable_norm_fwd_buff(__global DATA_T *src, __global float *mean,
         // tails
         for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
             const int sgv = ic_vect_sgroups * VECT_SIZE + sg;
-            const int sg_idx = (ic_vect_sgroups * VECT_SIZE + sg) * SG_SIZE;
+            const int sg_idx
+                    = (ic_vect_sgroups * VECT_SIZE + sg) * SUB_GROUP_SIZE;
             float d_tail;
             const float s_tail = LOAD_DATA_1x16(&src[sg_idx]);
             d_tail = fma(s_tail - v_mean[sgv], sqrt_variance[sgv], sv[sgv]);
@@ -907,7 +918,7 @@ void nhwc_reusable_bwd_fused_reduction(
         off_t vect_size, off_t calc_slm_size) {
     const int local_id = get_local_id(1);
     const int simd_id = get_sub_group_local_id();
-    const int row_size = vect_size * SG_SIZE;
+    const int row_size = vect_size * SUB_GROUP_SIZE;
     const int group_size = get_local_size(1);
 
     __local float *local_gamma = local_sums;
@@ -916,7 +927,7 @@ void nhwc_reusable_bwd_fused_reduction(
     if (local_id > 0) {
         unroll_4_for(int v_idx = 0; v_idx < vect_size; v_idx++) {
             const int slm_offset
-                    = local_id * row_size + v_idx * SG_SIZE + simd_id;
+                    = local_id * row_size + v_idx * SUB_GROUP_SIZE + simd_id;
             local_gamma[slm_offset] = diff_gamma[v_idx];
             local_beta[slm_offset] = diff_beta[v_idx];
         }
@@ -925,13 +936,14 @@ void nhwc_reusable_bwd_fused_reduction(
     if (local_id == 0) {
         unroll_16_for(int l_id = 1; l_id < group_size; l_id++) {
             for (int v_idx = 0; v_idx < vect_size; v_idx++) {
-                const int off = l_id * row_size + v_idx * SG_SIZE + simd_id;
+                const int off
+                        = l_id * row_size + v_idx * SUB_GROUP_SIZE + simd_id;
                 diff_gamma[v_idx] += local_gamma[off];
                 diff_beta[v_idx] += local_beta[off];
             }
         }
         unroll_4_for(int v_idx = 0; v_idx < vect_size; v_idx++) {
-            const int off = v_idx * SG_SIZE + simd_id;
+            const int off = v_idx * SUB_GROUP_SIZE + simd_id;
             atomic_add_global(&diff_scale[dst_offset + off], diff_gamma[v_idx]);
             atomic_add_global(&diff_shift[dst_offset + off], diff_beta[v_idx]);
         }
@@ -951,13 +963,14 @@ void nhwc_reusable_bwd_fused_reduction_buff(
     const int row_size = ic_block;
     const int group_size = get_local_size(1);
 
-    const int ic_block_sgroups = ic_block / SG_SIZE;
+    const int ic_block_sgroups = ic_block / SUB_GROUP_SIZE;
     __local float *local_gamma = local_sums;
     __local float *local_beta = local_sums + calc_slm_size / sizeof(float);
 
     if (local_id > 0) {
         unroll_16_for(int sg = 0; sg < ic_block_sgroups; sg++) {
-            const int slm_offset = local_id * row_size + sg * SG_SIZE + simd_id;
+            const int slm_offset
+                    = local_id * row_size + sg * SUB_GROUP_SIZE + simd_id;
             local_gamma[slm_offset] = diff_gamma[sg];
             local_beta[slm_offset] = diff_beta[sg];
         }
@@ -966,13 +979,13 @@ void nhwc_reusable_bwd_fused_reduction_buff(
     if (local_id == 0) {
         unroll_16_for(int l_id = 1; l_id < group_size; l_id++) {
             unroll_4_for(int sg = 0; sg < ic_block_sgroups; sg++) {
-                const int off = l_id * row_size + sg * SG_SIZE + simd_id;
+                const int off = l_id * row_size + sg * SUB_GROUP_SIZE + simd_id;
                 diff_gamma[sg] += local_gamma[off];
                 diff_beta[sg] += local_beta[off];
             }
         }
         unroll_4_for(int sg = 0; sg < ic_block_sgroups; sg++) {
-            const int off = sg * SG_SIZE + simd_id;
+            const int off = sg * SUB_GROUP_SIZE + simd_id;
             atomic_add_global(&diff_scale[dst_offset + off], diff_gamma[sg]);
             atomic_add_global(&diff_shift[dst_offset + off], diff_beta[sg]);
         }
@@ -982,7 +995,7 @@ void nhwc_reusable_bwd_fused_reduction_buff(
 
 // Calculate stats for BWD pass
 // no private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
         __global DATA_T *diff_dst, __global char *ws,
         __global float *temp_reduce, __global float *temp_reduce_shift,
@@ -993,7 +1006,7 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
         __local float *local_sums, off_t calc_slm_size) {
     const int c = get_global_id(0);
     const int sp_block_idx = get_global_id(1);
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
     const int offset = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
     mean += ic_block_offset;
@@ -1011,14 +1024,14 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
     const int sp_idx_bnd = has_sp_block_tail
             ? min(stat_sp_block, sp_size - sp_block_idx * stat_sp_block)
             : stat_sp_block;
-    const int ic_block_sgroups = ic_block / SG_SIZE;
+    const int ic_block_sgroups = ic_block / SUB_GROUP_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups - ic_tail_sgroups;
 
     // vectorized part
 
     for (int sg = 0; sg < ic_block_sgroups / VECT_SIZE; ++sg) {
-        const int sg_idx = sg * SG_SIZE * VECT_SIZE;
+        const int sg_idx = sg * SUB_GROUP_SIZE * VECT_SIZE;
         VECT_FLOAT_T diff_gamma = 0.0f;
         VECT_FLOAT_T diff_beta = 0.0f;
         const VECT_FLOAT_T v_mean = LOAD_VECT_FLOAT(&mean[(sg_idx)]);
@@ -1042,7 +1055,8 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
 
         // store results
         if (use_fused_atomics_reduction) {
-            const int dst_off = ic_block_offset + sg * VECT_SIZE * SG_SIZE;
+            const int dst_off
+                    = ic_block_offset + sg * VECT_SIZE * SUB_GROUP_SIZE;
             nhwc_reusable_bwd_fused_reduction(diff_scale, diff_shift, dst_off,
                     (float *)(&diff_gamma), (float *)(&diff_beta), local_sums,
                     VECT_SIZE, calc_slm_size);
@@ -1054,15 +1068,16 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
             // reduce_stat_nblocks * ic_size - initialy reduced data,
             //           calculated by this kernel
 
-            const int sg_off = sg * VECT_SIZE * SG_SIZE;
+            const int sg_off = sg * VECT_SIZE * SUB_GROUP_SIZE;
             for (int v_idx = 0; v_idx < VECT_SIZE; v_idx++) {
-                STORE_FLOAT_1x16(&temp_reduce[sg_off + v_idx * SG_SIZE],
+                STORE_FLOAT_1x16(&temp_reduce[sg_off + v_idx * SUB_GROUP_SIZE],
 #if VECT_SIZE > 1
                         diff_gamma[v_idx]);
 #else
                         diff_gamma);
 #endif
-                STORE_FLOAT_1x16(&temp_reduce_shift[sg_off + v_idx * SG_SIZE],
+                STORE_FLOAT_1x16(
+                        &temp_reduce_shift[sg_off + v_idx * SUB_GROUP_SIZE],
 #if VECT_SIZE > 1
                         diff_beta[v_idx]);
 #else
@@ -1074,7 +1089,7 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
 
     // tails
     for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
-        const int sg_idx = (ic_vect_sgroups + sg) * SG_SIZE;
+        const int sg_idx = (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
         float diff_gamma = 0.0f;
         float diff_beta = 0.0f;
         const float v_mean = LOAD_FLOAT_1x16(&mean[(sg_idx)]);
@@ -1098,12 +1113,12 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
         // store results
         if (use_fused_atomics_reduction) {
             const int dst_off
-                    = ic_block_offset + (ic_vect_sgroups + sg) * SG_SIZE;
+                    = ic_block_offset + (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
             nhwc_reusable_bwd_fused_reduction(diff_scale, diff_shift, dst_off,
                     (float *)(&diff_gamma), (float *)(&diff_beta), local_sums,
                     1, calc_slm_size);
         } else {
-            const int sg_off = (ic_vect_sgroups + sg) * SG_SIZE;
+            const int sg_off = (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
             STORE_FLOAT_1x16(&temp_reduce[sg_off], diff_gamma);
             STORE_FLOAT_1x16(&temp_reduce_shift[sg_off], diff_beta);
         }
@@ -1111,7 +1126,7 @@ nhwc_reusable_calc_stat(__global DATA_T *src, __global float *mean,
 }
 
 // Calculate stats for BWD pass, private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_calc_stat_buff(__global DATA_T *src, __global float *mean,
         __global DATA_T *diff_dst, __global char *ws,
         __global float *temp_reduce, __global float *temp_reduce_shift,
@@ -1123,7 +1138,7 @@ nhwc_reusable_calc_stat_buff(__global DATA_T *src, __global float *mean,
 
     const int c = get_global_id(0);
     const int sp_block_idx = get_global_id(1);
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
     const int offset = ic_block_offset + sp_block_idx * stat_sp_block * ic_size;
 
     mean += ic_block_offset;
@@ -1142,14 +1157,14 @@ nhwc_reusable_calc_stat_buff(__global DATA_T *src, __global float *mean,
             ? min(stat_sp_block, sp_size - sp_block_idx * stat_sp_block)
             : stat_sp_block;
     const int ic_block_sgroups
-            = min(ic_size - ic_block_offset, ic_block) / SG_SIZE;
+            = min(ic_size - ic_block_offset, ic_block) / SUB_GROUP_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups / VECT_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
 
     float v_mean[MAX_IC_BLOCK_SGROUPS];
     for (int sg = 0; sg < ic_block_sgroups; ++sg) {
         v_mean[sg] = as_float(intel_sub_group_block_read(
-                (const __global uint *)(&mean[(sg * SG_SIZE)])));
+                (const __global uint *)(&mean[(sg * SUB_GROUP_SIZE)])));
     }
 
     float diff_gamma[MAX_IC_BLOCK_SGROUPS] = {0.0f};
@@ -1158,7 +1173,7 @@ nhwc_reusable_calc_stat_buff(__global DATA_T *src, __global float *mean,
     for (int sp = 0; sp < sp_idx_bnd; ++sp) {
         // vector part
         for (int sg = 0; sg < ic_vect_sgroups; ++sg) {
-            const int sg_idx = sg * SG_SIZE * VECT_SIZE;
+            const int sg_idx = sg * SUB_GROUP_SIZE * VECT_SIZE;
             const int sgv = sg * VECT_SIZE;
 #if FUSE_BN_RELU
             const VECT_CHAR_T ws_vect = LOAD_VECT_CHAR(&ws[sg_idx]);
@@ -1186,10 +1201,10 @@ nhwc_reusable_calc_stat_buff(__global DATA_T *src, __global float *mean,
         for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
             const int sg_idx = ic_vect_sgroups * VECT_SIZE + sg;
 #if FUSE_BN_RELU
-            char ws_tail = LOAD_CHAR_1x16(&ws[sg_idx * SG_SIZE]);
+            char ws_tail = LOAD_CHAR_1x16(&ws[sg_idx * SUB_GROUP_SIZE]);
 #endif
-            float src_tail = LOAD_DATA_1x16(&src[sg_idx * SG_SIZE]);
-            float dd_tail = LOAD_DATA_1x16(&diff_dst[sg_idx * SG_SIZE]);
+            float src_tail = LOAD_DATA_1x16(&src[sg_idx * SUB_GROUP_SIZE]);
+            float dd_tail = LOAD_DATA_1x16(&diff_dst[sg_idx * SUB_GROUP_SIZE]);
             float v0 = src_tail - v_mean[sg_idx];
 #if FUSE_BN_RELU
             dd_tail = select(0.0f, dd_tail, convert_int(ws_tail));
@@ -1214,7 +1229,7 @@ nhwc_reusable_calc_stat_buff(__global DATA_T *src, __global float *mean,
 
     } else {
         for (int sg = 0; sg < ic_block_sgroups; ++sg) {
-            const int sg_off = sg * SG_SIZE;
+            const int sg_off = sg * SUB_GROUP_SIZE;
             STORE_FLOAT_1x16(&temp_reduce[sg_off], diff_gamma[sg]);
             STORE_FLOAT_1x16(&temp_reduce_shift[sg_off], diff_beta[sg]);
         }
@@ -1223,7 +1238,7 @@ nhwc_reusable_calc_stat_buff(__global DATA_T *src, __global float *mean,
 
 // Main BWD pass kernel
 // no private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_norm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global char *ws,
@@ -1231,7 +1246,7 @@ nhwc_reusable_norm_bwd(__global DATA_T *src, __global float *mean,
         __global float *diff_shift, float eps, __global DATA_T *diff_src_add,
         off_t ic_size, off_t ic_block, off_t sp_size, off_t update_sp_block) {
     const int c = get_global_id(0);
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
 
     variance += ic_block_offset;
     mean += ic_block_offset;
@@ -1255,12 +1270,12 @@ nhwc_reusable_norm_bwd(__global DATA_T *src, __global float *mean,
     const int sp_idx_bnd = has_sp_block_tail
             ? min(update_sp_block, sp_size - sp_block_idx * update_sp_block)
             : update_sp_block;
-    const int ic_block_sgroups = ic_block / SG_SIZE;
+    const int ic_block_sgroups = ic_block / SUB_GROUP_SIZE;
 
     for (int sp = 0; sp < sp_idx_bnd; ++sp) {
         // vectorized part
         for (int sg = 0; sg < ic_block_sgroups / VECT_SIZE; ++sg) {
-            const int sg_idx = sg * SG_SIZE * VECT_SIZE;
+            const int sg_idx = sg * SUB_GROUP_SIZE * VECT_SIZE;
 
             const VECT_FLOAT_T v_variance = LOAD_VECT_FLOAT(&variance[sg_idx]);
             const VECT_FLOAT_T sqrt_variance
@@ -1294,12 +1309,12 @@ nhwc_reusable_norm_bwd(__global DATA_T *src, __global float *mean,
 
         } // sg loop
 
-        const int ic_tail_sgroups = (ic_block / SG_SIZE) % VECT_SIZE;
+        const int ic_tail_sgroups = (ic_block / SUB_GROUP_SIZE) % VECT_SIZE;
         const int ic_vect_sgroups = ic_block_sgroups - ic_tail_sgroups;
 
         // tails
         for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
-            const int sg_idx = (ic_vect_sgroups + sg) * SG_SIZE;
+            const int sg_idx = (ic_vect_sgroups + sg) * SUB_GROUP_SIZE;
 
             const float v_variance = LOAD_FLOAT_1x16(&variance[sg_idx]);
             const float sqrt_variance
@@ -1343,7 +1358,7 @@ nhwc_reusable_norm_bwd(__global DATA_T *src, __global float *mean,
 }
 
 // Main BWD pass kernel, private memory buffers used.
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_norm_bwd_buff(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global char *ws,
@@ -1352,7 +1367,7 @@ nhwc_reusable_norm_bwd_buff(__global DATA_T *src, __global float *mean,
         off_t ic_size, off_t ic_block, off_t sp_size, off_t update_sp_block) {
 
     const int c = get_global_id(0);
-    const int ic_block_offset = (c / SG_SIZE) * ic_block;
+    const int ic_block_offset = (c / SUB_GROUP_SIZE) * ic_block;
 
     variance += ic_block_offset;
     mean += ic_block_offset;
@@ -1377,7 +1392,7 @@ nhwc_reusable_norm_bwd_buff(__global DATA_T *src, __global float *mean,
             ? min(update_sp_block, sp_size - sp_block_idx * update_sp_block)
             : update_sp_block;
     const int ic_block_sgroups
-            = min(ic_size - ic_block_offset, ic_block) / SG_SIZE;
+            = min(ic_size - ic_block_offset, ic_block) / SUB_GROUP_SIZE;
     const int ic_vect_sgroups = ic_block_sgroups / VECT_SIZE;
     const int ic_tail_sgroups = ic_block_sgroups % VECT_SIZE;
 
@@ -1387,7 +1402,7 @@ nhwc_reusable_norm_bwd_buff(__global DATA_T *src, __global float *mean,
 
     for (int sg = 0; sg < ic_vect_sgroups; ++sg) {
         const int sgv = sg * VECT_SIZE;
-        const int sg_idx = sg * SG_SIZE * VECT_SIZE;
+        const int sg_idx = sg * SUB_GROUP_SIZE * VECT_SIZE;
 
         AS_VECT_FLOAT(&v_variance[sgv]) = LOAD_VECT_FLOAT(&variance[sg_idx]);
 #if CALCULATE_STATS == 1
@@ -1405,7 +1420,7 @@ nhwc_reusable_norm_bwd_buff(__global DATA_T *src, __global float *mean,
 #if MAY_HAVE_IC_TAIL
     for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
         const int sgv = ic_vect_sgroups * VECT_SIZE + sg;
-        const int sg_idx = (ic_vect_sgroups * VECT_SIZE + sg) * SG_SIZE;
+        const int sg_idx = (ic_vect_sgroups * VECT_SIZE + sg) * SUB_GROUP_SIZE;
         v_variance[sgv] = LOAD_FLOAT_1x16(&variance[sg_idx]);
 #if CALCULATE_STATS == 1
         v_mean[sgv] = LOAD_FLOAT_1x16(&mean[sg_idx]);
@@ -1419,7 +1434,7 @@ nhwc_reusable_norm_bwd_buff(__global DATA_T *src, __global float *mean,
     for (int sp = 0; sp < sp_idx_bnd; ++sp) {
         // vector part
         for (int sg = 0; sg < ic_vect_sgroups; ++sg) {
-            const int sg_idx = sg * SG_SIZE * VECT_SIZE;
+            const int sg_idx = sg * SUB_GROUP_SIZE * VECT_SIZE;
             const int sgv = sg * VECT_SIZE;
 
             const VECT_FLOAT_T src_vect = LOAD_VECT_DATA(&src[sg_idx]);
@@ -1448,7 +1463,8 @@ nhwc_reusable_norm_bwd_buff(__global DATA_T *src, __global float *mean,
         // tails
         for (int sg = 0; sg < ic_tail_sgroups; ++sg) {
             const int sgv = ic_vect_sgroups * VECT_SIZE + sg;
-            const int sg_idx = (ic_vect_sgroups * VECT_SIZE + sg) * SG_SIZE;
+            const int sg_idx
+                    = (ic_vect_sgroups * VECT_SIZE + sg) * SUB_GROUP_SIZE;
             const float src_tail = LOAD_DATA_1x16(&src[sg_idx]);
             float dd_tail = LOAD_DATA_1x16(&diff_dst[sg_idx]);
 #if FUSE_BN_RELU
@@ -1508,15 +1524,15 @@ __kernel void nhwc_reusable_reduce_aux(__global float *ptr1,
 }
 
 // Reduction thru scratchpad, FWD pass, regular algorithm
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_reduce_fwd_reg(__global float *reduce_scratchpad,
         off_t scratchpad_off, __global float *dst, off_t ic_size,
         off_t reduce_ic_sub_groups, off_t reduce_stat_nblocks, off_t sp_size,
         __local float *local_sum) {
-    const int ic_sub_group = get_global_id(0) / SG_SIZE;
+    const int ic_sub_group = get_global_id(0) / SUB_GROUP_SIZE;
     const int group_c = get_global_id(1);
     const int simd_id = get_sub_group_local_id();
-    const int c = group_c * SG_SIZE + simd_id;
+    const int c = group_c * SUB_GROUP_SIZE + simd_id;
     float sum = 0.0f;
 
     const int reduce_chunk = reduce_stat_nblocks / reduce_ic_sub_groups;
@@ -1528,26 +1544,28 @@ nhwc_reusable_reduce_fwd_reg(__global float *reduce_scratchpad,
         sum += reduce_scratchpad[i * ic_size];
     }
 
-    if (ic_sub_group > 0) { local_sum[ic_sub_group * SG_SIZE + simd_id] = sum; }
+    if (ic_sub_group > 0) {
+        local_sum[ic_sub_group * SUB_GROUP_SIZE + simd_id] = sum;
+    }
     barrier(CLK_LOCAL_MEM_FENCE);
     if (ic_sub_group == 0) {
         unroll_16_for(int i = 1; i < reduce_ic_sub_groups; i++) {
-            sum += local_sum[i * SG_SIZE + simd_id];
+            sum += local_sum[i * SUB_GROUP_SIZE + simd_id];
         }
         dst[c] = sum / sp_size;
     }
 }
 
 // Reduction thru scratchpad, FWD pass, 1pass algorithm
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_reduce_fwd_1pass(__global float *reduce_temp,
         __global float *mean, __global float *variance, off_t ic_size,
         off_t reduce_ic_sub_groups, off_t reduce_stat_nblocks, off_t sp_size,
         __local SUM_DATA_T *local_sum, __local SUM_DATA_T *local_sum_sq) {
-    const int ic_sub_group = get_global_id(0) / SG_SIZE;
+    const int ic_sub_group = get_global_id(0) / SUB_GROUP_SIZE;
     const int group_c = get_global_id(1);
     const int simd_id = get_sub_group_local_id();
-    const int c = group_c * SG_SIZE + simd_id;
+    const int c = group_c * SUB_GROUP_SIZE + simd_id;
     SUM_DATA_T sum;
     SUM_DATA_T sum_sq;
     sum.s0 = 0;
@@ -1568,14 +1586,14 @@ nhwc_reusable_reduce_fwd_1pass(__global float *reduce_temp,
         sum_sq = summation(tmp, sum_sq);
     }
     if (ic_sub_group > 0) {
-        local_sum[ic_sub_group * SG_SIZE + simd_id] = sum;
-        local_sum_sq[ic_sub_group * SG_SIZE + simd_id] = sum_sq;
+        local_sum[ic_sub_group * SUB_GROUP_SIZE + simd_id] = sum;
+        local_sum_sq[ic_sub_group * SUB_GROUP_SIZE + simd_id] = sum_sq;
     }
     barrier(CLK_LOCAL_MEM_FENCE);
     if (ic_sub_group == 0) {
         unroll_16_for(int i = 1; i < reduce_ic_sub_groups; i++) {
-            SUM_DATA_T tmp = local_sum[i * SG_SIZE + simd_id];
-            SUM_DATA_T tmp_sq = local_sum_sq[i * SG_SIZE + simd_id];
+            SUM_DATA_T tmp = local_sum[i * SUB_GROUP_SIZE + simd_id];
+            SUM_DATA_T tmp_sq = local_sum_sq[i * SUB_GROUP_SIZE + simd_id];
             sum = summation(tmp.s1, sum);
             sum_sq = summation(tmp_sq.s1, sum_sq);
             sum = summation(tmp.s0, sum);
@@ -1590,16 +1608,16 @@ nhwc_reusable_reduce_fwd_1pass(__global float *reduce_temp,
 }
 
 // Reduction thru scratchpad, BWD pass
-__attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 nhwc_reusable_reduce_stat(__global float *temp_reduce,
         __global float *temp_reduce_shift, __global float *diff_scale,
         __global float *diff_shift, __global float *variance, float eps,
         off_t ic_size, off_t reduce_ic_sub_groups, off_t reduce_stat_nblocks,
         __local float *local_gamma, __local float *local_beta) {
-    const int ic_sub_group = get_global_id(0) / SG_SIZE;
+    const int ic_sub_group = get_global_id(0) / SUB_GROUP_SIZE;
     const int group_c = get_global_id(1);
     const int simd_id = get_sub_group_local_id();
-    const int c = group_c * SG_SIZE + simd_id;
+    const int c = group_c * SUB_GROUP_SIZE + simd_id;
 
     float diff_gamma = 0.0f;
     float diff_beta = 0.0f;
@@ -1616,14 +1634,14 @@ nhwc_reusable_reduce_stat(__global float *temp_reduce,
         diff_beta += temp_reduce_shift[i * ic_size];
     }
     if (ic_sub_group > 0) {
-        local_gamma[ic_sub_group * SG_SIZE + simd_id] = diff_gamma;
-        local_beta[ic_sub_group * SG_SIZE + simd_id] = diff_beta;
+        local_gamma[ic_sub_group * SUB_GROUP_SIZE + simd_id] = diff_gamma;
+        local_beta[ic_sub_group * SUB_GROUP_SIZE + simd_id] = diff_beta;
     }
     barrier(CLK_LOCAL_MEM_FENCE);
     if (ic_sub_group == 0) {
         unroll_16_for(int i = 1; i < reduce_ic_sub_groups; i++) {
-            diff_gamma += local_gamma[i * SG_SIZE + simd_id];
-            diff_beta += local_beta[i * SG_SIZE + simd_id];
+            diff_gamma += local_gamma[i * SUB_GROUP_SIZE + simd_id];
+            diff_beta += local_beta[i * SUB_GROUP_SIZE + simd_id];
         }
         float sqrt_variance = 1.0f / sqrt(variance[c] + eps);
 
