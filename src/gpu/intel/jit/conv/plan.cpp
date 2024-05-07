@@ -1385,16 +1385,32 @@ struct fma_context_t {
     fma_layout_hint_t b_layout_hint;
 };
 
+int slm_memory_bank_count(ngen::HW hw) {
+    switch (hw) {
+        case ngen::HW::XeHP: return 65;
+        case ngen::HW::XeHPG: return 32;
+        default: ir_error_not_expected();
+    }
+    return 0;
+}
+
+int slm_memory_bank_granularity(ngen::HW hw) {
+    switch (hw) {
+        case ngen::HW::XeHP: return 4;
+        case ngen::HW::XeHPG: return 8;
+        default: ir_error_not_expected();
+    }
+    return 0;
+}
+
 dim_t find_min_stride_without_conflicts(
         const hw_t &hw, dim_t inner_bytes, dim_t dense_stride_bytes) {
     int write_step = 64;
     int stride_step = 16;
     dim_t stride_beg = dense_stride_bytes;
     dim_t stride_end = 2 * dense_stride_bytes;
-    auto arch = convert_ngen_arch_to_dnnl(hw.to_ngen());
-    const int slm_banks = compute::device_info_t::slm_memory_bank_count(arch);
-    const int bank_granularity
-            = compute::device_info_t::slm_memory_bank_granularity(arch);
+    const int slm_banks = slm_memory_bank_count(hw.to_ngen());
+    const int bank_granularity = slm_memory_bank_granularity(hw.to_ngen());
     for (dim_t s = stride_beg; s < stride_end; s += stride_step) {
         bool ok = true;
         for (dim_t off0 = 0; off0 < inner_bytes; off0 += write_step) {

@@ -161,6 +161,20 @@ bool is_cmp_op(op_kind_t op_kind) {
     }
 }
 
+bool is_commutative_op(op_kind_t op_kind) {
+    switch (op_kind) {
+        case op_kind_t::_add:
+        case op_kind_t::_mul:
+        case op_kind_t::_min:
+        case op_kind_t::_max:
+        case op_kind_t::_eq:
+        case op_kind_t::_ne:
+        case op_kind_t::_and:
+        case op_kind_t::_add3: return true;
+        default: return false;
+    }
+}
+
 op_kind_t negate_cmp_op(op_kind_t op_kind) {
     switch (op_kind) {
         case op_kind_t::_ge: return op_kind_t::_le;

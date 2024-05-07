@@ -22,7 +22,7 @@
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/reorder.hpp"
-#include "gpu/intel/jit/pass/dpas_atomic.hpp"
+#include "gpu/intel/jit/pass/dpas.hpp"
 #include "gpu/intel/jit/pass/pass.hpp"
 #include "gpu/intel/jit/v2/conv/bridge.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
@@ -1025,7 +1025,7 @@ private:
                 }
             }
         }
-        stmt = inject_atomic(stmt);
+        stmt = inject_dpas_atomic(stmt);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(stmt);
     }
 

@@ -866,8 +866,6 @@ static int check_zero_padding_impl(
     int errors = 0;
     std::atomic<int> ok(true);
 
-    const T *mem_ptr = (const T *)mem;
-
     for (int dim_m_idx = 0; dim_m_idx < ndims; ++dim_m_idx) {
         if (dims[dim_m_idx] == pdims[dim_m_idx]) continue;
 
@@ -878,7 +876,7 @@ static int check_zero_padding_impl(
             for (dnnl_dim_t m = dims[dim_m_idx]; m < pdims[dim_m_idx]; ++m) {
                 auto l_idx = (l * pdims[dim_m_idx] + m) * dim_r + r;
                 auto idx = md_off_l(nullptr, mem, l_idx, true);
-                if (!(mem_ptr[idx] == 0)) ok = false;
+                if (!(mem.get_elem(idx) == 0)) ok = false;
             }
         });
 
@@ -892,7 +890,7 @@ static int check_zero_padding_impl(
                 dnnl_dims_t pos = {};
                 auto idx = md_off_l(pos, mem, l_idx, true);
 
-                bool idx_ok = (mem_ptr[idx] == 0);
+                bool idx_ok = (mem.get_elem(idx) == 0);
                 if (!idx_ok) errors++;
 
                 const bool dump = (!idx_ok && (errors < 10 || verbose >= 10))
@@ -937,8 +935,8 @@ int check_zero_padding(
             CASE(dnnl_s32, int32_t);
             CASE(dnnl_s8, int8_t);
             CASE(dnnl_u8, uint8_t);
-            CASE(dnnl_s4, int8_t);
-            CASE(dnnl_u4, uint8_t);
+            CASE(dnnl_s4, dnnl::impl::int4_t);
+            CASE(dnnl_u4, dnnl::impl::uint4_t);
         default: assert(!"bad data_type");
     };
 #undef CASE

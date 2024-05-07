@@ -1030,6 +1030,8 @@ inline std::ostream &operator<<(std::ostream &out, op_kind_t kind) {
 
 bool is_cmp_op(op_kind_t op_kind);
 
+bool is_commutative_op(op_kind_t op_kind);
+
 op_kind_t negate_cmp_op(op_kind_t op_kind);
 
 type_t unary_op_type(op_kind_t op_kind, const expr_t &a);
@@ -2317,6 +2319,10 @@ public:
         if (kind_ != other.kind_) return false;
         if (index_ == -1 || other.index_ == -1) return true;
         return index_ == other.index_;
+    }
+
+    bool operator!=(const stmt_label_t &other) const {
+        return !operator==(other);
     }
 
     size_t get_hash() const { return ir_utils::get_hash(kind_, index_); }

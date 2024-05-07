@@ -1466,27 +1466,39 @@ private:
         auto dst = alloc_dst_op(obj);
         auto &dst_rbd = dst.reg_buf_data();
         int dst_stride = dst_rbd.hs();
-        // no more than 1 temporary register is going to be required
-        auto storage = scope_.alloc_reg_buf_data(1);
-
+        int w_size = sizeof(uint16_t);
+        int grf_size = ngen::GRF::bytes(hw);
+        auto tmp = scope_.alloc_reg_buf_data(1);
         auto w_type = (use_uv) ? ngen::DataType::uw : ngen::DataType::w;
         for (int i = 0; i < obj.elems(); i += esize) {
             uint32_t packed = 0;
             for (int j = 0; j < esize; j++)
                 set_packed(packed, (vec[obj.idx[i + j]] - vec_min) / factor, j);
-            auto tmp = storage.format(i * sizeof(uint16_t), w_type, esize);
-            host_->emov(esize, tmp,
+            auto t = tmp.format(i * w_size, w_type, esize);
+            host_->emov(esize, t,
                     (use_uv) ? ngen::Immediate::uv(packed)
                              : ngen::Immediate::v(packed));
         }
         auto d = dst_rbd.format(
                 0, ngen::DataType::invalid, obj.elems(), dst_stride);
-        auto tmp = storage.format(0, w_type, obj.elems());
+        auto t = tmp.format(0, w_type, obj.elems());
+        reg_buf_data_t t_strided;
+        bool align_with_dst = false;
+        if (align_with_dst) {
+            int w_stride = dst_stride * (ngen::getBytes(dst.type()) / w_size);
+            int tmp_strided_regs
+                    = utils::div_up(obj.elems() * w_size * w_stride, grf_size);
+            auto tmp_strided = scope_.alloc_reg_buf_data(tmp_strided_regs);
+            t_strided = tmp_strided.format(0, w_type, obj.elems(), w_stride);
+            host_->emov(obj.elems(), t_strided, t);
+        } else {
+            t_strided = t;
+        }
         if (factor != 1) {
-            host_->emul(obj.elems(), d, tmp, ngen::Immediate(factor));
+            host_->emul(obj.elems(), d, t_strided, ngen::Immediate(factor));
         }
         if (factor == 1 || vec_min != 0) {
-            host_->eadd(obj.elems(), d, (factor == 1) ? tmp : d,
+            host_->eadd(obj.elems(), d, (factor == 1) ? t_strided : d,
                     ngen::Immediate(vec_min));
         }
         bind(obj, dst);

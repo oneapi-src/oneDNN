@@ -68,7 +68,11 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
         int pad_d4 = NDIMS > 4 && d4 >= SRC_D4;
         int pad_d5 = NDIMS > 5 && d5 >= SRC_D5;
         if (pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5) {
+#if TO_I4
+            SET_DOUBLE_HALF_BYTE(dst, dst_off, 0);
+#else
             dst[dst_off] = 0;
+#endif
             continue;
         }
 #endif

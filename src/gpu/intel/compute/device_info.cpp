@@ -218,34 +218,6 @@ int device_info_t::max_slm_size_per_tg(
     return std::min(max_slm_size_per_tg(gpu_arch), slm_per_tg);
 }
 
-int device_info_t::slm_memory_bank_count(gpu_arch_t gpu_arch) {
-    switch (gpu_arch) {
-        case gpu::intel::compute::gpu_arch_t::gen9:
-        case gpu::intel::compute::gpu_arch_t::gen11:
-        case gpu::intel::compute::gpu_arch_t::xe_lp: return 16;
-        case gpu::intel::compute::gpu_arch_t::xe_hp: return 65;
-        case gpu::intel::compute::gpu_arch_t::xe2:
-        case gpu::intel::compute::gpu_arch_t::xe_hpc: return 64;
-        case gpu::intel::compute::gpu_arch_t::xe_hpg: return 32;
-        case gpu::intel::compute::gpu_arch_t::unknown: assert(!"not expected");
-    }
-    return 32;
-}
-// Returns SLM bank granularity in bytes.
-int device_info_t::slm_memory_bank_granularity(gpu_arch_t gpu_arch) {
-    switch (gpu_arch) {
-        case gpu::intel::compute::gpu_arch_t::gen9:
-        case gpu::intel::compute::gpu_arch_t::gen11:
-        case gpu::intel::compute::gpu_arch_t::xe_lp:
-        case gpu::intel::compute::gpu_arch_t::xe_hp: return 4;
-        case gpu::intel::compute::gpu_arch_t::xe2:
-        case gpu::intel::compute::gpu_arch_t::xe_hpc:
-        case gpu::intel::compute::gpu_arch_t::xe_hpg: return 8;
-        case gpu::intel::compute::gpu_arch_t::unknown: assert(!"not expected");
-    }
-    return 4;
-}
-
 size_t device_info_t::icache_size() const {
     switch (gpu_arch_) {
         case gpu::intel::compute::gpu_arch_t::gen9:

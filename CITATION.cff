@@ -18,4 +18,4 @@ abstract: >-
   oneDNN has experimental support for the following architectures: NVIDIA GPU,
   AMD GPU, OpenPOWER Power ISA (PPC64), IBMz (s390x), and RISC-V.
 license: Apache-2.0
-version: v3.5
+version: v3.6

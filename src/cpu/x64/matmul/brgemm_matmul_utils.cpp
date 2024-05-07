@@ -651,6 +651,13 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
     int iter = 0;
     const int runtime_M_chunk = bgmmc.lda_big_pow2() ? 2 : 4;
     const int runtime_N_chunk = 2;
+
+    // Disable skip configuration due to regressions for some cases.
+    const bool disable_skip_config = bgmmc.M == 4
+            && utils::one_of(true, bgmmc.N == 4096 && bgmmc.K == 4096,
+                    bgmmc.N == 11008 && bgmmc.K == 4096,
+                    bgmmc.N == 4096 && bgmmc.K == 11008);
+
     for (int nthr_k = 1; nthr_k <= max_nthr_k; nthr_k++) {
         int nthr_bmn = bgmmc.nthr / nthr_k;
 
@@ -717,7 +724,7 @@ void compute_blocking_heuristic_amx(const brgemm_matmul_conf_t &bgmmc,
 
             bool skip_config = work_amount < nthr_bmn * 3
                     && work_amount % nthr_bmn != 0 && max_nthr_k == 1;
-            if (skip_config) continue;
+            if (skip_config && !disable_skip_config) continue;
 
             if (cur_score > bst_score) {
                 best_blocking = current_blocking;

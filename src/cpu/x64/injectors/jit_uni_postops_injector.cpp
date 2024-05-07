@@ -95,13 +95,14 @@ template <>
 jit_uni_postops_injector_base_t<Xbyak::Zmm> *
 jit_uni_postops_injector_base_t<Xbyak::Zmm>::create(jit_generator *host,
         cpu_isa_t isa, const post_ops_t &post_ops,
-        const binary_injector::static_params_t &binary_static_params) {
+        const binary_injector::static_params_t &binary_static_params,
+        const eltwise_injector::static_params_t &eltwise_static_params) {
 
 // Exact match case goes first and required to force `isa` passed by user.
 #define CASE_EXACT_MATCH(_isa) \
     if (isa == (_isa)) \
         return new jit_uni_postops_injector_t<_isa, Xbyak::Zmm>( \
-                host, post_ops, binary_static_params);
+                host, post_ops, binary_static_params, eltwise_static_params);
 
     CASE_EXACT_MATCH(avx512_core_fp16);
     CASE_EXACT_MATCH(avx512_core_bf16);
@@ -114,7 +115,7 @@ jit_uni_postops_injector_base_t<Xbyak::Zmm>::create(jit_generator *host,
 #define CASE_MAYIUSE(_isa) \
     if (mayiuse(_isa)) \
         return new jit_uni_postops_injector_t<_isa, Xbyak::Zmm>( \
-                host, post_ops, binary_static_params);
+                host, post_ops, binary_static_params, eltwise_static_params);
 
     CASE_MAYIUSE(avx512_core_fp16);
     CASE_MAYIUSE(avx512_core_bf16);
@@ -130,13 +131,14 @@ template <>
 jit_uni_postops_injector_base_t<Xbyak::Ymm> *
 jit_uni_postops_injector_base_t<Xbyak::Ymm>::create(jit_generator *host,
         cpu_isa_t isa, const post_ops_t &post_ops,
-        const binary_injector::static_params_t &binary_static_params) {
+        const binary_injector::static_params_t &binary_static_params,
+        const eltwise_injector::static_params_t &eltwise_static_params) {
 
 // Exact match case goes first and required to force `isa` passed by user.
 #define CASE_EXACT_MATCH(_isa) \
     if (isa == (_isa)) \
         return new jit_uni_postops_injector_t<_isa, Xbyak::Ymm>( \
-                host, post_ops, binary_static_params);
+                host, post_ops, binary_static_params, eltwise_static_params);
 
     CASE_EXACT_MATCH(avx512_core_fp16);
     CASE_EXACT_MATCH(avx512_core);
@@ -151,7 +153,7 @@ jit_uni_postops_injector_base_t<Xbyak::Ymm>::create(jit_generator *host,
 #define CASE_MAYIUSE(_isa) \
     if (mayiuse(_isa)) \
         return new jit_uni_postops_injector_t<_isa, Xbyak::Ymm>( \
-                host, post_ops, binary_static_params);
+                host, post_ops, binary_static_params, eltwise_static_params);
 
     CASE_MAYIUSE(avx512_core_fp16);
     CASE_MAYIUSE(avx512_core);
@@ -169,13 +171,14 @@ template <>
 jit_uni_postops_injector_base_t<Xbyak::Xmm> *
 jit_uni_postops_injector_base_t<Xbyak::Xmm>::create(jit_generator *host,
         cpu_isa_t isa, const post_ops_t &post_ops,
-        const binary_injector::static_params_t &binary_static_params) {
+        const binary_injector::static_params_t &binary_static_params,
+        const eltwise_injector::static_params_t &eltwise_static_params) {
 
 // Exact match case goes first and required to force `isa` passed by user.
 #define CASE_EXACT_MATCH(_isa) \
     if (isa == (_isa)) \
         return new jit_uni_postops_injector_t<_isa, Xbyak::Xmm>( \
-                host, post_ops, binary_static_params);
+                host, post_ops, binary_static_params, eltwise_static_params);
 
     CASE_EXACT_MATCH(avx512_core_fp16);
     CASE_EXACT_MATCH(avx512_core);
@@ -191,7 +194,7 @@ jit_uni_postops_injector_base_t<Xbyak::Xmm>::create(jit_generator *host,
 #define CASE_MAYIUSE(_isa) \
     if (mayiuse(_isa)) \
         return new jit_uni_postops_injector_t<_isa, Xbyak::Xmm>( \
-                host, post_ops, binary_static_params);
+                host, post_ops, binary_static_params, eltwise_static_params);
 
     CASE_MAYIUSE(avx512_core_fp16);
     CASE_MAYIUSE(avx512_core);
@@ -204,6 +207,16 @@ jit_uni_postops_injector_base_t<Xbyak::Xmm>::create(jit_generator *host,
 
     assert(!"Kernel is empty!");
     return nullptr;
+}
+
+template <typename Vmm>
+jit_uni_postops_injector_base_t<Vmm> *
+jit_uni_postops_injector_base_t<Vmm>::create(jit_generator *host, cpu_isa_t isa,
+        const post_ops_t &post_ops,
+        const binary_injector::static_params_t &binary_static_params) {
+    const eltwise_injector::static_params_t eltwise_static_params;
+    return create(
+            host, isa, post_ops, binary_static_params, eltwise_static_params);
 }
 
 template <cpu_isa_t isa, typename Vmm>
