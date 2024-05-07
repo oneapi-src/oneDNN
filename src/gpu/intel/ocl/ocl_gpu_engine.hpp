@@ -23,6 +23,7 @@
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/ocl/ocl_gpu_engine_id.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
+#include "xpu/ocl/engine_impl.hpp"
 #include "xpu/utils.hpp"
 
 namespace dnnl {
@@ -34,10 +35,8 @@ namespace ocl {
 class ocl_gpu_engine_t : public compute::compute_engine_t {
 public:
     ocl_gpu_engine_t(cl_device_id adevice, cl_context acontext, size_t index)
-        : compute::compute_engine_t(engine_kind::gpu, runtime_kind::ocl, index)
-        , device_(adevice)
-        , context_(acontext)
-        , is_user_context_(acontext) {}
+        : compute::compute_engine_t(
+                new xpu::ocl::engine_impl_t(adevice, acontext, index)) {}
 
     status_t init() override;
     status_t init(const std::vector<uint8_t> &cache_blob);
@@ -94,13 +93,11 @@ public:
         return gpu_impl_list_t::get_implementation_list(desc);
     }
 
-    cl_device_id device() const { return device_; }
-    cl_context context() const { return context_; }
-    cl_platform_id platform() const { return platform_; }
+    cl_device_id device() const { return impl()->device(); }
+    cl_context context() const { return impl()->context(); }
+    cl_platform_id platform() const { return impl()->platform(); }
 
-    device_id_t device_id() const override {
-        return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
-    }
+    device_id_t device_id() const override { return impl()->device_id(); }
 
     status_t serialize_device(serialization_stream_t &sstream) const override;
 
@@ -118,23 +115,18 @@ public:
     }
 
 protected:
+    const xpu::ocl::engine_impl_t *impl() const {
+        return (const xpu::ocl::engine_impl_t *)engine_t::impl();
+    }
+
     status_t build_program_from_source(xpu::ocl::wrapper_t<cl_program> &program,
             const char *code_string,
             const compute::kernel_ctx_t &kernel_ctx) const;
 
-    ~ocl_gpu_engine_t() override {
-        if (device_) { clReleaseDevice(device_); }
-        if (context_) { clReleaseContext(context_); }
-    }
+    ~ocl_gpu_engine_t() override = default;
 
     status_t init_device_info() override;
     status_t init_device_info(const std::vector<uint8_t> &cache_blob) override;
-
-private:
-    cl_device_id device_;
-    cl_context context_;
-    cl_platform_id platform_ = nullptr;
-    bool is_user_context_;
 };
 
 } // namespace ocl

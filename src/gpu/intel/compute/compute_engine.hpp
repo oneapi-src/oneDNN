@@ -23,6 +23,7 @@
 #include <initializer_list>
 
 #include "common/c_types_map.hpp"
+#include "common/engine_impl.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_desc_iterator.hpp"
 #include "common/resource.hpp"
@@ -43,9 +44,7 @@ namespace compute {
 
 class compute_engine_t : public engine_t {
 public:
-    compute_engine_t(
-            engine_kind_t kind, runtime_kind_t runtime_kind, size_t index)
-        : engine_t(kind, runtime_kind, index) {}
+    compute_engine_t(impl::engine_impl_t *impl) : engine_t(impl) {}
 
     virtual status_t init();
     status_t init(const std::vector<uint8_t> &cache_blob);

@@ -22,6 +22,7 @@
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 #include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
+#include "xpu/ocl/utils.hpp"
 
 #ifndef CL_KERNEL_BINARY_PROGRAM_INTEL
 #define CL_KERNEL_BINARY_PROGRAM_INTEL 0x407D
