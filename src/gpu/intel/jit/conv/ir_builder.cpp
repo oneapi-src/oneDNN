@@ -674,6 +674,12 @@ void conv_ir_builder_t::build() {
     init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(), cfg_.simd(),
             init_cset, init_stmts);
 
+    auto &walk_order = gemm_schedule.kernel_grid_walk_order();
+    for (auto &info : walk_order.dim_infos()) {
+        init_cset.add_constraint(info.grid_var >= 0);
+        init_cset.add_constraint(info.grid_var < info.size);
+    }
+
     // Initialize memory buffers.
     std::vector<stmt_t> inner_lets;
 

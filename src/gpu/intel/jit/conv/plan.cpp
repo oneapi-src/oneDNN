@@ -87,8 +87,8 @@ static dim_tile_t create_tile(gemm_schedule_t &gemm_schedule,
         bool is_tg = (dim_idx == 2);
         bool is_iter = (dim_idx == 3);
         if (is_thr || is_iter) return true;
-        auto &grid = is_tg ? get_thread_group_grid_conv_dims(cfg.prb())
-                           : get_kernel_grid_conv_dims(cfg.prb());
+        auto grid = is_tg ? get_thread_group_grid_conv_dims(cfg)
+                          : get_kernel_grid_conv_dims(cfg);
         for (auto &tile : grid)
             for (auto &d : tile)
                 if (dim_name == d.name()) return true;
@@ -115,60 +115,34 @@ static dim_tile_t create_tile(gemm_schedule_t &gemm_schedule,
     return tile;
 }
 
-// Checks if groups should be iterated first to ensure better access locality
-// for a higher cache hit rate.
-bool set_g_grid_idx_innermost(const hw_t &hw, const layout_t &layout) {
-    const int g_dim_idx = 1;
-    const int c_dim_idx = 2;
-    if (layout.nblocks() <= 1) return false;
-    auto &b0 = layout.blocks()[0];
-    auto &b1 = layout.blocks()[1];
-    // Check that layout has groups followed by channels, i.e. *gc form.
-    if (b0.dim_idx != c_dim_idx || b1.dim_idx != g_dim_idx) return false;
-    // If the full channel dimension exceeds the cache line size, cache reuse
-    // should be already good enough.
-    if (layout.type().size() * b0.block >= hw.cache_line_size()) return false;
-    return true;
-}
-
-bool set_g_grid_idx_innermost(const conv_config_t &cfg) {
-    auto &prb = cfg.prb();
-    if (prb.g == 1) return false;
-
-    if (prb.is_fwd || prb.is_bwd_w) {
-        return set_g_grid_idx_innermost(cfg.hw(), cfg.src_layout().compute());
-    }
-    return set_g_grid_idx_innermost(cfg.hw(), cfg.dst_layout().compute());
-}
-
-void bind_grid_idx(const conv_config_t &cfg, gemm_schedule_t &gemm_schedule,
-        const expr_t &var, bool is_tg) {
-    auto &grid_dims = is_tg ? get_thread_group_grid_conv_dims(cfg.prb())
-                            : get_kernel_grid_conv_dims(cfg.prb());
-    int grid_idx = -1;
+void bind_thread_group_grid_idx(const conv_config_t &cfg,
+        gemm_schedule_t &gemm_schedule, const expr_t &var) {
+    auto grid_dims = get_thread_group_grid_conv_dims(cfg);
+    int grid_id = -1;
     for (auto &v : gemm_schedule.get_root_vars(var)) {
         auto v_dim = prb_dim_t::from_name(v.as<var_t>().name);
         for (int i = 0; i < 3; i++) {
             if (grid_dims[i].has(v_dim)) {
-                ir_assert(grid_idx == -1 || grid_idx == i);
-                grid_idx = i;
+                ir_assert(grid_id == -1 || grid_id == i);
+                grid_id = i;
             }
         }
     }
-    ir_assert(grid_idx != -1);
-    gemm_schedule.bind(var,
-            is_tg ? cfg.thread_group_grid().idx(grid_idx)
-                  : cfg.kernel_grid().idx(grid_idx));
+    ir_assert(grid_id != -1);
+    gemm_schedule.bind(var, cfg.thread_group_grid().idx(grid_id));
 }
 
-void bind_kernel_grid_idx(const conv_config_t &cfg,
-        gemm_schedule_t &gemm_schedule, const expr_t &var) {
-    bind_grid_idx(cfg, gemm_schedule, var, /*is_tg=*/false);
-}
-
-void bind_thread_group_grid_idx(const conv_config_t &cfg,
-        gemm_schedule_t &gemm_schedule, const expr_t &var) {
-    bind_grid_idx(cfg, gemm_schedule, var, /*is_tg=*/true);
+void bind_kernel_grid(
+        gemm_schedule_t &gemm_schedule, const std::vector<expr_t> &vars) {
+    for (auto &v : vars) {
+        if (gemm_schedule.var_bound(v) == 1) continue;
+        auto root_vars = gemm_schedule.get_root_vars(v);
+        ir_assert((int)root_vars.size() == 1);
+        auto v_dim = prb_dim_t::from_name(root_vars[0].as<var_t>().name);
+        auto dummy_grid_var
+                = gemm_schedule.kernel_grid_walk_order().grid_var(v_dim);
+        gemm_schedule.bind(v, dummy_grid_var);
+    }
 }
 
 void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
@@ -304,19 +278,17 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto ic_tile = create_tile(gemm_schedule, cfg_, ic);
     auto kw_tile = create_tile(gemm_schedule, cfg_, kw);
 
-    expr_t g_ow_grid_idx;
-    if (set_g_grid_idx_innermost(cfg_)) {
-        g_ow_grid_idx = gemm_schedule.fuse(
-                {od, oh, ow_tile.grid_idx(), g_tile.grid_idx()});
-    } else {
-        g_ow_grid_idx = gemm_schedule.fuse(
-                {g_tile.grid_idx(), od, oh, ow_tile.grid_idx()});
-    }
     auto mb_ow_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), ow_tile.tg_idx());
 
-    bind_kernel_grid_idx(cfg_, gemm_schedule, oc_tile.grid_idx());
-    bind_kernel_grid_idx(cfg_, gemm_schedule, g_ow_grid_idx);
-    bind_kernel_grid_idx(cfg_, gemm_schedule, mb_tile.grid_idx());
+    std::vector<expr_t> kernel_grid_vars;
+    kernel_grid_vars.push_back(oc_tile.grid_idx());
+    kernel_grid_vars.push_back(od);
+    kernel_grid_vars.push_back(oh);
+    kernel_grid_vars.push_back(ow_tile.grid_idx());
+    kernel_grid_vars.push_back(g_tile.grid_idx());
+    kernel_grid_vars.push_back(mb_tile.grid_idx());
+    bind_kernel_grid(gemm_schedule, kernel_grid_vars);
+
     bind_thread_group_grid_idx(cfg_, gemm_schedule, oc_tile.tg_idx());
     bind_thread_group_grid_idx(cfg_, gemm_schedule, mb_ow_tg_idx);
     bind_thread_group_grid_idx(cfg_, gemm_schedule, ic_tile.tg_idx());
@@ -488,18 +460,16 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto iw_tile = create_tile(gemm_schedule, cfg_, iw);
     auto oc_tile = create_tile(gemm_schedule, cfg_, oc);
 
-    expr_t g_isp_grid_idx;
-    if (set_g_grid_idx_innermost(cfg_)) {
-        g_isp_grid_idx = gemm_schedule.fuse(
-                {id, ih, iw_tile.grid_idx(), g_tile.grid_idx()});
-    } else {
-        g_isp_grid_idx = gemm_schedule.fuse(
-                {g_tile.grid_idx(), id, ih, iw_tile.grid_idx()});
-    }
+    std::vector<expr_t> kernel_grid_vars;
+    kernel_grid_vars.push_back(ic_tile.grid_idx());
+    kernel_grid_vars.push_back(id);
+    kernel_grid_vars.push_back(ih);
+    kernel_grid_vars.push_back(iw_tile.grid_idx());
+    kernel_grid_vars.push_back(g_tile.grid_idx());
+    kernel_grid_vars.push_back(mb_tile.grid_idx());
+    bind_kernel_grid(gemm_schedule, kernel_grid_vars);
+
     auto mb_iw_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), iw_tile.tg_idx());
-    bind_kernel_grid_idx(cfg_, gemm_schedule, ic_tile.grid_idx());
-    bind_kernel_grid_idx(cfg_, gemm_schedule, g_isp_grid_idx);
-    bind_kernel_grid_idx(cfg_, gemm_schedule, mb_tile.grid_idx());
     bind_thread_group_grid_idx(cfg_, gemm_schedule, ic_tile.tg_idx());
     bind_thread_group_grid_idx(cfg_, gemm_schedule, mb_iw_tg_idx);
     bind_thread_group_grid_idx(cfg_, gemm_schedule, oc_tile.tg_idx());
@@ -683,22 +653,19 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto ow_tile = create_tile(gemm_schedule, cfg_, ow);
     auto kw_tile = create_tile(gemm_schedule, cfg_, kw);
 
-    auto osp_ksp_ic_grid_idx = gemm_schedule.fuse(
-            {od_tile.grid_idx(), oh_tile.grid_idx(), ow_tile.grid_idx(), kd, kh,
-                    kw_tile.grid_idx(), ic_tile.grid_idx()});
+    std::vector<expr_t> kernel_grid_vars;
+    kernel_grid_vars.push_back(oc_tile.grid_idx());
+    kernel_grid_vars.push_back(od_tile.grid_idx());
+    kernel_grid_vars.push_back(oh_tile.grid_idx());
+    kernel_grid_vars.push_back(ow_tile.grid_idx());
+    kernel_grid_vars.push_back(kd);
+    kernel_grid_vars.push_back(kh);
+    kernel_grid_vars.push_back(kw_tile.grid_idx());
+    kernel_grid_vars.push_back(ic_tile.grid_idx());
+    kernel_grid_vars.push_back(mb_tile.grid_idx());
+    kernel_grid_vars.push_back(g_tile.grid_idx());
+    bind_kernel_grid(gemm_schedule, kernel_grid_vars);
 
-    expr_t g_mb_grid_idx;
-    if (set_g_grid_idx_innermost(cfg_)) {
-        g_mb_grid_idx
-                = gemm_schedule.fuse({mb_tile.grid_idx(), g_tile.grid_idx()});
-    } else {
-        g_mb_grid_idx
-                = gemm_schedule.fuse({g_tile.grid_idx(), mb_tile.grid_idx()});
-    }
-
-    bind_kernel_grid_idx(cfg_, gemm_schedule, oc_tile.grid_idx());
-    bind_kernel_grid_idx(cfg_, gemm_schedule, osp_ksp_ic_grid_idx);
-    bind_kernel_grid_idx(cfg_, gemm_schedule, g_mb_grid_idx);
     bind_thread_group_grid_idx(cfg_, gemm_schedule, oc_tile.tg_idx());
     bind_thread_group_grid_idx(cfg_, gemm_schedule, ic_tile.tg_idx());
 
@@ -2400,8 +2367,8 @@ private:
 
         auto &init_cset = plan.init_cset;
         auto &gemm_schedule = plan.gemm_schedule;
-        gemm_schedule = gemm_schedule_t(
-                init_cset, cfg_.kernel_grid(), cfg_.thread_group_grid());
+        gemm_schedule = gemm_schedule_t(init_cset, cfg_.kernel_grid(),
+                cfg_.thread_group_grid(), cfg_.walk_order());
         view_t a_view;
         view_t b_view;
         view_t c_view;
