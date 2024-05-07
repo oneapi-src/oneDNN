@@ -40,19 +40,19 @@ namespace gpu {
 namespace nvidia {
 
 #define CTX_OUT_ACCESSOR(arg) \
-    utils::downcast<sycl::sycl_buffer_memory_storage_t *>( \
+    utils::downcast<hrt::sycl::buffer_memory_storage_t *>( \
             &CTX_OUT_STORAGE(arg)) \
             ->buffer() \
             .get_access<::sycl::access::mode::write>(cgh)
 
 #define CTX_IN_ACCESSOR(arg) \
-    utils::downcast<sycl::sycl_buffer_memory_storage_t *>( \
+    utils::downcast<hrt::sycl::buffer_memory_storage_t *>( \
             &CTX_IN_STORAGE(arg)) \
             ->buffer() \
             .get_access<::sycl::access::mode::read>(cgh)
 
 #define CTX_SCRATCH_ACCESSOR(arg) \
-    utils::downcast<sycl::sycl_buffer_memory_storage_t *>( \
+    utils::downcast<hrt::sycl::buffer_memory_storage_t *>( \
             ctx.get_scratchpad_grantor().get_memory_storage(arg).get()) \
             ->buffer() \
             .get_access<::sycl::access::mode::read_write>(cgh)

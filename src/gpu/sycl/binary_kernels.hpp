@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include "gpu/sycl/sycl_post_ops.hpp"
 #include "gpu/sycl/sycl_primitive_conf.hpp"
 #include "gpu/sycl/sycl_q10n.hpp"
-#include "gpu/sycl/sycl_types.hpp"
+#include "hrt/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,9 +33,10 @@ struct binary_kernel_vec_t {
     static constexpr int max_supported_ndims = 5;
 
     binary_kernel_vec_t(const sycl_binary_conf_t &conf,
-            sycl_in_memory_arg_t &src0, sycl_in_memory_arg_t &src1,
-            sycl_out_memory_arg_t &dst, sycl_in_memory_arg_t &src0_scale,
-            sycl_in_memory_arg_t &src1_scale, data_type_t scales_dt)
+            hrt::sycl::in_memory_arg_t &src0, hrt::sycl::in_memory_arg_t &src1,
+            hrt::sycl::out_memory_arg_t &dst,
+            hrt::sycl::in_memory_arg_t &src0_scale,
+            hrt::sycl::in_memory_arg_t &src1_scale, data_type_t scales_dt)
         : conf_(conf)
         , src0_(src0)
         , src1_(src1)
@@ -131,9 +132,9 @@ struct binary_kernel_vec_t {
     }
 
 private:
-    const sycl_md_t &src0_md() const { return conf_.src0_md; }
-    const sycl_md_t &src1_md() const { return conf_.src1_md; }
-    const sycl_md_t &dst_md() const { return conf_.dst_md; }
+    const hrt::sycl::md_t &src0_md() const { return conf_.src0_md; }
+    const hrt::sycl::md_t &src1_md() const { return conf_.src1_md; }
+    const hrt::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     void *src0_ptr() const { return src0_.get_pointer(); }
     void *src1_ptr() const { return src1_.get_pointer(); }
@@ -192,11 +193,11 @@ private:
 
     sycl_binary_conf_t conf_;
 
-    sycl_in_memory_arg_t src0_;
-    sycl_in_memory_arg_t src1_;
-    sycl_out_memory_arg_t dst_;
-    sycl_in_memory_arg_t src0_scale_;
-    sycl_in_memory_arg_t src1_scale_;
+    hrt::sycl::in_memory_arg_t src0_;
+    hrt::sycl::in_memory_arg_t src1_;
+    hrt::sycl::out_memory_arg_t dst_;
+    hrt::sycl::in_memory_arg_t src0_scale_;
+    hrt::sycl::in_memory_arg_t src1_scale_;
     data_type_t scales_dt_;
 };
 

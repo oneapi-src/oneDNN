@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "sycl/sycl_buffer_memory_storage.hpp"
+#include "hrt/sycl/buffer_memory_storage.hpp"
 #include "sycl/sycl_engine_base.hpp"
 
 #include "common/memory.hpp"
@@ -24,17 +24,18 @@
 
 namespace dnnl {
 namespace impl {
+namespace hrt {
 namespace sycl {
 
 namespace {
 template <::sycl::access_mode mode>
-gpu::sycl::sycl_memory_arg_t<mode> get_memory_arg(
-        const sycl_buffer_memory_storage_t *storage, stream_t *stream,
-        ::sycl::handler &cgh) {
+memory_arg_t<mode> get_memory_arg(const buffer_memory_storage_t *storage,
+        stream_t *stream, ::sycl::handler &cgh) {
     void *handle = nullptr;
     storage->get_data_handle(&handle);
     if (!handle) {
-        auto *sycl_stream = utils::downcast<sycl_stream_t *>(stream);
+        auto *sycl_stream
+                = utils::downcast<impl::sycl::sycl_stream_t *>(stream);
         return {sycl_stream->get_dummy_accessor<mode>(cgh)};
     }
     return {storage->buffer().get_access<mode>(cgh)};
@@ -44,14 +45,14 @@ gpu::sycl::sycl_memory_arg_t<mode> get_memory_arg(
 
 struct map_buffer_tag;
 
-sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(engine_t *engine)
-    : sycl_memory_storage_base_t(engine) {}
+buffer_memory_storage_t::buffer_memory_storage_t(engine_t *engine)
+    : memory_storage_base_t(engine) {}
 
-sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(
+buffer_memory_storage_t::buffer_memory_storage_t(
         engine_t *engine, const memory_storage_t *parent_storage)
-    : sycl_memory_storage_base_t(engine, parent_storage) {}
+    : memory_storage_base_t(engine, parent_storage) {}
 
-status_t sycl_buffer_memory_storage_t::map_data(
+status_t buffer_memory_storage_t::map_data(
         void **mapped_ptr, stream_t *stream, size_t) const {
     if (!buffer_) {
         *mapped_ptr = nullptr;
@@ -70,7 +71,7 @@ status_t sycl_buffer_memory_storage_t::map_data(
     return map_manager.map(this, stream, *mapped_ptr, unmap_callback);
 }
 
-status_t sycl_buffer_memory_storage_t::unmap_data(
+status_t buffer_memory_storage_t::unmap_data(
         void *mapped_ptr, stream_t *stream) const {
     if (!mapped_ptr) return status::success;
 
@@ -78,9 +79,9 @@ status_t sycl_buffer_memory_storage_t::unmap_data(
     return map_manager.unmap(this, stream, mapped_ptr);
 }
 
-std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
+std::unique_ptr<memory_storage_t> buffer_memory_storage_t::get_sub_storage(
         size_t offset, size_t size) const {
-    auto storage = utils::make_unique<sycl_buffer_memory_storage_t>(
+    auto storage = utils::make_unique<buffer_memory_storage_t>(
             engine(), parent_storage());
     if (!storage) return nullptr;
 
@@ -93,7 +94,8 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
     } else {
         gpu_assert(IMPLICATION(
                 hrt::sycl::is_intel_device(
-                        utils::downcast<const sycl_engine_base_t *>(engine())
+                        utils::downcast<const impl::sycl::sycl_engine_base_t *>(
+                                engine())
                                 ->device()),
                 offset % gpu::intel::ocl::OCL_BUFFER_ALIGNMENT == 0));
         hrt::sycl::buffer_u8_t *sub_buffer = buffer_
@@ -107,8 +109,8 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
     return storage;
 }
 
-std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::clone() const {
-    auto storage = utils::make_unique<sycl_buffer_memory_storage_t>(engine());
+std::unique_ptr<memory_storage_t> buffer_memory_storage_t::clone() const {
+    auto storage = utils::make_unique<buffer_memory_storage_t>(engine());
     if (!storage) return nullptr;
 
     status_t status
@@ -120,9 +122,10 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::clone() const {
     return storage;
 }
 
-status_t sycl_buffer_memory_storage_t::init_allocate(size_t size) {
+status_t buffer_memory_storage_t::init_allocate(size_t size) {
     const auto &device
-            = utils::downcast<sycl_engine_base_t *>(engine())->device();
+            = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine())
+                      ->device();
     if (size > device.get_info<::sycl::info::device::max_mem_alloc_size>()) {
         return status::out_of_memory;
     }
@@ -132,29 +135,26 @@ status_t sycl_buffer_memory_storage_t::init_allocate(size_t size) {
     return status::success;
 }
 
-hrt::sycl::buffer_u8_t &sycl_buffer_memory_storage_t::parent_buffer() const {
-    return utils::downcast<const sycl_buffer_memory_storage_t *>(
-            parent_storage())
+hrt::sycl::buffer_u8_t &buffer_memory_storage_t::parent_buffer() const {
+    return utils::downcast<const buffer_memory_storage_t *>(parent_storage())
             ->buffer();
 }
 
-gpu::sycl::sycl_in_memory_arg_t sycl_buffer_memory_storage_t::get_in_memory_arg(
+in_memory_arg_t buffer_memory_storage_t::get_in_memory_arg(
         stream_t *stream, ::sycl::handler &cgh) const {
     return get_memory_arg<::sycl::access::mode::read>(this, stream, cgh);
 }
 
-gpu::sycl::sycl_out_memory_arg_t
-sycl_buffer_memory_storage_t::get_out_memory_arg(
+out_memory_arg_t buffer_memory_storage_t::get_out_memory_arg(
         stream_t *stream, ::sycl::handler &cgh) const {
     return get_memory_arg<::sycl::access::mode::write>(this, stream, cgh);
 }
 
-gpu::sycl::sycl_inout_memory_arg_t
-sycl_buffer_memory_storage_t::get_inout_memory_arg(
+inout_memory_arg_t buffer_memory_storage_t::get_inout_memory_arg(
         stream_t *stream, ::sycl::handler &cgh) const {
     return get_memory_arg<::sycl::access::mode::read_write>(this, stream, cgh);
 }
-
 } // namespace sycl
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl

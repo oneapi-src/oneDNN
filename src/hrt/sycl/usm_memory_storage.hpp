@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,21 +21,22 @@
 
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
+#include "hrt/sycl/memory_storage_base.hpp"
 #include "sycl/sycl_engine_base.hpp"
-#include "sycl/sycl_memory_storage_base.hpp"
 
 #include <memory>
 
 namespace dnnl {
 namespace impl {
+namespace hrt {
 namespace sycl {
 
-class sycl_usm_memory_storage_t : public sycl_memory_storage_base_t {
+class usm_memory_storage_t : public memory_storage_base_t {
 public:
-    using sycl_memory_storage_base_t::sycl_memory_storage_base_t;
+    using memory_storage_base_t::memory_storage_base_t;
 
-    sycl_usm_memory_storage_t(engine_t *engine, ::sycl::usm::alloc usm_kind)
-        : sycl_memory_storage_base_t(engine), usm_kind_(usm_kind) {}
+    usm_memory_storage_t(engine_t *engine, ::sycl::usm::alloc usm_kind)
+        : memory_storage_base_t(engine), usm_kind_(usm_kind) {}
 
     uint8_t *usm_ptr() const { return static_cast<uint8_t *>(usm_ptr_.get()); }
 
@@ -47,7 +48,8 @@ public:
     }
 
     status_t set_data_handle(void *handle) override {
-        auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
+        auto *sycl_engine
+                = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine());
         auto &sycl_ctx = sycl_engine->context();
 
         usm_ptr_ = decltype(usm_ptr_)(handle, [](void *) {});
@@ -90,14 +92,14 @@ public:
         void *sub_ptr = usm_ptr_.get()
                 ? reinterpret_cast<uint8_t *>(usm_ptr_.get()) + offset
                 : nullptr;
-        auto storage = utils::make_unique<sycl_usm_memory_storage_t>(engine());
+        auto storage = utils::make_unique<usm_memory_storage_t>(engine());
         if (!storage) return nullptr;
         storage->init(memory_flags_t::use_runtime_ptr, size, sub_ptr);
         return storage;
     }
 
     std::unique_ptr<memory_storage_t> clone() const override {
-        auto storage = utils::make_unique<sycl_usm_memory_storage_t>(engine());
+        auto storage = utils::make_unique<usm_memory_storage_t>(engine());
         if (!storage) return nullptr;
 
         status_t status
@@ -110,16 +112,17 @@ public:
         return storage;
     }
 
-    gpu::sycl::sycl_in_memory_arg_t get_in_memory_arg(
+    in_memory_arg_t get_in_memory_arg(
             stream_t *stream, ::sycl::handler &cgh) const override;
-    gpu::sycl::sycl_out_memory_arg_t get_out_memory_arg(
+    out_memory_arg_t get_out_memory_arg(
             stream_t *stream, ::sycl::handler &cgh) const override;
-    gpu::sycl::sycl_inout_memory_arg_t get_inout_memory_arg(
+    inout_memory_arg_t get_inout_memory_arg(
             stream_t *stream, ::sycl::handler &cgh) const override;
 
 protected:
     status_t init_allocate(size_t size) override {
-        auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
+        auto *sycl_engine
+                = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine());
         auto &sycl_dev = sycl_engine->device();
         auto &sycl_ctx = sycl_engine->context();
         using ::sycl::usm::alloc;
@@ -153,6 +156,7 @@ private:
 };
 
 } // namespace sycl
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl
 

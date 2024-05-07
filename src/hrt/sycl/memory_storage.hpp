@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_MEMORY_STORAGE_HPP
-#define SYCL_MEMORY_STORAGE_HPP
+#ifndef HRT_SYCL_MEMORY_STORAGE_HPP
+#define HRT_SYCL_MEMORY_STORAGE_HPP
 
-#include "sycl/sycl_buffer_memory_storage.hpp"
-#include "sycl/sycl_usm_memory_storage.hpp"
+#include "hrt/sycl/buffer_memory_storage.hpp"
+#include "hrt/sycl/usm_memory_storage.hpp"
 
 #endif

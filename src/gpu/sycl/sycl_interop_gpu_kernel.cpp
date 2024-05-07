@@ -24,8 +24,8 @@
 #include "gpu/intel/sycl/l0/utils.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/intel/utils.hpp"
+#include "hrt/sycl/c_types_map.hpp"
 #include "hrt/utils.hpp"
-#include "sycl/sycl_c_types_map.hpp"
 #include "sycl/sycl_stream.hpp"
 
 namespace dnnl {
@@ -123,11 +123,12 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                         = static_cast<const memory_storage_t *>(arg.value());
                 if (*mem_storage) {
                     auto *sycl_mem_storage = utils::downcast<
-                            const sycl_memory_storage_base_t *>(mem_storage);
+                            const hrt::sycl::memory_storage_base_t *>(
+                            mem_storage);
                     switch (sycl_mem_storage->memory_kind()) {
-                        case memory_kind::buffer: {
+                        case hrt::sycl::memory_kind::buffer: {
                             auto *m = utils::downcast<
-                                    const sycl_buffer_memory_storage_t *>(
+                                    const hrt::sycl::buffer_memory_storage_t *>(
                                     mem_storage);
                             auto &sycl_buf = m->buffer();
                             cgh.set_arg((int)i,
@@ -136,9 +137,9 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                                             cgh));
                             break;
                         }
-                        case memory_kind::usm: {
+                        case hrt::sycl::memory_kind::usm: {
                             auto *m = utils::downcast<
-                                    const sycl_usm_memory_storage_t *>(
+                                    const hrt::sycl::usm_memory_storage_t *>(
                                     mem_storage);
                             cgh.set_arg((int)i, m->usm_ptr());
                             break;

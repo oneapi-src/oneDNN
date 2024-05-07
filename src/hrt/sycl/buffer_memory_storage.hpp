@@ -23,18 +23,19 @@
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/sycl/utils.hpp"
-#include "sycl/sycl_c_types_map.hpp"
-#include "sycl/sycl_memory_storage_base.hpp"
+#include "hrt/sycl/c_types_map.hpp"
+#include "hrt/sycl/memory_storage_base.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace hrt {
 namespace sycl {
 
-class sycl_buffer_memory_storage_t : public sycl_memory_storage_base_t {
+class buffer_memory_storage_t : public memory_storage_base_t {
 public:
-    sycl_buffer_memory_storage_t(engine_t *engine);
+    buffer_memory_storage_t(engine_t *engine);
 
-    sycl_buffer_memory_storage_t(
+    buffer_memory_storage_t(
             engine_t *engine, const memory_storage_t *parent_storage);
 
     hrt::sycl::buffer_u8_t &buffer() const { return *buffer_; }
@@ -67,11 +68,11 @@ public:
 
     std::unique_ptr<memory_storage_t> clone() const override;
 
-    gpu::sycl::sycl_in_memory_arg_t get_in_memory_arg(
+    in_memory_arg_t get_in_memory_arg(
             stream_t *stream, ::sycl::handler &cgh) const override;
-    gpu::sycl::sycl_out_memory_arg_t get_out_memory_arg(
+    out_memory_arg_t get_out_memory_arg(
             stream_t *stream, ::sycl::handler &cgh) const override;
-    gpu::sycl::sycl_inout_memory_arg_t get_inout_memory_arg(
+    inout_memory_arg_t get_inout_memory_arg(
             stream_t *stream, ::sycl::handler &cgh) const override;
 
 protected:
@@ -85,6 +86,7 @@ private:
 };
 
 } // namespace sycl
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl
 

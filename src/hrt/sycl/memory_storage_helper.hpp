@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 * Copyright 2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,11 +15,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_SYCL_MEMORY_STORAGE_HELPER_HPP
-#define SYCL_SYCL_MEMORY_STORAGE_HELPER_HPP
+#ifndef HRT_SYCL_MEMORY_STORAGE_HELPER_HPP
+#define HRT_SYCL_MEMORY_STORAGE_HELPER_HPP
 
 #include <optional>
-#include "sycl/sycl_memory_storage.hpp"
+#include "hrt/sycl/memory_storage.hpp"
 
 #ifdef DNNL_SYCL_CUDA
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
@@ -31,22 +31,24 @@
 
 namespace dnnl {
 namespace impl {
+namespace hrt {
 namespace sycl {
 
 #define CTX_IN_SYCL_MEMORY(arg) \
-    dnnl::impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read>( \
+    dnnl::impl::hrt::sycl::interop_memory_arg_t<::sycl::access::mode::read>( \
             &CTX_IN_STORAGE(arg), cgh)
 
 #define CTX_OUT_SYCL_MEMORY(arg) \
-    dnnl::impl::sycl::sycl_memory_arg_t<::sycl::access::mode::write>( \
+    dnnl::impl::hrt::sycl::interop_memory_arg_t<::sycl::access::mode::write>( \
             &CTX_OUT_STORAGE(arg), cgh)
 
 #define CTX_SCRATCH_SYCL_MEMORY(arg) \
-    dnnl::impl::sycl::sycl_memory_arg_t<::sycl::access::mode::read_write>( \
+    dnnl::impl::hrt::sycl::interop_memory_arg_t< \
+            ::sycl::access::mode::read_write>( \
             ctx.get_scratchpad_grantor().get_memory_storage(arg).get(), cgh)
 
 template <::sycl::access_mode mode>
-class sycl_memory_arg_t {
+class interop_memory_arg_t {
 #if defined(DNNL_SYCL_CUDA)
     static constexpr auto be = ::sycl::backend::ext_oneapi_cuda;
 #elif defined(DNNL_SYCL_HIP)
@@ -57,23 +59,20 @@ class sycl_memory_arg_t {
 #endif
 
 public:
-    sycl_memory_arg_t() = default;
-    sycl_memory_arg_t(memory_storage_t *raw_mem, ::sycl::handler &cgh) {
+    interop_memory_arg_t() = default;
+    interop_memory_arg_t(memory_storage_t *raw_mem, ::sycl::handler &cgh) {
         if (!raw_mem || raw_mem->is_null()) { return; }
-        auto *mem = static_cast<impl::sycl::sycl_memory_storage_base_t *>(
-                raw_mem);
+        auto *mem = static_cast<memory_storage_base_t *>(raw_mem);
         switch (mem->memory_kind()) {
             case sycl::memory_kind::buffer: {
                 auto *buffer_storage
-                        = utils::downcast<sycl::sycl_buffer_memory_storage_t *>(
-                                mem);
+                        = utils::downcast<buffer_memory_storage_t *>(mem);
                 acc_.emplace(buffer_storage->buffer(), cgh);
                 offset_ = buffer_storage->base_offset();
                 break;
             }
             case sycl::memory_kind::usm: {
-                raw_ptr_ = utils::downcast<
-                        const sycl::sycl_usm_memory_storage_t *>(mem)
+                raw_ptr_ = utils::downcast<const usm_memory_storage_t *>(mem)
                                    ->usm_ptr();
                 break;
             }
@@ -81,7 +80,7 @@ public:
         }
     }
 
-    sycl_memory_arg_t(::sycl::buffer<uint8_t> buf, ::sycl::handler &cgh,
+    interop_memory_arg_t(::sycl::buffer<uint8_t> buf, ::sycl::handler &cgh,
             size_t offset = 0)
         : offset_ {offset} {
         acc_.emplace(buf, cgh);
@@ -117,6 +116,7 @@ private:
 };
 
 } // namespace sycl
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl
 

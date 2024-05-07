@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
-#include "gpu/sycl/sycl_types.hpp"
+#include "hrt/sycl/types.hpp"
 #include "hrt/sycl/utils.hpp"
 
 namespace dnnl {

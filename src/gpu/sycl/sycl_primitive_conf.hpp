@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 #include "common/broadcast_strategy.hpp"
 #include "gpu/sycl/sycl_post_ops.hpp"
-#include "gpu/sycl/sycl_types.hpp"
+#include "hrt/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,16 +27,16 @@ namespace gpu {
 namespace sycl {
 
 struct sycl_binary_conf_t {
-    sycl_md_t src0_md;
-    sycl_md_t src1_md;
-    sycl_md_t dst_md;
+    hrt::sycl::md_t src0_md;
+    hrt::sycl::md_t src1_md;
+    hrt::sycl::md_t dst_md;
 
     alg_kind_t alg_kind;
 
     bool do_scale_src0;
     bool do_scale_src1;
 
-    int broadcast_dims[sycl_md_t::max_dims];
+    int broadcast_dims[hrt::sycl::md_t::max_dims];
     int ndims;
     bool is_tensor_op;
 
@@ -49,10 +49,10 @@ struct sycl_binary_conf_t {
 
 struct sycl_eltwise_conf_t {
     prop_kind_t prop_kind;
-    sycl_md_t src_md;
-    sycl_md_t dst_md;
-    sycl_md_t diff_src_md;
-    sycl_md_t diff_dst_md;
+    hrt::sycl::md_t src_md;
+    hrt::sycl::md_t dst_md;
+    hrt::sycl::md_t diff_src_md;
+    hrt::sycl::md_t diff_dst_md;
     alg_kind_t alg_kind;
     float alpha;
     float beta;
@@ -65,18 +65,18 @@ struct sycl_eltwise_conf_t {
     dim_t wg_size;
     dim_t wk_size;
     dim_t post_po_len;
-    sycl_md_t binary_src_arr[8];
+    hrt::sycl::md_t binary_src_arr[8];
     sycl_post_ops_t post_ops;
 };
 
 struct sycl_prelu_conf_t {
     prop_kind_t prop_kind;
-    sycl_md_t data_md;
-    sycl_md_t dst_md;
-    sycl_md_t weights_md;
-    sycl_md_t diff_data_md;
-    sycl_md_t diff_dst_md;
-    sycl_md_t diff_weights_md;
+    hrt::sycl::md_t data_md;
+    hrt::sycl::md_t dst_md;
+    hrt::sycl::md_t weights_md;
+    hrt::sycl::md_t diff_data_md;
+    hrt::sycl::md_t diff_dst_md;
+    hrt::sycl::md_t diff_weights_md;
     dim_t work_amount;
     dim_t work_amount_wei;
     dim_t work_amount_src;
@@ -93,10 +93,10 @@ struct sycl_prelu_conf_t {
 };
 
 struct sycl_shuffle_conf_t {
-    sycl_md_t src_md;
-    sycl_md_t dst_md;
-    sycl_md_t stat_md;
-    sycl_md_t axis_md;
+    hrt::sycl::md_t src_md;
+    hrt::sycl::md_t dst_md;
+    hrt::sycl::md_t stat_md;
+    hrt::sycl::md_t axis_md;
     dim_t transpose_col;
     dim_t transpose_row;
     dim_t group_size;
@@ -142,16 +142,16 @@ struct sycl_resampling_conf_t {
     data_type_t src_dt;
     data_type_t dst_dt;
 
-    sycl_md_t src_md;
-    sycl_md_t src1_md[8];
-    sycl_md_t dst_md;
-    sycl_md_t diff_src_md;
-    sycl_md_t diff_dst_md;
+    hrt::sycl::md_t src_md;
+    hrt::sycl::md_t src1_md[8];
+    hrt::sycl::md_t dst_md;
+    hrt::sycl::md_t diff_src_md;
+    hrt::sycl::md_t diff_dst_md;
 
     alg_kind_t alg;
     float src_scale;
     bool do_scale_src;
-    int broadcast_dims[sycl_md_t::max_dims];
+    int broadcast_dims[hrt::sycl::md_t::max_dims];
     int ndims;
     bool is_tensor_op;
 
@@ -164,17 +164,17 @@ struct sycl_resampling_conf_t {
 
 struct sycl_layer_normalization_conf_t {
     prop_kind_t prop_kind;
-    sycl_md_t data_md;
-    sycl_md_t diff_data_md;
-    sycl_md_t data_scaleshift_md;
-    sycl_md_t diff_data_scaleshift_md;
-    sycl_md_t scale;
-    sycl_md_t shift;
-    sycl_md_t stat_md;
-    sycl_md_t stat_d;
-    sycl_md_t var_md;
-    sycl_md_t dst_md;
-    sycl_md_t diff_dst_md;
+    hrt::sycl::md_t data_md;
+    hrt::sycl::md_t diff_data_md;
+    hrt::sycl::md_t data_scaleshift_md;
+    hrt::sycl::md_t diff_data_scaleshift_md;
+    hrt::sycl::md_t scale;
+    hrt::sycl::md_t shift;
+    hrt::sycl::md_t stat_md;
+    hrt::sycl::md_t stat_d;
+    hrt::sycl::md_t var_md;
+    hrt::sycl::md_t dst_md;
+    hrt::sycl::md_t diff_dst_md;
     dim_t wk_size;
     bool is_fwd;
     bool src_def;
@@ -216,18 +216,18 @@ struct sycl_batch_normalization_conf_t {
     bool use_shift;
     float alpha;
     bool dir;
-    sycl_md_t data_md;
-    sycl_md_t src1_md;
-    sycl_md_t dst1_md;
-    sycl_md_t diff_data_md;
-    sycl_md_t diff_src1_md;
-    sycl_md_t data_scaleshift_md;
-    sycl_md_t diff_data_scaleshift_md;
-    sycl_md_t stat_md;
-    sycl_md_t var_md;
-    sycl_md_t ws_md;
-    sycl_md_t dst_md;
-    sycl_md_t diff_dst_md;
+    hrt::sycl::md_t data_md;
+    hrt::sycl::md_t src1_md;
+    hrt::sycl::md_t dst1_md;
+    hrt::sycl::md_t diff_data_md;
+    hrt::sycl::md_t diff_src1_md;
+    hrt::sycl::md_t data_scaleshift_md;
+    hrt::sycl::md_t diff_data_scaleshift_md;
+    hrt::sycl::md_t stat_md;
+    hrt::sycl::md_t var_md;
+    hrt::sycl::md_t ws_md;
+    hrt::sycl::md_t dst_md;
+    hrt::sycl::md_t diff_dst_md;
     dim_t N;
     dim_t C;
     dim_t D;
@@ -246,12 +246,12 @@ struct sycl_batch_normalization_conf_t {
 
 struct sycl_softmax_conf_t {
     prop_kind_t prop_kind;
-    sycl_md_t src_md;
-    sycl_md_t dst_md;
+    hrt::sycl::md_t src_md;
+    hrt::sycl::md_t dst_md;
 
-    sycl_md_t diff_md;
-    sycl_md_t diff_src_md;
-    sycl_md_t diff_dst_md;
+    hrt::sycl::md_t diff_md;
+    hrt::sycl::md_t diff_src_md;
+    hrt::sycl::md_t diff_dst_md;
     alg_kind_t alg_kind;
     dim_t block_size;
     dim_t wg_size;
@@ -267,10 +267,10 @@ struct sycl_softmax_conf_t {
 };
 
 struct sycl_lrn_conf_t {
-    sycl_md_t src_md;
-    sycl_md_t dst_md;
-    sycl_md_t diff_dst_md;
-    sycl_md_t diff_src_md;
+    hrt::sycl::md_t src_md;
+    hrt::sycl::md_t dst_md;
+    hrt::sycl::md_t diff_dst_md;
+    hrt::sycl::md_t diff_src_md;
     alg_kind_t alg_kind;
 
     dim_t mb;
@@ -293,12 +293,12 @@ struct sycl_lrn_conf_t {
 };
 
 struct sycl_pooling_conf_t {
-    sycl_md_t src_md;
-    sycl_md_t src1_md[8];
-    sycl_md_t dst_md;
-    sycl_md_t ws_md;
-    sycl_md_t diff_src_md;
-    sycl_md_t diff_dst_md;
+    hrt::sycl::md_t src_md;
+    hrt::sycl::md_t src1_md[8];
+    hrt::sycl::md_t dst_md;
+    hrt::sycl::md_t ws_md;
+    hrt::sycl::md_t diff_src_md;
+    hrt::sycl::md_t diff_dst_md;
     int ndims;
     int po_len;
     bool zero_dims;

@@ -14,36 +14,37 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_SYCL_SYCL_TYPES_HPP
-#define GPU_SYCL_SYCL_TYPES_HPP
+#ifndef HRT_SYCL_TYPES_HPP
+#define HRT_SYCL_TYPES_HPP
 
 #include <limits>
 
 #include "common/c_types_map.hpp"
+#include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
 #include "hrt/sycl/compat.hpp"
 #include "hrt/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
+namespace hrt {
 namespace sycl {
 
 // The macros are expected to be called within a command group function object
 // that is passed to `parallel_for`.
 #define CTX_IN_SYCL_KERNEL_MEMORY(arg) \
     CTX_IN_STORAGE(arg).is_null() \
-            ? sycl_memory_storage_base_t::empty_in_memory_arg( \
+            ? hrt::sycl::memory_storage_base_t::empty_in_memory_arg( \
                     ctx.stream(), cgh) \
-            : utils::downcast<const impl::sycl::sycl_memory_storage_base_t *>( \
+            : utils::downcast<const hrt::sycl::memory_storage_base_t *>( \
                     &CTX_IN_STORAGE(arg)) \
                       ->get_in_memory_arg(ctx.stream(), cgh)
 
 #define CTX_OUT_SYCL_KERNEL_MEMORY(arg) \
     CTX_OUT_STORAGE(arg).is_null() \
-            ? sycl_memory_storage_base_t::empty_out_memory_arg( \
+            ? hrt::sycl::memory_storage_base_t::empty_out_memory_arg( \
                     ctx.stream(), cgh) \
-            : utils::downcast<const impl::sycl::sycl_memory_storage_base_t *>( \
+            : utils::downcast<const hrt::sycl::memory_storage_base_t *>( \
                     &CTX_OUT_STORAGE(arg)) \
                       ->get_out_memory_arg(ctx.stream(), cgh)
 
@@ -51,19 +52,18 @@ namespace sycl {
     static_assert(::sycl::is_device_copyable_v<type>)
 
 template <::sycl::access_mode mode>
-struct sycl_memory_arg_t {
+struct memory_arg_t {
     using acc_dt = uint8_t;
     using acc_t = ::sycl::accessor<acc_dt, 1, mode>;
-    static sycl_memory_arg_t<mode> create_empty(const acc_t &dummy_acc) {
-        sycl_memory_arg_t<mode> arg(nullptr, dummy_acc);
+    static memory_arg_t<mode> create_empty(const acc_t &dummy_acc) {
+        memory_arg_t<mode> arg(nullptr, dummy_acc);
         arg.empty_ = true;
         return arg;
     }
 
-    sycl_memory_arg_t(void *usm, const acc_t &dummy_acc)
+    memory_arg_t(void *usm, const acc_t &dummy_acc)
         : empty_(false), usm_(usm), acc_(dummy_acc) {}
-    sycl_memory_arg_t(const acc_t &acc)
-        : empty_(false), usm_(nullptr), acc_(acc) {}
+    memory_arg_t(const acc_t &acc) : empty_(false), usm_(nullptr), acc_(acc) {}
     // This method must be called only from inside a kernel.
     void *get_pointer() const {
         if (usm_) return usm_;
@@ -81,15 +81,14 @@ private:
 };
 
 // TODO: come up with better names?
-using sycl_in_memory_arg_t = sycl_memory_arg_t<::sycl::access::mode::read>;
-using sycl_out_memory_arg_t = sycl_memory_arg_t<::sycl::access::mode::write>;
-using sycl_inout_memory_arg_t
-        = sycl_memory_arg_t<::sycl::access::mode::read_write>;
+using in_memory_arg_t = memory_arg_t<::sycl::access::mode::read>;
+using out_memory_arg_t = memory_arg_t<::sycl::access::mode::write>;
+using inout_memory_arg_t = memory_arg_t<::sycl::access::mode::read_write>;
 
 // TODO: this class mimics memory_desc_t and makes sure it can be passed
 // to SYCL kernels as a kernel argument. SYCL puts restrictions on kernel
 // arguments, e.g. those cannot contain unions.
-struct sycl_md_t {
+struct md_t {
     // There is a limitation on total size of kernel arguments hence using
     // reduced number of supported dimensions and int32_t for dimensions.
     static constexpr int max_dims = 6;
@@ -110,8 +109,8 @@ struct sycl_md_t {
     const dims32_t &inner_blks() const { return inner_blks_; }
     const dims32_t &inner_idxs() const { return inner_idxs_; }
 
-    sycl_md_t() = default;
-    sycl_md_t(const memory_desc_t *md) {
+    md_t() = default;
+    md_t(const memory_desc_t *md) {
         memory_desc_wrapper mdw(md);
 
         assert(mdw.format_kind() == format_kind::blocked);
@@ -253,58 +252,58 @@ using float16_t = ::sycl::half;
 
 // Add a check for every SYCL kernel argument type.
 //
-// Exception: sycl_memory_arg_t doesn't pass the check because it contains
+// Exception: memory_arg_t doesn't pass the check because it contains
 // sycl::accessor which is not device copyable. However, it is treated by the
 // compiler in a special way allowing it not to satisfy the requirement.
-CHECK_SYCL_KERNEL_ARG_TYPE(sycl_md_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(md_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(bfloat16_t);
 
 template <data_type_t>
-struct sycl_prec_traits;
+struct prec_traits;
 
 template <>
-struct sycl_prec_traits<data_type::f16> {
+struct prec_traits<data_type::f16> {
     using type = float16_t;
 };
 template <>
-struct sycl_prec_traits<data_type::bf16> {
+struct prec_traits<data_type::bf16> {
     using type = bfloat16_t;
 };
 template <>
-struct sycl_prec_traits<data_type::f32> {
+struct prec_traits<data_type::f32> {
     using type = float;
 };
 template <>
-struct sycl_prec_traits<data_type::s32> {
+struct prec_traits<data_type::s32> {
     using type = int32_t;
 };
 template <>
-struct sycl_prec_traits<data_type::s8> {
+struct prec_traits<data_type::s8> {
     using type = int8_t;
 };
 template <>
-struct sycl_prec_traits<data_type::u8> {
+struct prec_traits<data_type::u8> {
     using type = uint8_t;
 };
 
 } // namespace sycl
-} // namespace gpu
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl
 
 namespace std {
 
 template <>
-class numeric_limits<dnnl::impl::gpu::sycl::bfloat16_t> {
+class numeric_limits<dnnl::impl::hrt::sycl::bfloat16_t> {
 public:
-    static constexpr dnnl::impl::gpu::sycl::bfloat16_t lowest() {
+    static constexpr dnnl::impl::hrt::sycl::bfloat16_t lowest() {
         return {uint16_t(0xff7f)};
     }
-    static constexpr dnnl::impl::gpu::sycl::bfloat16_t max() {
+    static constexpr dnnl::impl::hrt::sycl::bfloat16_t max() {
         return {uint16_t(0x7f7f)};
     }
     static constexpr int digits = 8;
-    static constexpr dnnl::impl::gpu::sycl::bfloat16_t epsilon() {
+    static constexpr dnnl::impl::hrt::sycl::bfloat16_t epsilon() {
         return {uint16_t((0x7f - (digits - 1)) << (digits - 1))};
     }
 };

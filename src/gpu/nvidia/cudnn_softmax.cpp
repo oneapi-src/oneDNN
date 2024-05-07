@@ -19,8 +19,8 @@
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_stream_utils.hpp"
-#include "sycl/sycl_buffer_memory_storage.hpp"
-#include "sycl/sycl_memory_storage_helper.hpp"
+#include "hrt/sycl/buffer_memory_storage.hpp"
+#include "hrt/sycl/memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {

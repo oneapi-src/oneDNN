@@ -21,11 +21,12 @@
 #include "common/memory.hpp"
 #include "common/utils.hpp"
 
-#include "sycl/sycl_c_types_map.hpp"
+#include "hrt/sycl/c_types_map.hpp"
+#include "hrt/sycl/memory_storage.hpp"
 #include "sycl/sycl_engine.hpp"
-#include "sycl/sycl_memory_storage.hpp"
 
 using namespace dnnl::impl::sycl;
+using namespace dnnl::impl::hrt::sycl;
 
 using dnnl::impl::engine_t;
 using dnnl::impl::memory_desc_t;
@@ -66,9 +67,9 @@ status_t dnnl_sycl_interop_memory_create(memory_t **memory,
                 return status::invalid_arguments;
         }
 
-        mem_storage.reset(new sycl_usm_memory_storage_t(engine));
+        mem_storage.reset(new usm_memory_storage_t(engine));
     } else
-        mem_storage.reset(new sycl_buffer_memory_storage_t(engine));
+        mem_storage.reset(new buffer_memory_storage_t(engine));
     if (!mem_storage) return status::out_of_memory;
 
     CHECK(mem_storage->init(flags, size, handle_ptr));
@@ -85,7 +86,7 @@ status_t dnnl_sycl_interop_memory_set_buffer(memory_t *memory, void *buffer) {
     if (!ok) return status::invalid_arguments;
 
     std::unique_ptr<memory_storage_t> mem_storage(
-            new sycl_buffer_memory_storage_t(memory->engine()));
+            new buffer_memory_storage_t(memory->engine()));
     if (!mem_storage) return status::out_of_memory;
 
     size_t size = memory_desc_wrapper(memory->md()).size();
@@ -103,7 +104,7 @@ status_t dnnl_sycl_interop_memory_get_memory_kind(
             && memory->engine()->runtime_kind() == runtime_kind::sycl;
     if (!ok) return status::invalid_arguments;
 
-    *memory_kind = utils::downcast<const sycl_memory_storage_base_t *>(
+    *memory_kind = utils::downcast<const memory_storage_base_t *>(
             memory->memory_storage())
                            ->memory_kind();
     return status::success;

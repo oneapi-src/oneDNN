@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,13 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_SYCL_C_TYPES_MAP_HPP
-#define SYCL_SYCL_C_TYPES_MAP_HPP
+#ifndef HRT_SYCL_C_TYPES_MAP_HPP
+#define HRT_SYCL_C_TYPES_MAP_HPP
 
 #include "oneapi/dnnl/dnnl_sycl_types.h"
 
 namespace dnnl {
 namespace impl {
+namespace hrt {
 namespace sycl {
 
 using memory_kind_t = dnnl_sycl_interop_memory_kind_t;
@@ -30,6 +31,7 @@ const memory_kind_t buffer = dnnl_sycl_interop_buffer;
 } // namespace memory_kind
 
 } // namespace sycl
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl
 
