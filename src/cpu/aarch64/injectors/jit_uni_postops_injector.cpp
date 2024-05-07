@@ -240,9 +240,7 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                     }
                     break;
                 case binary:
-                    if (entry.is_binary()) {
-                        return false;
-                    }
+                    if (entry.is_binary()) { return false; }
                     break;
                 default: assert(false && "Unhandled post_op type");
             }
