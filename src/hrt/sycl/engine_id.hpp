@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,30 +14,32 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_SYCL_ENGINE_ID_HPP
-#define SYCL_SYCL_ENGINE_ID_HPP
+#ifndef HRT_SYCL_ENGINE_ID_HPP
+#define HRT_SYCL_ENGINE_ID_HPP
 
 #include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace hrt {
 namespace sycl {
 
-struct sycl_engine_id_impl_t : public engine_id_impl_t {
+struct engine_id_impl_t : public impl::engine_id_impl_t {
 
-    sycl_engine_id_impl_t(const ::sycl::device &device,
+    engine_id_impl_t(const ::sycl::device &device,
             const ::sycl::context &context, engine_kind_t kind,
             runtime_kind_t runtime_kind, size_t index)
-        : engine_id_impl_t(kind, runtime_kind, index)
+        : impl::engine_id_impl_t(kind, runtime_kind, index)
         , device_(device)
         , context_(context) {}
 
-    ~sycl_engine_id_impl_t() override = default;
+    ~engine_id_impl_t() override = default;
 
 private:
-    bool compare_resource(const engine_id_impl_t *id_impl) const override {
+    bool compare_resource(
+            const impl::engine_id_impl_t *id_impl) const override {
         const auto *typed_id
-                = utils::downcast<const sycl_engine_id_impl_t *>(id_impl);
+                = utils::downcast<const engine_id_impl_t *>(id_impl);
         return device_ == typed_id->device_ && context_ == typed_id->context_;
     }
 
@@ -53,6 +55,7 @@ private:
 };
 
 } // namespace sycl
+} // namespace hrt
 } // namespace impl
 } // namespace dnnl
 

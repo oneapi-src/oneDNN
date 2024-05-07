@@ -28,7 +28,7 @@
 #include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
-#include "sycl_engine_id.hpp"
+#include "hrt/sycl/engine_id.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -192,7 +192,7 @@ public:
     }
 
     engine_id_t engine_id() const override {
-        return engine_id_t(new sycl_engine_id_impl_t(
+        return engine_id_t(new hrt::sycl::engine_id_impl_t(
                 device(), context(), kind(), runtime_kind(), index()));
     }
 
