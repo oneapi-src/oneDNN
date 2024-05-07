@@ -440,6 +440,7 @@ bool has_spatial(const dim_map_t<prb_dim_t, T> &map,
     return false;
 }
 
+int spatial_index(const prb_dim_t &dim);
 const expr_t &index_var(const prb_dim_t &prb_dim);
 const expr_t &size_var(const prb_dim_t &prb_dim);
 prb_dim_t index_to_prb_dim(const expr_t &var);
