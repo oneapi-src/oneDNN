@@ -24,7 +24,7 @@ namespace aarch64 {
 
 status_t acl_post_ops_t::execute(const exec_ctx_t &ctx, void *src_orig) const {
 
-    int post_op_index = post_op_start_index;
+    int post_op_index = post_op_start_index_;
 
     // As these are post ops, this src will also be our dst. If we have a sum
     // post op, the src/dst will start off in a temporary, then change to

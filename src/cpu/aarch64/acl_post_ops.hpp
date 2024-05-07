@@ -32,9 +32,9 @@ struct acl_post_ops_t {
     // init the acl_post_ops_t. Note that this function modifies the passed in
     // post ops by setting the preferred memory formats
     status_t init(engine_t *engine, post_ops_t &post_ops,
-            const memory_desc_t &dst_md, int post_op_start_index_ = 0) {
+            const memory_desc_t &dst_md, int post_op_start_index = 0) {
 
-        post_op_start_index = post_op_start_index_;
+        post_op_start_index_ = post_op_start_index;
 
         CHECK(post_ops.set_default_formats(&dst_md));
         dst_data_type = dst_md.data_type;
@@ -177,7 +177,7 @@ private:
     int sum_index = -1;
     // Index of the first post op this primitive executes. This is typically the
     // number of post ops which were fused.
-    int post_op_start_index = 0;
+    int post_op_start_index_ = 0;
     data_type_t dst_data_type;
     // Vector of primitives used to execute the post ops. They are constructed
     // in init to be either acl_binary_t (for sum, add, sub, div, mul, min and
