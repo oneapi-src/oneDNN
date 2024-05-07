@@ -30,6 +30,7 @@
 #include "gpu/intel/jit/conv/config.hpp"
 #include "gpu/intel/jit/conv/grf_usage.hpp"
 #include "gpu/intel/jit/conv/ir_builder.hpp"
+#include "gpu/intel/jit/conv/plan.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -85,8 +86,8 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 
     // Bind "external" variables.
     expr_binding_t expr_binding(hw);
-    bind_external_vars(
-            body, cfg_.kernel_grid(), builder.local_id(), expr_binding);
+    bind_external_vars(body, cfg_.plan().gemm_schedule.kernel_grid_walk_order(),
+            builder.local_id(), expr_binding);
     profile.stamp("Bind Variables");
 
 #ifdef DNNL_DEV_MODE
