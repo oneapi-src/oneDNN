@@ -168,14 +168,20 @@ sub-group sizes).
 The `dnnl::impl::gpu::engine_t` is defined as follows:
 
 ```cpp
-// Location: src/gpu
-namespace dnnl::impl::gpu {
+// Location: src/common
+namespace dnnl::impl {
+struct engine_t : dnnl::impl::c_compatible {
+    // Each engine creates an engine implementation and passes it down to the base engine class.
+    engine(dnnl::impl::engine_impl_t *impl) : impl(impl), ... {}
 
-struct engine_t : public dnnl::impl::engine_t {
     // Returns a pointer to the engine implementation.
     const dnnl::impl::engine_impl_t *impl() const;
 
-    // Points to either dnnl::impl::sycl::engine_impl_t or dnnl::impl::intel::ocl::engine_impl_t
+protected:
+    // Each engine has to call `init_impl()` to initialize the implementation.
+    dnnl::impl::status_t init_impl();
+private:
+    // Points to a particular engine implementation.
     std::unique_ptr<dnnl::impl::engine_impl_t> impl;
 };
 ```
@@ -198,7 +204,11 @@ This class takes over responsibility of `sycl_engine_base_t` class.
 // Location: src/gpu/intel/sycl
 namespace dnnl::impl::gpu::intel::sycl {
 
-struct engine_t : public dnnl::impl::gpu::intel::engine_t {};
+struct engine_t : public dnnl::impl::gpu::intel::engine_t {
+protected:
+    // Convenience interface to simplify access to `impl` within the class.
+    const dnnl::impl::hrt::sycl::engine_impl_t *impl() const;
+};
 
 } // namespace dnnl::impl::gpu::intel::sycl
 ```
@@ -208,7 +218,11 @@ This class takes over responsibility of `ocl_gpu_engine_t` class.
 // Location: src/gpu/intel/ocl
 namespace dnnl::impl::gpu::intel::ocl {
 
-struct engine_t : public dnnl::impl::gpu::intel::engine_t {};
+struct engine_t : public dnnl::impl::gpu::intel::engine_t {
+protected:
+    // Convenience interface to simplify access to `impl` within the class.
+    const dnnl::impl::hrt::ocl::engine_impl_t *impl() const;
+};
 
 } // namespace dnnl::impl::gpu::intel::ocl
 ```
@@ -218,7 +232,11 @@ This class takes over responsibility of `sycl_cuda_engine_t` and `sycl_hip_engin
 // Location: src/gpu/nvidia
 namespace dnnl::impl::gpu::nvidia {
 
-struct engine_t : public dnnl::impl::gpu::engine_t {};
+struct engine_t : public dnnl::impl::gpu::engine_t {
+protected:
+    // Convenience interface to simplify access to `impl` within the class.
+    const dnnl::impl::hrt::sycl::engine_impl_t *impl() const;
+};
 
 } // namespace dnnl::impl::gpu::nvidia
 
@@ -226,7 +244,11 @@ struct engine_t : public dnnl::impl::gpu::engine_t {};
 // Location: src/gpu/amd
 namespace dnnl::impl::gpu::amd {
 
-struct engine_t : public dnnl::impl::gpu::engine_t {};
+struct engine_t : public dnnl::impl::gpu::engine_t {
+protected:
+    // Convenience interface to simplify access to `impl` within the class.
+    const dnnl::impl::hrt::sycl::engine_impl_t *impl() const;
+};
 
 } // namespace dnnl::impl::gpu::amd
 ```
@@ -236,7 +258,11 @@ This class will be used when only generic SYCL kernels are enabled.
 // Location: src/gpu/generic
 namespace dnnl::impl::gpu::generic {
 
-struct engine_t : public dnnl::impl::gpu::engine_t {};
+struct engine_t : public dnnl::impl::gpu::engine_t {
+protected:
+    // Convenience interface to simplify access to `impl` within the class.
+    const dnnl::impl::hrt::sycl::engine_impl_t *impl() const;
+};
 
 } // namespace dnnl::impl::gpu::generic
 
