@@ -50,6 +50,9 @@ where *graph-knobs* are:
             Multiple attributes value changes may be specified using the `*`
             delimeter. Multiple ops modification may be specified using the `+`
             delimeter. By default, the option value is empty, meaning values are taken from original graph.
+ - `--expected-n-partitions=INT` -- Specify the number of expected partitions 
+    returned from the graph. `INT` is a non-negative integer value. When `INT`
+    value is `0` (the default), the check is skipped.
 
 and *graph-case* is a JSON file which is dumped by a library or created from scratch.
 It must be passed to the graph driver as `--case=JSON_FILE`. Refer to the JSON
