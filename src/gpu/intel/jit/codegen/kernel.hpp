@@ -725,6 +725,52 @@ public:
     }
 
     // Emulates integer division by a non-constant (rounding towards negative
+    // infinity). This version is based on FP inverse and does not require a
+    // pre-computed "magic" value. Note, that cr0 register is updated/restored
+    // to use RTZ mode when converting float -> int.
+    // Requirements (validated range):
+    //    -2^20 <= x <= 2^20
+    //     0    <  y <= 2^20
+    // Computes:
+    //     qot = x / y
+    //     rem = x % y
+    void eidiv(const ngen::InstructionModifier &mod, const ngen::RegData &_qot,
+            const ngen::RegData &rem, const ngen::RegData &x,
+            const ngen::RegData &_y, bool update_cr0_fp_to_int_rtz = true) {
+        ir_assert(mod.getExecSize() == 1);
+        ir_assert(_y.getType() == ngen::DataType::ud);
+        auto cr0_save = ra_.alloc_sub<uint32_t>();
+        auto f_tmp = ra_.alloc_sub<float>();
+        auto x_tmp = ra_.alloc_sub<float>();
+        auto qot_tmp = ra_.alloc_sub<int32_t>();
+        auto y = ngen::Subregister(_y, _y.getOffset(), _y.getType());
+        mov(1, cr0_save, cr0);
+        // Set RTZ rounding mode when converting float to int.
+        and_(1, cr0, cr0, ~0x1000);
+        mov(1, f_tmp, y);
+        mov(1, x_tmp, x);
+        inv(1, f_tmp, f_tmp);
+        add(1, f_tmp.ud(0), f_tmp.ud(0), 1);
+        mul(1, f_tmp, x_tmp, f_tmp);
+        mov(mod, qot_tmp, f_tmp);
+        if (!rem.isInvalid()) {
+            auto tmp = ra_.alloc_sub<int64_t>();
+            mul(1, tmp.d(0), qot_tmp, y.uw(0));
+            mul(1, tmp.d(1), qot_tmp, y.uw(1));
+            shl<uint32_t>(1, tmp.ud(1), tmp.ud(1), 16);
+            add(1, tmp.d(0), tmp.d(1), tmp.d(0));
+            add(mod, rem, x, -tmp.d(0));
+            ra_.safeRelease(tmp);
+        }
+        if (!_qot.isInvalid()) mov(mod, _qot, qot_tmp);
+        mov(1, cr0, cr0_save);
+        ra_.safeRelease(cr0_save);
+        ra_.safeRelease(f_tmp);
+        ra_.safeRelease(x_tmp);
+        ra_.safeRelease(qot_tmp);
+    }
+
+    // Emulates integer division by a constant (rounding towards negative
     // infinity)
     // Requirements:
     //     INT32_MIN <= x <= UINT32_MAX
@@ -740,7 +786,7 @@ public:
         ir_assert(x.getHS() == 0);
         if (ngen::utils::is_zero_or_pow2(y)) {
             auto _x = get_subregister(x);
-            if (x.getNeg()) {
+            if (x.getNeg() || (x == qot) || (x == rem)) {
                 // Negation modifier has bitwise semantics with shr/and so x
                 // needs to be arithmetically negated first.
                 _x = ra_.alloc_sub(div_type);
@@ -773,7 +819,6 @@ public:
             emul(1, q_tmp[0], _x, m);
             eshr(1, q_tmp.uq(0), q_tmp.uq(0), p);
         }
-        if (!qot.isInvalid()) mov(mod, qot, _qot);
 
         if (!rem.isInvalid()) {
             // rem = x - qot * y
@@ -791,6 +836,7 @@ public:
                 ra_.safeRelease(tmp);
             }
         }
+        if (!qot.isInvalid()) mov(mod, qot, _qot);
 
         ra_.safeRelease(x_tmp);
         ra_.safeRelease(qot_tmp);
