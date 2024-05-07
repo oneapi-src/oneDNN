@@ -46,25 +46,29 @@ the generic vendor can be enabled along with nvidia or amd, or it can be
 enabled individually
 
 ```bash
-├── common/ # Common files for the library (e.g. API, basic abstractions, etc)
-│   ├── sycl/ # Common, vendor agnostic code for SYCL runtime
-│   ├── ocl/ # Common, vendor agnostic code for OpenCL runtime
+├── common/            # Common files for the library (e.g. API, basic abstractions, etc).
+├── hrt/               # HRT stands for Heterogeneous Runtime. All vendor agnostic code for runtimes resides here.
+│   ├── sycl/          # Vendor agnostic code for SYCL runtime.
+│   ├── ocl/           # Vendor agnostic code for OpenCL runtime.
 │   └── ...
-├── cpu/ # CPU code
-│   ├── sycl/ # CPU specific SYCL code (e.g. `sycl_cpu_engine_t`)
+├── cpu/               # CPU code.
+│   ├── sycl/          # CPU specific SYCL code.
 │   └── ...
-└── gpu/ # GPU code. Basic GPU code resides in the GPU directory directly, e.g. `gpu_engine_t`.
-    ├── intel/ # Intel-specific code
-    │   ├── compute/ # Compute layer abstractions
-    │   ├── ocl/ # OpenCL kernels and abstractions
-    │   ├── jit/ # JIT kernels/generators and abstractions
-    │   ├── sycl/ # Intel-specific SYCL functionality/abstractions (e.g. SYCL engine abstraction or SYCL kernels that use Intel specific extensions in the future)
+└── gpu/               # GPU code.
+    ├── intel/         # Intel vendor specific code.
+    │   ├── compute/   # Compute layer abstractions.
+    │   ├── ocl/       # OpenCL code.
+    │   ├── jit/       # JIT (nGEN) code.
+    │   ├── sycl/      # SYCL code.
+    │   │   ├── l0/    # Level zero backend specific code.
+    │   │   ├── ocl/   # OpenCL backend specific code.
+    │   │   └── ...
     │   └── ...
-    ├── nvidia/ # NVIDIA-specific code (cuDNN/cuBLAS based and CUDA specific SYCL kernels)
-    ├── amd/ # AMD-specific code (MIOpen/rocBLAS based and HIP specific SYCL kernels)
-    └── generic/ # Generic GPU kernels (e.g. generic SYCL kernels or runtime agnostic primitives such as concat that uses reorders)
-        └── sycl/ # Generic SYCL kernels and related abstractions
-
+    ├── nvidia/        # NVIDIA vendor specific code.
+    ├── amd/           # AMD vendor specific code.
+    └── generic/       # Generic (vendor agnostic) GPU kernels.
+        ├── sycl/      # SYCL kernels.
+        └── ...
 ```
 
 ### Namespaces and Prefixes
@@ -73,8 +77,8 @@ All vendor-specific code should be enclosed in a namespace that has the vendor's
 Based on the directory structure described above the following namespaces will be
 introduced:
 * `dnnl::impl`
-    * `dnnl::impl::sycl`
-    * `dnnl::impl::ocl`
+    * `dnnl::impl::hrt::sycl`
+    * `dnnl::impl::hrt::ocl`
 * `dnnl::cpu`
     * `dnnl::impl::cpu::sycl`
 * `dnnl::gpu`
@@ -122,17 +126,17 @@ struct engine_impl_t {
 
 } // namespace dnnl::impl
 
-// Location: src/gpu/intel/ocl
-namespace dnnl::impl::gpu::intel::ocl {
+// Location: src/hrt/ocl
+namespace dnnl::impl::hrt::ocl {
 
 struct engine_impl_t : public dnnl::impl::engine_impl_t {
     cl_device_id device;
     cl_context context;
 };
 
-} // namespace dnnl::impl::gpu::intel::ocl
+} // namespace dnnl::impl::hrt::ocl
 
-// Location: src/sycl
+// Location: src/hrt/sycl
 namespace dnnl::impl::sycl {
 
 struct engine_impl_t : public dnnl::impl::engine_impl_t {
@@ -141,8 +145,7 @@ struct engine_impl_t : public dnnl::impl::engine_impl_t {
     backend_t backend;
 };
 
-} // namespace dnnl::impl::gpu::intel::sycl
-
+} // namespace dnnl::impl::hrt::sycl
 ```
 
 When it comes to the generic SYCL kernels there are 3 scenarios that should be
@@ -271,23 +274,23 @@ struct stream_impl_t {
 
 } // namespace dnnl::impl
 
-// Location: src/gpu/intel/ocl
-namespace dnnl::impl::gpu::intel::ocl {
+// Location: src/hrt/ocl
+namespace dnnl::impl::hrt::ocl {
 
 struct stream_impl_t : public dnnl::impl::stream_impl_t {
     cl_command_queue queue;
 };
 
-} // namespace dnnl::impl::gpu::intel::ocl
+} // namespace dnnl::impl::hrt::ocl
 
-// Location: src/sycl
-namespace dnnl::impl::sycl {
+// Location: src/hrt/sycl
+namespace dnnl::impl::hrt::sycl {
 
 struct stream_impl_t : public dnnl::impl::stream_impl_t {
     std::unique_ptr<::sycl::queue> queue;
 };
 
-} // namespace dnnl::impl::gpu::intel::sycl
+} // namespace dnnl::impl::hrt::sycl
 
 ```
 
