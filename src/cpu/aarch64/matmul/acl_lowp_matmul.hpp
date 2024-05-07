@@ -113,17 +113,25 @@ struct acl_lowp_matmul_t : public primitive_t {
             VDISPATCH_MATMUL(attr()->has_default_values(smask_t::scales_runtime
                                      | smask_t::zero_points_runtime),
                     "only scale and zero point attrs supported");
+
+            // Note that has_default_values checks the argument for default zero
+            // points but skips the argument for scales. Hence they are the
+            // opposite but mean similar things
+            VDISPATCH_MATMUL(attr()->scales_.has_default_values(
+                                     {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}),
+                    "only src and weights scales are supported");
+            VDISPATCH_MATMUL(
+                    attr()->zero_points_.has_default_values(DNNL_ARG_DST),
+                    "only src and weights zero points are supported");
+
             VDISPATCH_MATMUL(attr()->scales_.get(DNNL_ARG_SRC).mask_ == 0
                             && attr()->zero_points_.get(DNNL_ARG_SRC) == 0
                             && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0
                             && attr()->zero_points_.get(DNNL_ARG_WEIGHTS) == 0,
-                    "Common scales and zero points only");
+                    "common scales and zero points only");
 
             VDISPATCH_MATMUL(!has_runtime_dims_or_strides(),
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
-            VDISPATCH_MATMUL(attr()->scales_.has_default_values(
-                                     {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}),
-                    "only src and weights scales are supported");
 
             const memory_desc_wrapper src_d(src_md_);
             const memory_desc_wrapper wei_d(weights_md_);
