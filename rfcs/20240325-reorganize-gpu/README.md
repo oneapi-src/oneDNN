@@ -137,7 +137,7 @@ struct engine_impl_t : public dnnl::impl::engine_impl_t {
 } // namespace dnnl::impl::hrt::ocl
 
 // Location: src/hrt/sycl
-namespace dnnl::impl::sycl {
+namespace dnnl::impl::hrt::sycl {
 
 struct engine_impl_t : public dnnl::impl::engine_impl_t {
     sycl::device device;
