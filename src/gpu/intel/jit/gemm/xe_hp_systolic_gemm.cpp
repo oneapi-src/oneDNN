@@ -857,6 +857,11 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
     compute::range_t lws(size_t(tg_m), size_t(tg_n), 1);
     if (pd()->with_batch()) gws[2] = batch;
 
+    if (compute_info_.isNMK()) {
+        std::swap(lws[0], lws[1]);
+        std::swap(gws[0], gws[1]);
+    }
+
     lws[1] *= compute_info_.wgExpand;
     gws[1] *= compute_info_.wgExpand;
 
