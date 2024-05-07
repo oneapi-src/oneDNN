@@ -85,6 +85,12 @@ constexpr size_t reduce_aux = 6;
 constexpr size_t norm_bwd = 7;
 constexpr size_t calc_stat = 8;
 constexpr size_t reduce_stat = 9;
+constexpr size_t norm_fwd_buff = 10;
+constexpr size_t norm_bwd_buff = 11;
+constexpr size_t calc_mean_buff = 12;
+constexpr size_t calc_var_buff = 13;
+constexpr size_t calc_mean_var_buff = 14;
+constexpr size_t calc_stat_buff = 15;
 } // namespace kernel_id
 
 float get_ss_utilization(

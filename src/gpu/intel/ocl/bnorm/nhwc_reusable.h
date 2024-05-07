@@ -16,6 +16,10 @@
 #ifndef GPU_INTEL_OCL_BNORM_NHWC_REUSABLE_H
 #define GPU_INTEL_OCL_BNORM_NHWC_REUSABLE_H
 
+#define MAX_IC_BLOCK_SGROUPS (MAX_IC_BLOCK / SG_SIZE)
+#define MAX_IC_TAIL_SGROUPS (VECT_SIZE - 1)
+#define MAY_HAVE_IC_TAIL (MAX_IC_TAIL_SGROUPS > 0)
+
 #define VECT_DT_N VECT_SIZE
 #include "gpu/intel/ocl/dispatch.h"
 #include "gpu/intel/ocl/ocl_types.h"
@@ -94,6 +98,8 @@
 #define ACCUM_DATA8_T float8
 #define ACCUM_DATA2_T float2
 #define SUM_DATA_T ACCUM_DATA2_T
+
+#define AS_VECT_FLOAT(a) *(VECT_FLOAT_T *)(a)
 
 // Kahan summation algorithm. It's much more precise than simple sum and works
 // just as fast, since kernel is still memory-bound.
