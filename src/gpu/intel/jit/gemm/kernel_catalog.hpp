@@ -104,7 +104,8 @@ struct Selector {
     friend bool operator<(const Selector &sel1, const Selector &sel2) {
         auto tupleize = [](const Selector &sel) {
             return std::make_tuple(sel.hw, sel.precisions[0][0] & 0x1F,
-                    sel.layouts[0][0], sel.layouts[1][0]);
+                    sel.precisions[1][0] & 0x1F, sel.layouts[0][0],
+                    sel.layouts[1][0]);
         };
         return tupleize(sel1) < tupleize(sel2);
     };
