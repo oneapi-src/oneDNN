@@ -341,7 +341,8 @@ using namespace dnnl::graph;
 std::string case_to_str(const std::string &json_file,
         const std::map<size_t, std::string> &in_shapes,
         const std::map<size_t, std::string> &op_attrs,
-        const std::string &fpmath_mode, const int64_t mb) {
+        const std::string &fpmath_mode, const size_t expected_n_partitions,
+        const int64_t mb) {
     std::stringstream s;
     dump_global_params(s);
 
@@ -372,6 +373,11 @@ std::string case_to_str(const std::string &json_file,
 
     if (strcmp(fpmath_mode.c_str(), "default") != 0) {
         s << "--attr-fpmath=" << fpmath_mode << " ";
+    }
+
+    if (expected_n_partitions != 0) {
+        s << "--expected-n-partitions=" << std::to_string(expected_n_partitions)
+          << " ";
     }
 
     s << "--case=" << json_file;
@@ -461,6 +467,19 @@ int doit(const prb_t *prb, res_t *res) {
     std::vector<size_t> end_opid_v {};
     for (const auto &aop : dg.ops_) {
         if (aop.kind_ == "End") { end_opid_v.emplace_back(aop.id_); }
+    }
+
+    if (prb->expected_n_partition != 0) {
+        // If the expected partition num is specified by user with command line
+        // knob
+        if (partitions.size() != prb->expected_n_partition) {
+            BENCHDNN_PRINT(0,
+                    "Error: the expected number of partitions (%zu) doesn't "
+                    "coincide with the actual number of partitions returned "
+                    "(%zu).\n ",
+                    prb->expected_n_partition, partitions.size());
+            return res->state = FAILED, FAIL;
+        }
     }
 
     if (partitions.empty()) {
