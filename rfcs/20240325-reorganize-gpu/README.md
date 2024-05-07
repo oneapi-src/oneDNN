@@ -79,9 +79,9 @@ introduced:
 * `dnnl::impl`
     * `dnnl::impl::hrt::sycl`
     * `dnnl::impl::hrt::ocl`
-* `dnnl::cpu`
+* `dnnl::impl::cpu`
     * `dnnl::impl::cpu::sycl`
-* `dnnl::gpu`
+* `dnnl::impl::gpu`
     *  `dnnl::impl::gpu::intel`
         * `dnnl::impl::gpu::intel::compute`
         * `dnnl::impl::gpu::intel::ocl`
