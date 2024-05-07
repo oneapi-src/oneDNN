@@ -71,6 +71,33 @@ enabled individually
         └── ...
 ```
 
+### Vendor Macros
+
+oneDNN can be built for a number of GPU vendors, such as Intel, Nvidia and AMD. 
+Adding support for generic GPU vendor is in progress. In order to be able to dispatch
+between GPU vendor specific code at compile time the corresponding macros will be added.
+
+```cpp
+// dnnl_config.hpp.in
+
+/// No vendor (corresponding runtime is disabled)
+#define DNNL_VENDOR_NONE 0u
+
+/// Intel vendor
+#define DNNL_VENDOR_INTEL 1u
+
+/// NVIDIA vendor
+#define DNNL_VENDOR_NVIDIA 2u
+
+/// AMD vendor
+#define DNNL_VENDOR_AMD 4u
+
+// oneDNN GPU vendor
+#cmakedefine DNNL_GPU_VENDOR DNNL_VENDOR_${DNNL_GPU_VENDOR}
+
+// ...
+```
+
 ### Namespaces and Prefixes
 
 All vendor-specific code should be enclosed in a namespace that has the vendor's name.
