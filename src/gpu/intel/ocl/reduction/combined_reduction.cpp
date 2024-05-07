@@ -17,9 +17,11 @@
 #include "gpu/intel/ocl/reduction/combined_reduction.hpp"
 #include "common/c_types_map.hpp"
 #include "gpu/intel/block_structure.hpp"
+#include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/ocl/reduction/reduction_utils.hpp"
+#include "gpu/intel/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -134,6 +136,29 @@ reduction_phase_conf_t::reduction_phase_conf_t(
     reduce_vector = reduce_vec;
 
     if (!reduce_vector) num_subgroups /= vect_size;
+
+    // Increase num_outer_idxs to use persistent threading to reduce the number of subgroups
+    // and avoid overdispatching
+    outer_tile_size = [this, &compute_engine, &num_EU, &large_grf_mode,
+                              &num_subgroups]() -> int {
+        compute::gpu_arch_t arch = compute_engine->device_info()->gpu_arch();
+        int threads_per_eu = large_grf_mode
+                ? 4
+                : compute::device_info_t::threads_per_eu(arch);
+        int num_threads = num_EU * threads_per_eu;
+
+        // Enable >1 block sizes only for PVC+, to avoid oldest-first thread arbitration
+        dim_t block_size = 1;
+        if (arch >= compute::gpu_arch_t::xe_hpc) {
+            block_size = num_subgroups / num_threads;
+            block_size = get_previous_factor(outer_block.block, block_size);
+        }
+        return gpu_utils::dev_getenv("combined_reduction_num_outer",
+                gpu_utils::into<int>(block_size));
+    }();
+    gpu_assert(outer_block.block % outer_tile_size == 0)
+            << "Invalid choice of persistent thread outer idxs";
+    num_subgroups /= outer_tile_size;
 
     // Compute the number of threads per EU - this has no major impact
     // on average time, but can improve the best times on
@@ -396,6 +421,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("OUTER_DIM_SIZE", phase.outer_block.block);
     kernel_ctx.define_int("REDUCTION_SIZE", phase.reduction_block.block);
     kernel_ctx.define_int("INNER_DIM_SIZE", phase.inner_block.block);
+
+    kernel_ctx.define_int("OUTER_TILE_SIZE", phase.outer_tile_size);
 
     kernel_ctx.define_int("IS_FINAL", phase.is_final);
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
