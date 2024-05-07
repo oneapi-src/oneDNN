@@ -262,6 +262,17 @@ void nhwc_reusable_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     }
 }
 
+static dim_t get_calc_slm_size(
+        const nhwc_reusable_bnorm_compile_params_t &cmpl_conf,
+        const nhwc_reusable_bnorm_runtime_params_t &rt_conf) {
+    return rt_conf.use_fused_atomics_reduction
+            ? (rt_conf.use_buffers_calc ? sizeof(float) * rt_conf.ic_block
+                                    * rt_conf.calc_adj_lws[1]
+                                        : sizeof(float) * cmpl_conf.vect_size
+                                    * rt_conf.sg_size * rt_conf.calc_adj_lws[1])
+            : 0;
+}
+
 status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
 
@@ -322,10 +333,7 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
         if (status != status::success) return status;
     }
 
-    const dim_t calc_slm_size = rt_conf.use_fused_atomics_reduction
-            ? sizeof(float) * cmpl_conf.vect_size * rt_conf.sg_size
-                    * rt_conf.calc_adj_lws[1]
-            : 0;
+    const dim_t calc_slm_size = get_calc_slm_size(cmpl_conf, rt_conf);
 
     if (cmpl_conf.calculate_stats && !cmpl_conf.use_stats_one_pass) {
         const dim_t local_sum_size = sizeof(float) * rt_conf.sg_size
@@ -579,10 +587,7 @@ status_t nhwc_reusable_batch_normalization_bwd_t::execute_backward(
         if (status != status::success) return status;
     }
 
-    const dim_t calc_slm_size = rt_conf.use_fused_atomics_reduction
-            ? sizeof(float) * cmpl_conf.vect_size * rt_conf.sg_size
-                    * rt_conf.calc_adj_lws[1]
-            : 0;
+    const dim_t calc_slm_size = get_calc_slm_size(cmpl_conf, rt_conf);
 
     compute::kernel_arg_list_t calc_stats_arg_list;
     calc_stats_arg_list.append(src);
