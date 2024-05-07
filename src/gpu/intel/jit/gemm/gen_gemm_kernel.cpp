@@ -110,15 +110,20 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
         int wg_tile_m = strategy_.wg[LoopM] * strategy_.unroll[LoopM];
         int wg_tile_n = strategy_.wg[LoopN] * strategy_.unroll[LoopN];
         if (wg_tile_m > 0 && wg_tile_n > 0) {
-            dim_t thread_count = dim_t(utils::div_up(m_, wg_tile_m))
-                    * utils::div_up(n_, wg_tile_n) * strategy_.wg[LoopM]
-                    * strategy_.wg[LoopN];
+            dim_t m_tiles = dim_t(utils::div_up(m_, wg_tile_m));
+            dim_t n_tiles = dim_t(utils::div_up(n_, wg_tile_n));
+            dim_t thread_per_tg = strategy_.wg[LoopM] * strategy_.wg[LoopN];
             if (!strategy_.kParallelVariable)
-                thread_count *= std::max(strategy_.wg[LoopK], 1);
+                thread_per_tg *= std::max(strategy_.wg[LoopK], 1);
             dim_t thread_gpu = eu_count_
                     * compute::device_info_t::threads_per_eu(
                             arch_, strategy_.GRFs > 128);
-            if (thread_count <= thread_gpu) {
+            dim_t tiles_gpu = thread_gpu / thread_per_tg;
+
+            bool use_linear = (m_tiles * n_tiles <= tiles_gpu);
+            bool use_linear_m = (m_tiles * m_tiles <= 2 * tiles_gpu);
+            bool use_linear_n = (n_tiles * n_tiles <= 2 * tiles_gpu);
+            if (use_linear) {
                 if (strategy_.kParallelVariable)
                     strategy_.cWalkOrder = WalkOrder::SimpleLinear;
                 else if (strategy_.kParallel
@@ -131,6 +136,15 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
                     strategy_.blocking[LoopM] = 16777216;
                     strategy_.blocking[LoopN] = 16777216;
                 }
+            } else if (use_linear_m || use_linear_n) {
+                if (use_linear_n && !use_linear_m) {
+                    strategy_.loopOrder[0] = LoopN;
+                    strategy_.loopOrder[1] = LoopM;
+                } else if (use_linear_m && !use_linear_n) {
+                    strategy_.loopOrder[0] = LoopM;
+                    strategy_.loopOrder[1] = LoopN;
+                }
+                strategy_.cWalkOrder = WalkOrder::SimpleLinear;
             }
         }
     }
