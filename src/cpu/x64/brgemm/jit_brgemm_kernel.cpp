@@ -651,21 +651,15 @@ void jit_brgemm_kernel_t<Wmm>::cvt2ps(data_type_t type_in, const Vmm vmm_in,
         case data_type::s8: uni_vpmovsxbd(vmm, op); break;
         case data_type::u8: uni_vpmovzxbd(vmm, op); break;
         case data_type::f8_e5m2:
-            if (brg.is_fp8_via_convert()) {
-                // note: unoptimized, probably move stack use outside loop
-                mov(ptr[rsp + reg_val_tmp_1_], reg64_fp8_aux);
+            if (brg.is_fp8_via_convert())
                 f8_e5m2_emulator_->vcvt_f8_to_f32(vmm, op);
-                mov(reg64_fp8_aux, ptr[rsp + reg_val_tmp_1_]);
-            } else
+            else
                 assert(!"Error, native conversion unsupported");
             break;
         case data_type::f8_e4m3:
-            if (brg.is_fp8_via_convert()) {
-                // note: unoptimized, probably move stack use outside loop
-                mov(ptr[rsp + reg_val_tmp_1_], reg64_fp8_aux);
+            if (brg.is_fp8_via_convert())
                 f8_e4m3_emulator_->vcvt_f8_to_f32(vmm, op);
-                mov(reg64_fp8_aux, ptr[rsp + reg_val_tmp_1_]);
-            } else
+            else
                 assert(!"Error, native conversion unsupported");
             break;
 
@@ -1083,6 +1077,8 @@ void jit_brgemm_kernel_t<Wmm>::apply_alpha_beta(
     if (brg.is_runtime_ldc && bd_block > 1)
         mov(ptr[rsp + reg_aux_C_backup_offs_], reg_aux_C);
 
+    if (brg.is_fp8_via_convert()) mov(ptr[rsp + reg_val_tmp_1_], reg64_fp8_aux);
+
     for_(int bd = 0; bd < bd_block; bd++)
     for (int ld = 0; ld < ld_block2; ld++) {
         const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
@@ -1115,6 +1111,8 @@ void jit_brgemm_kernel_t<Wmm>::apply_alpha_beta(
         if (brg.is_runtime_ldc && bd_block > 1 && ld == ld_block2 - 1)
             add(reg_aux_C, ptr[rsp + reg_C_shift_bytes_offs_]);
     }
+
+    if (brg.is_fp8_via_convert()) mov(reg64_fp8_aux, ptr[rsp + reg_val_tmp_1_]);
 
     if (brg.is_runtime_ldc && bd_block > 1)
         mov(reg_aux_C, ptr[rsp + reg_aux_C_backup_offs_]);
@@ -1195,6 +1193,11 @@ void jit_brgemm_kernel_t<Wmm>::apply_post_ops(
                     }
                 }
 
+                // We have to use push/pop to preserve reg64_fp8_aux because we
+                // are in the range of conditional_register_preserve_guard_t
+                // objects above that use push/pop
+                if (brg.is_fp8_via_convert()) push(reg64_fp8_aux);
+
                 for_(int bd = bd_start; bd < bd_end; bd++)
                 for (int ld = 0; ld < ld_block2; ld++) {
                     const auto vmm = accm(ld_block2, bd, ld);
@@ -1217,6 +1220,7 @@ void jit_brgemm_kernel_t<Wmm>::apply_post_ops(
                     } else
                         uni_vaddps(vmm, vmm, vmm_prev_dst);
                 }
+                if (brg.is_fp8_via_convert()) pop(reg64_fp8_aux);
             }
 
             if (reset_avx_tail_mask) maybe_set_avx_mask(is_ld_tail);
@@ -1277,6 +1281,8 @@ void jit_brgemm_kernel_t<Wmm>::store_accumulators_apply_post_ops(
     }
 
     if (brg.with_bias) { mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]); }
+
+    if (brg.is_fp8_via_convert()) mov(ptr[rsp + reg_val_tmp_1_], reg64_fp8_aux);
     for (int ld = 0; ld < ld_block2; ld++) {
         auto vmm_bias = vmm_tmp(0);
         if (brg.with_bias) {
@@ -1291,6 +1297,7 @@ void jit_brgemm_kernel_t<Wmm>::store_accumulators_apply_post_ops(
             if (brg.with_bias) uni_vaddps(vmm, vmm, vmm_bias);
         }
     }
+    if (brg.is_fp8_via_convert()) mov(reg64_fp8_aux, ptr[rsp + reg_val_tmp_1_]);
 
     if (postops_injector_)
         apply_post_ops(bd_block, ld_block2, ldb_and_bdb_offset, is_ld_tail);
@@ -1320,6 +1327,9 @@ void jit_brgemm_kernel_t<Wmm>::store_accumulators_apply_post_ops(
                 uni_vcvtdq2ps(vmm_zp_c, vmm_zp_c);
             }
         }
+        if (brg.is_fp8_via_convert())
+            mov(ptr[rsp + reg_val_tmp_1_], reg64_fp8_aux);
+
         for (int ld = 0; ld < ld_block2; ld++) {
             const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
             if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
@@ -1340,6 +1350,8 @@ void jit_brgemm_kernel_t<Wmm>::store_accumulators_apply_post_ops(
                 uni_vaddps(vmm, vmm, vmm_zp_c);
             }
         }
+        if (brg.is_fp8_via_convert())
+            mov(reg64_fp8_aux, ptr[rsp + reg_val_tmp_1_]);
     }
 
     const bool dt_requires_saturation
