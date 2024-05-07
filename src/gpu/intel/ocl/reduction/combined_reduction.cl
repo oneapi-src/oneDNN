@@ -87,12 +87,6 @@ dim_t dst_off_w_zero_padding(dim_t outer, dim_t inner) {
 
 #define _DST_OFF(outer, inner) dst_off_w_zero_padding(outer, inner)
 
-#if REDUCE_VECTOR
-#define FINAL_VEC_SIZE 1
-#else
-#define FINAL_VEC_SIZE VECT_DT_N
-#endif
-
 #if NUM_DST_ZPAD == 0
 #define PADDED_NELEMS OUTER_SIZE *INNER_DIM_SIZE
 #elif NUM_DST_ZPAD == 1
@@ -101,19 +95,6 @@ dim_t dst_off_w_zero_padding(dim_t outer, dim_t inner) {
 #define PADDED_NELEMS \
     OUTER_SIZE *INNER_DIM_SIZE *DST_Z0_SIZE0 *DST_Z0_SIZE1 *DST_Z1_SIZE0 \
             *DST_Z1_SIZE1
-#endif
-
-#if VECT_DT_N == 1
-#define GET_ELEM(vect, idx) vect
-#else
-#define GET_ELEM(vect, idx) vect[idx]
-#endif
-
-// If reducing or not using vectorization, we can't access with an index
-#if !REDUCE_VECTOR && VECT_DT_N > 1
-#define GET_FINAL(x, idx) x[idx]
-#else
-#define GET_FINAL(x, idx) x
 #endif
 
 // Specifying wg size since larger work groups reduce performance.
@@ -152,8 +133,10 @@ combined_reduce(
 
     unroll_for(int oid = 0; oid < OUTER_TILE_SIZE; oid++) {
         const int outer_idx = sgid / sg_per_inner_dim * OUTER_TILE_SIZE + oid;
-        VECT_DEF_ACC_DATA_T acc;
-        init_acc(REDUCTION_ALG, &acc);
+        DEF_ACC_DATA_T acc[VECT_DT_N];
+        unroll_for(int v = 0; v < VECT_DT_N; v++) {
+            init_acc(REDUCTION_ALG, &acc[v]);
+        }
 
         int src_off = _SRC_OFF(outer_idx, WITH_BLOCK_READ ? 0 : red_off,
                 WITH_BLOCK_READ ? inner_idx_start : inner_idx);
@@ -162,64 +145,69 @@ combined_reduce(
                 off++, src_off += loop_stride) {
             // Load
             const VECT_DATA_T src_val = READ_DATA(src[src_off]);
+            const DATA_T *next_val = (DATA_T *)&src_val;
 
             // Accumulate
-            unroll_for(int i = 0; i < VECT_DT_N; i++) {
-                GET_ELEM(acc, i) = reduce(REDUCTION_ALG, GET_ELEM(acc, i),
-                        GET_ELEM(AS_VECT_DEF_ACC_DATA_T(src_val), i), POWER);
+            unroll_for(int v = 0; v < VECT_DT_N; v++) {
+                acc[v] = reduce(REDUCTION_ALG, acc[v],
+                        TO_DEF_ACC_DATA_T(next_val[v]), POWER);
             }
         }
         if (red_off < tail_reductions) {
             // Load
             const VECT_DATA_T src_val = READ_DATA(src[src_off]);
+            const DATA_T *next_val = (DATA_T *)&src_val;
 
             // Accumulate
-            unroll_for(int i = 0; i < VECT_DT_N; i++) {
-                GET_ELEM(acc, i) = reduce(REDUCTION_ALG, GET_ELEM(acc, i),
-                        GET_ELEM(AS_VECT_DEF_ACC_DATA_T(src_val), i), POWER);
+            unroll_for(int v = 0; v < VECT_DT_N; v++) {
+                acc[v] = reduce(REDUCTION_ALG, acc[v],
+                        TO_DEF_ACC_DATA_T(next_val[v]), POWER);
             }
         }
 
         // Potentially accumulate within the subgroup too
         // TODO: Change to tree-based reduce to help large inner_dims_per_sg cases
-        VECT_DEF_ACC_DATA_T acc_sg;
-        init_acc(SECONDARY_REDUCTION_ALG, &acc_sg);
+        DEF_ACC_DATA_T acc_sg[VECT_DT_N];
+        for (int v = 0; v < VECT_DT_N; v++) {
+            init_acc(SECONDARY_REDUCTION_ALG, &acc_sg[v]);
+        }
         unroll_for(int i = 0; i < inner_dims_per_sg; i++) {
-            VECT_DEF_ACC_DATA_T zero
-                    = AS_VECT_DEF_ACC_DATA_T(SPECIAL(DEF_ACC_DATA_T, zero));
-            VECT_DEF_ACC_DATA_T next = intel_sub_group_shuffle_down(
-                    GET_ELEM(acc, i), zero, i * INNER_DIM_SIZE);
             unroll_for(int v = 0; v < VECT_DT_N; v++) {
-                GET_ELEM(acc_sg, v) = reduce(SECONDARY_REDUCTION_ALG,
-                        GET_ELEM(acc_sg, v), GET_ELEM(next, v), POWER);
+                DEF_ACC_DATA_T next = intel_sub_group_shuffle_down(acc[v],
+                        SPECIAL(DEF_ACC_DATA_T, zero), i * INNER_DIM_SIZE);
+                acc_sg[v] = reduce(
+                        SECONDARY_REDUCTION_ALG, acc_sg[v], next, POWER);
             }
         }
 
         if (sglid < INNER_DIM_SIZE) {
+            const int final_vec_size = REDUCE_VECTOR ? 1 : VECT_DT_N;
 #if REDUCE_VECTOR
-            DEF_ACC_DATA_T final_acc;
-            init_acc(SECONDARY_REDUCTION_ALG, &final_acc);
-            unroll_for(int i = 0; i < VECT_DT_N; i++) {
-                final_acc = reduce(
-                        SECONDARY_REDUCTION_ALG, acc_sg[i], final_acc, POWER);
+            DEF_ACC_DATA_T final_acc[1];
+            init_acc(SECONDARY_REDUCTION_ALG, final_acc);
+            unroll_for(int v = 0; v < VECT_DT_N; v++) {
+                final_acc[0] = reduce(SECONDARY_REDUCTION_ALG, acc_sg[v],
+                        final_acc[0], POWER);
             }
 #else
             // Just rename the variable to match the REDUCE_VECTOR case
-            const VECT_DEF_ACC_DATA_T final_acc = acc_sg;
+            DEF_ACC_DATA_T final_acc[VECT_DT_N];
+            for (int v = 0; v < VECT_DT_N; v++) {
+                final_acc[v] = acc_sg[v];
+            }
 #endif // REDUCE_VECTOR
 
             // For each result:
             // 1. (if IS_FINAL) finalize the result
             // 2. (if IS_FINAL) apply post-ops
             // 3. write to dst
-            for (int i = 0; i < FINAL_VEC_SIZE; i++) {
+            for (int v = 0; v < final_vec_size; v++) {
                 const dim_t dst_off
-                        = _DST_OFF(outer_idx, inner_idx + i * SUBGROUP_SIZE);
+                        = _DST_OFF(outer_idx, inner_idx + v * SUBGROUP_SIZE);
                 // finalize the result
 #if IS_FINAL
-                float res = finalize(REDUCTION_ALG,
-                        convert_float(GET_FINAL(final_acc, i)), DIV, POWER,
-                        EPS);
+                float res = finalize(REDUCTION_ALG, convert_float(final_acc[v]),
+                        DIV, POWER, EPS);
 
                 // Apply post-ops
 #if WITH_POST_OP
@@ -258,7 +246,7 @@ combined_reduce(
                 }
 #endif // WITH_POST_OP
 #else
-                float res = GET_FINAL(final_acc, i);
+                float res = final_acc[v];
 #endif // IS_FINAL
 
                 // Write to dst
