@@ -180,17 +180,16 @@ combined_reduce(
 
     // Potentially accumulate within the subgroup too
     // TODO: Change to tree-based reduce to help large inner_dims_per_sg cases
-    local VECT_DEF_ACC_DATA_T local_acc[LWS_SIZE];
-    const int local_idx = (sgid * SUBGROUP_SIZE + sglid) % LWS_SIZE;
-    local_acc[local_idx] = acc;
-    if (sglid < INNER_DIM_SIZE) {
-        unroll_for(int i = 1; i < inner_dims_per_sg; i++) {
-            unroll_for(int v = 0; v < VECT_DT_N; v++) {
-                GET_ELEM(acc, v) = reduce(SECONDARY_REDUCTION_ALG,
-                        GET_ELEM(acc, v),
-                        GET_ELEM(local_acc[local_idx + i * INNER_DIM_SIZE], v),
-                        POWER);
-            }
+    VECT_DEF_ACC_DATA_T acc_sg;
+    init_acc(SECONDARY_REDUCTION_ALG, &acc_sg);
+    unroll_for(int i = 0; i < inner_dims_per_sg; i++) {
+        VECT_DEF_ACC_DATA_T zero
+                = AS_VECT_DEF_ACC_DATA_T(SPECIAL(DEF_ACC_DATA_T, zero));
+        VECT_DEF_ACC_DATA_T next = intel_sub_group_shuffle_down(
+                GET_ELEM(acc, i), zero, i * INNER_DIM_SIZE);
+        unroll_for(int v = 0; v < VECT_DT_N; v++) {
+            GET_ELEM(acc_sg, v) = reduce(SECONDARY_REDUCTION_ALG,
+                    GET_ELEM(acc_sg, v), GET_ELEM(next, v), POWER);
         }
     }
 
@@ -199,12 +198,12 @@ combined_reduce(
         DEF_ACC_DATA_T final_acc;
         init_acc(SECONDARY_REDUCTION_ALG, &final_acc);
         for (int i = 0; i < VECT_DT_N; i++) {
-            final_acc
-                    = reduce(SECONDARY_REDUCTION_ALG, acc[i], final_acc, POWER);
+            final_acc = reduce(
+                    SECONDARY_REDUCTION_ALG, acc_sg[i], final_acc, POWER);
         }
 #else
         // Just rename the variable to match the REDUCE_VECTOR case
-        const VECT_DEF_ACC_DATA_T final_acc = acc;
+        const VECT_DEF_ACC_DATA_T final_acc = acc_sg;
 #endif // REDUCE_VECTOR
 
         // For each result:
