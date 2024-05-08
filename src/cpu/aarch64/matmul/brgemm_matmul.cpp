@@ -78,12 +78,6 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }
 
-        // if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
-        //         || !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
-        //         || !attr()->scales_.get(DNNL_ARG_DST).has_default_values()) {
-        //     return false;
-        // }
-
         if (!attr()->post_ops_.sum_with_default_dt()) return false;
 
         return ok;

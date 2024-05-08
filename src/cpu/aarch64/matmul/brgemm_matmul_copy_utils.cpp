@@ -74,7 +74,7 @@ struct jit_brgemm_matmul_copy_a_impl_t : public jit_brgemm_matmul_copy_a_t,
                                          : conf_->LDA)
                   * tr_typesize_)
         , do_compute_compensation_(conf_->has_zero_point_b)
-        , k_loop_unroll_(is_ymm_ ? 7 : 16)
+        , k_loop_unroll_(is_sve256_ ? 7 : 16)
         , vmm_copy_idx_(29) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
@@ -86,8 +86,8 @@ private:
     using opmask_t = const Xbyak_aarch64::PReg;
 
     static constexpr int vlen_ = cpu_isa_traits<isa>::vlen;
-    static constexpr bool is_ymm_ = isa == sve_256;
-    static constexpr int num_comp_acc_ = is_ymm_ ? 7 : 8;
+    static constexpr bool is_sve256_ = isa == sve_256;
+    static constexpr int num_comp_acc_ = is_sve256_ ? 7 : 8;
 
     const int typesize_;
     const int tr_typesize_;
@@ -124,8 +124,8 @@ private:
     ZReg vmm_ones_words = ZReg(28);
     ZReg vmm_dot_product_temp = ZReg(29);
 
-    ZReg vmm_comp_mul = ZReg(is_ymm_ ? 14 : 30); // 1s
-    ZReg vmm_comp_add = ZReg(is_ymm_ ? 15 : 31); // 128
+    ZReg vmm_comp_mul = ZReg(is_sve256_ ? 14 : 30); // 1s
+    ZReg vmm_comp_add = ZReg(is_sve256_ ? 15 : 31); // 128
 
     // Allows to shift A data by 128 for s8s8 problem for SVE512 in copy
     // routine, not in compute kernel. It's disabled for now, as it
@@ -377,7 +377,7 @@ protected:
     using reg64_t = const Xbyak_aarch64::XReg;
     using reg32_t = const Xbyak_aarch64::WReg;
 
-    static constexpr bool is_ymm_ = cpu_isa_traits<isa>::vlen == 32;
+    static constexpr bool is_sve256_ = cpu_isa_traits<isa>::vlen == 32;
     static constexpr int k_blk_step_ = 4;
     static constexpr int n_blk_step_ = 64;
     static constexpr int blk_sz_ = 6;
@@ -424,7 +424,7 @@ protected:
 
     inline ZReg get_vmm(int blk, int idx) {
         if (idx < 0 || idx >= 32) assert(!"idx > vregs");
-        assert(IMPLICATION(!is_ymm_, idx < blk_sz_ && blk >= 0));
+        assert(IMPLICATION(!is_sve256_, idx < blk_sz_ && blk >= 0));
         auto reg_idx = blk_sz_ * blk + idx;
         return ZReg(reg_idx);
     }
@@ -503,7 +503,6 @@ struct jit_brgemm_matmul_copy_b_f32_t : public jit_brgemm_matmul_copy_b_t,
         : jit_brgemm_matmul_copy_b_t(conf)
         , jit_generator()
         , dt_in_(data_type::f32)
-        // , conf_n(conf)
         , typesize_in_(types::data_type_size(dt_in_))
         , src_stride_(conf_->wei_tag == acbd ? conf_->copy_B_wei_stride
                                              : conf_->N * typesize_in_)
@@ -526,8 +525,7 @@ private:
     const size_t typesize_in_;
     const size_t typesize_out_ = sizeof(float);
     dim_t src_stride_, tr_src_stride_;
-    // const brgemm_matmul_conf_t *conf_n;
-    const bool is_sve_256 = mayiuse(sve_512) ? false : true;
+    const bool is_sve_256 = !mayiuse(sve_512);
 
     opmask_t kTail = p7;
     opmask_t kFFFF = p6;
@@ -561,9 +559,9 @@ void jit_brgemm_matmul_copy_b_f32_t::copy_16_8_x_n_block(
 
     auto load = [this, get_zmm](int blk, int k, int n, opmask_t current_mask) {
         auto src_zmm = get_zmm(blk);
-        auto addr = EVEX_compress_addr(X_DEFAULT_ADDR, X_TMP_0, reg_src,
-                k * src_stride_ + n * typesize_in_);
-        ld1w(src_zmm, current_mask / T_z, ptr(addr));
+        add_imm(X_DEFAULT_ADDR, reg_src, k * src_stride_ + n * typesize_in_,
+                X_TMP_0);
+        ld1w(src_zmm, current_mask / T_z, ptr(X_DEFAULT_ADDR));
     };
 
     const int columns_tail = ncolumns % n_blk_step;
@@ -578,20 +576,17 @@ void jit_brgemm_matmul_copy_b_f32_t::copy_16_8_x_n_block(
         const dim_t tr_src_off = k * tr_src_stride_ + n * typesize_out_;
         const int zero_padding = ncolumns - n;
         if (zero_padding <= 0) {
-            auto store_addr = EVEX_compress_addr(
-                    X_DEFAULT_ADDR, X_TMP_0, reg_tr_src, tr_src_off);
-            str(zmm_zero, ptr(store_addr));
+            add_imm(X_DEFAULT_ADDR, reg_tr_src, tr_src_off, X_TMP_0);
+            str(zmm_zero, ptr(X_DEFAULT_ADDR));
             continue;
         }
 
         const opmask_t curr_msk = zero_padding < n_blk_step ? kTail : kFFFF;
         const int blk_idx = iter % max_regs_available;
         load(blk_idx, k, n, curr_msk);
-
-        auto store_addr = EVEX_compress_addr(
-                X_DEFAULT_ADDR, X_TMP_0, reg_tr_src, tr_src_off);
+        add_imm(X_DEFAULT_ADDR, reg_tr_src, tr_src_off, X_TMP_0);
         const auto src_zmm0 = ZReg(blk_idx);
-        str(src_zmm0, ptr(store_addr));
+        str(src_zmm0, ptr(X_DEFAULT_ADDR));
         iter++;
     }
 }
@@ -678,11 +673,11 @@ private:
     using opmask_t = const Xbyak_aarch64::PReg;
     using ZReg = const Xbyak_aarch64::ZReg;
 
-    static constexpr bool is_ymm_ = isa == sve_256;
+    static constexpr bool is_sve256_ = isa == sve_256;
     static constexpr cpu_isa_t isa_ = isa;
     static constexpr int max_vmm_regs_ = cpu_isa_traits<isa_>::n_vregs;
     static constexpr int vlen_ = cpu_isa_traits<isa>::vlen;
-    static constexpr int n_blk_step_ = is_ymm_ ? 8 : 16;
+    static constexpr int n_blk_step_ = is_sve256_ ? 8 : 16;
     static constexpr int bf32_k_blk_step_ = 16;
     static constexpr size_t comp_shift_ = vlen_;
 
@@ -722,7 +717,7 @@ private:
     reg32_t regw_tmp = w15;
     reg64_t imm_addr64 = abi_not_param1;
 
-    // Note: for the AVX2 implementation, reserve Ymm(8) and Ymm(9) as
+    // Note: for the SVE256 implementation, reserve ZReg(8) and ZReg(9) as
     // temporary compute registers.
     ZReg vmm_comp_mul = Xbyak_aarch64::ZReg(max_vmm_regs_ - 1);
     ZReg vmm_comp_acc = Xbyak_aarch64::ZReg(max_vmm_regs_ - 2);
@@ -731,7 +726,6 @@ private:
     ZReg vmm_all_bits_1 = Xbyak_aarch64::ZReg(max_vmm_regs_ - 5);
     ZReg vmm_one_s32 = Xbyak_aarch64::ZReg(max_vmm_regs_ - 6);
 
-    // Required in every dot product for INT8 non-VNNI computation.
     ZReg vmm_ones_words = ZReg(max_vmm_regs_ - 7);
     ZReg vmm_dot_product_temp = ZReg(max_vmm_regs_ - 8);
 
@@ -764,9 +758,9 @@ private:
     }
 
     ZReg tmp_vmm(int i) {
-        // If compensation compute is required - last 6 zmms are reserved for it
-        assert(i >= 0 && IMPLICATION(!is_ymm_, i < max_tmp_idx)
-                && IMPLICATION(is_ymm_, i < 2));
+        // If compensation compute is required - last 6 zregs are reserved for it
+        assert(i >= 0 && IMPLICATION(!is_sve256_, i < max_tmp_idx)
+                && IMPLICATION(is_sve256_, i < 2));
         return ZReg(n_blk_step_ + i);
     }
 
