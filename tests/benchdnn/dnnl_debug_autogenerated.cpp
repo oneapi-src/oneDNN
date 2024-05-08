@@ -913,6 +913,9 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(aCB8b16c);
     CASE(BA8a8b);
     CASE(aCB8b8c);
+    CASE(bcad);
+    CASE(cabd);
+    CASE(dabc);
     CASE(x);
     CASE(nc);
     CASE(cn);
