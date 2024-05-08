@@ -934,6 +934,9 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_aCB8b16c) return "aCB8b16c";
     if (v == dnnl_BA8a8b) return "BA8a8b";
     if (v == dnnl_aCB8b8c) return "aCB8b8c";
+    if (v == dnnl_bcad) return "bcad";
+    if (v == dnnl_cabd) return "cabd";
+    if (v == dnnl_dabc) return "dabc";
     if (v == dnnl_format_tag_last) return "format_tag_last";
     if (v == dnnl_x) return "x";
     if (v == dnnl_nc) return "nc";
