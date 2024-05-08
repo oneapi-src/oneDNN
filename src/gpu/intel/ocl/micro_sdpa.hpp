@@ -77,7 +77,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
             memory_desc_wrapper mdw(md);
             auto exp_trans = transposed ? dnnl_trans : dnnl_notrans;
             if (mdw.format_any())
-                CHECK(memory_desc_init_by_tag(md, transposed ? abdc : abcd));
+                return status::unimplemented;
             else if (!is_md_gemm_compatible_plain_format(&md)
                     || gemm_desc_t::get_trans(md) != exp_trans)
                 return status::unimplemented;

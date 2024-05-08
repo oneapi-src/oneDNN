@@ -108,14 +108,9 @@ protected:
             const hint_class *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind), desc_(*adesc) {}
 
-    // By default, we just resolve 'any' with blocked layout and trivial strides
     bool set_default_format(memory_desc_t *md) {
         memory_desc_wrapper mdw(md);
-        if (mdw.format_any()) {
-            if (mdw.has_runtime_dims_or_strides()) return false;
-            status_t status = memory_desc_init_by_strides(*md, nullptr);
-            if (status != status::success) return false;
-        }
+        if (mdw.format_any()) return false;
 
         return true;
     }
