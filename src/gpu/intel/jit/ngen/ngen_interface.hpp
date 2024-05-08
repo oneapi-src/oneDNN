@@ -83,6 +83,8 @@ public:
     inline void newArgument(const std::string &name, Subregister reg, ExternalArgumentType exttype = ExternalArgumentType::Scalar, GlobalAccessType access = GlobalAccessType::Default);
     inline void newArgument(const std::string &name, ExternalArgumentType exttype, GlobalAccessType access = GlobalAccessType::Default);
 
+    void allowArgumentRearrangement(bool allow)          { rearrangeArgs = allow; }
+
     inline Subregister getArgument(const std::string &name) const;
     inline Subregister getArgumentIfExists(const std::string &name) const;
     inline int getArgumentSurface(const std::string &name) const;
@@ -162,6 +164,7 @@ protected:
     int nextArgIndex = 0;
     bool finalized = false;
     bool hasArgLocOverride = false;
+    bool rearrangeArgs = true;
 
     bool allow64BitBuffers = false;
     ThreadArbitrationMode arbitrationMode = ThreadArbitrationMode::Default;
@@ -317,7 +320,7 @@ void InterfaceHandler::generateDummyCL(std::ostream &stream) const
 {
 #ifdef NGEN_SAFE
     if (!finalized) throw interface_not_finalized();
-    if (hasArgLocOverride) throw unsupported_argument_location_override();
+    if (hasArgLocOverride || !rearrangeArgs) throw unsupported_argument_location_override();
 #endif
     const char *dpasDummy = "    int __builtin_IB_sub_group_idpas_s8_s8_8_1(int, int, int8) __attribute__((const));\n"
                             "    int z = __builtin_IB_sub_group_idpas_s8_s8_8_1(0, ____[0], 1);\n"
@@ -419,9 +422,12 @@ void InterfaceHandler::finalize()
     int nextSurface = 0;
     const int grfSize = GRF::bytes(hw);
 
-    auto assignArgsOfType = [&](ExternalArgumentType exttype) {
+    auto assignArgsOfType = [&](ExternalArgumentType which) {
         for (auto &assignment : assignments) {
-            if (assignment.exttype != exttype) continue;
+            auto exttype = assignment.exttype;
+            if (!rearrangeArgs)
+                exttype = ExternalArgumentType::Scalar;
+            if (exttype != which) continue;
 
             auto bytes = getBytes(assignment.type);
             auto size = getDwords(assignment.type) << 2;

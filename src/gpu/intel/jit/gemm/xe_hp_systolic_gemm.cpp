@@ -821,14 +821,6 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
             arg_list.set(argn++, ldco);
         }
     }
-    for (int i = 0; i < po_count; i++) {
-        if (!po_srcs[i]) continue;
-        arg_list.set(argn++, *po_srcs[i]);
-        arg_list.set(argn++, offset_po_src[i]);
-
-        if (problem_.binaryRow[i] && problem_.binaryCol[i])
-            arg_list.set(argn++, int32_t(pd()->ld_binary(i)));
-    }
 
     uint32_t flags = 0;
     if (co_kind_ == 'R') flags |= FlagCORow;
@@ -837,6 +829,15 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
     if (!first_k_block) flags |= FlagNoninitialKBlock;
     if (!last_k_block) flags |= FlagNonfinalKBlock;
     arg_list.set(argn++, flags);
+
+    for (int i = 0; i < po_count; i++) {
+        if (!po_srcs[i]) continue;
+        arg_list.set(argn++, *po_srcs[i]);
+        arg_list.set(argn++, offset_po_src[i]);
+
+        if (problem_.binaryRow[i] && problem_.binaryCol[i])
+            arg_list.set(argn++, int32_t(pd()->ld_binary(i)));
+    }
 
     if (pd()->with_batch()) {
         arg_list.set(argn++, stride_a);

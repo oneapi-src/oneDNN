@@ -279,13 +279,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         }
     }
 
-    // Int4 reorder support is limited on all platforms.
-    if (sdt == dnnl_s4 || ddt == dnnl_s4 || sdt == dnnl_u4 || ddt == dnnl_u4) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-
     if (is_cpu()) {
+        // Int4 reorder support is limited on CPU.
+        if (sdt == dnnl_s4 || ddt == dnnl_s4 || sdt == dnnl_u4
+                || ddt == dnnl_u4) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+
         // CPU reorder doesn't support (xf8,xf16)<-->s32 combinations.
         const bool s32_src_ok = IMPLICATION(sdt == dnnl_s32,
                 ddt != dnnl_f8_e5m2 && ddt != dnnl_f8_e4m3 && ddt != dnnl_bf16

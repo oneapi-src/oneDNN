@@ -745,11 +745,17 @@ TEST(test_large_partition_execute, F32DistilBertMha) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
+    using ltw = graph::logical_tensor_wrapper_t;
+
     std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
         inputs_ts.emplace_back(*lt, eng);
-        inputs_ts.back().fill<float>();
+        // For select op's bool input
+        if (ltw(lt).data_type() == graph::data_type::boolean)
+            inputs_ts.back().fill<uint8_t>();
+        else
+            inputs_ts.back().fill<float>();
     }
 
     for (auto &lt : outputs) {
@@ -803,11 +809,17 @@ TEST(test_large_partition_execute, F32GptMha) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
+    using ltw = graph::logical_tensor_wrapper_t;
+
     std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
         inputs_ts.emplace_back(*lt, eng);
-        inputs_ts.back().fill<float>();
+        // For select op's bool input
+        if (ltw(lt).data_type() == graph::data_type::boolean)
+            inputs_ts.back().fill<uint8_t>();
+        else
+            inputs_ts.back().fill<float>();
     }
 
     for (auto &lt : outputs) {
@@ -1081,11 +1093,17 @@ TEST(test_large_partition_execute, Bf16GptMha) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
+    using ltw = graph::logical_tensor_wrapper_t;
+
     std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
         inputs_ts.emplace_back(*lt, eng);
-        inputs_ts.back().fill<float>();
+        // For select op's bool input
+        if (ltw(lt).data_type() == graph::data_type::boolean)
+            inputs_ts.back().fill<uint8_t>();
+        else
+            inputs_ts.back().fill<bfloat16_t>();
     }
 
     for (auto &lt : outputs) {
@@ -1144,11 +1162,17 @@ TEST(test_large_partition_execute, Bf16DistilBertMha) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
+    using ltw = graph::logical_tensor_wrapper_t;
+
     std::vector<test_tensor> inputs_ts, outputs_ts;
 
     for (auto &lt : inputs) {
         inputs_ts.emplace_back(*lt, eng);
-        inputs_ts.back().fill<float>();
+        // For select op's bool input
+        if (ltw(lt).data_type() == graph::data_type::boolean)
+            inputs_ts.back().fill<uint8_t>();
+        else
+            inputs_ts.back().fill<bfloat16_t>();
     }
 
     for (auto &lt : outputs) {

@@ -104,6 +104,9 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         }
     }
     if (nocopy_info()->needsTempC()) arg_list.set(argn++, *c_temp);
+    arg_list.set(argn++, flags);
+    if (k_parallel_fixed) arg_list.set(argn++, k0);
+
     for (int i = 0; i < po_count; i++) {
         if (!po_srcs[i]) continue;
         arg_list.set(argn++, *po_srcs[i]);
@@ -112,8 +115,6 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         if (problem->binaryRow[i] && problem->binaryCol[i])
             arg_list.set(argn++, int32_t(pd()->ld_binary(i)));
     }
-    arg_list.set(argn++, flags);
-    if (k_parallel_fixed) arg_list.set(argn++, k0);
 
     std::unique_ptr<memory_storage_t> zeros;
     int zp_token = 0;

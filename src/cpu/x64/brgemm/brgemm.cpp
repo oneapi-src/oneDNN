@@ -348,13 +348,13 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
                                 data_type::f16)))
         return status::unimplemented;
     const auto bias_f8_e5m2_compatible
-            = one_of(dt_d, data_type::f32, data_type::f8_e5m2)
-            && one_of(dt_bias, data_type::undef, data_type::f32,
-                    data_type::f8_e5m2);
+            = one_of(dt_d, data_type::f32, data_type::f16, data_type::f8_e5m2)
+            && one_of(dt_bias, data_type::undef, data_type::f32, data_type::f16,
+                    data_type::f8_e5m2, data_type::f8_e4m3);
     const auto bias_f8_e4m3_compatible
-            = one_of(dt_d, data_type::f32, data_type::f8_e4m3)
-            && one_of(dt_bias, data_type::undef, data_type::f32,
-                    data_type::f8_e4m3);
+            = one_of(dt_d, data_type::f32, data_type::f16, data_type::f8_e4m3)
+            && one_of(dt_bias, data_type::undef, data_type::f32, data_type::f16,
+                    data_type::f8_e4m3, data_type::f8_e5m2);
     if (!IMPLICATION(brg->is_fp8,
                 bias_f8_e5m2_compatible || bias_f8_e4m3_compatible))
         return status::unimplemented;

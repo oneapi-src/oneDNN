@@ -23,7 +23,7 @@
 #include "gpu/intel/jit/pass/barrier.hpp"
 #include "gpu/intel/jit/pass/cse.hpp"
 #include "gpu/intel/jit/pass/dp4a.hpp"
-#include "gpu/intel/jit/pass/dpas_atomic.hpp"
+#include "gpu/intel/jit/pass/dpas.hpp"
 #include "gpu/intel/jit/pass/dpasw.hpp"
 #include "gpu/intel/jit/pass/expr_scalarizer.hpp"
 #include "gpu/intel/jit/pass/hoist.hpp"

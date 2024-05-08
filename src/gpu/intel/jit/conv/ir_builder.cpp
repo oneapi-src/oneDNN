@@ -258,7 +258,7 @@ public:
         }
 
         // Assign {Atomic} for dpas(w) when applicable.
-        x2r_mul_stmt_ = inject_atomic(x2r_mul_stmt_);
+        x2r_mul_stmt_ = inject_dpas_atomic(x2r_mul_stmt_);
     }
 
 private:

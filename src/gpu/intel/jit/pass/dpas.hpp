@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_PASS_DPAS_ATOMIC_HPP
-#define GPU_INTEL_JIT_PASS_DPAS_ATOMIC_HPP
+#ifndef GPU_INTEL_JIT_PASS_DPAS_HPP
+#define GPU_INTEL_JIT_PASS_DPAS_HPP
 
 #include "gpu/intel/jit/ir/ir.hpp"
 
@@ -26,7 +26,7 @@ namespace intel {
 namespace jit {
 
 // Adds {Atomic} modifier to dpas/dpasw instructions when applicable.
-stmt_t inject_atomic(const stmt_t &stmt);
+stmt_t inject_dpas_atomic(const stmt_t &stmt);
 
 } // namespace jit
 } // namespace intel
