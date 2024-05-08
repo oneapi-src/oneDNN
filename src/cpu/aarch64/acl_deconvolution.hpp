@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Arm Ltd. and affiliates
+* Copyright 2022-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -201,10 +201,14 @@ struct acl_deconvolution_fwd_t : public primitive_t {
                             : arm_compute::TensorShape(iw, ih, ic, mb),
                     1, acl_src_data_t, acl_layout);
 
-            acl_pd_conf.wei_info = arm_compute::TensorInfo(is_nspc
-                            ? arm_compute::TensorShape(ic, kw, kh, oc)
-                            : arm_compute::TensorShape(kw, kh, ic, oc),
-                    1, acl_wei_data_t, acl_layout);
+            auto wei_info_tensor_shape = is_nspc
+                    ? arm_compute::TensorShape(ic, kw, kh, oc)
+                    : arm_compute::TensorShape(kw, kh, ic, oc);
+            // ACL removes last dimension if dim is 1.
+            // Below fix ensures the tensor shape is correct when queried.
+            wei_info_tensor_shape.set_num_dimensions(4);
+            acl_pd_conf.wei_info = arm_compute::TensorInfo(
+                    wei_info_tensor_shape, 1, acl_wei_data_t, acl_layout);
 
             acl_pd_conf.dst_info = arm_compute::TensorInfo(is_nspc
                             ? arm_compute::TensorShape(oc, ow, oh, mb)
