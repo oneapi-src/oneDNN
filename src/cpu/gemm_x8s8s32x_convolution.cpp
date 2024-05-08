@@ -275,7 +275,7 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
             const float onef = 1.f, zerof = 0.f;
             const char *__restrict src_od
                     = src + od * jcp.oh * jcp.ow * jcp.ngroups * jcp.ic;
-            st = gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F", &M, &N, &K,
+            st = gemm_s8u8s32("N", BT, jcp.signed_input ? "C" : "F", &M, &N, &K,
                     &onef, wei, &LDA, &off_a,
                     jcp.im2col_sz ? col : (uint8_t *)src_od, &LDB, &off_b,
                     &zerof, acc, &M, jcp.signed_input ? wei_comp : &off_c);
@@ -403,7 +403,7 @@ status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
                         = reinterpret_cast<const int8_t *>(diff_dst_base)
                         + n * diff_dst_mb_stride + g * diff_dst_g_stride;
                 const int8_t off_b = 0;
-                st = gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD,
+                st = gemm_s8s8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD,
                         &off_a, diff_dst, &LD, &off_b, &zerof,
                         jcp.im2col_sz ? col : acc, &M, &off_c);
             } break;
@@ -412,7 +412,7 @@ status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
                         = reinterpret_cast<const uint8_t *>(diff_dst_base)
                         + n * diff_dst_mb_stride + g * diff_dst_g_stride;
                 const uint8_t off_b = 0;
-                st = gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD,
+                st = gemm_s8u8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD,
                         &off_a, diff_dst, &LD, &off_b, &zerof,
                         jcp.im2col_sz ? col : acc, &M, &off_c);
             } break;

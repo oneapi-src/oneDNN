@@ -377,6 +377,9 @@ elseif(UNIX OR MINGW)
         append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15335")
         # disable: foo has been targeted for automatic cpu dispatch
         append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15009")
+        # The Intel(R) C++ Compiler Classic (ICC) is deprecated and will be
+        # removed from product release in the second half of 2023.
+        append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:10441")
     endif()
 endif()
 

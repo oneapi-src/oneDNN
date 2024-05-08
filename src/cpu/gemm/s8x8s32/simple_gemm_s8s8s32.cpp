@@ -174,7 +174,7 @@ dnnl_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
     compensation_compute(transa, M, K, *alpha, a, *lda, compensation);
     copy_and_shift_b(transb, K, N, b_u8, ld, b, *ldb);
 
-    status_t st = gemm_s8x8s32(transA, transB, "C", m, n, k, alpha, a, lda, oa,
+    status_t st = gemm_s8u8s32(transA, transB, "C", m, n, k, alpha, a, lda, oa,
             b_u8, &ld, &ob_u8, beta, c, ldc, compensation);
     if (st != dnnl_success) return st;
 

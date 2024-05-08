@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -476,8 +476,20 @@ dnnl_status_t gemm_x8x8s32_compute(const char *transa, const char *transb,
     auto transa_eff = *transa, transb_eff = *transb;
 
     if (!use_reference_igemm<a_dt, b_dt>()) {
-        return gemm_s8x8s32(&transa_eff, &transb_eff, offsetc, M, N, K, alpha,
-                A, &lda_eff, ao, B, &ldb_eff, bo, beta, C, ldc, co);
+        if (std::is_same<b_dt, int8_t>::value) {
+            return gemm_s8s8s32(&transa_eff, &transb_eff, offsetc, M, N, K,
+                    alpha, A, &lda_eff, ao, reinterpret_cast<const int8_t *>(B),
+                    &ldb_eff, reinterpret_cast<const int8_t *>(bo), beta, C,
+                    ldc, co);
+        } else if (std::is_same<b_dt, uint8_t>::value) {
+            return gemm_s8u8s32(&transa_eff, &transb_eff, offsetc, M, N, K,
+                    alpha, A, &lda_eff, ao,
+                    reinterpret_cast<const uint8_t *>(B), &ldb_eff,
+                    reinterpret_cast<const uint8_t *>(bo), beta, C, ldc, co);
+        } else {
+            assert(!"unexpected b_dt");
+            return status::runtime_error;
+        }
     } else {
         dim_t ld, td;
 
@@ -501,8 +513,20 @@ dnnl_status_t gemm_x8x8s32_compute(const char *transa, const char *transb,
             transb_eff = trans == no_trans ? 'N' : 'T';
         }
 
-        return gemm_s8x8s32(&transa_eff, &transb_eff, offsetc, M, N, K, alpha,
-                A, &lda_eff, ao, B, &ldb_eff, bo, beta, C, ldc, co);
+        if (std::is_same<b_dt, int8_t>::value) {
+            return gemm_s8s8s32(&transa_eff, &transb_eff, offsetc, M, N, K,
+                    alpha, A, &lda_eff, ao, reinterpret_cast<const int8_t *>(B),
+                    &ldb_eff, reinterpret_cast<const int8_t *>(bo), beta, C,
+                    ldc, co);
+        } else if (std::is_same<b_dt, uint8_t>::value) {
+            return gemm_s8u8s32(&transa_eff, &transb_eff, offsetc, M, N, K,
+                    alpha, A, &lda_eff, ao,
+                    reinterpret_cast<const uint8_t *>(B), &ldb_eff,
+                    reinterpret_cast<const uint8_t *>(bo), beta, C, ldc, co);
+        } else {
+            assert(!"unexpected b_dt");
+            return status::runtime_error;
+        }
     }
 }
 

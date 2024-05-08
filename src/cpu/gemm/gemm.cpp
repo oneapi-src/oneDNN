@@ -185,7 +185,7 @@ dnnl_status_t try_cblas_gemm_s8u8s32(const char *transa, const char *transb,
 #endif
 }
 
-dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
+dnnl_status_t gemm_s8u8s32(const char *transa, const char *transb,
         const char *offsetc, const dim_t *M, const dim_t *N, const dim_t *K,
         const float *alpha, const int8_t *A, const dim_t *LDA, const int8_t *ao,
         const uint8_t *B, const dim_t *LDB, const uint8_t *bo,
@@ -226,7 +226,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
             B, LDB, bo, beta, C, LDC, co);
 }
 
-dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
+dnnl_status_t gemm_s8s8s32(const char *transa, const char *transb,
         const char *offsetc, const dim_t *M, const dim_t *N, const dim_t *K,
         const float *alpha, const int8_t *A, const dim_t *LDA, const int8_t *ao,
         const int8_t *B, const dim_t *LDB, const int8_t *bo, const float *beta,
