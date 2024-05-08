@@ -157,11 +157,11 @@ const nocopy_table_t xe_hp_x8x8s32_nocopy_bad_ld_table[] = {
         {{{656, 528}, {352, 384}}, {{656, 528}, {352, 384}}}};
 
 const nocopy_table_t xe_hpc_f16_nocopy_table[] = {
-        // NN     NT       TN    TT
-        {{{14848, 12800}, {8193, 8193}}, {{0, 0}, {0, 0}}}};
+        // NN    NT   TN  TT
+        {{{0, 12800}, {0, 0}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hpc_x8x8s32_nocopy_table[] = {
-        // NN    NT       TN  TT
+        // NN    NT   TN  TT
         {{{0, 10000}, {0, 0}}, {{0, 0}, {0, 0}}}};
 
 const nocopy_table_t xe_hpc_f16_nocopy_bad_ld_table[] = {
@@ -856,6 +856,11 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
     compute::range_t gws(size_t(thread_m), size_t(thread_n), 1);
     compute::range_t lws(size_t(tg_m), size_t(tg_n), 1);
     if (pd()->with_batch()) gws[2] = batch;
+
+    if (compute_info_.isNMK()) {
+        std::swap(lws[0], lws[1]);
+        std::swap(gws[0], gws[1]);
+    }
 
     lws[1] *= compute_info_.wgExpand;
     gws[1] *= compute_info_.wgExpand;
