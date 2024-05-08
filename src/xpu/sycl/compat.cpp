@@ -25,12 +25,12 @@
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
-#include "hrt/sycl/compat.hpp"
-#include "hrt/sycl/utils.hpp"
+#include "xpu/sycl/compat.hpp"
+#include "xpu/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 namespace {
@@ -68,6 +68,6 @@ void *get_native(const ::sycl::context &ctx) {
 
 } // namespace compat
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

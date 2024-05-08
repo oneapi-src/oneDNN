@@ -19,7 +19,7 @@
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
-#include "hrt/sycl/memory_storage_helper.hpp"
+#include "xpu/sycl/memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -47,27 +47,27 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
         auto arg_dst_scale
                 = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
-        hrt::sycl::interop_memory_arg_t<::sycl::access::mode::read_write>
+        xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read_write>
                 temp_dst;
-        hrt::sycl::interop_memory_arg_t<::sycl::access::mode::read_write>
+        xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read_write>
                 temp_reorder;
 
         if (pd()->use_temp_dst()) {
             memory_storage_t *temp_dst_mem = scratch_storage.get();
             memory_storage_t *temp_reorder_mem = scratch_storage_2.get();
-            temp_dst = hrt::sycl::interop_memory_arg_t<
+            temp_dst = xpu::sycl::interop_memory_arg_t<
                     ::sycl::access::mode::read_write>(temp_dst_mem, cgh);
-            temp_reorder = hrt::sycl::interop_memory_arg_t<
+            temp_reorder = xpu::sycl::interop_memory_arg_t<
                     ::sycl::access::mode::read_write>(temp_reorder_mem, cgh);
         }
 
-        hrt::sycl::interop_memory_arg_t<::sycl::access::mode::read_write>
+        xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read_write>
                 y_fp32_data;
 
         if (!arg_dst_scale.empty() || !arg_src_scale.empty()
                 || !arg_wei_scale.empty()) {
             memory_storage_t *y_fp32_data_mem = scratch_storage_3.get();
-            y_fp32_data = hrt::sycl::interop_memory_arg_t<
+            y_fp32_data = xpu::sycl::interop_memory_arg_t<
                     ::sycl::access::mode::read_write>(y_fp32_data_mem, cgh);
         }
 
@@ -167,7 +167,7 @@ status_t cudnn_convolution_bwd_weights_t::execute_convolution(
         auto arg_filter_scratch = CTX_SCRATCH_SYCL_MEMORY(
                 memory_tracking::names::key_conv_cudnn_filter);
 
-        hrt::sycl::interop_memory_arg_t<::sycl::access::mode::write>
+        xpu::sycl::interop_memory_arg_t<::sycl::access::mode::write>
                 arg_diff_bias;
 
         if (with_bias) {

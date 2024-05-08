@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMMON_HRT_OCL_UTILS_HPP
-#define COMMON_HRT_OCL_UTILS_HPP
+#ifndef COMMON_XPU_OCL_UTILS_HPP
+#define COMMON_XPU_OCL_UTILS_HPP
 
 #include <CL/cl.h>
 
@@ -26,11 +26,11 @@
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 
-#include "hrt/utils.hpp"
+#include "xpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace ocl {
 
 status_t convert_to_dnnl(cl_int cl_status);
@@ -44,7 +44,7 @@ const char *convert_cl_int_to_str(cl_int cl_status);
 #define MAYBE_REPORT_OCL_ERROR(s) \
     do { \
         VERROR(primitive, ocl, "errcode %d,%s,%s:%d", int(s), \
-                dnnl::impl::hrt::ocl::convert_cl_int_to_str(s), __FILENAME__, \
+                dnnl::impl::xpu::ocl::convert_cl_int_to_str(s), __FILENAME__, \
                 __LINE__); \
     } while (0)
 
@@ -62,7 +62,7 @@ const char *convert_cl_int_to_str(cl_int cl_status);
         cl_int s = x; \
         if (s != CL_SUCCESS) { \
             MAYBE_REPORT_OCL_ERROR(s); \
-            return dnnl::impl::hrt::ocl::convert_to_dnnl(s); \
+            return dnnl::impl::xpu::ocl::convert_to_dnnl(s); \
         } \
     } while (0)
 
@@ -281,9 +281,9 @@ cl_platform_id get_platform(cl_device_id device);
 cl_platform_id get_platform(engine_t *engine);
 
 status_t create_program(ocl::wrapper_t<cl_program> &ocl_program,
-        cl_device_id dev, cl_context ctx, const hrt::binary_t &binary);
+        cl_device_id dev, cl_context ctx, const xpu::binary_t &binary);
 
-status_t get_device_uuid(hrt::device_uuid_t &uuid, cl_device_id ocl_dev);
+status_t get_device_uuid(xpu::device_uuid_t &uuid, cl_device_id ocl_dev);
 
 // Check for three conditions:
 // 1. Device and context are compatible, i.e. the device belongs to
@@ -295,7 +295,7 @@ status_t check_device(engine_kind_t eng_kind, cl_device_id dev, cl_context ctx);
 status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
 
 } // namespace ocl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

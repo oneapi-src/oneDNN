@@ -23,7 +23,7 @@
 #include "gpu/sycl/sycl_io_helper.hpp"
 #include "gpu/sycl/sycl_primitive_conf.hpp"
 #include "gpu/sycl/sycl_q10n.hpp"
-#include "hrt/sycl/types.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,11 +33,11 @@ namespace sycl {
 struct layer_normalization_fwd_kernel_vec_t {
     layer_normalization_fwd_kernel_vec_t(
             const sycl_layer_normalization_conf_t &conf,
-            hrt::sycl::in_memory_arg_t &data, hrt::sycl::in_memory_arg_t &scale,
-            hrt::sycl::in_memory_arg_t &shift, hrt::sycl::in_memory_arg_t &stat,
-            hrt::sycl::in_memory_arg_t &var, hrt::sycl::out_memory_arg_t &dst,
-            hrt::sycl::in_memory_arg_t &rt_scale,
-            hrt::sycl::in_memory_arg_t &dst_scale)
+            xpu::sycl::in_memory_arg_t &data, xpu::sycl::in_memory_arg_t &scale,
+            xpu::sycl::in_memory_arg_t &shift, xpu::sycl::in_memory_arg_t &stat,
+            xpu::sycl::in_memory_arg_t &var, xpu::sycl::out_memory_arg_t &dst,
+            xpu::sycl::in_memory_arg_t &rt_scale,
+            xpu::sycl::in_memory_arg_t &dst_scale)
         : conf_(conf)
         , data_(data)
         , scale_(scale)
@@ -62,14 +62,14 @@ struct layer_normalization_fwd_kernel_vec_t {
     }
 
 private:
-    const hrt::sycl::md_t &data_md() const { return conf_.data_md; }
-    const hrt::sycl::md_t &stat_md() const { return conf_.stat_md; }
-    const hrt::sycl::md_t &data_scaleshift_md() const {
+    const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
+    const xpu::sycl::md_t &stat_md() const { return conf_.stat_md; }
+    const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
     }
-    const hrt::sycl::md_t &var_md() const { return conf_.var_md; }
-    const hrt::sycl::md_t &stat_d() const { return conf_.stat_d; }
-    const hrt::sycl::md_t &dst_md() const { return conf_.dst_md; }
+    const xpu::sycl::md_t &var_md() const { return conf_.var_md; }
+    const xpu::sycl::md_t &stat_d() const { return conf_.stat_d; }
+    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     const unsigned flags() const { return conf_.flags; }
     const float epsilon() const { return conf_.layer_norm_epsilon; }
@@ -128,25 +128,25 @@ private:
     }
 
     sycl_layer_normalization_conf_t conf_;
-    hrt::sycl::in_memory_arg_t data_;
-    hrt::sycl::in_memory_arg_t scale_;
-    hrt::sycl::in_memory_arg_t shift_;
-    hrt::sycl::in_memory_arg_t stat_;
-    hrt::sycl::in_memory_arg_t var_;
-    hrt::sycl::out_memory_arg_t dst_;
-    hrt::sycl::in_memory_arg_t rt_scale_;
-    hrt::sycl::in_memory_arg_t dst_scale_;
+    xpu::sycl::in_memory_arg_t data_;
+    xpu::sycl::in_memory_arg_t scale_;
+    xpu::sycl::in_memory_arg_t shift_;
+    xpu::sycl::in_memory_arg_t stat_;
+    xpu::sycl::in_memory_arg_t var_;
+    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::in_memory_arg_t rt_scale_;
+    xpu::sycl::in_memory_arg_t dst_scale_;
 };
 
 struct layer_normalization_fwd_kernel_vec1_t {
     layer_normalization_fwd_kernel_vec1_t(
             const sycl_layer_normalization_conf_t &conf,
-            hrt::sycl::in_memory_arg_t &data, hrt::sycl::in_memory_arg_t &scale,
-            hrt::sycl::in_memory_arg_t &shift, hrt::sycl::out_memory_arg_t &dst,
-            hrt::sycl::out_memory_arg_t &mean_out,
-            hrt::sycl::out_memory_arg_t &var_out,
-            hrt::sycl::in_memory_arg_t &rt_scale,
-            hrt::sycl::in_memory_arg_t &dst_scale)
+            xpu::sycl::in_memory_arg_t &data, xpu::sycl::in_memory_arg_t &scale,
+            xpu::sycl::in_memory_arg_t &shift, xpu::sycl::out_memory_arg_t &dst,
+            xpu::sycl::out_memory_arg_t &mean_out,
+            xpu::sycl::out_memory_arg_t &var_out,
+            xpu::sycl::in_memory_arg_t &rt_scale,
+            xpu::sycl::in_memory_arg_t &dst_scale)
         : conf_(conf)
         , data_(data)
         , scale_(scale)
@@ -172,14 +172,14 @@ struct layer_normalization_fwd_kernel_vec1_t {
     }
 
 private:
-    const hrt::sycl::md_t &data_md() const { return conf_.data_md; }
-    const hrt::sycl::md_t &stat_md() const { return conf_.stat_md; }
-    const hrt::sycl::md_t &data_scaleshift_md() const {
+    const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
+    const xpu::sycl::md_t &stat_md() const { return conf_.stat_md; }
+    const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
     }
-    const hrt::sycl::md_t &var_md() const { return conf_.var_md; }
-    const hrt::sycl::md_t &stat_d() const { return conf_.stat_d; }
-    const hrt::sycl::md_t &dst_md() const { return conf_.dst_md; }
+    const xpu::sycl::md_t &var_md() const { return conf_.var_md; }
+    const xpu::sycl::md_t &stat_d() const { return conf_.stat_d; }
+    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     const unsigned flags() const { return conf_.flags; }
     const float epsilon() const { return conf_.layer_norm_epsilon; }
@@ -267,26 +267,26 @@ private:
     }
 
     sycl_layer_normalization_conf_t conf_;
-    hrt::sycl::in_memory_arg_t data_;
-    hrt::sycl::in_memory_arg_t scale_;
-    hrt::sycl::in_memory_arg_t shift_;
-    hrt::sycl::out_memory_arg_t dst_;
-    hrt::sycl::out_memory_arg_t mean_out_;
-    hrt::sycl::out_memory_arg_t var_out_;
-    hrt::sycl::in_memory_arg_t rt_scale_;
-    hrt::sycl::in_memory_arg_t dst_scale_;
+    xpu::sycl::in_memory_arg_t data_;
+    xpu::sycl::in_memory_arg_t scale_;
+    xpu::sycl::in_memory_arg_t shift_;
+    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::out_memory_arg_t mean_out_;
+    xpu::sycl::out_memory_arg_t var_out_;
+    xpu::sycl::in_memory_arg_t rt_scale_;
+    xpu::sycl::in_memory_arg_t dst_scale_;
 };
 
 struct layer_normalization_bwd_kernel_vec_t {
     layer_normalization_bwd_kernel_vec_t(
             const sycl_layer_normalization_conf_t &conf,
-            hrt::sycl::in_memory_arg_t &data,
-            hrt::sycl::out_memory_arg_t &diff_data,
-            hrt::sycl::in_memory_arg_t &scale,
-            hrt::sycl::out_memory_arg_t &diff_scale,
-            hrt::sycl::out_memory_arg_t &diff_shift,
-            hrt::sycl::in_memory_arg_t &stat, hrt::sycl::in_memory_arg_t &var,
-            hrt::sycl::in_memory_arg_t &diff_dst)
+            xpu::sycl::in_memory_arg_t &data,
+            xpu::sycl::out_memory_arg_t &diff_data,
+            xpu::sycl::in_memory_arg_t &scale,
+            xpu::sycl::out_memory_arg_t &diff_scale,
+            xpu::sycl::out_memory_arg_t &diff_shift,
+            xpu::sycl::in_memory_arg_t &stat, xpu::sycl::in_memory_arg_t &var,
+            xpu::sycl::in_memory_arg_t &diff_dst)
         : conf_(conf)
         , data_(data)
         , diff_data_(diff_data)
@@ -305,19 +305,19 @@ struct layer_normalization_bwd_kernel_vec_t {
     }
 
 private:
-    const hrt::sycl::md_t &data_md() const { return conf_.data_md; }
-    const hrt::sycl::md_t &diff_data_md() const { return conf_.diff_data_md; }
-    const hrt::sycl::md_t &stat_d() const { return conf_.stat_d; }
-    const hrt::sycl::md_t &stat_md() const { return conf_.stat_md; }
-    const hrt::sycl::md_t &data_scaleshift_md() const {
+    const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
+    const xpu::sycl::md_t &diff_data_md() const { return conf_.diff_data_md; }
+    const xpu::sycl::md_t &stat_d() const { return conf_.stat_d; }
+    const xpu::sycl::md_t &stat_md() const { return conf_.stat_md; }
+    const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
     }
-    const hrt::sycl::md_t &diff_data_scaleshift_md() const {
+    const xpu::sycl::md_t &diff_data_scaleshift_md() const {
         return conf_.diff_data_scaleshift_md;
     }
-    const hrt::sycl::md_t &var_md() const { return conf_.var_md; }
-    const hrt::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
-    const hrt::sycl::md_t &dst_md() const { return conf_.dst_md; }
+    const xpu::sycl::md_t &var_md() const { return conf_.var_md; }
+    const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
+    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
     const unsigned flags() const { return conf_.flags; }
     const float epsilon() const { return conf_.layer_norm_epsilon; }
 
@@ -388,26 +388,26 @@ private:
 
     sycl_layer_normalization_conf_t conf_;
 
-    hrt::sycl::in_memory_arg_t data_;
-    hrt::sycl::out_memory_arg_t diff_data_;
-    hrt::sycl::in_memory_arg_t scale_;
-    hrt::sycl::out_memory_arg_t diff_scale_;
-    hrt::sycl::out_memory_arg_t diff_shift_;
-    hrt::sycl::in_memory_arg_t stat_;
-    hrt::sycl::in_memory_arg_t var_;
-    hrt::sycl::in_memory_arg_t diff_dst_;
+    xpu::sycl::in_memory_arg_t data_;
+    xpu::sycl::out_memory_arg_t diff_data_;
+    xpu::sycl::in_memory_arg_t scale_;
+    xpu::sycl::out_memory_arg_t diff_scale_;
+    xpu::sycl::out_memory_arg_t diff_shift_;
+    xpu::sycl::in_memory_arg_t stat_;
+    xpu::sycl::in_memory_arg_t var_;
+    xpu::sycl::in_memory_arg_t diff_dst_;
 };
 
 struct layer_normalization_bwd_kernel_vec2_t {
     layer_normalization_bwd_kernel_vec2_t(
             const sycl_layer_normalization_conf_t &conf,
-            hrt::sycl::in_memory_arg_t &data,
-            hrt::sycl::out_memory_arg_t &diff_data,
-            hrt::sycl::in_memory_arg_t &scale,
-            hrt::sycl::out_memory_arg_t &diff_scale,
-            hrt::sycl::out_memory_arg_t &diff_shift,
-            hrt::sycl::in_memory_arg_t &stat, hrt::sycl::in_memory_arg_t &var,
-            hrt::sycl::in_memory_arg_t &diff_dst)
+            xpu::sycl::in_memory_arg_t &data,
+            xpu::sycl::out_memory_arg_t &diff_data,
+            xpu::sycl::in_memory_arg_t &scale,
+            xpu::sycl::out_memory_arg_t &diff_scale,
+            xpu::sycl::out_memory_arg_t &diff_shift,
+            xpu::sycl::in_memory_arg_t &stat, xpu::sycl::in_memory_arg_t &var,
+            xpu::sycl::in_memory_arg_t &diff_dst)
         : conf_(conf)
         , data_(data)
         , diff_data_(diff_data)
@@ -426,18 +426,18 @@ struct layer_normalization_bwd_kernel_vec2_t {
     }
 
 private:
-    const hrt::sycl::md_t &data_md() const { return conf_.data_md; }
-    const hrt::sycl::md_t &diff_data_md() const { return conf_.diff_data_md; }
-    const hrt::sycl::md_t &stat_d() const { return conf_.stat_d; }
-    const hrt::sycl::md_t &stat_md() const { return conf_.stat_md; }
-    const hrt::sycl::md_t &data_scaleshift_md() const {
+    const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
+    const xpu::sycl::md_t &diff_data_md() const { return conf_.diff_data_md; }
+    const xpu::sycl::md_t &stat_d() const { return conf_.stat_d; }
+    const xpu::sycl::md_t &stat_md() const { return conf_.stat_md; }
+    const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
     }
-    const hrt::sycl::md_t &diff_data_scaleshift_md() const {
+    const xpu::sycl::md_t &diff_data_scaleshift_md() const {
         return conf_.diff_data_scaleshift_md;
     }
-    const hrt::sycl::md_t &var_md() const { return conf_.var_md; }
-    const hrt::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
+    const xpu::sycl::md_t &var_md() const { return conf_.var_md; }
+    const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
 
     const unsigned flags() const { return conf_.flags; }
     const float epsilon() const { return conf_.layer_norm_epsilon; }
@@ -519,14 +519,14 @@ private:
 
     sycl_layer_normalization_conf_t conf_;
 
-    hrt::sycl::in_memory_arg_t data_;
-    hrt::sycl::out_memory_arg_t diff_data_;
-    hrt::sycl::in_memory_arg_t scale_;
-    hrt::sycl::out_memory_arg_t diff_scale_;
-    hrt::sycl::out_memory_arg_t diff_shift_;
-    hrt::sycl::in_memory_arg_t stat_;
-    hrt::sycl::in_memory_arg_t var_;
-    hrt::sycl::in_memory_arg_t diff_dst_;
+    xpu::sycl::in_memory_arg_t data_;
+    xpu::sycl::out_memory_arg_t diff_data_;
+    xpu::sycl::in_memory_arg_t scale_;
+    xpu::sycl::out_memory_arg_t diff_scale_;
+    xpu::sycl::out_memory_arg_t diff_shift_;
+    xpu::sycl::in_memory_arg_t stat_;
+    xpu::sycl::in_memory_arg_t var_;
+    xpu::sycl::in_memory_arg_t diff_dst_;
 };
 
 } // namespace sycl

@@ -36,7 +36,7 @@ public:
     sycl_cpu_engine_t(
             const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
         : sycl_engine_base_t(engine_kind::cpu, dev, ctx, index) {
-        assert(dev.is_cpu() || hrt::sycl::is_host(dev));
+        assert(dev.is_cpu() || xpu::sycl::is_host(dev));
     }
 
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,

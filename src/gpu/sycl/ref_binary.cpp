@@ -27,9 +27,9 @@ using namespace impl::sycl;
 status_t ref_binary_t::pd_t::init_conf() {
     conf_ = sycl_binary_conf_t();
 
-    conf_.src0_md = hrt::sycl::md_t(src_md(0));
-    conf_.src1_md = hrt::sycl::md_t(src_md(1));
-    conf_.dst_md = hrt::sycl::md_t(dst_md());
+    conf_.src0_md = xpu::sycl::md_t(src_md(0));
+    conf_.src1_md = xpu::sycl::md_t(src_md(1));
+    conf_.dst_md = xpu::sycl::md_t(dst_md());
     conf_.ndims = ndims();
 
     // XXX: should probably be tuned.
@@ -46,7 +46,7 @@ status_t ref_binary_t::pd_t::init_conf() {
     conf_.do_scale_src1
             = !attr()->scales_.get(DNNL_ARG_SRC_1).has_default_values();
     conf_.is_tensor_op = is_tensor_op();
-    for (size_t i = 0; i < hrt::sycl::md_t::max_dims; i++) {
+    for (size_t i = 0; i < xpu::sycl::md_t::max_dims; i++) {
         conf_.broadcast_dims[i] = broadcast_dims()[i];
     }
 

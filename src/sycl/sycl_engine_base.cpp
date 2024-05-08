@@ -19,9 +19,9 @@
 #include "common/memory.hpp"
 #include "common/memory_storage.hpp"
 #include "gpu/intel/sycl/compat.hpp"
-#include "hrt/sycl/memory_storage.hpp"
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_stream.hpp"
+#include "xpu/sycl/memory_storage.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,10 +32,10 @@ status_t sycl_engine_base_t::create_memory_storage(
     std::unique_ptr<memory_storage_t> _storage;
 
     if (flags & memory_flags_t::prefer_device_usm) {
-        _storage.reset(new hrt::sycl::usm_memory_storage_t(
+        _storage.reset(new xpu::sycl::usm_memory_storage_t(
                 this, ::sycl::usm::alloc::device));
     } else
-        _storage.reset(new hrt::sycl::buffer_memory_storage_t(this));
+        _storage.reset(new xpu::sycl::buffer_memory_storage_t(this));
 
     if (!_storage) return status::out_of_memory;
 

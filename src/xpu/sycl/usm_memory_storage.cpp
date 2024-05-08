@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "hrt/sycl/usm_memory_storage.hpp"
+#include "xpu/sycl/usm_memory_storage.hpp"
 
 #include "common/memory.hpp"
 #include "common/memory_map_manager.hpp"
@@ -25,7 +25,7 @@
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 namespace {
@@ -103,6 +103,6 @@ inout_memory_arg_t usm_memory_storage_t::get_inout_memory_arg(
     return get_memory_arg<::sycl::access::mode::read_write>(this, stream, cgh);
 }
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

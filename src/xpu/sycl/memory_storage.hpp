@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef HRT_SYCL_MEMORY_STORAGE_HPP
-#define HRT_SYCL_MEMORY_STORAGE_HPP
+#ifndef XPU_SYCL_MEMORY_STORAGE_HPP
+#define XPU_SYCL_MEMORY_STORAGE_HPP
 
-#include "hrt/sycl/buffer_memory_storage.hpp"
-#include "hrt/sycl/usm_memory_storage.hpp"
+#include "xpu/sycl/buffer_memory_storage.hpp"
+#include "xpu/sycl/usm_memory_storage.hpp"
 
 #endif

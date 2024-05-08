@@ -21,14 +21,14 @@
 
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
-#include "hrt/sycl/memory_storage_base.hpp"
 #include "sycl/sycl_engine_base.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 
 #include <memory>
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 class usm_memory_storage_t : public memory_storage_base_t {
@@ -156,7 +156,7 @@ private:
 };
 
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

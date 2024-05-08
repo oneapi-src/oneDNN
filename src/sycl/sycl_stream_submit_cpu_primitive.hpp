@@ -18,8 +18,8 @@
 #define SYCL_STREAM_SUBMIT_CPU_DISPATCH_HPP
 
 #include "common/c_types_map.hpp"
-#include "hrt/sycl/utils.hpp"
 #include "sycl/sycl_stream_cpu_thunk.hpp"
+#include "xpu/sycl/utils.hpp"
 
 #include <vector>
 

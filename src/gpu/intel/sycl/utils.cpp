@@ -20,7 +20,7 @@
 #include "sycl/sycl_engine_base.hpp"
 
 #include "gpu/intel/sycl/l0/utils.hpp"
-#include "hrt/ocl/utils.hpp"
+#include "xpu/ocl/utils.hpp"
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
@@ -55,14 +55,14 @@ namespace sycl {
 struct uuid2ocl_dev_t {
     uuid2ocl_dev_t() = default;
 
-    status_t add(hrt::device_uuid_t uuid,
-            const hrt::ocl::wrapper_t<cl_device_id> &d) {
+    status_t add(xpu::device_uuid_t uuid,
+            const xpu::ocl::wrapper_t<cl_device_id> &d) {
         auto it = mapper_.insert(std::make_pair(uuid, d));
         if (!it.second) return status::runtime_error;
         return status::success;
     }
 
-    cl_device_id get(hrt::device_uuid_t uuid) const {
+    cl_device_id get(xpu::device_uuid_t uuid) const {
         auto it = mapper_.find(uuid);
         if (it == mapper_.end()) return nullptr;
         return it->second;
@@ -78,8 +78,8 @@ struct uuid2ocl_dev_t {
     }
 
 private:
-    using mapper_t = std::unordered_map<hrt::device_uuid_t,
-            hrt::ocl::wrapper_t<cl_device_id>, hrt::device_uuid_hasher_t>;
+    using mapper_t = std::unordered_map<xpu::device_uuid_t,
+            xpu::ocl::wrapper_t<cl_device_id>, xpu::device_uuid_hasher_t>;
 
     void release() {
         auto t = utils::make_unique<mapper_t>();
@@ -94,25 +94,25 @@ status_t sycl_dev2ocl_dev(cl_device_id *ocl_dev, const ::sycl::device &dev) {
 #error "cl_khr_device_uuid is required"
 #endif
     using namespace gpu::intel::compute;
-    assert(hrt::sycl::get_backend(dev) == hrt::sycl::backend_t::level0);
-    if (hrt::sycl::get_backend(dev) != hrt::sycl::backend_t::level0)
+    assert(xpu::sycl::get_backend(dev) == xpu::sycl::backend_t::level0);
+    if (xpu::sycl::get_backend(dev) != xpu::sycl::backend_t::level0)
         return status::runtime_error;
 
     static const uuid2ocl_dev_t uuid2ocl_dev = []() {
         auto uuid2ocl_dev_tmp = uuid2ocl_dev_t();
 
         std::vector<cl_device_id> ocl_devices;
-        std::vector<hrt::ocl::wrapper_t<cl_device_id>> ocl_sub_devices;
-        auto st = hrt::ocl::get_devices(
+        std::vector<xpu::ocl::wrapper_t<cl_device_id>> ocl_sub_devices;
+        auto st = xpu::ocl::get_devices(
                 &ocl_devices, &ocl_sub_devices, CL_DEVICE_TYPE_GPU);
         assert(st == status::success);
         MAYBE_UNUSED(st);
 
         const auto register_ocl_dev
                 = [&uuid2ocl_dev_tmp](
-                          const hrt::ocl::wrapper_t<cl_device_id> &d) {
-                      hrt::device_uuid_t ocl_dev_uuid;
-                      auto st = hrt::ocl::get_device_uuid(ocl_dev_uuid, d);
+                          const xpu::ocl::wrapper_t<cl_device_id> &d) {
+                      xpu::device_uuid_t ocl_dev_uuid;
+                      auto st = xpu::ocl::get_device_uuid(ocl_dev_uuid, d);
                       assert(st == status::success);
                       st = uuid2ocl_dev_tmp.add(ocl_dev_uuid, d);
                       assert(st == status::success);
@@ -120,7 +120,7 @@ status_t sycl_dev2ocl_dev(cl_device_id *ocl_dev, const ::sycl::device &dev) {
                   };
 
         for (cl_device_id d : ocl_devices) {
-            register_ocl_dev(hrt::ocl::make_wrapper(d));
+            register_ocl_dev(xpu::ocl::make_wrapper(d));
         }
         for (const auto &sd_wrapper : ocl_sub_devices) {
             register_ocl_dev(sd_wrapper);
@@ -131,7 +131,7 @@ status_t sycl_dev2ocl_dev(cl_device_id *ocl_dev, const ::sycl::device &dev) {
 
     if (uuid2ocl_dev.empty()) return status::runtime_error;
 
-    const hrt::device_uuid_t l0_dev_uuid
+    const xpu::device_uuid_t l0_dev_uuid
             = gpu::intel::sycl::get_device_uuid(dev);
     auto d = uuid2ocl_dev.get(l0_dev_uuid);
 
@@ -148,28 +148,28 @@ static status_t create_ocl_engine(
         const ::sycl::device &sycl_dev,
         const ::sycl::context *sycl_ctx = nullptr) {
     gpu::intel::ocl::ocl_engine_factory_t f(engine_kind::gpu);
-    const auto backend = hrt::sycl::get_backend(sycl_dev);
+    const auto backend = xpu::sycl::get_backend(sycl_dev);
 
     // The SYCL context is always provided for OpenCL backend.
-    if (backend == hrt::sycl::backend_t::opencl && !sycl_ctx)
+    if (backend == xpu::sycl::backend_t::opencl && !sycl_ctx)
         return status::runtime_error;
-    hrt::ocl::wrapper_t<cl_device_id> ocl_dev;
-    hrt::ocl::wrapper_t<cl_context> ocl_ctx;
+    xpu::ocl::wrapper_t<cl_device_id> ocl_dev;
+    xpu::ocl::wrapper_t<cl_context> ocl_ctx;
 
     switch (backend) {
-        case hrt::sycl::backend_t::opencl:
-            ocl_dev = hrt::ocl::make_wrapper(
-                    hrt::sycl::compat::get_native<cl_device_id>(sycl_dev));
-            ocl_ctx = hrt::ocl::make_wrapper(
-                    hrt::sycl::compat::get_native<cl_context>(*sycl_ctx));
+        case xpu::sycl::backend_t::opencl:
+            ocl_dev = xpu::ocl::make_wrapper(
+                    xpu::sycl::compat::get_native<cl_device_id>(sycl_dev));
+            ocl_ctx = xpu::ocl::make_wrapper(
+                    xpu::sycl::compat::get_native<cl_context>(*sycl_ctx));
             break;
-        case hrt::sycl::backend_t::level0: {
+        case xpu::sycl::backend_t::level0: {
             cl_device_id d {nullptr};
             CHECK(sycl_dev2ocl_dev(&d, sycl_dev));
-            ocl_dev = hrt::ocl::make_wrapper(d, true);
+            ocl_dev = xpu::ocl::make_wrapper(d, true);
 
             cl_int err;
-            ocl_ctx = hrt::ocl::make_wrapper(
+            ocl_ctx = xpu::ocl::make_wrapper(
                     clCreateContext(nullptr, 1, &d, nullptr, nullptr, &err));
             OCL_CHECK(err);
             break;
@@ -178,7 +178,7 @@ static status_t create_ocl_engine(
     }
     engine_t *ocl_engine_ptr;
     size_t index;
-    CHECK(hrt::ocl::get_device_index(&index, ocl_dev));
+    CHECK(xpu::ocl::get_device_index(&index, ocl_dev));
     CHECK(f.engine_create(&ocl_engine_ptr, ocl_dev, ocl_ctx, index));
     ocl_engine->reset(utils::downcast<gpu::intel::ocl::ocl_gpu_engine_t *>(
             ocl_engine_ptr));
@@ -194,17 +194,17 @@ status_t create_ocl_engine(
 }
 
 status_t get_kernel_binary(
-        const ::sycl::kernel &kernel, hrt::binary_t &binary) {
+        const ::sycl::kernel &kernel, xpu::binary_t &binary) {
     auto devs = kernel.get_context().get_devices();
     assert(!devs.empty());
-    switch (hrt::sycl::get_backend(devs[0])) {
-        case hrt::sycl::backend_t::level0: {
+    switch (xpu::sycl::get_backend(devs[0])) {
+        case xpu::sycl::backend_t::level0: {
             auto bundle = kernel.get_kernel_bundle();
             auto module_vec = ::sycl::get_native<
                     ::sycl::backend::ext_oneapi_level_zero>(bundle);
             auto module = module_vec[0];
             size_t module_binary_size;
-            hrt::binary_t module_binary;
+            xpu::binary_t module_binary;
             CHECK(gpu::intel::sycl::func_zeModuleGetNativeBinary(
                     module, &module_binary_size, nullptr));
             module_binary.resize(module_binary_size);
@@ -215,15 +215,15 @@ status_t get_kernel_binary(
                         engine_deleter_t>
                         ocl_engine;
                 CHECK(create_ocl_engine(&ocl_engine, devs[0]));
-                hrt::ocl::wrapper_t<cl_program> ocl_program;
-                CHECK(hrt::ocl::create_program(ocl_program,
+                xpu::ocl::wrapper_t<cl_program> ocl_program;
+                CHECK(xpu::ocl::create_program(ocl_program,
                         ocl_engine->device(), ocl_engine->context(),
                         module_binary));
 
                 cl_int err;
                 auto name = kernel.get_info<
                         ::sycl::info::kernel::function_name>();
-                auto ocl_kernel = hrt::ocl::make_wrapper(
+                auto ocl_kernel = xpu::ocl::make_wrapper(
                         clCreateKernel(ocl_program, name.c_str(), &err));
                 OCL_CHECK(err);
                 CHECK(gpu::intel::ocl::get_ocl_kernel_binary(
@@ -231,7 +231,7 @@ status_t get_kernel_binary(
             }
             return status::success;
         }
-        case hrt::sycl::backend_t::opencl: {
+        case xpu::sycl::backend_t::opencl: {
             auto ocl_kernel
                     = ::sycl::get_native<::sycl::backend::opencl>(kernel);
             CHECK(gpu::intel::ocl::get_ocl_kernel_binary(ocl_kernel, binary));

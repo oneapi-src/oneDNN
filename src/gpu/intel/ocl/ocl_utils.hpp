@@ -30,7 +30,7 @@
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/compute/utils.hpp"
-#include "hrt/ocl/utils.hpp"
+#include "xpu/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -52,12 +52,12 @@ cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
 #endif
 
 status_t get_ocl_program_binary(
-        cl_program program, cl_device_id device, hrt::binary_t &binary);
+        cl_program program, cl_device_id device, xpu::binary_t &binary);
 
 status_t get_ocl_program_binary(
-        cl_kernel kernel, cl_device_id device, hrt::binary_t &binary);
+        cl_kernel kernel, cl_device_id device, xpu::binary_t &binary);
 
-status_t get_ocl_kernel_binary(cl_kernel ocl_kernel, hrt::binary_t &binary);
+status_t get_ocl_kernel_binary(cl_kernel ocl_kernel, xpu::binary_t &binary);
 
 status_t get_ocl_program_binary_size(
         cl_kernel kernel, cl_device_id device, size_t *size);

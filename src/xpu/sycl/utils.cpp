@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "hrt/sycl/utils.hpp"
-#include "hrt/sycl/compat.hpp"
+#include "xpu/sycl/utils.hpp"
+#include "xpu/sycl/compat.hpp"
 
 // TODO: Include only for GPU vendor intel.
 #include "gpu/intel/sycl/l0/utils.hpp"
@@ -53,7 +53,7 @@ bool compare_hip_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 std::string to_string(backend_t backend) {
@@ -191,7 +191,7 @@ device_id_t device_id(const ::sycl::device &dev) {
             = device_id_t {static_cast<int>(backend_t::unknown), 0, 0};
     switch (get_backend(dev)) {
         case backend_t::opencl: {
-            auto ocl_device = hrt::ocl::make_wrapper(
+            auto ocl_device = xpu::ocl::make_wrapper(
                     compat::get_native<cl_device_id>(dev));
             device_id = std::make_tuple(static_cast<int>(backend_t::opencl),
                     reinterpret_cast<uint64_t>(ocl_device.get()), 0);
@@ -343,6 +343,6 @@ status_t get_device_index(size_t *index, const ::sycl::device &dev) {
 }
 
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

@@ -25,7 +25,7 @@
 #include "gpu/sycl/sycl_post_ops.hpp"
 #include "gpu/sycl/sycl_primitive_conf.hpp"
 #include "gpu/sycl/sycl_q10n.hpp"
-#include "hrt/sycl/types.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,12 +34,12 @@ namespace sycl {
 using namespace nstl;
 struct pooling_fwd_kernel_vec_t {
     pooling_fwd_kernel_vec_t(const sycl_pooling_conf_t &conf,
-            hrt::sycl::in_memory_arg_t &src, hrt::sycl::out_memory_arg_t &dst,
-            hrt::sycl::out_memory_arg_t &ws, hrt::sycl::in_memory_arg_t &src_1,
-            hrt::sycl::in_memory_arg_t &src_2,
-            hrt::sycl::in_memory_arg_t &src_3,
-            hrt::sycl::in_memory_arg_t &src_4,
-            hrt::sycl::in_memory_arg_t &src_5)
+            xpu::sycl::in_memory_arg_t &src, xpu::sycl::out_memory_arg_t &dst,
+            xpu::sycl::out_memory_arg_t &ws, xpu::sycl::in_memory_arg_t &src_1,
+            xpu::sycl::in_memory_arg_t &src_2,
+            xpu::sycl::in_memory_arg_t &src_3,
+            xpu::sycl::in_memory_arg_t &src_4,
+            xpu::sycl::in_memory_arg_t &src_5)
         : conf_(conf)
         , src_(src)
         , dst_(dst)
@@ -98,18 +98,18 @@ struct pooling_fwd_kernel_vec_t {
     }
 
 private:
-    const hrt::sycl::md_t &src_md() const { return conf_.src_md; }
-    const hrt::sycl::md_t &dst_md() const { return conf_.dst_md; }
-    const hrt::sycl::md_t &ws_md() const { return conf_.ws_md; }
+    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
+    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
+    const xpu::sycl::md_t &ws_md() const { return conf_.ws_md; }
 
     void *src_ptr() const { return src_.get_pointer(); }
-    void *gen_ptr(hrt::sycl::in_memory_arg_t gen_) const {
+    void *gen_ptr(xpu::sycl::in_memory_arg_t gen_) const {
         return gen_.get_pointer();
     }
     void *dst_ptr() const { return dst_.get_pointer(); }
     void *ws_ptr() const { return ws_.get_pointer(); }
 
-    static dim_t get_offset(const hrt::sycl::md_t &mdw, dim_t n, dim_t c,
+    static dim_t get_offset(const xpu::sycl::md_t &mdw, dim_t n, dim_t c,
             dim_t d, dim_t h, dim_t w) {
         switch (mdw.ndims()) {
             case 3: return mdw.off(n, c, w);
@@ -123,27 +123,27 @@ private:
         switch (src_md().data_type()) {
             case data_type::bf16:
                 return (float)
-                        std::numeric_limits<hrt::sycl::bfloat16_t>::lowest();
+                        std::numeric_limits<xpu::sycl::bfloat16_t>::lowest();
             case data_type::s8:
-                return (float)numeric_limits<typename hrt::sycl::prec_traits<
+                return (float)numeric_limits<typename xpu::sycl::prec_traits<
                         data_type::s8>::type>::lowest();
             case data_type::f16:
                 return (float)
-                        std::numeric_limits<typename hrt::sycl::prec_traits<
+                        std::numeric_limits<typename xpu::sycl::prec_traits<
                                 data_type::f16>::type>::lowest();
             case data_type::s32:
-                return (float)numeric_limits<typename hrt::sycl::prec_traits<
+                return (float)numeric_limits<typename xpu::sycl::prec_traits<
                         data_type::s32>::type>::lowest();
             case data_type::u8:
-                return (float)numeric_limits<typename hrt::sycl::prec_traits<
+                return (float)numeric_limits<typename xpu::sycl::prec_traits<
                         data_type::u8>::type>::lowest();
             default:
-                return (float)numeric_limits<typename hrt::sycl::prec_traits<
+                return (float)numeric_limits<typename xpu::sycl::prec_traits<
                         data_type::f32>::type>::lowest();
         }
     }
 
-    float dst_Value(hrt::sycl::in_memory_arg_t arr, int idx, int offset) const {
+    float dst_Value(xpu::sycl::in_memory_arg_t arr, int idx, int offset) const {
         auto src1_desc = conf_.src1_md[idx];
         dim_t src_dim[DNNL_MAX_NDIMS];
         auto src_dim_ = src1_desc.dims();
@@ -157,7 +157,7 @@ private:
         return dst;
     }
 
-    dim_t get_binary_src1_off(const hrt::sycl::md_t &src1_md,
+    dim_t get_binary_src1_off(const xpu::sycl::md_t &src1_md,
             const dim_t *src_dim, const dim_t l_offset, const dim_t *dst_dims,
             const int dst_ndims) const {
 
@@ -168,7 +168,7 @@ private:
                 src1_md, l_offset, dst_dims, dst_ndims, mask_binary_po);
     }
 
-    dim_t get_po_tensor_off(const hrt::sycl::md_t &tensor_md,
+    dim_t get_po_tensor_off(const xpu::sycl::md_t &tensor_md,
             const dim_t l_offset, const dim_t *dst_dims, const int dst_ndims,
             int mask) const {
 
@@ -289,21 +289,21 @@ private:
 
     sycl_pooling_conf_t conf_;
 
-    hrt::sycl::in_memory_arg_t src_;
-    hrt::sycl::out_memory_arg_t dst_;
-    hrt::sycl::out_memory_arg_t ws_;
-    hrt::sycl::in_memory_arg_t src_1_;
-    hrt::sycl::in_memory_arg_t src_2_;
-    hrt::sycl::in_memory_arg_t src_3_;
-    hrt::sycl::in_memory_arg_t src_4_;
-    hrt::sycl::in_memory_arg_t src_5_;
+    xpu::sycl::in_memory_arg_t src_;
+    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::out_memory_arg_t ws_;
+    xpu::sycl::in_memory_arg_t src_1_;
+    xpu::sycl::in_memory_arg_t src_2_;
+    xpu::sycl::in_memory_arg_t src_3_;
+    xpu::sycl::in_memory_arg_t src_4_;
+    xpu::sycl::in_memory_arg_t src_5_;
 };
 
 struct pooling_bwd_kernel_vec_t {
     pooling_bwd_kernel_vec_t(const sycl_pooling_conf_t &conf,
-            hrt::sycl::in_memory_arg_t &diff_dst,
-            hrt::sycl::out_memory_arg_t &diff_src,
-            hrt::sycl::in_memory_arg_t &ws)
+            xpu::sycl::in_memory_arg_t &diff_dst,
+            xpu::sycl::out_memory_arg_t &diff_src,
+            xpu::sycl::in_memory_arg_t &ws)
         : conf_(conf), diff_dst_(diff_dst), diff_src_(diff_src), ws_(ws) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -355,15 +355,15 @@ struct pooling_bwd_kernel_vec_t {
     }
 
 private:
-    const hrt::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
-    const hrt::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
-    const hrt::sycl::md_t &ws_md() const { return conf_.ws_md; }
+    const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
+    const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
+    const xpu::sycl::md_t &ws_md() const { return conf_.ws_md; }
 
     void *diff_src_ptr() const { return diff_src_.get_pointer(); }
     void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
     void *ws_ptr() const { return ws_.get_pointer(); }
 
-    static dim_t get_offset(const hrt::sycl::md_t &mdw, dim_t n, dim_t c,
+    static dim_t get_offset(const xpu::sycl::md_t &mdw, dim_t n, dim_t c,
             dim_t d, dim_t h, dim_t w) {
         switch (mdw.ndims()) {
             case 3: return mdw.off(n, c, w);
@@ -478,9 +478,9 @@ private:
     }
 
     sycl_pooling_conf_t conf_;
-    hrt::sycl::in_memory_arg_t diff_dst_;
-    hrt::sycl::out_memory_arg_t diff_src_;
-    hrt::sycl::in_memory_arg_t ws_;
+    xpu::sycl::in_memory_arg_t diff_dst_;
+    xpu::sycl::out_memory_arg_t diff_src_;
+    xpu::sycl::in_memory_arg_t ws_;
 };
 
 } // namespace sycl

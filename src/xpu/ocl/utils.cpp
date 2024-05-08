@@ -20,7 +20,7 @@
 // - CL_DEVICE_UUID_KHR
 #include <CL/cl_ext.h>
 
-#include "hrt/ocl/utils.hpp"
+#include "xpu/ocl/utils.hpp"
 
 // XXX: Include this header for VERROR_ENGINE.
 // TODO: Move VERROR_ENGINE and other similar macros to a separate file.
@@ -31,7 +31,7 @@
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace ocl {
 
 status_t convert_to_dnnl(cl_int cl_status) {
@@ -304,7 +304,7 @@ cl_platform_id get_platform(engine_t *engine) {
 }
 
 status_t create_program(ocl::wrapper_t<cl_program> &ocl_program,
-        cl_device_id dev, cl_context ctx, const hrt::binary_t &binary) {
+        cl_device_id dev, cl_context ctx, const xpu::binary_t &binary) {
     cl_int err;
     const unsigned char *binary_buffer = binary.data();
     size_t binary_size = binary.size();
@@ -319,7 +319,7 @@ status_t create_program(ocl::wrapper_t<cl_program> &ocl_program,
     return status::success;
 }
 
-status_t get_device_uuid(hrt::device_uuid_t &uuid, cl_device_id ocl_dev) {
+status_t get_device_uuid(xpu::device_uuid_t &uuid, cl_device_id ocl_dev) {
     // This function is used only with SYCL that works with OpenCL 3.0
     // that supports `cl_khr_device_uuid` extension.
 #if defined(cl_khr_device_uuid)
@@ -336,7 +336,7 @@ status_t get_device_uuid(hrt::device_uuid_t &uuid, cl_device_id ocl_dev) {
         uuid_packed[i / sizeof(uint64_t)]
                 |= (((uint64_t)ocl_dev_uuid[i]) << shift);
     }
-    uuid = hrt::device_uuid_t(uuid_packed[0], uuid_packed[1]);
+    uuid = xpu::device_uuid_t(uuid_packed[0], uuid_packed[1]);
     return status::success;
 #endif
     return status::runtime_error;
@@ -411,6 +411,6 @@ status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel) {
 }
 
 } // namespace ocl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

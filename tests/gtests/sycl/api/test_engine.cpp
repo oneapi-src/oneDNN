@@ -20,7 +20,7 @@
 #include "oneapi/dnnl/dnnl.hpp"
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 
-#include "hrt/sycl/compat.hpp"
+#include "xpu/sycl/compat.hpp"
 
 #include <memory>
 
@@ -207,7 +207,7 @@ TEST_P(sycl_engine_test, SubDevice) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
 TEST_P(sycl_engine_test, non_sycl_cpu_runtime) {
     try {
-        device dev(dnnl::impl::hrt::sycl::compat::cpu_selector_v);
+        device dev(dnnl::impl::xpu::sycl::compat::cpu_selector_v);
         context ctx(dev);
         EXPECT_ANY_THROW(sycl_interop::make_engine(dev, ctx));
     } catch (::sycl::exception &e) {

@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef HRT_SYCL_ENGINE_ID_HPP
-#define HRT_SYCL_ENGINE_ID_HPP
+#ifndef XPU_SYCL_ENGINE_ID_HPP
+#define XPU_SYCL_ENGINE_ID_HPP
 
 #include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 struct engine_id_impl_t : public impl::engine_id_impl_t {
@@ -55,7 +55,7 @@ private:
 };
 
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

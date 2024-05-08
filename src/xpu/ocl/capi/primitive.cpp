@@ -24,7 +24,7 @@
 #include "common/primitive_desc_iface.hpp"
 #include "common/primitive_iface.hpp"
 #include "common/utils.hpp"
-#include "hrt/ocl/utils.hpp"
+#include "xpu/ocl/utils.hpp"
 
 #include "gpu/intel/ocl/ocl_c_types_map.hpp"
 #include "gpu/intel/ocl/ocl_engine.hpp"
@@ -50,9 +50,9 @@ status_t dnnl_ocl_interop_primitive_execute(
     ocl_stream->before_exec_hook();
 
     if (deps != nullptr) {
-        std::vector<hrt::ocl::wrapper_t<cl_event>> events(ndeps);
+        std::vector<xpu::ocl::wrapper_t<cl_event>> events(ndeps);
         for (int i = 0; i < ndeps; i++) {
-            events[i] = hrt::ocl::wrapper_t<cl_event>(deps[i], true);
+            events[i] = xpu::ocl::wrapper_t<cl_event>(deps[i], true);
         }
         ocl_stream->ocl_ctx().set_deps(events);
     }

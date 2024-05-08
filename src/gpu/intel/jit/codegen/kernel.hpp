@@ -32,7 +32,7 @@
 #include "gpu/intel/jit/jit_generator.hpp"
 #include "gpu/intel/jit/ngen/ngen.hpp"
 #include "gpu/intel/jit/ngen/ngen_register_allocator.hpp"
-#include "hrt/utils.hpp"
+#include "xpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -47,10 +47,10 @@ struct ir_generator_t : public jit_generator_base {
 
     const char *kernel_name() const override { return kernel_name_.c_str(); }
 
-    hrt::binary_t get_binary(cl_context context, cl_device_id device) override {
+    xpu::binary_t get_binary(cl_context context, cl_device_id device) override {
         kernel_info_t kernel_info;
         auto status = kernel_desc_.init_kernel_info(kernel_info);
-        if (status != status::success) return hrt::binary_t();
+        if (status != status::success) return xpu::binary_t();
         try {
 #define CASE(hw) \
     case ngen::HW::hw: { \
@@ -68,8 +68,8 @@ struct ir_generator_t : public jit_generator_base {
                 default: gpu_assert(false) << "Unexpected GPU architecture";
             }
 #undef CASE
-        } catch (ngen::out_of_registers_exception &) { return hrt::binary_t(); }
-        return hrt::binary_t();
+        } catch (ngen::out_of_registers_exception &) { return xpu::binary_t(); }
+        return xpu::binary_t();
     }
 
 private:

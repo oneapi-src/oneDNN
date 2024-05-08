@@ -123,7 +123,7 @@ if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
 endif()
 
 if(DNNL_WITH_SYCL OR DNNL_GPU_RUNTIME STREQUAL "OCL")
-    add_subdirectory(hrt)
+    add_subdirectory(xpu)
 endif()
 
 if(DNNL_WITH_SYCL)

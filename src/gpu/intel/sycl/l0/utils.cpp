@@ -152,14 +152,14 @@ status_t func_zeModuleGetNativeBinary(ze_module_handle_t hModule, size_t *pSize,
 // we query it directly from Level0 with the zeDeviceGetProperties function.
 // The `get_device_uuid` function packs 128 bits of the device UUID, which are
 // represented as an uint8_t array of size 16, to 2 uint64_t values.
-hrt::device_uuid_t get_device_uuid(const ::sycl::device &dev) {
+xpu::device_uuid_t get_device_uuid(const ::sycl::device &dev) {
     static_assert(ZE_MAX_DEVICE_UUID_SIZE == 16,
             "ZE_MAX_DEVICE_UUID_SIZE is expected to be 16");
 
     auto ze_device_properties = ze_device_properties_t();
     ze_device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
 
-    auto ze_device = hrt::sycl::compat::get_native<ze_device_handle_t>(dev);
+    auto ze_device = xpu::sycl::compat::get_native<ze_device_handle_t>(dev);
     auto status = func_zeDeviceGetProperties(ze_device, &ze_device_properties);
     MAYBE_UNUSED(status);
     assert(status == status::success);
@@ -171,14 +171,14 @@ hrt::device_uuid_t get_device_uuid(const ::sycl::device &dev) {
         size_t shift = i % sizeof(uint64_t) * CHAR_BIT;
         uuid[i / sizeof(uint64_t)] |= (((uint64_t)ze_device_id[i]) << shift);
     }
-    return hrt::device_uuid_t(uuid[0], uuid[1]);
+    return xpu::device_uuid_t(uuid[0], uuid[1]);
 }
 
 status_t sycl_create_kernel_with_level_zero(
         std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const std::string &kernel_name,
         const impl::sycl::sycl_engine_base_t *sycl_engine,
-        const hrt::binary_t &binary) {
+        const xpu::binary_t &binary) {
     auto desc = ze_module_desc_t();
     desc.stype = ZE_STRUCTURE_TYPE_MODULE_DESC;
     desc.format = ZE_MODULE_FORMAT_NATIVE;
@@ -189,9 +189,9 @@ status_t sycl_create_kernel_with_level_zero(
 
     ze_module_handle_t ze_module;
 
-    auto ze_device = hrt::sycl::compat::get_native<ze_device_handle_t>(
+    auto ze_device = xpu::sycl::compat::get_native<ze_device_handle_t>(
             sycl_engine->device());
-    auto ze_ctx = hrt::sycl::compat::get_native<ze_context_handle_t>(
+    auto ze_ctx = xpu::sycl::compat::get_native<ze_context_handle_t>(
             sycl_engine->context());
 
     CHECK(func_zeModuleCreate(ze_ctx, ze_device, &desc, &ze_module, nullptr));
@@ -212,8 +212,8 @@ status_t sycl_create_kernel_with_level_zero(
 }
 
 bool compare_ze_devices(const ::sycl::device &lhs, const ::sycl::device &rhs) {
-    auto lhs_ze_handle = hrt::sycl::compat::get_native<ze_device_handle_t>(lhs);
-    auto rhs_ze_handle = hrt::sycl::compat::get_native<ze_device_handle_t>(rhs);
+    auto lhs_ze_handle = xpu::sycl::compat::get_native<ze_device_handle_t>(lhs);
+    auto rhs_ze_handle = xpu::sycl::compat::get_native<ze_device_handle_t>(rhs);
 
     return lhs_ze_handle == rhs_ze_handle;
 }

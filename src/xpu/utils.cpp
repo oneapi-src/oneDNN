@@ -17,17 +17,17 @@
 #include <tuple>
 #include <vector>
 
-#include "hrt/utils.hpp"
+#include "xpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 
 size_t device_uuid_hasher_t::operator()(const device_uuid_t &uuid) const {
     const size_t seed = hash_combine(0, std::get<0>(uuid));
     return hash_combine(seed, std::get<1>(uuid));
 }
 
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

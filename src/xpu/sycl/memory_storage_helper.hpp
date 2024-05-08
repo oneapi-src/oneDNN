@@ -15,11 +15,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef HRT_SYCL_MEMORY_STORAGE_HELPER_HPP
-#define HRT_SYCL_MEMORY_STORAGE_HELPER_HPP
+#ifndef XPU_SYCL_MEMORY_STORAGE_HELPER_HPP
+#define XPU_SYCL_MEMORY_STORAGE_HELPER_HPP
 
 #include <optional>
-#include "hrt/sycl/memory_storage.hpp"
+#include "xpu/sycl/memory_storage.hpp"
 
 #ifdef DNNL_SYCL_CUDA
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
@@ -31,19 +31,19 @@
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 #define CTX_IN_SYCL_MEMORY(arg) \
-    dnnl::impl::hrt::sycl::interop_memory_arg_t<::sycl::access::mode::read>( \
+    dnnl::impl::xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read>( \
             &CTX_IN_STORAGE(arg), cgh)
 
 #define CTX_OUT_SYCL_MEMORY(arg) \
-    dnnl::impl::hrt::sycl::interop_memory_arg_t<::sycl::access::mode::write>( \
+    dnnl::impl::xpu::sycl::interop_memory_arg_t<::sycl::access::mode::write>( \
             &CTX_OUT_STORAGE(arg), cgh)
 
 #define CTX_SCRATCH_SYCL_MEMORY(arg) \
-    dnnl::impl::hrt::sycl::interop_memory_arg_t< \
+    dnnl::impl::xpu::sycl::interop_memory_arg_t< \
             ::sycl::access::mode::read_write>( \
             ctx.get_scratchpad_grantor().get_memory_storage(arg).get(), cgh)
 
@@ -116,7 +116,7 @@ private:
 };
 
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

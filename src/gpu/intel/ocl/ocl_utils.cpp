@@ -153,7 +153,7 @@ status_t get_ocl_program_binary_size(
 }
 
 status_t get_ocl_program_binary(
-        cl_program program, cl_device_id device, hrt::binary_t &binary) {
+        cl_program program, cl_device_id device, xpu::binary_t &binary) {
     size_t n_devices = 0;
     CHECK(get_number_devices(program, &n_devices));
 
@@ -170,9 +170,9 @@ status_t get_ocl_program_binary(
     size_t device_idx = std::distance(
             devices.begin(), std::find(devices.begin(), devices.end(), device));
     std::vector<uint8_t *> binary_pointers(n_devices);
-    std::vector<hrt::binary_t> binaries(n_devices);
+    std::vector<xpu::binary_t> binaries(n_devices);
     for (size_t i = 0; i < n_devices; ++i) {
-        binaries[i] = hrt::binary_t(binarySize[i]);
+        binaries[i] = xpu::binary_t(binarySize[i]);
         binary_pointers[i] = binaries[i].data();
     }
 
@@ -184,7 +184,7 @@ status_t get_ocl_program_binary(
 }
 
 status_t get_ocl_program_binary(
-        cl_kernel kernel, cl_device_id device, hrt::binary_t &binary) {
+        cl_kernel kernel, cl_device_id device, xpu::binary_t &binary) {
     cl_int err;
 
     cl_program program;
@@ -195,7 +195,7 @@ status_t get_ocl_program_binary(
     return get_ocl_program_binary(program, device, binary);
 }
 
-status_t get_ocl_kernel_binary(cl_kernel ocl_kernel, hrt::binary_t &binary) {
+status_t get_ocl_kernel_binary(cl_kernel ocl_kernel, xpu::binary_t &binary) {
     binary.clear();
     size_t binary_size;
     OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL, 0,

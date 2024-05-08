@@ -18,7 +18,7 @@
 #include "common/impl_list_item.hpp"
 #include "common/utils.hpp"
 
-#include "hrt/sycl/utils.hpp"
+#include "xpu/sycl/utils.hpp"
 
 #include "gpu/nvidia/cudnn_batch_normalization.hpp"
 #include "gpu/nvidia/cudnn_binary.hpp"
@@ -147,7 +147,7 @@ cublasHandle_t *sycl_cuda_engine_t::get_cublas_handle() {
 }
 
 device_id_t sycl_cuda_engine_t::device_id() const {
-    return device_id_t(static_cast<int>(hrt::sycl::backend_t::nvidia),
+    return device_id_t(static_cast<int>(xpu::sycl::backend_t::nvidia),
             static_cast<uint64_t>(compat::get_native<CUdevice>(device())),
             static_cast<uint64_t>(0));
 }

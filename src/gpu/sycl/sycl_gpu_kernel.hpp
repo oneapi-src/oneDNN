@@ -18,7 +18,7 @@
 #define GPU_SYCL_SYCL_GPU_KERNEL_HPP
 
 #include "common/utils.hpp"
-#include "hrt/sycl/utils.hpp"
+#include "xpu/sycl/utils.hpp"
 
 #include "gpu/intel/compute/kernel.hpp"
 

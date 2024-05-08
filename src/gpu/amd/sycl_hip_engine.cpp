@@ -19,8 +19,8 @@
 #include "common/utils.hpp"
 #include "hip/hip_runtime.h"
 
-#include "hrt/sycl/utils.hpp"
 #include "miopen/miopen.h"
+#include "xpu/sycl/utils.hpp"
 
 #include "gpu/amd/miopen_batch_normalization.hpp"
 #include "gpu/amd/miopen_binary.hpp"
@@ -136,7 +136,7 @@ rocblas_handle *sycl_hip_engine_t::get_rocblas_handle() {
 }
 
 device_id_t sycl_hip_engine_t::device_id() const {
-    return device_id_t(static_cast<int>(hrt::sycl::backend_t::amd),
+    return device_id_t(static_cast<int>(xpu::sycl::backend_t::amd),
             static_cast<uint64_t>(compat::get_native<hipDevice_t>(device())),
             static_cast<uint64_t>(0));
 }

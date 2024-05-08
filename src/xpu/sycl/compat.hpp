@@ -14,17 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMMON_HRT_SYCL_COMPAT_HPP
-#define COMMON_HRT_SYCL_COMPAT_HPP
+#ifndef COMMON_XPU_SYCL_COMPAT_HPP
+#define COMMON_XPU_SYCL_COMPAT_HPP
 
 // This file contains a common SYCL compatibility layer. All vendor specific
 // SYCL code that requires compatbility must reside in the vendor directories.
 
-#include "hrt/sycl/utils.hpp"
+#include "xpu/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 namespace compat {
 
@@ -90,7 +90,7 @@ inline const auto &gpu_selector_v = ::sycl::gpu_selector_v;
 
 } // namespace compat
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

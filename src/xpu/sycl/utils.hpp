@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef HRT_SYCL_UTILS_HPP
-#define HRT_SYCL_UTILS_HPP
+#ifndef XPU_SYCL_UTILS_HPP
+#define XPU_SYCL_UTILS_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 
-#include "hrt/utils.hpp"
+#include "xpu/utils.hpp"
 
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>
@@ -48,7 +48,7 @@
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 using buffer_u8_t = ::sycl::buffer<uint8_t, 1>;
@@ -85,7 +85,7 @@ std::vector<::sycl::device> get_devices(::sycl::info::device_type dev_type,
 status_t get_device_index(size_t *index, const ::sycl::device &dev);
 
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

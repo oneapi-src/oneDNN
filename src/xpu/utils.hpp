@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMMON_HRT_UTILS_HPP
-#define COMMON_HRT_UTILS_HPP
+#ifndef COMMON_XPU_UTILS_HPP
+#define COMMON_XPU_UTILS_HPP
 
 #include <tuple>
 #include <vector>
@@ -27,7 +27,7 @@
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 
 using binary_t = std::vector<uint8_t>;
 using device_uuid_t = std::tuple<uint64_t, uint64_t>;
@@ -36,7 +36,7 @@ struct device_uuid_hasher_t {
     size_t operator()(const device_uuid_t &uuid) const;
 };
 
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

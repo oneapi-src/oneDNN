@@ -20,8 +20,8 @@
 #include "gpu/nvidia/cudnn_gemm_inner_product.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
-#include "hrt/sycl/buffer_memory_storage.hpp"
-#include "hrt/sycl/memory_storage_helper.hpp"
+#include "xpu/sycl/buffer_memory_storage.hpp"
+#include "xpu/sycl/memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {

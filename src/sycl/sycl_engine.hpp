@@ -81,7 +81,7 @@ public:
         auto dev_type = (engine_kind_ == engine_kind::cpu)
                 ? ::sycl::info::device_type::cpu
                 : ::sycl::info::device_type::gpu;
-        return hrt::sycl::get_devices(dev_type).size();
+        return xpu::sycl::get_devices(dev_type).size();
     }
 
     status_t engine_create(engine_t **engine, size_t index) const override;

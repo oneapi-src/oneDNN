@@ -29,7 +29,7 @@ endif()
 # `ocl` directory will have to be added only for the intel vendor.
 add_subdirectory(ocl)
 
-set(OBJ_LIB ${LIB_PACKAGE_NAME}_hrt)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_xpu)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)

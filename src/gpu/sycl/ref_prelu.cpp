@@ -32,9 +32,9 @@ status_t ref_prelu_fwd_t::pd_t::init_conf() {
 
     const memory_desc_wrapper data_d(src_md(0));
     const memory_desc_wrapper weights_d(weights_md(0));
-    conf_.data_md = hrt::sycl::md_t(src_md(0));
-    conf_.weights_md = hrt::sycl::md_t(weights_md(0));
-    conf_.dst_md = hrt::sycl::md_t(dst_md(0));
+    conf_.data_md = xpu::sycl::md_t(src_md(0));
+    conf_.weights_md = xpu::sycl::md_t(weights_md(0));
+    conf_.dst_md = xpu::sycl::md_t(dst_md(0));
     conf_.ndims = ndims();
     conf_.mask = utils::get_dims_mask(data_d.dims(), weights_d.dims(), ndims());
 
@@ -77,11 +77,11 @@ status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 status_t ref_prelu_bwd_t::pd_t::init_conf() {
     if (has_zero_dim_memory()) return status::success;
     conf_ = sycl_prelu_conf_t();
-    conf_.data_md = hrt::sycl::md_t(src_md(0));
-    conf_.weights_md = hrt::sycl::md_t(weights_md(0));
-    conf_.diff_data_md = hrt::sycl::md_t(diff_src_md(0));
-    conf_.diff_weights_md = hrt::sycl::md_t(diff_weights_md(0));
-    conf_.diff_dst_md = hrt::sycl::md_t(diff_dst_md(0));
+    conf_.data_md = xpu::sycl::md_t(src_md(0));
+    conf_.weights_md = xpu::sycl::md_t(weights_md(0));
+    conf_.diff_data_md = xpu::sycl::md_t(diff_src_md(0));
+    conf_.diff_weights_md = xpu::sycl::md_t(diff_weights_md(0));
+    conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md(0));
     conf_.ndims = ndims();
 
     const memory_desc_wrapper weights_d(weights_md(0));

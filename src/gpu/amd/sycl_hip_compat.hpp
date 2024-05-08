@@ -19,7 +19,7 @@
 
 #include <hip/hip_runtime.h>
 
-#include "hrt/sycl/compat.hpp"
+#include "xpu/sycl/compat.hpp"
 
 #include "gpu/amd/sycl_hip_utils.hpp"
 

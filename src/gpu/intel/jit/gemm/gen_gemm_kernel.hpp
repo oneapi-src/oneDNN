@@ -25,7 +25,7 @@
 #include "gpu/intel/jit/gemm/kernel_evaluator.hpp"
 #include "gpu/intel/jit/jit_generator_base.hpp"
 #include "gpu/intel/kernel_cache.hpp"
-#include "hrt/utils.hpp"
+#include "xpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -160,7 +160,7 @@ struct gen_gemm_kernel_t : public jit_generator_base {
         : desc_(desc) {}
 
     const char *kernel_name() const override { return "gemm_kernel"; }
-    hrt::binary_t get_binary(cl_context context, cl_device_id device) override;
+    xpu::binary_t get_binary(cl_context context, cl_device_id device) override;
 
     const gen_gemm_kernel_desc_t *desc() const { return &desc_; }
 

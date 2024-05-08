@@ -25,8 +25,8 @@ namespace sycl {
 using namespace impl::sycl;
 status_t ref_sycl_lrn_fwd_t::pd_t::init_conf() {
     conf_ = sycl_lrn_conf_t();
-    conf_.src_md = hrt::sycl::md_t(src_md());
-    conf_.dst_md = hrt::sycl::md_t(dst_md());
+    conf_.src_md = xpu::sycl::md_t(src_md());
+    conf_.dst_md = xpu::sycl::md_t(dst_md());
     conf_.alg_kind = desc()->alg_kind;
     conf_.block_size = 16;
     conf_.wg_size = 32;
@@ -87,9 +87,9 @@ status_t ref_sycl_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
 status_t ref_sycl_lrn_bwd_t::pd_t::init_conf() {
     conf_ = sycl_lrn_conf_t();
-    conf_.src_md = hrt::sycl::md_t(src_md());
-    conf_.diff_dst_md = hrt::sycl::md_t(diff_dst_md());
-    conf_.diff_src_md = hrt::sycl::md_t(diff_src_md());
+    conf_.src_md = xpu::sycl::md_t(src_md());
+    conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md());
+    conf_.diff_src_md = xpu::sycl::md_t(diff_src_md());
     conf_.alg_kind = desc()->alg_kind;
     conf_.block_size = 16;
     conf_.wg_size = 32;

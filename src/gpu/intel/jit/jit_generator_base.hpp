@@ -20,7 +20,7 @@
 #include <vector>
 #include <CL/cl.h>
 
-#include "hrt/utils.hpp"
+#include "xpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,7 +31,7 @@ namespace jit {
 struct jit_generator_base {
     virtual ~jit_generator_base() = default;
     virtual const char *kernel_name() const = 0;
-    virtual hrt::binary_t get_binary(cl_context context, cl_device_id device)
+    virtual xpu::binary_t get_binary(cl_context context, cl_device_id device)
             = 0;
 };
 

@@ -26,8 +26,8 @@
 #include "common/stream.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/sycl/compat.hpp"
-#include "hrt/sycl/c_types_map.hpp"
-#include "hrt/sycl/memory_storage.hpp"
+#include "xpu/sycl/c_types_map.hpp"
+#include "xpu/sycl/memory_storage.hpp"
 
 #include <assert.h>
 #include <exception>
@@ -57,7 +57,7 @@ template <typename... param_types>
 status_t submit_cpu_primitive_with_params_impl(
         submit_ctx_t *submit_ctx, ::sycl::handler &cgh, param_types... params) {
 
-    hrt::sycl::compat::host_task(cgh, [=]() {
+    xpu::sycl::compat::host_task(cgh, [=]() {
         thunk_params_t thunk_params;
         thunk_params.submit_ctx_ptr = submit_ctx;
 
@@ -87,7 +87,7 @@ void fast_dispatch_by_size(submit_ctx_t *submit_ctx, ::sycl::handler &cgh,
     constexpr size_t nparams = sizeof...(storage_types);
 
     auto params_tp = std::make_tuple(
-            utils::downcast<const hrt::sycl::buffer_memory_storage_t *>(
+            utils::downcast<const xpu::sycl::buffer_memory_storage_t *>(
                     storages)
                     ->buffer()...);
     submit_cpu_primitive_with_params_impl(
@@ -122,9 +122,9 @@ void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
                 // Skip USM memory storages as they do not require special
                 // handling and can be accessed directly
                 auto mem_api_kind = utils::downcast<
-                        const hrt::sycl::memory_storage_base_t *>(mem_storage)
+                        const xpu::sycl::memory_storage_base_t *>(mem_storage)
                                             ->memory_kind();
-                if (mem_api_kind == hrt::sycl::memory_kind::usm) continue;
+                if (mem_api_kind == xpu::sycl::memory_kind::usm) continue;
                 sycl_mem_storages.push_back(mem_storage);
             }
         }

@@ -26,7 +26,7 @@
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/utils.hpp"
-#include "hrt/utils.hpp"
+#include "xpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -61,7 +61,7 @@ public:
         return status::runtime_error;
     }
     virtual status_t get_binary(
-            const engine_t *engine, hrt::binary_t &binary) const {
+            const engine_t *engine, xpu::binary_t &binary) const {
         gpu_assert(false) << "unimplemented function get_binary() called";
         return status::runtime_error;
     }
@@ -145,7 +145,7 @@ public:
         return impl_->get_binary_size(engine, binary_size);
     }
 
-    status_t get_binary(const engine_t *engine, hrt::binary_t &binary) const {
+    status_t get_binary(const engine_t *engine, xpu::binary_t &binary) const {
         return impl_->get_binary(engine, binary);
     }
 

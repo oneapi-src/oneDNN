@@ -14,16 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef HRT_SYCL_MEMORY_STORAGE_BASE_HPP
-#define HRT_SYCL_MEMORY_STORAGE_BASE_HPP
+#ifndef XPU_SYCL_MEMORY_STORAGE_BASE_HPP
+#define XPU_SYCL_MEMORY_STORAGE_BASE_HPP
 
 #include "common/memory_storage.hpp"
-#include "hrt/sycl/c_types_map.hpp"
-#include "hrt/sycl/types.hpp"
+#include "xpu/sycl/c_types_map.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 class memory_storage_base_t : public memory_storage_t {
@@ -48,7 +48,7 @@ public:
 };
 
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

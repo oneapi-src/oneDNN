@@ -17,7 +17,7 @@
 #ifndef GPU_INTEL_SYCL_COMPAT_HPP
 #define GPU_INTEL_SYCL_COMPAT_HPP
 
-#include "hrt/sycl/compat.hpp"
+#include "xpu/sycl/compat.hpp"
 
 #include "gpu/intel/sycl/utils.hpp"
 
@@ -41,7 +41,7 @@ namespace compat {
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         const impl::sycl::sycl_engine_base_t *sycl_engine,
-        const hrt::binary_t &binary, const char *kernel_name);
+        const xpu::binary_t &binary, const char *kernel_name);
 
 uint64_t init_extensions(const ::sycl::device &dev);
 

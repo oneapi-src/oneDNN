@@ -21,12 +21,12 @@
 #include "common/memory.hpp"
 #include "common/utils.hpp"
 
-#include "hrt/sycl/c_types_map.hpp"
-#include "hrt/sycl/memory_storage.hpp"
 #include "sycl/sycl_engine.hpp"
+#include "xpu/sycl/c_types_map.hpp"
+#include "xpu/sycl/memory_storage.hpp"
 
 using namespace dnnl::impl::sycl;
-using namespace dnnl::impl::hrt::sycl;
+using namespace dnnl::impl::xpu::sycl;
 
 using dnnl::impl::engine_t;
 using dnnl::impl::memory_desc_t;

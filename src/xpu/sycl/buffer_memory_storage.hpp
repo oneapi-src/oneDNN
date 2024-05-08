@@ -23,12 +23,12 @@
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/sycl/utils.hpp"
-#include "hrt/sycl/c_types_map.hpp"
-#include "hrt/sycl/memory_storage_base.hpp"
+#include "xpu/sycl/c_types_map.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 class buffer_memory_storage_t : public memory_storage_base_t {
@@ -38,7 +38,7 @@ public:
     buffer_memory_storage_t(
             engine_t *engine, const memory_storage_t *parent_storage);
 
-    hrt::sycl::buffer_u8_t &buffer() const { return *buffer_; }
+    xpu::sycl::buffer_u8_t &buffer() const { return *buffer_; }
 
     memory_kind_t memory_kind() const override { return memory_kind::buffer; }
 
@@ -50,8 +50,8 @@ public:
     status_t set_data_handle(void *handle) override {
         if (!handle) return status::success;
 
-        auto *buf_u8_ptr = static_cast<hrt::sycl::buffer_u8_t *>(handle);
-        buffer_.reset(new hrt::sycl::buffer_u8_t(*buf_u8_ptr));
+        auto *buf_u8_ptr = static_cast<xpu::sycl::buffer_u8_t *>(handle);
+        buffer_.reset(new xpu::sycl::buffer_u8_t(*buf_u8_ptr));
         return status::success;
     }
 
@@ -79,14 +79,14 @@ protected:
     status_t init_allocate(size_t size) override;
 
 private:
-    hrt::sycl::buffer_u8_t &parent_buffer() const;
+    xpu::sycl::buffer_u8_t &parent_buffer() const;
 
-    std::shared_ptr<hrt::sycl::buffer_u8_t> buffer_;
+    std::shared_ptr<xpu::sycl::buffer_u8_t> buffer_;
     size_t base_offset_ = 0;
 };
 
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

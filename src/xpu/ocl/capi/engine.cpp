@@ -21,7 +21,7 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "gpu/intel/ocl/ocl_engine.hpp"
-#include "hrt/ocl/utils.hpp"
+#include "xpu/ocl/utils.hpp"
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::gpu::intel::ocl;
@@ -34,7 +34,7 @@ status_t dnnl_ocl_interop_engine_create(
     ocl_engine_factory_t f(engine_kind::gpu);
 
     size_t index;
-    CHECK(hrt::ocl::get_device_index(&index, device));
+    CHECK(xpu::ocl::get_device_index(&index, device));
 
     return f.engine_create(engine, device, context, index);
 }
@@ -72,7 +72,7 @@ status_t dnnl_ocl_interop_engine_create_from_cache_blob(engine_t **engine,
     ocl_engine_factory_t f(engine_kind::gpu);
 
     size_t index;
-    CHECK(hrt::ocl::get_device_index(&index, device));
+    CHECK(xpu::ocl::get_device_index(&index, device));
 
     const std::vector<uint8_t> cb(cache_blob, cache_blob + size);
     return f.engine_create(engine, device, context, index, cb);

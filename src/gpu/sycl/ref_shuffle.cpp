@@ -51,10 +51,10 @@ status_t ref_shuffle_t::pd_t::init_conf() {
         conf_.HW = conf_.H * conf_.W;
         conf_.SP = conf_.D * conf_.HW;
     }
-    conf_.stat_md = hrt::sycl::md_t(src_md(0));
+    conf_.stat_md = xpu::sycl::md_t(src_md(0));
     conf_.work_amount = memory_desc_wrapper(src_md()).nelems();
-    conf_.src_md = hrt::sycl::md_t(src_md(0));
-    conf_.dst_md = hrt::sycl::md_t(dst_md(0));
+    conf_.src_md = xpu::sycl::md_t(src_md(0));
+    conf_.dst_md = xpu::sycl::md_t(dst_md(0));
 
     if (ndims() == 5) {
         const auto tag

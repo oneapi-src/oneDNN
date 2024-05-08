@@ -14,37 +14,37 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef HRT_SYCL_TYPES_HPP
-#define HRT_SYCL_TYPES_HPP
+#ifndef XPU_SYCL_TYPES_HPP
+#define XPU_SYCL_TYPES_HPP
 
 #include <limits>
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
-#include "hrt/sycl/compat.hpp"
-#include "hrt/sycl/utils.hpp"
+#include "xpu/sycl/compat.hpp"
+#include "xpu/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 // The macros are expected to be called within a command group function object
 // that is passed to `parallel_for`.
 #define CTX_IN_SYCL_KERNEL_MEMORY(arg) \
     CTX_IN_STORAGE(arg).is_null() \
-            ? hrt::sycl::memory_storage_base_t::empty_in_memory_arg( \
+            ? xpu::sycl::memory_storage_base_t::empty_in_memory_arg( \
                     ctx.stream(), cgh) \
-            : utils::downcast<const hrt::sycl::memory_storage_base_t *>( \
+            : utils::downcast<const xpu::sycl::memory_storage_base_t *>( \
                     &CTX_IN_STORAGE(arg)) \
                       ->get_in_memory_arg(ctx.stream(), cgh)
 
 #define CTX_OUT_SYCL_KERNEL_MEMORY(arg) \
     CTX_OUT_STORAGE(arg).is_null() \
-            ? hrt::sycl::memory_storage_base_t::empty_out_memory_arg( \
+            ? xpu::sycl::memory_storage_base_t::empty_out_memory_arg( \
                     ctx.stream(), cgh) \
-            : utils::downcast<const hrt::sycl::memory_storage_base_t *>( \
+            : utils::downcast<const xpu::sycl::memory_storage_base_t *>( \
                     &CTX_OUT_STORAGE(arg)) \
                       ->get_out_memory_arg(ctx.stream(), cgh)
 
@@ -287,23 +287,23 @@ struct prec_traits<data_type::u8> {
 };
 
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 
 namespace std {
 
 template <>
-class numeric_limits<dnnl::impl::hrt::sycl::bfloat16_t> {
+class numeric_limits<dnnl::impl::xpu::sycl::bfloat16_t> {
 public:
-    static constexpr dnnl::impl::hrt::sycl::bfloat16_t lowest() {
+    static constexpr dnnl::impl::xpu::sycl::bfloat16_t lowest() {
         return {uint16_t(0xff7f)};
     }
-    static constexpr dnnl::impl::hrt::sycl::bfloat16_t max() {
+    static constexpr dnnl::impl::xpu::sycl::bfloat16_t max() {
         return {uint16_t(0x7f7f)};
     }
     static constexpr int digits = 8;
-    static constexpr dnnl::impl::hrt::sycl::bfloat16_t epsilon() {
+    static constexpr dnnl::impl::xpu::sycl::bfloat16_t epsilon() {
         return {uint16_t((0x7f - (digits - 1)) << (digits - 1))};
     }
 };

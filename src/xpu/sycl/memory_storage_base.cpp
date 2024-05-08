@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "hrt/sycl/memory_storage_base.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 #include "sycl/sycl_stream.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace hrt {
+namespace xpu {
 namespace sycl {
 
 namespace {
@@ -47,6 +47,6 @@ inout_memory_arg_t memory_storage_base_t::empty_inout_memory_arg(
     return get_empty_memory_arg<::sycl::access::mode::read_write>(stream, cgh);
 }
 } // namespace sycl
-} // namespace hrt
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

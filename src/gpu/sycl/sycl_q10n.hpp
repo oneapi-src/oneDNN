@@ -20,8 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
-#include "hrt/sycl/types.hpp"
-#include "hrt/sycl/utils.hpp"
+#include "xpu/sycl/types.hpp"
+#include "xpu/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {

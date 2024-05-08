@@ -28,7 +28,7 @@
 #include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
-#include "hrt/sycl/engine_id.hpp"
+#include "xpu/sycl/engine_id.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -41,18 +41,18 @@ public:
         : gpu::intel::compute::compute_engine_t(kind, runtime_kind::sycl, index)
         , device_(dev)
         , context_(ctx)
-        , backend_(hrt::sycl::backend_t::unknown) {}
+        , backend_(xpu::sycl::backend_t::unknown) {}
 
     status_t init() override {
-        backend_ = hrt::sycl::get_backend(device_);
-        VERROR_ENGINE(utils::one_of(backend_, hrt::sycl::backend_t::host,
-                              hrt::sycl::backend_t::opencl,
-                              hrt::sycl::backend_t::level0,
-                              hrt::sycl::backend_t::nvidia,
-                              hrt::sycl::backend_t::amd),
+        backend_ = xpu::sycl::get_backend(device_);
+        VERROR_ENGINE(utils::one_of(backend_, xpu::sycl::backend_t::host,
+                              xpu::sycl::backend_t::opencl,
+                              xpu::sycl::backend_t::level0,
+                              xpu::sycl::backend_t::nvidia,
+                              xpu::sycl::backend_t::amd),
                 status::invalid_arguments, VERBOSE_UNSUPPORTED_BACKEND, "sycl");
 
-        CHECK(hrt::sycl::check_device(kind(), device_, context_));
+        CHECK(xpu::sycl::check_device(kind(), device_, context_));
         CHECK(gpu::intel::compute::compute_engine_t::init());
 
         return status::success;
@@ -75,7 +75,7 @@ public:
             if (!ocl_kernels[i]) continue;
             auto *k = utils::downcast<gpu::intel::ocl::ocl_gpu_kernel_t *>(
                     ocl_kernels[i].impl());
-            hrt::binary_t binary;
+            xpu::binary_t binary;
             CHECK(k->get_binary(ocl_engine, binary));
             CHECK(create_kernel_from_binary(
                     kernels[i], binary, kernel_names[i]));
@@ -84,7 +84,7 @@ public:
     }
 
     status_t create_kernel_from_binary(gpu::intel::compute::kernel_t &kernel,
-            const hrt::binary_t &binary,
+            const xpu::binary_t &binary,
             const char *kernel_name) const override {
         std::vector<gpu::intel::compute::scalar_type_t> arg_types;
 
@@ -136,7 +136,7 @@ public:
 
         auto kernel_name = jitter->kernel_name();
 
-        hrt::binary_t binary = jitter->get_binary(
+        xpu::binary_t binary = jitter->get_binary(
                 ocl_engine->context(), ocl_engine->device());
         return create_kernel_from_binary(*kernel, binary, kernel_name);
     }
@@ -166,33 +166,33 @@ public:
     const ::sycl::device &device() const { return device_; }
     const ::sycl::context &context() const { return context_; }
 
-    hrt::sycl::backend_t backend() const { return backend_; }
+    xpu::sycl::backend_t backend() const { return backend_; }
 
     cl_device_id ocl_device() const {
-        if (backend() != hrt::sycl::backend_t::opencl) {
+        if (backend() != xpu::sycl::backend_t::opencl) {
             assert(!"not expected");
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return hrt::ocl::make_wrapper(
-                hrt::sycl::compat::get_native<cl_device_id>(device()));
+        return xpu::ocl::make_wrapper(
+                xpu::sycl::compat::get_native<cl_device_id>(device()));
     }
     cl_context ocl_context() const {
-        if (backend() != hrt::sycl::backend_t::opencl) {
+        if (backend() != xpu::sycl::backend_t::opencl) {
             assert(!"not expected");
             return nullptr;
         }
         assert(device_.is_cpu() || device_.is_gpu());
-        return hrt::ocl::make_wrapper(
-                hrt::sycl::compat::get_native<cl_context>(context()));
+        return xpu::ocl::make_wrapper(
+                xpu::sycl::compat::get_native<cl_context>(context()));
     }
 
     device_id_t device_id() const override {
-        return hrt::sycl::device_id(device_);
+        return xpu::sycl::device_id(device_);
     }
 
     engine_id_t engine_id() const override {
-        return engine_id_t(new hrt::sycl::engine_id_impl_t(
+        return engine_id_t(new xpu::sycl::engine_id_impl_t(
                 device(), context(), kind(), runtime_kind(), index()));
     }
 
@@ -204,7 +204,7 @@ private:
     ::sycl::device device_;
     ::sycl::context context_;
 
-    hrt::sycl::backend_t backend_;
+    xpu::sycl::backend_t backend_;
 };
 
 } // namespace sycl
