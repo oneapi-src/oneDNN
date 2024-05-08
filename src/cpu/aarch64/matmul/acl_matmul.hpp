@@ -137,8 +137,10 @@ struct acl_matmul_t : public primitive_t {
                         amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
             }
 
-            // We can only fuse sum if it is the first post op
-            if (attr_.post_ops_.contain(primitive_kind::sum, 0)) {
+            // We can only fuse sum if it is the first post op and we aren't
+            // transposing dst after
+            if (attr_.post_ops_.contain(primitive_kind::sum, 0)
+                    && !amp_.do_transC) {
                 // Check there isn't another sum after the first
                 VDISPATCH_MATMUL(
                         attr_.post_ops_.find(primitive_kind::sum, 1, -1) < 0,
