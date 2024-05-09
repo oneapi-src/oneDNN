@@ -47,7 +47,7 @@ enabled individually
 
 ```bash
 ├── common/            # Common files for the library (e.g. API, basic abstractions, etc).
-├── hrt/               # HRT stands for Heterogeneous Runtime. All vendor agnostic code for runtimes resides here.
+├── xpu/               # xpu stands for Heterogeneous Runtime. All vendor agnostic code for runtimes resides here.
 │   ├── sycl/          # Vendor agnostic code for SYCL runtime.
 │   ├── ocl/           # Vendor agnostic code for OpenCL runtime.
 │   └── ...
@@ -104,8 +104,8 @@ All vendor-specific code should be enclosed in a namespace that has the vendor's
 Based on the directory structure described above the following namespaces will be
 introduced:
 * `dnnl::impl`
-    * `dnnl::impl::hrt::sycl`
-    * `dnnl::impl::hrt::ocl`
+    * `dnnl::impl::xpu::sycl`
+    * `dnnl::impl::xpu::ocl`
 * `dnnl::impl::cpu`
     * `dnnl::impl::cpu::sycl`
 * `dnnl::impl::gpu`
@@ -153,18 +153,18 @@ struct engine_impl_t {
 
 } // namespace dnnl::impl
 
-// Location: src/hrt/ocl
-namespace dnnl::impl::hrt::ocl {
+// Location: src/xpu/ocl
+namespace dnnl::impl::xpu::ocl {
 
 struct engine_impl_t : public dnnl::impl::engine_impl_t {
     cl_device_id device;
     cl_context context;
 };
 
-} // namespace dnnl::impl::hrt::ocl
+} // namespace dnnl::impl::xpu::ocl
 
-// Location: src/hrt/sycl
-namespace dnnl::impl::hrt::sycl {
+// Location: src/xpu/sycl
+namespace dnnl::impl::xpu::sycl {
 
 struct engine_impl_t : public dnnl::impl::engine_impl_t {
     sycl::device device;
@@ -172,7 +172,7 @@ struct engine_impl_t : public dnnl::impl::engine_impl_t {
     backend_t backend;
 };
 
-} // namespace dnnl::impl::hrt::sycl
+} // namespace dnnl::impl::xpu::sycl
 ```
 
 When it comes to the generic SYCL kernels there are 3 scenarios that should be
@@ -234,7 +234,7 @@ namespace dnnl::impl::gpu::intel::sycl {
 struct engine_t : public dnnl::impl::gpu::intel::engine_t {
 protected:
     // Convenience interface to simplify access to `impl` within the class.
-    const dnnl::impl::hrt::sycl::engine_impl_t *impl() const;
+    const dnnl::impl::xpu::sycl::engine_impl_t *impl() const;
 };
 
 } // namespace dnnl::impl::gpu::intel::sycl
@@ -248,7 +248,7 @@ namespace dnnl::impl::gpu::intel::ocl {
 struct engine_t : public dnnl::impl::gpu::intel::engine_t {
 protected:
     // Convenience interface to simplify access to `impl` within the class.
-    const dnnl::impl::hrt::ocl::engine_impl_t *impl() const;
+    const dnnl::impl::xpu::ocl::engine_impl_t *impl() const;
 };
 
 } // namespace dnnl::impl::gpu::intel::ocl
@@ -262,7 +262,7 @@ namespace dnnl::impl::gpu::nvidia {
 struct engine_t : public dnnl::impl::gpu::engine_t {
 protected:
     // Convenience interface to simplify access to `impl` within the class.
-    const dnnl::impl::hrt::sycl::engine_impl_t *impl() const;
+    const dnnl::impl::xpu::sycl::engine_impl_t *impl() const;
 };
 
 } // namespace dnnl::impl::gpu::nvidia
@@ -274,7 +274,7 @@ namespace dnnl::impl::gpu::amd {
 struct engine_t : public dnnl::impl::gpu::engine_t {
 protected:
     // Convenience interface to simplify access to `impl` within the class.
-    const dnnl::impl::hrt::sycl::engine_impl_t *impl() const;
+    const dnnl::impl::xpu::sycl::engine_impl_t *impl() const;
 };
 
 } // namespace dnnl::impl::gpu::amd
@@ -288,7 +288,7 @@ namespace dnnl::impl::gpu::generic {
 struct engine_t : public dnnl::impl::gpu::engine_t {
 protected:
     // Convenience interface to simplify access to `impl` within the class.
-    const dnnl::impl::hrt::sycl::engine_impl_t *impl() const;
+    const dnnl::impl::xpu::sycl::engine_impl_t *impl() const;
 };
 
 } // namespace dnnl::impl::gpu::generic
@@ -327,23 +327,23 @@ struct stream_impl_t {
 
 } // namespace dnnl::impl
 
-// Location: src/hrt/ocl
-namespace dnnl::impl::hrt::ocl {
+// Location: src/xpu/ocl
+namespace dnnl::impl::xpu::ocl {
 
 struct stream_impl_t : public dnnl::impl::stream_impl_t {
     cl_command_queue queue;
 };
 
-} // namespace dnnl::impl::hrt::ocl
+} // namespace dnnl::impl::xpu::ocl
 
-// Location: src/hrt/sycl
-namespace dnnl::impl::hrt::sycl {
+// Location: src/xpu/sycl
+namespace dnnl::impl::xpu::sycl {
 
 struct stream_impl_t : public dnnl::impl::stream_impl_t {
     std::unique_ptr<::sycl::queue> queue;
 };
 
-} // namespace dnnl::impl::hrt::sycl
+} // namespace dnnl::impl::xpu::sycl
 
 ```
 
