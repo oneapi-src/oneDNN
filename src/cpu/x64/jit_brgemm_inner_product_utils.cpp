@@ -153,7 +153,7 @@ jit_brgemm_ip_conf_t::get_desired_weights_tag() const {
     const bool is_xf16 = utils::one_of(jbgp.wei_dt, bf16, f16);
     const bool is_not_vnni_tag = (jbgp.wei_dt == f32
             || (jbgp.wei_dt == f16 && jbgp.isa == avx512_core_fp16)) && !jbgp.weights_decompression;
-    if (is_not_vnni_tag || (jbgp.weights_decompression && jbgp.orig_wei_dt == u8 && !jbgp.with_src_dynamic_quant)) {
+    if (is_not_vnni_tag || (jbgp.weights_decompression && (jbgp.orig_wei_dt == u8 || jbgp.orig_wei_dt == s8) && !jbgp.with_src_dynamic_quant)) {
         if (is_superset(jbgp.isa, avx512_core))
             return {{64,
                             pick(n_sp_dims, OI16i64o, OIw16i64o, OIhw16i64o,
@@ -1393,7 +1393,7 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
     jbgp.wei_dt = weights_d.data_type();
 
     jbgp.weights_decompression = one_of(jbgp.src_dt, f32, bf16) &&
-                                 one_of(jbgp.wei_dt, u8, nf4, s4, u4);
+                                 one_of(jbgp.wei_dt, u8, s8, nf4, s4, u4);
     jbgp.wei_decomp_algo = weights_decomp_kind_t::immediate;
     jbgp.orig_wei_dt = jbgp.wei_dt;
     jbgp.with_grouped_weights_decompression = false;

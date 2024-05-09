@@ -79,6 +79,11 @@ void jit_brgemm_weights_decompression_kernel_t<isa>::load_weights(Vmm vmm_load, 
             uni_vcvtdq2ps(vmm_load, vmm_load);
             break;
         }
+        case data_type::s8: {
+            uni_vpmovsxbd(vmm_load, addr);
+            uni_vcvtdq2ps(vmm_load, vmm_load);
+            break;
+        }
         case data_type::u4: {
             uni_vpmovzxbd(vmm_load, addr);
             if (ic % 2 == 0) {
@@ -223,7 +228,7 @@ void jit_brgemm_weights_decompression_kernel_t<isa>::generate() {
             for (size_t ocb = 0; ocb < oc_blocks_num; ocb++) {
                 for (size_t ic = 0; ic < jcp_.ic_internal_size; ic++) {
                     size_t weights_offset;
-                    if (jcp_.weights_dt == data_type::u8)
+                    if (jcp_.weights_dt == data_type::u8 || jcp_.weights_dt == data_type::s8)
                         weights_offset = (ic * jcp_.oc_size + ocb * vec_size) * weights_dt_size / typesize_scale;
                     else
                         weights_offset = ocb * jcp_.ic_internal_size * vec_size * weights_dt_size / typesize_scale;

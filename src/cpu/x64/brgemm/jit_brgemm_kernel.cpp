@@ -2286,6 +2286,9 @@ void jit_brgemm_kernel_t<isa, Wmm>::gemm_microkernel(int bd_block2,
                     if (brg.dt_b == data_type::u8) {
                         uni_vpmovzxbd(vmm_load, addr);
                         uni_vcvtdq2ps(vmm_load, vmm_load);
+                    } else if (brg.dt_b == data_type::s8) {
+                        uni_vpmovsxbd(vmm_load, addr);
+                        uni_vcvtdq2ps(vmm_load, vmm_load);
                     } else if (brg.dt_b == data_type::u4) {
                         uni_vpmovzxbd(vmm_load, addr);
                         if (rd % 2 == 0) {
