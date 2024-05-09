@@ -198,14 +198,11 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
     const std::vector<post_op_type> &accepted_post_op_types
             = post_ops_ok_args.accepted_post_op_types;
     const post_ops_t &post_ops = post_ops_ok_args.post_ops;
-    const memory_desc_wrapper *dst_d = post_ops_ok_args.dst_d;
     const bool sum_at_pos_0_only = post_ops_ok_args.sum_at_pos_0_only;
     const bool sum_requires_scale_one = post_ops_ok_args.sum_requires_scale_one;
     const bool sum_requires_zp_zero = post_ops_ok_args.sum_requires_zp_zero;
     const bool sum_requires_same_params
             = post_ops_ok_args.sum_requires_same_params;
-    const auto &enabled_bcast_strategy
-            = post_ops_ok_args.enabled_bcast_strategy;
 
     // Save scale and zero point of first sum postop in order to check that any
     // subsequent sum postops have the same values. This check is necessary
@@ -243,12 +240,7 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                     }
                     break;
                 case binary:
-                    if (entry.is_binary()) {
-                        assert(dst_d != nullptr && "dst_d is null");
-                        return binary_injector::is_supported(isa,
-                                entry.binary.src1_desc, *dst_d,
-                                enabled_bcast_strategy);
-                    }
+                    if (entry.is_binary()) { return false; }
                     break;
                 default: assert(false && "Unhandled post_op type");
             }
