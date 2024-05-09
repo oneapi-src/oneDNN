@@ -37,6 +37,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
             = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
     const dnn_mem_t &dst_zps
             = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
+    const dnn_mem_t &dropout = args.find(DNNL_ARG_ATTR_DROPOUT_MASK);
 
     const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
     const bool has_wei_scale = !prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def();
@@ -178,6 +179,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         const auto v_po_vals
                 = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
 
+        maybe_dropout(prb->attr, tmp, dst_off, dropout);
         maybe_post_ops(prb->attr, tmp, dst, v_po_vals);
 
         int dst_zp = has_dst_zp ? dst_zps.get_elem(dst_zp_mask > 0 ? n : 0) : 0;

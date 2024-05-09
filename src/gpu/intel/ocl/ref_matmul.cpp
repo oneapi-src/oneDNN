@@ -180,7 +180,14 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(48, c_stride[1]);
     arg_list.set(49, c_stride[0]);
 
-    append_post_ops_to_arg_list(ctx, arg_list, 50, pd()->attr()->post_ops_);
+    const bool dropout = !pd()->attr()->dropout_.has_default_values();
+    if (dropout) {
+        arg_list.set(50, CTX_OUT_STORAGE(DNNL_ARG_ATTR_DROPOUT_MASK));
+        arg_list.set(51, CTX_IN_STORAGE(DNNL_ARG_ATTR_DROPOUT_SEED));
+        arg_list.set(52, CTX_IN_STORAGE(DNNL_ARG_ATTR_DROPOUT_PROBABILITY));
+    }
+    append_post_ops_to_arg_list(
+            ctx, arg_list, 50 + 3 * dropout, pd()->attr()->post_ops_);
 
     compute::range_t gws = {1, (size_t)N, (size_t)(D0 * D1 * D2 * D3)};
     auto nd_range = compute::nd_range_t(gws);

@@ -879,6 +879,14 @@ int check_cacheit(
     return OK;
 }
 
+std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
+    // TODO: move the regular buffer kinds like SRC or DST to a common function,
+    //       e.g. get_kinds_to_check_default_case
+    std::vector<data_kind_t> check_kinds = {DST};
+    if (!prb->attr.dropout.is_def()) check_kinds.push_back(DROPOUT_MASK);
+    return check_kinds;
+}
+
 int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
     const auto &prim = v_prim[0];
@@ -894,8 +902,11 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
-    check_correctness(prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);
-    SAFE(check_bitwise(prim, {DST}, args, prb->attr, prb->inplace, res), WARN);
+    check_correctness(prb, get_kinds_to_check(prb), args, ref_args, setup_cmp,
+            res, prim_ref);
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->attr,
+                 prb->inplace, res),
+            WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

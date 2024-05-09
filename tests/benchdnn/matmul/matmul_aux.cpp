@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ dnnl_data_type_t prb_t::get_dt(data_kind_t data_kind) const {
         case WEI: return wei_dt();
         case BIA: return bia_dt;
         case DST: return dst_dt();
+        case DROPOUT_MASK: return dnnl_u8;
         default: assert(!"unexpected"); return dnnl_data_type_undef;
     }
 }
@@ -55,6 +56,9 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prb_t::get_md(int arg) const {
         case DNNL_ARG_DST:
             assert(dst_runtime_dim_mask().any());
             return dnn_mem_t::init_md(ndims, dst_dims.data(), dst_dt(), dtag);
+        case DNNL_ARG_ATTR_DROPOUT_MASK:
+            return dnn_mem_t::init_md(ndims, dst_dims.data(),
+                    get_dt(DROPOUT_MASK), attr.dropout.tag);
         default:
             assert(!"unsupported arg");
             return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);

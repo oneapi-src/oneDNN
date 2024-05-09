@@ -48,7 +48,9 @@ struct gemm_matmul_t : public gpu_primitive_t {
             if (!attr()->scales_.has_default_values()) {
                 gemm_attr.scales_ = attr()->scales_;
             }
-
+            if (!attr()->dropout_.has_default_values()) {
+                return status::unimplemented;
+            }
             auto post_ops = attr()->post_ops_;
             auto a_md = src_md(), b_md = weights_md(), c_md = dst_md(),
                  bias_md = weights_md(1);

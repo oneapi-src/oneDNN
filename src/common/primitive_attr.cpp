@@ -109,17 +109,16 @@ status_t zero_points_t::set(int arg, int mask, int ndims, const dims_t groups,
 }
 
 status_t dropout_t::set_default_formats(const memory_desc_t *dst_md) {
-    if (memory_desc_matches_one_of_tag(
-                dropout_desc_, dnnl_format_tag_any, dnnl_format_tag_undef)) {
-        if (!dst_md
-                || memory_desc_matches_one_of_tag(
-                        *dst_md, dnnl_format_tag_any, dnnl_format_tag_undef))
-            return status::invalid_arguments;
+    auto is_any_or_undef = [](format_kind_t kind) {
+        return one_of(kind, dnnl_format_kind_any, dnnl_format_kind_undef);
+    };
+    const bool dst_ok = dst_md && !is_any_or_undef(dst_md->format_kind);
+    if (dst_ok && is_any_or_undef(dropout_desc_.format_kind)) {
         const memory_desc_wrapper dst_mdw(dst_md);
         CHECK(memory_desc_init_by_blocking_desc(
                 dropout_desc_, dst_mdw.blocking_desc()));
     }
-    return status::success;
+    return (dst_ok) ? status::success : status::invalid_arguments;
 }
 
 } // namespace impl
