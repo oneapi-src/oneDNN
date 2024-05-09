@@ -340,7 +340,7 @@ int doit(const prb_t *prb, res_t *res) {
     using namespace namespace_impl;
 #if defined(brg_x64)
     brgemm_desc_t brgemm_desc;
-#else
+#elif defined(brg_aarch64)
     brgemm_t brgemm_desc;
 #endif
     // Supports only address model for now as only affects the way memory is

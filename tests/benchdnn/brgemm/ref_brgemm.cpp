@@ -57,7 +57,7 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
     // Using workspace memory as a method to get brgemm attributes.
 #if defined(brg_x64)
     using brgemm_attr_t = dnnl::impl::cpu::x64::brgemm_attr_t;
-#else
+#elif defined(brg_aarch64)
     using brgemm_attr_t = dnnl::impl::cpu::aarch64::brgemm_attr_t;
 #endif
 
