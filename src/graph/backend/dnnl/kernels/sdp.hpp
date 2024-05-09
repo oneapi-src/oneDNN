@@ -555,8 +555,10 @@ private:
             if (mm1 != nullptr && mm2 != nullptr) break;
             if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
             auto post_op = get_post_op(cur_op);
-            if (post_op->get_kind() == graph::op_kind::Divide
-                    || post_op->get_kind() == graph::op_kind::Multiply) {
+            if (post_op
+                    && (post_op->get_kind() == graph::op_kind::Divide
+                            || post_op->get_kind()
+                                    == graph::op_kind::Multiply)) {
                 mm1 = cur_op;
                 scale = post_op;
                 const auto pop = get_post_op(post_op);
@@ -570,7 +572,8 @@ private:
                     add = nullptr;
                     select = nullptr;
                 }
-            } else if (post_op->get_kind() == graph::op_kind::Select) {
+            } else if (post_op
+                    && (post_op->get_kind() == graph::op_kind::Select)) {
                 return status::unimplemented;
             } else
                 mm2 = cur_op;
