@@ -28,6 +28,8 @@ namespace aarch64 {
 
 // The type defines organization of batch of matrices
 typedef enum {
+    // Undefined brgemm batch kind
+    brgemm_batch_kind_undef = 0,
     // A and B arrays of pointers
     brgemm_addr = 1,
     // Base address and array of offsets from base address.
