@@ -20,7 +20,15 @@
 
 namespace brgemm {
 
-#if defined(DNNL_X64) && DNNL_X64 == 1 && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if defined(DNNL_X64) && DNNL_X64 == 1
+#define brg_x64
+#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
+#define brg_aarch64
+#endif
+#endif
+
+#if defined(brg_x64) || defined(brg_aarch64)
 
 int64_t src_off_f(const prb_t *prb, int64_t bs, int64_t m, int64_t k) {
     return (m * prb->batch_size + bs) * prb->k + k;
@@ -47,7 +55,12 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
     const int64_t K = prb->k;
 
     // Using workspace memory as a method to get brgemm attributes.
+#if defined(brg_x64)
     using brgemm_attr_t = dnnl::impl::cpu::x64::brgemm_attr_t;
+#elif defined(brg_aarch64)
+    using brgemm_attr_t = dnnl::impl::cpu::aarch64::brgemm_attr_t;
+#endif
+
     brgemm_attr_t *brgemm_attr = (brgemm_attr_t *)ws_m;
 
     const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];

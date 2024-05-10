@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 #include "gpu/sycl/sycl_post_ops.hpp"
 #include "gpu/sycl/sycl_primitive_conf.hpp"
 #include "gpu/sycl/sycl_q10n.hpp"
-#include "gpu/sycl/sycl_types.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,10 +33,12 @@ namespace sycl {
 
 struct resampling_kernel_fwd_vec_t {
     resampling_kernel_fwd_vec_t(const sycl_resampling_conf_t &conf,
-            sycl_in_memory_arg_t &src, sycl_out_memory_arg_t &dst,
-            sycl_in_memory_arg_t &src_1, sycl_in_memory_arg_t &src_2,
-            sycl_in_memory_arg_t &src_3, sycl_in_memory_arg_t &src_4,
-            sycl_in_memory_arg_t &src_5)
+            xpu::sycl::in_memory_arg_t &src, xpu::sycl::out_memory_arg_t &dst,
+            xpu::sycl::in_memory_arg_t &src_1,
+            xpu::sycl::in_memory_arg_t &src_2,
+            xpu::sycl::in_memory_arg_t &src_3,
+            xpu::sycl::in_memory_arg_t &src_4,
+            xpu::sycl::in_memory_arg_t &src_5)
         : conf_(conf)
         , src_(src)
         , dst_(dst)
@@ -140,8 +142,8 @@ struct resampling_kernel_fwd_vec_t {
     }
 
 private:
-    const sycl_md_t &src_md() const { return conf_.src_md; }
-    const sycl_md_t &dst_md() const { return conf_.dst_md; }
+    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
+    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     void *src_ptr() const { return src_.get_pointer(); }
     void *src_1_ptr() const { return src_1_.get_pointer(); }
@@ -151,12 +153,12 @@ private:
     void *src_5_ptr() const { return src_5_.get_pointer(); }
     void *dst_ptr() const { return dst_.get_pointer(); }
 
-    void *gen_ptr(sycl_in_memory_arg_t gen_) const {
+    void *gen_ptr(xpu::sycl::in_memory_arg_t gen_) const {
         return gen_.get_pointer();
     }
 
-    static dim_t get_offset(
-            const sycl_md_t &mdw, dim_t n, dim_t c, dim_t d, dim_t h, dim_t w) {
+    static dim_t get_offset(const xpu::sycl::md_t &mdw, dim_t n, dim_t c,
+            dim_t d, dim_t h, dim_t w) {
         switch (mdw.ndims()) {
             case 3: return mdw.off(n, c, w);
             case 4: return mdw.off(n, c, h, w);
@@ -166,7 +168,7 @@ private:
         return 0;
     }
 
-    float dst_value(sycl_in_memory_arg_t arr, int idx, int offset) const {
+    float dst_value(xpu::sycl::in_memory_arg_t arr, int idx, int offset) const {
         auto src1_desc = conf_.src1_md[idx];
         dim_t src_dim[DNNL_MAX_NDIMS];
         auto src_dim_ = src1_desc.dims();
@@ -180,8 +182,8 @@ private:
         return dst;
     }
 
-    dim_t get_binary_src1_off(const sycl_md_t &src1_md, const dim_t *src_dim,
-            const dim_t l_offset, const dim_t *dst_dims,
+    dim_t get_binary_src1_off(const xpu::sycl::md_t &src1_md,
+            const dim_t *src_dim, const dim_t l_offset, const dim_t *dst_dims,
             const int dst_ndims) const {
 
         const int mask_binary_po
@@ -191,8 +193,9 @@ private:
                 src1_md, l_offset, dst_dims, dst_ndims, mask_binary_po);
     }
 
-    dim_t get_po_tensor_off(const sycl_md_t &tensor_md, const dim_t l_offset,
-            const dim_t *dst_dims, const int dst_ndims, int mask) const {
+    dim_t get_po_tensor_off(const xpu::sycl::md_t &tensor_md,
+            const dim_t l_offset, const dim_t *dst_dims, const int dst_ndims,
+            int mask) const {
 
         dims_t l_dims_po {};
         get_l_dims_po(l_dims_po, l_offset, dst_dims, dst_ndims, mask);
@@ -208,18 +211,19 @@ private:
 
     sycl_resampling_conf_t conf_;
 
-    sycl_in_memory_arg_t src_;
-    sycl_out_memory_arg_t dst_;
-    sycl_in_memory_arg_t src_1_;
-    sycl_in_memory_arg_t src_2_;
-    sycl_in_memory_arg_t src_3_;
-    sycl_in_memory_arg_t src_4_;
-    sycl_in_memory_arg_t src_5_;
+    xpu::sycl::in_memory_arg_t src_;
+    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::in_memory_arg_t src_1_;
+    xpu::sycl::in_memory_arg_t src_2_;
+    xpu::sycl::in_memory_arg_t src_3_;
+    xpu::sycl::in_memory_arg_t src_4_;
+    xpu::sycl::in_memory_arg_t src_5_;
 };
 
 struct resampling_kernel_bwd_vec_t {
     resampling_kernel_bwd_vec_t(const sycl_resampling_conf_t &conf,
-            sycl_in_memory_arg_t &diff_dst, sycl_out_memory_arg_t &diff_src)
+            xpu::sycl::in_memory_arg_t &diff_dst,
+            xpu::sycl::out_memory_arg_t &diff_src)
         : conf_(conf), diff_dst_(diff_dst), diff_src_(diff_src) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -274,14 +278,14 @@ struct resampling_kernel_bwd_vec_t {
     }
 
 private:
-    const sycl_md_t &diff_src_md() const { return conf_.diff_src_md; }
-    const sycl_md_t &diff_dst_md() const { return conf_.diff_dst_md; }
+    const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
+    const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
 
     void *diff_src_ptr() const { return diff_src_.get_pointer(); }
     void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
 
-    static dim_t get_offset(
-            const sycl_md_t &mdw, dim_t n, dim_t c, dim_t d, dim_t h, dim_t w) {
+    static dim_t get_offset(const xpu::sycl::md_t &mdw, dim_t n, dim_t c,
+            dim_t d, dim_t h, dim_t w) {
         switch (mdw.ndims()) {
             case 3: return mdw.off(n, c, w);
             case 4: return mdw.off(n, c, h, w);
@@ -292,13 +296,14 @@ private:
     }
 
     sycl_resampling_conf_t conf_;
-    sycl_in_memory_arg_t diff_dst_;
-    sycl_out_memory_arg_t diff_src_;
+    xpu::sycl::in_memory_arg_t diff_dst_;
+    xpu::sycl::out_memory_arg_t diff_src_;
 };
 
 struct resampling_kernel_bwd_vec1_t {
     resampling_kernel_bwd_vec1_t(const sycl_resampling_conf_t &conf,
-            sycl_in_memory_arg_t &diff_dst, sycl_out_memory_arg_t &diff_src)
+            xpu::sycl::in_memory_arg_t &diff_dst,
+            xpu::sycl::out_memory_arg_t &diff_src)
         : conf_(conf), diff_dst_(diff_dst), diff_src_(diff_src) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -351,14 +356,14 @@ struct resampling_kernel_bwd_vec1_t {
     }
 
 private:
-    const sycl_md_t &diff_src_md() const { return conf_.diff_src_md; }
-    const sycl_md_t &diff_dst_md() const { return conf_.diff_dst_md; }
+    const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
+    const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
 
     void *diff_src_ptr() const { return diff_src_.get_pointer(); }
     void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
 
-    static dim_t get_offset(
-            const sycl_md_t &mdw, dim_t n, dim_t c, dim_t d, dim_t h, dim_t w) {
+    static dim_t get_offset(const xpu::sycl::md_t &mdw, dim_t n, dim_t c,
+            dim_t d, dim_t h, dim_t w) {
         switch (mdw.ndims()) {
             case 3: return mdw.off(n, c, w);
             case 4: return mdw.off(n, c, h, w);
@@ -369,8 +374,8 @@ private:
     }
 
     sycl_resampling_conf_t conf_;
-    sycl_in_memory_arg_t diff_dst_;
-    sycl_out_memory_arg_t diff_src_;
+    xpu::sycl::in_memory_arg_t diff_dst_;
+    xpu::sycl::out_memory_arg_t diff_src_;
 };
 
 } // namespace sycl

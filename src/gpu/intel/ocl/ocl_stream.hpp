@@ -114,7 +114,7 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return ocl_ctx();
     }
 
-    const ocl_wrapper_t<cl_event> &get_output_event() const {
+    const xpu::ocl::wrapper_t<cl_event> &get_output_event() const {
         auto &deps = ocl_event_t::from(ctx().get_deps());
         assert(deps.size() == 1);
         return deps[0];

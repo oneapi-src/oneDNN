@@ -18,11 +18,11 @@
 #include "gpu/nvidia/cudnn_pooling.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
-#include "sycl/sycl_buffer_memory_storage.hpp"
+#include "xpu/sycl/buffer_memory_storage.hpp"
 
 #include "common/nstl.hpp"
 
-#include "sycl/sycl_memory_storage_helper.hpp"
+#include "xpu/sycl/memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {

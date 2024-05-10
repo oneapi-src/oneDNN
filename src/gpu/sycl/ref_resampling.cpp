@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,8 +50,8 @@ status_t ref_resampling_fwd_t::pd_t::init_conf() {
     int n_wgs = (nelems_A + work_per_wg - 1) / work_per_wg;
     conf_.n_thr = n_wgs * conf_.wg_size;
 
-    conf_.src_md = sycl_md_t(src_md(0));
-    conf_.dst_md = sycl_md_t(dst_md());
+    conf_.src_md = xpu::sycl::md_t(src_md(0));
+    conf_.dst_md = xpu::sycl::md_t(dst_md());
 
     conf_.alg = desc()->alg_kind;
     const auto *att = attr();
@@ -61,7 +61,7 @@ status_t ref_resampling_fwd_t::pd_t::init_conf() {
     for (auto i = 0; i < attr_po.len(); ++i) {
         if (attr_po.contain(primitive_kind::binary, i)) {
             dnnl::impl::memory_desc_t mem = attr_po.entry_[i].binary.src1_desc;
-            conf_.src1_md[i] = sycl_md_t(&mem);
+            conf_.src1_md[i] = xpu::sycl::md_t(&mem);
         }
     }
     conf_.post_ops = sycl_post_ops_t(attr());
@@ -110,8 +110,8 @@ status_t ref_resampling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 status_t ref_resampling_bwd_t::pd_t::init_conf() {
     conf_ = sycl_resampling_conf_t();
 
-    conf_.diff_src_md = sycl_md_t(diff_src_md(0));
-    conf_.diff_dst_md = sycl_md_t(diff_dst_md());
+    conf_.diff_src_md = xpu::sycl::md_t(diff_src_md(0));
+    conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md());
 
     conf_.src_dt = src_md(0)->data_type;
     conf_.dst_dt = dst_md()->data_type;

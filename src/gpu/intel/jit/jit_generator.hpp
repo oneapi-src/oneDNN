@@ -30,6 +30,7 @@
 #include "gpu/intel/jit/jit_generator_base.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
+#include "xpu/utils.hpp"
 
 #include "gpu/intel/jit/ngen/ngen_opencl.hpp"
 
@@ -137,8 +138,7 @@ public:
         return ngen::OpenCLCodeGenerator<hw>::getExternalName().c_str();
     }
 
-    compute::binary_t get_binary(
-            cl_context context, cl_device_id device) override {
+    xpu::binary_t get_binary(cl_context context, cl_device_id device) override {
         return ngen::OpenCLCodeGenerator<hw>::getBinary(context, device);
     }
 

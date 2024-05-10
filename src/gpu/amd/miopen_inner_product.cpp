@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,8 +19,8 @@
 #include "gpu/amd/miopen_gemm_inner_product.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
 #include "gpu/amd/sycl_hip_stream.hpp"
-#include "sycl/sycl_buffer_memory_storage.hpp"
-#include "sycl/sycl_memory_storage_helper.hpp"
+#include "xpu/sycl/buffer_memory_storage.hpp"
+#include "xpu/sycl/memory_storage_helper.hpp"
 
 namespace dnnl {
 namespace impl {

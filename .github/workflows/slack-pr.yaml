@@ -24,6 +24,9 @@ env:
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
   channel: "onednn"
 
+permissions:
+  pull-requests: read
+
 jobs:
   rfc:
     name: RFC Notification

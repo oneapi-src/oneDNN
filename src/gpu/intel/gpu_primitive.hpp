@@ -31,6 +31,7 @@
 #include "gpu/intel/jit/jit_generator_base.hpp"
 #include "gpu/intel/kernel_cache.hpp"
 #include "gpu/intel/ocl/types_interop.hpp"
+#include "xpu/utils.hpp"
 
 #define CTX_GPU_RES_STORAGE(arg) \
     (*(ctx.get_resource_mapper() \
@@ -119,7 +120,7 @@ struct gpu_primitive_t : public primitive_t {
             switch (cb.kind()) {
                 case compute_block_t::kind_t::kernel: {
                     // Get a binary for each kernel within current primitive.
-                    compute::binary_t binary;
+                    xpu::binary_t binary;
                     CHECK(cb.kernel().get_binary(engine, binary));
                     CHECK(blob.add_binary(binary.data(), binary.size()));
                     break;

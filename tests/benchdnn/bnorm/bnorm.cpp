@@ -438,13 +438,13 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         bool alpha_ok = IMPLICATION(alpha != 0.f, (prb->dir & FLAG_INF));
         if (!alpha_ok) {
             res->state = SKIPPED;
-            res->reason = CASE_NOT_SUPPORTED;
+            res->reason = skip_reason::case_not_supported;
         }
     }
     // BN+Add+ReLU fusion is not supported on CPU
     if (is_cpu() && prb->fuse_add_relu()) {
         res->state = SKIPPED;
-        res->reason = CASE_NOT_SUPPORTED;
+        res->reason = skip_reason::case_not_supported;
     }
     // int8 only supports forward s8 w/ global stats
     const bool u8_not_ok = prb->dt == dnnl_u8;
@@ -452,7 +452,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             && ((prb->dir & FLAG_BWD) || (prb->flags & GLOB_STATS) == 0);
     if (s8_not_ok || u8_not_ok) {
         res->state = SKIPPED;
-        res->reason = CASE_NOT_SUPPORTED;
+        res->reason = skip_reason::case_not_supported;
     }
 }
 

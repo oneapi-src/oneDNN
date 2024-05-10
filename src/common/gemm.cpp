@@ -182,7 +182,7 @@ dnnl_status_t dnnl_threadpool_interop_gemm_u8s8s32(char transa, char transb,
     status_t status = dnnl_success;
     MAYBE_VERBOSE(status, "u8", "s8", "s32",
             MAYBE_RUN_STACK_CHECKER(dnnl_threadpool_interop_gemm_u8s8s32,
-                    cpu::gemm_s8x8s32, &transb, &transa, c2f_offsetC(&offsetc),
+                    cpu::gemm_s8u8s32, &transb, &transa, c2f_offsetC(&offsetc),
                     &N, &M, &K, &alpha, B, &ldb, &bo, A, &lda, &ao, &beta, C,
                     &ldc, co));
     threadpool_utils::deactivate_threadpool();
@@ -198,7 +198,7 @@ dnnl_status_t dnnl_threadpool_interop_gemm_s8s8s32(char transa, char transb,
     status_t status = dnnl_success;
     MAYBE_VERBOSE(status, "s8", "s8", "s32",
             MAYBE_RUN_STACK_CHECKER(dnnl_threadpool_interop_gemm_s8s8s32,
-                    cpu::gemm_s8x8s32, &transb, &transa, c2f_offsetC(&offsetc),
+                    cpu::gemm_s8s8s32, &transb, &transa, c2f_offsetC(&offsetc),
                     &N, &M, &K, &alpha, B, &ldb, &bo, A, &lda, &ao, &beta, C,
                     &ldc, co));
     threadpool_utils::deactivate_threadpool();

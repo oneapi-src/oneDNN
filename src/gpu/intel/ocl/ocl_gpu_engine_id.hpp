@@ -49,8 +49,8 @@ private:
         return seed;
     }
 
-    ocl_wrapper_t<cl_device_id> device_;
-    ocl_wrapper_t<cl_context> context_;
+    xpu::ocl::wrapper_t<cl_device_id> device_;
+    xpu::ocl::wrapper_t<cl_context> context_;
 };
 
 } // namespace ocl

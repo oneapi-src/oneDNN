@@ -91,11 +91,12 @@ public:
         using clCreatePerfCountersCommandQueueINTEL_func_t
                 = cl_command_queue (*)(cl_context, cl_device_id,
                         cl_command_queue_properties, cl_uint, cl_int *);
-        static ext_func_t<clCreatePerfCountersCommandQueueINTEL_func_t>
+        static xpu::ocl::ext_func_t<
+                clCreatePerfCountersCommandQueueINTEL_func_t>
                 create_queue_with_perf_counters(
                         "clCreatePerfCountersCommandQueueINTEL");
         auto func = create_queue_with_perf_counters.get_func(
-                get_ocl_platform(dev));
+                xpu::ocl::get_platform(dev));
         if (!func) {
             *err = CL_INVALID_VALUE;
             return nullptr;

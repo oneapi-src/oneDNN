@@ -208,7 +208,7 @@ struct cudnn_convolution_fwd_t : public primitive_t {
 
 private:
     ::sycl::buffer<uint8_t, 1> &buffer(memory_storage_t *mem_storage) const {
-        return utils::downcast<impl::sycl::sycl_buffer_memory_storage_t *>(
+        return utils::downcast<xpu::sycl::buffer_memory_storage_t *>(
                 mem_storage)
                 ->buffer();
     }

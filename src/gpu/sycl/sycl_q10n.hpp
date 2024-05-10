@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
-#include "gpu/sycl/sycl_types.hpp"
-#include "sycl/sycl_utils.hpp"
+#include "xpu/sycl/types.hpp"
+#include "xpu/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {

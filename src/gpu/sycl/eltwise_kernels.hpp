@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,10 +29,12 @@ namespace sycl {
 
 struct eltwise_fwd_kernel_vec_t {
     eltwise_fwd_kernel_vec_t(const sycl_eltwise_conf_t &conf,
-            sycl_in_memory_arg_t &src, sycl_out_memory_arg_t &dst,
-            sycl_in_memory_arg_t &srcOp1, sycl_in_memory_arg_t &srcOp2,
-            sycl_in_memory_arg_t &srcOp3, sycl_in_memory_arg_t &srcOp4,
-            sycl_in_memory_arg_t &srcOp5)
+            xpu::sycl::in_memory_arg_t &src, xpu::sycl::out_memory_arg_t &dst,
+            xpu::sycl::in_memory_arg_t &srcOp1,
+            xpu::sycl::in_memory_arg_t &srcOp2,
+            xpu::sycl::in_memory_arg_t &srcOp3,
+            xpu::sycl::in_memory_arg_t &srcOp4,
+            xpu::sycl::in_memory_arg_t &srcOp5)
         : conf_(conf)
         , src_(src)
         , srcOp1_(srcOp1)
@@ -91,8 +93,8 @@ struct eltwise_fwd_kernel_vec_t {
     }
 
 private:
-    const sycl_md_t &src_md() const { return conf_.src_md; }
-    const sycl_md_t &dst_md() const { return conf_.dst_md; }
+    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
+    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     void *src_ptr() const { return src_.get_pointer(); }
     void *dst_ptr() const { return dst_.get_pointer(); }
@@ -214,8 +216,8 @@ private:
         return post_po_sr;
     }
 
-    inline dim_t data_offset(const sycl_md_t &mem, dim_t &n, dim_t &c, dim_t &d,
-            dim_t &h, dim_t &w) const {
+    inline dim_t data_offset(const xpu::sycl::md_t &mem, dim_t &n, dim_t &c,
+            dim_t &d, dim_t &h, dim_t &w) const {
         const auto ndims = mem.ndims();
         switch (ndims) {
             case 1: return mem.off(n);
@@ -228,8 +230,8 @@ private:
         return -1;
     }
 
-    float get_post_op_val(const sycl_in_memory_arg_t &bin_src_op, dim_t &idx,
-            dim_t &offset) const {
+    float get_post_op_val(const xpu::sycl::in_memory_arg_t &bin_src_op,
+            dim_t &idx, dim_t &offset) const {
         auto src1_desc = conf_.binary_src_arr[idx];
 
         const auto off = get_binary_src1_off(
@@ -240,17 +242,17 @@ private:
         return dst;
     }
 
-    dim_t get_binary_src1_off(const sycl_md_t &src1_md, const dim_t &l_offset,
-            const sycl_md_t::dims32_t &dst_dims,
-            const sycl_md_t::dim32_t &dst_ndims) const {
+    dim_t get_binary_src1_off(const xpu::sycl::md_t &src1_md,
+            const dim_t &l_offset, const xpu::sycl::md_t::dims32_t &dst_dims,
+            const xpu::sycl::md_t::dim32_t &dst_ndims) const {
         const dim_t mask_binary_po
                 = get_dims_mask(dst_dims, src1_md.dims(), dst_ndims);
         return get_po_tensor_off(
                 src1_md, l_offset, dst_dims, dst_ndims, mask_binary_po);
     }
 
-    inline dim_t get_dims_mask(const sycl_md_t::dims32_t &dims1,
-            const sycl_md_t::dims32_t &dims2, const dim_t &ndims,
+    inline dim_t get_dims_mask(const xpu::sycl::md_t::dims32_t &dims1,
+            const xpu::sycl::md_t::dims32_t &dims2, const dim_t &ndims,
             bool skip_dim_of_one = false) const {
         dim_t mask = 0;
         for (dim_t d = 0; d < ndims; ++d) {
@@ -261,8 +263,8 @@ private:
         return mask;
     }
 
-    inline dim_t get_po_tensor_off(const sycl_md_t &tensor_md,
-            const dim_t &l_offset, const sycl_md_t::dims32_t &dst_dims,
+    inline dim_t get_po_tensor_off(const xpu::sycl::md_t &tensor_md,
+            const dim_t &l_offset, const xpu::sycl::md_t::dims32_t &dst_dims,
             const dim_t &dst_ndims, const dim_t &mask) const {
         dims_t l_dims_po {};
         get_l_dims_po(l_dims_po, l_offset, dst_dims, dst_ndims, mask);
@@ -271,7 +273,7 @@ private:
     }
 
     inline void get_l_dims_po(dims_t l_dims_po, dim_t l_offset,
-            const sycl_md_t::dims32_t &dst_dims, const dim_t &dst_ndims,
+            const xpu::sycl::md_t::dims32_t &dst_dims, const dim_t &dst_ndims,
             const dim_t &mask) const {
 
         l_dims_by_l_offset(l_dims_po, l_offset, dst_dims, dst_ndims);
@@ -279,7 +281,7 @@ private:
     }
 
     inline void l_dims_by_l_offset(dims_t dims_pos, dim_t l_offset,
-            const sycl_md_t::dims32_t &dims, const dim_t &ndims) const {
+            const xpu::sycl::md_t::dims32_t &dims, const dim_t &ndims) const {
         for (dim_t rd = 0; rd < ndims; ++rd) {
             const dim_t d = ndims - 1 - rd;
             /* switch to faster 32-bit division when possible. */
@@ -294,19 +296,20 @@ private:
     }
 
     sycl_eltwise_conf_t conf_;
-    sycl_in_memory_arg_t src_;
-    sycl_in_memory_arg_t srcOp1_;
-    sycl_in_memory_arg_t srcOp2_;
-    sycl_in_memory_arg_t srcOp3_;
-    sycl_in_memory_arg_t srcOp4_;
-    sycl_in_memory_arg_t srcOp5_;
-    sycl_out_memory_arg_t dst_;
+    xpu::sycl::in_memory_arg_t src_;
+    xpu::sycl::in_memory_arg_t srcOp1_;
+    xpu::sycl::in_memory_arg_t srcOp2_;
+    xpu::sycl::in_memory_arg_t srcOp3_;
+    xpu::sycl::in_memory_arg_t srcOp4_;
+    xpu::sycl::in_memory_arg_t srcOp5_;
+    xpu::sycl::out_memory_arg_t dst_;
 };
 
 struct eltwise_bwd_kernel_vec_t {
     eltwise_bwd_kernel_vec_t(const sycl_eltwise_conf_t &conf,
-            sycl_in_memory_arg_t &diff_src, sycl_in_memory_arg_t &src,
-            sycl_out_memory_arg_t &diff_dst)
+            xpu::sycl::in_memory_arg_t &diff_src,
+            xpu::sycl::in_memory_arg_t &src,
+            xpu::sycl::out_memory_arg_t &diff_dst)
         : conf_(conf), src_(src), diff_src_(diff_src), diff_dst_(diff_dst) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -334,9 +337,9 @@ struct eltwise_bwd_kernel_vec_t {
     }
 
 private:
-    const sycl_md_t &src_md() const { return conf_.src_md; }
-    const sycl_md_t &diff_src_md() const { return conf_.diff_src_md; }
-    const sycl_md_t &diff_dst_md() const { return conf_.diff_dst_md; }
+    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
+    const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
+    const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
 
     void *src_ptr() const { return src_.get_pointer(); }
     void *diff_src_ptr() const { return diff_src_.get_pointer(); }
@@ -445,9 +448,9 @@ private:
     }
 
     sycl_eltwise_conf_t conf_;
-    sycl_in_memory_arg_t src_;
-    sycl_in_memory_arg_t diff_src_;
-    sycl_out_memory_arg_t diff_dst_;
+    xpu::sycl::in_memory_arg_t src_;
+    xpu::sycl::in_memory_arg_t diff_src_;
+    xpu::sycl::out_memory_arg_t diff_dst_;
 };
 
 } // namespace sycl

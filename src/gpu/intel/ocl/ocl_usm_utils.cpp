@@ -53,7 +53,7 @@ cl_command_queue get_ocl_queue(stream_t *stream) {
 bool is_usm_supported(engine_t *engine) {
     using clSharedMemAllocINTEL_func_t = void *(*)(cl_context, cl_device_id,
             cl_ulong *, size_t, cl_uint, cl_int *);
-    static ext_func_t<clSharedMemAllocINTEL_func_t> ext_func(
+    static xpu::ocl::ext_func_t<clSharedMemAllocINTEL_func_t> ext_func(
             "clSharedMemAllocINTEL");
     return (bool)ext_func.get_func(engine);
 }
@@ -64,7 +64,7 @@ void *malloc_host(engine_t *engine, size_t size) {
 
     if (size == 0) return nullptr;
 
-    static ext_func_t<clHostMemAllocINTEL_func_t> ext_func(
+    static xpu::ocl::ext_func_t<clHostMemAllocINTEL_func_t> ext_func(
             "clHostMemAllocINTEL");
     cl_int err;
     void *p = ext_func(engine, get_ocl_context(engine), nullptr, size, 0, &err);
@@ -79,7 +79,7 @@ void *malloc_device(engine_t *engine, size_t size) {
 
     if (size == 0) return nullptr;
 
-    static ext_func_t<clDeviceMemAllocINTEL_func_t> ext_func(
+    static xpu::ocl::ext_func_t<clDeviceMemAllocINTEL_func_t> ext_func(
             "clDeviceMemAllocINTEL");
     cl_int err;
     void *p = ext_func(engine, get_ocl_context(engine), get_ocl_device(engine),
@@ -95,7 +95,7 @@ void *malloc_shared(engine_t *engine, size_t size) {
 
     if (size == 0) return nullptr;
 
-    static ext_func_t<clSharedMemAllocINTEL_func_t> ext_func(
+    static xpu::ocl::ext_func_t<clSharedMemAllocINTEL_func_t> ext_func(
             "clSharedMemAllocINTEL");
     cl_int err;
     void *p = ext_func(engine, get_ocl_context(engine), get_ocl_device(engine),
@@ -109,7 +109,8 @@ void free(engine_t *engine, void *ptr) {
     using clMemFreeINTEL_func_t = cl_int (*)(cl_context, void *);
 
     if (!ptr) return;
-    static ext_func_t<clMemFreeINTEL_func_t> ext_func("clMemFreeINTEL");
+    static xpu::ocl::ext_func_t<clMemFreeINTEL_func_t> ext_func(
+            "clMemFreeINTEL");
     cl_int err = ext_func(engine, get_ocl_context(engine), ptr);
     assert(err == CL_SUCCESS);
     MAYBE_UNUSED(err);
@@ -119,9 +120,10 @@ status_t set_kernel_arg_usm(engine_t *engine, cl_kernel kernel, int arg_index,
         const void *arg_value) {
     using clSetKernelArgMemPointerINTEL_func_t
             = cl_int (*)(cl_kernel, cl_uint, const void *);
-    static ext_func_t<clSetKernelArgMemPointerINTEL_func_t> ext_func(
+    static xpu::ocl::ext_func_t<clSetKernelArgMemPointerINTEL_func_t> ext_func(
             "clSetKernelArgMemPointerINTEL");
-    return convert_to_dnnl(ext_func(engine, kernel, arg_index, arg_value));
+    return xpu::ocl::convert_to_dnnl(
+            ext_func(engine, kernel, arg_index, arg_value));
 }
 
 status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size,
@@ -129,11 +131,12 @@ status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size,
     using clEnqueueMemcpyINTEL_func_t
             = cl_int (*)(cl_command_queue, cl_bool, void *, const void *,
                     size_t, cl_uint, const cl_event *, cl_event *);
-    static ext_func_t<clEnqueueMemcpyINTEL_func_t> ext_func(
+    static xpu::ocl::ext_func_t<clEnqueueMemcpyINTEL_func_t> ext_func(
             "clEnqueueMemcpyINTEL");
-    return convert_to_dnnl(ext_func(stream->engine(), get_ocl_queue(stream),
-            /* blocking */ CL_FALSE, dst, src, size, num_events, events,
-            out_event));
+    return xpu::ocl::convert_to_dnnl(
+            ext_func(stream->engine(), get_ocl_queue(stream),
+                    /* blocking */ CL_FALSE, dst, src, size, num_events, events,
+                    out_event));
 }
 
 status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size) {
@@ -146,10 +149,11 @@ status_t fill(stream_t *stream, void *ptr, const void *pattern,
     using clEnqueueMemFillINTEL_func_t
             = cl_int (*)(cl_command_queue, void *, const void *, size_t, size_t,
                     cl_uint, const cl_event *, cl_event *);
-    static ext_func_t<clEnqueueMemFillINTEL_func_t> ext_func(
+    static xpu::ocl::ext_func_t<clEnqueueMemFillINTEL_func_t> ext_func(
             "clEnqueueMemFillINTEL");
-    return convert_to_dnnl(ext_func(stream->engine(), get_ocl_queue(stream),
-            ptr, pattern, pattern_size, size, num_events, events, out_event));
+    return xpu::ocl::convert_to_dnnl(
+            ext_func(stream->engine(), get_ocl_queue(stream), ptr, pattern,
+                    pattern_size, size, num_events, events, out_event));
 }
 
 status_t memset(stream_t *stream, void *ptr, int value, size_t size) {
@@ -170,7 +174,7 @@ ocl_usm_kind_t get_pointer_type(engine_t *engine, const void *ptr) {
 
     static constexpr cl_uint cl_mem_alloc_type_intel = 0x419A;
 
-    static ext_func_t<clGetMemAllocInfoINTEL_func_t> ext_func(
+    static xpu::ocl::ext_func_t<clGetMemAllocInfoINTEL_func_t> ext_func(
             "clGetMemAllocInfoINTEL");
 
     if (!ptr) return ocl_usm_kind_t::unknown;

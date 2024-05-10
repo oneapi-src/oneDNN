@@ -43,11 +43,30 @@ struct dnnl_api_traits<dnnl::impl::cpu::x64::brgemm_kernel_t *> {
         DNN_SAFE_V(dnnl::impl::cpu::x64::brgemm_kernel_destroy(t));
     }
 };
+
+#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1 \
+        && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+template <>
+struct dnnl_api_traits<dnnl::impl::cpu::aarch64::brgemm_kernel_t *> {
+    static void destroy(dnnl::impl::cpu::aarch64::brgemm_kernel_t *t) {
+        DNN_SAFE_V(dnnl::impl::cpu::aarch64::brgemm_kernel_destroy(t));
+    }
+};
 #endif
 
 namespace brgemm {
 
-#if defined(DNNL_X64) && DNNL_X64 == 1 && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if defined(DNNL_X64) && DNNL_X64 == 1
+#define brg_x64
+#define namespace_impl dnnl::impl::cpu::x64
+#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
+#define brg_aarch64
+#define namespace_impl dnnl::impl::cpu::aarch64
+#endif
+#endif
+
+#if defined(brg_x64) || defined(brg_aarch64)
 
 /// Initializes BRGEMM attributes from an input string.
 ///
@@ -58,8 +77,8 @@ namespace brgemm {
 ///     integers.
 ///
 dnnl_status_t brgemm_attr_init(
-        dnnl::impl::cpu::x64::brgemm_attr_t *brgattr, const prb_t *prb) {
-    using namespace dnnl::impl::cpu::x64;
+        namespace_impl::brgemm_attr_t *brgattr, const prb_t *prb) {
+    using namespace namespace_impl;
 
     // `max_bs` is handled directly through the driver interface.
     brgattr->max_bs = prb->batch_size;
@@ -159,14 +178,13 @@ std::string prepare_wei_format_string(
     return wtag;
 }
 
-dnnl::impl::cpu::x64::brgemm_batch_kind_t str2batch_kind(
-        const std::string &str) {
+namespace_impl::brgemm_batch_kind_t str2batch_kind(const std::string &str) {
     if (str == "addr")
-        return dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_addr;
+        return namespace_impl::brgemm_batch_kind_t::brgemm_addr;
     else if (str == "offs")
-        return dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_offs;
+        return namespace_impl::brgemm_batch_kind_t::brgemm_offs;
     assert(!"Unsupported batch kind value");
-    return dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_batch_kind_undef;
+    return namespace_impl::brgemm_batch_kind_t::brgemm_batch_kind_undef;
 }
 
 int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
@@ -231,7 +249,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     };
     if (!IMPLICATION(is_xf16(prb->bia_dt) || is_xf16(prb->dst_dt()),
                 is_xf16(prb->wei_dt()))) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
         return;
     }
     skip_unimplemented_data_type(
@@ -244,7 +263,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     // Unconditionally skip remaining unimplemented cases.
     // TODO: stop doing it.
     res->state = SKIPPED;
-    res->reason = CASE_NOT_SUPPORTED;
+    res->reason = skip_reason::case_not_supported;
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
@@ -257,7 +276,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     const bool req_s8_comp = prb->src_dt() == dnnl_s8;
     const bool req_zp_comp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     if (is_bad_ldb && (req_s8_comp || req_zp_comp)) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
         return;
     }
 }
@@ -272,20 +292,19 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 // A special wrapper needed to match internal infrastructure.
 dnnl_status_t brgemm_kernel_execute_postops_wrapper(
-        const dnnl::impl::cpu::x64::brgemm_kernel_t *brgemm_kernel,
-        dnnl::impl::cpu::x64::brgemm_batch_kind_t batch_kind, int batch_size,
+        const namespace_impl::brgemm_kernel_t *brgemm_kernel,
+        namespace_impl::brgemm_batch_kind_t batch_kind, int batch_size,
         const void *src_ptr, const void *wei_ptr,
-        const dnnl::impl::cpu::x64::brgemm_batch_element_t *batch_element,
+        const namespace_impl::brgemm_batch_element_t *batch_element,
         void *acc_ptr, void *dst_ptr,
-        const dnnl::impl::cpu::x64::brgemm_post_ops_data_t &post_ops_data,
+        const namespace_impl::brgemm_post_ops_data_t &post_ops_data,
         void *scratchpad_ptr, const dnnl_stream_t &stream,
         const std::vector<dnnl_exec_arg_t> &dnnl_args) {
 
-    if (batch_kind == dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_addr) {
+    if (batch_kind == namespace_impl::brgemm_batch_kind_t::brgemm_addr) {
         brgemm_kernel_execute_postops(brgemm_kernel, batch_size, batch_element,
                 acc_ptr, dst_ptr, post_ops_data, scratchpad_ptr);
-    } else if (batch_kind
-            == dnnl::impl::cpu::x64::brgemm_batch_kind_t::brgemm_offs) {
+    } else if (batch_kind == namespace_impl::brgemm_batch_kind_t::brgemm_offs) {
         brgemm_kernel_execute_postops(brgemm_kernel, batch_size, src_ptr,
                 wei_ptr, batch_element, acc_ptr, dst_ptr, post_ops_data,
                 scratchpad_ptr);
@@ -320,9 +339,12 @@ int doit(const prb_t *prb, res_t *res) {
     auto dst_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
             prb->dst_dt(), prb->dtag, dst_strides);
 
-    using namespace dnnl::impl::cpu::x64;
-
+    using namespace namespace_impl;
+#if defined(brg_x64)
     brgemm_desc_t brgemm_desc;
+#elif defined(brg_aarch64)
+    brgemm_t brgemm_desc;
+#endif
     // Supports only address model for now as only affects the way memory is
     // passed to `brgemm_batch_element_t` object.
     brgemm_batch_kind_t batch_kind = str2batch_kind(prb->batch_kind);
@@ -376,12 +398,14 @@ int doit(const prb_t *prb, res_t *res) {
     }
     auto brgemm_kernel = make_benchdnn_dnnl_wrapper(brgemm_kernel_);
 
+#if defined(brg_x64)
     const auto is_tmm = brgemm_desc.is_tmm;
     if (is_tmm) {
         char palette[AMX_PALETTE_SIZE] = {};
         DNN_SAFE(brgemm_init_tiles(brgemm_desc, palette), WARN);
         DNN_SAFE(amx_tile_configure(palette), WARN);
     }
+#endif
 
     auto src_md = dnn_mem_t::init_md(
             prb->ndims, src_dims, prb->src_dt(), prb->stag, src_strides);
@@ -570,12 +594,16 @@ int doit(const prb_t *prb, res_t *res) {
         // It requires enabling f32 -> u8 reorder with compensation on the
         // library side. When enabled, it produces incorrect results for cases
         // with K=1. Likely there's a bug inside. Postpone supporting it.
-        return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return OK;
     }
 
     if (prb->attr.post_ops.binary_index() >= 0) {
         // TODO: binary post-op is not supported yet.
-        return res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED, OK;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return OK;
     }
 
     brgemm_post_ops_data_t post_ops_data(
@@ -640,7 +668,9 @@ int doit(const prb_t *prb, res_t *res) {
             scratchpad_ptr, std::placeholders::_1, std::placeholders::_2);
     measure_perf(prb->ctx_exe, res, perf_func, args);
 
+#if defined(brg_x64)
     if (is_tmm) DNN_SAFE(amx_tile_release(), WARN);
+#endif
 
     return OK;
 }

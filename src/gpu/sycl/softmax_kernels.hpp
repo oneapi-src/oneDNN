@@ -29,8 +29,10 @@ namespace sycl {
 
 struct softmax_fwd_kernel_vec_t {
     softmax_fwd_kernel_vec_t(const sycl_softmax_conf_t &conf,
-            sycl_in_memory_arg_t &src, sycl_in_memory_arg_t &scale_src,
-            sycl_in_memory_arg_t &scale_dst, sycl_out_memory_arg_t &dst)
+            xpu::sycl::in_memory_arg_t &src,
+            xpu::sycl::in_memory_arg_t &scale_src,
+            xpu::sycl::in_memory_arg_t &scale_dst,
+            xpu::sycl::out_memory_arg_t &dst)
         : conf_(conf)
         , src_(src)
         , scale_src_(scale_src)
@@ -111,8 +113,8 @@ struct softmax_fwd_kernel_vec_t {
     }
 
 private:
-    const sycl_md_t &src_md() const { return conf_.src_md; }
-    const sycl_md_t &dst_md() const { return conf_.dst_md; }
+    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
+    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     void *src_ptr() const { return src_.get_pointer(); }
     void *dst_ptr() const { return dst_.get_pointer(); }
@@ -120,16 +122,17 @@ private:
     void *scale_dst_ptr() const { return scale_dst_.get_pointer(); }
 
     sycl_softmax_conf_t conf_;
-    sycl_in_memory_arg_t src_;
-    sycl_in_memory_arg_t scale_src_;
-    sycl_in_memory_arg_t scale_dst_;
-    sycl_out_memory_arg_t dst_;
+    xpu::sycl::in_memory_arg_t src_;
+    xpu::sycl::in_memory_arg_t scale_src_;
+    xpu::sycl::in_memory_arg_t scale_dst_;
+    xpu::sycl::out_memory_arg_t dst_;
 };
 
 struct softmax_bwd_kernel_vec_t {
     softmax_bwd_kernel_vec_t(const sycl_softmax_conf_t &conf,
-            sycl_in_memory_arg_t &dst, sycl_in_memory_arg_t &diff_dst,
-            sycl_out_memory_arg_t &diff_src)
+            xpu::sycl::in_memory_arg_t &dst,
+            xpu::sycl::in_memory_arg_t &diff_dst,
+            xpu::sycl::out_memory_arg_t &diff_src)
         : conf_(conf), dst_(dst), diff_dst_(diff_dst), diff_src_(diff_src) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -195,18 +198,18 @@ struct softmax_bwd_kernel_vec_t {
     }
 
 private:
-    const sycl_md_t &dst_md() const { return conf_.dst_md; }
-    const sycl_md_t &diff_dst_md() const { return conf_.diff_dst_md; }
-    const sycl_md_t &diff_src_md() const { return conf_.diff_src_md; }
+    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
+    const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
+    const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
 
     void *dst_ptr() const { return dst_.get_pointer(); }
     void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
     void *diff_src_ptr() const { return diff_src_.get_pointer(); }
 
     sycl_softmax_conf_t conf_;
-    sycl_in_memory_arg_t dst_;
-    sycl_in_memory_arg_t diff_dst_;
-    sycl_out_memory_arg_t diff_src_;
+    xpu::sycl::in_memory_arg_t dst_;
+    xpu::sycl::in_memory_arg_t diff_dst_;
+    xpu::sycl::out_memory_arg_t diff_src_;
 };
 
 } // namespace sycl

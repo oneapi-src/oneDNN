@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ namespace sycl {
 using namespace impl::sycl;
 status_t ref_sycl_eltwise_fwd_t::pd_t::init_conf() {
     conf_ = sycl_eltwise_conf_t();
-    conf_.src_md = sycl_md_t(src_md());
-    conf_.dst_md = sycl_md_t(dst_md());
+    conf_.src_md = xpu::sycl::md_t(src_md());
+    conf_.dst_md = xpu::sycl::md_t(dst_md());
     conf_.wk_size = memory_desc_wrapper(src_md()).nelems();
     conf_.alg_kind = desc()->alg_kind;
     conf_.alpha = desc()->alpha;
@@ -43,7 +43,7 @@ status_t ref_sycl_eltwise_fwd_t::pd_t::init_conf() {
     conf_.post_ops = sycl_post_ops_t(attr());
 
     for (auto i = 0; i < conf_.post_po_len; ++i)
-        conf_.binary_src_arr[i] = sycl_md_t(
+        conf_.binary_src_arr[i] = xpu::sycl::md_t(
                 arg_md(DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1));
 
     const int block_size = conf_.block_size;
@@ -89,9 +89,9 @@ status_t ref_sycl_eltwise_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
 status_t ref_sycl_eltwise_bwd_t::pd_t::init_conf() {
     conf_ = sycl_eltwise_conf_t();
-    conf_.src_md = sycl_md_t(data_md(0));
-    conf_.diff_src_md = sycl_md_t(diff_src_md());
-    conf_.diff_dst_md = sycl_md_t(diff_dst_md());
+    conf_.src_md = xpu::sycl::md_t(data_md(0));
+    conf_.diff_src_md = xpu::sycl::md_t(diff_src_md());
+    conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md());
     conf_.block_size = 16;
     conf_.wg_size = 32;
     conf_.wk_size = memory_desc_wrapper(data_md(0)).nelems();

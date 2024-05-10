@@ -32,7 +32,29 @@ using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::utils;
 using namespace Xbyak_aarch64;
 
-#define GET_OFF(x) offsetof(ctx_t, x)
+#define GET_OFF(x) (uint32_t) offsetof(ctx_t, x)
+
+#define LDR_IMM(reg, addr, off) \
+    { \
+        const uint64_t IMM12_MASK = ~uint64_t(0xfff); \
+        if ((off & IMM12_MASK) == 0) { \
+            ldr(reg, ptr(addr, off)); \
+        } else { \
+            add_imm(X_DEFAULT_ADDR, addr, off, X_TMP_0); \
+            ldr(reg, ptr(X_DEFAULT_ADDR)); \
+        } \
+    }
+
+#define STR_IMM(reg, addr, off) \
+    { \
+        const uint64_t IMM12_MASK = ~uint64_t(0xfff); \
+        if ((off & IMM12_MASK) == 0) { \
+            str(reg, ptr(addr, off)); \
+        } else { \
+            add_imm(X_DEFAULT_ADDR, addr, off, X_TMP_0); \
+            str(reg, ptr(X_DEFAULT_ADDR)); \
+        } \
+    }
 
 template <cpu_isa_t isa>
 struct jit_brgemm_matmul_copy_a_impl_t : public jit_brgemm_matmul_copy_a_t,
@@ -52,7 +74,7 @@ struct jit_brgemm_matmul_copy_a_impl_t : public jit_brgemm_matmul_copy_a_t,
                                          : conf_->LDA)
                   * tr_typesize_)
         , do_compute_compensation_(conf_->has_zero_point_b)
-        , k_loop_unroll_(is_ymm_ ? 7 : 16)
+        , k_loop_unroll_(is_sve256_ ? 7 : 16)
         , vmm_copy_idx_(29) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
@@ -64,8 +86,8 @@ private:
     using opmask_t = const Xbyak_aarch64::PReg;
 
     static constexpr int vlen_ = cpu_isa_traits<isa>::vlen;
-    static constexpr bool is_ymm_ = isa == sve_256;
-    static constexpr int num_comp_acc_ = is_ymm_ ? 7 : 8;
+    static constexpr bool is_sve256_ = isa == sve_256;
+    static constexpr int num_comp_acc_ = is_sve256_ ? 7 : 8;
 
     const int typesize_;
     const int tr_typesize_;
@@ -102,8 +124,8 @@ private:
     ZReg vmm_ones_words = ZReg(28);
     ZReg vmm_dot_product_temp = ZReg(29);
 
-    ZReg vmm_comp_mul = ZReg(is_ymm_ ? 14 : 30); // 1s
-    ZReg vmm_comp_add = ZReg(is_ymm_ ? 15 : 31); // 128
+    ZReg vmm_comp_mul = ZReg(is_sve256_ ? 14 : 30); // 1s
+    ZReg vmm_comp_add = ZReg(is_sve256_ ? 15 : 31); // 128
 
     // Allows to shift A data by 128 for s8s8 problem for SVE512 in copy
     // routine, not in compute kernel. It's disabled for now, as it
@@ -355,7 +377,7 @@ protected:
     using reg64_t = const Xbyak_aarch64::XReg;
     using reg32_t = const Xbyak_aarch64::WReg;
 
-    static constexpr bool is_ymm_ = cpu_isa_traits<isa>::vlen == 32;
+    static constexpr bool is_sve256_ = cpu_isa_traits<isa>::vlen == 32;
     static constexpr int k_blk_step_ = 4;
     static constexpr int n_blk_step_ = 64;
     static constexpr int blk_sz_ = 6;
@@ -402,7 +424,7 @@ protected:
 
     inline ZReg get_vmm(int blk, int idx) {
         if (idx < 0 || idx >= 32) assert(!"idx > vregs");
-        assert(IMPLICATION(!is_ymm_, idx < blk_sz_ && blk >= 0));
+        assert(IMPLICATION(!is_sve256_, idx < blk_sz_ && blk >= 0));
         auto reg_idx = blk_sz_ * blk + idx;
         return ZReg(reg_idx);
     }
@@ -498,11 +520,12 @@ private:
     using opmask_t = const Xbyak_aarch64::PReg;
     using zmm = const Xbyak_aarch64::ZReg;
 
-    enum { n_blk_step = 16, max_regs_available = 30 };
+    enum { n_blk_step = 8, max_regs_available = 30 };
     const data_type_t dt_in_;
     const size_t typesize_in_;
     const size_t typesize_out_ = sizeof(float);
     dim_t src_stride_, tr_src_stride_;
+    const bool is_sve_256 = !mayiuse(sve_512);
 
     opmask_t kTail = p7;
     opmask_t kFFFF = p6;
@@ -519,26 +542,100 @@ private:
     zmm zmm_permw = z30;
     zmm zmm_zero = z31;
 
-    inline void kmovw(Xbyak_aarch64::PReg k, unsigned w) {
-        assert(!"under construction");
-    }
-    void copy_16_x_n_block(int nrows, int ncolumns);
+    void copy_16_8_x_n_block(int nrows, int ncolumns);
     void compute_k_loop(int ncolumns);
     void generate() override;
 };
 
-void jit_brgemm_matmul_copy_b_f32_t::copy_16_x_n_block(
+void jit_brgemm_matmul_copy_b_f32_t::copy_16_8_x_n_block(
         int nrows, int ncolumns) {
-    assert(!"under construction");
+
+    int n_blk_step = is_sve_256 ? 8 : 16;
+
+    auto get_zmm = [](int reg_idx) {
+        assert(reg_idx >= 0 && reg_idx < max_regs_available);
+        return ZRegS(reg_idx);
+    };
+
+    auto load = [this, get_zmm](int blk, int k, int n, opmask_t current_mask) {
+        auto src_zmm = get_zmm(blk);
+        add_imm(X_DEFAULT_ADDR, reg_src, k * src_stride_ + n * typesize_in_,
+                X_TMP_0);
+        ld1w(src_zmm, current_mask / T_z, ptr(X_DEFAULT_ADDR));
+    };
+
+    const int columns_tail = ncolumns % n_blk_step;
+
+    if (columns_tail < n_blk_step)
+        set_preg(kTail.s, columns_tail, X_TMP_0, X_TMP_1);
+
+    int iter = 0;
+    for_(int k = 0; k < nrows; k++) //nrows = unroll
+    for (int n = 0; n < conf_->wei_n_blk; n += n_blk_step) {
+
+        const dim_t tr_src_off = k * tr_src_stride_ + n * typesize_out_;
+        const int zero_padding = ncolumns - n;
+        if (zero_padding <= 0) {
+            add_imm(X_DEFAULT_ADDR, reg_tr_src, tr_src_off, X_TMP_0);
+            str(zmm_zero, ptr(X_DEFAULT_ADDR));
+            continue;
+        }
+
+        const opmask_t curr_msk = zero_padding < n_blk_step ? kTail : kFFFF;
+        const int blk_idx = iter % max_regs_available;
+        load(blk_idx, k, n, curr_msk);
+        add_imm(X_DEFAULT_ADDR, reg_tr_src, tr_src_off, X_TMP_0);
+        const auto src_zmm0 = ZReg(blk_idx);
+        str(src_zmm0, ptr(X_DEFAULT_ADDR));
+        iter++;
+    }
 }
 
 void jit_brgemm_matmul_copy_b_f32_t::compute_k_loop(int ncolumns) {
-    assert(!"under construction");
+
+    auto compute_uni_k_loop = [&](int unroll) {
+        Label K_start_label, K_end_label;
+
+        L(K_start_label);
+        cmp_imm(reg_K_iters, unroll, X_TMP_0);
+        b(LT, K_end_label);
+
+        copy_16_8_x_n_block(unroll, ncolumns);
+        add_imm(reg_src, reg_src, unroll * src_stride_, X_TMP_0);
+        add_imm(reg_tr_src, reg_tr_src, unroll * tr_src_stride_, X_TMP_0);
+
+        sub_imm(reg_K_iters, reg_K_iters, unroll, X_TMP_0);
+        bl(K_start_label);
+
+        L(K_end_label);
+    };
+
+    int k_unroll = is_sve_256 ? 8 : 16;
+    compute_uni_k_loop(k_unroll);
+    compute_uni_k_loop(1);
 }
 
 void jit_brgemm_matmul_copy_b_f32_t::generate() {
     preamble();
-    assert(!"under construction");
+    eor(zmm_zero.d, zmm_zero.d, zmm_zero.d);
+    LDR_IMM(reg_src, param1, GET_OFF(src));
+    LDR_IMM(reg_tr_src, param1, GET_OFF(tr_src));
+    LDR_IMM(reg_K_iters, param1, GET_OFF(current_K_iters));
+    LDR_IMM(reg_N_blk, param1, GET_OFF(current_N_blk));
+    ptrue(kFFFF.s);
+
+    Label done;
+    if (conf_->N_tail > 0) {
+        Label not_N_tail;
+        cmp_imm(reg_N_blk, conf_->N_tail, X_TMP_0);
+        b(NE, not_N_tail);
+        compute_k_loop(conf_->N_tail);
+        bl(done);
+
+        L(not_N_tail);
+    }
+    compute_k_loop(conf_->N_blk);
+    L(done);
 
     postamble();
 }
@@ -576,11 +673,11 @@ private:
     using opmask_t = const Xbyak_aarch64::PReg;
     using ZReg = const Xbyak_aarch64::ZReg;
 
-    static constexpr bool is_ymm_ = isa == sve_256;
+    static constexpr bool is_sve256_ = isa == sve_256;
     static constexpr cpu_isa_t isa_ = isa;
     static constexpr int max_vmm_regs_ = cpu_isa_traits<isa_>::n_vregs;
     static constexpr int vlen_ = cpu_isa_traits<isa>::vlen;
-    static constexpr int n_blk_step_ = 16;
+    static constexpr int n_blk_step_ = is_sve256_ ? 8 : 16;
     static constexpr int bf32_k_blk_step_ = 16;
     static constexpr size_t comp_shift_ = vlen_;
 
@@ -629,9 +726,23 @@ private:
     ZReg vmm_all_bits_1 = Xbyak_aarch64::ZReg(max_vmm_regs_ - 5);
     ZReg vmm_one_s32 = Xbyak_aarch64::ZReg(max_vmm_regs_ - 6);
 
-    // Required in every dot product for INT8 non-VNNI computation.
     ZReg vmm_ones_words = ZReg(max_vmm_regs_ - 7);
     ZReg vmm_dot_product_temp = ZReg(max_vmm_regs_ - 8);
+
+    ZReg z_tmp_0 = ZReg(28);
+    ZReg z_tmp_1 = ZReg(29);
+    ZReg z_tmp_3 = ZReg(30);
+    ZReg z_tmp_2 = ZReg(27);
+    PReg p_tmp_0 = p7;
+    PReg p_02 = p8;
+    PReg p_AA = p9;
+    PReg p_55 = p10;
+    PReg p_FF = p5;
+    PReg p_0F = p4;
+    PReg p_33 = p3;
+    PReg p_F0 = p2;
+    PReg p_CC = p1;
+    PReg p_E0 = p6;
 
     void kmovw(Xbyak_aarch64::PReg k, unsigned w) {
         assert(!"under construction");
@@ -648,8 +759,8 @@ private:
 
     ZReg tmp_vmm(int i) {
         // If compensation compute is required - last 6 zregs are reserved for it
-        assert(i >= 0 && IMPLICATION(!is_ymm_, i < max_tmp_idx)
-                && IMPLICATION(is_ymm_, i < 2));
+        assert(i >= 0 && IMPLICATION(!is_sve256_, i < max_tmp_idx)
+                && IMPLICATION(is_sve256_, i < 2));
         return ZReg(n_blk_step_ + i);
     }
 
@@ -660,7 +771,7 @@ private:
             int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter);
 
     inline void dot_product(ZReg v1, ZReg v2, ZReg v3) {
-        assert(!"under construction");
+        fmla(v1.s, P_ALL_ONE / T_m, v2.s, v3.s);
     }
     void generate() override;
 };
@@ -674,27 +785,297 @@ void jit_brgemm_matmul_copy_b_transposed_t<isa>::copy_row_x_col(
 template <>
 void jit_brgemm_matmul_copy_b_transposed_t<sve_256>::copy_row_x_col(
         int nrows, int ncolumns) {
-    assert(!"under construction");
+    assert(nrows >= 0 && nrows <= n_blk_step_ && ncolumns >= 0
+            && ncolumns <= k_blk_step_);
+    if (!nrows) return;
+
+    const int columns_tail = ncolumns % k_blk_step_;
+    auto load = [this, nrows, columns_tail](int i) {
+        auto vmm_src = src_vmm(i);
+        if (i >= nrows) {
+            eor(vmm_src.d, vmm_src.d, vmm_src.d);
+            return;
+        }
+        if (columns_tail > 0) {
+            add_imm(X_DEFAULT_ADDR, reg_src, i * src_stride_, X_TMP_0);
+            set_preg(P_TMP.b, columns_tail * typesize_, X_TMP_0, X_TMP_1);
+            ld1b(vmm_src.b, P_TMP / T_z, ptr(X_DEFAULT_ADDR));
+        } else {
+            add_imm(X_DEFAULT_ADDR, reg_src, i * src_stride_, X_TMP_0);
+            ldr(vmm_src, ptr(X_DEFAULT_ADDR));
+        }
+    };
+
+    // swap 1
+    for (int i = 0; i < 4; ++i) {
+        const int src_idx0 = i * 2;
+        const int src_idx1 = src_idx0 + 1;
+
+        const int next_src_idx0 = src_idx0 + 2;
+        const int next_src_idx1 = src_idx1 + 2;
+        const bool load_next = i < 3;
+
+        if (i == 0) {
+
+            load(src_idx0);
+            load(src_idx1);
+        }
+        const auto tmp0 = tmp_vmm(0);
+        const auto tmp1 = tmp_vmm(1);
+        const auto src0 = src_vmm(src_idx0);
+        const auto src1 = src_vmm(src_idx1);
+
+        if (next_src_idx0 < nrows && load_next) { load(next_src_idx0); }
+        mov(tmp0.d, src0.d);
+        ext(tmp0.b, src0.b, 16);
+        splice(tmp0.s, p_E0, tmp0.s);
+
+        if (next_src_idx1 < nrows && load_next) { load(next_src_idx1); }
+        set_preg(p_tmp_0.s, 1, X_TMP_0, X_TMP_1);
+        mov(tmp1.d, src1.d);
+        splice(tmp1.s, p_tmp_0, tmp1.s);
+
+        mov(src0.s, p_AA / T_m, tmp1.s);
+        mov(src1.s, p_55 / T_m, tmp0.s);
+    }
+    // swap 2
+    for (int i = 0; i < 4; ++i) {
+        const int select_half = (i < 2) ? 0 : 2;
+        const int src_idx0 = i + select_half;
+        const int src_idx2 = src_idx0 + 2;
+
+        const auto tmp0 = tmp_vmm(0);
+        const auto tmp1 = tmp_vmm(1);
+        const auto src0 = src_vmm(src_idx0);
+        const auto src2 = src_vmm(src_idx2);
+
+        not_(p_tmp_0.b, p_FF, p_02.b);
+        mov(tmp0.d, src0.d);
+        splice(tmp0.s, p_tmp_0, tmp0.s);
+
+        rev(p_tmp_0.s, p_02.s);
+        mov(tmp1.d, src2.d);
+        splice(tmp1.s, p_tmp_0, tmp1.s);
+
+        mov(src2.s, p_33 / T_m, tmp0.s);
+        mov(src0.s, p_CC / T_m, tmp1.s);
+    }
+    // swap 4
+    for (int i = 0; i < 4; ++i) {
+        const int src_idx0 = i;
+        const int src_idx4 = src_idx0 + 4;
+
+        const auto tmp0 = tmp_vmm(0);
+        const auto src0 = src_vmm(src_idx0);
+        const auto src4 = src_vmm(src_idx4);
+
+        mov(tmp0.d, src0.d);
+        ext(tmp0.b, src0.b, 16);
+
+        splice(src0.s, p_0F, src4.s);
+        mov(src4.s, p_0F / T_m, tmp0.s);
+    }
+    // swap 8
+    for (int i = 0; i < 8; i++) {
+        const auto src0 = src_vmm(i);
+        if (do_compute_compensation_)
+            dot_product(vmm_comp_acc, vmm_comp_mul, src0);
+        add_imm(X_DEFAULT_ADDR, reg_tr_src, i * tr_src_stride_, X_TMP_0);
+        str(src0, ptr(X_DEFAULT_ADDR));
+    }
 }
 
 template <cpu_isa_t isa>
 void jit_brgemm_matmul_copy_b_transposed_t<isa>::compute_K_loop(bool is_N_tail,
         int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
-    assert(!"under construction");
+
+    MAYBE_UNUSED(is_first_K_iter);
+    MAYBE_UNUSED(is_last_K_iter);
+
+    const int N_chunk_tail = conf_->N % n_blk_step_;
+    const int nrows = is_N_tail ? N_chunk_tail : n_blk_step_;
+    if (do_compute_compensation_)
+        eor(vmm_comp_acc.d, vmm_comp_acc.d, vmm_comp_acc.d);
+
+    Label K_loop, K_loop_tail_or_done;
+    LDR_IMM(reg_K_iters, param1, GET_OFF(current_K_iters));
+
+    mov(reg_src, reg_src_base);
+    mov(reg_tr_src, reg_tr_src_base);
+    if (curr_K_tail > 0) {
+        cmp_imm(reg_K_iters, k_blk_step_, X_TMP_0);
+        b(LT, K_loop_tail_or_done);
+    }
+
+    L(K_loop);
+    copy_row_x_col(nrows, k_blk_step_);
+    add_imm(reg_src, reg_src, k_blk_step_ * typesize_, X_TMP_0);
+    add_imm(reg_tr_src, reg_tr_src,
+            k_blk_step_ / vnni_granularity_ * tr_src_stride_, X_TMP_0);
+
+    sub_imm(reg_K_iters, reg_K_iters, k_blk_step_, X_TMP_0);
+    cmp_imm(reg_K_iters, k_blk_step_, X_TMP_0);
+    b(GE, K_loop);
+
+    L(K_loop_tail_or_done);
+
+    if (curr_K_tail > 0) copy_row_x_col(nrows, curr_K_tail);
+
+    if (req_zp_comp_) {
+        const auto addr = ptr(reg_zp_comp_ptr);
+        if (!is_first_K_iter) ld1rw(vmm_comp_acc.s, P_ALL_ONE / T_z, addr);
+        if (is_last_K_iter)
+            mul(vmm_comp_acc.s, P_ALL_ONE / T_m, vmm_zp_a_neg_val.s);
+        st1w(vmm_comp_acc.s, P_ALL_ONE / T_m, addr);
+    }
 }
 
 template <cpu_isa_t isa>
 void jit_brgemm_matmul_copy_b_transposed_t<isa>::compute_N_loop(
         int curr_K_tail, bool is_first_K_iter, bool is_last_K_iter) {
-    assert(!"under construction");
+
+    const int N_chunk_tail = conf_->N % n_blk_step_;
+
+    Label N_loop, N_loop_tail_or_done;
+    if (N_chunk_tail > 0) {
+        cmp_imm(reg_N_iters, n_blk_step_, X_TMP_0);
+        b(LT, N_loop_tail_or_done);
+    }
+
+    L(N_loop);
+    compute_K_loop(false, curr_K_tail, is_first_K_iter, is_last_K_iter);
+    add_imm(reg_src_base, reg_src_base, n_blk_step_ * src_stride_, X_TMP_0);
+    add_imm(reg_tr_src_base, reg_tr_src_base,
+            n_blk_step_ * vnni_granularity_ * tr_typesize_, X_TMP_0);
+
+    if (req_zp_comp_)
+        add_imm(reg_zp_comp_ptr, reg_zp_comp_ptr, comp_shift_, X_TMP_0);
+    if (req_s8s8_comp_)
+        add_imm(reg_comp_ptr, reg_comp_ptr, comp_shift_, X_TMP_0);
+
+    sub_imm(reg_N_iters, reg_N_iters, n_blk_step_, X_TMP_0);
+    cmp_imm(reg_N_iters, n_blk_step_, X_TMP_0);
+    b(GE, N_loop);
+
+    L(N_loop_tail_or_done);
+    if (N_chunk_tail > 0) {
+        Label N_loop_done;
+        cmp_imm(reg_N_iters, 0, X_TMP_0);
+        b(LE, N_loop_done);
+
+        compute_K_loop(true, curr_K_tail, is_first_K_iter, is_last_K_iter);
+        L(N_loop_done);
+    }
 }
 
 template <cpu_isa_t isa>
 void jit_brgemm_matmul_copy_b_transposed_t<isa>::generate() {
 
     preamble();
-    assert(!"under construction");
 
+    ptrue(p_FF.s);
+    set_preg(p_0F.s, 4, X_TMP_0, X_TMP_1);
+    rev(p_F0.s, p_0F.s);
+    set_preg(p_33.s, 2, X_TMP_0, X_TMP_1);
+    rev(p_tmp_0.s, p_33.s);
+    orr(p_33.b, p_FF, p_33.b, p_F0.b);
+    eor(p_33.b, p_FF, p_33.b, p_tmp_0.b);
+    rev(p_CC.s, p_33.s);
+    pfalse(p_AA.b);
+    ptrue(p_tmp_0.s);
+    trn1(p_AA.s, p_AA.s, p_tmp_0.s);
+    rev(p_55.s, p_AA.s);
+    set_preg(p_E0.s, 3, X_TMP_0, X_TMP_1);
+    rev(p_E0.s, p_E0.s);
+    set_preg(p_02.s, 2, X_TMP_0, X_TMP_1);
+
+    LDR_IMM(reg_src_base, param1, GET_OFF(src));
+    LDR_IMM(reg_tr_src_base, param1, GET_OFF(tr_src));
+    LDR_IMM(reg_K_iters, param1, GET_OFF(current_K_iters));
+    LDR_IMM(reg_N_iters, param1, GET_OFF(current_N_blk));
+
+    const dim_t N_chunk_elems = conf_->N_chunk_elems;
+    assert(N_chunk_elems % n_blk_step_ == 0 || N_chunk_elems == conf_->N);
+    UNUSED(N_chunk_elems);
+
+    const auto K_blk_tail = nstl::min(conf_->K, conf_->K_blk) % k_blk_step_;
+    const auto K_tail_tail = (conf_->K % conf_->K_blk) % k_blk_step_;
+
+    auto compute_body = [&](bool is_first_K_iter, bool is_last_K_iter) {
+        if (is_last_K_iter) {
+            if (req_s8s8_comp_) {
+                mov_imm(imm_addr64, 0xffffffff);
+                auto wreg_tmp_1 = WReg(imm_addr64.getIdx());
+                dup(vmm_all_bits_1.s, wreg_tmp_1);
+                mov_imm(imm_addr64, 0x1);
+                dup(vmm_one_s32.s, wreg_tmp_1);
+            }
+            if (req_zp_comp_) {
+                LDR_IMM(reg_zp_a_neg_val_ptr, param1,
+                        GET_OFF(zp_a_neg_value_ptr));
+                ldr(W_TMP_0, ptr(reg_zp_a_neg_val_ptr));
+                dup(vmm_zp_a_neg_val.s, W_TMP_0);
+            }
+        }
+
+        Label compute_body_done;
+        if (conf_->K_tail > 0 && K_blk_tail != K_tail_tail) {
+            Label not_K_tail;
+            cmp_imm(reg_K_iters, conf_->K_blk, X_TMP_0);
+            b(EQ, not_K_tail);
+            compute_N_loop(K_tail_tail, is_first_K_iter, is_last_K_iter);
+            bl(compute_body_done);
+
+            L(not_K_tail);
+        }
+
+        compute_N_loop(K_blk_tail, is_first_K_iter, is_last_K_iter);
+        L(compute_body_done);
+    };
+
+    Label done;
+    if (do_compute_compensation_) {
+        assert(IMPLICATION(req_zp_comp_,
+                conf_->src_zp_type == brgemm_broadcast_t::per_tensor));
+
+        LDR_IMM(reg_K_start, param1, GET_OFF(current_K_start));
+        if (req_s8s8_comp_)
+            LDR_IMM(reg_comp_ptr, param1, GET_OFF(compensation_ptr));
+        if (req_zp_comp_)
+            LDR_IMM(reg_zp_comp_ptr, param1, GET_OFF(zp_a_compensation_ptr));
+        mov_imm(regq_tmp, 1);
+        auto wreg_tmp_2 = WReg(regq_tmp.getIdx());
+        dup(vmm_comp_mul.s, wreg_tmp_2);
+
+        const auto last_K_threshold
+                = rnd_up(conf_->K, conf_->K_blk) - conf_->K_blk;
+        Label not_first, not_first_not_last;
+        cmp_imm(reg_K_start, 0, X_TMP_0);
+        b(NE, not_first);
+        {
+            // first K iteration
+            Label first_not_last;
+            cmp_imm(reg_K_start, last_K_threshold, X_TMP_0);
+            b(LT, first_not_last);
+            compute_body(true, true);
+            bl(done);
+
+            L(first_not_last);
+            compute_body(true, false);
+            bl(done);
+        }
+
+        L(not_first);
+        cmp_imm(reg_K_start, last_K_threshold, X_TMP_0);
+        b(LT, not_first_not_last);
+
+        compute_body(false, true);
+        bl(done);
+        L(not_first_not_last);
+    }
+
+    compute_body(false, false);
+    L(done);
     postamble();
 }
 

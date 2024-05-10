@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive_attr.hpp"
 #include "gpu/sycl/sycl_math_utils.hpp"
-#include "gpu/sycl/sycl_types.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -133,7 +133,7 @@ private:
 struct sycl_post_ops_t {
     // SYCL has a limitation on total size of kernel arguments.
     // This affects number of post ops, e.g. binary post op (which is not yet
-    // implemented) contains sycl_md_t which is large enough to limit
+    // implemented) contains xpu::sycl::md_t which is large enough to limit
     // the number of post ops.
     static constexpr int max_post_ops = 5;
 

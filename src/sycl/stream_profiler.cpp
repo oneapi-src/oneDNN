@@ -22,7 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 #include "sycl/sycl_stream.hpp"
-#include "sycl/sycl_utils.hpp"
+#include "xpu/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {

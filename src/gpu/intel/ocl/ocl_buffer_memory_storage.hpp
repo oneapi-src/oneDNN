@@ -45,7 +45,8 @@ public:
     }
 
     status_t set_data_handle(void *handle) override {
-        mem_object_ = ocl_wrapper_t<cl_mem>(static_cast<cl_mem>(handle), true);
+        mem_object_ = xpu::ocl::wrapper_t<cl_mem>(
+                static_cast<cl_mem>(handle), true);
         return status::success;
     }
 
@@ -70,7 +71,7 @@ protected:
 private:
     cl_mem parent_mem_object() const;
 
-    ocl_wrapper_t<cl_mem> mem_object_;
+    xpu::ocl::wrapper_t<cl_mem> mem_object_;
     size_t base_offset_ = 0;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(ocl_buffer_memory_storage_t);

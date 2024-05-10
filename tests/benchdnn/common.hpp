@@ -93,6 +93,7 @@ extern int verbose;
 extern bool canonical;
 extern bool mem_check;
 extern bool attr_same_pd_check;
+extern bool check_ref_impl;
 extern std::string skip_impl; /* empty or "" means skip nothing */
 extern std::string driver_name;
 
@@ -152,16 +153,14 @@ enum res_state_t {
 };
 const char *state2str(res_state_t state);
 
-enum skip_reason_t {
-    SKIP_UNKNOWN = 0,
-    CASE_NOT_SUPPORTED,
-    DATA_TYPE_NOT_SUPPORTED,
-    INVALID_CASE,
-    NOT_ENOUGH_RAM,
-    SKIP_IMPL_HIT,
-    SKIP_START,
-};
-const char *skip_reason2str(skip_reason_t skip_reason);
+namespace skip_reason {
+extern std::string case_not_supported;
+extern std::string data_type_not_supported;
+extern std::string invalid_case;
+extern std::string not_enough_ram;
+extern std::string skip_impl_hit;
+extern std::string skip_start;
+} // namespace skip_reason
 
 enum dir_t {
     DIR_UNDEF = 0,
@@ -187,7 +186,7 @@ struct res_t {
     timer::timer_map_t timer_map;
     std::string impl_name;
     std::string prim_ref_repro;
-    skip_reason_t reason;
+    std::string reason;
     size_t ibytes, obytes;
     dir_t mem_check_dir = DIR_UNDEF;
 };

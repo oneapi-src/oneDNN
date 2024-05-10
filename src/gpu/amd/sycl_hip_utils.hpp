@@ -29,7 +29,7 @@
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
 
-#include "sycl/sycl_utils.hpp"
+#include "xpu/sycl/utils.hpp"
 
 #include "gpu/amd/sycl_hip_compat.hpp"
 

@@ -40,14 +40,14 @@ bdnn_state_t convert_state(const dnnl_status_t &s) {
             return bdnn_state_t {res_state_t::PASSED};
         case dnnl_status_t::dnnl_out_of_memory:
             return bdnn_state_t {
-                    res_state_t::SKIPPED, skip_reason_t::NOT_ENOUGH_RAM};
+                    res_state_t::SKIPPED, skip_reason::not_enough_ram};
         case dnnl_status_t::dnnl_invalid_arguments:
             return bdnn_state_t {res_state_t::INVALID_ARGUMENTS};
         case dnnl_status_t::dnnl_unimplemented:
             return bdnn_state_t {res_state_t::UNIMPLEMENTED};
         case dnnl_status_t::dnnl_last_impl_reached:
             return bdnn_state_t {
-                    res_state_t::SKIPPED, skip_reason_t::SKIP_IMPL_HIT};
+                    res_state_t::SKIPPED, skip_reason::skip_impl_hit};
         case dnnl_status_t::dnnl_runtime_error:
             return bdnn_state_t {res_state_t::FAILED};
         case dnnl_status_t::dnnl_not_required:
@@ -56,10 +56,10 @@ bdnn_state_t convert_state(const dnnl_status_t &s) {
         case dnnl_status_t::dnnl_invalid_graph_op:
         case dnnl_status_t::dnnl_invalid_shape:
             return bdnn_state_t {
-                    res_state_t::SKIPPED, skip_reason_t::INVALID_CASE};
+                    res_state_t::SKIPPED, skip_reason::invalid_case};
         case dnnl_status_t::dnnl_invalid_data_type:
-            return bdnn_state_t {res_state_t::SKIPPED,
-                    skip_reason_t::DATA_TYPE_NOT_SUPPORTED};
+            return bdnn_state_t {
+                    res_state_t::SKIPPED, skip_reason::data_type_not_supported};
         default: assert(!"dnnl state is not found!"); return bdnn_state_t {};
     }
 }

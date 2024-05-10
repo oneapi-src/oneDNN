@@ -19,7 +19,7 @@
 
 #include "ngen_config.hpp"
 
-#include <ze_api.h>
+#include "gpu/intel/sycl/l0/level_zero/ze_api.h"
 
 #include <sstream>
 

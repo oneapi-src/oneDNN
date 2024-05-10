@@ -359,7 +359,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
                 = prb->get_dt(WEI) == dnnl_s8 && prb->get_dt(DST) == dnnl_bf16;
         const bool fwd_ok = !is_x8s8bf16_cfg;
         if (!fwd_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
     }

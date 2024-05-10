@@ -24,8 +24,8 @@
 #include "gpu/sycl/sycl_io_helper.hpp"
 #include "gpu/sycl/sycl_primitive_conf.hpp"
 #include "gpu/sycl/sycl_q10n.hpp"
-#include "gpu/sycl/sycl_types.hpp"
 #include "sycl/sycl_stream.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {

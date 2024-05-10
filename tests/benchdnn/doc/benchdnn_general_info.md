@@ -129,15 +129,15 @@ problem):
   reproducer line might be reported. The execution was stopped before creating
   any library objects.
 * `SKIPPED`. Same as `LISTED` but the execution was stopped intentionally for
-  the reason given in the short description, e.g. `CASE_NOT_SUPPORTED` or
-  `SKIP_IMPL_HIT`.
+  the reason given in the short description, e.g. "Case not supported" or
+  "Skip-impl option hit".
   Note: Nvidia backend is treated specially. See a note below.
 * `INVALID_ARGUMENTS`. It means that the library API returned an error due to
   incorrect argument values. It is treated as a failure.
 * `UNIMPLEMENTED`. It means that the library does not have an implementation for
   a requested problem. It is treated as a failure.
   Note: All Nvidia backend `unimplemented` status errors are always treated as
-  `SKIPPED (CASE_NOT_SUPPORTED)` to simplify validation.
+  `SKIPPED "(Case not supported)"` to simplify validation.
 * `INITIALIZED`. It means that a problem was initialized, and the primitive
   creation was successful, but there was no execution call or validation.
 * `EXECUTED`. It means that a problem was run, and the library execution call

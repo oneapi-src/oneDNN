@@ -219,8 +219,8 @@ void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
 ///     phase
 /// @param scratch Scratchpad memory needed in several scenarios
 ///
-void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const void *addr_B,
+void DNNL_API brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel,
+        int bs, const void *addr_A, const void *addr_B,
         const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
         const brgemm_post_ops_data_t &post_ops_data, void *scratch = nullptr);
 

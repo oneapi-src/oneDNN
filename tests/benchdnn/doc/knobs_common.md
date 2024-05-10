@@ -157,6 +157,13 @@ names mismatch for two descriptors. It indicates that appending an attribute
 changes the implementation dispatching which is an undesired behavior. When
 `BOOL` is `false` (the default), the check is disabled.
 
+### --check-ref-impl
+`--check-ref-impl=BOOL` instructs the driver to compare the implementation name
+string against the `ref` string pattern. When `BOOL` is set to `true`, the check
+returns an error if the name matches the reference pattern. By default, the
+check is disabled. It's useful to catch unexpected fallbacks to slow reference
+implementations from a big batch of problems.
+
 ### --fast-ref
 `--fast-ref=BOOL` instructs the driver to use an optimized implementation
 from the library as a reference path for correctness comparison when `BOOL` is

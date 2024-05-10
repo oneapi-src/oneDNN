@@ -84,7 +84,7 @@ status_t ocl_buffer_memory_storage_t::map_data(
     cl_int err;
     *mapped_ptr = clEnqueueMapBuffer(queue, mem_object(), CL_TRUE, map_flags, 0,
             mem_bytes, 0, nullptr, nullptr, &err);
-    return convert_to_dnnl(err);
+    return xpu::ocl::convert_to_dnnl(err);
 }
 
 status_t ocl_buffer_memory_storage_t::unmap_data(
@@ -116,8 +116,9 @@ std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::get_sub_storage(
     gpu_assert(offset % OCL_BUFFER_ALIGNMENT == 0);
 
     cl_buffer_region buffer_region = {base_offset_ + offset, size};
-    ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(parent_mem_object(),
-            mem_flags, CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
+    xpu::ocl::wrapper_t<cl_mem> sub_buffer
+            = clCreateSubBuffer(parent_mem_object(), mem_flags,
+                    CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
     gpu_assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 

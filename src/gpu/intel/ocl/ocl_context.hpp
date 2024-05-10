@@ -28,18 +28,18 @@ namespace ocl {
 
 struct ocl_event_t final : compute::event_t {
     ocl_event_t() = default;
-    ocl_event_t(const std::vector<ocl_wrapper_t<cl_event>> &events)
+    ocl_event_t(const std::vector<xpu::ocl::wrapper_t<cl_event>> &events)
         : events(events) {}
-    ocl_event_t(std::vector<ocl_wrapper_t<cl_event>> &&events)
+    ocl_event_t(std::vector<xpu::ocl::wrapper_t<cl_event>> &&events)
         : events(std::move(events)) {}
-    ocl_event_t(ocl_wrapper_t<cl_event> &&event) {
+    ocl_event_t(xpu::ocl::wrapper_t<cl_event> &&event) {
         events.emplace_back(std::move(event));
     }
 
-    const ocl_wrapper_t<cl_event> &operator[](size_t i) const {
+    const xpu::ocl::wrapper_t<cl_event> &operator[](size_t i) const {
         return events[i];
     }
-    ocl_wrapper_t<cl_event> &operator[](size_t i) { return events[i]; }
+    xpu::ocl::wrapper_t<cl_event> &operator[](size_t i) { return events[i]; }
     size_t size() const { return events.size(); }
 
     static ocl_event_t &from(compute::event_t &event) {
@@ -57,12 +57,12 @@ struct ocl_event_t final : compute::event_t {
         events.insert(events.end(), other.events.begin(), other.events.end());
     };
 
-    std::vector<ocl_wrapper_t<cl_event>> events;
+    std::vector<xpu::ocl::wrapper_t<cl_event>> events;
 };
 
 struct ocl_context_t final : public gpu::intel::compute::context_t {
     ocl_context_t() = default;
-    ocl_context_t(const std::vector<ocl_wrapper_t<cl_event>> &&events)
+    ocl_context_t(const std::vector<xpu::ocl::wrapper_t<cl_event>> &&events)
         : events_(std::move(events)) {};
     ocl_context_t(const ocl_context_t &) = default;
     ~ocl_context_t() = default;
@@ -79,7 +79,7 @@ struct ocl_context_t final : public gpu::intel::compute::context_t {
         return events_;
     }
 
-    void set_deps(std::vector<ocl_wrapper_t<cl_event>> &&event) {
+    void set_deps(std::vector<xpu::ocl::wrapper_t<cl_event>> &&event) {
         events_ = ocl_event_t(std::move(event));
     }
     void set_deps(ocl_event_t &&events) { events_ = std::move(events); };

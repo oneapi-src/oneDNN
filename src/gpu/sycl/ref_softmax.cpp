@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ namespace sycl {
 using namespace impl::sycl;
 status_t ref_sycl_softmax_fwd_t::pd_t::init_conf() {
     conf_ = sycl_softmax_conf_t();
-    conf_.src_md = sycl_md_t(src_md());
-    conf_.dst_md = sycl_md_t(dst_md());
+    conf_.src_md = xpu::sycl::md_t(src_md());
+    conf_.dst_md = xpu::sycl::md_t(dst_md());
     conf_.alg_kind = desc()->alg_kind;
     conf_.block_size = 16;
     conf_.wg_size = 32;
@@ -76,9 +76,9 @@ status_t ref_sycl_softmax_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
 status_t ref_sycl_softmax_bwd_t::pd_t::init_conf() {
     conf_ = sycl_softmax_conf_t();
-    conf_.dst_md = sycl_md_t(dst_md());
-    conf_.diff_dst_md = sycl_md_t(diff_dst_md());
-    conf_.diff_src_md = sycl_md_t(diff_src_md());
+    conf_.dst_md = xpu::sycl::md_t(dst_md());
+    conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md());
+    conf_.diff_src_md = xpu::sycl::md_t(diff_src_md());
     conf_.alg_kind = desc()->alg_kind;
     conf_.block_size = 16;
     conf_.wg_size = 32;

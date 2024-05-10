@@ -44,13 +44,13 @@ public:
 
     status_t set_arg(int arg_index, size_t arg_size, const void *arg_value) {
         cl_int err = clSetKernelArg(kernel_, arg_index, arg_size, arg_value);
-        return convert_to_dnnl(err);
+        return xpu::ocl::convert_to_dnnl(err);
     }
 
     status_t set_svm_arg(int arg_index, const void *arg_value) {
 #ifdef CL_VERSION_2_0
         cl_int err = clSetKernelArgSVMPointer(kernel_, arg_index, arg_value);
-        return convert_to_dnnl(err);
+        return xpu::ocl::convert_to_dnnl(err);
 #else
         // SVM is not supported.
         UNUSED(arg_index);
@@ -92,7 +92,7 @@ public:
         // No copy for this thread, clone the original kernel and save the
         // copy.
         cl_kernel cloned_kernel;
-        CHECK(clone_kernel(main_kernel_, &cloned_kernel));
+        CHECK(xpu::ocl::clone_kernel(main_kernel_, &cloned_kernel));
 
         utils::lock_write_t lock_write(mutex_);
         auto ret = kernels_.emplace(id, cloned_kernel);
@@ -118,7 +118,7 @@ ocl_gpu_kernel_t::~ocl_gpu_kernel_t() {
 }
 
 status_t ocl_gpu_kernel_t::get_binary(
-        const engine_t *engine, compute::binary_t &binary) const {
+        const engine_t *engine, xpu::binary_t &binary) const {
     auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
     return get_ocl_program_binary(ocl_kernel(), ocl_engine->device(), binary);
 }
@@ -205,7 +205,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     cl_uint ndims = static_cast<cl_uint>(range.ndims());
     if (range.is_zero()) { return status::success; }
 
-    ocl_wrapper_t<cl_event> event;
+    xpu::ocl::wrapper_t<cl_event> event;
     if (ocl_stream->flags() & stream_flags::out_of_order) {
         const auto &event_wrappers = ocl_event_t::from(deps).events;
         std::vector<cl_event> events(
@@ -237,14 +237,14 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
 }
 
 status_t ocl_gpu_kernel_t::dump() const {
-    compute::binary_t binary;
+    xpu::binary_t binary;
     CHECK(get_ocl_kernel_binary(ocl_kernel(), binary));
     CHECK(gpu_utils::dump_kernel_binary(binary, name()));
     return status::success;
 }
 
 std::string ocl_gpu_kernel_t::name() const {
-    return get_kernel_name(ocl_kernel());
+    return xpu::ocl::get_kernel_name(ocl_kernel());
 }
 
 } // namespace ocl

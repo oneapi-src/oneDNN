@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,7 +118,7 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 
     if (is_nvidia_gpu() || is_amd_gpu()) {
         res->state = SKIPPED;
-        res->reason = CASE_NOT_SUPPORTED;
+        res->reason = skip_reason::case_not_supported;
     }
 }
 

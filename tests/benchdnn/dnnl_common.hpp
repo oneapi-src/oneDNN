@@ -307,7 +307,7 @@ int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
             // not supported.
             if (is_nvidia_gpu() || is_amd_gpu()) {
                 res->state = SKIPPED;
-                res->reason = CASE_NOT_SUPPORTED;
+                res->reason = skip_reason::case_not_supported;
                 return OK;
             }
 
@@ -353,7 +353,7 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
         // Iterator is not supported, further logic is not applicable.
         if (!init_pd_args.is_iterator_supported) {
             res->state = SKIPPED;
-            res->reason = SKIP_IMPL_HIT;
+            res->reason = skip_reason::skip_impl_hit;
             return OK;
         }
 
@@ -361,7 +361,7 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
         if (status == dnnl_last_impl_reached) {
             BENCHDNN_PRINT(2, "%s\n", "All implementations were skipped!");
             res->state = SKIPPED;
-            res->reason = SKIP_IMPL_HIT;
+            res->reason = skip_reason::skip_impl_hit;
             pdw.reset(nullptr);
             return OK;
         } else if (status == dnnl_success) {
@@ -434,6 +434,8 @@ int check_pd_w_and_wo_attr(dnnl_engine_t engine, const func_t &init_pd_func,
     return OK;
 }
 
+int check_ref_impl_hit(res_t *res);
+
 template <typename func_t, typename prb_t>
 int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         const func_t &init_pd_func, const prb_t *prb, res_t *res,
@@ -489,6 +491,8 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         SAFE(check_pd_w_and_wo_attr(
                      get_test_engine(), init_pd_func, prb, res, dir, hint),
                 WARN);
+        // Check if unexpected ref impl was hit.
+        SAFE(check_ref_impl_hit(res), WARN);
     }
 
     user_prim.reset(primw.release());

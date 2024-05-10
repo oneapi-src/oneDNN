@@ -80,6 +80,12 @@ static status_t final_set_rt_params(nhwc_bnorm_params_t &bn_conf,
     rt_conf.use_fused_atomics_reduction = bn_conf.use_fused_atomics_reduction();
     rt_conf.calc_adj_lws = bn_conf.calc_adj_lws;
 
+    // Switchers between kernels with or without private buffers.
+    // Currently used for performance experiments/tuning
+    // TODO: make it as part of perf model
+    rt_conf.use_buffers_calc = dev_getenv("USE_BUFFERS_CALC", 0);
+    rt_conf.use_buffers_norm = dev_getenv("USE_BUFFERS_NORM", 0);
+
     return status::success;
 }
 
@@ -141,7 +147,10 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     if (bn_conf.ic % 8 == 0 && bn_conf.ic % 16 && cmpl_conf.use_stats_one_pass)
         cmpl_conf.use_stats_one_pass = false;
 
-    bn_conf.sub_group_size = 16;
+    // Temporary for performance tuning. TODO: consider adding it to a perf model
+    bn_conf.sub_group_size = dev_getenv("SG", 16);
+    bn_conf.max_ic_block = dev_getenv("MAX_IC_BLOCK", 128);
+
     // reshape to xc
     bn_conf.sp = bn_conf.mb * bn_conf.id * bn_conf.ih * bn_conf.iw;
 
@@ -168,6 +177,8 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     CHECK(get_params_by_model(bn_conf, pd, hw_params, true));
 
     cmpl_conf.vect_size = bn_conf.vect_size;
+    cmpl_conf.sub_group_size = bn_conf.sub_group_size;
+    cmpl_conf.max_ic_block = bn_conf.max_ic_block;
 
     // For performance debuging and analisys
     std::string prb_str = get_prb_desc_str(pd);
@@ -211,9 +222,11 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("USE_SCALE", cmpl_conf.use_scale);
     kernel_ctx.define_int("USE_SHIFT", cmpl_conf.use_shift);
     kernel_ctx.define_int("VECT_SIZE", cmpl_conf.vect_size);
+    kernel_ctx.define_int("SUB_GROUP_SIZE", cmpl_conf.sub_group_size);
     kernel_ctx.add_option("-cl-std=CL2.0");
     if (cmpl_conf.data_type == data_type::s8)
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
+    kernel_ctx.define_int("MAX_IC_BLOCK", cmpl_conf.max_ic_block);
 }
 
 status_t nhwc_reusable_batch_normalization_fwd_t::pd_t::init_conf(
@@ -247,6 +260,17 @@ void nhwc_reusable_batch_normalization_fwd_t::pd_t::init_scratchpad() {
                     stats_size, elsize, OCL_BUFFER_ALIGNMENT);
         }
     }
+}
+
+static dim_t get_calc_slm_size(
+        const nhwc_reusable_bnorm_compile_params_t &cmpl_conf,
+        const nhwc_reusable_bnorm_runtime_params_t &rt_conf) {
+    return rt_conf.use_fused_atomics_reduction
+            ? (rt_conf.use_buffers_calc ? sizeof(float) * rt_conf.ic_block
+                                    * rt_conf.calc_adj_lws[1]
+                                        : sizeof(float) * cmpl_conf.vect_size
+                                    * rt_conf.sg_size * rt_conf.calc_adj_lws[1])
+            : 0;
 }
 
 status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
@@ -309,10 +333,7 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
         if (status != status::success) return status;
     }
 
-    const dim_t calc_slm_size = rt_conf.use_fused_atomics_reduction
-            ? sizeof(float) * cmpl_conf.vect_size * rt_conf.sg_size
-                    * rt_conf.calc_adj_lws[1]
-            : 0;
+    const dim_t calc_slm_size = get_calc_slm_size(cmpl_conf, rt_conf);
 
     if (cmpl_conf.calculate_stats && !cmpl_conf.use_stats_one_pass) {
         const dim_t local_sum_size = sizeof(float) * rt_conf.sg_size
@@ -335,7 +356,8 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
 
         auto nd_range_calc_mean = pd()->dispatch_calc_stat.nd_range();
 
-        status = parallel_for(ctx, nd_range_calc_mean, kernels_[calc_mean],
+        status = parallel_for(ctx, nd_range_calc_mean,
+                kernels_[rt_conf.use_buffers_calc ? calc_mean_buff : calc_mean],
                 calc_mean_arg_list);
         if (status != status::success) return status;
 
@@ -387,8 +409,9 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
 
         auto nd_range_calc_var = pd()->dispatch_calc_stat.nd_range();
 
-        status = parallel_for(
-                ctx, nd_range_calc_var, kernels_[calc_var], calc_var_arg_list);
+        status = parallel_for(ctx, nd_range_calc_var,
+                kernels_[rt_conf.use_buffers_calc ? calc_var_buff : calc_var],
+                calc_var_arg_list);
         if (status != status::success) return status;
 
         if (rt_conf.use_fused_atomics_reduction) {
@@ -441,7 +464,10 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
         arg_list.append(2 * calc_slm_size, nullptr);
 
         auto nd_range = pd()->dispatch_calc_stat.nd_range();
-        status = parallel_for(ctx, nd_range, kernels_[calc_mean_var], arg_list);
+        status = parallel_for(ctx, nd_range,
+                kernels_[rt_conf.use_buffers_calc ? calc_mean_var_buff
+                                                  : calc_mean_var],
+                arg_list);
         if (status != status::success) return status;
 
         if (rt_conf.use_fused_atomics_reduction) {
@@ -496,7 +522,9 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
     arg_list.append(rt_conf.update_sp_block);
 
     auto nd_range = pd()->dispatch.nd_range();
-    return parallel_for(ctx, nd_range, kernels_[norm_fwd], arg_list);
+    return parallel_for(ctx, nd_range,
+            kernels_[rt_conf.use_buffers_norm ? norm_fwd_buff : norm_fwd],
+            arg_list);
 }
 
 status_t nhwc_reusable_batch_normalization_bwd_t::pd_t::init_conf(
@@ -559,10 +587,7 @@ status_t nhwc_reusable_batch_normalization_bwd_t::execute_backward(
         if (status != status::success) return status;
     }
 
-    const dim_t calc_slm_size = rt_conf.use_fused_atomics_reduction
-            ? sizeof(float) * cmpl_conf.vect_size * rt_conf.sg_size
-                    * rt_conf.calc_adj_lws[1]
-            : 0;
+    const dim_t calc_slm_size = get_calc_slm_size(cmpl_conf, rt_conf);
 
     compute::kernel_arg_list_t calc_stats_arg_list;
     calc_stats_arg_list.append(src);
@@ -583,8 +608,9 @@ status_t nhwc_reusable_batch_normalization_bwd_t::execute_backward(
     calc_stats_arg_list.append(calc_slm_size);
 
     auto calc_stats_nd_range = pd()->dispatch_calc_stat.nd_range();
-    status = parallel_for(
-            ctx, calc_stats_nd_range, kernels_[calc_stat], calc_stats_arg_list);
+    status = parallel_for(ctx, calc_stats_nd_range,
+            kernels_[rt_conf.use_buffers_calc ? calc_stat_buff : calc_stat],
+            calc_stats_arg_list);
     if (status != status::success) return status;
 
     if (rt_conf.use_fused_atomics_reduction) {
@@ -640,7 +666,9 @@ status_t nhwc_reusable_batch_normalization_bwd_t::execute_backward(
     arg_list.append(rt_conf.update_sp_block);
 
     auto nd_range = pd()->dispatch.nd_range();
-    return parallel_for(ctx, nd_range, kernels_[norm_bwd], arg_list);
+    return parallel_for(ctx, nd_range,
+            kernels_[rt_conf.use_buffers_norm ? norm_bwd_buff : norm_bwd],
+            arg_list);
 }
 
 } // namespace ocl

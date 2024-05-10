@@ -36,9 +36,9 @@ TEST(SYCLApi, Engine) {
             = static_cast<dnnl::engine::kind>(api_test_engine_kind);
 
     queue q = (ekind == dnnl::engine::kind::gpu)
-            ? queue(dnnl::impl::sycl::compat::gpu_selector_v,
+            ? queue(dnnl::impl::xpu::sycl::compat::gpu_selector_v,
                     property::queue::in_order {})
-            : queue(dnnl::impl::sycl::compat::cpu_selector_v,
+            : queue(dnnl::impl::xpu::sycl::compat::cpu_selector_v,
                     property::queue::in_order {});
 
     allocator alloc = dnnl::graph::sycl_interop::make_allocator(

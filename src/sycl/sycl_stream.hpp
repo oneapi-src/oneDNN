@@ -28,7 +28,7 @@
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 #include "sycl/stream_profiler.hpp"
 #include "sycl/sycl_context.hpp"
-#include "sycl/sycl_memory_storage.hpp"
+#include "xpu/sycl/memory_storage.hpp"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
 #include "sycl/sycl_stream_cpu_thunk.hpp"
@@ -162,28 +162,32 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
 
         // Handle all other cases.
         auto *sycl_src
-                = utils::downcast<const sycl_memory_storage_base_t *>(&src);
+                = utils::downcast<const xpu::sycl::memory_storage_base_t *>(
+                        &src);
         auto *sycl_dst
-                = utils::downcast<const sycl_memory_storage_base_t *>(&dst);
-        bool usm_src = sycl_src->memory_kind() == memory_kind::usm;
-        bool usm_dst = sycl_dst->memory_kind() == memory_kind::usm;
+                = utils::downcast<const xpu::sycl::memory_storage_base_t *>(
+                        &dst);
+        bool usm_src = sycl_src->memory_kind() == xpu::sycl::memory_kind::usm;
+        bool usm_dst = sycl_dst->memory_kind() == xpu::sycl::memory_kind::usm;
         ::sycl::event e;
 
         if (usm_src && usm_dst) {
             auto *usm_src
-                    = utils::downcast<const sycl_usm_memory_storage_t *>(&src);
+                    = utils::downcast<const xpu::sycl::usm_memory_storage_t *>(
+                            &src);
             auto *usm_dst
-                    = utils::downcast<const sycl_usm_memory_storage_t *>(&dst);
+                    = utils::downcast<const xpu::sycl::usm_memory_storage_t *>(
+                            &dst);
             e = queue_->submit([&](::sycl::handler &cgh) {
                 cgh.depends_on(sycl_event_t::from(deps).events);
                 cgh.memcpy(usm_dst->usm_ptr(), usm_src->usm_ptr(), size);
             });
         } else if (usm_src && !usm_dst) {
             auto *usm_src
-                    = utils::downcast<const sycl_usm_memory_storage_t *>(&src);
-            auto *buffer_dst
-                    = utils::downcast<const sycl_buffer_memory_storage_t *>(
-                            &dst);
+                    = utils::downcast<const xpu::sycl::usm_memory_storage_t *>(
+                            &src);
+            auto *buffer_dst = utils::downcast<
+                    const xpu::sycl::buffer_memory_storage_t *>(&dst);
             auto &b_dst = buffer_dst->buffer();
             e = queue_->submit([&](::sycl::handler &cgh) {
                 cgh.depends_on(sycl_event_t::from(deps).events);
@@ -192,12 +196,12 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
                 cgh.copy(usm_src->usm_ptr(), acc_dst);
             });
         } else if (!usm_src && usm_dst) {
-            auto *buffer_src
-                    = utils::downcast<const sycl_buffer_memory_storage_t *>(
-                            &src);
+            auto *buffer_src = utils::downcast<
+                    const xpu::sycl::buffer_memory_storage_t *>(&src);
             auto &b_src = buffer_src->buffer();
             auto *usm_dst
-                    = utils::downcast<const sycl_usm_memory_storage_t *>(&dst);
+                    = utils::downcast<const xpu::sycl::usm_memory_storage_t *>(
+                            &dst);
             e = queue_->submit([&](::sycl::handler &cgh) {
                 cgh.depends_on(sycl_event_t::from(deps).events);
                 auto acc_src
@@ -206,12 +210,10 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
             });
         } else { // if (!usm_src && !usm_dst)
             assert(!usm_src && !usm_dst && "USM is not supported yet");
-            auto *buffer_src
-                    = utils::downcast<const sycl_buffer_memory_storage_t *>(
-                            &src);
-            auto *buffer_dst
-                    = utils::downcast<const sycl_buffer_memory_storage_t *>(
-                            &dst);
+            auto *buffer_src = utils::downcast<
+                    const xpu::sycl::buffer_memory_storage_t *>(&src);
+            auto *buffer_dst = utils::downcast<
+                    const xpu::sycl::buffer_memory_storage_t *>(&dst);
             auto &b_src = buffer_src->buffer();
             auto &b_dst = buffer_dst->buffer();
             e = queue_->submit([&](::sycl::handler &cgh) {
@@ -239,14 +241,16 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
             const gpu::intel::compute::event_t &deps,
             gpu::intel::compute::event_t &out_dep) override {
         auto *sycl_dst
-                = utils::downcast<const sycl_memory_storage_base_t *>(&dst);
-        bool usm = sycl_dst->memory_kind() == memory_kind::usm;
+                = utils::downcast<const xpu::sycl::memory_storage_base_t *>(
+                        &dst);
+        bool usm = sycl_dst->memory_kind() == xpu::sycl::memory_kind::usm;
 
         ::sycl::event out_event;
 
         if (usm) {
             auto *usm_dst
-                    = utils::downcast<const sycl_usm_memory_storage_t *>(&dst);
+                    = utils::downcast<const xpu::sycl::usm_memory_storage_t *>(
+                            &dst);
             auto dst_ptr = static_cast<uint8_t *>(usm_dst->usm_ptr());
             // Note: we cannot use queue_.fill since it cannot handle
             // events as input
@@ -255,13 +259,12 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
                 cgh.memset(dst_ptr, pattern, size);
             });
         } else {
-            auto *buffer_dst
-                    = utils::downcast<const sycl_buffer_memory_storage_t *>(
-                            &dst);
+            auto *buffer_dst = utils::downcast<
+                    const xpu::sycl::buffer_memory_storage_t *>(&dst);
             out_event = queue_->submit([&](::sycl::handler &cgh) {
                 // need a u8 accessor to get the proper range
                 ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write,
-                        compat::target_device>
+                        xpu::sycl::compat::target_device>
                         acc_dst(buffer_dst->buffer(), cgh,
                                 ::sycl::range<1>(size), ::sycl::id<1>(0));
                 cgh.depends_on(sycl_event_t::from(deps).events);
@@ -341,7 +344,7 @@ protected:
 
     // XXX: this is a temporary solution to make sycl_memory_arg_t
     // default constructible.
-    buffer_u8_t dummy_buffer_ = buffer_u8_t(1);
+    xpu::sycl::buffer_u8_t dummy_buffer_ = xpu::sycl::buffer_u8_t(1);
 
 private:
     status_t init();

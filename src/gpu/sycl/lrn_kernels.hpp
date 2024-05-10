@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 #include "gpu/sycl/sycl_io_helper.hpp"
 #include "gpu/sycl/sycl_primitive_conf.hpp"
-#include "gpu/sycl/sycl_types.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,8 +27,9 @@ namespace gpu {
 namespace sycl {
 
 struct lrn_fwd_kernel_vec_t {
-    lrn_fwd_kernel_vec_t(const sycl_lrn_conf_t &conf, sycl_in_memory_arg_t &src,
-            sycl_out_memory_arg_t &dst, const format_tag_t &tag)
+    lrn_fwd_kernel_vec_t(const sycl_lrn_conf_t &conf,
+            xpu::sycl::in_memory_arg_t &src, xpu::sycl::out_memory_arg_t &dst,
+            const format_tag_t &tag)
         : conf_(conf), src_(src), dst_(dst), tag_(tag) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -136,22 +137,23 @@ struct lrn_fwd_kernel_vec_t {
     }
 
 private:
-    const sycl_md_t &src_md() const { return conf_.src_md; }
-    const sycl_md_t &dst_md() const { return conf_.dst_md; }
+    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
+    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     void *src_ptr() const { return src_.get_pointer(); }
     void *dst_ptr() const { return dst_.get_pointer(); }
 
     sycl_lrn_conf_t conf_;
-    sycl_in_memory_arg_t src_;
-    sycl_out_memory_arg_t dst_;
+    xpu::sycl::in_memory_arg_t src_;
+    xpu::sycl::out_memory_arg_t dst_;
     format_tag_t tag_;
 };
 
 struct lrn_bwd_kernel_vec_t {
-    lrn_bwd_kernel_vec_t(const sycl_lrn_conf_t &conf, sycl_in_memory_arg_t &src,
-            sycl_in_memory_arg_t &diff_dst, sycl_out_memory_arg_t &diff_src,
-            const format_tag_t &tag)
+    lrn_bwd_kernel_vec_t(const sycl_lrn_conf_t &conf,
+            xpu::sycl::in_memory_arg_t &src,
+            xpu::sycl::in_memory_arg_t &diff_dst,
+            xpu::sycl::out_memory_arg_t &diff_src, const format_tag_t &tag)
         : conf_(conf)
         , src_(src)
         , diff_dst_(diff_dst)
@@ -316,18 +318,18 @@ struct lrn_bwd_kernel_vec_t {
     }
 
 private:
-    const sycl_md_t &src_md() const { return conf_.src_md; }
-    const sycl_md_t &diff_dst_md() const { return conf_.diff_dst_md; }
-    const sycl_md_t &diff_src_md() const { return conf_.diff_src_md; }
+    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
+    const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
+    const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
 
     void *src_ptr() const { return src_.get_pointer(); }
     void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
     void *diff_src_ptr() const { return diff_src_.get_pointer(); }
 
     sycl_lrn_conf_t conf_;
-    sycl_in_memory_arg_t src_;
-    sycl_in_memory_arg_t diff_dst_;
-    sycl_out_memory_arg_t diff_src_;
+    xpu::sycl::in_memory_arg_t src_;
+    xpu::sycl::in_memory_arg_t diff_dst_;
+    xpu::sycl::out_memory_arg_t diff_src_;
     format_tag_t tag_;
 };
 

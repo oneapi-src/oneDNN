@@ -18,14 +18,16 @@
 #define GPU_SYCL_SYCL_GPU_KERNEL_HPP
 
 #include "common/utils.hpp"
-#include "sycl/sycl_utils.hpp"
+#include "xpu/sycl/utils.hpp"
+
+#include "gpu/intel/compute/kernel.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace sycl {
 
-struct sycl_gpu_kernel_t : public intel::compute::kernel_impl_t {
+struct sycl_gpu_kernel_t : public gpu::intel::compute::kernel_impl_t {
     using kernel_bundle_e_t
             = ::sycl::kernel_bundle<::sycl::bundle_state::executable>;
 

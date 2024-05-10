@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 #include <hip/hip_runtime.h>
 
-#include "sycl/sycl_compat.hpp"
+#include "xpu/sycl/compat.hpp"
 
 #include "gpu/amd/sycl_hip_utils.hpp"
 

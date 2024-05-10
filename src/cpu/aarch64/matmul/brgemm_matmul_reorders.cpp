@@ -109,7 +109,7 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
             : brgemm_broadcast_t::none;
     matmul_conf_for_reorder_.has_zero_point_a
             = matmul_conf_for_reorder_.src_zp_type != brgemm_broadcast_t::none;
-    matmul_conf_for_reorder_.isa = sve_512;
+    matmul_conf_for_reorder_.isa = (!mayiuse(sve_512)) ? sve_256 : sve_512;
 
     auto mask_ok = [&](bool check, int mask) {
         return IMPLICATION(

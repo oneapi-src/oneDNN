@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,9 +33,9 @@ TEST(test_interface_test_allocator, DefaultSyclAllocator) {
 #endif
     graph::allocator_t *alloc = new graph::allocator_t();
     sycl::queue q = kind == graph::engine_kind::gpu
-            ? sycl::queue {dnnl::impl::sycl::compat::gpu_selector_v,
+            ? sycl::queue {dnnl::impl::xpu::sycl::compat::gpu_selector_v,
                     sycl::property::queue::in_order {}}
-            : sycl::queue {dnnl::impl::sycl::compat::cpu_selector_v,
+            : sycl::queue {dnnl::impl::xpu::sycl::compat::cpu_selector_v,
                     sycl::property::queue::in_order {}};
 
     graph::allocator_t::mem_attr_t attr {
@@ -69,8 +69,8 @@ TEST(test_interface_test_allocator, SyclAllocator) {
             = new graph::allocator_t(dnnl::graph::testing::sycl_malloc_wrapper,
                     dnnl::graph::testing::sycl_free_wrapper);
     sycl::device sycl_dev = (kind == graph::engine_kind::gpu)
-            ? sycl::device {dnnl::impl::sycl::compat::gpu_selector_v}
-            : sycl::device {dnnl::impl::sycl::compat::cpu_selector_v};
+            ? sycl::device {dnnl::impl::xpu::sycl::compat::gpu_selector_v}
+            : sycl::device {dnnl::impl::xpu::sycl::compat::cpu_selector_v};
     sycl::context sycl_ctx {sycl_dev};
 
     auto *mem_ptr = sycl_alloc->allocate(

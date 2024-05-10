@@ -29,7 +29,7 @@ using namespace dnnl::graph;
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
 TEST(SYCLApi, Tensor) {
     SKIP_IF(api_test_engine_kind == dnnl_cpu, "skip sycl test for cpu engine.");
-    sycl::device dev {dnnl::impl::sycl::compat::gpu_selector_v};
+    sycl::device dev {dnnl::impl::xpu::sycl::compat::gpu_selector_v};
     sycl::context ctx {dev};
 
     dnnl::engine eng = dnnl::sycl_interop::make_engine(dev, ctx);

@@ -220,7 +220,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 #endif
     if (!scales_ok) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
         return;
     }
 
@@ -245,14 +246,16 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         }
 
         if (!dt_ok || !attr_ok || !rt_ok || !masks_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 
 #if !defined(DNNL_X64) || DNNL_X64 == 0
         // Simple reorder doesn't provide decent coverage for compensated cases.
         // Shut them down unconditionally by default.
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
         return;
 #endif
     }
@@ -263,7 +266,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     const auto &dst_scales = prb->attr.scales.get(DNNL_ARG_DST);
     if (!dst_scales.is_def() && attr_t::get_default_mask(dst_scales.policy) > 0
             && prb->runtime_dim_mask != 0) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
         return;
     }
 
@@ -274,7 +278,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         if (attr_t::get_default_mask(src_scales.policy)
                         != attr_t::get_default_mask(dst_scales.policy)
                 && prb->is_reorder_with_compensation(FLAG_ANY)) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
     }
@@ -283,7 +288,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         // Int4 reorder support is limited on CPU.
         if (sdt == dnnl_s4 || ddt == dnnl_s4 || sdt == dnnl_u4
                 || ddt == dnnl_u4) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 
@@ -295,7 +301,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
                 sdt != dnnl_f8_e5m2 && sdt != dnnl_f8_e4m3 && sdt != dnnl_bf16
                         && sdt != dnnl_f16);
         if (!s32_src_ok || !s32_dst_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 
@@ -305,7 +312,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         const bool f16_dst_ok = IMPLICATION(
                 ddt == dnnl_f16, sdt == dnnl_f16 || sdt == dnnl_f32);
         if (!f16_src_ok || !f16_dst_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 
@@ -317,7 +325,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
                 = IMPLICATION(sdt == dnnl_f8_e5m2 || sdt == dnnl_f8_e4m3,
                         ddt == dnnl_f16 || ddt == dnnl_f32);
         if (!xf8_src_ok || !xf8_dst_ok) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
     }
@@ -328,7 +337,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         // in kernels directly, but s8s8 instructions are available in HW.
         if (prb->runtime_dim_mask != 0
                 || prb->is_reorder_with_compensation(FLAG_ANY)) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 
@@ -336,7 +346,8 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         const bool is_xf8 = prb->sdt == dnnl_f8_e5m2 || prb->sdt == dnnl_f8_e4m3
                 || prb->ddt == dnnl_f8_e5m2 || prb->ddt == dnnl_f8_e4m3;
         if (is_xf8) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
     }
@@ -347,14 +358,18 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_NONE
     auto cross_engine = prb->cross_engine;
-    if (cross_engine == CPU2GPU || cross_engine == GPU2CPU)
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+    if (cross_engine == CPU2GPU || cross_engine == GPU2CPU) {
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
+        return;
+    }
 #endif
 
     // Zero-points can't be used with sum post-op.
     if (!prb->attr.zero_points.is_def(DNNL_ARG_DST)
             && prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 
@@ -364,7 +379,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     const bool is_dst_zp_ok = is_integral_dt(prb->ddt)
             || prb->attr.zero_points.is_def(DNNL_ARG_DST);
     if (!(is_src_zp_ok && is_dst_zp_ok)) {
-        res->state = SKIPPED, res->reason = INVALID_CASE;
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
         return;
     }
 }

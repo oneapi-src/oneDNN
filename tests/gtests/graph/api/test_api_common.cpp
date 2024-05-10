@@ -26,7 +26,8 @@ void api_test_dnnl_engine_create(
         dnnl_engine_t *engine, dnnl_engine_kind_t engine_kind) {
     if (engine_kind == dnnl_cpu) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-        static ::sycl::device dev {dnnl::impl::sycl::compat::cpu_selector_v};
+        static ::sycl::device dev {
+                dnnl::impl::xpu::sycl::compat::cpu_selector_v};
         static ::sycl::context ctx {dev};
         if (!allocator_handle) {
             ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
@@ -58,7 +59,8 @@ void api_test_dnnl_engine_create(
         *engine = engine_handle.engine;
     } else {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-        static ::sycl::device dev {dnnl::impl::sycl::compat::gpu_selector_v};
+        static ::sycl::device dev {
+                dnnl::impl::xpu::sycl::compat::gpu_selector_v};
         static ::sycl::context ctx {dev};
         if (!allocator_handle) {
             ASSERT_EQ(dnnl_graph_sycl_interop_allocator_create(
@@ -89,7 +91,8 @@ void api_test_dnnl_graph_graph_create(
 dnnl::engine &cpp_api_test_dnnl_engine_create(dnnl::engine::kind engine_kind) {
     if (engine_kind == dnnl::engine::kind::cpu) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-        static ::sycl::device dev {dnnl::impl::sycl::compat::cpu_selector_v};
+        static ::sycl::device dev {
+                dnnl::impl::xpu::sycl::compat::cpu_selector_v};
         static ::sycl::context ctx {dev};
         static dnnl::graph::allocator alloc
                 = dnnl::graph::sycl_interop::make_allocator(
@@ -107,7 +110,7 @@ dnnl::engine &cpp_api_test_dnnl_engine_create(dnnl::engine::kind engine_kind) {
     }
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    static ::sycl::device dev {dnnl::impl::sycl::compat::gpu_selector_v};
+    static ::sycl::device dev {dnnl::impl::xpu::sycl::compat::gpu_selector_v};
     static ::sycl::context ctx {dev};
     static dnnl::graph::allocator alloc
             = dnnl::graph::sycl_interop::make_allocator(

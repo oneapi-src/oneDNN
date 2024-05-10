@@ -19,7 +19,7 @@
 #include "gpu/gpu_lrn_pd.hpp"
 #include "gpu/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/sycl/sycl_primitive_conf.hpp"
-#include "gpu/sycl/sycl_types.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {

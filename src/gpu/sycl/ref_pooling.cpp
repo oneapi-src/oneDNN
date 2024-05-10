@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
 #include "gpu/sycl/pooling_kernels.hpp"
-#include "gpu/sycl/sycl_types.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,11 +33,11 @@ status_t ref_pooling_fwd_t::pd_t::init_conf() {
     conf_.ndims = ndims();
     conf_.block_size = 16;
     conf_.wg_size = 32;
-    conf_.src_md = sycl_md_t(src_md(0));
-    conf_.dst_md = sycl_md_t(dst_md(0));
+    conf_.src_md = xpu::sycl::md_t(src_md(0));
+    conf_.dst_md = xpu::sycl::md_t(dst_md(0));
     conf_.ws_md = !types::is_zero_md(workspace_md())
-            ? sycl_md_t(workspace_md(0))
-            : sycl_md_t {};
+            ? xpu::sycl::md_t(workspace_md(0))
+            : xpu::sycl::md_t {};
     conf_.zero_dims = has_zero_dim_memory();
     for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
         conf_.dst_dims[i] = dst_md()->dims[i];
@@ -75,7 +75,7 @@ status_t ref_pooling_fwd_t::pd_t::init_conf() {
     for (auto i = 0; i < attr_po.len(); ++i) {
         if (attr_po.contain(binary, i)) {
             dnnl::impl::memory_desc_t mem = attr_po.entry_[i].binary.src1_desc;
-            conf_.src1_md[i] = sycl_md_t(&mem);
+            conf_.src1_md[i] = xpu::sycl::md_t(&mem);
         }
     }
     conf_.post_ops = sycl_post_ops_t(attr());
@@ -122,11 +122,11 @@ status_t ref_pooling_bwd_t::pd_t::init_conf() {
     conf_.ndims = ndims();
     conf_.block_size = 16;
     conf_.wg_size = 32;
-    conf_.diff_src_md = sycl_md_t(diff_src_md(0));
-    conf_.diff_dst_md = sycl_md_t(diff_dst_md(0));
+    conf_.diff_src_md = xpu::sycl::md_t(diff_src_md(0));
+    conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md(0));
     conf_.ws_md = !types::is_zero_md(workspace_md())
-            ? sycl_md_t(workspace_md(0))
-            : sycl_md_t {};
+            ? xpu::sycl::md_t(workspace_md(0))
+            : xpu::sycl::md_t {};
     conf_.zero_dims = has_zero_dim_memory();
     auto nelems_A = memory_desc_wrapper(diff_src_md(0)).nelems();
     int work_per_wg = conf_.wg_size * conf_.block_size;

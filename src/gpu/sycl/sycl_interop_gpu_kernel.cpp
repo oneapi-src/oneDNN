@@ -21,11 +21,12 @@
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/ocl/stream_profiler.hpp"
 #include "gpu/intel/ocl/types_interop.hpp"
+#include "gpu/intel/sycl/l0/utils.hpp"
+#include "gpu/intel/sycl/utils.hpp"
 #include "gpu/intel/utils.hpp"
-#include "sycl/level_zero_utils.hpp"
-#include "sycl/sycl_c_types_map.hpp"
 #include "sycl/sycl_stream.hpp"
-#include "sycl/sycl_utils.hpp"
+#include "xpu/sycl/c_types_map.hpp"
+#include "xpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -99,7 +100,8 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
     // XXX: DPCPP/L0 does not support non-uniform work-groups and does not
     // provide any diagnostics. This is to catch potential issues on oneDNN
     // side.
-    if (sycl_engine->backend() == backend_t::level0 && range.local_range()) {
+    if (sycl_engine->backend() == xpu::sycl::backend_t::level0
+            && range.local_range()) {
         for (size_t i = 0; i < range.ndims(); i++) {
             size_t gws = range.global_range()[i];
             size_t lws = range.local_range()[i];
@@ -121,11 +123,12 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                         = static_cast<const memory_storage_t *>(arg.value());
                 if (*mem_storage) {
                     auto *sycl_mem_storage = utils::downcast<
-                            const sycl_memory_storage_base_t *>(mem_storage);
+                            const xpu::sycl::memory_storage_base_t *>(
+                            mem_storage);
                     switch (sycl_mem_storage->memory_kind()) {
-                        case memory_kind::buffer: {
+                        case xpu::sycl::memory_kind::buffer: {
                             auto *m = utils::downcast<
-                                    const sycl_buffer_memory_storage_t *>(
+                                    const xpu::sycl::buffer_memory_storage_t *>(
                                     mem_storage);
                             auto &sycl_buf = m->buffer();
                             cgh.set_arg((int)i,
@@ -134,9 +137,9 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                                             cgh));
                             break;
                         }
-                        case memory_kind::usm: {
+                        case xpu::sycl::memory_kind::usm: {
                             auto *m = utils::downcast<
-                                    const sycl_usm_memory_storage_t *>(
+                                    const xpu::sycl::usm_memory_storage_t *>(
                                     mem_storage);
                             cgh.set_arg((int)i, m->usm_ptr());
                             break;
@@ -147,7 +150,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
                     cgh.set_arg((int)i, nullptr);
                 }
             } else if (arg.is_local()) {
-                auto acc = compat::local_accessor<uint8_t, 1>(
+                auto acc = xpu::sycl::compat::local_accessor<uint8_t, 1>(
                         ::sycl::range<1>(arg.size()), cgh);
                 cgh.set_arg((int)i, acc);
             } else {
@@ -155,7 +158,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
             }
         }
         if (range.local_range()) {
-            auto sycl_nd_range = to_sycl_nd_range(range);
+            auto sycl_nd_range = gpu::intel::sycl::to_sycl_nd_range(range);
             cgh.parallel_for(sycl_nd_range, *sycl_kernel_);
         } else {
             const auto &global_range = range.global_range();
@@ -178,8 +181,8 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
 }
 
 status_t sycl_interop_gpu_kernel_t::dump() const {
-    intel::compute::binary_t binary;
-    CHECK(get_kernel_binary(sycl_kernel(), binary));
+    xpu::binary_t binary;
+    CHECK(gpu::intel::sycl::get_kernel_binary(sycl_kernel(), binary));
     return gpu::intel::gpu_utils::dump_kernel_binary(binary, name());
 }
 

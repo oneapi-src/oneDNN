@@ -55,7 +55,11 @@ struct nhwc_reusable_bnorm_compile_params_t {
                 "nhwc_reusable_calc_var", "nhwc_reusable_reduce_fwd_reg",
                 "nhwc_reusable_calc_mean_var", "nhwc_reusable_reduce_fwd_1pass",
                 "nhwc_reusable_reduce_aux", "nhwc_reusable_norm_bwd",
-                "nhwc_reusable_calc_stat", "nhwc_reusable_reduce_stat"};
+                "nhwc_reusable_calc_stat", "nhwc_reusable_reduce_stat",
+                "nhwc_reusable_norm_fwd_buff", "nhwc_reusable_norm_bwd_buff",
+                "nhwc_reusable_calc_mean_buff", "nhwc_reusable_calc_var_buff",
+                "nhwc_reusable_calc_mean_var_buff",
+                "nhwc_reusable_calc_stat_buff"};
         return kernel_names;
     }
 
@@ -78,6 +82,8 @@ struct nhwc_reusable_bnorm_compile_params_t {
 
     data_type_t data_type;
     int vect_size;
+    int sub_group_size;
+    int max_ic_block;
     bool use_scale;
     bool use_shift;
     bool is_training;
@@ -99,6 +105,8 @@ struct nhwc_reusable_bnorm_runtime_params_t {
     float relu_negative_slope;
     float eps;
     bool use_fused_atomics_reduction;
+    bool use_buffers_calc;
+    bool use_buffers_norm;
     compute::range_t calc_adj_lws;
 };
 

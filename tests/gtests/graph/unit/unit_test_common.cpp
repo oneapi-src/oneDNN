@@ -37,8 +37,8 @@ namespace graph = dnnl::impl::graph;
 ::sycl::device &get_device() {
     static ::sycl::device dev
             = get_test_engine_kind() == graph::engine_kind::cpu
-            ? ::sycl::device {dnnl::impl::sycl::compat::cpu_selector_v}
-            : ::sycl::device {dnnl::impl::sycl::compat::gpu_selector_v};
+            ? ::sycl::device {dnnl::impl::xpu::sycl::compat::cpu_selector_v}
+            : ::sycl::device {dnnl::impl::xpu::sycl::compat::gpu_selector_v};
     return dev;
 }
 

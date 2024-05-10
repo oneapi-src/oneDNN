@@ -1086,9 +1086,9 @@ struct GEMMStrategyPOD : public CommonStrategy {
     uint8_t pad4[3] = {};
     int optAlignAB
             = 0; // Optional alignment for A/B. If > 0, create two versions of k loop, one for A/B aligned to this value, one not.
-    enum {
-        AlignBlock2D = 65536 //   Special optAlignAB value for block 2D loads.
-    };
+    bool optAlignAB2D
+            = false; //   If true, create two version of k loop, one for A/B aligned to block 2D requirements, one not.
+    uint8_t pad4b[3] = {};
     AccessType unalignedAccA,
             unalignedAccB; // Access types to use for A/B on unaligned path.
     uint8_t pad5[2] = {};

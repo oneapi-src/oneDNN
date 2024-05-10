@@ -21,7 +21,6 @@
 
 #include <type_traits>
 
-#include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "dnnl_types.h"

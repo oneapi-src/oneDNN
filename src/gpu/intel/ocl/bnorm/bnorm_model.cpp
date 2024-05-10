@@ -641,7 +641,9 @@ status_t get_params_by_model(nhwc_bnorm_params_t &conf,
     model_params_t p;
     p.ic_block = conf.sub_group_size;
     assert(conf.ic % conf.sub_group_size == 0);
-    while (p.ic_block <= conf.ic) {
+
+    while (p.ic_block <= conf.ic
+            && (reusable_version ? p.ic_block <= conf.max_ic_block : true)) {
         if (conf.ic % p.ic_block == 0) {
             const int calc_stat_ic = get_nhwc_calc_stat_ic(
                     conf.ic, p.ic_block, conf.sub_group_size);

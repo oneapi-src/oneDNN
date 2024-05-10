@@ -131,7 +131,7 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
     cl_uint num_events = (cl_uint)events.size();
     const cl_event *events_ptr = events.data();
 
-    ocl_wrapper_t<cl_event> out_event;
+    xpu::ocl::wrapper_t<cl_event> out_event;
     bool need_out_event
             = is_profiling_enabled() || flags() & stream_flags::out_of_order;
     cl_event *out_event_ptr = need_out_event ? &out_event.unwrap() : nullptr;
@@ -247,7 +247,7 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
 
     if (is_profiling_enabled()) {
         auto ocl_event = utils::make_unique<ocl_event_t>(
-                std::vector<ocl_wrapper_t<cl_event>> {out_event});
+                std::vector<xpu::ocl::wrapper_t<cl_event>> {out_event});
         profiler_->register_event(std::move(ocl_event));
     }
 
@@ -274,7 +274,7 @@ status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
     cl_uint num_events = (cl_uint)events.size();
     const cl_event *events_ptr = events.data();
 
-    ocl_wrapper_t<cl_event> out_event;
+    xpu::ocl::wrapper_t<cl_event> out_event;
     bool need_out_event
             = is_profiling_enabled() || flags() & stream_flags::out_of_order;
     cl_event *out_event_ptr = need_out_event ? &out_event.unwrap() : nullptr;
@@ -295,7 +295,7 @@ status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
 
     if (is_profiling_enabled()) {
         auto ocl_event = utils::make_unique<ocl_event_t>(
-                std::vector<ocl_wrapper_t<cl_event>> {out_event});
+                std::vector<xpu::ocl::wrapper_t<cl_event>> {out_event});
         profiler_->register_event(std::move(ocl_event));
     }
 
