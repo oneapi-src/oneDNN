@@ -153,6 +153,7 @@ status_t gen_pooling_fwd_t::init(engine_t *engine) {
         try {
             kernel_ = make_kernel<pooling_kernel_t>(this, engine, cfg_,
                     "gen_pooling_fwd", kernel_info_, grf_mode_t::any, *pd());
+            break;
         } catch (const ngen::out_of_registers_exception &exc) {
             UNUSED(exc);
             ir_warning() << "loop too large: cut and retry!" << std::endl;
@@ -161,6 +162,10 @@ status_t gen_pooling_fwd_t::init(engine_t *engine) {
                 ir_error_not_expected() << "minimal loop too large!";
                 break;
             }
+        } catch (const std::exception &exc) {
+            ir_error_not_expected() << exc.what();
+            kernel_ = {};
+            break;
         }
     }
     set_version(cfg_.n_cuts());
