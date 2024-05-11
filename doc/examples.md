@@ -22,4 +22,4 @@ Examples {#dev_guide_examples}
 |                | CPU     | @ref graph_cpu_inference_int8_cpp     |                             |
 |                | CPU/GPU | @ref graph_sycl_getting_started_cpp   |                             |
 |                | CPU     | @ref graph_cpu_single_op_partition_cpp|                             |
-|                | GPU     | @ref graph_gpu_single_op_partition_cpp|                             |
+|                | GPU     | @ref graph_sycl_single_op_partition_cpp|                             |
