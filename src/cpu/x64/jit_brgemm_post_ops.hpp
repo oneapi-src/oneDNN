@@ -26,6 +26,7 @@
 
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
 #include "cpu/x64/jit_brgemm_primitive_conf.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
@@ -402,9 +403,21 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     this, attr.post_ops_, bsp, esp);
         }
         if (brg.is_bf16_emu)
-            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
-                    bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
-                    bf16_emu_scratch, bf16_emu_reserv_4, bf16_emu_reserv_4);
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this, emu_reserv_1,
+                    emu_reserv_2, emu_reserv_3, emu_scratch, emu_reserv_4,
+                    emu_reserv_4);
+        if (brg.is_fp8_via_convert()
+                && utils::one_of(
+                        data_type::f8_e5m2, brg.dt_a, brg.dt_b, brg.dt_d))
+            f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(this,
+                    emu_reserv_1, emu_reserv_2, emu_reserv_3, emu_mask,
+                    emu_scratch);
+        if (brg.is_fp8_via_convert()
+                && utils::one_of(
+                        data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_d))
+            f8_e4m3_emulator_ = utils::make_unique<fp8_emulation_e4m3_t>(this,
+                    emu_reserv_1, emu_reserv_2, emu_reserv_3, emu_reserv_4,
+                    emu_reserv_5, emu_scratch);
 
         const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
         // per_oc: conv: 1 << 0, (1 << 1) + (1 << 0) (with groups)
@@ -441,6 +454,8 @@ private:
     std::unique_ptr<injector::jit_uni_postops_injector_t<po_isa_t>>
             postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
+    std::unique_ptr<fp8_emulation_base_t> f8_e5m2_emulator_;
+    std::unique_ptr<fp8_emulation_base_t> f8_e4m3_emulator_;
 
     const bool with_binary_non_scalar_bcast_;
 
@@ -456,6 +471,7 @@ private:
                                                     avx2_vnni_2),
             Xbyak::Ymm, Xbyak::Zmm>::type;
     using Vmm_lower_t = typename vreg_traits<Vmm>::Vmm_lower_t;
+    using Vmm_lower2_t = typename vreg_traits<Vmm_lower_t>::Vmm_lower_t;
 
     // Register decomposition
     const reg64_t reg_reserved_eltwise = rax;
@@ -498,11 +514,13 @@ private:
     constexpr static int stack_space_needed_ = 72;
 
     /* bf16 emulation */
-    Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(27);
-    Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(24);
-    Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(25);
-    Xbyak::Zmm bf16_emu_reserv_4 = Xbyak::Zmm(26);
-    reg64_t bf16_emu_scratch = reg_tmp;
+    Xbyak::Zmm emu_reserv_1 = Xbyak::Zmm(27);
+    Xbyak::Zmm emu_reserv_2 = Xbyak::Zmm(26);
+    Xbyak::Zmm emu_reserv_3 = Xbyak::Zmm(25);
+    Xbyak::Zmm emu_reserv_4 = Xbyak::Zmm(24);
+    Xbyak::Zmm emu_reserv_5 = Xbyak::Zmm(23);
+    reg64_t emu_scratch = reg_tmp;
+    Xbyak::Opmask emu_mask = Xbyak::Opmask(4);
 
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
@@ -566,6 +584,18 @@ private:
                     vpslld(vmm, vmm, 16);
                     break;
                 case data_type::f16: vcvtph2ps(vmm, op); break;
+                case data_type::f8_e5m2:
+                    if (brg.is_fp8_via_convert())
+                        f8_e5m2_emulator_->vcvt_f8_to_f32(vmm, op);
+                    else
+                        assert(!"Not supported yet");
+                    break;
+                case data_type::f8_e4m3:
+                    if (brg.is_fp8_via_convert())
+                        f8_e4m3_emulator_->vcvt_f8_to_f32(vmm, op);
+                    else
+                        assert(!"Not supported yet");
+                    break;
                 default: assert(!"unsupported data type");
             }
         } else {
@@ -731,10 +761,11 @@ private:
         // compensation to avoid the loss of accuracy when converting s32 to f32
         for_(int m = 0; m < m_block; m++)
         for (int n = 0; n < n_block; n++) {
-            if (brg.alpha == 0 && brg.beta != 0) {
-                // if postwork then have to init vmm each time
+            if (brg.alpha == 0) {
+                // have to init vmm each time because vectors may have been
+                // changed in the previous iterations
                 uni_vpxor(vector(m, n), vector(m, n), vector(m, n));
-            } else if (brg.alpha != 0) {
+            } else {
                 auto inp_addr = ptr[aux_reg_in
                         + inp_typesize_ * (m * brg.LDC + n * brg.ld_block)];
                 cvt2ps(inp_dt_, vector(m, n), inp_addr, tail, false, k_mask,
@@ -849,8 +880,11 @@ private:
             if (is_superset(isa, avx512_core)) {
                 auto vmm_masked = maybe_mask(vmm, tail > 0, true, k_mask);
                 Vmm_lower_t vmm_low = Vmm_lower_t(vmm.getIdx());
+                Vmm_lower2_t vmm_low2 = Vmm_lower2_t(vmm_low.getIdx());
                 auto vmm_low_masked
                         = maybe_mask(vmm_low, tail > 0, true, k_mask);
+                auto vmm_low2_masked
+                        = maybe_mask(vmm_low2, tail > 0, true, k_mask);
                 switch (out_dt_) {
                     case data_type::f32:
                     case data_type::s32: uni_vmovups(addr, vmm_masked); break;
@@ -866,6 +900,20 @@ private:
                     case data_type::f16:
                         vcvtps2ph(vmm_low, vmm, _op_mxcsr);
                         vmovdqu16(addr, vmm_low_masked);
+                        break;
+                    case data_type::f8_e5m2:
+                        if (brg.is_fp8_via_convert()) {
+                            f8_e5m2_emulator_->vcvt_f32_to_f8(vmm_low2, vmm);
+                            vmovdqu8(addr, vmm_low2_masked);
+                        } else
+                            assert(!"Not supported yet");
+                        break;
+                    case data_type::f8_e4m3:
+                        if (brg.is_fp8_via_convert()) {
+                            f8_e4m3_emulator_->vcvt_f32_to_f8(vmm_low2, vmm);
+                            vmovdqu8(addr, vmm_low2_masked);
+                        } else
+                            assert(!"Not supported yet");
                         break;
                     case data_type::s8: vpmovsdb(addr, vmm_masked); break;
                     case data_type::u8: vpmovusdb(addr, vmm_masked); break;
@@ -1006,7 +1054,11 @@ private:
         int nb2_tail = nb % n_block2_;
         int n_block = (nb2 == 0) ? nstl::max(1, nb2_tail) : n_block2_;
 
-        int m_max_regs = (brg.is_bf16_emu ? 24 : max_vregs_ - 4) / n_block;
+        int m_max_regs = (brg.is_bf16_emu
+                        ? 24
+                        : (brg.is_fp8_via_convert() ? 23 : max_vregs_ - 4));
+        m_max_regs /= n_block;
+
         int m_block = nstl::min(brg.bcast_dim, m_max_regs);
 
         int mb = brg.bcast_dim / m_block;
@@ -1052,16 +1104,6 @@ private:
         }
         mov(reg_out, ptr[param1 + GET_OFF(ptr_out)]);
 
-        // brg.alpha == 0 means initialize registers, 1 means read from input
-        // brg.beta == 0 means skip postwork, 1 means do postwork
-        if (brg.alpha == 0 && brg.beta == 0) {
-            for_(int m = 0; m < m_block; m++)
-            for (int n = 0; n < n_block; n++) {
-                auto vmm = Vmm(m * n_block + n);
-                uni_vpxor(vmm, vmm, vmm);
-            }
-        }
-
         for (int mb_ = 0; mb_ < mb; mb_++) {
             loop_by_N(m_block, nb2, nb2_tail, nb_tail);
 
@@ -1089,6 +1131,10 @@ private:
 
         if (postops_injector_)
             postops_injector_->prepare_table(/* generate = */ true);
+        if (brg.is_fp8_via_convert()) {
+            if (f8_e5m2_emulator_) f8_e5m2_emulator_->prepare_table();
+            if (f8_e4m3_emulator_) f8_e4m3_emulator_->prepare_table();
+        }
     }
 };
 

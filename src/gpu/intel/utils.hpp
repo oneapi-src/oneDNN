@@ -144,7 +144,7 @@ inline int dev_getenv(const char *name, int default_value) {
 }
 
 inline bool dev_getenv(const char *s, bool def) {
-    return dev_getenv(s, def ? 1 : 0) == 1;
+    return dev_getenv(s, def ? 1 : 0) != 0;
 }
 
 inline std::string dev_getenv(const char *s, const std::string &def) {

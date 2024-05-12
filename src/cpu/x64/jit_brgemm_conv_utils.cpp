@@ -196,7 +196,8 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
 
 bool is_any_eligible(const jit_brgemm_conv_conf_t &jcp) {
     return (jcp.prop_kind == prop_kind::forward_inference || jcp.wei_plain
-            || one_of(jcp.wei_dt, data_type::s8, data_type::f16)
+            || one_of(jcp.wei_dt, data_type::s8, data_type::f16,
+                    data_type::f8_e5m2, data_type::f8_e4m3)
             || one_of(jcp.isa, avx2_vnni_2) || is_amx(jcp.isa));
 }
 
@@ -1657,11 +1658,14 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (one_of(jcp.src_dt, u8, s8)) {
         jcp.acc_dt = s32;
-    } else if (one_of(jcp.src_dt, f32, bf16, f16)) {
+    } else if (one_of(jcp.src_dt, f32, bf16, f16, f8_e5m2, f8_e4m3)) {
         jcp.acc_dt = f32;
     } else
         return status::unimplemented;
 
+    jcp.is_fp8 = one_of(jcp.src_dt, f8_e5m2, f8_e4m3)
+            && one_of(jcp.wei_dt, f8_e5m2, f8_e4m3);
+    jcp.is_fp8_convert = jcp.is_fp8 && utils::one_of(isa, avx10_1_512_amx_fp16);
     jcp.src_dsz = types::data_type_size(jcp.src_dt);
     jcp.wei_dsz = types::data_type_size(jcp.wei_dt);
     jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
@@ -1678,8 +1682,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
 
-    const data_type_t vnni_block_dt
-            = get_mac_emu_data_type(jcp.wei_dt, isa, isa == avx10_1_512);
+    const data_type_t vnni_block_dt = get_mac_emu_data_type(
+            jcp.wei_dt, isa, isa == avx10_1_512 && !jcp.is_fp8_convert);
     jcp.vnni_block = data_type_vnni_granularity(vnni_block_dt);
 
     if (one_of(jcp.prop_kind, prop_kind::forward_training,
@@ -1749,7 +1753,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             && jcp.ow >= 128;
     if (one_of(jcp.prop_kind, prop_kind::forward_training,
                 prop_kind::forward_inference)
-            && (is_small_shape || is_3d_small_ic))
+            && (is_small_shape || is_3d_small_ic) && !jcp.is_fp8)
         VDISPATCH_CONV_IC(!allow_perf_heuristics(jcp),
                 VERBOSE_IMPL_HEURISTIC_FAIL,
                 "no optimization for fwd-prop and 3d shapes / small ic");
@@ -1836,7 +1840,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const auto kw_koef = jcp.is_relo() ? jcp.kw : 1;
     const auto kh_koef = jcp.is_relo_whi() ? jcp.kh : 1;
 
-    jcp.is_rd_padded_to_block = !jcp.is_1x1 && one_of(jcp.wei_dt, bf16, f16, s8)
+    jcp.is_rd_padded_to_block = !jcp.is_1x1
+            && one_of(jcp.wei_dt, bf16, f16, s8, f8_e5m2, f8_e4m3)
             && jcp.ic * kw_koef * kh_koef > rd_padded_block && is_amx(isa);
 
     jcp.idp = jcp.id + jcp.f_pad + jcp.back_pad;
@@ -1888,7 +1893,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
-    if (is_amx(isa)) {
+    // TODO: check these restrictions
+    if (is_amx(isa) && !jcp.is_fp8) {
         // disabled for two convolutions from ssd_resnet34
         if ((jcp.ic == jcp.oc) && (jcp.ic == 128 || jcp.ic == 256)
                 && (jcp.oh == jcp.ow) && (jcp.oh == 150))
@@ -2038,8 +2044,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
     // try_relo_whi
     bool try_relo_whi = false;
     bool relo_conv_weights_whi = true;
-    if (!jcp.wei_plain && relo_supported_isa && relo_reasonable_isa) {
+    if (!jcp.wei_plain && relo_supported_isa && relo_reasonable_isa
+            && !jcp.is_fp8) {
         const int rd_whi = jcp.kh * jcp.kw * jcp.ic;
+        //TODO: support fp8
         if (jcp.ic % jcp.vnni_block == 0
                 && IMPLICATION(rd_whi > jcp.simd_w, rd_whi % jcp.simd_w == 0)
                 && one_of(1, jcp.kh, jcp.kw))
@@ -2115,7 +2123,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
 
         const auto rd_ksize = (jcp.is_relo() ? jcp.kw : 1)
                 * (jcp.is_relo_whi() ? jcp.kh : 1);
-        jcp.is_rd_padded_to_block = one_of(jcp.wei_dt, bf16, f16, s8)
+        jcp.is_rd_padded_to_block
+                = one_of(jcp.wei_dt, bf16, f16, s8, f8_e5m2, f8_e4m3)
                 && jcp.ic * rd_ksize > rd_padded_block;
 
         jcp.is_os_blocking = jcp.f_pad < jcp.kd && jcp.back_pad < jcp.kd
