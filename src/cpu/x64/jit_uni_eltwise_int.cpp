@@ -38,8 +38,9 @@ struct jit_args_int8_t {
 };
 
 struct jit_uni_eltwise_int_kernel : public jit_generator {
-    jit_uni_eltwise_int_kernel(const eltwise_pd_t *pd, const char *name)
-        : jit_generator(name), pd_(pd) {}
+    jit_uni_eltwise_int_kernel(
+            const eltwise_pd_t *pd, const cpu_isa_t isa, const char *name)
+        : jit_generator(name, isa), pd_(pd) {}
 
     void operator()(jit_args_int8_t *p) { jit_generator::operator()(p); }
 
@@ -62,7 +63,7 @@ struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_subkernel_int)
 
     jit_uni_subkernel_int_t(const eltwise_pd_t *pd)
-        : jit_uni_eltwise_int_kernel(pd, jit_name()) {
+        : jit_uni_eltwise_int_kernel(pd, isa, jit_name()) {
         using namespace data_type;
 
         // Relu and linear for int types: s32, s8, u8; Only forward direction

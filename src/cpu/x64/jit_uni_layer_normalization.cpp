@@ -105,7 +105,7 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
 
     jit_stat_and_data_base_kernel_t(const layer_normalization_pd_t *pd)
         : stat_and_data_kernel_t(pd)
-        , jit_generator(jit_name())
+        , jit_generator(jit_name(), isa)
         , src_d_(pd_->src_md())
         , dst_d_(pd_->dst_md())
         , simd_w_(vlen / sizeof(float))

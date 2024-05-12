@@ -41,7 +41,7 @@ static bool is_ne_xf16_supported(cpu_isa_t isa, const data_type_t dtype) {
 
 binary_kernel_t::binary_kernel_t(const size_t vlen, const binary_pd_t *pd,
         const jit_binary_conf_t conf, const char *name, bool tail_kernel)
-    : jit_generator(name)
+    : jit_generator(name, conf.isa)
     , vlen_(vlen)
     , simd_w_(vlen / sizeof(float))
     , pd_(pd)
