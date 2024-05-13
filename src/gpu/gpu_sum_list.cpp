@@ -16,7 +16,6 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#include "common/impl_list_item.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_sum_pd.hpp"
 #include "gpu/intel/jit/gen9_simple_sum.hpp"
