@@ -6,3 +6,7 @@
 --alpha=0,0.25,-0.25 --beta=0,0.25,-0.25
 --alg=linear
 --batch=shapes_eltwise
+
+--alpha=0,0.25,-0.25 --beta=0,0.25,-0.25
+--alg=clip
+--batch=shapes_eltwise
