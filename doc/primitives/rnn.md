@@ -477,6 +477,10 @@ details on how to use and set these quantization parameters.
 
 ## Example
 
-[LSTM RNN Primitive Example](@ref lstm_example_cpp)
+1. [LSTM RNN Primitive Example](@ref lstm_example_cpp)
 
 @copydetails lstm_example_cpp_short
+
+2. [Vanilla RNN Primitive Example](@ref vanilla_rnn_example_cpp)
+
+@copydetails vanilla_rnn_example_cpp_short
