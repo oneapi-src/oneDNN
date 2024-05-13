@@ -1866,8 +1866,8 @@ void adjust_nthr(jit_brgemm_conv_conf_t &jcp, const memory_desc_wrapper &src_d,
     }
 }
 
-status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
-        cpu_isa_t isa, const convolution_desc_t &cd, memory_desc_t &src_md,
+status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
+        const convolution_desc_t &cd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
 
@@ -2014,7 +2014,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
         //TODO: support all 3d cases
         const bool relo_supported_shape = jcp.trans_dim_koef == 1
                 && IMPLICATION(jcp.id > 1, relo_conv_weights_wi == false)
-                && !use_inversion && jcp.dilate_w == 0;
+                && !cd.use_inversion && jcp.dilate_w == 0;
 
         const auto rnd_kwic = (float)jcp.kw * rnd_up(jcp.ic, jcp.simd_w);
         const auto src_per_ic
@@ -2055,7 +2055,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, bool use_inversion,
         //TODO: support 3d cases
         const bool relo_supported_shape
                 = everyone_is(0, jcp.dilate_h, jcp.dilate_w)
-                && jcp.trans_dim_koef == 1 && jcp.ndims < 5 && !use_inversion
+                && jcp.trans_dim_koef == 1 && jcp.ndims < 5 && !cd.use_inversion
                 && IMPLICATION(jcp.s8s8_compensation_required,
                         everyone_is(0, jcp.t_pad, jcp.b_pad));
 

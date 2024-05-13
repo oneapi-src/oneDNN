@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -139,6 +139,8 @@ struct convolution_desc_t {
     dims_t padding[2];
     // The accumulator data type. Initialized automatically.
     data_type_t accum_data_type;
+    // For internal use only. To mark conv is used for deconv.
+    bool use_inversion;
 };
 
 // A descriptor of a deconvolution operation.

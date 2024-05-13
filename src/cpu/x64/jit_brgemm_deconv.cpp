@@ -89,6 +89,8 @@ status_t fwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
         fwd_conv_d->diff_src_desc = fwd_conv_d->src_desc;
         fwd_conv_d->diff_dst_desc = fwd_conv_d->dst_desc;
     }
+    // Note: internal field to hint this conv is created from deconv.
+    fwd_conv_d->use_inversion = true;
     return status::success;
 }
 
@@ -133,6 +135,10 @@ status_t bwd_conv_desc_create(const deconvolution_desc_t *fwd_deconv_d,
     //       directly into bwd conv implementations.
     bwd_conv_d->src_desc = bwd_conv_d->diff_src_desc;
     bwd_conv_d->dst_desc = bwd_conv_d->diff_dst_desc;
+
+    // Note: internal field to hint this conv is created from deconv.
+    bwd_conv_d->use_inversion = true;
+
     return status::success;
 }
 } // namespace
@@ -192,11 +198,9 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
         while (++it != it.end()) {
             conv_pd_ = *it;
-            // flag used to enable post-ops and properly disable zero-points
-            constexpr bool is_deconv = true;
             if (check_embedded_impl_init<
-                        typename brgemm_convolution_bwd_strided_t<isa,
-                                is_deconv>::pd_t>(it)
+                        typename brgemm_convolution_bwd_strided_t<isa>::pd_t>(
+                        it)
                     == status::success)
                 break;
         }
@@ -218,9 +222,8 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     == status::success)
                 break;
             // try non-1x1 fwd convolution with invert weights' spatial indices
-            constexpr bool use_inversion = true;
-            if (check_embedded_impl_init<typename brgemm_convolution_fwd_t<isa,
-                            use_inversion>::pd_t>(it)
+            if (check_embedded_impl_init<
+                        typename brgemm_convolution_fwd_t<isa>::pd_t>(it)
                     == status::success)
                 break;
         }
