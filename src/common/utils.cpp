@@ -46,6 +46,20 @@
 #include "cpu/platform.hpp"
 #endif
 
+static t_dnnl_cpu_aligned_malloc                   g_dnnl_cpu_malloc;
+static t_dnnl_cpu_free                             g_dnnl_cpu_free;
+
+bool register_dnnl_cpu_memory_alloction_apis(t_dnnl_cpu_aligned_malloc p_malloc, t_dnnl_cpu_free p_free)
+{
+    if(!p_malloc || !p_free)
+        return false;
+
+    g_dnnl_cpu_malloc = p_malloc;
+    g_dnnl_cpu_free = p_free;
+
+    return true;
+}
+
 namespace dnnl {
 namespace impl {
 
@@ -148,6 +162,10 @@ void *malloc(size_t size, int alignment) {
     if (memory_debug::is_mem_debug())
         return memory_debug::malloc(size, alignment);
 
+    // malloc callback
+    if(g_dnnl_cpu_malloc)
+        return g_dnnl_cpu_malloc(size, alignment);
+
 #ifdef _WIN32
     ptr = _aligned_malloc(size, alignment);
     int rc = ptr ? 0 : -1;
@@ -161,6 +179,10 @@ void *malloc(size_t size, int alignment) {
 void free(void *p) {
 
     if (memory_debug::is_mem_debug()) return memory_debug::free(p);
+
+    // free callback
+    if(g_dnnl_cpu_free)
+        return g_dnnl_cpu_free(p);
 
 #ifdef _WIN32
     _aligned_free(p);

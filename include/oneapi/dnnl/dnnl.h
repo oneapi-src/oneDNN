@@ -29,6 +29,14 @@
 extern "C" {
 #endif
 
+// void* alloc_cpu(size_t size, int alignment);
+typedef void* (*t_dnnl_cpu_aligned_malloc)(size_t, int);
+
+// void free_cpu(void* data);
+typedef void (*t_dnnl_cpu_free)(void*);
+
+bool DNNL_API register_dnnl_cpu_memory_alloction_apis(t_dnnl_cpu_aligned_malloc p_malloc, t_dnnl_cpu_free p_free);
+
 /// @addtogroup dnnl_api
 /// @{
 
