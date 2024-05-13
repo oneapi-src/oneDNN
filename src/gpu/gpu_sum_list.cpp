@@ -39,7 +39,7 @@ namespace {
             __VA_ARGS__::pd_t>()),
 
 // clang-format off
-constexpr impl_list_item_t sum_impl_list[] = REG_SUM_P({
+constexpr impl_list_item_t impl_list[] = REG_SUM_P({
         SUM_INSTANCE(intel::ocl::multi_po_reorder_sum)
         SUM_INSTANCE(intel::ocl::gen9_sum_t)
         SUM_INSTANCE(intel::ocl::many_inputs_sum_t)
@@ -51,8 +51,8 @@ constexpr impl_list_item_t sum_impl_list[] = REG_SUM_P({
 #undef INSTANCE
 } // namespace
 
-const impl_list_item_t *gpu_impl_list_t::get_sum_implementation_list() {
-    return sum_impl_list;
+const impl_list_item_t *get_sum_impl_list() {
+    return impl_list;
 }
 
 } // namespace gpu

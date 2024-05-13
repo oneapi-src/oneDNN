@@ -36,7 +36,7 @@ using namespace dnnl::impl::data_type;
             impl_list_item_t::reorder_type_deduction_helper_t<__VA_ARGS__>()),
 
 // clang-format off
-constexpr impl_list_item_t reorder_impl_list[] = REG_REORDER_P({
+constexpr impl_list_item_t impl_list[] = REG_REORDER_P({
         REORDER_INSTANCE(intel::ocl::rnn_weights_reorder_t::pd_t)
         REORDER_INSTANCE(intel::ocl::cross_engine_reorder_t::pd_t)
         REORDER_INSTANCE(intel::jit::gen_reorder_t::pd_t)
@@ -49,9 +49,9 @@ constexpr impl_list_item_t reorder_impl_list[] = REG_REORDER_P({
 
 } // namespace
 
-const impl_list_item_t *gpu_impl_list_t::get_reorder_implementation_list(
+const impl_list_item_t *get_reorder_impl_list(
         const memory_desc_t *, const memory_desc_t *) {
-    return reorder_impl_list;
+    return impl_list;
 }
 
 } // namespace gpu

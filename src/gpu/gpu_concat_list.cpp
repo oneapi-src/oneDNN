@@ -33,7 +33,7 @@ namespace {
             __VA_ARGS__::pd_t>()),
 
 // clang-format off
-constexpr impl_list_item_t concat_impl_list[] = REG_CONCAT_P({
+constexpr impl_list_item_t impl_list[] = REG_CONCAT_P({
         CONCAT_INSTANCE(intel::ocl::simple_concat_t)
         CONCAT_INSTANCE(intel::ocl::gen9_concat_t)
         CONCAT_INSTANCE(intel::ocl::multi_concat_t)
@@ -44,8 +44,8 @@ constexpr impl_list_item_t concat_impl_list[] = REG_CONCAT_P({
 #undef INSTANCE
 } // namespace
 
-const impl_list_item_t *gpu_impl_list_t::get_concat_implementation_list() {
-    return concat_impl_list;
+const impl_list_item_t *get_concat_impl_list() {
+    return impl_list;
 }
 
 } // namespace gpu
