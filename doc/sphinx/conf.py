@@ -106,7 +106,10 @@ imgmath_latex_preamble = '''\\usepackage[T1]{fontenc}
 \\newcommand{\\diffdstiterc}{\\operatorname{diff\\_dst\\_iter\\_c}}
 \\newcommand{\\diffgamma}{\\operatorname{diff\\_\\gamma}}
 \\newcommand{\\diffbeta}{\\operatorname{diff\\_\\beta}}
-\\newcommand{\\workspace}{\\operatorname{workspace}}'''
+\\newcommand{\\workspace}{\\operatorname{workspace}}
+\\newcommand{\\srcshape}{\\operatorname{src\\_\\shape}}
+\\newcommand{\\dstshape}{\\operatorname{dst\\_\\shape}}'''
+
 
 
 
