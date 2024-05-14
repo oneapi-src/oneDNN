@@ -25,6 +25,10 @@
 #include "gpu/sycl/ref_lrn.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/amd/miopen_lrn.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -38,12 +42,14 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{forward}, {
         GPU_INSTANCE_INTEL(intel::ocl::ref_lrn_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_lrn_fwd_t)
+        GPU_INSTANCE_AMD(amd::miopen_lrn_fwd_t)
         GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_lrn_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
         GPU_INSTANCE_INTEL(intel::ocl::ref_lrn_bwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_lrn_bwd_t)
+        GPU_INSTANCE_AMD(amd::miopen_lrn_bwd_t)
         GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_lrn_bwd_t)
         nullptr,
     })},

@@ -30,6 +30,10 @@
 #include "gpu/sycl/ref_pooling.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/amd/miopen_pooling.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -46,6 +50,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::gen9_pooling_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_pooling_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_pooling_fwd_t)
+        GPU_INSTANCE_AMD(amd::miopen_pooling_fwd_t)
         GPU_INSTANCE_GENERIC_SYCL(sycl::ref_pooling_fwd_t)
         nullptr,
     }},
@@ -54,6 +59,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::gen9_pooling_bwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_pooling_bwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_pooling_bwd_t)
+        GPU_INSTANCE_AMD(amd::miopen_pooling_bwd_t)
         GPU_INSTANCE_GENERIC_SYCL(sycl::ref_pooling_bwd_t)
         nullptr,
     })},

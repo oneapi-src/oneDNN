@@ -27,6 +27,10 @@
 #include "gpu/sycl/ref_softmax.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/amd/miopen_softmax.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -42,6 +46,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::ref_softmax_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::reusable_softmax_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_softmax_fwd_t)
+        GPU_INSTANCE_AMD(amd::miopen_softmax_fwd_t)
         GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_softmax_fwd_t)
         nullptr,
     }},
@@ -49,6 +54,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::gen9_softmax_bwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_softmax_bwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_softmax_bwd_t)
+        GPU_INSTANCE_AMD(amd::miopen_softmax_bwd_t)
         GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_softmax_bwd_t)
         nullptr,
     })},

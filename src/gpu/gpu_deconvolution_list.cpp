@@ -24,6 +24,10 @@
 #include "gpu/nvidia/cudnn_deconvolution.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/amd/miopen_deconvolution.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -37,6 +41,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{forward}, {
         GPU_INSTANCE_INTEL(intel::ocl::ref_deconvolution_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_deconvolution_fwd_t)
+        GPU_INSTANCE_AMD(amd::miopen_deconvolution_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
@@ -44,6 +49,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::ref_deconvolution_bwd_weights_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_deconvolution_bwd_data_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_deconvolution_bwd_weights_t)
+        GPU_INSTANCE_AMD(amd::miopen_deconvolution_bwd_data_t)
+        GPU_INSTANCE_AMD(amd::miopen_deconvolution_bwd_weights_t)
         nullptr,
     })},
 });

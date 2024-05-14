@@ -22,17 +22,6 @@
 #include "miopen/miopen.h"
 #include "xpu/sycl/utils.hpp"
 
-#include "gpu/amd/miopen_batch_normalization.hpp"
-#include "gpu/amd/miopen_binary.hpp"
-#include "gpu/amd/miopen_convolution.hpp"
-#include "gpu/amd/miopen_deconvolution.hpp"
-#include "gpu/amd/miopen_eltwise.hpp"
-#include "gpu/amd/miopen_gemm_inner_product.hpp"
-#include "gpu/amd/miopen_lrn.hpp"
-#include "gpu/amd/miopen_matmul.hpp"
-#include "gpu/amd/miopen_pooling.hpp"
-#include "gpu/amd/miopen_reduction.hpp"
-#include "gpu/amd/miopen_softmax.hpp"
 #include "gpu/amd/sycl_hip_compat.hpp"
 #include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
@@ -160,55 +149,6 @@ void sycl_hip_engine_t::activate_stream_miopen(HIPstream hip_stream) {
     if (current_stream_id != hip_stream) {
         MIOPEN_EXECUTE_FUNC_S(miopenSetStream, *miopen_handle, hip_stream);
     }
-}
-
-namespace {
-using namespace dnnl::impl::data_type;
-
-// clang-format off
-constexpr dnnl::impl::impl_list_item_t sycl_hip_impl_list[] = {
-        // Binary
-        GPU_INSTANCE_AMD(miopen_binary_t)
-        // Elementwise
-        GPU_INSTANCE_AMD(miopen_eltwise_fwd_t)
-        GPU_INSTANCE_AMD(miopen_eltwise_bwd_t)
-        // Softmax
-        GPU_INSTANCE_AMD(miopen_softmax_fwd_t)
-        GPU_INSTANCE_AMD(miopen_softmax_bwd_t)
-        // LRN
-        GPU_INSTANCE_AMD(miopen_lrn_fwd_t)
-        GPU_INSTANCE_AMD(miopen_lrn_bwd_t)
-        // Pooling
-        GPU_INSTANCE_AMD(miopen_pooling_fwd_t)
-        GPU_INSTANCE_AMD(miopen_pooling_bwd_t)
-        // Reduction
-        GPU_INSTANCE_AMD(miopen_reduction_t)
-        // MatMul
-        GPU_INSTANCE_AMD(miopen_matmul_t)
-        // Inner Product
-        GPU_INSTANCE_AMD(miopen_gemm_inner_product_fwd_t)
-        GPU_INSTANCE_AMD(miopen_gemm_inner_product_bwd_data_t)
-        GPU_INSTANCE_AMD(miopen_gemm_inner_product_bwd_weights_t)
-        // Convolution
-        GPU_INSTANCE_AMD(miopen_convolution_fwd_t)
-        GPU_INSTANCE_AMD(miopen_convolution_bwd_data_t)
-        GPU_INSTANCE_AMD(miopen_convolution_bwd_weights_t)
-        // Batch Normalization
-        GPU_INSTANCE_AMD(miopen_batch_normalization_fwd_t)
-        GPU_INSTANCE_AMD(miopen_batch_normalization_bwd_t)
-        // Deconvolution
-        GPU_INSTANCE_AMD(miopen_deconvolution_fwd_t)
-        GPU_INSTANCE_AMD(miopen_deconvolution_bwd_data_t)
-        GPU_INSTANCE_AMD(miopen_deconvolution_bwd_weights_t)
-
-        nullptr,
-};
-// clang-format on
-} // namespace
-
-const dnnl::impl::impl_list_item_t *sycl_hip_engine_t::get_implementation_list(
-        const op_desc_t *) const {
-    return sycl_hip_impl_list;
 }
 
 } // namespace amd

@@ -32,6 +32,10 @@
 #include "gpu/nvidia/cudnn_reduction.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/amd/miopen_reduction.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -46,6 +50,7 @@ constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
         GPU_INSTANCE_INTEL(intel::ocl::ref_reduction_t)
         GPU_INSTANCE_INTEL(intel::ocl::reusable_ref_reduction_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_reduction_t)
+        GPU_INSTANCE_AMD(amd::miopen_reduction_t)
         nullptr,
 });
 // clang-format on
