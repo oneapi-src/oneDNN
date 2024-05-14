@@ -142,6 +142,8 @@ status_t sycl_device_info_t::init_attributes(engine_t *engine) {
         eu_count_ = device.get_info<::sycl::info::device::max_compute_units>();
     }
     max_wg_size_ = device.get_info<::sycl::info::device::max_work_group_size>();
+    l3_cache_size_
+            = device.get_info<::sycl::info::device::global_mem_cache_size>();
     mayiuse_system_memory_allocators_
             = device.has(::sycl::aspect::usm_system_allocations);
     return status::success;

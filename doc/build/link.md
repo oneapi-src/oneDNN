@@ -17,6 +17,8 @@ on how oneDNN was built.
 | ``include/oneapi/dnnl/dnnl_graph.h``       | C header for graph API            |
 | ``include/oneapi/dnnl/dnnl_graph.hpp``     | C++ header for graph API          |
 | ``include/oneapi/dnnl/dnnl_graph_types.h`` | Auxiliary C header for graph API  |
+| ``include/oneapi/dnnl/dnnl_ukernel.h``     | C header with ukernel API         |
+| ``include/oneapi/dnnl/dnnl_ukernel.hpp``   | C++ header with ukernel API       |
 
 ## Libraries
 

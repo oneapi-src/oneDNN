@@ -1201,42 +1201,19 @@ void init_params(conv_config_t &cfg) {
     cfg.tiler().set_params(cfg);
 }
 
-const std::array<prb_tile_t, 3> &get_kernel_grid_conv_dims(
-        const conv_problem_t &prb) {
-    static const prb_tile_t fwd_0({prb_dims::oc});
-    static const prb_tile_t fwd_1(
-            {prb_dims::g, prb_dims::od, prb_dims::oh, prb_dims::ow});
-    static const prb_tile_t fwd_2({prb_dims::mb});
-
-    static const prb_tile_t bwd_d_0({prb_dims::ic});
-    static const prb_tile_t bwd_d_1(
-            {prb_dims::g, prb_dims::id, prb_dims::ih, prb_dims::iw});
-    static const prb_tile_t bwd_d_2({prb_dims::mb});
-
-    static const prb_tile_t bwd_w_0({prb_dims::oc});
-    static const prb_tile_t bwd_w_1({prb_dims::ic, prb_dims::kd, prb_dims::kh,
-            prb_dims::kw, prb_dims::od, prb_dims::oh, prb_dims::ow});
-    static const prb_tile_t bwd_w_2({prb_dims::g, prb_dims::mb});
-
-    using prb_tile_3 = std::array<prb_tile_t, 3>;
-    // non-transposed
-    static const prb_tile_3 fwd = {fwd_0, fwd_1, fwd_2};
-    static const prb_tile_3 bwd_d = {bwd_d_0, bwd_d_1, bwd_d_2};
-    static const prb_tile_3 bwd_w = {bwd_w_0, bwd_w_1, bwd_w_2};
-    // transposed
-    static const prb_tile_3 t_fwd = {fwd_2, fwd_0, fwd_1};
-    static const prb_tile_3 t_bwd_d = {bwd_d_2, bwd_d_0, bwd_d_1};
-    static const prb_tile_3 t_bwd_w = {bwd_w_1, bwd_w_2, bwd_w_0};
-
-    if (prb.is_fwd) return (prb.ab_swap_transpose) ? t_fwd : fwd;
-    if (prb.is_bwd_d) return (prb.ab_swap_transpose) ? t_bwd_d : bwd_d;
-    if (prb.is_bwd_w) return (prb.ab_swap_transpose) ? t_bwd_w : bwd_w;
-    ir_error_not_expected();
-    return fwd;
+std::array<prb_tile_t, 3> get_kernel_grid_conv_dims(const conv_config_t &cfg) {
+    std::array<prb_tile_t, 3> grid_dims;
+    for (int i = 0; i < 3; i++) {
+        for (auto &d : cfg.walk_order().grid_dims(i)) {
+            grid_dims[i][d] = 1;
+        }
+    }
+    return grid_dims;
 }
 
-const std::array<prb_tile_t, 3> &get_thread_group_grid_conv_dims(
-        const conv_problem_t &prb) {
+using prb_tile_3 = std::array<prb_tile_t, 3>;
+
+prb_tile_3 get_thread_group_grid_conv_dims(const conv_config_t &cfg) {
     static const prb_tile_t fwd_0({prb_dims::oc});
     static const prb_tile_t fwd_1({prb_dims::mb, prb_dims::ow});
     static const prb_tile_t fwd_2({prb_dims::ic});
@@ -1249,7 +1226,6 @@ const std::array<prb_tile_t, 3> &get_thread_group_grid_conv_dims(
     static const prb_tile_t bwd_w_1({prb_dims::ic});
     static const prb_tile_t bwd_w_2;
 
-    using prb_tile_3 = std::array<prb_tile_t, 3>;
     // non-transposed
     static const prb_tile_3 fwd = {fwd_0, fwd_1, fwd_2};
     static const prb_tile_3 bwd_d = {bwd_d_0, bwd_d_1, bwd_d_2};
@@ -1259,6 +1235,7 @@ const std::array<prb_tile_t, 3> &get_thread_group_grid_conv_dims(
     static const prb_tile_3 t_bwd_d = {bwd_d_1, bwd_d_0, bwd_d_2};
     static const prb_tile_3 t_bwd_w = {bwd_w_1, bwd_w_0, bwd_w_2};
 
+    auto &prb = cfg.prb();
     if (prb.is_fwd) return (prb.ab_swap_transpose) ? t_fwd : fwd;
     if (prb.is_bwd_d) return (prb.ab_swap_transpose) ? t_bwd_d : bwd_d;
     if (prb.is_bwd_w) return (prb.ab_swap_transpose) ? t_bwd_w : bwd_w;
@@ -1267,11 +1244,381 @@ const std::array<prb_tile_t, 3> &get_thread_group_grid_conv_dims(
 }
 
 void init_kernel_grid(conv_config_t &cfg) {
-    cfg.init_kernel_grid(get_kernel_grid_conv_dims(cfg.prb()));
+    cfg.init_kernel_grid(get_kernel_grid_conv_dims(cfg));
 }
 
 void init_thread_group_grid(conv_config_t &cfg) {
-    cfg.init_thread_group_grid(get_thread_group_grid_conv_dims(cfg.prb()));
+    cfg.init_thread_group_grid(get_thread_group_grid_conv_dims(cfg));
+}
+
+void get_layout_and_dims(tensor_kind_t ab_kind, const conv_config_t &cfg,
+        layout_t &layout, std::vector<prb_dim_t> &dims) {
+    auto &prb = cfg.prb();
+    auto &src_dims
+            = conv_layout_dims(tensor_kind_t::src, /*src_dst_with_group=*/true);
+    auto &wei_dims
+            = conv_layout_dims(tensor_kind_t::wei, /*src_dst_with_group=*/true);
+    auto &dst_dims
+            = conv_layout_dims(tensor_kind_t::dst, /*src_dst_with_group=*/true);
+    switch (ab_kind) {
+        case tensor_kind_t::a:
+            layout = prb.pick_a<const layout_param_t &>(cfg.src_layout(),
+                                cfg.wei_layout(), cfg.dst_layout())
+                             .compute();
+            dims = prb.pick_a<const std::vector<prb_dim_t> &>(
+                    src_dims, wei_dims, dst_dims);
+            break;
+        case tensor_kind_t::b:
+            layout = prb.pick_b<const layout_param_t &>(cfg.src_layout(),
+                                cfg.wei_layout(), cfg.dst_layout())
+                             .compute();
+            dims = prb.pick_b<const std::vector<prb_dim_t> &>(
+                    src_dims, wei_dims, dst_dims);
+            break;
+        default: ir_error_not_expected();
+    }
+    ir_assert(layout.ndims() == (int)dims.size());
+}
+
+// Calculates the size of the range for spatial dimensions within a tile.
+// For example, consider forward convolution with stride of 2 and tile ow8kw3.
+// After mapping (iw = ow * SW + kw), "iw" range is [0, 16] of size 17.
+int map_spatial(const conv_config_t &cfg, const prb_dim_t &dim,
+        const prb_tile_t &tile) {
+    auto &prb = cfg.prb();
+    bool is_isp = utils::one_of(dim, prb_dims::id, prb_dims::ih, prb_dims::iw);
+    bool is_osp = utils::one_of(dim, prb_dims::od, prb_dims::oh, prb_dims::ow);
+    const prb_dim_t isp_dims[] = {prb_dims::id, prb_dims::ih, prb_dims::iw};
+    const prb_dim_t ksp_dims[] = {prb_dims::kd, prb_dims::kh, prb_dims::kw};
+    const prb_dim_t osp_dims[] = {prb_dims::od, prb_dims::oh, prb_dims::ow};
+    int isp[] = {prb.id, prb.ih, prb.iw};
+    int osp[] = {prb.od, prb.oh, prb.ow};
+    int padding[] = {prb.pd, prb.ph, prb.pw};
+    int stride[] = {prb.sd, prb.sh, prb.sw};
+    int dilation[] = {prb.dd, prb.dh, prb.dw};
+    int idx = spatial_index(dim);
+    ir_assert(idx != -1);
+    int O = tile.get(osp_dims[idx], 1);
+    int I = tile.get(isp_dims[idx], 1);
+    int K = tile.get(ksp_dims[idx], 1);
+    int P = padding[idx];
+    int S = stride[idx];
+    int D = dilation[idx];
+    if (is_isp) {
+        // Source tensor, map ox, kx to ix.
+        ir_assert(prb.is_fwd || prb.is_bwd_w);
+        int i_min = -P;
+        int i_max = (O - 1) * S - P + (K - 1) * (1 + D);
+        return std::min(isp[idx], i_max - i_min + 1);
+    }
+    // Destination tensor, map ix, kx to ox.
+    ir_assert(is_osp && prb.is_bwd_d);
+    int os_min = P - (K - 1) * (1 + D);
+    int os_max = (I - 1) + P;
+    return std::min(osp[idx], utils::div_up(os_max - os_min + 1, S));
+}
+
+bool needs_spatial_mapping(const conv_config_t &cfg, const prb_dim_t &dim) {
+    auto &prb = cfg.prb();
+    switch (dim.kind()) {
+        case prb_dim_kind_t::od:
+        case prb_dim_kind_t::oh:
+        case prb_dim_kind_t::ow: return prb.is_bwd_d;
+        case prb_dim_kind_t::id:
+        case prb_dim_kind_t::ih:
+        case prb_dim_kind_t::iw: return prb.is_fwd || prb.is_bwd_w;
+        default: return false;
+    }
+}
+
+size_t get_memory_footprint(const tensor_kind_t &ab_kind,
+        const conv_config_t &cfg, const prb_tile_t &_tile) {
+    layout_t layout;
+    std::vector<prb_dim_t> dims;
+    get_layout_and_dims(ab_kind, cfg, layout, dims);
+    dim_t elems = 1;
+    prb_tile_t tile;
+    for (int i = 0; i < layout.ndims(); i++) {
+        auto &d = dims[i];
+        dim_t d_size
+                = (needs_spatial_mapping(cfg, d) ? map_spatial(cfg, d, _tile)
+                                                 : _tile.get(d, 1));
+        tile[d] = d_size;
+        elems *= std::min(d_size, layout.dim(i));
+    }
+    ir_assert(elems >= 1);
+    return (size_t)layout.type().size() * elems;
+}
+
+// Returns the memory footprint in bytes for both input tensors accessed inside
+// the tile that is combined from tg_tile and grid_tile.
+size_t get_memory_footprint(const conv_config_t &cfg, const prb_tile_t &tg_tile,
+        const prb_tile_t &grid_tile) {
+    prb_tile_t tile;
+    for (auto &d : tg_tile) {
+        if (tg_tile[d] == 1) continue;
+        tile[d] = tg_tile[d];
+    }
+    for (auto &d : grid_tile) {
+        if (grid_tile[d] == 1) continue;
+        tile[d] = tile.get(d, 1) * grid_tile[d];
+    }
+    auto a_bytes = get_memory_footprint(tensor_kind_t::a, cfg, tile);
+    auto b_bytes = get_memory_footprint(tensor_kind_t::b, cfg, tile);
+    return a_bytes + b_bytes;
+}
+
+prb_tile_t get_grid_tile(const conv_config_t &cfg) {
+    prb_tile_t grid_tile;
+    for (auto &d : conv_index_dims(cfg.prb().prop_kind())) {
+        int size = cfg.grid_dim(d);
+        if (size == 1) continue;
+        grid_tile[d] = size;
+    }
+    return grid_tile;
+}
+
+// Adjusts walk order to iterate group dimension earlier to ensure better
+// access locality for a higher cache hit rate.
+walk_order_t maybe_fixup_group_with_small_channels(
+        const conv_config_t &cfg, const walk_order_t &walk_order) {
+    auto &prb = cfg.prb();
+    auto grid_tile = get_grid_tile(cfg);
+    if (prb.g == 1 || !grid_tile.has(prb_dims::g)) return walk_order;
+
+    auto &layout = (prb.is_fwd || prb.is_bwd_w) ? cfg.src_layout().compute()
+                                                : cfg.dst_layout().compute();
+    const int g_dim_idx = 1;
+    const int c_dim_idx = 2;
+    if (layout.nblocks() <= 1) return walk_order;
+    auto &b0 = layout.blocks()[0];
+    auto &b1 = layout.blocks()[1];
+    // Check that layout has groups followed by channels, i.e. *gc form.
+    if (b0.dim_idx != c_dim_idx || b1.dim_idx != g_dim_idx) return walk_order;
+    // If the full channel dimension exceeds the cache line size, cache reuse
+    // should be already good enough.
+    // Xe2 has 256 byte L3 cache block so try to span 4 cache lines.
+    int factor = (cfg.hw() == ngen::HW::Xe2) ? 4 : 1;
+    if (layout.type().size() * b0.block >= cfg.hw().cache_line_size() * factor)
+        return walk_order;
+
+    walk_order_t fixed;
+    fixed.add(prb_dims::g, grid_tile.at(prb_dims::g), 0);
+    for (auto &b : walk_order.blocks()) {
+        if (b.dim == prb_dims::g) continue;
+        fixed.add(b.dim, b.size, b.grid_id);
+    }
+    fixed.finalize(grid_tile);
+    return fixed;
+}
+
+walk_order_t get_default_walk_order(
+        const conv_config_t &cfg, const prb_tile_t &grid_tile) {
+    using vec_t = std::vector<prb_dim_t>;
+    // Ordered from innermost to outermost.
+    static const vec_t fwd_0({prb_dims::oc});
+    static const vec_t fwd_1(
+            {prb_dims::ow, prb_dims::oh, prb_dims::od, prb_dims::g});
+    static const vec_t fwd_2({prb_dims::mb});
+
+    static const vec_t bwd_d_0({prb_dims::ic});
+    static const vec_t bwd_d_1(
+            {prb_dims::iw, prb_dims::ih, prb_dims::id, prb_dims::g});
+    static const vec_t bwd_d_2({prb_dims::mb});
+
+    static const vec_t bwd_w_0({prb_dims::oc});
+    static const vec_t bwd_w_1({prb_dims::ic, prb_dims::kw, prb_dims::kh,
+            prb_dims::kd, prb_dims::ow, prb_dims::oh, prb_dims::od});
+    static const vec_t bwd_w_2({prb_dims::g, prb_dims::mb});
+    static const std::array<vec_t, 3> fwd = {fwd_0, fwd_1, fwd_2};
+    static const std::array<vec_t, 3> bwd_d = {bwd_d_0, bwd_d_1, bwd_d_2};
+    static const std::array<vec_t, 3> bwd_w = {bwd_w_0, bwd_w_1, bwd_w_2};
+    auto grid_dims
+            = (cfg.prb().is_fwd ? fwd : (cfg.prb().is_bwd_d ? bwd_d : bwd_w));
+    walk_order_t walk_order;
+    for (int i = 0; i < 3; i++) {
+        for (auto &d : grid_dims[i]) {
+            if (grid_tile.has(d)) walk_order.add(d, grid_tile[d], i);
+        }
+    }
+    walk_order.finalize(grid_tile);
+    walk_order = maybe_fixup_group_with_small_channels(cfg, walk_order);
+    return walk_order;
+}
+
+// Helper class to iterate through M/N problem sizes in blocks to ensure
+// squarish (M x N) size for more optimal cache reuse.
+class mn_walker_t {
+public:
+    struct entry_t {
+        prb_dim_t dim;
+        int size = 1;
+        int tile_size = 1;
+        prb_dim_kind_t mn_kind = prb_dim_kind_t::undef;
+
+        bool has_next() const { return size < tile_size; }
+    };
+
+    mn_walker_t(const prb_tile_t &tile, const conv_problem_t &prb) : prb_(prb) {
+        for (auto &d : tile) {
+            auto bmnk = to_gemm(d, prb);
+            entry_t e;
+            e.dim = d;
+            e.tile_size = tile[d];
+            e.mn_kind = bmnk.kind();
+            if (!utils::one_of(e.mn_kind, prb_dim_kind_t::m, prb_dim_kind_t::n))
+                continue;
+            entries_.push_back(e);
+        }
+        // Put through spatial dimensions first and order spatial accordingly
+        // (WHD, width is first).
+        std::sort(entries_.begin(), entries_.end(),
+                [&](const entry_t &a, const entry_t &b) {
+                    int a_sp_idx = spatial_index(a.dim);
+                    int b_sp_idx = spatial_index(b.dim);
+                    if (a_sp_idx >= 0 && b_sp_idx >= 0)
+                        return a_sp_idx > b_sp_idx;
+                    return (a_sp_idx >= 0) && (b_sp_idx < 0);
+                });
+    }
+
+    bool has_next() const {
+        for (auto &e : entries_)
+            if (e.has_next()) return true;
+        return false;
+    }
+
+    entry_t next(const prb_tile_t &inner) {
+        int m_size = 1;
+        int n_size = 1;
+        for (auto &d : inner) {
+            auto bmnk = to_gemm(d, prb_);
+            if (bmnk == prb_dims::m) {
+                m_size *= inner[d];
+            } else if (bmnk == prb_dims::n) {
+                n_size *= inner[d];
+            }
+        }
+        auto mn_kind
+                = (m_size < n_size ? prb_dim_kind_t::m : prb_dim_kind_t::n);
+        for (auto kind : {mn_kind, prb_dim_kind_t::undef}) {
+            for (auto &e : entries_) {
+                if (utils::one_of(kind, e.mn_kind, prb_dim_kind_t::undef)
+                        && e.has_next()) {
+                    e.size *= 2;
+                    return e;
+                }
+            }
+        }
+        ir_error_not_expected();
+        return entry_t();
+    }
+
+private:
+    conv_problem_t prb_;
+    std::vector<entry_t> entries_;
+};
+
+walk_order_t compute_walk_order(const conv_config_t &cfg) {
+    auto &prb = cfg.prb();
+    int tg_size = 1;
+    prb_tile_t inner;
+    for (auto &d : conv_index_dims(cfg.prb().prop_kind())) {
+        int iter = cfg.iter_dim(d);
+        int tg = cfg.thread_group_dim(d);
+        int loop = cfg.loop_dim(d);
+        int size = iter * tg * loop;
+        if (size == 1) continue;
+        inner[d] = size;
+        tg_size *= tg;
+    }
+    auto grid_tile = get_grid_tile(cfg);
+    auto default_walk_order = get_default_walk_order(cfg, grid_tile);
+
+    // Depthwise does not expose much reuse so keep the default order.
+    if (prb.is_dw) return default_walk_order;
+
+    // If threadgroup memory footprint exceeds L3 then L3 blocking is not
+    // applied.
+    const size_t l3_size = cfg.hw().l3_cache_size();
+    size_t inner_bytes = get_memory_footprint(cfg, inner, prb_tile_t());
+    if (inner_bytes > l3_size) return default_walk_order;
+
+    // If input memory fits L3 then no L3 blocking is not applied.
+    size_t ab_bytes = get_memory_footprint(cfg, inner, grid_tile);
+    if (ab_bytes <= l3_size) return default_walk_order;
+
+    // If the kernel does not require multiple waves then no L3 blocking is not
+    // applied.
+    float max_tgs_per_wave = conv_config_t::get_max_threadgroups_per_wave(
+            cfg.exec_cfg(), tg_size);
+    if (grid_tile.elems() <= max_tgs_per_wave) return default_walk_order;
+
+    // Add M/N blocks until the full footprint fits L3 cache.
+    prb_tile_t grid_inner;
+    prb_tile_t rem_tile = grid_tile;
+    ab_bytes = inner_bytes;
+    mn_walker_t mn_walker(rem_tile, cfg.prb());
+    while (mn_walker.has_next()) {
+        auto entry = mn_walker.next(grid_inner);
+        auto outer = grid_inner;
+        outer[entry.dim] = std::min(rem_tile[entry.dim], entry.size);
+        size_t ab_bytes = get_memory_footprint(cfg, inner, outer);
+        if (ab_bytes <= l3_size) grid_inner = outer;
+    }
+    // Add the blocks in this order:
+    // - Step 1. Add grid_inner blocks (fitting L3 cache)
+    // - Step 2. Add the remaining M/N blocks
+    // - Step 3. Add the remaining B/K blocks
+    // Within a step follow the default walk order between dimensions.
+    walk_order_t walk_order;
+    for (int step = 0; step < 3; step++) {
+        for (auto &b : default_walk_order.blocks()) {
+            switch (step) {
+                case 0:
+                    if (grid_inner.has(b.dim)) {
+                        walk_order.add(b.dim, grid_inner[b.dim], 0);
+                    }
+                    break;
+                case 1:
+                case 2:
+                    int rem = utils::div_up(
+                            grid_tile[b.dim], grid_inner.get(b.dim, 1));
+                    if (rem == 1) continue;
+                    auto bmnk = to_gemm(b.dim, prb);
+                    bool is_bk = utils::one_of(bmnk, prb_dims::b, prb_dims::k);
+                    if ((step == 2) != is_bk) continue;
+                    walk_order.add(b.dim, rem, 0);
+                    break;
+            }
+        }
+    }
+    walk_order.finalize(grid_tile);
+    walk_order = maybe_fixup_group_with_small_channels(cfg, walk_order);
+
+    // Emulated integer division can handle a limited range only.
+    const int max_size_per_grid_id = (1 << 20);
+    for (int id = 0; id < 3; id++) {
+        if (!walk_order.is_blocked(id)) continue;
+        int size = 1;
+        for (auto &b : walk_order.blocks()) {
+            if (b.grid_id == id) size *= b.size;
+        }
+        if (size > max_size_per_grid_id) return default_walk_order;
+    }
+
+    return walk_order;
+}
+
+void init_walk_order(conv_config_t &cfg) {
+    if (cfg.walk_order_param().is_overridden()) {
+        auto walk_order = cfg.walk_order();
+        walk_order.finalize(get_grid_tile(cfg));
+        cfg.set_walk_order(walk_order);
+        return;
+    }
+    auto walk_order = compute_walk_order(cfg);
+    cfg.walk_order_param().set(walk_order);
 }
 
 int fixup_slm_bufs(const conv_problem_t &prb, int slm_bufs,
@@ -1376,9 +1723,8 @@ void validate_config_and_plan(conv_config_t &cfg) {
                           if (d == dim) return;
                   ir_error_not_expected() << dim.name();
               };
-    const auto &prb = cfg.prb();
-    const auto &tg_dims = get_thread_group_grid_conv_dims(prb);
-    const auto &grid_dims = get_kernel_grid_conv_dims(prb);
+    const auto &tg_dims = get_thread_group_grid_conv_dims(cfg);
+    const auto &grid_dims = get_kernel_grid_conv_dims(cfg);
     for (auto &d : cfg.dims()) {
         if (cfg.thread_group_dim(d) != 1) check_if_in_grid_dims(tg_dims, d);
         if (cfg.grid_dim(d) != 1) check_if_in_grid_dims(grid_dims, d);
@@ -1395,6 +1741,7 @@ void validate_config_and_plan(conv_config_t &cfg) {
     send_pattern b_load_pattern;
     bool a_2d = plan.uses_2d_load(abc_kind_t::a);
     bool b_2d = plan.uses_2d_load(abc_kind_t::b);
+    auto &prb = cfg.prb();
     if (prb.is_fwd) {
         a_load_pattern = validate_blocking(
                 cfg, conv_stride_layout_t::input_tensor_t::src, a_2d);
@@ -1428,6 +1775,7 @@ void validate_config_and_plan(conv_config_t &cfg) {
 
 status_t try_init_cfg(conv_config_t &cfg) {
     init_params(cfg);
+    init_walk_order(cfg);
     init_kernel_grid(cfg);
     init_thread_group_grid(cfg);
 
@@ -1532,6 +1880,7 @@ std::string conv_config_t::str() const {
     oss << "  Subtiles:                   " << "A: " << subtiles().a() << ", B: " << subtiles().b() << std::endl;
     oss << "  Estimated GRF usage:        " << estimated_peak_regs << std::endl;
     oss << "  AB Swap Transpose:          " << to_string(prb().ab_swap_transpose) << std::endl;
+    oss << "  Kernel grid walk order:     " << walk_order() << std::endl;
     oss << "  Configuration line:         " << get_config_line() << std::endl;
     // clang-format on
     return oss.str();

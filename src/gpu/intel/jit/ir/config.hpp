@@ -199,7 +199,7 @@ public:
 
     void set_from_str(const std::string &s) override {
         tile_ = prb_tile_t();
-        for (auto &kv : ir_utils::to_string_int_map(s)) {
+        for (auto &kv : ir_utils::to_string_int_pairs(s)) {
             tile_[prb_dim_t::from_name(kv.first)] = kv.second;
         }
     }
@@ -345,16 +345,29 @@ public:
         return ret;
     }
 
+    static int get_max_threadgroups_per_wave(
+            const exec_config_t &exec_cfg, int tg_elems) {
+        auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw().to_ngen());
+        int threads_per_eu = compute::device_info_t::threads_per_eu(
+                arch, exec_cfg.regs() > 128);
+        int eus_per_subslice = compute::device_info_t::max_eus_per_wg(arch);
+        int subslice_count = exec_cfg.hw().eu_count() / eus_per_subslice;
+
+        int tgs_per_subslice = eus_per_subslice * threads_per_eu / tg_elems;
+        ir_assert(tgs_per_subslice > 0);
+        return subslice_count * tgs_per_subslice;
+    }
+
     // Return thread utilization as a percentage. If this value is low,
     // parallelism is a fundamental limitation to the current work scheduling.
     static float get_thread_utilization(
             const exec_config_t &exec_cfg, int kg_elems, int tg_elems) {
         auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw().to_ngen());
-        int eus_per_slice = compute::device_info_t::max_eus_per_wg(arch);
-        int slice_count = exec_cfg.hw().eu_count() / eus_per_slice;
+        int eus_per_subslice = compute::device_info_t::max_eus_per_wg(arch);
+        int subslice_count = exec_cfg.hw().eu_count() / eus_per_subslice;
 
-        int min_wg_per_slice_wave = std::max(eus_per_slice / tg_elems, 1);
-        int min_wg_per_wave = slice_count * min_wg_per_slice_wave;
+        int min_wg_per_subslice_wave = std::max(eus_per_subslice / tg_elems, 1);
+        int min_wg_per_wave = subslice_count * min_wg_per_subslice_wave;
         return (100.f * kg_elems) / utils::rnd_up(kg_elems, min_wg_per_wave);
     }
 
@@ -362,16 +375,8 @@ public:
     // latency may be an issue due to limited use of SMT to hide the latency.
     static float get_wave_utilization(
             const exec_config_t &exec_cfg, int kg_elems, int tg_elems) {
-        auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw().to_ngen());
-        int threads_per_eu = compute::device_info_t::threads_per_eu(
-                arch, exec_cfg.regs() > 128);
-        int eus_per_slice = compute::device_info_t::max_eus_per_wg(arch);
-        int slice_count = exec_cfg.hw().eu_count() / eus_per_slice;
-
-        int wgs_per_slice = eus_per_slice * threads_per_eu / tg_elems;
-        ir_assert(wgs_per_slice > 0);
-        int wgs_per_tile = slice_count * wgs_per_slice;
-        return (100.f * kg_elems) / utils::rnd_up(kg_elems, wgs_per_tile);
+        int tgs_per_wave = get_max_threadgroups_per_wave(exec_cfg, tg_elems);
+        return (100.f * kg_elems) / utils::rnd_up(kg_elems, tgs_per_wave);
     }
 
 #define DECL_PARAM(name) \

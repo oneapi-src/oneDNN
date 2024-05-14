@@ -198,6 +198,11 @@ option(DNNL_EXPERIMENTAL_SPARSE
     independetly from DNNL_EXPERIMENTAL."
     OFF) # disabled by default
 
+option(DNNL_EXPERIMENTAL_UKERNEL
+    "Enable experimental functionality for ukernels. This option works
+    independetly from DNNL_EXPERIMENTAL."
+    OFF) # disabled by default
+
 option(DNNL_EXPERIMENTAL_PROFILING
     "Enable experimental profiling capabilities. This option works independently
     from DNNL_EXPERIMENTAL."

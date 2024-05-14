@@ -131,6 +131,15 @@ prb_dim_t n(prb_dim_kind_t::n);
 prb_dim_t k(prb_dim_kind_t::k);
 } // namespace prb_dims
 
+int spatial_index(const prb_dim_t &dim) {
+    switch (to_spatial(dim.kind())) {
+        case prb_dim_spatial_kind_t::d: return 0;
+        case prb_dim_spatial_kind_t::h: return 1;
+        case prb_dim_spatial_kind_t::w: return 2;
+        default: return -1;
+    }
+}
+
 const expr_t &index_var(const prb_dim_t &prb_dim) {
     static thread_local dim_map_t<prb_dim_t, expr_t> index_vars = []() {
         dim_map_t<prb_dim_t, expr_t> ret;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ namespace x64 {
 
 static constexpr size_t AMX_PALETTE_SIZE = 64;
 status_t DNNL_API amx_tile_configure(const char palette[AMX_PALETTE_SIZE]);
+status_t DNNL_API amx_tile_lazy_configure(const char palette[AMX_PALETTE_SIZE]);
 status_t DNNL_API amx_tile_release();
 
 } // namespace x64

@@ -123,6 +123,11 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
             bool use_linear = (m_tiles * n_tiles <= tiles_gpu);
             bool use_linear_m = (m_tiles * m_tiles <= 2 * tiles_gpu);
             bool use_linear_n = (n_tiles * n_tiles <= 2 * tiles_gpu);
+
+            if (strategy_.fused)
+                if (strategy_.wg[LoopM] % 2 || strategy_.wg[LoopN] % 2)
+                    use_linear_m = use_linear_n = false; /* cannot swap */
+
             if (use_linear) {
                 if (strategy_.kParallelVariable)
                     strategy_.cWalkOrder = WalkOrder::SimpleLinear;

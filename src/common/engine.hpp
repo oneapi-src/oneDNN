@@ -24,6 +24,7 @@
 #endif
 
 #include "c_types_map.hpp"
+#include "common/engine_impl.hpp"
 #include "engine_id.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
@@ -49,21 +50,18 @@
  *   - Provide engine specific primitive_desc_t creators
  */
 struct dnnl_engine : public dnnl::impl::c_compatible {
-    dnnl_engine(dnnl::impl::engine_kind_t kind,
-            dnnl::impl::runtime_kind_t runtime_kind, size_t index)
-        : kind_(kind)
-        , runtime_kind_(runtime_kind)
-        , index_(index)
-        , counter_(1) {}
+    dnnl_engine(dnnl::impl::engine_impl_t *impl) : impl_(impl), counter_(1) {}
 
     /** get kind of the current engine */
-    dnnl::impl::engine_kind_t kind() const { return kind_; }
+    dnnl::impl::engine_kind_t kind() const { return impl()->kind(); }
 
     /** get the runtime kind of the current engine */
-    dnnl::impl::runtime_kind_t runtime_kind() const { return runtime_kind_; }
+    dnnl::impl::runtime_kind_t runtime_kind() const {
+        return impl()->runtime_kind();
+    }
 
     /** get index of the current engine */
-    size_t index() const { return index_; }
+    size_t index() const { return impl()->index(); }
 
     virtual dnnl::impl::device_id_t device_id() const = 0;
 
@@ -130,11 +128,14 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
     virtual bool mayiuse_f16_accumulator_with_f16() const { return false; }
 
+    const dnnl::impl::engine_impl_t *impl() const { return impl_.get(); }
+
 #ifdef ONEDNN_BUILD_GRAPH
-    /** only used in graph implementation **/
-    void *get_allocator() const { return (void *)(&allocator_); };
+    // only used in graph implementation
+    void *get_allocator() const { return impl()->get_allocator(); }
+    // TODO: consider moving it to constructor.
     void set_allocator(dnnl::impl::graph::allocator_t *alloc) {
-        allocator_ = *alloc;
+        impl_->set_allocator(alloc);
     }
 #endif
 
@@ -145,18 +146,11 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     }
 
 protected:
-    dnnl::impl::engine_kind_t kind_;
-    dnnl::impl::runtime_kind_t runtime_kind_;
-    size_t index_;
-
-#ifdef ONEDNN_BUILD_GRAPH
-    /** only used in graph implementation **/
-    dnnl::impl::graph::allocator_t allocator_;
-#endif
-
+    dnnl::impl::status_t init_impl() { return impl_->init(); }
     virtual ~dnnl_engine() = default;
 
 private:
+    std::unique_ptr<dnnl::impl::engine_impl_t> impl_;
     std::atomic<int> counter_;
 };
 
