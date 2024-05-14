@@ -69,7 +69,8 @@ struct cpu_reorder_pd_t : public reorder_pd_t {
             *D_mask = utils::array_product(
                     input_d.dims() + ndims_start, ndims_mask);
         assert(*D_mask >= 1);
-        if (D_rest) *D_rest = input_d.nelems() / (*D_start * *D_mask);
+        if (D_rest && D_start && D_mask)
+            *D_rest = input_d.nelems() / (*D_start * *D_mask);
     }
 
     // The function serves same purpose as `dnnl::impl::cpu::precompute_scales`.
