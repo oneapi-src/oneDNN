@@ -22,6 +22,10 @@
 #include "gpu/intel/ocl/vectorized_lnorm.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/sycl/ref_layer_normalizations.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -36,12 +40,14 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::vectorized_lnorm_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_layer_normalization_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::reusable_layer_normalization_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_layer_normalization_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
         GPU_INSTANCE_INTEL(intel::ocl::vectorized_lnorm_bwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_layer_normalization_bwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::reusable_layer_normalization_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_layer_normalization_bwd_t)
         nullptr,
     })},
 });

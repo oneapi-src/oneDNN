@@ -21,6 +21,11 @@
 #include "gpu/intel/ocl/ref_eltwise.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/nvidia/cudnn_eltwise.hpp"
+#include "gpu/sycl/ref_eltwise.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -34,11 +39,15 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{forward}, {
         GPU_INSTANCE_INTEL(intel::ocl::gen9_eltwise_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_eltwise_fwd_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_eltwise_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_eltwise_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
         GPU_INSTANCE_INTEL(intel::ocl::gen9_eltwise_bwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_eltwise_bwd_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_eltwise_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_eltwise_bwd_t)
         nullptr,
     })},
 });

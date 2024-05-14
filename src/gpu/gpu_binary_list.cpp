@@ -22,6 +22,11 @@
 #include "gpu/intel/ocl/ref_binary.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/nvidia/cudnn_binary.hpp"
+#include "gpu/sycl/ref_binary.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -33,6 +38,8 @@ constexpr impl_list_item_t impl_list[] = REG_BINARY_P({
         GPU_INSTANCE_INTEL(intel::ocl::multi_po_reorder_binary)
         GPU_INSTANCE_INTEL(intel::ocl::gen9_binary_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_binary_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_binary_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_binary_t)
         nullptr,
 });
 // clang-format on

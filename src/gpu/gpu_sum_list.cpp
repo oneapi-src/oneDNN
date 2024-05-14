@@ -28,6 +28,10 @@
 #include "gpu/intel/ocl/simple_sum.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/nvidia/cudnn_sum.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -44,6 +48,7 @@ constexpr impl_list_item_t impl_list[] = REG_SUM_P({
         GPU_SUM_INSTANCE_INTEL(intel::ocl::many_inputs_sum_t)
         GPU_SUM_INSTANCE_INTEL(intel::ocl::simple_sum_t<data_type::f32>)
         GPU_SUM_INSTANCE_INTEL(intel::ocl::ref_sum_t)
+        GPU_SUM_INSTANCE_NVIDIA(nvidia::cudnn_ref_sum_t)
         nullptr,
 });
 // clang-format on

@@ -23,6 +23,11 @@
 #include "gpu/intel/ocl/ref_inner_product.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/nvidia/cudnn_conv_inner_product.hpp"
+#include "gpu/nvidia/cudnn_gemm_inner_product.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -37,6 +42,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::gemm_inner_product_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::convolution_inner_product_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_inner_product_fwd_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_gemm_inner_product_fwd_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_conv_inner_product_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
@@ -44,6 +51,10 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::gemm_inner_product_bwd_weights_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_inner_product_bwd_data_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_inner_product_bwd_weights_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_gemm_inner_product_bwd_data_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_gemm_inner_product_bwd_weights_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_conv_inner_product_bwd_data_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_conv_inner_product_bwd_weights_t)
         nullptr,
     })},
 });
