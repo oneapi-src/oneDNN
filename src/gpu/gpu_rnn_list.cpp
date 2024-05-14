@@ -16,7 +16,9 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/rnn/ref_rnn.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -29,11 +31,11 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_RNN_P({
     {{forward}, {
-        INSTANCE(intel::ocl::ref_rnn_fwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::ref_rnn_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        INSTANCE(intel::ocl::ref_rnn_bwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::ref_rnn_bwd_t)
         nullptr,
     })},
 });

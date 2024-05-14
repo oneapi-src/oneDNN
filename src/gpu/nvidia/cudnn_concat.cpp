@@ -15,6 +15,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/gpu_impl_list.hpp"
 #include "gpu/intel/ocl/ref_concat.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 
@@ -25,10 +26,13 @@ namespace nvidia {
 
 namespace {
 
-constexpr impl_list_item_t cuda_concat_impl_list[]
-        = {impl_list_item_t::concat_type_deduction_helper_t<
-                   gpu::intel::ocl::ref_concat_t::pd_t>(),
-                nullptr};
+// clang-format off
+constexpr impl_list_item_t cuda_concat_impl_list[] = {
+        GPU_CONCAT_INSTANCE_NVIDIA(gpu::intel::ocl::ref_concat_t)
+        nullptr
+};
+// clang-format on
+
 } // namespace
 
 const impl_list_item_t *

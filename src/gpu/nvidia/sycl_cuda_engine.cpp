@@ -178,79 +178,79 @@ using namespace dnnl::impl::data_type;
 // clang-format off
 constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
         // Elementwise
-        INSTANCE(cudnn_eltwise_fwd_t)
-        INSTANCE(cudnn_eltwise_bwd_t)
-        INSTANCE(sycl::ref_sycl_eltwise_fwd_t)
-        INSTANCE(sycl::ref_sycl_eltwise_bwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_eltwise_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_eltwise_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_eltwise_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_eltwise_bwd_t)
 
         // Deconvolution
-        INSTANCE(cudnn_deconvolution_fwd_t)
-        INSTANCE(cudnn_deconvolution_bwd_data_t)
-        INSTANCE(cudnn_deconvolution_bwd_weights_t)
+        GPU_INSTANCE_NVIDIA(cudnn_deconvolution_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_deconvolution_bwd_data_t)
+        GPU_INSTANCE_NVIDIA(cudnn_deconvolution_bwd_weights_t)
 
         // Convolution
-        INSTANCE(cudnn_convolution_fwd_t)
-        INSTANCE(cudnn_convolution_bwd_data_t)
-        INSTANCE(cudnn_convolution_bwd_weights_t)
+        GPU_INSTANCE_NVIDIA(cudnn_convolution_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_convolution_bwd_data_t)
+        GPU_INSTANCE_NVIDIA(cudnn_convolution_bwd_weights_t)
 
         // Batch Normalization
-        INSTANCE(cudnn_batch_normalization_fwd_t)
-        INSTANCE(cudnn_batch_normalization_bwd_t)
-        INSTANCE(sycl::ref_batch_normalization_fwd_t)
-        INSTANCE(sycl::ref_batch_normalization_bwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_batch_normalization_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_batch_normalization_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_batch_normalization_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_batch_normalization_bwd_t)
 
         // Layer Normalization
-        INSTANCE(sycl::ref_layer_normalization_fwd_t)
-        INSTANCE(sycl::ref_layer_normalization_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_layer_normalization_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_layer_normalization_bwd_t)
 
         // PReLU
-        INSTANCE(sycl::ref_prelu_fwd_t)
-        INSTANCE(sycl::ref_prelu_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_prelu_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_prelu_bwd_t)
 
         // Pooling
-        INSTANCE(cudnn_pooling_fwd_t)
-        INSTANCE(cudnn_pooling_bwd_t)
-        INSTANCE(sycl::ref_pooling_fwd_t)
-        INSTANCE(sycl::ref_pooling_bwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_pooling_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_pooling_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_pooling_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_pooling_bwd_t)
 
         // LRN
-        INSTANCE(cudnn_lrn_fwd_t)
-        INSTANCE(cudnn_lrn_bwd_t)
-        INSTANCE(sycl::ref_sycl_lrn_fwd_t)
-        INSTANCE(sycl::ref_sycl_lrn_bwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_lrn_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_lrn_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_lrn_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_lrn_bwd_t)
 
         // Inner Product
-        INSTANCE(cudnn_gemm_inner_product_fwd_t)
-        INSTANCE(cudnn_conv_inner_product_fwd_t)
-        INSTANCE(cudnn_gemm_inner_product_bwd_data_t)
-        INSTANCE(cudnn_conv_inner_product_bwd_data_t)
-        INSTANCE(cudnn_gemm_inner_product_bwd_weights_t)
-        INSTANCE(cudnn_conv_inner_product_bwd_weights_t)
+        GPU_INSTANCE_NVIDIA(cudnn_gemm_inner_product_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_conv_inner_product_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_gemm_inner_product_bwd_data_t)
+        GPU_INSTANCE_NVIDIA(cudnn_conv_inner_product_bwd_data_t)
+        GPU_INSTANCE_NVIDIA(cudnn_gemm_inner_product_bwd_weights_t)
+        GPU_INSTANCE_NVIDIA(cudnn_conv_inner_product_bwd_weights_t)
 
         // Softmax
-        INSTANCE(cudnn_softmax_fwd_t)
-        INSTANCE(cudnn_softmax_bwd_t)
-        INSTANCE(sycl::ref_sycl_softmax_fwd_t)
-        INSTANCE(sycl::ref_sycl_softmax_bwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_softmax_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_softmax_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_softmax_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_sycl_softmax_bwd_t)
 
         // Binary
-        INSTANCE(cudnn_binary_t)
-        INSTANCE(sycl::ref_binary_t)
+        GPU_INSTANCE_NVIDIA(cudnn_binary_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_binary_t)
 
         // MatMul
-        INSTANCE(cudnn_matmul_t)
+        GPU_INSTANCE_NVIDIA(cudnn_matmul_t)
 
         // Resampling
-        INSTANCE(cudnn_resampling_fwd_t)
-        INSTANCE(cudnn_resampling_bwd_t)
-        INSTANCE(sycl::ref_resampling_fwd_t)
-        INSTANCE(sycl::ref_resampling_bwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_resampling_fwd_t)
+        GPU_INSTANCE_NVIDIA(cudnn_resampling_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_resampling_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_resampling_bwd_t)
 
         // Reduction
-        INSTANCE(cudnn_reduction_t)
+        GPU_INSTANCE_NVIDIA(cudnn_reduction_t)
 
         // Shuffle
-        INSTANCE(sycl::ref_shuffle_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_shuffle_t)
         nullptr,
 };
 // clang-format on

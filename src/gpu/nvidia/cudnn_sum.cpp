@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 *******************************************************************************/
 
 #include "gpu/nvidia/cudnn_sum.hpp"
+#include "gpu/gpu_impl_list.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 
 namespace dnnl {
@@ -25,9 +26,13 @@ namespace nvidia {
 
 namespace {
 
+// clang-format off
 constexpr impl_list_item_t cuda_sum_impl_list[] = {
-        impl_list_item_t::sum_type_deduction_helper_t<cudnn_ref_sum_t::pd_t>(),
-        nullptr};
+        GPU_SUM_INSTANCE_NVIDIA(gpu::nvidia::cudnn_ref_sum_t)
+        nullptr
+};
+// clang-format on
+
 } // namespace
 
 const impl_list_item_t *

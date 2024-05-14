@@ -15,9 +15,9 @@
 * limitations under the License.
 *******************************************************************************/
 #include "common/engine.hpp"
-#include "common/impl_list_item.hpp"
 #include "gpu/amd/miopen_reorder.hpp"
 #include "gpu/amd/sycl_hip_engine.hpp"
+#include "gpu/gpu_impl_list.hpp"
 #include "gpu/intel/ocl/cross_engine_reorder.hpp"
 
 namespace dnnl {
@@ -27,14 +27,10 @@ namespace amd {
 
 namespace {
 
-#define REORDER_INSTANCE(...) \
-    impl_list_item_t( \
-            impl_list_item_t::reorder_type_deduction_helper_t<__VA_ARGS__>()),
-
 // clang-format off
 constexpr impl_list_item_t hip_reorder_impl_list[] = {
-        REORDER_INSTANCE(gpu::intel::ocl::cross_engine_reorder_t::pd_t)
-        REORDER_INSTANCE(miopen_reorder_t::pd_t)
+        GPU_REORDER_INSTANCE_AMD(gpu::intel::ocl::cross_engine_reorder_t::pd_t)
+        GPU_REORDER_INSTANCE_AMD(gpu::amd::miopen_reorder_t::pd_t)
         nullptr,
 };
 // clang-format on

@@ -15,7 +15,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include "common/engine.hpp"
-#include "common/impl_list_item.hpp"
+#include "gpu/gpu_impl_list.hpp"
 #include "gpu/intel/ocl/cross_engine_reorder.hpp"
 #include "gpu/nvidia/cudnn_reorder.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
@@ -27,14 +27,10 @@ namespace nvidia {
 
 namespace {
 
-#define REORDER_INSTANCE(...) \
-    impl_list_item_t( \
-            impl_list_item_t::reorder_type_deduction_helper_t<__VA_ARGS__>()),
-
 // clang-format off
 constexpr impl_list_item_t cuda_reorder_impl_list[] = {
-        REORDER_INSTANCE(gpu::intel::ocl::cross_engine_reorder_t::pd_t)
-        REORDER_INSTANCE(cudnn_reorder_t::pd_t)
+        GPU_REORDER_INSTANCE_NVIDIA(gpu::intel::ocl::cross_engine_reorder_t::pd_t)
+        GPU_REORDER_INSTANCE_NVIDIA(gpu::nvidia::cudnn_reorder_t::pd_t)
         nullptr,
 };
 // clang-format on

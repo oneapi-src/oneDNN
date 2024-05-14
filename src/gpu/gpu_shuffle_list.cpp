@@ -16,8 +16,10 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/ref_shuffle.hpp"
 #include "gpu/intel/ocl/shuffle_by_reorder.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -27,8 +29,8 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_SHUFFLE_P({
-        INSTANCE(intel::ocl::shuffle_by_reorder_t)
-        INSTANCE(intel::ocl::ref_shuffle_t)
+        GPU_INSTANCE_INTEL(intel::ocl::shuffle_by_reorder_t)
+        GPU_INSTANCE_INTEL(intel::ocl::ref_shuffle_t)
         nullptr,
 });
 // clang-format on

@@ -168,38 +168,38 @@ using namespace dnnl::impl::data_type;
 // clang-format off
 constexpr dnnl::impl::impl_list_item_t sycl_hip_impl_list[] = {
         // Binary
-        INSTANCE(miopen_binary_t)
+        GPU_INSTANCE_AMD(miopen_binary_t)
         // Elementwise
-        INSTANCE(miopen_eltwise_fwd_t)
-        INSTANCE(miopen_eltwise_bwd_t)
+        GPU_INSTANCE_AMD(miopen_eltwise_fwd_t)
+        GPU_INSTANCE_AMD(miopen_eltwise_bwd_t)
         // Softmax
-        INSTANCE(miopen_softmax_fwd_t)
-        INSTANCE(miopen_softmax_bwd_t)
+        GPU_INSTANCE_AMD(miopen_softmax_fwd_t)
+        GPU_INSTANCE_AMD(miopen_softmax_bwd_t)
         // LRN
-        INSTANCE(miopen_lrn_fwd_t)
-        INSTANCE(miopen_lrn_bwd_t)
+        GPU_INSTANCE_AMD(miopen_lrn_fwd_t)
+        GPU_INSTANCE_AMD(miopen_lrn_bwd_t)
         // Pooling
-        INSTANCE(miopen_pooling_fwd_t)
-        INSTANCE(miopen_pooling_bwd_t)
+        GPU_INSTANCE_AMD(miopen_pooling_fwd_t)
+        GPU_INSTANCE_AMD(miopen_pooling_bwd_t)
         // Reduction
-        INSTANCE(miopen_reduction_t)
+        GPU_INSTANCE_AMD(miopen_reduction_t)
         // MatMul
-        INSTANCE(miopen_matmul_t)
+        GPU_INSTANCE_AMD(miopen_matmul_t)
         // Inner Product
-        INSTANCE(miopen_gemm_inner_product_fwd_t)
-        INSTANCE(miopen_gemm_inner_product_bwd_data_t)
-        INSTANCE(miopen_gemm_inner_product_bwd_weights_t)
+        GPU_INSTANCE_AMD(miopen_gemm_inner_product_fwd_t)
+        GPU_INSTANCE_AMD(miopen_gemm_inner_product_bwd_data_t)
+        GPU_INSTANCE_AMD(miopen_gemm_inner_product_bwd_weights_t)
         // Convolution
-        INSTANCE(miopen_convolution_fwd_t)
-        INSTANCE(miopen_convolution_bwd_data_t)
-        INSTANCE(miopen_convolution_bwd_weights_t)
+        GPU_INSTANCE_AMD(miopen_convolution_fwd_t)
+        GPU_INSTANCE_AMD(miopen_convolution_bwd_data_t)
+        GPU_INSTANCE_AMD(miopen_convolution_bwd_weights_t)
         // Batch Normalization
-        INSTANCE(miopen_batch_normalization_fwd_t)
-        INSTANCE(miopen_batch_normalization_bwd_t)
+        GPU_INSTANCE_AMD(miopen_batch_normalization_fwd_t)
+        GPU_INSTANCE_AMD(miopen_batch_normalization_bwd_t)
         // Deconvolution
-        INSTANCE(miopen_deconvolution_fwd_t)
-        INSTANCE(miopen_deconvolution_bwd_data_t)
-        INSTANCE(miopen_deconvolution_bwd_weights_t)
+        GPU_INSTANCE_AMD(miopen_deconvolution_fwd_t)
+        GPU_INSTANCE_AMD(miopen_deconvolution_bwd_data_t)
+        GPU_INSTANCE_AMD(miopen_deconvolution_bwd_weights_t)
 
         nullptr,
 };
