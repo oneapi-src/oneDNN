@@ -20,16 +20,6 @@
 
 namespace brgemm {
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-#if defined(DNNL_X64) && DNNL_X64 == 1
-#define brg_x64
-#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
-#define brg_aarch64
-#endif
-#endif
-
-#if defined(brg_x64) || defined(brg_aarch64)
-
 int64_t src_off_f(const prb_t *prb, int64_t bs, int64_t m, int64_t k) {
     return (m * prb->batch_size + bs) * prb->k + k;
 }
@@ -46,31 +36,69 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
     const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
     const dnn_mem_t &bia_m = args.find(DNNL_ARG_BIAS);
-    const dnn_mem_t &acc_m = args.find(DNNL_ARG_SRC_1);
+    // Accumulator values are passed for `generate_skip_accumulation` check.
+    const dnn_mem_t &acc_m = args.find(DNNL_ARG_DST_1);
     const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
     const dnn_mem_t &ws_m = args.find(DNNL_ARG_WORKSPACE);
+
+    const dnn_mem_t &src_scales
+            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    const dnn_mem_t &wei_scales
+            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &dst_scales
+            = args.find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+    const dnn_mem_t &src_zps
+            = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
+    const dnn_mem_t &wei_zps
+            = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
+    const dnn_mem_t &dst_zps
+            = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
+
+    const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
+    const bool has_wei_scale = !prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def();
+    const bool has_dst_scale = !prb->attr.scales.get(DNNL_ARG_DST).is_def();
+    assert(IMPLICATION(has_src_scale, src_scales.nelems() == 1));
+    assert(IMPLICATION(has_dst_scale, dst_scales.nelems() == 1));
+    float src_scale = has_src_scale ? src_scales.get_elem(0) : 1.f;
+    float dst_scale = has_dst_scale ? 1.f / dst_scales.get_elem(0) : 1.f;
+    const int wei_scale_mask = prb->attr.scales.get_mask(
+            DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.ndims());
+
+    const bool has_src_zp = !prb->attr.zero_points.get(DNNL_ARG_SRC).is_def();
+    const bool has_wei_zp
+            = !prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).is_def();
+    const bool has_dst_zp = !prb->attr.zero_points.get(DNNL_ARG_DST).is_def();
+
+    const int src_zp_mask = attr_t::get_default_mask(
+            prb->attr.zero_points.get(DNNL_ARG_SRC).policy);
+    const int wei_zp_mask = prb->attr.zero_points.get_mask(
+            DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.ndims());
+    const int dst_zp_mask = attr_t::get_default_mask(
+            prb->attr.zero_points.get(DNNL_ARG_DST).policy);
+
     const int64_t BS = prb->batch_size;
     const int64_t M = prb->m;
     const int64_t N = prb->n;
     const int64_t K = prb->k;
 
     // Using workspace memory as a method to get brgemm attributes.
-#if defined(brg_x64)
-    using brgemm_attr_t = dnnl::impl::cpu::x64::brgemm_attr_t;
-#elif defined(brg_aarch64)
-    using brgemm_attr_t = dnnl::impl::cpu::aarch64::brgemm_attr_t;
-#endif
+    bool generate_skip_accumulation = ws_m && *((bool *)ws_m);
 
-    brgemm_attr_t *brgemm_attr = (brgemm_attr_t *)ws_m;
-
-    const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];
+    const bool wei_zp_per_n = wei_zp_mask & (1 << (wei_m.ndims() - 1));
+    const bool wei_zp_per_k = wei_zp_mask & (1 << (wei_m.ndims() - 2));
+    const int64_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
+    const int64_t wei_zp_stride_k = wei_zp_per_k ? wei_zp_per_n ? N : 1 : 0;
+    const auto wei_zp_groups
+            = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).groups;
+    const int64_t wei_zp_group_k
+            = !wei_zp_groups.empty() ? wei_zp_groups[0] : 1;
 
     dnn_mem_t dst_tmp(dst_m, dnnl_f32, tag::abx, dst_m.engine());
 
     const auto alpha = prb->alpha;
     const auto beta = prb->beta;
 
-    if (!brgemm_attr->generate_skip_accumulation) {
+    if (!generate_skip_accumulation) {
         benchdnn_parallel_nd(M, N, [&](int64_t m, int64_t n) {
             auto src = (const float *)src_m;
             auto wei = (const float *)wei_m;
@@ -78,9 +106,16 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
             float res = 0;
             for_(int64_t bs = 0; bs < BS; bs++)
             for (int64_t k = 0; k < K; ++k) {
-                auto s = src[src_off_f(prb, bs, m, k)];
-                maybe_zero_point(prb->attr, s, prb->src_zp, k, DNNL_ARG_SRC);
-                auto w = wei[wei_off_f(prb, bs, k, n)] - wei_zero_point;
+                int src_zp = has_src_zp
+                        ? src_zps.get_elem(src_zp_mask > 0 ? k : 0)
+                        : 0;
+                int wei_zp = has_wei_zp ? wei_zps.get_elem(
+                                     wei_zp_stride_k * (k / wei_zp_group_k)
+                                     + wei_zp_stride_n * n)
+                                        : 0;
+
+                auto s = src[src_off_f(prb, bs, m, k)] - src_zp;
+                auto w = wei[wei_off_f(prb, bs, k, n)] - wei_zp;
                 res += alpha * s * w;
             }
             float &dst = ((float *)dst_tmp)[dst_off_f(prb, m, n)];
@@ -95,17 +130,17 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
         });
     }
 
-    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    auto attr_scale_arg = !wei_scale.is_def() ? DNNL_ARG_WEIGHTS : DNNL_ARG_SRC;
-
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
     static constexpr int bias_broadcast_mask = 2;
     benchdnn_parallel_nd(M, N, [&](int64_t m, int64_t n) {
         size_t dst_off = dst_off_f(prb, m, n);
         float &dst = ((float *)dst_m)[dst_off];
 
-        float tmp = ((float *)dst_tmp)[dst_off];
-        maybe_scale(prb->attr, tmp, prb->scales, n, attr_scale_arg);
+        float wei_scale = 1.f;
+        if (has_wei_scale)
+            wei_scale = wei_scales.get_elem(wei_scale_mask > 0 ? n : 0);
+        float tmp = ((float *)dst_tmp)[dst_off] * src_scale * wei_scale;
+
         if (prb->bia_dt != dnnl_data_type_undef) {
             int64_t bia_off = dst_m.get_scale_idx(dst_off, bias_broadcast_mask);
             float *bia_ptr = (float *)bia_m;
@@ -117,9 +152,8 @@ void compute_ref_brgemm(const prb_t *prb, const args_t &args) {
 
         maybe_post_ops(prb->attr, tmp, dst, v_po_vals);
 
-        maybe_scale(prb->attr, tmp, prb->dst_scales, n, DNNL_ARG_DST, true);
-        maybe_zero_point(prb->attr, tmp, prb->dst_zp, n, DNNL_ARG_DST, true);
-        dst = tmp;
+        int dst_zp = has_dst_zp ? dst_zps.get_elem(dst_zp_mask > 0 ? n : 0) : 0;
+        dst = tmp * dst_scale + dst_zp;
     });
 }
 
@@ -132,12 +166,5 @@ void compute_ref(
 
     compute_ref_brgemm(prb, args);
 }
-
-#else
-
-void compute_ref(
-        const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {}
-
-#endif
 
 } // namespace brgemm
