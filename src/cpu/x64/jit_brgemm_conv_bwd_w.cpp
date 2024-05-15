@@ -258,7 +258,7 @@ status_t brgemm_convolution_bwd_weights_t::init(engine_t *engine) {
     if (jcp.transform_to_vnni) {
         CHECK(safe_ptr_assign(diff_wei_trans_kernel_,
                 new jit_diff_wei_trans_to_vnni_t(jcp.wei_dt, jcp.kd, jcp.kh,
-                        jcp.kw, jcp.ic_block, jcp.oc_block)));
+                        jcp.kw, jcp.ic_block, jcp.oc_block, jcp.nb_ic)));
         CHECK(diff_wei_trans_kernel_->create_kernel());
     }
 

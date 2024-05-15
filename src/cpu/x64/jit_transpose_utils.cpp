@@ -21,6 +21,7 @@
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
+#include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
 #include "cpu/x64/jit_transpose_utils.hpp"
 
 namespace dnnl {
@@ -944,29 +945,45 @@ void jit_transpose4x16_src::generate() {
 
 void jit_diff_wei_trans_to_vnni_t::generate() {
     /* Reorder part of F32 weights tensor
-       from [2I][kd][kh][kw][16i][16o] to VNNI format [kd][kh][kw][16i][16o][2i]
-       and downconvert it to Bfloat16. */
-    const int typesize_out = 2;
-    const int typesize_acc = 4;
+       from [VNNI_GRANULARITY][I][kd][kh][kw][16i][16o] to VNNI format [kd][kh][kw][16i][16o][VNNI_GRANULARITY][i]
+       and down-convert it to required float. */
+    const int ts_out = types::data_type_size(out_dt_);
+    const int ts_inp = 4;
     const int simd_w = 16;
 
-    using reg64_t = const Xbyak::Reg64;
-    const reg64_t &reg_output = r15;
-    const reg64_t &org_reg_output = r14;
-    const reg64_t &reg_input = r13;
-    const reg64_t &reg_input_1 = r12;
-    const reg64_t &org_reg_input_1 = r11;
-    const reg64_t &reg_input_2 = r10;
-    const reg64_t &reg_prm_table = r9;
-    const reg64_t &reg_last_ic_block = rax;
-    const reg64_t &reg_kd = rsi;
-    const reg64_t &reg_kh = abi_not_param1;
-    const reg64_t &reg_tmp = rdx;
+    const Reg64 &reg_output = r15;
+    const Reg64 &reg_output_kd = r14;
+    const Reg64 &reg_input_kw = r13;
+    const Reg64 &reg_input_kh = r12;
+    const Reg64 &reg_input_kd = r11;
+    const Reg64 &reg_prm_table = r9;
+    const Reg64 &reg_last_ic_block = rax;
+    const Reg64 &reg_kd = rsi;
+    const Reg64 &reg_kh = abi_not_param1;
+    const Reg64 &reg_tmp = rdx;
 
-    const Xbyak::Zmm &zmm_idx = Xbyak::Zmm(31);
-    auto get_zmm_src_0 = [&](int ic) { return Xbyak::Zmm(ic); };
-    auto get_zmm_src_1 = [&](int ic) { return Xbyak::Zmm(4 + ic); };
-    auto get_zmm_bf16 = [&](int ic) { return Xbyak::Zmm(8 + ic); };
+    Zmm emu_reserv_1 = Zmm(30);
+    Zmm emu_reserv_2 = Zmm(29);
+    Zmm emu_reserv_3 = Zmm(28);
+    Zmm emu_reserv_4 = Zmm(27);
+    Zmm emu_reserv_5 = Zmm(26);
+    Reg64 emu_scratch = reg_tmp;
+    Xbyak::Opmask emu_mask = Xbyak::Opmask(4);
+
+    std::unique_ptr<fp8_emulation_base_t> f8_emu;
+    if (out_dt_ == data_type::f8_e5m2)
+        f8_emu = utils::make_unique<fp8_emulation_e5m2_t>(this, emu_reserv_1,
+                emu_reserv_2, emu_reserv_3, emu_mask, emu_scratch);
+    else if (out_dt_ == data_type::f8_e4m3)
+        f8_emu = utils::make_unique<fp8_emulation_e4m3_t>(this, emu_reserv_1,
+                emu_reserv_2, emu_reserv_3, emu_reserv_4, emu_reserv_5,
+                emu_scratch);
+
+    const Zmm &zmm_idx = Zmm(31);
+    auto get_zmm_src = [&](int idx, int ic) { return Zmm(4 * idx + ic); };
+    auto get_zmm_bf16 = [&](int ic) { return Zmm(16 + ic); };
+
+    const int vnni_granularity = data_type_vnni_granularity(out_dt_);
 
     Xbyak::Label prm_table, zero_buffer;
     Xbyak::Label kd_loop_label, kh_loop_label;
@@ -974,105 +991,145 @@ void jit_diff_wei_trans_to_vnni_t::generate() {
     preamble();
 
     mov(reg_last_ic_block, ptr[abi_param1 + GET_OFF(last_ic_block)]);
-    mov(org_reg_input_1, ptr[abi_param1 + GET_OFF(src)]);
-    mov(org_reg_output, ptr[abi_param1 + GET_OFF(dst)]);
+    mov(reg_input_kd, ptr[abi_param1 + GET_OFF(src)]);
+    mov(reg_output_kd, ptr[abi_param1 + GET_OFF(dst)]);
 
     mov(reg_prm_table, prm_table);
     vmovups(zmm_idx, ptr[reg_prm_table]);
 
+    dim_t inp_kw_offset = (dim_t)ts_inp * ic_block_ * oc_block_;
+    dim_t inp_bc_offset = inp_kw_offset * kd_ * kh_ * kw_;
+    dim_t out_kw_offset
+            = (dim_t)ts_out * ic_block_ * oc_block_ * vnni_granularity;
+
     xor_(reg_kd, reg_kd);
     L(kd_loop_label);
     {
-        mov(reg_output, org_reg_output);
-        mov(reg_input_1, org_reg_input_1);
+        mov(reg_output, reg_output_kd);
+        mov(reg_input_kh, reg_input_kd);
         xor_(reg_kh, reg_kh);
         L(kh_loop_label);
         {
             for (int kw = 0; kw < kw_; kw++) {
-                Xbyak::Label last_ic_label, done_ic_label;
+                for (int bc = 0; bc < vnni_granularity; bc++) {
+                    Xbyak::Label last_ic_label, done_ic_label;
 
-                dim_t out_offset
-                        = (dim_t)typesize_out * kw * ic_block_ * oc_block_ * 2;
-                dim_t inp_1_offset
-                        = (dim_t)typesize_acc * kw * ic_block_ * oc_block_;
-                dim_t inp_2_offset = (dim_t)typesize_acc
-                        * (kd_ * kh_ * kw_ * ic_block_ * oc_block_
-                                + kw * ic_block_ * oc_block_);
-
-                cmp(reg_last_ic_block, 0);
-                jne(last_ic_label, T_NEAR);
-
-                mov(reg_input_2, reg_input_1);
-                safe_add(reg_input_2, inp_2_offset, reg_tmp);
-                jmp(done_ic_label, T_NEAR);
-
-                L(last_ic_label);
-                mov(reg_input_2, zero_buffer);
-
-                L(done_ic_label);
-
-                for (int ocb = 0; ocb < oc_block_; ocb += simd_w) {
-                    int ic_count = 0;
-                    for (int bc = 0; bc < 2; bc++) {
-                        if (!bc) {
-                            mov(reg_input, reg_input_1);
-                            safe_add(reg_input, inp_1_offset, reg_tmp);
+                    cmp(reg_last_ic_block, 0);
+                    jne(last_ic_label, T_NEAR);
+                    {
+                        mov(reg_input_kw, reg_input_kh);
+                        safe_add(reg_input_kw,
+                                bc * inp_bc_offset + kw * inp_kw_offset,
+                                reg_tmp);
+                        jmp(done_ic_label, T_NEAR);
+                    }
+                    L(last_ic_label);
+                    {
+                        if (bc < (nb_ic_ % vnni_granularity)) {
+                            mov(reg_input_kw, reg_input_kh);
+                            safe_add(reg_input_kw,
+                                    bc * inp_bc_offset + kw * inp_kw_offset,
+                                    reg_tmp);
                         } else
-                            mov(reg_input, reg_input_2);
+                            mov(reg_input_kw, zero_buffer);
+                    }
+                    L(done_ic_label);
 
-                        for (int ic = 0; ic < ic_block_ / 2; ic++) {
-                            auto zmm_src_0 = get_zmm_src_0(ic);
-                            auto zmm_src_1 = get_zmm_src_1(ic);
-                            auto zmm_out = get_zmm_bf16(ic);
+                    for_(int ocb = 0; ocb < oc_block_; ocb += simd_w)
+                    for (int icc = 0; icc < ic_block_ / vnni_granularity;
+                            icc++) {
+                        int ic_count
+                                = bc * (ic_block_ / vnni_granularity) + icc;
 
-                            vmovups(zmm_src_0,
-                                    ptr[reg_input
-                                            + typesize_acc
-                                                    * ((2 * ic + 0) * oc_block_
-                                                            + ocb)]);
-                            vmovups(zmm_src_1,
-                                    ptr[reg_input
-                                            + typesize_acc
-                                                    * ((2 * ic + 1) * oc_block_
-                                                            + ocb)]);
+                        auto zmm_out = get_zmm_bf16(icc);
+
+                        for (int idx = 0; idx < vnni_granularity; idx++) {
+                            auto zmm_src = get_zmm_src(idx, icc);
+                            const auto src_offset = ts_inp
+                                    * ((vnni_granularity * icc + idx)
+                                                    * oc_block_
+                                            + ocb);
+                            vmovups(zmm_src, ptr[reg_input_kw + src_offset]);
+                        }
+                        const auto src_offset = ts_inp
+                                * ((vnni_granularity * icc) * oc_block_ + ocb);
+
+                        if (one_of(out_dt_, data_type::bf16, data_type::f16)) {
+                            const auto zmm_src_0 = get_zmm_src(0, icc);
+                            const auto zmm_src_1 = get_zmm_src(1, icc);
+                            const auto src_off0 = src_offset;
+                            const auto src_off1 = src_off0 + ts_inp * oc_block_;
+                            vmovups(zmm_src_0, ptr[reg_input_kw + src_off0]);
+                            vmovups(zmm_src_1, ptr[reg_input_kw + src_off1]);
                             if (out_dt_ == data_type::bf16) {
                                 vcvtne2ps2bf16(zmm_out, zmm_src_1, zmm_src_0);
                             } else if (out_dt_ == data_type::f16) {
-                                vcvtps2phx(Ymm(zmm_src_0.getIdx()), zmm_src_0);
-                                vcvtps2phx(Ymm(zmm_src_1.getIdx()), zmm_src_1);
-                                vinsertf32x8(zmm_out, zmm_src_0,
-                                        Ymm(zmm_src_1.getIdx()), 1);
-                            } else {
-                                assert(!"unsupported data type");
+                                Ymm ymm_src_0(zmm_src_0.getIdx());
+                                Ymm ymm_src_1(zmm_src_1.getIdx());
+                                vcvtps2phx(ymm_src_0, zmm_src_0);
+                                vcvtps2phx(ymm_src_1, zmm_src_1);
+                                vinsertf32x8(zmm_out, zmm_src_0, ymm_src_1, 1);
                             }
                             vpermw(zmm_out, zmm_idx, zmm_out);
+                        } else if (one_of(out_dt_, data_type::f8_e5m2,
+                                           data_type::f8_e4m3)) {
+                            const auto zmm_src_0 = get_zmm_src(0, icc);
+                            const auto zmm_src_1 = get_zmm_src(1, icc);
+                            const auto zmm_src_2 = get_zmm_src(2, icc);
+                            const auto zmm_src_3 = get_zmm_src(3, icc);
+                            Xmm xmm_src_0(zmm_src_0.getIdx());
+                            Xmm xmm_src_1(zmm_src_1.getIdx());
+                            Xmm xmm_src_2(zmm_src_2.getIdx());
+                            Xmm xmm_src_3(zmm_src_3.getIdx());
 
-                            vmovups(ptr[reg_output + out_offset
-                                            + typesize_out
-                                                    * (ic_count * oc_block_ * 2
-                                                            + ocb * 2)],
-                                    zmm_out);
-                            ic_count++;
+                            const auto src_off0 = src_offset;
+                            const auto src_off1 = src_off0 + ts_inp * oc_block_;
+                            const auto src_off2 = src_off1 + ts_inp * oc_block_;
+                            const auto src_off3 = src_off2 + ts_inp * oc_block_;
+
+                            f8_emu->vcvt_f32_to_f8(
+                                    xmm_src_0, ptr[reg_input_kw + src_off0]);
+                            f8_emu->vcvt_f32_to_f8(
+                                    xmm_src_1, ptr[reg_input_kw + src_off1]);
+                            f8_emu->vcvt_f32_to_f8(
+                                    xmm_src_2, ptr[reg_input_kw + src_off2]);
+                            f8_emu->vcvt_f32_to_f8(
+                                    xmm_src_3, ptr[reg_input_kw + src_off3]);
+                            vinserti64x2(zmm_out, zmm_out, xmm_src_0, 0);
+                            vinserti64x2(zmm_out, zmm_out, xmm_src_1, 1);
+                            vinserti64x2(zmm_out, zmm_out, xmm_src_2, 2);
+                            vinserti64x2(zmm_out, zmm_out, xmm_src_3, 3);
+                            vpermb(zmm_out, zmm_idx, zmm_out);
+                        } else {
+                            assert(!"unsupported data type");
                         }
+
+                        vmovups(ptr[reg_output + kw * out_kw_offset
+                                        + ts_out
+                                                * (ic_count * oc_block_
+                                                                * vnni_granularity
+                                                        + ocb * vnni_granularity)],
+                                zmm_out);
                     }
                 }
             }
             safe_add(reg_output,
-                    (dim_t)typesize_out * kw_ * 2 * ic_block_ * oc_block_,
+                    (dim_t)ts_out * kw_ * vnni_granularity * ic_block_
+                            * oc_block_,
                     reg_tmp);
-            safe_add(reg_input_1,
-                    (dim_t)typesize_acc * kw_ * ic_block_ * oc_block_, reg_tmp);
+            safe_add(reg_input_kh, (dim_t)ts_inp * kw_ * ic_block_ * oc_block_,
+                    reg_tmp);
 
             add(reg_kh, 1);
             cmp(reg_kh, kh_);
             jl(kh_loop_label, T_NEAR);
         }
-        safe_add(org_reg_output,
-                (dim_t)typesize_out * kh_ * kw_ * 2 * ic_block_ * oc_block_,
+        safe_add(reg_output_kd,
+                (dim_t)ts_out * kh_ * kw_ * vnni_granularity * ic_block_
+                        * oc_block_,
                 reg_tmp);
-        safe_add(org_reg_input_1,
-                (dim_t)typesize_acc * kh_ * kw_ * ic_block_ * oc_block_,
-                reg_tmp);
+        safe_add(reg_input_kd,
+                (dim_t)ts_inp * kh_ * kw_ * ic_block_ * oc_block_, reg_tmp);
 
         add(reg_kd, 1);
         cmp(reg_kd, kd_);
@@ -1082,18 +1139,35 @@ void jit_diff_wei_trans_to_vnni_t::generate() {
     postamble();
 
     align(64);
-    L(prm_table);
-    const uint16_t prm_array[32]
-            = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8, 24, 9,
-                    25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
-    for (size_t i = 0; i < 32; ++i)
-        dw(prm_array[i]);
+    if (one_of(out_dt_, data_type::f8_e5m2, data_type::f8_e4m3)) {
+
+        L(prm_table);
+        uint8_t prm_array[64];
+        for (size_t i = 0; i < 16; i++) {
+            prm_array[4 * i] = i;
+            prm_array[4 * i + 1] = i + 16;
+            prm_array[4 * i + 2] = i + 32;
+            prm_array[4 * i + 3] = i + 48;
+        }
+
+        for (size_t i = 0; i < 64; ++i)
+            db(prm_array[i]);
+    } else {
+        L(prm_table);
+        const uint16_t prm_array[32] = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5,
+                21, 6, 22, 7, 23, 8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29,
+                14, 30, 15, 31};
+        for (size_t i = 0; i < 32; ++i)
+            dw(prm_array[i]);
+    }
 
     align(64);
     L(zero_buffer);
     const uint16_t zero = 0;
-    for (int i = 0; i < typesize_acc * oc_block_ * ic_block_; ++i)
+    for (int i = 0; i < ts_inp * oc_block_ * ic_block_; ++i)
         db(zero);
+
+    if (f8_emu) f8_emu->prepare_table();
 }
 
 #undef GET_OFF
