@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2022 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2024 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,6 +58,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<avx2>)
             CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<sse41>)
             CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_fwd_t<sve_512>)
+            CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_fwd_t<sve_256>)
             CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_fwd_t<asimd>)
             CPU_INSTANCE_AARCH64_ACL(acl_batch_normalization_fwd_t)
             CPU_INSTANCE(ncsp_batch_normalization_fwd_t<f32>)
@@ -85,6 +86,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<avx2>)
             CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<sse41>)
             CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_bwd_t<sve_512>)
+            CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_bwd_t<sve_256>)
             CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_bwd_t<asimd>)
             CPU_INSTANCE(ncsp_batch_normalization_bwd_t<f32>)
             CPU_INSTANCE(ncsp_batch_normalization_bwd_t<bf16>)
