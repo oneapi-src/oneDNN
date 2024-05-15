@@ -27,6 +27,10 @@
 --batch=shapes_2d_no_tail_bf16
 --beta=0,1
 
+--dt=f8_e5m2,f8_e5m2:f8_e5m2:f32
+--bia_dt=undef,f32,f8_e5m2
+--batch=shapes_2d_no_tail_int8
+
 --attr-post-ops=
 --dt=u8:s8:f32,s8:s8:bf16,u8:s8:u8,s8:s8:s8
 --brgemm-attr=,use_uker:1

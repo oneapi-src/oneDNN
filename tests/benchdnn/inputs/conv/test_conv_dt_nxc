@@ -14,3 +14,6 @@
 
 # f16
 --batch=test_conv_float16_nxc
+
+# fp8
+--batch=test_conv_fp8_nxc
