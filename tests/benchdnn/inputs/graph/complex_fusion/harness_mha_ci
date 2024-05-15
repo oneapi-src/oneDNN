@@ -16,3 +16,4 @@
 --reset --case=complex_fusion/mha/MHA-starcoder-inf-fp32-bs1.json
 --reset --case=complex_fusion/mha/MHA-starcoder-inf-int8-bs1.json
 --reset --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
+--reset --case=complex_fusion/mha/sdpa-plain-simplified-f16.json

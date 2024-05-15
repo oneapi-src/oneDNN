@@ -23,6 +23,7 @@
 --reset --case=complex_fusion/mha/MHA_forward-Bert_large-train-bf16-bs4.json
 --reset --case=complex_fusion/mha/MHA_forward-Bert_large-train-fp32-bs4.json
 --reset --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
+--reset --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
 
 # Rewrited graphs
 --reset --in-shapes=4:4x16x32x256+5:4x16x256x33+0:4x16x33x256+1:4x1x1x33+3:4x1x32x33 --case=complex_fusion/mha/MHA-GPT-inf-fp32-bs1.json
