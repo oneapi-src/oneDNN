@@ -239,7 +239,7 @@ public:
         // First, dry run on a deep copy
         subgraph_ = std::make_shared<subgraph_t>(
                 graph_t::deep_copy(part->get_ops()), p_engine_,
-                part->get_fpmath_mode(), part->get_use_blocked_layout(), true);
+                part->get_fpmath_mode(), false, true);
         CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
 
         subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
@@ -292,7 +292,7 @@ public:
         // Successfully created the primitive. Rerun the passes again, modifying
         //   the original ops.
         subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_,
-                part->get_fpmath_mode(), part->get_use_blocked_layout(), true);
+                part->get_fpmath_mode(), false, true);
         CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
         CHECK(modify_subgraph());
         CHECK(cfg_.locate_io(subgraph_, inputs, outputs));
