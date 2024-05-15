@@ -382,6 +382,8 @@ size_t get_desc_hash(const convolution_desc_t &desc) {
     seed = get_array_hash(seed, desc.padding[1], DNNL_MAX_NDIMS);
     // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc.accum_data_type));
+    // Internal member
+    seed = hash_combine(seed, static_cast<size_t>(desc.use_inversion));
     // Combined hash for (de-)convolution desc
     return seed;
 }

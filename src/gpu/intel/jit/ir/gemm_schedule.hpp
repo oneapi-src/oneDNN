@@ -27,6 +27,7 @@
 
 #include "gpu/intel/jit/ir/ir.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
+#include "gpu/intel/jit/ir/walk_order.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
 
 namespace dnnl {
@@ -411,11 +412,18 @@ public:
     gemm_schedule_t() = default;
 
     gemm_schedule_t(constraint_set_t &cset, const grid_info_t &kernel_grid,
-            const grid_info_t &tg_grid)
-        : cset_(&cset), kernel_grid_(kernel_grid), tg_grid_(tg_grid) {}
+            const grid_info_t &tg_grid,
+            const walk_order_t &kernel_grid_walk_order = {})
+        : cset_(&cset)
+        , kernel_grid_(kernel_grid)
+        , tg_grid_(tg_grid)
+        , kernel_grid_walk_order_(kernel_grid_walk_order) {}
 
     const grid_info_t &kernel_grid() const { return kernel_grid_; }
     const grid_info_t &tg_grid() const { return tg_grid_; }
+    const walk_order_t &kernel_grid_walk_order() const {
+        return kernel_grid_walk_order_;
+    }
 
     bmnk_kind_t bmnk_kind(const expr_t &var) const {
         return bmnk_kind(std::vector<expr_t>({var}));
@@ -709,6 +717,24 @@ public:
         return k_loop < k;
     }
 
+    std::vector<expr_t> get_root_vars(const expr_t &var) const {
+        std::vector<expr_t> ret;
+        std::function<void(const expr_t &)> walk;
+        walk = [&](const expr_t &v) {
+            auto &loop = find_loop(v);
+            if (loop.is_root()) {
+                ret.push_back(loop.var());
+                return;
+            }
+            ir_assert(loop.is_fused_child() || loop.is_split_child());
+            for (auto &pv : loop.parent_vars()) {
+                walk(pv);
+            }
+        };
+        walk(var);
+        return ret;
+    }
+
     void finalize() {
         init_problem_tiles();
         init_constraint_set();
@@ -918,6 +944,8 @@ private:
         for (int i = 0; i < tg_grid_.ndims(); i++) {
             if (tg_grid_.idx(i).is_same(v)) return loop_kind_t::tg_grid;
         }
+        if (kernel_grid_walk_order_.is_grid_var(v))
+            return loop_kind_t::kernel_grid;
         ir_error_not_expected() << "Unknown external variable: " << v;
         return loop_kind_t::undef;
     }
@@ -929,6 +957,8 @@ private:
         for (int i = 0; i < tg_grid_.ndims(); i++) {
             if (tg_grid_.idx(i).is_same(v)) return tg_grid_.dim(i);
         }
+        if (kernel_grid_walk_order_.is_grid_var(v))
+            return kernel_grid_walk_order_.dim_size(v);
         ir_error_not_expected() << "Unknown external variable: " << v;
         return -1;
     }
@@ -1102,6 +1132,7 @@ private:
     constraint_set_t *cset_ = nullptr;
     grid_info_t kernel_grid_;
     grid_info_t tg_grid_;
+    walk_order_t kernel_grid_walk_order_;
 
     // Loop indices, ordered from outermost to innermost.
     std::vector<expr_t> vars_;

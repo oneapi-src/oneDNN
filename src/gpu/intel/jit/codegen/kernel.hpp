@@ -29,6 +29,7 @@
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
+#include "gpu/intel/jit/ir/walk_order.hpp"
 #include "gpu/intel/jit/jit_generator.hpp"
 #include "gpu/intel/jit/ngen/ngen.hpp"
 #include "gpu/intel/jit/ngen/ngen_register_allocator.hpp"
@@ -302,12 +303,25 @@ public:
     }
 
     void bind_external_vars(const stmt_t &kernel_body,
+            const walk_order_t &kernel_grid_walk_order,
+            const std::array<expr_t, 3> &local_id,
+            expr_binding_t &expr_binding) {
+        grid_context_t grid_ctx(/*create_empty=*/true);
+        for (int i = 0; i < 3; i++) {
+            grid_ctx.set_local_id(i, local_id[i]);
+        }
+        bind_external_vars(kernel_body, grid_ctx, expr_binding);
+        bind_kernel_grid_walk_order(kernel_grid_walk_order, expr_binding);
+    }
+
+    void bind_external_vars(const stmt_t &kernel_body,
             const grid_context_t &grid_ctx, expr_binding_t &expr_binding) {
         alloc_manager_t alloc_mgr(kernel_body);
 
         // Bind grid indices.
         int r0_sub_idxs[] = {1, 6, 7};
         for (int i = 0; i < 3; i++) {
+            if (grid_ctx.tg_idx(i).is_empty()) continue;
             auto tmp = ra_.template alloc_sub<int32_t>();
             mov(1, tmp, r0.ud(r0_sub_idxs[i]));
             expr_binding.bind(grid_ctx.tg_idx(i), tmp);
@@ -332,6 +346,137 @@ public:
         // Bind SLM buffer (SLM loads/stores use 0-based offsets).
         auto slm_buf = alloc_mgr.find_buffer("slm", /*allow_empty=*/true);
         if (!slm_buf.is_empty()) expr_binding.bind(slm_buf, to_ngen(expr_t(0)));
+    }
+
+    void bind_kernel_grid_walk_order_blocked(const ngen::Subregister &id,
+            const std::vector<std::pair<int, int>> &blocks,
+            const std::vector<int> &dims, const std::vector<expr_t> &grid_vars,
+            expr_binding_t &expr_binding) {
+        int ndims = (int)dims.size();
+        int nblocks = (int)blocks.size();
+        std::vector<ngen::Subregister> rem_dims(ndims);
+        std::vector<ngen::Subregister> dim_idxs(ndims);
+        for (int i = 0; i < ndims; i++) {
+            rem_dims[i] = ra_.alloc_sub<int32_t>();
+            dim_idxs[i] = ra_.alloc_sub<int32_t>();
+            emov(1, rem_dims[i], dims[i]);
+            emov(1, dim_idxs[i], 0);
+        }
+
+        auto mul_add = [&](const ngen::Subregister &dst,
+                               const ngen::Subregister &src0,
+                               const ngen::Subregister &src1, uint32_t src2) {
+            bool is_src2_16_bit
+                    = (src2 <= std::numeric_limits<uint16_t>::max());
+            if (hw >= ngen::HW::XeLP && is_src2_16_bit && false) {
+                mad(1, dst, src0, src1, src2);
+            } else {
+                auto tmp = ra_.alloc_sub<uint64_t>();
+                mul(1, tmp.d(0), src1, src2 & 0xFFFF);
+                mul(1, tmp.d(1), src1, src2 >> 16);
+                shl<uint32_t>(1, tmp.ud(1), tmp.ud(1), 16);
+                add(1, tmp.d(0), tmp.d(1), tmp.d(0));
+                add(1, dst, src0, tmp.d(0));
+                ra_.safeRelease(tmp);
+            }
+        };
+
+        auto _id = ra_.alloc_sub<int32_t>();
+        auto qot = ra_.alloc_sub<int32_t>();
+        auto rem = ra_.alloc_sub<int32_t>();
+        auto rem_size = ra_.alloc_sub<uint32_t>();
+        auto rounded = ra_.alloc_sub<int32_t>();
+        emov(1, _id, id);
+        for (int i = nblocks - 1; i >= 0; i--) {
+            int dim_idx = blocks[i].first;
+            int inner_block_size = 1;
+            for (int j = 0; j < i; j++) {
+                if (blocks[j].first == dim_idx)
+                    inner_block_size *= blocks[j].second;
+            }
+            emov(1, rem_size, inner_block_size);
+            for (int j = 0; j < ndims; j++) {
+                if (j == dim_idx) continue;
+                emul(1, rem_size, rem_size, rem_dims[j]);
+            }
+            eidiv(1, qot, rem, _id, rem_size);
+            emov(1, _id, rem);
+            mul_add(dim_idxs[dim_idx], qot, dim_idxs[dim_idx],
+                    blocks[i].second);
+            emul(1, rounded, qot, inner_block_size);
+            eadd(1, rounded, rem_dims[dim_idx], -rounded);
+            min_(1, rem_dims[dim_idx], rounded, inner_block_size);
+        }
+        ra_.safeRelease(_id);
+        ra_.safeRelease(qot);
+        ra_.safeRelease(rem);
+        ra_.safeRelease(rem_size);
+        ra_.safeRelease(rounded);
+
+        for (int i = 0; i < ndims; i++)
+            ra_.safeRelease(rem_dims[i]);
+
+        for (int i = 0; i < ndims; i++) {
+            expr_binding.bind(grid_vars[i], dim_idxs[i]);
+        }
+    }
+
+    void bind_kernel_grid_walk_order_non_blocked(const ngen::Subregister &id,
+            const std::vector<std::pair<int, int>> &blocks,
+            const std::vector<expr_t> &grid_vars,
+            expr_binding_t &expr_binding) {
+        int nblocks = (int)blocks.size();
+        ir_assert((int)grid_vars.size() == nblocks);
+        if (nblocks == 1) {
+            expr_binding.bind(grid_vars[0], id);
+            return;
+        }
+        auto _id = ra_.alloc_sub<int32_t>();
+        emov(1, _id, id);
+        for (int i = 0; i < nblocks; i++) {
+            int dim_idx = blocks[i].first;
+            auto idx = ra_.alloc_sub<int32_t>();
+            eidiv(1, _id, idx, _id, (uint32_t)blocks[i].second);
+            expr_binding.bind(grid_vars[dim_idx], idx);
+        }
+        ra_.safeRelease(_id);
+    }
+
+    void bind_kernel_grid_walk_order(
+            const walk_order_t &walk_order, expr_binding_t &expr_binding) {
+        const int grid_ndims = 3;
+        ngen::Subregister grid_ids[grid_ndims] = {r0.ud(1), r0.ud(6), r0.ud(7)};
+        for (int i = 0; i < grid_ndims; i++) {
+            std::vector<std::pair<int, int>> blocks;
+            std::unordered_map<prb_dim_t, int, ir_utils::hasher_t<prb_dim_t>>
+                    dim_map;
+            auto to_dim_idx = [&](const prb_dim_t &dim) {
+                if (dim_map.count(dim) != 0) return dim_map.at(dim);
+                int idx = (int)dim_map.size();
+                dim_map.emplace(dim, idx);
+                return idx;
+            };
+            for (auto &b : walk_order.blocks()) {
+                if (b.grid_id != i) continue;
+                blocks.emplace_back(to_dim_idx(b.dim), b.size);
+            }
+            if (dim_map.empty()) continue;
+            std::vector<int> dims;
+            std::vector<expr_t> grid_vars;
+            dims.resize(dim_map.size());
+            grid_vars.resize(dim_map.size());
+            for (auto &kv : dim_map) {
+                dims[kv.second] = walk_order.dim_size(kv.first);
+                grid_vars[kv.second] = walk_order.grid_var(kv.first);
+            }
+            if (walk_order.is_blocked(i) || gpu_utils::dev_getenv("B", false)) {
+                bind_kernel_grid_walk_order_blocked(
+                        grid_ids[i], blocks, dims, grid_vars, expr_binding);
+            } else {
+                bind_kernel_grid_walk_order_non_blocked(
+                        grid_ids[i], blocks, grid_vars, expr_binding);
+            }
+        }
     }
 
     void generate_epilogue() {
@@ -725,6 +870,52 @@ public:
     }
 
     // Emulates integer division by a non-constant (rounding towards negative
+    // infinity). This version is based on FP inverse and does not require a
+    // pre-computed "magic" value. Note, that cr0 register is updated/restored
+    // to use RTZ mode when converting float -> int.
+    // Requirements (validated range):
+    //    -2^20 <= x <= 2^20
+    //     0    <  y <= 2^20
+    // Computes:
+    //     qot = x / y
+    //     rem = x % y
+    void eidiv(const ngen::InstructionModifier &mod, const ngen::RegData &_qot,
+            const ngen::RegData &rem, const ngen::RegData &x,
+            const ngen::RegData &_y, bool update_cr0_fp_to_int_rtz = true) {
+        ir_assert(mod.getExecSize() == 1);
+        ir_assert(_y.getType() == ngen::DataType::ud);
+        auto cr0_save = ra_.alloc_sub<uint32_t>();
+        auto f_tmp = ra_.alloc_sub<float>();
+        auto x_tmp = ra_.alloc_sub<float>();
+        auto qot_tmp = ra_.alloc_sub<int32_t>();
+        auto y = ngen::Subregister(_y, _y.getOffset(), _y.getType());
+        mov(1, cr0_save, cr0);
+        // Set RTZ rounding mode when converting float to int.
+        and_(1, cr0, cr0, ~0x1000);
+        mov(1, f_tmp, y);
+        mov(1, x_tmp, x);
+        inv(1, f_tmp, f_tmp);
+        add(1, f_tmp.ud(0), f_tmp.ud(0), 1);
+        mul(1, f_tmp, x_tmp, f_tmp);
+        mov(mod, qot_tmp, f_tmp);
+        if (!rem.isInvalid()) {
+            auto tmp = ra_.alloc_sub<int64_t>();
+            mul(1, tmp.d(0), qot_tmp, y.uw(0));
+            mul(1, tmp.d(1), qot_tmp, y.uw(1));
+            shl<uint32_t>(1, tmp.ud(1), tmp.ud(1), 16);
+            add(1, tmp.d(0), tmp.d(1), tmp.d(0));
+            add(mod, rem, x, -tmp.d(0));
+            ra_.safeRelease(tmp);
+        }
+        if (!_qot.isInvalid()) mov(mod, _qot, qot_tmp);
+        mov(1, cr0, cr0_save);
+        ra_.safeRelease(cr0_save);
+        ra_.safeRelease(f_tmp);
+        ra_.safeRelease(x_tmp);
+        ra_.safeRelease(qot_tmp);
+    }
+
+    // Emulates integer division by a constant (rounding towards negative
     // infinity)
     // Requirements:
     //     INT32_MIN <= x <= UINT32_MAX
@@ -740,7 +931,7 @@ public:
         ir_assert(x.getHS() == 0);
         if (ngen::utils::is_zero_or_pow2(y)) {
             auto _x = get_subregister(x);
-            if (x.getNeg()) {
+            if (x.getNeg() || (x == qot) || (x == rem)) {
                 // Negation modifier has bitwise semantics with shr/and so x
                 // needs to be arithmetically negated first.
                 _x = ra_.alloc_sub(div_type);
@@ -773,7 +964,6 @@ public:
             emul(1, q_tmp[0], _x, m);
             eshr(1, q_tmp.uq(0), q_tmp.uq(0), p);
         }
-        if (!qot.isInvalid()) mov(mod, qot, _qot);
 
         if (!rem.isInvalid()) {
             // rem = x - qot * y
@@ -791,6 +981,7 @@ public:
                 ra_.safeRelease(tmp);
             }
         }
+        if (!qot.isInvalid()) mov(mod, qot, _qot);
 
         ra_.safeRelease(x_tmp);
         ra_.safeRelease(qot_tmp);

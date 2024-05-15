@@ -6,3 +6,7 @@
 --alpha=1 --beta=2
 --alg=linear
 --batch=shapes_ci
+
+--alpha=-2 --beta=3
+--alg=clip
+--batch=shapes_ci

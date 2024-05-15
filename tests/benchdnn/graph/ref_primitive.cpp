@@ -298,7 +298,7 @@ void ref_primitive_t::check_correctness(
         //
         // Note: the following threshold is obtained from actual runs on
         // different hardware.
-        cmp.set_threshold(7e-5f);
+        cmp.set_threshold(8e-5f);
         cmp.set_norm_validation_mode(true);
         cmp.compare(mem_fp_abx, mem_dt, attr, res);
     }

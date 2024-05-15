@@ -57,6 +57,7 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
     dd.primitive_kind = primitive_kind::deconvolution;
     dd.prop_kind = prop_kind;
     dd.alg_kind = alg_kind;
+    dd.use_inversion = false; // Must be always `false` for deconv.
 
     dd.diff_src_desc = dd.src_desc = zero_md();
     dd.diff_dst_desc = dd.dst_desc = zero_md();

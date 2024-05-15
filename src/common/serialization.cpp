@@ -306,6 +306,8 @@ void serialize_desc(
     sstream.write(desc.padding[1], DNNL_MAX_NDIMS);
     // Accumulator type
     sstream.write(&desc.accum_data_type);
+    // Internal member
+    sstream.write(&desc.use_inversion);
 }
 
 // Eltwise

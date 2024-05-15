@@ -617,8 +617,6 @@ status_t brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
 }
 
 status_t brgemm_init_tiles(const brgemm_desc_t &brg, char palette[64]) {
-    constexpr int max_palette_size_in_bytes = 64;
-
     if (!brg.is_tmm) return status::unimplemented;
 
     //TODO: Add support of tail processing by reduction dimension
@@ -629,6 +627,7 @@ status_t brgemm_init_tiles(const brgemm_desc_t &brg, char palette[64]) {
     palette_config_t *buff = (palette_config_t *)(palette);
 
     char *_tc = (char *)(buff);
+    static constexpr int max_palette_size_in_bytes = 64;
     for (int i = 0; i < max_palette_size_in_bytes; i++)
         _tc[i] = 0;
 
@@ -646,7 +645,7 @@ status_t brgemm_init_tiles(const brgemm_desc_t &brg, char palette[64]) {
     if (brg.get_num_A_tiles() + brg.get_num_B_tiles() + brg.get_num_C_tiles()
             > brgemm_desc_t::AMX_TILES_NUM) {
         assert(!"brgemm internal error: invalid blocking");
-        return status::unimplemented;
+        return status::runtime_error;
     }
 
     // Due to interleaving tileload/tmul we don't support blocking 1x6 and 6x1

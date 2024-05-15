@@ -175,7 +175,7 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
 
 status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
         acl_matmul_conf_t &amp, memory_desc_t &dst_md) {
-    if (amp.use_dst_acc) {
+    if (amp.use_dst_acc_for_sum) {
         const memory_desc_wrapper dst_d(&dst_md);
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
                 dst_d.nelems(), dst_d.data_type_size());

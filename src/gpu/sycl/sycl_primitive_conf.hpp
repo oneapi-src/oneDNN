@@ -44,6 +44,8 @@ struct sycl_binary_conf_t {
     int wg_size;
     int wk_size;
 
+    xpu::sycl::md_t binary_src_arr[8];
+
     sycl_post_ops_t post_ops;
 };
 

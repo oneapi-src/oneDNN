@@ -123,7 +123,9 @@ status_t brgemm_kernel_container_t::insert(int idx, const brgemm_desc_t *brg) {
 
 bool brgemm_palette_container_t::insert(int idx, const brgemm_desc_t *brg) {
     S_t kernel_palette;
-    CHECK(brgemm_init_tiles(*brg, kernel_palette.data()));
+    auto status = brgemm_init_tiles(*brg, kernel_palette.data());
+    if (status != status::success) return false;
+
     const auto ret = set_.insert(kernel_palette);
     refs_[idx] = &(*ret.first);
     return ret.second;

@@ -518,7 +518,8 @@ inline bool operator==(
             && COMPARE_DESC_ARRAY_MEMBERS(dilates, DNNL_MAX_NDIMS)
             && COMPARE_DESC_ARRAY_MEMBERS(padding[0], DNNL_MAX_NDIMS)
             && COMPARE_DESC_ARRAY_MEMBERS(padding[1], DNNL_MAX_NDIMS)
-            && COMPARE_DESC_MEMBERS(accum_data_type);
+            && COMPARE_DESC_MEMBERS(accum_data_type)
+            && COMPARE_DESC_MEMBERS(use_inversion);
     return ret;
 }
 

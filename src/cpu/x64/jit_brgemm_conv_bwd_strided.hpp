@@ -40,7 +40,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa, bool is_deconv = false>
+template <cpu_isa_t isa>
 struct brgemm_convolution_bwd_strided_t : public primitive_t {
 
     struct pd_t : public cpu_convolution_bwd_data_pd_t {

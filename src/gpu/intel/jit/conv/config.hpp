@@ -29,6 +29,7 @@
 #include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/ir/hw.hpp"
 #include "gpu/intel/jit/ir/tensor_config.hpp"
+#include "gpu/intel/jit/ir/walk_order.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
 
 namespace dnnl {
@@ -380,7 +381,7 @@ public:
     void set_from_str(const std::string &s) override {
         a_ = 1;
         b_ = 1;
-        for (auto &kv : ir_utils::to_string_int_map(s)) {
+        for (auto &kv : ir_utils::to_string_int_pairs(s)) {
             if (kv.first == "a") {
                 a_ = kv.second;
             } else if (kv.first == "b") {
@@ -410,6 +411,29 @@ public:
 private:
     int a_ = 1;
     int b_ = 1;
+};
+
+class walk_order_param_t : public value_param_t<walk_order_t> {
+public:
+    using value_param_t::value_param_t;
+
+    std::string name() const override { return "walk-order"; }
+    std::string desc() const override {
+        return "Kernel grid walk order (innermost -> outermost).";
+    }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return false; }
+
+    void set_from_str(const std::string &s) override {
+        if (s.empty()) return;
+        value_ = walk_order_t(s);
+    }
+
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=" << value_;
+        return oss.str();
+    }
 };
 
 class wei_layout_param_t : public layout_param_t {
@@ -468,6 +492,7 @@ public:
     DECL_PARAM(fma_kind)
     DECL_PARAM(pad_slm)
     DECL_PARAM(prb)
+    DECL_PARAM(walk_order)
     DECL_PARAM2(pipeline)
     DECL_PARAM2(prefetch)
     DECL_PARAM2(slm)
@@ -593,6 +618,7 @@ private:
     INIT_PARAM(unroll)
     INIT_PARAM(wei_layout)
     INIT_PARAM(bia_layout)
+    INIT_PARAM(walk_order)
 
 #undef INIT_PARAM
 };
@@ -632,11 +658,11 @@ tensor_config_t get_tensor_config(
 int estimate_register_count(const conv_config_t &cfg);
 int default_regs(const conv_config_t &cfg);
 void init_kernel_grid(conv_config_t &cfg);
+void init_walk_order(conv_config_t &cfg);
 void init_thread_group_grid(conv_config_t &cfg);
-const std::array<prb_tile_t, 3> &get_kernel_grid_conv_dims(
-        const conv_problem_t &prb);
-const std::array<prb_tile_t, 3> &get_thread_group_grid_conv_dims(
-        const conv_problem_t &prb);
+std::array<prb_tile_t, 3> get_kernel_grid_conv_dims(const conv_config_t &cfg);
+std::array<prb_tile_t, 3> get_thread_group_grid_conv_dims(
+        const conv_config_t &cfg);
 
 } // namespace jit
 } // namespace intel

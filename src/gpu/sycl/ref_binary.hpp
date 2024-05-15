@@ -48,6 +48,7 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
             const memory_desc_wrapper dst_d(dst_md());
 
             const bool ok = set_default_params() == status::success
+                    && attr_.set_default_formats(dst_md()) == status::success
                     && check_data_types(src0_d, src1_d, dst_d)
                     && check_formats(src0_d, src1_d, dst_d)
                     && attr()->has_default_values(
@@ -72,18 +73,12 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
         }
 
         bool post_ops_ok() const {
-            for (int i = 0; i < attr()->post_ops_.len(); i++) {
-                const auto &e = attr()->post_ops_.entry_[i];
-                if (!IMPLICATION(e.is_eltwise(),
-                            utils::one_of(e.eltwise.alg, alg_kind::eltwise_relu,
-                                    alg_kind::eltwise_linear))) {
-                    return false;
-                }
-            }
-            // Binary, prelu and dw conv post-ops are not supported.
+            // Dw conv post-ops are not supported.
             return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
                     && attr()->post_ops_.has_default_values(
-                            {primitive_kind::eltwise});
+                            {primitive_kind::eltwise, primitive_kind::binary,
+                                    primitive_kind::prelu,
+                                    primitive_kind::sum});
         }
 
         static bool check_data_types(const memory_desc_wrapper &src0,
@@ -100,7 +95,7 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
             }
 
             return IMPLICATION(utils::one_of(bf16, src0_dt, src1_dt, dst_dt),
-                    src0_dt == src1_dt == dst_dt);
+                    src0_dt == dst_dt && src1_dt == dst_dt);
         }
 
         static bool check_formats(const memory_desc_wrapper &src0,
@@ -109,7 +104,7 @@ struct ref_binary_t : public sycl_gpu_primitive_t {
             using namespace format_tag;
 
             for (const auto &mdw : {src0, src1, dst}) {
-                if (mdw.matches_one_of_tag(ab, abc, abcd, abcde) == undef) {
+                if (mdw.matches_one_of_tag(a, ab, abc, abcd, abcde) == undef) {
                     return false;
                 }
             }

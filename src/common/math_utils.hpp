@@ -430,7 +430,7 @@ inline bool is_eltwise_ok(
                     one_of(alg, eltwise_clip, eltwise_clip_v2), beta >= alpha)
             && IMPLICATION(alg == eltwise_round, src_dt == dnnl_f32)
             && IMPLICATION(one_of(src_dt, dnnl_s32, dnnl_s8, dnnl_u8),
-                    one_of(alg, eltwise_relu, eltwise_linear));
+                    one_of(alg, eltwise_relu, eltwise_linear, eltwise_clip));
 
     const bool eltwise_use_dst
             = one_of(alg, eltwise_relu_use_dst_for_bwd,

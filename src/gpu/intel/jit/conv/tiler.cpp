@@ -1528,6 +1528,7 @@ private:
 
     void maybe_try_small_grf(conv_config_t &cfg) {
         auto try_cfg = cfg;
+        init_walk_order(try_cfg);
         init_kernel_grid(try_cfg);
         init_thread_group_grid(try_cfg);
         int kg_elems = try_cfg.kernel_grid().elems(),

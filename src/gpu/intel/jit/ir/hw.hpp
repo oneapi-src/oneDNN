@@ -84,6 +84,7 @@ public:
         eu_count_ = device_info->eu_count();
         max_wg_size_ = static_cast<int>(
                 device_info->max_wg_size(/*large_grf_mode=*/false));
+        l3_cache_size_ = device_info->l3_cache_size();
         large_grf_support_ = compute_engine->mayiuse_large_grf_mode();
         systolic_support_ = device_info->mayiuse_systolic();
         with_atomic_fp64_
@@ -108,6 +109,7 @@ public:
     int large_grf_support() const { return large_grf_support_; }
     int grf_size() const { return ngen::GRF::bytes(hw_); }
     int systolic_support() const { return systolic_support_; }
+    size_t l3_cache_size() const { return l3_cache_size_; }
 
     int max_tg_size(int regs, int simd) const {
         int wg_size = max_wg_size(regs);
@@ -177,6 +179,7 @@ public:
         ir_utils::serialize(stepping_id_, out);
         ir_utils::serialize(eu_count_, out);
         ir_utils::serialize(max_wg_size_, out);
+        ir_utils::serialize(l3_cache_size_, out);
         ir_utils::serialize(large_grf_support_, out);
         ir_utils::serialize(systolic_support_, out);
     }
@@ -186,6 +189,7 @@ public:
         ir_utils::deserialize(stepping_id_, in);
         ir_utils::deserialize(eu_count_, in);
         ir_utils::deserialize(max_wg_size_, in);
+        ir_utils::deserialize(l3_cache_size_, in);
         ir_utils::deserialize(large_grf_support_, in);
         ir_utils::deserialize(systolic_support_, in);
     }
@@ -200,6 +204,7 @@ private:
     int stepping_id_ = -1;
     int eu_count_ = 0;
     int max_wg_size_ = 0;
+    size_t l3_cache_size_ = 0;
     bool large_grf_support_ = false;
     bool systolic_support_ = false;
     bool with_atomic_fp64_ = false;
