@@ -39,13 +39,10 @@ endif()
 
 if(DNNL_GPU_VENDOR STREQUAL "NVIDIA")
     add_subdirectory(nvidia)
-    # Pass ${LIB_PACKAGE_NAME}_INTERFACE to upper level for proper linking
-    set(${LIB_PACKAGE_NAME}_INTERFACE "${${LIB_PACKAGE_NAME}_INTERFACE}" PARENT_SCOPE)
 endif()
 
 if(DNNL_GPU_VENDOR STREQUAL "AMD")
     add_subdirectory(amd)
-    set(${LIB_PACKAGE_NAME}_INTERFACE "${${LIB_PACKAGE_NAME}_INTERFACE}" PARENT_SCOPE)
 endif()
 
 # check if warn_unused_result can be used in an alias

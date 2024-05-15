@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2022-2023 Intel Corporation
+# Copyright 2022-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,21 +14,12 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB_RECURSE SOURCES
+file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+    )
 
-set(OBJ_LIB ${LIB_PACKAGE_NAME}_sycl_amd)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_amd)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
-
-
-set_target_properties(${OBJ_LIB} PROPERTIES COMPILE_DEFINITIONS "$<TARGET_PROPERTY:rocBLAS::rocBLAS,INTERFACE_COMPILE_DEFINITIONS>;$<TARGET_PROPERTY:MIOpen::MIOpen,INTERFACE_COMPILE_DEFINITIONS>"
-        COMPILE_OPTIONS "$<TARGET_PROPERTY:rocBLAS::rocBLAS,INTERFACE_COMPILE_OPTIONS>;$<TARGET_PROPERTY:MIOpen::MIOpen,INTERFACE_COMPILE_OPTIONS>")
-
-target_include_directories(${OBJ_LIB} PRIVATE $<TARGET_PROPERTY:MIOpen::MIOpen,INTERFACE_INCLUDE_DIRECTORIES> $<TARGET_PROPERTY:rocBLAS::rocBLAS,INTERFACE_INCLUDE_DIRECTORIES>)
-
-add_library(${OBJ_LIB}_interface INTERFACE)
-target_link_libraries(${OBJ_LIB}_interface INTERFACE rocBLAS::rocBLAS MIOpen::MIOpen)
-set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS $<TARGET_OBJECTS:${OBJ_LIB}>)
-
-set(${LIB_PACKAGE_NAME}_INTERFACE ${${LIB_PACKAGE_NAME}_INTERFACE} ${OBJ_LIB}_interface PARENT_SCOPE)
+set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)
