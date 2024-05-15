@@ -127,16 +127,16 @@ be converted to `dnnl::impl::gpu::intel::ocl::engine_t`.
 
 Currently there are separate implementation lists for each vendor, which
 introduces unnecessary redundancy and increases maintenance cost. The proposal
-is to unify the implementation list into a single one. The CPU primitives already
+is to unify the implementation lists into a single one. The CPU primitives already
 use the approach.
 
-There will introduced a set of new macros to instantiate vendor specific and
+There will be introduced a set of new macros to instantiate vendor specific and
 generic implementations.
 
 The macros for INTEL, NVIDIA and AMD vendors assume that all implementations
 within a single vendor can be enabled at once regardless of the kernel language.
 
-The macros for the GENERIC vendor can be either truly generic or runtime specific:
+The macros for the GENERIC vendor can be either truly generic or kernel language specific:
 * Truly generic implementation is the one that is not tied to any vendor and kernel language, e.g.
   an implementation of the concat primitive based on reorders
 * Runtime specific implementation is the one that is tied to a particular kernel language,
