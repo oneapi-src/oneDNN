@@ -14,6 +14,9 @@
 # int8
 --batch=test_ip_int8
 
+# fp8
+--batch=test_ip_fp8
+
 # bf16
 --batch=test_ip_bfloat16
 
