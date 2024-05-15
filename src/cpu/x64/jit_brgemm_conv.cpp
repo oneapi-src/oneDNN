@@ -758,10 +758,13 @@ status_t brgemm_convolution_fwd_t<isa>::add_po_kernel(
     bcfg->LDD = (is_init && jcp.use_buffer) ? jcp.LDC : jcp.LDD;
     bcfg->dt_c = (!is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // inp
     bcfg->dt_d = (is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt; // out
+    bcfg->typesize_C = types::data_type_size(bcfg->dt_c);
+    bcfg->typesize_D = types::data_type_size(bcfg->dt_d);
     bcfg->alpha = !is_init && IMPLICATION(jcp.with_sum, jcp.use_buffer);
     bcfg->beta = is_init ? 0 : 1;
+    // See the comment in `add_po_kernels` why `*_pd->attr()` is needed so far.
     CHECK(safe_ptr_assign(kernels_po_[ker_idx],
-            new jit_brgemm_kernel_post_ops<isa>(jcp, *bcfg, *_pd->attr())));
+            new jit_brgemm_kernel_post_ops<isa>(*bcfg, *_pd->attr())));
     kernels_po_[ker_idx]->create_kernel();
     return status::success;
 }
@@ -781,6 +784,18 @@ void brgemm_convolution_fwd_t<isa>::add_po_kernels(
 
     if (init_bcast_dim > 0) {
         if (brgs[brg_idx]) {
+            // Note: The particular line below means a copy of brgemm_desc
+            // object. The copy here is due to:
+            // * PD creation time passed, original objects can't be modified.
+            // * PO kernel requires (for some reason) custom values for certain
+            //   members in brgemm descriptor.
+            // When the copy is performed, it erases underlying memory for
+            // attributes and dst_md, which means they can't be used in any
+            // further call due to the temporary object on stack (after copy)
+            // will be destroyed and the address of, e.g. the address of the sum
+            // scale (used in the post-ops kernel), will be invalidated.
+            // This copy puts restrictions on what objects can be used in
+            // sub-calls and a developer should be careful about that.
             auto init_cfg = *(brgs[brg_idx]);
             auto ker_init_idx = get_ker_po_idx(init_bcast_dim - 1, false, i_N);
             if (init_cfg.load_dim > 0 && kernels_po_[ker_init_idx] == nullptr) {
@@ -1625,8 +1640,9 @@ void brgemm_convolution_fwd_t<isa>::perform_outwork(
     auto call_outwork_ker = [&](bool is_postwork, bool has_postcomp,
                                     int ow_pw_s, int ow_pw_l) {
         auto ker_po_idx = get_ker_po_idx(ow_pw_l - 1, is_postwork, is_oc_tail);
-        const auto outwork_ker = kernels_po_[ker_po_idx].get();
-        assert(outwork_ker != nullptr && ow_pw_l == outwork_ker->brg.bcast_dim);
+        const auto &outwork_ker = kernels_po_[ker_po_idx].get();
+        assert(outwork_ker != nullptr
+                && ow_pw_l == outwork_ker->get_bcast_dim());
         if (is_postwork) {
             p.apply_comp = has_postcomp;
             p.a_zp_compensation = has_postcomp && jcp.src_zero_point
