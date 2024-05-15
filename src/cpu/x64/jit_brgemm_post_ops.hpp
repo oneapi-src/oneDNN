@@ -377,6 +377,38 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                                   brg.attr()->post_ops_,
                                   memory_desc_wrapper(brg.dst_md()))) {
 
+        bool has_f8_e5m2_binary_postops = false;
+        bool has_f8_e4m3_binary_postops = false;
+        if (brg.with_binary) {
+            const auto &post_ops = attr.post_ops_;
+            for (int i = 0; i < post_ops.len(); i++) {
+                const auto &entry = post_ops.entry_[i];
+                if (!entry.is_binary()) continue;
+                has_f8_e5m2_binary_postops = entry.binary.src1_desc.data_type
+                        == data_type::f8_e5m2;
+                has_f8_e4m3_binary_postops = entry.binary.src1_desc.data_type
+                        == data_type::f8_e4m3;
+            }
+        }
+
+        if (brg.is_bf16_emu)
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this, emu_reserv_1,
+                    emu_reserv_2, emu_reserv_3, emu_scratch, emu_reserv_4,
+                    emu_reserv_4);
+        if (brg.is_fp8_via_convert() || has_f8_e5m2_binary_postops
+                || has_f8_e4m3_binary_postops) {
+            if (utils::one_of(data_type::f8_e5m2, brg.dt_a, brg.dt_b, brg.dt_d)
+                    || has_f8_e5m2_binary_postops)
+                f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(
+                        this, emu_reserv_1, emu_reserv_2, emu_reserv_3,
+                        emu_mask, emu_scratch);
+            if (utils::one_of(data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_d)
+                    || has_f8_e4m3_binary_postops)
+                f8_e4m3_emulator_ = utils::make_unique<fp8_emulation_e4m3_t>(
+                        this, emu_reserv_1, emu_reserv_2, emu_reserv_3,
+                        emu_reserv_4, emu_reserv_5, emu_scratch);
+        }
+
         if (brg.beta != 0) {
             static constexpr bool preserve_gpr = true;
             static constexpr bool preserve_vmm = true;
@@ -389,7 +421,14 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     memory_desc_wrapper(brg.dst_md()),
                     static_cast<size_t>(brg.load_dim % brg.ld_block),
                     k_tail_mask, use_exact_tail_scalar_bcast};
-            const binary_injector::static_params_t bsp {this->param1, rhs_sp};
+            const binary_injector::static_params_t bsp(this->param1,
+                    bcast_set_t {broadcasting_strategy_t::scalar,
+                            broadcasting_strategy_t::per_oc,
+                            broadcasting_strategy_t::per_oc_spatial,
+                            broadcasting_strategy_t::per_mb_w,
+                            broadcasting_strategy_t::per_w,
+                            broadcasting_strategy_t::no_broadcast},
+                    rhs_sp, f8_e5m2_emulator_.get(), f8_e4m3_emulator_.get());
 
             const bool save_state = jcp.with_eltwise;
             const auto &reserved_eltwise_gpr = reg_reserved_eltwise;
@@ -402,22 +441,6 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
                     injector::jit_uni_postops_injector_t<po_isa_t>>(
                     this, attr.post_ops_, bsp, esp);
         }
-        if (brg.is_bf16_emu)
-            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this, emu_reserv_1,
-                    emu_reserv_2, emu_reserv_3, emu_scratch, emu_reserv_4,
-                    emu_reserv_4);
-        if (brg.is_fp8_via_convert()
-                && utils::one_of(
-                        data_type::f8_e5m2, brg.dt_a, brg.dt_b, brg.dt_d))
-            f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(this,
-                    emu_reserv_1, emu_reserv_2, emu_reserv_3, emu_mask,
-                    emu_scratch);
-        if (brg.is_fp8_via_convert()
-                && utils::one_of(
-                        data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_d))
-            f8_e4m3_emulator_ = utils::make_unique<fp8_emulation_e4m3_t>(this,
-                    emu_reserv_1, emu_reserv_2, emu_reserv_3, emu_reserv_4,
-                    emu_reserv_5, emu_scratch);
 
         const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
         // per_oc: conv: 1 << 0, (1 << 1) + (1 << 0) (with groups)
@@ -448,14 +471,15 @@ private:
     data_type_t inp_dt_;
     data_type_t out_dt_;
     data_type_t bia_dt_;
+    // TODO: get rid of this map because it requires updates with every new isa
     static constexpr cpu_isa_t po_isa_t = utils::map(isa, avx512_core, avx2,
             avx2, avx2_vnni, avx2, avx2_vnni_2, avx2_vnni_2, avx512_core_fp16,
-            avx512_core_fp16);
+            avx512_core_fp16, avx10_1_512_amx_fp16, avx512_core_fp16);
     std::unique_ptr<injector::jit_uni_postops_injector_t<po_isa_t>>
             postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
-    std::unique_ptr<fp8_emulation_base_t> f8_e5m2_emulator_;
-    std::unique_ptr<fp8_emulation_base_t> f8_e4m3_emulator_;
+    std::unique_ptr<fp8_emulation_e5m2_t> f8_e5m2_emulator_;
+    std::unique_ptr<fp8_emulation_e4m3_t> f8_e4m3_emulator_;
 
     const bool with_binary_non_scalar_bcast_;
 

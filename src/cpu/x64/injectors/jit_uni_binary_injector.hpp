@@ -170,7 +170,8 @@ struct static_params_t {
     static_params_t(const Xbyak::Reg64 &param1,
             const bcast_set_t &supported_strategy_set,
             const rhs_arg_static_params_t &rhs_arg_static_params,
-            fp8_emulation_base_t *f8_emu);
+            fp8_emulation_e5m2_t *f8_e5m2_emu,
+            fp8_emulation_e4m3_t *f8_e4m3_emu);
     static_params_t(const Xbyak::Reg64 &param1,
             const bcast_set_t &supported_strategy_set,
             const rhs_arg_static_params_t &rhs_arg_static_params);
@@ -180,7 +181,10 @@ struct static_params_t {
     Xbyak::Reg64 param1;
     const bcast_set_t supported_strategy_set;
     rhs_arg_static_params_t rhs_arg_static_params;
-    fp8_emulation_base_t *f8_emu_ {nullptr};
+    // Both fp8 (e5m2 and e4m3) binary post-ops data types are possible.
+    // Therefore, we need both fp8 emulators.
+    fp8_emulation_e5m2_t *f8_e5m2_emu_ {nullptr};
+    fp8_emulation_e4m3_t *f8_e4m3_emu_ {nullptr};
 };
 
 /*
@@ -579,7 +583,8 @@ private:
     Xbyak::Opmask get_aux_kmask() const;
 
     jit_generator *host_;
-    fp8_emulation_base_t *f8_emu_ {nullptr};
+    fp8_emulation_e5m2_t *f8_e5m2_emu_ {nullptr};
+    fp8_emulation_e4m3_t *f8_e4m3_emu_ {nullptr};
     const rhs_arg_static_params_t rhs_arg_static_params_;
     const Xbyak::Reg64 param1_;
     const bcast_set_t supported_strategy_set_;
