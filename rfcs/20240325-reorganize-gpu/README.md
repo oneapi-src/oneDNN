@@ -123,6 +123,64 @@ such as `sycl_`, `ocl_`, etc is redundant and therefore the suggestion is to
 drop the prefixes. For example, `dnnl::impl::gpu::ocl::ocl_gpu_engine_t` will
 be converted to `dnnl::impl::gpu::intel::ocl::engine_t`.
 
+### Implementation List
+
+Currently there are separate implementation lists for each vendor, which
+introduces unnecessary redundancy and increases maintenance cost. The proposal
+is to unify the implementation list into a single one. The CPU primitives already
+use the approach.
+
+There will introduced a set of new macros to instantiate vendor specific and
+generic implementations.
+
+The macros for INTEL, NVIDIA and AMD vendors assume that all implementations
+within a single vendor can be enabled at once regardless of the kernel language.
+
+The macros for the GENERIC vendor can be either truly generic or runtime specific:
+* Truly generic implementation is the one that is not tied to any vendor and kernel language, e.g.
+  an implementation of the concat primitive based on reorders
+* Runtime specific implementation is the one that is tied to a particular kernel language,
+  e.g. SYCL generic implementations (written in generic SYCL)
+
+ The concat, sum and reorder primitives require specialized versions of some of the the
+ macros because their `pd_t::create` functions have unique signatures.
+
+The following macros are the helper ones and not expected to be used directly:
+* GPU_INSTANCE - primary macro to instantiate a GPU implementation
+* GPU_CONCAT_INSTANCE - a specialization for the concat primitive
+* GPU_SUM_INSTANCE - a specialization for the sum primitive
+* GPU_REORDER_INSTANCE - a specialization for the reorder primitive
+
+The following are the _primary_ vendor specific macros that are used to instantiate vendor specific and generic implementations.
+* GPU_INSTANCE_INTEL - instantiate implementations for the Intel vendor
+* GPU_INSTANCE_NVIDIA - instantiate implementations for the Nvidia vendor
+* GPU_INSTANCE_AMD - instantiate implementations for the AMD vendor
+* GPU_INSTANCE_GENERIC_SYCL - instantiate implementations written in SYCL for the generic vendor (currently enabled only for Nvidia vendor)
+* GPU_INSTANCE_GENERIC - instantiate implementations that a truly generic. Truly generic
+  implementation is the one that is not tied to any vendor and runtime, e.g. an implementation
+  of the concat primitive based on reorders
+
+The following are the specializations of the vendor specific macros for the concat primitive:
+* GPU_CONCAT_INSTANCE_INTEL
+* GPU_CONCAT_INSTANCE_NVIDIA
+* GPU_CONCAT_INSTANCE_AMD
+* GPU_CONCAT_INSTANCE_GENERIC_SYCL
+* GPU_CONCAT_INSTANCE_GENERIC
+
+The following are the specializations of the vendor specific macros for the sum primitive:
+* GPU_SUM_INSTANCE_INTEL
+* GPU_SUM_INSTANCE_NVIDIA
+* GPU_SUM_INSTANCE_AMD
+* GPU_SUM_INSTANCE_GENERIC_SYCL
+* GPU_SUM_INSTANCE_GENERIC
+
+The following are the specializations of the vendor specific macros for the reorder primitive:
+* GPU_REORDER_INSTANCE_INTEL
+* GPU_REORDER_INSTANCE_NVIDIA
+* GPU_REORDER_INSTANCE_AMD
+* GPU_REORDER_INSTANCE_GENERIC_SYCL
+* GPU_REORDER_INSTANCE_GENERIC
+
 ### Affected Basic Abstractions
 
 The new schema will require moving a lot of parts of the library around
