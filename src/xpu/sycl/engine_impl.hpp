@@ -20,6 +20,7 @@
 #include "common/engine_impl.hpp"
 #include "common/utils.hpp"
 
+#include "xpu/ocl/utils.hpp"
 #include "xpu/sycl/compat.hpp"
 #include "xpu/sycl/utils.hpp"
 
@@ -50,6 +51,9 @@ public:
         CHECK(check_device(kind(), device_, context_));
         return status::success;
     }
+
+    status_t create_memory_storage(memory_storage_t **storage, engine_t *engine,
+            unsigned flags, size_t size, void *handle) const;
 
     const ::sycl::device &device() const { return device_; }
     const ::sycl::context &context() const { return context_; }
