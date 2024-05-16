@@ -138,12 +138,16 @@ struct gen_gemm_t : public gpu_gemm_t {
                 VDISPATCH_GEMM(utils::one_of(d->acc_type, bf16, f32),
                         VERBOSE_INCONSISTENT_DT, "a", "acc");
             } else if (!wei_decomp_) {
-                VDISPATCH_GEMM(
-                        utils::one_of(d->a_type(), f32, f16, f8_e5m2, f8_e4m3),
+                VDISPATCH_GEMM(utils::one_of(d->a_type(), f64, f32, f16,
+                                       f8_e5m2, f8_e4m3),
                         VERBOSE_UNSUPPORTED_DT);
                 VDISPATCH_GEMM(d->b_type() == d->a_type(),
                         VERBOSE_INCONSISTENT_DT, "a", "b");
                 VDISPATCH_GEMM(utils::one_of(d->acc_type, d->a_type(), f32),
+                        VERBOSE_UNSUPPORTED_DT);
+                VDISPATCH_GEMM(IMPLICATION(utils::one_of(f64, d->a_type(),
+                                                   d->b_type()),
+                                       dev_info_->has_native(f64)),
                         VERBOSE_UNSUPPORTED_DT);
                 VDISPATCH_GEMM(
                         IMPLICATION(utils::one_of(f8_e5m2, f8_e4m3, d->a_type(),
@@ -161,10 +165,14 @@ struct gen_gemm_t : public gpu_gemm_t {
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
             VDISPATCH_GEMM(
                     IMPLICATION(with_bias(),
-                            utils::one_of(d->bias_type(), f32, bf16, f16,
+                            utils::one_of(d->bias_type(), f64, f32, bf16, f16,
                                     f8_e5m2, f8_e4m3)
                                     && (d->bias_desc.ndims <= 3)
                                     && utils::one_of(bias_cmask(), 0, 1, 2, 3)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_GEMM(
+                    IMPLICATION(with_bias(),
+                            (d->c_type() != f64 || d->bias_type() == f64)),
                     VERBOSE_UNSUPPORTED_BIAS_CFG);
             VDISPATCH_GEMM(compute_engine->mayiuse_ngen_kernels(),
                     VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "ngen_kernels");
@@ -242,6 +250,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             bool with_binary = (post_ops_.find(binary) != -1)
                     || (post_ops_.find(prelu) != -1);
+            bool with_eltwise = (post_ops_.find(eltwise) != -1);
 
             // check GPU architecture
             bool arch_ok = utils::one_of(arch_, arch_t::gen9, arch_t::gen11,
@@ -276,10 +285,16 @@ struct gen_gemm_t : public gpu_gemm_t {
                     ? d->sum_ab_type
                     : (utils::one_of(eff_a_type(), s8, u8) ? s32 : d->c_type());
 
-            auto acc_type = utils::one_of(eff_a_type(), s8, u8) ? s32 : f32;
+            auto acc_type = utils::one_of(eff_a_type(), s8, u8)
+                    ? s32
+                    : (utils::one_of(f64, eff_a_type(), eff_b_type()) ? f64
+                                                                      : f32);
 
             if (swap_ab_) std::swap(ao_type, bo_type);
             if (d->c_type() == f16 && !has_systolic) acc_type = data_type::f16;
+            VDISPATCH_GEMM(
+                    IMPLICATION(acc_type == f64, !with_eltwise && !with_binary),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             if (types::data_type_size(acc_type) < 4) {
                 // Limited post-op support for low-precision accumulation.
@@ -321,8 +336,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             //   accumulation unless fusion is enabled.
             if (kernel_desc_.driver_info()->kParallel()
                     && !kernel_desc_.driver_info()->fusedPostOps()) {
-                bool with_eltwise = (post_ops_.find(eltwise) != -1);
-
                 VDISPATCH_GEMM(!with_eltwise && !with_binary
                                 && utils::one_of(d->c_type(), f32, s32),
                         VERBOSE_UNSUPPORTED_POSTOP);

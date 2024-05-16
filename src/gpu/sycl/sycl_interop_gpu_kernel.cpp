@@ -53,6 +53,7 @@ static void set_scalar_arg(::sycl::handler &cgh, int index,
         case scalar_type_t::_uint:
             cgh.set_arg(index, *static_cast<const uint32_t *>(value));
             break;
+        case scalar_type_t::_double:
         case scalar_type_t::_long:
         case scalar_type_t::_ulong:
             cgh.set_arg(index, *static_cast<const uint64_t *>(value));
