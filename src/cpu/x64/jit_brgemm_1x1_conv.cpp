@@ -134,12 +134,12 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             auto vK = is_accum_kernel
                     ? jcp_.rtus_ic_size
                     : jcp_.ic_without_padding - jcp_.rtus_ic_size;
+            if (vM <= 0 || vK <= 0) continue;
             const bool use_rtus_LDA = is_accum_kernel;
             const auto LDA = use_rtus_LDA ? jcp_.rtus_padded_ic_size : jcp_.LDA;
             constexpr int extra_m_kernel_start_idx = 2;
             brgemm_init_params_.emplace_front(
                     extra_m_kernel_start_idx + idx, vM, vN, vK, LDA);
-            assert(vM > 0 && vK > 0);
         }
     }
 
