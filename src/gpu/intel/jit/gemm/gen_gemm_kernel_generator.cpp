@@ -20030,7 +20030,6 @@ void gemm_kernel_generator_t<hw>::gemmSimpleLinearOrder(
             state);
 
     if (!strategy.persistent) {
-        state.ra.safeRelease(state.inputs.groupIDMN);
         state.ra.safeRelease(state.inputs.groupCountM);
         state.ra.safeRelease(state.inputs.groupCountN);
         state.ra.safeRelease(state.inputs.gcMNRecip);
