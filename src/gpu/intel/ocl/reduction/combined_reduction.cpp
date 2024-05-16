@@ -89,53 +89,10 @@ reduction_phase_conf_t::reduction_phase_conf_t(
     // inner_dim can either be:
     // 1. packed into a single subgroup (small inner dim), or
     // 2. split among several subgroups (large inner dim)
-    const dim_t num_packed_inner_dims
-            = nstl::clamp(subgroup_size / inner_block.block, dim_t {1},
-                    reduction_block.block);
     const dim_t num_split_inner_dims
             = utils::div_up(inner_block.block, subgroup_size); // S per I
 
-    const dim_t num_horiz_reductions
-            = reduction_block.block / num_packed_inner_dims;
-
     dim_t num_subgroups = outer_block.block * num_split_inner_dims;
-
-    // We need to determine 2 variables according to some heuristic:
-    // 1. Vector size (increases block load size)
-    // 2. Threads per EU (decreases scheduling overhead, in this case)
-
-    // Vector size requirements:
-    // 1. (required) reductions and inner_dim aligned with no tails on either one
-    // 2. (heuristic) Block loads should not exceed maximum instruction load size
-    // 3. (heuristic) EUs should not become unsaturated due to vector size
-    int nvec = 1;
-    bool reduce_vec = false;
-    if (with_block_reads) {
-        const size_t single_load_size = types::data_type_size(src_type)
-                * static_cast<size_t>(subgroup_size);
-        const int max_load_size = 256; // Set on ATS-M, may depend on arch
-        const int max_vect_size
-                = static_cast<int>(max_load_size / single_load_size);
-
-        for (int N : {8, 4, 2}) {
-            // Related to EU saturation
-            if (num_subgroups / N < num_EU) continue;
-            // Related to block load size
-            if (N > max_vect_size) continue;
-            if (num_horiz_reductions % N == 0) {
-                if (num_split_inner_dims == 1
-                        || num_split_inner_dims % N == 0) {
-                    nvec = N;
-                    reduce_vec = (num_split_inner_dims == 1);
-                    break;
-                }
-            }
-        }
-    }
-    vect_size = nvec;
-    reduce_vector = reduce_vec;
-
-    if (!reduce_vector) num_subgroups /= vect_size;
 
     // Increase num_outer_idxs to use persistent threading to reduce the number of subgroups
     // and avoid overdispatching
@@ -427,17 +384,13 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("IS_FINAL", phase.is_final);
     kernel_ctx.define_int("IS_FIRST", phase.is_first);
 
-    kernel_ctx.define_int("VECT_DT_N", phase.vect_size);
-    kernel_ctx.define_int("REDUCE_VECTOR", phase.reduce_vector ? 1 : 0);
-
     // Because the reduction loop is quite tight, we can override the compiler's
     // loop unrolling logic to increase it a lot and get a bit more speed
     // Heuristic determined on ATS-m, set to exclude the possibility of
     // exceeding the instruction cache
     const dim_t max_unroll = 256;
-    const dim_t unroll_factor = nstl::clamp(
-            num_horiz_reductions / (phase.reduce_vector ? phase.vect_size : 1),
-            dim_t {1}, max_unroll);
+    const dim_t unroll_factor
+            = nstl::clamp(num_horiz_reductions, dim_t {1}, max_unroll);
     kernel_ctx.define_int("UNROLL_FACTOR", unroll_factor);
 
     kernel_ctx.define_int("WITH_BLOCK_READ", phase.with_block_reads ? 1 : 0);
