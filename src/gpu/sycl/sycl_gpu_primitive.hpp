@@ -17,7 +17,6 @@
 #ifndef GPU_SYCL_SYCL_GPU_PRIMITIVE_HPP
 #define GPU_SYCL_SYCL_GPU_PRIMITIVE_HPP
 
-#include "gpu/intel/gpu_primitive.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_stream.hpp"
 

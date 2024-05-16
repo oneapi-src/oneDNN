@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,7 @@
 #include "common/primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/nvidia/cudnn_reorder_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -41,8 +41,7 @@ struct cudnn_reorder_t : public primitive_t {
         // Function to verify data and memory format
         bool valid_data_n_mem_format(impl::engine_t *engine) const {
             auto sycl_dev
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine)
-                              ->device();
+                    = utils::downcast<nvidia::engine_t *>(engine)->device();
 
             bool ok = utils::one_of(src_md()->data_type, data_type::s8,
                               data_type::bf16, data_type::f16, data_type::f32)

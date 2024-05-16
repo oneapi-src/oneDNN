@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@
 #include "common/primitive.hpp"
 #include "common/softmax_pd.hpp"
 #include "gpu/nvidia/cudnn_softmax_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -44,8 +44,8 @@ struct cudnn_softmax_fwd_t : public primitive_t {
             const memory_desc_wrapper dst_d(dst_md());
 
             auto sycl_dev
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine)
-                              ->device();
+                    = utils::downcast<nvidia::engine_t *>(engine)->device();
+
             bool ok = is_fwd()
                     && utils::one_of(src_d.data_type(), data_type::f32,
                             data_type::f16, data_type::bf16, data_type::s8)
@@ -108,8 +108,7 @@ struct cudnn_softmax_bwd_t : public primitive_t {
             const memory_desc_wrapper dst_d(dst_md());
 
             auto sycl_dev
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine)
-                              ->device();
+                    = utils::downcast<nvidia::engine_t *>(engine)->device();
 
             bool ok = !is_fwd()
                     && utils::one_of(dst_d.data_type(), data_type::f32,

@@ -23,7 +23,7 @@ namespace gpu {
 namespace nvidia {
 
 cuda_sycl_scoped_context_handler_t::cuda_sycl_scoped_context_handler_t(
-        const sycl_cuda_engine_t &engine)
+        const nvidia::engine_t &engine)
     : need_to_recover_(false) {
     CUDA_EXECUTE_FUNC(cuCtxGetCurrent, &original_);
     auto desired = engine.get_underlying_context();

@@ -66,7 +66,7 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
 
 #ifdef DNNL_SYCL_CUDA
     if (xpu::sycl::is_nvidia_gpu(dev))
-        return gpu::nvidia::cuda_engine_create(
+        return gpu::nvidia::engine_create(
                 engine, engine_kind_, dev, ctx, index);
 #endif
 

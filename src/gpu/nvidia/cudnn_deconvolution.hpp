@@ -128,8 +128,9 @@ struct cudnn_deconvolution_fwd_t : public primitive_t {
         status_t init_convolution(impl::engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+
+            auto sycl_dev
+                    = utils::downcast<nvidia::engine_t *>(engine)->device();
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr = *attr();
@@ -146,7 +147,7 @@ struct cudnn_deconvolution_fwd_t : public primitive_t {
                                 desc()->dst_desc.data_type, f32, f16, bf16)
                         && IMPLICATION(
                                 desc()->dst_desc.data_type == data_type::bf16,
-                                has_bf16_support(sycl_engine->device()))
+                                has_bf16_support(sycl_dev))
                         && IMPLICATION(desc()->src_desc.data_type == f16,
                                 memory_desc_matches_one_of_tag(
                                         *conv_pd_->diff_src_md(),

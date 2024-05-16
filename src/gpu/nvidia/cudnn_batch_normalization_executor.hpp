@@ -23,7 +23,7 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/nvidia/cudnn_batch_normalization_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
@@ -65,7 +65,7 @@ protected:
             xpu::sycl::interop_memory_arg_t<mean_var_m> arg_var = {}) const {
 
         compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 
@@ -135,7 +135,7 @@ protected:
                     arg_temp_relu,
             bool use_scale, bool use_shift) const {
         compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
 

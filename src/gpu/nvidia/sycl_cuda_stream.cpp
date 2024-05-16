@@ -17,8 +17,8 @@
 
 #include "common/verbose.hpp"
 
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 
@@ -29,7 +29,7 @@ namespace nvidia {
 
 cublasHandle_t &sycl_cuda_stream_t::get_cublas_handle(CUstream cuda_stream) {
     if (!cuda_stream) cuda_stream = get_underlying_stream();
-    auto e = utils::downcast<sycl_cuda_engine_t *>(engine());
+    auto e = utils::downcast<nvidia::engine_t *>(engine());
     assert(e->context() == queue().get_context());
     e->activate_stream_cublas(cuda_stream);
     return *(e->get_cublas_handle());
@@ -37,7 +37,7 @@ cublasHandle_t &sycl_cuda_stream_t::get_cublas_handle(CUstream cuda_stream) {
 
 cudnnHandle_t &sycl_cuda_stream_t::get_cudnn_handle(CUstream cuda_stream) {
     if (!cuda_stream) cuda_stream = get_underlying_stream();
-    auto e = utils::downcast<sycl_cuda_engine_t *>(engine());
+    auto e = utils::downcast<nvidia::engine_t *>(engine());
     assert(e->context() == queue().get_context());
     e->activate_stream_cudnn(cuda_stream);
     return *(e->get_cudnn_handle());
@@ -67,7 +67,7 @@ status_t sycl_cuda_stream_t::init() {
             VERBOSE_PROFILING_UNSUPPORTED);
 
     // If queue_ is not set then construct it
-    auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine());
+    auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine());
     auto status = status::success;
 
     if (!queue_) {

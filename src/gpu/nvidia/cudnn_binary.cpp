@@ -50,7 +50,7 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
         compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();

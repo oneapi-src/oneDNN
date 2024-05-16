@@ -35,20 +35,12 @@
 #include "sycl/sycl_cpu_engine.hpp"
 #endif
 
+#ifdef DNNL_SYCL_CUDA
+#include "gpu/nvidia/engine.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
-
-#ifdef DNNL_SYCL_CUDA
-// XXX: forward declarations to avoid cuda dependencies on sycl level.
-namespace gpu {
-namespace nvidia {
-
-status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
-        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index);
-
-} // namespace nvidia
-} // namespace gpu
-#endif
 
 #ifdef DNNL_SYCL_HIP
 // XXX: forward declarations to avoid cuda dependencies on sycl level.

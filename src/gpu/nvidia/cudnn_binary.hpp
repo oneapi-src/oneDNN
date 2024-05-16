@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "gpu/nvidia/cudnn_binary_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -100,8 +100,7 @@ struct cudnn_binary_t : public primitive_t {
             dnnl_data_type_t output_type = dst_md()->data_type;
 
             auto sycl_dev
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine)
-                              ->device();
+                    = utils::downcast<nvidia::engine_t *>(engine)->device();
 
             if (!IMPLICATION(utils::one_of(bf16, input_type, output_type),
                         has_bf16_support(sycl_dev)))

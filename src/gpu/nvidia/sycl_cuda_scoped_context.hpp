@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@
 #include <memory>
 #include <thread>
 
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -38,7 +38,7 @@ class cuda_sycl_scoped_context_handler_t {
     bool need_to_recover_;
 
 public:
-    cuda_sycl_scoped_context_handler_t(const sycl_cuda_engine_t &);
+    cuda_sycl_scoped_context_handler_t(const nvidia::engine_t &);
     // Destruct the scope p_context placed_context_.
     ~cuda_sycl_scoped_context_handler_t() noexcept(false);
 

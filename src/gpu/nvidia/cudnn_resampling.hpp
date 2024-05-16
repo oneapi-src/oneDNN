@@ -24,7 +24,7 @@
 #include "common/primitive.hpp"
 #include "common/resampling_pd.hpp"
 #include "common/type_helpers.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
@@ -90,7 +90,7 @@ protected:
         std::vector<theta_t<data_t>> theta_data(theta_size, tau_theta);
 
         auto grid_size = pd->MB() * pd->OH() * pd->OW() * 2;
-        auto sycl_engine = utils::downcast<sycl_cuda_engine_t *>(engine);
+        auto sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
         auto theta_size_in_byte = tau_thea_size * theta_size * sizeof(data_t);
         auto grid_size_in_byte = grid_size * sizeof(data_t);
@@ -126,7 +126,7 @@ protected:
             compat::host_task(cgh, [=](const compat::interop_handle &ih) {
                 // scoped context will make sure the top of the stack context is
                 // the engine context while creating the cublas handle.
-                auto &s_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
+                auto &s_engine = *utils::downcast<nvidia::engine_t *>(engine);
                 cuda_sycl_scoped_context_handler_t sc(s_engine);
                 auto handle = cuda_stream->get_cudnn_handle();
                 auto theta = sc.memory<void *>(ih, theta_acc);

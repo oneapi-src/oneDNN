@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@
 
 #include "cudnn.h"
 
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
@@ -149,7 +149,7 @@ struct cudnn_reduction_impl_t : public cudnn_reduction_impl_base_t {
 
     void create_and_set_workspace(
             reduction_pd_t *pd, impl::engine_t *engine) override {
-        auto sycl_engine = utils::downcast<sycl_cuda_engine_t *>(engine);
+        auto sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
         stream_t *service_stream;
         sycl_engine->get_service_stream(service_stream);

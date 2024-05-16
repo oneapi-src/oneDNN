@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@
 
 #include "common/type_helpers.hpp"
 #include "gpu/nvidia/cudnn_inner_product_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
@@ -433,7 +433,7 @@ struct cudnn_gemm_inner_product_bwd_weights_impl_t
                     strides_[io::bia]));
             CHECK(create_and_set_reduce_descriptor());
 
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
             stream_t *service_stream;
             CHECK(sycl_engine.get_service_stream(service_stream));
 
