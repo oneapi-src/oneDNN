@@ -764,7 +764,7 @@ status_t brgemm_convolution_fwd_t<isa>::add_po_kernel(
     bcfg->beta = is_init ? 0 : 1;
     // See the comment in `add_po_kernels` why `*_pd->attr()` is needed so far.
     CHECK(safe_ptr_assign(kernels_po_[ker_idx],
-            new jit_brgemm_kernel_post_ops<isa>(*bcfg, *_pd->attr())));
+            new jit_brgemm_kernel_post_ops_t<isa>(*bcfg, *_pd->attr())));
     kernels_po_[ker_idx]->create_kernel();
     return status::success;
 }
@@ -1625,7 +1625,7 @@ void brgemm_convolution_fwd_t<isa>::perform_outwork(
     const auto ow_f = (kdh_l <= 0) ? ow : ker_ow_f;
     assert(ow <= ow_s && ow_s <= ow_f && ow_f <= ow + M);
 
-    brgemm_kernel_post_ops_t p;
+    brgemm_kernel_post_ops_args_t p;
     if (do_postwork) {
         p.ptr_bias = (void *)(bias_w);
         p.ptr_scales = (void *)(&btc.oscales[jcp.is_oc_scale * g_oc]);

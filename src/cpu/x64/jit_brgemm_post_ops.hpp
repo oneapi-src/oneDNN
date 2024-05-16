@@ -344,9 +344,9 @@ private:
 
 #undef GET_OFF
 
-#define GET_OFF(field) offsetof(brgemm_kernel_post_ops_t, field)
+#define GET_OFF(field) offsetof(brgemm_kernel_post_ops_args_t, field)
 
-struct brgemm_kernel_post_ops_t {
+struct brgemm_kernel_post_ops_args_t {
     void *ptr_in;
     void *ptr_out;
     void *ptr_bias;
@@ -362,13 +362,13 @@ struct brgemm_kernel_post_ops_t {
 };
 
 template <cpu_isa_t isa>
-struct jit_brgemm_kernel_post_ops : public jit_generator {
+struct jit_brgemm_kernel_post_ops_t : public jit_generator {
 
     // TODO: the proper design should replace `brgemm_desc_t` argument and
     // introduce a dedicated struct with members properly initialized. This will
     // let avoiding a `brgemm_desc_t` object copy which is unsafe due to `attr`
     // member.
-    jit_brgemm_kernel_post_ops(
+    jit_brgemm_kernel_post_ops_t(
             const brgemm_desc_t &abrg, const primitive_attr_t &aattr)
         : jit_generator(jit_name(), abrg.isa_impl)
         , brg_(abrg)
@@ -461,9 +461,9 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
         bia_typesize_ = brg_.typesize_bias;
     }
 
-    ~jit_brgemm_kernel_post_ops() = default;
+    ~jit_brgemm_kernel_post_ops_t() = default;
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_post_ops)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_post_ops_t)
 
     // Used for assertion on implementation side in debug mode.
     int get_bcast_dim() const { return brg_.bcast_dim; }

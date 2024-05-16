@@ -300,7 +300,7 @@ status_t brgemm_convolution_bwd_strided_t<isa>::add_po_kernel(
             = (!is_init && IMPLICATION(jcp.with_sum, jcp.use_buffer)) ? 1 : 0;
     bcfg->beta = is_init ? 0 : 1;
     CHECK(safe_ptr_assign(kernels_po_[ker_idx],
-            new jit_brgemm_kernel_post_ops<isa>(*bcfg, *_pd->attr())));
+            new jit_brgemm_kernel_post_ops_t<isa>(*bcfg, *_pd->attr())));
     kernels_po_[ker_idx]->create_kernel();
     return status::success;
 }
@@ -970,7 +970,7 @@ void brgemm_convolution_bwd_strided_t<isa>::perform_outwork(char *dst_base,
     auto iw_f = (kdh_l <= 0) ? iw : ker_iw_f;
     assert(iw <= iw_s && iw_s <= iw_f && iw_f <= iw + M);
 
-    brgemm_kernel_post_ops_t p;
+    brgemm_kernel_post_ops_args_t p;
     if (do_postwork) {
         p.ptr_bias = (void *)(bias_w);
         p.ptr_scales = (void *)(&oscales[jcp.is_ic_scale * g_ic]);
