@@ -29,6 +29,7 @@
 #include "common/utils.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
+#include "xpu/sycl/utils.hpp"
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #include "sycl/sycl_cpu_engine.hpp"
@@ -42,8 +43,6 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-bool is_nvidia_gpu(const ::sycl::device &dev);
-
 status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index);
 
@@ -55,8 +54,6 @@ status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
 // XXX: forward declarations to avoid cuda dependencies on sycl level.
 namespace gpu {
 namespace amd {
-
-bool is_amd_gpu(const ::sycl::device &dev);
 
 status_t hip_engine_create(engine_t **engine, engine_kind_t engine_kind,
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index);

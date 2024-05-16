@@ -30,13 +30,6 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-bool is_nvidia_gpu(const ::sycl::device &dev) {
-    constexpr int nvidia_vendor_id = 0x10DE;
-    return dev.is_gpu()
-            && dev.get_info<::sycl::info::device::vendor_id>()
-            == nvidia_vendor_id;
-}
-
 status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index) {
     CHECK(nvidia::check_device(engine_kind));
@@ -60,7 +53,7 @@ sycl_cuda_engine_t::sycl_cuda_engine_t(engine_kind_t kind,
 sycl_cuda_engine_t::sycl_cuda_engine_t(
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
     : sycl_cuda_engine_t(engine_kind::gpu, dev, ctx, index) {
-    assert(is_nvidia_gpu(dev));
+    assert(xpu::sycl::is_nvidia_gpu(dev));
 }
 
 status_t sycl_cuda_engine_t::set_cublas_handle() {

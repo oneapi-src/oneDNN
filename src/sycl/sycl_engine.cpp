@@ -65,7 +65,7 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
             status::invalid_arguments, VERBOSE_DEVICE_CTX_MISMATCH);
 
 #ifdef DNNL_SYCL_CUDA
-    if (gpu::nvidia::is_nvidia_gpu(dev))
+    if (xpu::sycl::is_nvidia_gpu(dev))
         return gpu::nvidia::cuda_engine_create(
                 engine, engine_kind_, dev, ctx, index);
 #endif

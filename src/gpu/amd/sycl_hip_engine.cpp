@@ -32,12 +32,6 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
-bool is_amd_gpu(const ::sycl::device &dev) {
-    constexpr int amd_vendor_id = 0x1002;
-    return dev.is_gpu()
-            && dev.get_info<::sycl::info::device::vendor_id>() == amd_vendor_id;
-}
-
 status_t hip_engine_create(engine_t **engine, engine_kind_t engine_kind,
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index) {
     CHECK(amd::check_device(engine_kind));
@@ -61,7 +55,7 @@ sycl_hip_engine_t::sycl_hip_engine_t(engine_kind_t kind,
 sycl_hip_engine_t::sycl_hip_engine_t(
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
     : sycl_hip_engine_t(engine_kind::gpu, dev, ctx, index) {
-    assert(is_amd_gpu(dev));
+    assert(xpu::sycl::is_amd_gpu(dev));
 }
 
 status_t sycl_hip_engine_t::set_rocblas_handle() {

@@ -74,6 +74,9 @@ bool dev_ctx_consistency_check(
 bool is_intel_device(const ::sycl::device &dev);
 bool is_intel_platform(const ::sycl::platform &plat);
 
+bool is_nvidia_gpu(const ::sycl::device &dev);
+bool is_amd_gpu(const ::sycl::device &dev);
+
 bool is_subdevice(const ::sycl::device &dev);
 
 ::sycl::device get_root_device(const ::sycl::device &dev);

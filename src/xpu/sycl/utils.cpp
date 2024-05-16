@@ -268,10 +268,23 @@ status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
     return status::success;
 }
 
+static bool is_vendor_device(const ::sycl::device &dev, int vendor_id) {
+    return dev.get_info<::sycl::info::device::vendor_id>() == vendor_id;
+}
+
 bool is_intel_device(const ::sycl::device &dev) {
     const int intel_vendor_id = 0x8086;
-    auto vendor_id = dev.get_info<::sycl::info::device::vendor_id>();
-    return vendor_id == intel_vendor_id;
+    return is_vendor_device(dev, intel_vendor_id);
+}
+
+bool is_nvidia_gpu(const ::sycl::device &dev) {
+    const int nvidia_vendor_id = 0x10DE;
+    return dev.is_gpu() && is_vendor_device(dev, nvidia_vendor_id);
+}
+
+bool is_amd_gpu(const ::sycl::device &dev) {
+    const int amd_vendor_id = 0x1002;
+    return dev.is_gpu() && is_vendor_device(dev, amd_vendor_id);
 }
 
 std::vector<::sycl::device> get_devices(
