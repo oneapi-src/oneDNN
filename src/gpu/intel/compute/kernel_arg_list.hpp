@@ -48,6 +48,7 @@ enum class scalar_type_t {
     _bfloat8,
     _bfloat16,
     _float,
+    _double,
     _half,
     _int,
     _int4,
@@ -78,6 +79,7 @@ inline std::string to_string(scalar_type_t type) {
         CASE(_bfloat8);
         CASE(_bfloat16);
         CASE(_float);
+        CASE(_double);
         CASE(_half);
         CASE(_int);
         CASE(_int4);
@@ -114,6 +116,10 @@ struct scalar_type_traits<bfloat16_t> {
 template <>
 struct scalar_type_traits<float> {
     static const auto type = scalar_type_t::_float;
+};
+template <>
+struct scalar_type_traits<double> {
+    static const auto type = scalar_type_t::_double;
 };
 
 template <>
@@ -313,6 +319,7 @@ void set_scalar_arg_cvt(kernel_arg_list_t &arg_list, int index, T scalar,
         case scalar_type_t::_half:
             arg_list.set(index, (float16_t)scalar);
             break;
+        case scalar_type_t::_double: arg_list.set(index, (double)scalar); break;
         case scalar_type_t::_uchar: arg_list.set(index, (uint8_t)scalar); break;
         case scalar_type_t::_char: arg_list.set(index, (int8_t)scalar); break;
         default: assert(!"Cannot convert scalar to the requested type.");

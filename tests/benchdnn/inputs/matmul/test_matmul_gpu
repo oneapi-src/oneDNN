@@ -1,6 +1,6 @@
 --reset
 
---dt=f32,f16,bf16:bf16:f32,u8:s8:s8
+--dt=f64,f32,f16,bf16:bf16:f32,u8:s8:s8
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,0:2,2:3,1:0,3:1,1:2,3:3
 --bia_dt=undef,f32
@@ -24,7 +24,7 @@
 
 # test any
 --reset
---dt=f32,f16,f16:f16:s8,f16:f16:u8,bf16,s8:s8:f32,s8:s8:f16
+--dt=f64,f32,f16,f16:f16:s8,f16:f16:u8,bf16,s8:s8:f32,s8:s8:f16
 --bia_dt=undef
 --stag=ab,ba,any --wtag=ab,ba,any --dtag=ab,any
 1x30:30x20
@@ -51,7 +51,7 @@
 
 # 3d
 --reset
---dt=f32,f16,f16:f16:s8,f16:f16:u8,bf16,bf16:bf16:f32
+--dt=f64,f32,f16,f16:f16:s8,f16:f16:u8,bf16,bf16:bf16:f32
 --stag=abc,acb --wtag=abc,acb --dtag=abc
 --runtime_dims_masks=0,4:2,0:4,4:6,2:0,6:2,2:4,6:6,1:1,5:3,1:5,5:7,3:1,7:3,3:5,7:7
 --bia_dt=undef,f32
@@ -64,7 +64,7 @@
 --batch=harness_matmul_regression_f32
 
 --reset
---dt=f32
+--dt=f64,f32
 --stag=ab --wtag=ab --dtag=ab
 96x8:8x512
 
