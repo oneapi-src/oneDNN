@@ -16,6 +16,7 @@
 
 #include "graph/backend/dnnl/platform.hpp"
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 #if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
 #elif DNNL_AARCH64
@@ -24,6 +25,7 @@
 #include "arm_compute/core/CPP/CPPTypes.h"
 // For setting the number of threads for ACL
 #include "src/common/cpuinfo/CpuInfo.h"
+#endif
 #endif
 #endif
 
