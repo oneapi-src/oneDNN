@@ -179,7 +179,11 @@ gc::sc_op_ptr compiler_graph_impl_t::make_backend_op(const op_t *aop,
             std::vector<float> scales
                     = attrs[graph::op_attr::scales].get<std::vector<float>>();
             std::vector<int64_t> zps_int64
-                    = attrs[graph::op_attr::zps].get<std::vector<int64_t>>();
+                    = std::vector<int64_t>(scales.size(), 0);
+            if (attrs.find(graph::op_attr::zps) != attrs.end()) {
+                zps_int64 = attrs[graph::op_attr::zps]
+                                    .get<std::vector<int64_t>>();
+            }
             std::vector<int> zps(zps_int64.begin(), zps_int64.end());
             backend_attrs.set("scales", scales);
             backend_attrs.set("zero_points", zps);
