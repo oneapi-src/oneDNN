@@ -106,10 +106,10 @@ combined_reduce(
         __global SRC_DATA_T *src, __global DST_DATA_T *dst POST_OP_ARGS) {
     // Compute constants deriving from defined constants
     const int sg_per_inner_dim = div_up(INNER_DIM_SIZE, SUBGROUP_SIZE);
-    const int inner_dims_per_sg
+    const int red_per_sg
             = min(REDUCTION_SIZE, max(1, SUBGROUP_SIZE / INNER_DIM_SIZE));
-    const int num_horiz_reductions = REDUCTION_SIZE / inner_dims_per_sg;
-    const int tail_reductions = REDUCTION_SIZE % inner_dims_per_sg;
+    const int num_horiz_reductions = REDUCTION_SIZE / red_per_sg;
+    const int tail_reductions = REDUCTION_SIZE % red_per_sg;
 
     // Direct indices from gws
     const int sgid = get_global_id(0) / SUBGROUP_SIZE;
@@ -120,48 +120,51 @@ combined_reduce(
     const int inner_idx = inner_idx_start + (sglid % INNER_DIM_SIZE);
     const int red_off = sglid / INNER_DIM_SIZE;
 
-    // Case happens when inner_dim_size is not a multiple/factor of subgroup size
-    if (inner_idx >= INNER_DIM_SIZE
-            || sglid >= INNER_DIM_SIZE * inner_dims_per_sg)
-        return;
+    const int active_channels = min(SUBGROUP_SIZE, red_per_sg * INNER_DIM_SIZE);
+    ASSUME(active_channels == SUBGROUP_SIZE || !WITH_BLOCK_READ);
 
-    const int loop_stride = _SRC_OFF(0, inner_dims_per_sg, 0);
-
+    const int loop_stride = _SRC_OFF(0, red_per_sg, 0);
     unroll_for(int oid = 0; oid < OUTER_TILE_SIZE; oid++) {
         const int outer_idx = sgid / sg_per_inner_dim * OUTER_TILE_SIZE + oid;
         DEF_ACC_DATA_T acc;
         init_acc(REDUCTION_ALG, &acc);
 
-        int src_off = _SRC_OFF(outer_idx, WITH_BLOCK_READ ? 0 : red_off,
-                WITH_BLOCK_READ ? inner_idx_start : inner_idx);
-        __attribute__((opencl_unroll_hint(UNROLL_FACTOR))) // attr:no-format
-        for (int off = 0; off < num_horiz_reductions;
-                off++, src_off += loop_stride) {
-            // Load
-            const DATA_T src_val = READ_DATA(src[src_off]);
+        if (sglid < active_channels) {
+            int src_off = _SRC_OFF(outer_idx, 0, inner_idx_start);
+            if (!WITH_BLOCK_READ) src_off += sglid;
+            __attribute__((opencl_unroll_hint(UNROLL_FACTOR))) // attr:no-format
+            for (int off = 0; off < num_horiz_reductions;
+                    off++, src_off += loop_stride) {
+                // Load
+                const DATA_T src_val = READ_DATA(src[src_off]);
 
-            // Accumulate
-            acc = reduce(REDUCTION_ALG, acc, TO_DEF_ACC_DATA_T(src_val), POWER);
-        }
-        if (red_off < tail_reductions) {
-            // Load
-            const DATA_T src_val = READ_DATA(src[src_off]);
+                // Accumulate
+                acc = reduce(
+                        REDUCTION_ALG, acc, TO_DEF_ACC_DATA_T(src_val), POWER);
+            }
+            if (red_off < tail_reductions) {
+                // Load
+                const DATA_T src_val = READ_DATA(src[src_off]);
 
-            // Accumulate
-            acc = reduce(REDUCTION_ALG, acc, TO_DEF_ACC_DATA_T(src_val), POWER);
-        }
-
-        // Potentially accumulate within the subgroup too
-        // TODO: Change to tree-based reduce to help large inner_dims_per_sg cases
-        DEF_ACC_DATA_T acc_sg;
-        init_acc(SECONDARY_REDUCTION_ALG, &acc_sg);
-        unroll_for(int i = 0; i < inner_dims_per_sg; i++) {
-            DEF_ACC_DATA_T next = intel_sub_group_shuffle_down(
-                    acc, SPECIAL(DEF_ACC_DATA_T, zero), i * INNER_DIM_SIZE);
-            acc_sg = reduce(SECONDARY_REDUCTION_ALG, acc_sg, next, POWER);
+                // Accumulate
+                acc = reduce(
+                        REDUCTION_ALG, acc, TO_DEF_ACC_DATA_T(src_val), POWER);
+            }
         }
 
-        if (sglid < INNER_DIM_SIZE) {
+        // Reduce between work items within a thread
+        DEF_ACC_DATA_T init;
+        init_acc(SECONDARY_REDUCTION_ALG, &init);
+        unroll_for(int shift = INNER_DIM_SIZE; shift < active_channels;
+                   shift *= 2) {
+            DEF_ACC_DATA_T next
+                    = intel_sub_group_shuffle_down(acc, init, shift);
+            acc = reduce(SECONDARY_REDUCTION_ALG, acc, next, POWER);
+            DEBUG_PRINT("%d->%d/%d: sg reduce from sglid %d\n",
+                    get_global_id(0), sgid, sglid, sglid + shift);
+        }
+
+        if (red_off == 0 && inner_idx < INNER_DIM_SIZE) {
             // For each result:
             // 1. (if IS_FINAL) finalize the result
             // 2. (if IS_FINAL) apply post-ops
@@ -170,7 +173,7 @@ combined_reduce(
             // finalize the result
 #if IS_FINAL
             float res = finalize(
-                    REDUCTION_ALG, convert_float(acc_sg), DIV, POWER, EPS);
+                    REDUCTION_ALG, convert_float(acc), DIV, POWER, EPS);
 
             // Apply post-ops
 #if WITH_POST_OP
@@ -209,7 +212,7 @@ combined_reduce(
             }
 #endif // WITH_POST_OP
 #else
-            float res = acc_sg;
+            float res = acc;
 #endif // IS_FINAL
 
             // Write to dst
