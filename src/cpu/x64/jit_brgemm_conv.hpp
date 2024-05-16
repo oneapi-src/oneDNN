@@ -247,7 +247,7 @@ private:
     brgemm_containers::brgemm_kernel_container_t brgemm_kernels_;
     brgemm_containers::brgemm_palette_container_t brgemm_palettes_;
 
-    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops_t<isa>>> kernels_po_;
+    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops_base_t>> kernels_po_;
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_trans_kernel_t>
             copy_to_pbuffer_;
