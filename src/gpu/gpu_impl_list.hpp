@@ -20,8 +20,6 @@
 #include <map>
 #include <vector>
 
-#include "oneapi/dnnl/dnnl.h"
-
 #include "common/engine.hpp"
 #include "common/impl_list_item.hpp"
 #include "common/impl_registration.hpp"
