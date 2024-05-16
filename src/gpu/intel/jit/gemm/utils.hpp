@@ -17,6 +17,8 @@
 #ifndef GPU_INTEL_JIT_GEMM_UTILS_HPP
 #define GPU_INTEL_JIT_GEMM_UTILS_HPP
 
+#include <stdexcept>
+
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
 
@@ -68,6 +70,16 @@ static inline T lcm(T x, T y) {
 
 static inline int largest_pow2_divisor(int x) {
     return x & ~(x - 1);
+}
+
+class stub_exception : public std::runtime_error {
+public:
+    stub_exception()
+        : std::runtime_error("Functionality not yet implemented") {}
+};
+
+[[noreturn]] static inline void stub() {
+    throw stub_exception();
 }
 
 } // namespace jit
