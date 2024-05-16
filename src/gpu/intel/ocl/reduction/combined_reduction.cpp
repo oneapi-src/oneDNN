@@ -447,13 +447,11 @@ status_t combined_reduction_t::pd_t::init_kernel_ctx(
     // Set post-op macros
     CHECK(def_attr_info(
             kernel_ctx, conf.attr_info, attr()->post_ops_, *dst_md()));
-    if (attr()->post_ops_.len() > 0) {
-        if (phase.is_final) {
-            // Can only do this for the final phase, since it overwrites def_data_type for DST
-            def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
-        }
-        def_offsets(conf.off.dst_off, kernel_ctx, "DST", conf.ndims);
+    if (attr()->post_ops_.len() > 0 && phase.is_final) {
+        // Can only do this for the final phase, since it overwrites def_data_type for DST
+        def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
     }
+    def_offsets(conf.off.dst_off, kernel_ctx, "DST", conf.ndims);
 
     return status;
 }

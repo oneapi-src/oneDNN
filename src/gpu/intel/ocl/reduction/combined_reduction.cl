@@ -97,6 +97,47 @@ dim_t dst_off_w_zero_padding(dim_t outer, dim_t inner) {
             *DST_Z1_SIZE1
 #endif
 
+void reverse_indexing(dim_t dst_off, int *res) {
+    // Reconstruct dimension indices from dst_off
+    res[0] = (DST_S0 == 0) ? 0
+                           : dst_off / DST_S0 % div_up(DST_D0, DST_B0) * DST_B0
+                    + dst_off / DST_SB0 % DST_B0;
+    res[1] = (DST_S1 == 0) ? 0
+                           : dst_off / DST_S1 % div_up(DST_D1, DST_B1) * DST_B1
+                    + dst_off / DST_SB1 % DST_B1;
+    res[2] = (DST_S2 == 0) ? 0
+                           : dst_off / DST_S2 % div_up(DST_D2, DST_B2) * DST_B2
+                    + dst_off / DST_SB2 % DST_B2;
+    res[3] = (DST_S3 == 0) ? 0
+                           : dst_off / DST_S3 % div_up(DST_D3, DST_B3) * DST_B3
+                    + dst_off / DST_SB3 % DST_B3;
+    res[4] = (DST_S4 == 0) ? 0
+                           : dst_off / DST_S4 % div_up(DST_D4, DST_B4) * DST_B4
+                    + dst_off / DST_SB4 % DST_B4;
+    res[5] = (DST_S5 == 0) ? 0
+                           : dst_off / DST_S5 % div_up(DST_D5, DST_B5) * DST_B5
+                    + dst_off / DST_SB5 % DST_B5;
+}
+
+void write_padded_zeros(__global DST_DATA_T *dst) {
+#if DST_Z0_IS_REDUCED && DST_Z1_IS_REDUCED
+    for (int i = 0; i < DST_Z0_SIZE0; i++) {
+        for (int j = 0; j < DST_Z1_SIZE0; j++) {
+            if (i == 0 && j == 0) continue;
+            *(dst + i * DST_Z0_STRIDE0 + j * DST_Z1_STRIDE0) = TO_DST(0.0f);
+        }
+    }
+#elif DST_Z0_IS_REDUCED
+    for (int i = 1; i < DST_Z0_SIZE0; i++) {
+        *(dst + i * DST_Z0_STRIDE0) = TO_DST(0.0f);
+    }
+#elif DST_Z1_IS_REDUCED
+    for (int j = 1; j < DST_Z1_SIZE0; j++) {
+        *(dst + j * DST_Z1_STRIDE0) = TO_DST(0.0f);
+    }
+#endif
+}
+
 // Specifying wg size since larger work groups reduce performance.
 // TODO: Look into why this is the case
 __attribute__((reqd_work_group_size(LWS_SIZE, 1, 1))) // attr:no-format
@@ -165,78 +206,34 @@ combined_reduce(
         }
 
         if (red_off == 0 && inner_idx < INNER_DIM_SIZE) {
-            // For each result:
-            // 1. (if IS_FINAL) finalize the result
-            // 2. (if IS_FINAL) apply post-ops
-            // 3. write to dst
             const dim_t dst_off = _DST_OFF(outer_idx, inner_idx);
-            // finalize the result
-#if IS_FINAL
-            float res = finalize(
-                    REDUCTION_ALG, convert_float(acc), DIV, POWER, EPS);
-
-            // Apply post-ops
-#if WITH_POST_OP
-            float dst_val;
-#if WITH_SUM
-            dst_val = DST_TO_REF(dst[dst_off]);
-#endif // WITH_SUM
-
-            // Reconstruct MB/C/D/H/W indices from dst_off
-            const int mb = (DST_S0 == 0)
-                    ? 0
-                    : dst_off / DST_S0 % div_up(DST_D0, DST_B0) * DST_B0
-                            + dst_off / DST_SB0 % DST_B0;
-            const int c = (DST_S1 == 0)
-                    ? 0
-                    : dst_off / DST_S1 % div_up(DST_D1, DST_B1) * DST_B1
-                            + dst_off / DST_SB1 % DST_B1;
-            const int d = (DST_S2 == 0)
-                    ? 0
-                    : dst_off / DST_S2 % div_up(DST_D2, DST_B2) * DST_B2
-                            + dst_off / DST_SB2 % DST_B2;
-            const int h = (DST_S3 == 0)
-                    ? 0
-                    : dst_off / DST_S3 % div_up(DST_D3, DST_B3) * DST_B3
-                            + dst_off / DST_SB3 % DST_B3;
-            const int w = (DST_S4 == 0)
-                    ? 0
-                    : dst_off / DST_S4 % div_up(DST_D4, DST_B4) * DST_B4
-                            + dst_off / DST_SB4 % DST_B4;
-
-            // Only use post-ops on non-zero-padded elements
-            if (mb < DST_D0 && c < DST_D1 && d < DST_D2 && h < DST_D3
-                    && w < DST_D4) {
-                APPLY_POST_OPS_SERIAL(res, float, dst_val, float, mb, 1, c, 1,
-                        d, 1, h, 1, w, 1, 0, 1);
-            }
-#endif // WITH_POST_OP
-#else
             float res = acc;
-#endif // IS_FINAL
+            if (IS_FINAL) {
+                res = finalize(
+                        REDUCTION_ALG, convert_float(acc), DIV, POWER, EPS);
+#if WITH_POST_OP
+                float dst_val;
+#if WITH_SUM
+                dst_val = DST_TO_REF(dst[dst_off]);
+#endif // WITH_SUM
+                int idxs[6];
+                reverse_indexing(dst_off, idxs);
+
+                // Only use post-ops on non-zero-padded elements
+                if (idxs[0] < DST_D0 && idxs[1] < DST_D1 && idxs[2] < DST_D2
+                        && idxs[3] < DST_D3 && idxs[4] < DST_D4
+                        && idxs[5] < DST_D5) {
+                    APPLY_POST_OPS_SERIAL(res, float, dst_val, float, idxs[0],
+                            1, idxs[1], 1, idxs[2], 1, idxs[3], 1, idxs[4], 1,
+                            idxs[5], 1);
+                }
+#endif // WITH_POST_OP
+            }
 
             // Write to dst
             if (is_dst_zero_padded(dst_off)) res = 0.0f;
             dst[dst_off] = IS_FINAL ? TO_DST(res) : res;
-
-            // Reduced + zero-padded dims need extra zeros written
-#if DST_Z0_IS_REDUCED && DST_Z1_IS_REDUCED
-            for (int i = 0; i < DST_Z0_SIZE0; i++) {
-                for (int j = 0; j < DST_Z1_SIZE0; j++) {
-                    if (i == 0 && j == 0) continue;
-                    dst[dst_off + i * DST_Z0_STRIDE0 + j * DST_Z1_STRIDE0]
-                            = TO_DST(0.0f);
-                }
-            }
-#elif DST_Z0_IS_REDUCED
-            for (int i = 1; i < DST_Z0_SIZE0; i++) {
-                dst[dst_off + i * DST_Z0_STRIDE0] = TO_DST(0.0f);
-            }
-#elif DST_Z1_IS_REDUCED
-            for (int j = 1; j < DST_Z1_SIZE0; j++) {
-                dst[dst_off + j * DST_Z1_STRIDE0] = TO_DST(0.0f);
-            }
-#endif
+            write_padded_zeros(dst + dst_off);
         }
     }
 }
