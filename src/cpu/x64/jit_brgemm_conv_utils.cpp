@@ -2235,6 +2235,14 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             VERBOSE_IMPL_HEURISTIC_FAIL,
             "Dispatch the shape that requires large/small cache size to jit");
 
+    // Dispatch the shape to VNNI for better performance on AMX
+    const bool is_int8_small_ic = jcp.oc == 32 && jcp.ic < jcp.simd_w / 2
+            && is_int8_convolution && is_amx(jcp.isa)
+            && everyone_is(640, jcp.oh, jcp.ow, jcp.ih, jcp.iw)
+            && everyone_is(3, jcp.kh, jcp.kw);
+    VDISPATCH_CONV_IC(!is_int8_small_ic, VERBOSE_IMPL_HEURISTIC_FAIL,
+            "Dispatch the shape that has small ic/oc to VNNI");
+
     // to avoid cache concurrent write access from different threads
     size_t sc_size = sizeof(brgemm_batch_element_t);
     jcp.adjusted_batch_size
