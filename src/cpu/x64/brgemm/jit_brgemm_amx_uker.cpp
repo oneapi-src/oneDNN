@@ -62,6 +62,7 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
                             broadcasting_strategy_t::per_mb_spatial,
                             broadcasting_strategy_t::per_mb_w,
                             broadcasting_strategy_t::per_w,
+                            broadcasting_strategy_t::batch,
                             broadcasting_strategy_t::spatial,
                             broadcasting_strategy_t::no_broadcast};
             const binary_injector::rhs_arg_static_params_t rhs_sp {
