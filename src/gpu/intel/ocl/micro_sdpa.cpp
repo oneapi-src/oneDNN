@@ -190,6 +190,9 @@ status_t micro_sdpa_t::init(engine_t *engine) {
     kernel_ctx.define_int("V_ALIGN", jit::alignmentForLD(int(ldv)));
     kernel_ctx.define_int("A_ALIGN", jit::alignmentForLD(int(lda)));
 
+    kernel_ctx.define_int("TRANSPOSE_K",
+            gemm_desc_t::get_trans(*pd()->key_md()) == dnnl_trans);
+
     def_data_type(kernel_ctx, d->scale_dt, "SCALE");
     kernel_ctx.define_int("INVERT_SCALE", d->invert_scale);
 

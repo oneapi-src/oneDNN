@@ -72,14 +72,13 @@ struct micro_sdpa_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t set_default_format(memory_desc_t &md, bool transposed) {
+        status_t set_default_format(memory_desc_t &md, bool allow_transpose) {
             using namespace format_tag;
             memory_desc_wrapper mdw(md);
-            auto exp_trans = transposed ? dnnl_trans : dnnl_notrans;
-            if (mdw.format_any())
+            if (mdw.format_any()) return status::unimplemented;
+            if (!is_md_gemm_compatible_plain_format(&md))
                 return status::unimplemented;
-            else if (!is_md_gemm_compatible_plain_format(&md)
-                    || gemm_desc_t::get_trans(md) != exp_trans)
+            if (gemm_desc_t::get_trans(md) == dnnl_trans && !allow_transpose)
                 return status::unimplemented;
             return status::success;
         }

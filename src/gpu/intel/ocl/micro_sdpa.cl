@@ -122,7 +122,7 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
     uint wg_j0 = get_group_id(0) * ugemm_kq_wg_tile_n;
 
     /* Leading dimension for matrices */
-    uint ldk = KEY_S3;
+    uint ldk = TRANSPOSE_K ? KEY_S3 : KEY_S2;
     uint ldq = QRY_S2;
     uint ldv = VAL_S2;
     uint lda = DST_S2;
