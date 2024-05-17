@@ -29,10 +29,8 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = {
-        INSTANCE(intel::ocl::micro_sdpa_t)
-#ifdef DNNL_DEV_MODE
-        INSTANCE(intel::ocl::ref_sdpa_t)
-#endif
+        GPU_INSTANCE_INTEL(intel::ocl::micro_sdpa_t)
+        GPU_INSTANCE_INTEL_DEVMODE(intel::ocl::ref_sdpa_t)
         nullptr,
 };
 // clang-format on
