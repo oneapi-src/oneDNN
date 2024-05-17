@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/aarch64/acl_convolution_utils.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/utils.hpp"
 #include "oneapi/dnnl/dnnl.h"
 
@@ -62,9 +63,10 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
                               everyone_is(data_type::f32, src_d.data_type(),
                                       wei_d.data_type(), dst_d.data_type()),
                               everyone_is(data_type::f16, src_d.data_type(),
+                                      wei_d.data_type(), dst_d.data_type()),
+                              everyone_is(data_type::bf16, src_d.data_type(),
                                       wei_d.data_type(), dst_d.data_type())),
-            " src, dst and wei must be fp16 or fp32");
-
+            " src, dst and wei must be fp16, bf16 or fp32");
     // batch size
     const int mb = src_d.dims()[0];
 
