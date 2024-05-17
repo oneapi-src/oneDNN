@@ -63,7 +63,8 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
         const primitive_attr_t &attr);
 
 status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
-        acl_matmul_conf_t &amp, memory_desc_t &dst_md);
+        const acl_matmul_conf_t &amp, const memory_desc_t &src_md,
+        const memory_desc_t &weights_md, const memory_desc_t &dst_md);
 
 } // namespace acl_matmul_utils
 
