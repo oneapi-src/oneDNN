@@ -43,11 +43,11 @@ using namespace dnnl::ukernel;
 using tag = memory::format_tag;
 using dt = memory::data_type;
 
-void brgemm_example(dnnl::engine::kind engine_kind) {
+void brgemm_example() {
 
     // Create execution dnnl::engine. Needed for reorders to operate over input
     // data.
-    dnnl::engine engine(engine_kind, 0);
+    dnnl::engine engine(engine::kind::cpu, 0);
 
     // Create dnnl::stream. Needed for reorders for the same reason.
     dnnl::stream engine_stream(engine);
@@ -177,16 +177,34 @@ void brgemm_example(dnnl::engine::kind engine_kind) {
     // zeroing the correspondent piece of accumulation buffer.
     brgemm brg, brg_po;
     if (batch_size > 0) {
-        brg = brgemm(M, N, K_k, batch_size, lda, ldb, ldc, a_dt, b_dt, c_dt,
-                /* alpha = */ 1.f, /* beta = */ 1.f);
-        // Generate the executable JIT code for the objects.
-        brg.generate();
+        try {
+            brg = brgemm(M, N, K_k, batch_size, lda, ldb, ldc, a_dt, b_dt, c_dt,
+                    /* alpha = */ 1.f, /* beta = */ 1.f);
+            // Generate the executable JIT code for the objects.
+            brg.generate();
+        } catch (error &e) {
+            if (e.status == dnnl_unimplemented)
+                throw example_allows_unimplemented {
+                        "Kernel is not supported on this platform.\n"};
+
+            // on any other error just re-throw
+            throw;
+        }
     }
 
-    brg_po = brgemm(M, N, K_k, 1, lda, ldb, ldc, ldd, a_dt, b_dt, c_dt, d_dt,
-            1.f, 1.f, brgemm_attr);
-    // Generate the executable JIT code for the objects.
-    brg_po.generate();
+    try {
+        brg_po = brgemm(M, N, K_k, 1, lda, ldb, ldc, ldd, a_dt, b_dt, c_dt,
+                d_dt, 1.f, 1.f, brgemm_attr);
+        // Generate the executable JIT code for the objects.
+        brg_po.generate();
+    } catch (error &e) {
+        if (e.status == dnnl_unimplemented)
+            throw example_allows_unimplemented {
+                    "Kernel is not supported on this platform.\n"};
+
+        // on any other error just re-throw
+        throw;
+    }
 
     // Query a scratchpad size and initialize a scratchpad buffer if the ukernel
     // is expecting it. This is a service space needed, has nothing in common
@@ -310,5 +328,5 @@ void brgemm_example(dnnl::engine::kind engine_kind) {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(brgemm_example, dnnl::engine::kind::cpu);
+    return handle_example_errors({dnnl::engine::kind::cpu}, brgemm_example);
 }
