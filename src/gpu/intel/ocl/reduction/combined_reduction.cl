@@ -16,6 +16,7 @@
 
 #include "gpu/intel/ocl/ocl_post_ops.h"
 #include "gpu/intel/ocl/ocl_types.h"
+#include "gpu/intel/ocl/ocl_utils.h"
 #include "gpu/intel/ocl/reduction/ocl_reduction.h"
 
 // Define how to read data
@@ -138,6 +139,12 @@ void write_padded_zeros(__global DST_DATA_T *dst) {
 #endif
 }
 
+#if INNER_DIM_SIZE < SUBGROUP_SIZE
+#define SLM_PER_SG INNER_DIM_SIZE
+#else
+#define SLM_PER_SG SUBGROUP_SIZE
+#endif
+
 // Specifying wg size since larger work groups reduce performance.
 // TODO: Look into why this is the case
 __attribute__((reqd_work_group_size(LWS_SIZE, 1, 1))) // attr:no-format
@@ -149,45 +156,51 @@ combined_reduce(
     const int sg_per_inner_dim = div_up(INNER_DIM_SIZE, SUBGROUP_SIZE);
     const int red_per_sg
             = min(REDUCTION_SIZE, max(1, SUBGROUP_SIZE / INNER_DIM_SIZE));
-    const int num_horiz_reductions = REDUCTION_SIZE / red_per_sg;
-    const int tail_reductions = REDUCTION_SIZE % red_per_sg;
+    const int wg_reductions = LWS_SIZE / SUBGROUP_SIZE;
+    const int other_reductions = red_per_sg * wg_reductions;
+    const int num_horiz_reductions = REDUCTION_SIZE / other_reductions;
+    const int tail_reductions = REDUCTION_SIZE % other_reductions;
 
     // Direct indices from gws
-    const int sgid = get_global_id(0) / SUBGROUP_SIZE;
-    const int inner_idx_start = (sgid % sg_per_inner_dim) * SUBGROUP_SIZE;
+    const int sgid = get_sub_group_id();
+    ASSUME(sgid < wg_reductions);
+    ASSUME(sgid >= 0);
+    const int tgid = get_global_id(0) / LWS_SIZE;
+    const int inner_idx_start = (tgid % sg_per_inner_dim) * SUBGROUP_SIZE;
 
     // Handle inner vector packing into subgroups
     const int sglid = get_sub_group_local_id();
+    ASSUME(sglid < SUBGROUP_SIZE);
+    ASSUME(sglid >= 0);
     const int inner_idx = inner_idx_start + (sglid % INNER_DIM_SIZE);
     const int red_off = sglid / INNER_DIM_SIZE;
+    const int red_off_tg = red_off + sgid * red_per_sg;
 
     const int active_channels = min(SUBGROUP_SIZE, red_per_sg * INNER_DIM_SIZE);
     ASSUME(active_channels == SUBGROUP_SIZE || !WITH_BLOCK_READ);
 
-    const int loop_stride = _SRC_OFF(0, red_per_sg, 0);
+    const int loop_stride = _SRC_OFF(0, other_reductions, 0);
+    __local DEF_ACC_DATA_T slm_acc[SLM_PER_SG * wg_reductions];
     unroll_for(int oid = 0; oid < OUTER_TILE_SIZE; oid++) {
-        const int outer_idx = sgid / sg_per_inner_dim * OUTER_TILE_SIZE + oid;
+        const int outer_idx = tgid / sg_per_inner_dim * OUTER_TILE_SIZE + oid;
         DEF_ACC_DATA_T acc;
         init_acc(REDUCTION_ALG, &acc);
 
+        // Each thread reduces in a loop
         if (sglid < active_channels) {
-            int src_off = _SRC_OFF(outer_idx, 0, inner_idx_start);
+            // red_off_tg - red_off to get the starting point for the subgroup
+            int src_off = _SRC_OFF(
+                    outer_idx, red_off_tg - red_off, inner_idx_start);
             if (!WITH_BLOCK_READ) src_off += sglid;
-            __attribute__((opencl_unroll_hint(UNROLL_FACTOR))) // attr:no-format
-            for (int off = 0; off < num_horiz_reductions;
-                    off++, src_off += loop_stride) {
-                // Load
+            for (int iters = num_horiz_reductions; iters > 0; --iters) {
                 const DATA_T src_val = READ_DATA(src[src_off]);
-
-                // Accumulate
                 acc = reduce(
                         REDUCTION_ALG, acc, TO_DEF_ACC_DATA_T(src_val), POWER);
+                src_off += loop_stride;
             }
-            if (red_off < tail_reductions) {
-                // Load
+            const int red_off_tg = red_off + sgid * red_per_sg;
+            if (red_off_tg < tail_reductions) {
                 const DATA_T src_val = READ_DATA(src[src_off]);
-
-                // Accumulate
                 acc = reduce(
                         REDUCTION_ALG, acc, TO_DEF_ACC_DATA_T(src_val), POWER);
             }
@@ -201,11 +214,28 @@ combined_reduce(
             DEF_ACC_DATA_T next
                     = intel_sub_group_shuffle_down(acc, init, shift);
             acc = reduce(SECONDARY_REDUCTION_ALG, acc, next, POWER);
-            DEBUG_PRINT("%d->%d/%d: sg reduce from sglid %d\n",
-                    get_global_id(0), sgid, sglid, sglid + shift);
         }
 
-        if (red_off == 0 && inner_idx < INNER_DIM_SIZE) {
+        // Reduce all threads in work group to one using SLM
+        if (wg_reductions > 1) {
+            const int local_idx = sgid * SLM_PER_SG + sglid;
+            if (red_off == 0 && inner_idx < INNER_DIM_SIZE) {
+                slm_acc[local_idx] = acc;
+            }
+            init_acc(SECONDARY_REDUCTION_ALG, &acc);
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+
+        if (red_off_tg == 0 && inner_idx < INNER_DIM_SIZE) {
+            if (wg_reductions > 1) {
+                unroll_for(int i = 0; i < wg_reductions; i++) {
+                    const int idx = i * SLM_PER_SG + sglid;
+                    acc = reduce(
+                            SECONDARY_REDUCTION_ALG, acc, slm_acc[idx], POWER);
+                }
+            }
+
+            // Finalize and write to dst
             const dim_t dst_off = _DST_OFF(outer_idx, inner_idx);
             float res = acc;
             if (IS_FINAL) {
