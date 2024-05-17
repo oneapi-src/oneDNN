@@ -34,7 +34,7 @@ ir_utils::debug_profiler_t &get_trace_profiler() {
 
 #if defined(DNNL_DEV_MODE)
 void trace_pass(
-        const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx) {
+        const char *pass_name, const stmt_t &stmt, const ir_context_t &ir_ctx) {
     trace_stop(pass_name);
     ir_trace() << "=== After " << pass_name << std::endl;
     ir_trace() << stmt << std::endl;
