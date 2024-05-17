@@ -201,7 +201,7 @@ status_t split_into_phases(const reduction_subproblem_t &subprb,
     // EU_mult: reduce parallelism to at most num_EU*EU_mult (reduces scheduling overhead?)
     const int EU_mult = 20;
     // Target single_phase_threshold horizontal reductions with each phase
-    const int single_phase_threshold = 256;
+    const int single_phase_threshold = 1024;
 
     // Estimate the number of phases remaining, and divide it up evenly around this target
     int N = static_cast<int>(std::ceil(std::log2(reduction_elems)
