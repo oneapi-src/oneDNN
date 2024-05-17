@@ -201,25 +201,27 @@ status_t micro_sdpa_t::init(engine_t *engine) {
     kernel_ctx.define_int("SUBGROUP_SIZE", pd()->sg_size());
     kernel_ctx.define_int("D_MAX", pd()->d_max());
 
-    bool d_full = (d->head_size() == pd()->d_max());
-    int tile_m = pd()->gemm_kq().getSetting("wg_tile_m");
-    int tile_n = pd()->gemm_kq().getSetting("wg_tile_n");
+    int tile_k = pd()->gemm_kq().getSetting("wg_tile_m");
+    int tile_q = pd()->gemm_kq().getSetting("wg_tile_n");
+    int tile_v = pd()->gemm_vs().getSetting("wg_tile_m");
 
-    if (d_full && (d->queries() % tile_n) == 0) {
+    bool d_full = (d->head_size() == pd()->d_max());
+    bool v_full = (d->head_size() == tile_v);
+
+    if (d_full) {
         if (ldq % 4 == 0) kernel_ctx.define_int("BLOCK_Q", 1);
-        if (lda % 4 == 0) kernel_ctx.define_int("BLOCK_A", 1);
+        if (lda % 4 == 0 && v_full) kernel_ctx.define_int("BLOCK_A", 1);
+        kernel_ctx.define_int("REMAINDER_Q", (d->queries() % tile_q) != 0);
     } else if (lda % 16 == 0)
         kernel_ctx.define_int("BLOCK_2D_A", 1);
 
     if (pd()->arch() >= compute::gpu_arch_t::xe_hpc) {
         kernel_ctx.define_int("PREFETCH_MASK", 1);
-        if (d_full) {
-            if (d->keys() >= tile_m) kernel_ctx.define_int("PREFETCH_K0", 1);
-            if (d->keys() % tile_m == 0) {
-                kernel_ctx.define_int("PREFETCH_K", 1);
-                kernel_ctx.define_int("PREFETCH_V", 1);
-            }
-        }
+        kernel_ctx.define_int("PREFETCH_K0", 1);
+        kernel_ctx.define_int("PREFETCH_K", 1);
+        kernel_ctx.define_int("PREFETCH_V", 1);
+        bool no_rem = d_full && v_full && (d->keys() % tile_k == 0);
+        kernel_ctx.define_int("PREFETCH_REMAINDER", !no_rem);
     }
 
     /* Generate microkernel shims */

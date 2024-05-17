@@ -111,6 +111,33 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
         1, 1, s_sum_tile_type, SUBGROUP_SIZE, ugemm_kq_sg_tile_n, 1, 1, 1)
 #endif
 
+#if PREFETCH_REMAINDER
+#define cooperative_prefetch_2d_maybe_rem cooperative_prefetch_2d_rem
+#else
+#define cooperative_prefetch_2d_maybe_rem( \
+        ptr, r, c, rmax, cmax, ld, sg_id, n_sg, sg_size, caching) \
+    cooperative_prefetch_2d(ptr, rmax, cmax, ld, sg_id, n_sg, sg_size, caching)
+#endif
+
+#if TRANSPOSE_K
+#define cooperative_prefetch_2d_k( \
+        ptr, r, c, rmax, cmax, ld, sg_id, n_sg, sg_size, caching) \
+    cooperative_prefetch_2d_maybe_rem( \
+            ptr, c, r, cmax, rmax, ld, sg_id, n_sg, sg_size, caching)
+#else
+#define cooperative_prefetch_2d_k cooperative_prefetch_2d_maybe_rem
+#endif
+
+#if REMAINDER_Q
+#define tile_load_block_rem_q tile_load_block
+#define tile_store_block_rem_q tile_store_block
+#else
+#define tile_load_block_rem_q(t, ptr, n, ld, off_r, off_c) \
+    tile_load_block(t, ptr, ld, off_r, off_c)
+#define tile_store_block_rem_q(t, ptr, n, ld, off_r, off_c) \
+    tile_store_block(t, ptr, ld, off_r, off_c)
+#endif
+
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
 micro_sdpa(const global half *K, const global half *Q, const global half *V,
         global half *A, global SCALE_DATA_T *scale_ptr, const global half *msk,
@@ -165,7 +192,8 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
     q_tile_type Q_tile;
     uint q0_copy = q_tile_sg_n * sg_ij;
 #ifdef BLOCK_Q
-    tile_load_block(&Q_tile, (global uint *)Q, ldq >> 1, 0, wg_j0 + q0_copy);
+    tile_load_block_rem_q(
+            &Q_tile, (global uint *)Q, q, ldq >> 1, 0, wg_j0 + q0_copy);
 #elif Q_ALIGN >= 4
     tile_load(&Q_tile, (global uint *)Q, (d + 1) >> 1, q, ldq >> 1, 0,
             wg_j0 + q0_copy);
@@ -184,8 +212,8 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
     scale *= 1.442695f; // log2(e)
 
 #ifdef PREFETCH_K0
-    /* Prefetch first K tile. No remainder handling yet. */
-    cooperative_prefetch_2d(K, D_MAX, ugemm_kq_wg_tile_m, ldk, sg_ij, sg_per_wg,
+    /* Prefetch first K tile. */
+    cooperative_prefetch_2d_k(K, k, d, ugemm_kq_wg_tile_m, D_MAX, ldk, sg_ij, sg_per_wg,
             SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
 #endif
 
@@ -264,8 +292,8 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
         intel_work_group_barrier_arrive(CLK_LOCAL_MEM_FENCE);
 
 #ifdef PREFETCH_V
-        /* Prefetch V tile. No remainder handling yet. */
-        cooperative_prefetch_2d(V, D_MAX, ugemm_kq_wg_tile_m, ldv, sg_ij,
+        /* Prefetch V tile. */
+        cooperative_prefetch_2d_maybe_rem(V, d, k - k0, D_MAX, ugemm_kq_wg_tile_m, ldv, sg_ij,
                 sg_per_wg, SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
 #endif
 
@@ -338,25 +366,32 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
         tile_copy(S_max_tile, S_max_tile_old);
 
         /* Last iteration: store column sums in SLM */
-        if (last)
+        if (last) {
             tile_store_full(S_sum_tile, S_sum_slm, ugemm_kq_wg_tile_n, sg_j0_kq,
                     sg_i_kq);
+        }
 
 #ifdef PREFETCH_K
-        /* Prefetch next K tile. No remainder handling yet. */
-        if (!last)
-            cooperative_prefetch_2d(K + (k0 + ugemm_kq_wg_tile_m) * ldk, D_MAX,
-                    ugemm_kq_wg_tile_m, ldk, sg_ij, sg_per_wg, SUBGROUP_SIZE,
-                    LSC_LDCC_L1C_L3C);
+        /* Prefetch next K tile. */
+        if (!last) {
+#if TRANSPOSE_K
+            const uint stride_k = ldk;
+#else
+            const uint stride_k = 1;
 #endif
-#ifdef PREFETCH_MASK
-#if WITH_ATTN_MASK
+            cooperative_prefetch_2d_k(K + (k0 + ugemm_kq_wg_tile_m) * stride_k,
+                    k - k0 - ugemm_kq_wg_tile_m, d,
+                    ugemm_kq_wg_tile_m, D_MAX, ldk, sg_ij, sg_per_wg, SUBGROUP_SIZE,
+                    LSC_LDCC_L1C_L3C);
+        }
+#endif
+#if WITH_ATTN_MASK && defined(PREFETCH_MASK)
         /* Prefetch next mask tile. */
-        if (!last)
+        if (!last) {
             cooperative_prefetch_2d(msk + k0 + ugemm_kq_wg_tile_m + sg_i0_kq,
                     ugemm_kq_sg_tile_m, 1, 0, 0, 1, SUBGROUP_SIZE,
                     LSC_LDCC_L1UC_L3C);
-#endif
+        }
 #endif
 
         /* Wait for S stores */
@@ -404,7 +439,7 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 #ifdef BLOCK_2D_A
     tile_store_block2d(A_tile_half, A, d, q, lda, sg_i0_vs, sg_j0_vs);
 #elif defined(BLOCK_A)
-    tile_store_block(A_tile_half, A, lda, sg_i0_vs, sg_j0_vs);
+    tile_store_block_rem_q(A_tile_half, A, q, lda, sg_i0_vs, sg_j0_vs);
 #else
     tile_store(A_tile_half, A, d, q, lda, sg_i0_vs, sg_j0_vs);
 #endif
