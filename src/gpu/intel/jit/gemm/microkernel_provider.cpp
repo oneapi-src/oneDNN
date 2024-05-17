@@ -207,13 +207,13 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo,
     }
 
     switch (hw) {
-        ARCH_DISPATCH(Gen9)
-        ARCH_DISPATCH(Gen11)
-        ARCH_DISPATCH(XeLP)
-        ARCH_DISPATCH(XeHP)
-        ARCH_DISPATCH(XeHPG)
-        ARCH_DISPATCH(XeHPC)
-        ARCH_DISPATCH(Xe2)
+        REG_GEN9_ISA(ARCH_DISPATCH(Gen9))
+        REG_GEN11_ISA(ARCH_DISPATCH(Gen11))
+        REG_XELP_ISA(ARCH_DISPATCH(XeLP))
+        REG_XEHP_ISA(ARCH_DISPATCH(XeHP))
+        REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
+        REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
+        REG_XE2_ISA(ARCH_DISPATCH(Xe2))
         default: throw std::runtime_error("Unsupported architecture");
     }
 #undef ARCH_DISPATCH
