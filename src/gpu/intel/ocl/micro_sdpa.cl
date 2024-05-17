@@ -270,7 +270,7 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 
         /* Calculate S = (K^T) * Q */
         s_tile_type S_tile = ugemm_kq(K, ldk, Q_slm, D_MAX, k,
-                ugemm_kq_wg_tile_n, d, k0, 0, 0, sg_i_kq, sg_j_kq, ugemm_slm);
+                ugemm_kq_wg_tile_n, d, k0, 0, 0, sg_i_kq, sg_j_kq, (local char *) ugemm_slm);
 
 #if WITH_ATTN_MASK
 /* Apply mask, manually masking in k dimension */
@@ -405,9 +405,8 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
         int k_chunk = min(k - k0, ugemm_kq_wg_tile_m);
         a_tile_type A_tile1 = ugemm_vs(V, ldv, S_slm, ugemm_kq_wg_tile_m, d,
                 ugemm_kq_wg_tile_n, k_chunk, 0, 0, 0, sg_i_vs, sg_j_vs,
-                ugemm_slm);
+                (local char *)ugemm_slm);
         V += ldv * ugemm_kq_wg_tile_m;
-
         tile_binary(A_tile, A_tile1, binary_add);
     }
 

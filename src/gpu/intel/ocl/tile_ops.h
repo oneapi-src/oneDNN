@@ -293,7 +293,7 @@ DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
         _Pragma("unroll") for (int j = 0; j < bc * nbc; j++, ptr += ld) { \
             _Pragma("unroll") for (int i0 = 0; i0 < br * nbr; i0 += sg) { \
                 int i = i0 + get_sub_group_local_id(); \
-                local_atomic_max( \
+                (void) local_atomic_max( \
                         ptr + i, tile_access(t, i0, j, sg, br, bc, nbr)); \
             } \
         } \
@@ -503,11 +503,11 @@ DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
     }
 
 #define cooperative_prefetch_2d(ptr, r, c, ld, sg_id, n_sg, sg_size, caching) \
-    cooperative_prefetch_2d_internal(ptr, (r) * sizeof(*(ptr)), c, \
+    cooperative_prefetch_2d_internal((const global char *) ptr, (r) * sizeof(*(ptr)), c, \
             (ld) * sizeof(*(ptr)), sg_id, n_sg, sg_size, caching)
 
 #define cooperative_prefetch_2d_rem(ptr, r, c, rmax, cmax, ld, sg_id, n_sg, sg_size, caching) \
-    cooperative_prefetch_2d_internal(ptr, (r) * sizeof(*(ptr)), c, \
+    cooperative_prefetch_2d_internal((const global char *) ptr, (r) * sizeof(*(ptr)), c, \
             (rmax) * sizeof(*(ptr)), cmax, (ld) * sizeof(*(ptr)), sg_id, n_sg, sg_size, caching)
 
 /* IGC prefetch intrinsics */
