@@ -145,6 +145,10 @@ void write_padded_zeros(__global DST_DATA_T *dst) {
 #define SLM_PER_SG SUBGROUP_SIZE
 #endif
 
+#define DUMP(str, ...) \
+    DEBUG_PRINT("%d->%d/%d/%d: " str, get_global_id(0), tgid, sgid, sglid, \
+            __VA_ARGS__)
+
 // Specifying wg size since larger work groups reduce performance.
 // TODO: Look into why this is the case
 __attribute__((reqd_work_group_size(LWS_SIZE, 1, 1))) // attr:no-format
@@ -196,13 +200,14 @@ combined_reduce(
                 const DATA_T src_val = READ_DATA(src[src_off]);
                 acc = reduce(
                         REDUCTION_ALG, acc, TO_DEF_ACC_DATA_T(src_val), POWER);
+                DUMP("(iter +%d) src[%d] = %f\n", iters, src_off, src_val);
                 src_off += loop_stride;
             }
-            const int red_off_tg = red_off + sgid * red_per_sg;
             if (red_off_tg < tail_reductions) {
                 const DATA_T src_val = READ_DATA(src[src_off]);
                 acc = reduce(
                         REDUCTION_ALG, acc, TO_DEF_ACC_DATA_T(src_val), POWER);
+                DUMP("(tail) src[%d] = %f\n", src_off, src_val);
             }
         }
 
@@ -214,6 +219,7 @@ combined_reduce(
             DEF_ACC_DATA_T next
                     = intel_sub_group_shuffle_down(acc, init, shift);
             acc = reduce(SECONDARY_REDUCTION_ALG, acc, next, POWER);
+            DUMP("(sg) acc from sglid %d: %f\n", sglid + shift, next);
         }
 
         // Reduce all threads in work group to one using SLM
@@ -232,6 +238,7 @@ combined_reduce(
                     const int idx = i * SLM_PER_SG + sglid;
                     acc = reduce(
                             SECONDARY_REDUCTION_ALG, acc, slm_acc[idx], POWER);
+                    DUMP("(wg) acc from wg %d/%d: %f\n", i, idx, slm_acc[idx]);
                 }
             }
 
@@ -264,6 +271,7 @@ combined_reduce(
             if (is_dst_zero_padded(dst_off)) res = 0.0f;
             dst[dst_off] = IS_FINAL ? TO_DST(res) : res;
             write_padded_zeros(dst + dst_off);
+            DUMP("dst[%d] <- %f\n", dst_off, TO_DST(res));
         }
     }
 }
