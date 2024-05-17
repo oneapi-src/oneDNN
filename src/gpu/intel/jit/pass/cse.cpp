@@ -424,7 +424,8 @@ public:
                 it != sorted_var_entries.end();) {
             std::sort(it, sorted_var_entries.end(),
                     [&](const cse_var_entry_t *a, const cse_var_entry_t *b) {
-                        return a->cost() > b->cost();
+                        // Sort by cost per byte
+                        return a->cost() * b->size() > b->cost() * a->size();
                     });
             while (it != sorted_var_entries.end()) {
                 auto &e = **it;
