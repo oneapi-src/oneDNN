@@ -23,6 +23,7 @@
 #include "common/primitive.hpp"
 #include "common/primitive_desc_iterator.hpp"
 #include "common/utils.hpp"
+#include "cpu/gemm/gemm.hpp"
 
 #include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/cpu_inner_product_pd.hpp"
@@ -172,8 +173,19 @@ struct ip_convolution_fwd_t : public primitive_t {
 
             while (++it != it.end()) {
                 ip_pd_ = *it;
-                const bool ok = ip_pd_->weights_md()->extra.flags == 0;
-                if (ok) return status::success;
+                const bool has_no_compensation
+                        = ip_pd_->weights_md()->extra.flags
+                        == memory_extra_flags::none;
+                if (has_no_compensation) {
+                    // avoid gemm implementation
+                    std::string impl_name(ip_pd_->name());
+                    if (std::string::npos != impl_name.find(GEMM_IMPL_STR))
+                        continue;
+                    // avoid reference implementation
+                    if (std::string::npos != impl_name.find("ref:any"))
+                        continue;
+                    return status::success;
+                }
             }
             return status::unimplemented;
         }
@@ -277,16 +289,18 @@ struct ip_convolution_bwd_data_t : public primitive_t {
             if (!it.is_initialized()) return status::out_of_memory;
             while (++it != it.end()) {
                 ip_pd_ = *it;
-
-                // Avoid dispatching reference for f16 data-type.
-                const bool is_f16 = weights_md_.data_type == data_type::f16;
-                if (is_f16) {
-                    const std::string impl_name(ip_pd_->name());
-                    if (std::string::npos != impl_name.find("ref"))
-                        return status::unimplemented;
-                } else {
-                    const bool ok = ip_pd_->weights_md()->extra.flags == 0;
-                    if (ok) return status::success;
+                const bool has_no_compensation
+                        = ip_pd_->weights_md()->extra.flags
+                        == memory_extra_flags::none;
+                if (has_no_compensation) {
+                    // avoid gemm implementation
+                    std::string impl_name(ip_pd_->name());
+                    if (std::string::npos != impl_name.find(GEMM_IMPL_STR))
+                        continue;
+                    // avoid reference implementation
+                    if (std::string::npos != impl_name.find("ref:any"))
+                        continue;
+                    return status::success;
                 }
             }
             return status::unimplemented;
@@ -389,8 +403,19 @@ struct ip_convolution_bwd_weights_t : public primitive_t {
 
             while (++it != it.end()) {
                 ip_pd_ = *it;
-                const bool ok = ip_pd_->weights_md()->extra.flags == 0;
-                if (ok) return status::success;
+                const bool has_no_compensation
+                        = ip_pd_->weights_md()->extra.flags
+                        == memory_extra_flags::none;
+                if (has_no_compensation) {
+                    // avoid gemm implementation
+                    std::string impl_name(ip_pd_->name());
+                    if (std::string::npos != impl_name.find(GEMM_IMPL_STR))
+                        continue;
+                    // avoid reference implementation
+                    if (std::string::npos != impl_name.find("ref:any"))
+                        continue;
+                    return status::success;
+                }
             }
             return status::unimplemented;
         }
