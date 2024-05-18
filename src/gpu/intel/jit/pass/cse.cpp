@@ -77,7 +77,12 @@ public:
 
     const cse_expr_t *cse_expr() const { return cse_expr_; }
 
-    bool allocated() const { return allocated_; }
+    bool unallocated() const { return allocated_ == allocated_t::no; }
+    bool allocated() const { return allocated_ == allocated_t::yes; }
+
+    void set_unallocated() { allocated_ = allocated_t::no; }
+    void set_allocated() { allocated_ = allocated_t::yes; }
+    void mark() { allocated_ = allocated_t::mark; }
 
     int size() const {
         return utils::rnd_up(
@@ -91,33 +96,16 @@ public:
         var2entry_ = &var2entry;
     }
 
-    void add_back_ref(cse_var_entry_t *e) {
-        ir_assert(e != this);
-        back_refs_.insert(e);
-    }
-
-    void mark_as_allocated() {
-        allocated_ = true;
-        update_back_ref_cost();
-    }
-
     void recompute_cost() {
         cost_ = expr_cost(cse_expr_->expr) * cse_expr_->refs;
     }
 
 private:
-    void update_back_ref_cost() {
-        for (auto *e : back_refs_) {
-            e->recompute_cost();
-            e->update_back_ref_cost();
-        }
-    }
-
     int expr_cost(const expr_t &e) {
         if (is_var(e)) {
             auto it = var2entry_->find(e);
             if (it == var2entry_->end()) return 0;
-            if (it->second->allocated_) return 0;
+            if (it->second->allocated()) return 0;
             // If variable is not allocated, its value
             // has to be recomputed every time.
             return it->second->cost();
@@ -138,9 +126,15 @@ private:
 
     const cse_expr_t *cse_expr_ = nullptr;
     int cost_ = 0;
-    bool allocated_ = false;
 
-    std::unordered_set<cse_var_entry_t *> back_refs_;
+    enum class allocated_t {
+        no,
+        yes,
+        mark // Used for topological sorting algorithm
+    };
+
+    allocated_t allocated_ = allocated_t::no;
+
     const object_map_t<expr_t, cse_var_entry_t *> *var2entry_ = nullptr;
 };
 
@@ -374,72 +368,121 @@ public:
         return true;
     }
 
-    void set_skip_exprs(const stmt_t &root, int limit, int grf_size) {
-        // Initialize variable-entry for each potential CSE variable.
-        std::vector<cse_var_entry_t> var_entries;
-        for (auto &kv : cse_exprs_) {
-            auto &cse_expr = kv.second;
-            if (cse_expr.cse_var.is_empty()) continue;
-            var_entries.emplace_back(&cse_expr);
-        }
-        // Create mapping from CSE var to entry.
-        object_map_t<expr_t, cse_var_entry_t *> var2entry;
-        for (auto &e : var_entries) {
-            var2entry.emplace(e.cse_expr()->cse_var, &e);
-            e.set_var2entry(var2entry);
-        }
-        // Initialize back references.
-        for (auto &e : var_entries) {
-            auto vars = find_objects<var_t>(e.cse_expr()->expr);
-            for (auto &v : vars) {
-                auto it = var2entry.find(v);
-                if (it == var2entry.end()) continue;
-                it->second->add_back_ref(&e);
+    void set_skip_exprs(
+            const stmt_t &root, int usage, int limit, int grf_size) {
+        struct var_entries_t {
+            var_entries_t(
+                    const object_eq_map_t<expr_t, cse_expr_t> &cse_exprs) {
+                for (auto &kv : cse_exprs) {
+                    auto &cse_expr = kv.second;
+                    if (cse_expr.cse_var.is_empty()) continue;
+                    entries_.emplace_back(&cse_expr);
+                }
+
+                for (auto &e : entries_) {
+                    var2entry_.emplace(e.cse_expr()->cse_var, &e);
+                    e.set_var2entry(var2entry_);
+                }
+
+                topological_sort();
+
+                for (auto &e : entries_) {
+                    gpu_assert(e.allocated())
+                            << "unallocated: " << e.cse_expr()->cse_var << " = "
+                            << e.cse_expr()->expr << "\n";
+                }
             }
-            var2entry.emplace(e.cse_expr()->cse_var, &e);
-        }
-        // Initialize cost.
-        for (auto &e : var_entries) {
-            e.recompute_cost();
-        }
-        // Initialize statement-entry for each potential statement of CSE
-        // variable attachement.
-        std::unordered_map<const object_impl_t *, cse_stmt_entry_t>
-                stmt_entries;
-        cse_memory_usage_visitor_t mem_usage_visitor(
-                stmt_entries, cse_exprs_, grf_size);
-        mem_usage_visitor.visit(root);
-        for (auto &kv : stmt_entries)
-            kv.second.propagate_usage_up();
 
-        // Greedily find the variable with the highest current complexity that
-        // won't exceed the usage limit, mark it as allocated and recompute
-        // complexity for other dependent vars. Stop once there are no
-        // such variables.
+            std::vector<cse_var_entry_t>::iterator begin() {
+                return entries_.begin();
+            };
+            std::vector<cse_var_entry_t>::iterator end() {
+                return entries_.end();
+            };
+
+        private:
+            // Depth first search visitor for topological_sort()
+            void visit(cse_var_entry_t &e,
+                    std::vector<cse_var_entry_t *>::reverse_iterator &head) {
+                if (e.allocated()) return;
+                gpu_assert(e.unallocated())
+                        << "Cyclic expression dependency detected";
+                e.mark();
+
+                for (auto &dep : find_objects<var_t>(e.cse_expr()->expr)) {
+                    auto it = var2entry_.find(dep);
+                    if (it != var2entry_.end()) visit(*(it->second), head);
+                }
+                e.set_allocated();
+
+                *head++ = &e;
+            }
+
+            // Topological sort `entries_` and mark all expressions as allocated.
+            // Topological sort is required for correct iteration order when
+            // updating node costs. Uses a depth first search based algorithm.
+            void topological_sort() {
+                std::vector<cse_var_entry_t *> e_sorted(
+                        entries_.size(), nullptr);
+                auto head = e_sorted.rbegin();
+                for (auto it = entries_.begin(); it != entries_.end(); it++) {
+                    if (it->unallocated()) { visit(*it, head); }
+                }
+
+                std::vector<cse_var_entry_t> entries;
+                entries.reserve(entries_.size());
+                for (auto e_ptr : e_sorted) {
+                    entries.emplace_back(*e_ptr);
+                }
+                entries_ = std::move(entries);
+                for (auto &e : entries_) {
+                    var2entry_[e.cse_expr()->cse_var] = &e;
+                }
+            }
+
+            std::vector<cse_var_entry_t> entries_;
+            object_map_t<expr_t, cse_var_entry_t *> var2entry_;
+        };
+
+        var_entries_t var_entries(cse_exprs_);
+
+        // Greedily remove the least beneficial variable until memory usage
+        // limit is met.
         std::vector<cse_var_entry_t *> sorted_var_entries;
-        for (auto &e : var_entries)
+        for (auto &e : var_entries) {
             sorted_var_entries.push_back(&e);
+        }
 
-        for (auto it = sorted_var_entries.begin();
-                it != sorted_var_entries.end();) {
+        int overflow_size = usage - limit;
+        auto it = sorted_var_entries.begin();
+        while (overflow_size > 0 && it != sorted_var_entries.end()) {
+            // Update costs.
+            for (auto &e : var_entries) {
+                e.recompute_cost();
+            }
             std::sort(it, sorted_var_entries.end(),
                     [&](const cse_var_entry_t *a, const cse_var_entry_t *b) {
                         // Sort by cost per byte
-                        return a->cost() * b->size() > b->cost() * a->size();
+                        return a->cost() * b->size() < b->cost() * a->size();
                     });
-            while (it != sorted_var_entries.end()) {
-                auto &e = **it;
-                auto &stmt_entry = stmt_entries.at(e.cse_expr()->path.back());
-                if (stmt_entry.try_allocate(e.size(), limit)) {
-                    e.mark_as_allocated();
-                    ++it;
-                    break;
-                }
-                ++it;
-            }
+            auto &e = **it;
+
+            ir_trace() << "cse_pass: unmarking " << e.cse_expr()->expr
+                       << " with cost " << e.cost() << ", size " << e.size()
+                       << ", and cost per byte " << (double)e.cost() / e.size()
+                       << "\n";
+
+            e.set_unallocated();
+            overflow_size -= e.size();
+            ++it;
         }
 
         // Skip not allocated variables.
+
+        // TODO: Rather than rerun CSE, just delete `let_t` and substitute
+        // variables with their value. This needs to be performed in the reverse
+        // order on `var_entries` to ensure no substitutions are missed in
+        // computation chains.
         for (auto &e : var_entries) {
             if (e.allocated()) continue;
             skip_exprs_.insert(e.cse_expr()->orig_expr);
@@ -772,7 +815,7 @@ stmt_t eliminate_common_subexprs_impl(const stmt_t &_stmt, cse_context_t &ctx,
         ir_trace() << "CSE exceeded GRF usage limit. Usage: " << memory_usage
                    << ", limit: " << memory_usage_limit
                    << ". Retry CSE and skip some expressions..." << std::endl;
-        ctx.set_skip_exprs(_stmt, memory_usage_limit, grf_size);
+        ctx.set_skip_exprs(_stmt, memory_usage, memory_usage_limit, grf_size);
         ctx.reset_cse_exprs();
         return stmt_t();
     }
