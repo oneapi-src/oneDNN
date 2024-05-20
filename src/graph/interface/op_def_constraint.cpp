@@ -85,10 +85,10 @@ bool check_bn_data_type(const op_t *n) {
     return true;
 }
 
-// check function for data_type of LayerNorm.
+// check function for data_type of LayerNorm and GroupNorm.
 // only when data is bf16, gamma/beta/mean/var can be bf16.
 // If data is bf16, gamma/beta/mean/var can be f32 or bf16.
-bool check_ln_data_type(const op_t *n) {
+bool check_ln_gn_data_type(const op_t *n) {
     auto input_values = n->get_input_values();
     auto output_values = n->get_output_values();
 
@@ -197,9 +197,9 @@ bool check_interpolate_sizes_scales(const op_t *n) {
     return true;
 }
 
-// check function for output number of LayerNorm forward.
+// check function for output number of LayerNorm and GroupNorm forward.
 // if keep_stats == true, outputs should include mean and variance.
-bool check_ln_fwd_outputs_num(const op_t *n) {
+bool check_ln_gn_fwd_outputs_num(const op_t *n) {
     const size_t actual_num = n->num_outputs();
     const bool keep_stats = n->has_attr(op_attr::keep_stats)
             ? n->get_attr<bool>(op_attr::keep_stats)

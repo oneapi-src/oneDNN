@@ -1135,19 +1135,29 @@ status_t infer_norm_output_shape(op_t *n,
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
     const dims input0_dims = in0.vdims();
 
-    const dim_t begin_norm_axis = n->has_attr(op_attr::begin_norm_axis)
-            ? n->get_attr<dim_t>(op_attr::begin_norm_axis)
-            : -1;
-
     auto out1 = logical_tensor_wrapper_t(outputs[1]);
     auto out2 = logical_tensor_wrapper_t(outputs[2]);
-    dims output_dims(input0_dims);
+    dims output_dims;
 
-    auto norm_starting_position
-            = begin_norm_axis >= 0 ? output_dims.begin() : output_dims.end();
-
-    output_dims.erase(
-            norm_starting_position + begin_norm_axis, output_dims.end());
+    if (n->get_kind() == op_kind::LayerNorm) {
+        // LayerNorm
+        const dim_t begin_norm_axis = n->has_attr(op_attr::begin_norm_axis)
+                ? n->get_attr<dim_t>(op_attr::begin_norm_axis)
+                : -1;
+        auto norm_starting_position = begin_norm_axis >= 0 ? output_dims.begin()
+                                                           : output_dims.end();
+        output_dims = input0_dims;
+        output_dims.erase(
+                norm_starting_position + begin_norm_axis, output_dims.end());
+    } else if (n->get_kind() == op_kind::GroupNorm) {
+        // GroupNorm
+        if (!n->has_attr(op_attr::groups)) return status::invalid_arguments;
+        const dim_t num_groups = n->get_attr<dim_t>(op_attr::groups);
+        // output_dims[batch_size, num_groups]
+        output_dims = {input0_dims[0], num_groups};
+    } else {
+        return status::invalid_graph_op;
+    }
 
     // check if output shape is already known
     if (out1.is_shape_unknown()) {
