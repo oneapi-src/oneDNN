@@ -74,10 +74,11 @@ oneDNN supports platforms based on the following architectures:
 - [OpenPOWER](https://openpowerfoundation.org/) / [IBM Power ISA](https://en.wikipedia.org/wiki/Power_ISA).
 - [IBMz z/Architecture (s390x)](https://en.wikipedia.org/wiki/Z/Architecture).
 - [RISC-V 64-bit (RV64)](https://en.wikipedia.org/wiki/RISC-V).
+- [LOONGARCH 64 bit](https://docs.kernel.org/arch/loongarch/introduction.html).
 
 > **WARNING**
 >
-> Power ISA (PPC64), IBMz (s390x), and RISC-V (RV64) support is
+> Power ISA (PPC64), IBMz (s390x), RISC-V (RV64) and Loongson (LOONGARCH64) support is
 > **experimental** with limited testing validation.
 
 The library is optimized for the following CPUs:

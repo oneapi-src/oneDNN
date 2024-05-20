@@ -363,6 +363,8 @@ elseif(UNIX OR MINGW)
         elseif(DNNL_TARGET_ARCH STREQUAL "RV64")
             # G = General-purpose extensions, C = Compression extension (very common).
             append(DEF_ARCH_OPT_FLAGS "-march=rv64gc")
+	elseif(DNNL_TARGET_ARCH STREQUAL "LOONGARCH64")
+            append(DEF_ARCH_OPT_FLAGS "-march=loongarch64")
         elseif(DNNL_TARGET_ARCH STREQUAL "X64")
             platform_gnu_x64_arch_ccxx_flags(DEF_ARCH_OPT_FLAGS)
         endif()
