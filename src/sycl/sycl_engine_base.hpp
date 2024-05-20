@@ -28,6 +28,7 @@
 #include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
+#include "xpu/ocl/utils.hpp"
 #include "xpu/sycl/engine_id.hpp"
 #include "xpu/sycl/engine_impl.hpp"
 
@@ -159,8 +160,25 @@ public:
 
     xpu::sycl::backend_t backend() const { return impl()->backend(); }
 
-    cl_device_id ocl_device() const { return impl()->ocl_device(); }
-    cl_context ocl_context() const { return impl()->ocl_context(); }
+    cl_device_id ocl_device() const {
+        if (backend() != xpu::sycl::backend_t::opencl) {
+            assert(!"not expected");
+            return nullptr;
+        }
+        assert(device().is_cpu() || device().is_gpu());
+        return xpu::ocl::make_wrapper(
+                xpu::sycl::compat::get_native<cl_device_id>(device()));
+    }
+
+    cl_context ocl_context() const {
+        if (backend() != xpu::sycl::backend_t::opencl) {
+            assert(!"not expected");
+            return nullptr;
+        }
+        assert(device().is_cpu() || device().is_gpu());
+        return xpu::ocl::make_wrapper(
+                xpu::sycl::compat::get_native<cl_context>(context()));
+    }
 
     device_id_t device_id() const override { return impl()->device_id(); }
 

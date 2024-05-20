@@ -56,26 +56,6 @@ public:
 
     backend_t backend() const { return backend_; }
 
-    cl_device_id ocl_device() const {
-        if (backend() != backend_t::opencl) {
-            assert(!"not expected");
-            return nullptr;
-        }
-        assert(device_.is_cpu() || device_.is_gpu());
-        return xpu::ocl::make_wrapper(
-                compat::get_native<cl_device_id>(device()));
-    }
-
-    cl_context ocl_context() const {
-        if (backend() != backend_t::opencl) {
-            assert(!"not expected");
-            return nullptr;
-        }
-        assert(device_.is_cpu() || device_.is_gpu());
-        return xpu::ocl::make_wrapper(
-                compat::get_native<cl_context>(context()));
-    }
-
     device_id_t device_id() const { return xpu::sycl::device_id(device_); }
 
 private:
