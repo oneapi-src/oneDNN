@@ -37,7 +37,8 @@ struct HWInformation {
 micro::Package selectGEMMMicrokernel(micro::GEMMProtocol protocol,
         HWInformation hwInfo, SizeParams sizes, const GEMMProblem &problem,
         const std::vector<StrategyRequirement> &reqs
-        = std::vector<StrategyRequirement>());
+        = std::vector<StrategyRequirement>(),
+        void (*strategyAdjuster)(GEMMStrategy &strategy) = nullptr);
 
 /* Helpers */
 static inline int alignmentForLD(int ld) {

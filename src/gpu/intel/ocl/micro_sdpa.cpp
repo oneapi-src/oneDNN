@@ -145,8 +145,12 @@ status_t micro_sdpa_t::pd_t::init_microkernels(engine_t *engine) {
 
     /* Ask microkernel provider for microkernel */
     try {
+        auto adjust_vs = [](GEMMStrategy &strategy) {
+            /* Enable dpasw */
+            strategy.dpasw |= strategy.fused;
+        };
         gemm_vs_ = selectGEMMMicrokernel(
-                opts_vs, hw_info, sizes, problem_vs, reqs_vs);
+                opts_vs, hw_info, sizes, problem_vs, reqs_vs, adjust_vs);
     } catch (...) { return status::unimplemented; }
 
     return status::success;
