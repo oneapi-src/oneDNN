@@ -74,6 +74,7 @@ layout_tag_t append_groups(
         if (e.letter == xc_letter) {
             if (is_dw) {
                 new_raw_tag.add_entry(new_g_letter, e.block, e.is_blocked);
+                new_raw_tag.add_entry(new_xc_letter, 1, false);
             } else if (e.is_outer()) {
                 new_raw_tag.add_entry(new_g_letter, 0, false);
                 new_raw_tag.add_entry(new_xc_letter, e.block, e.is_blocked);
@@ -90,14 +91,16 @@ layout_tag_t append_groups(
     return layout_tag_t(desc, layout_tag.type(), new_raw_tag);
 }
 
-layout_t make_conv_layout(
-        tensor_kind_t tensor_kind, const layout_tag_t &_tag, bool is_dw) {
+layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
+        bool is_dw, const spec_reqs_t &spec_reqs) {
     auto tag = append_groups(tensor_kind, _tag, is_dw);
     layout_t ret(tag.desc(), tag.type());
     dim_map_t<prb_dim_t, int> blocks;
-    auto rem_size = [](const prb_dim_t &dim,
+    auto rem_size = [&](const prb_dim_t &dim,
                             const dim_map_t<prb_dim_t, int> &blocks) {
         auto dim_size = size_var(dim);
+        bool is_dim_1 = spec_reqs.is_equal(dim, 1);
+        if (is_dim_1) return expr_t(1);
         if (!blocks.has(dim)) return dim_size;
         return binary_op_t::make(op_kind_t::_div_up, dim_size, blocks[dim]);
     };
@@ -376,7 +379,7 @@ public:
             acc.add_block(b.dim, b.size);
         }
         for (auto &b : b_layout.blocks()) {
-            if (is_k(b.dim)) continue;
+            if (is_k(b.dim) || is_b(b.dim)) continue;
             acc.add_block(b.dim, b.size);
         }
         acc.block_by(c_inner_.blocks());
@@ -410,7 +413,7 @@ private:
         bool found = false;
         for (auto &d : iter_tile_) {
             if (iter_tile_[d] % simd_ != 0) continue;
-            if (is_n(d)) {
+            if (is_n(d) || is_b(d)) {
                 found = true;
                 block_t block;
                 block.dim = d;
@@ -531,12 +534,12 @@ private:
     }
 
     void init_layouts() {
-        auto src_layout = make_conv_layout(
-                tensor_kind_t::src, desc_.src_tag, desc_.is_dw);
-        auto wei_layout = make_conv_layout(
-                tensor_kind_t::wei, desc_.wei_tag, desc_.is_dw);
-        auto dst_layout = make_conv_layout(
-                tensor_kind_t::dst, desc_.dst_tag, desc_.is_dw);
+        auto src_layout = make_conv_layout(tensor_kind_t::src, desc_.src_tag,
+                desc_.is_dw, desc_.spec_reqs);
+        auto wei_layout = make_conv_layout(tensor_kind_t::wei, desc_.wei_tag,
+                desc_.is_dw, desc_.spec_reqs);
+        auto dst_layout = make_conv_layout(tensor_kind_t::dst, desc_.dst_tag,
+                desc_.is_dw, desc_.spec_reqs);
         auto &a_mapper = dim_mapper_manager_.mapper(tensor_kind_t::a);
         auto &b_mapper = dim_mapper_manager_.mapper(tensor_kind_t::b);
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);

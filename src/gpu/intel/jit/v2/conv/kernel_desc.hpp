@@ -105,6 +105,8 @@ public:
         return ret;
     }
 
+    void set(const prb_dim_t &dim, int value) { spec_tile_[dim] = value; }
+
     constraint_set_t as_constraint_set(const kernel_info_t &kernel_info) const {
         constraint_set_t ret;
         auto vars = kernel_info.get_vars();
