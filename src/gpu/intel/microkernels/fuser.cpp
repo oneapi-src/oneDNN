@@ -198,7 +198,6 @@ static void fixupJumpTargets(uint8_t *start, size_t len, ptrdiff_t adjust) {
 
         if (hasUIP) jumpFixup(insn[2]);
         jumpFixup(insn[3]);
-        insn += 4;
     }
 }
 
