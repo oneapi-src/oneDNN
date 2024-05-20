@@ -174,8 +174,7 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
     local uint *ugemm_slm = NULL;
 #endif
 
-    const bool need_sum_barrier
-            = (ugemm_kq_barrier_count == 0) && (ugemm_vs_barrier_count == 0);
+    const bool need_sum_barrier = (ugemm_vs_barrier_count == 0);
 
     /* Locate K/Q/V/A matrices within batch */
     K += KEY_OFF(b1, b0, 0, 0);
