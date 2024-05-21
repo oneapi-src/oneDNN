@@ -173,8 +173,7 @@ struct sycl_layer_normalization_conf_t {
     xpu::sycl::md_t scale;
     xpu::sycl::md_t shift;
     xpu::sycl::md_t stat_md;
-    xpu::sycl::md_t stat_d;
-    xpu::sycl::md_t var_md;
+    data_type_t var_dt;
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t diff_dst_md;
     dim_t wk_size;
@@ -220,14 +219,13 @@ struct sycl_batch_normalization_conf_t {
     bool dir;
     xpu::sycl::md_t data_md;
     xpu::sycl::md_t src1_md;
-    xpu::sycl::md_t dst1_md;
     xpu::sycl::md_t diff_data_md;
-    xpu::sycl::md_t diff_src1_md;
+    data_type_t diff_src1_dt;
     xpu::sycl::md_t data_scaleshift_md;
     xpu::sycl::md_t diff_data_scaleshift_md;
     xpu::sycl::md_t stat_md;
     xpu::sycl::md_t var_md;
-    xpu::sycl::md_t ws_md;
+    data_type_t ws_dt;
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t diff_dst_md;
     dim_t N;
