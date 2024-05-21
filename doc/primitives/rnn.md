@@ -275,7 +275,7 @@ h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 Note that for all tensors with a dimension depending on the gate number, except
 the bias, we implicitly require the order of these gates to be `u`, `r`, and
 `o`. For the \bias tensor, we implicitly require the order of the gates to be
-`u`, `r`, `o`, and `u'`.
+`u`, `r`, `o`, and `u\'`.
 
 @note If you need to replace u_t by (1-u_t) when computing h_t, you can
 achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
@@ -342,7 +342,7 @@ h_t &= \tilde u_t * h_{t-1, l} + (1 - \tilde u_t) * o_t
 Note that for all tensors with a dimension depending on the gate number, except
 the bias, we implicitly require the order of these gates to be `u`, `r`, and
 `o`. For the \bias tensor, we implicitly require the order of the gates to be
-`u`, `r`, `o`, and `u'`.
+`u`, `r`, `o`, and `u\'`.
 
 ## Considerations for Training
 
@@ -432,10 +432,10 @@ The following table summarizes the data layouts supported by the RNN
 primitive.
 
 Propagation        | Input/Output Data    | Recurrent Data       | Layer and Iteration Weights   | Peephole Weights and Bias | Projection LSTM Weights
--------------------|----------------------|----------------------|-------------------------------|---------------------------|------------------------
-Forward / Backward | #dnnl_format_tag_any | #dnnl_format_tag_any | #dnnl_format_tag_any          | #dnnl_ldgo                | #dnnl_format_tag_any
-Forward            | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldigo                   | #dnnl_ldgo                | #dnnl_ldio
-Backward           | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldigo, #dnnl_ldgoi(gpu) | #dnnl_ldgo                | #dnnl_ldoi
+-------------------|----------------------|----------------------|--------------------------------|---------------------------|------------------------
+Forward / Backward | #dnnl_format_tag_any | #dnnl_format_tag_any | #dnnl_format_tag_any           | #dnnl_ldgo                | #dnnl_format_tag_any
+Forward            | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldigo                    | #dnnl_ldgo                | #dnnl_ldio
+Backward           | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldigo, #dnnl_ldgoi (GPU) | #dnnl_ldgo                | #dnnl_ldoi
 
 While an RNN primitive can be created with memory formats specified
 explicitly, the performance is likely to be sub-optimal.  When using `any`, it

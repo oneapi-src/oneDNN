@@ -40,7 +40,7 @@ still take effect.
 | \                    | AVX10_1_512_AMX or AVX512_CORE_AMX           | Intel AVX10.1/512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support          |
 | \                    | AVX2_VNNI_2                                  | Intel AVX2 with Intel Deep Learning Boost (Intel DL Boost) with 8-bit integer, float16 and bfloat16 support                                                           |
 | \                    | AVX10_1_512_AMX_FP16 or AVX512_CORE_AMX_FP16 | Intel AVX10.1/512 with float16, Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer, bfloat16 and float16 support |
-| \                    | **DEFAULT**                                  | **No restrictions on the above ISAs, but excludes the below ISAs with preview support in the library (default)                                                        |
+| \                    | **DEFAULT**                                  | **No restrictions on the above ISAs, but excludes the below ISAs with preview support in the library (default)**                                                      |
 
 @note The ISAs are partially ordered:
 * SSE41 < AVX < AVX2 < AVX2_VNNI < AVX2_VNNI_2,
