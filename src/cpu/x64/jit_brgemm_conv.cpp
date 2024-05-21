@@ -977,6 +977,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
         ajcp.is_relo = true;
         ajcp.nb_ic_int = 1;
         ajcp.is_nspc = true;
+        ajcp.is_bf32 = jcp.is_bf32;
         ajcp.typesize_in = jcp.src_dsz;
         ajcp.ic_block_int = jcp.amx_w;
 

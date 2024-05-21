@@ -166,6 +166,7 @@ struct jit_conv_conf_t {
     data_type_t ddst_dt;
     data_type_t dsrc_dt;
     data_type_t dwei_dt;
+    bool is_bf32 {false};
     bool expl_bcast;
     bool large_spatial, large_w_filter;
     int is_ic_scale, is_oc_scale;
