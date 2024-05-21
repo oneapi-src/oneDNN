@@ -127,6 +127,25 @@ struct sycl_shuffle_conf_t {
     dim_t work_amount;
 };
 
+struct sycl_reorder_conf_t {
+    xpu::sycl::md_t src_md;
+    xpu::sycl::md_t dst_md;
+    xpu::sycl::md_t scales;
+
+    bool do_scale_src;
+    int scale_src_mask;
+    bool do_scale_dst;
+    int scale_dst_mask;
+
+    int ndims;
+
+    int block_size;
+    int wg_size;
+    int wk_size;
+
+    sycl_post_ops_t post_ops;
+};
+
 struct sycl_resampling_conf_t {
     dim_t MB;
     dim_t C;
