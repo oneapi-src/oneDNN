@@ -187,7 +187,7 @@ def setup(app):
 
 def fixFileNameRefs(app, env, docnames):
 
-    replacements = {"page_dev_guide": "dev_guide", "group_Dnnl":"group_dnnl"}
+    replacements = {"page_dev_guide":"dev_guide", "group_Dnnl":"group_dnnl", "brgemm_pack_B":"brgemm_pack_b"}
     targetDir = "rst"
 
     fileExtension = ".rst"

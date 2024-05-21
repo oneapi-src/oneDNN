@@ -52,7 +52,8 @@ struct handle_traits<dnnl_brgemm_pack_B_t> {
 
 /// @} dnnl_api_utils
 
-/// @addtogroup dnnl_api_ukernel
+/// @addtogroup dnnl_api_ukernel Ukernels
+/// Collection of ukernels
 /// @{
 
 /// ukernel namespace
@@ -61,6 +62,7 @@ namespace ukernel {
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
 
 /// @addtogroup dnnl_api_ukernel_brgemm BRGeMM ukernel
+/// BRGeMM ukernel routines
 /// @{
 
 struct brgemm : public handle<dnnl_brgemm_t> {
@@ -282,8 +284,8 @@ struct brgemm_pack_B : public handle<dnnl_brgemm_pack_B_t> {
 
     /// Executes a BRGeMM ukernel packing tensor B object.
     ///
-    /// @param in_ptr Pointer to an input buffer.
-    /// @param out_ptr Pointer to an output buffer.
+    /// @param in Pointer to an input buffer.
+    /// @param out Pointer to an output buffer.
     void execute(const void *in, void *out) const {
         dnnl_status_t status = dnnl_brgemm_pack_B_execute(get(), in, out);
         if (status != dnnl_success)
