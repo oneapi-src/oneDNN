@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1477,6 +1477,36 @@ status_t layout_propagator_for_add_zps(std::shared_ptr<op_t> &op,
             "dnnl_add_zps op is only for fusion purpose, we shouldn't do "
             "layout propagation for it");
     return status::invalid_graph_op;
+}
+
+status_t layout_propagator_for_groupnorm(op_ptr &op,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
+    status_t status = status::success;
+
+    const auto &pd
+            = groupnorm_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+
+    insert_reorder_after(
+            op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
+    value_ptr dst = op->get_output_value(0);
+    status = fill_layout_info(dst, pd.dst_desc());
+    if (status != status::success) return status;
+
+    if (op->num_outputs() > 2) {
+        // keep_stats is true
+        value_ptr mean = op->get_output_value(1);
+        value_ptr variance = op->get_output_value(2);
+        status = fill_layout_info(mean, pd.mean_desc());
+        if (status != status::success) return status;
+        status = fill_layout_info(variance, pd.variance_desc());
+        if (status != status::success) return status;
+    }
+
+    // scratchpad is groupnorm's last output
+    value_ptr scratchpad_val = op->get_output_values().back();
+    status = fill_layout_info(scratchpad_val, pd.scratchpad_desc());
+    return status;
 }
 
 } // namespace dnnl_impl

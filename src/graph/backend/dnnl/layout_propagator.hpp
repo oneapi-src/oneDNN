@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -90,6 +90,7 @@ DECLARE_LAYOUT_PROPAGATOR(reduction);
 DECLARE_LAYOUT_PROPAGATOR(constant_filler);
 DECLARE_LAYOUT_PROPAGATOR(sub_zps);
 DECLARE_LAYOUT_PROPAGATOR(add_zps);
+DECLARE_LAYOUT_PROPAGATOR(groupnorm);
 
 #undef DECLARE_LAYOUT_PROPAGATOR
 
