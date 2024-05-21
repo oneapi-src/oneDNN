@@ -7,9 +7,9 @@ Data transformation {#dev_guide_ukernel_transform}
 
 ## General
 
-The packB ukernel allows to pack BRGeMM B matrices in optimal layout
-before executing the [BRGeMM ukernel](@ref dev_guide_ukernel_brgemm).
-This is an out-of-place operation.
+The packB ukernel allows users to pack BRGeMM B matrices in an optimal layout
+before executing the [BRGeMM ukernel](@ref dev_guide_ukernel_brgemm). This is an
+out-of-place operation.
 
 ## Data Types
 
@@ -37,6 +37,6 @@ No attribute is supported for packB ukernel.
 
 ## Examples
 
-[BRGeMM ukernel example](@ref brgemm_example_cpp)
+[BRGeMM ukernel example](@ref cpu_brgemm_example_cpp)
 
-@copydetails brgemm_example_cpp_short
+@copydetails cpu_brgemm_example_cpp

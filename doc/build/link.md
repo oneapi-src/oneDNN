@@ -7,18 +7,19 @@ on how oneDNN was built.
 
 ## Header Files
 
-| File                                       | Description                       |
-|:-------------------------------------------|:----------------------------------|
-| ``include/oneapi/dnnl/dnnl.h``             | C header                          |
-| ``include/oneapi/dnnl/dnnl.hpp``           | C++ header                        |
-| ``include/oneapi/dnnl/dnnl_types.h``       | Auxiliary C header                |
-| ``include/oneapi/dnnl/dnnl_config.h``      | Auxiliary C header                |
-| ``include/oneapi/dnnl/dnnl_version.h``     | C header with version information |
-| ``include/oneapi/dnnl/dnnl_graph.h``       | C header for graph API            |
-| ``include/oneapi/dnnl/dnnl_graph.hpp``     | C++ header for graph API          |
-| ``include/oneapi/dnnl/dnnl_graph_types.h`` | Auxiliary C header for graph API  |
-| ``include/oneapi/dnnl/dnnl_ukernel.h``     | C header with ukernel API         |
-| ``include/oneapi/dnnl/dnnl_ukernel.hpp``   | C++ header with ukernel API       |
+| File                                         | Description                        |
+|:---------------------------------------------|:-----------------------------------|
+| ``include/oneapi/dnnl/dnnl.h``               | C header                           |
+| ``include/oneapi/dnnl/dnnl.hpp``             | C++ header                         |
+| ``include/oneapi/dnnl/dnnl_types.h``         | Auxiliary C header                 |
+| ``include/oneapi/dnnl/dnnl_config.h``        | Auxiliary C header                 |
+| ``include/oneapi/dnnl/dnnl_version.h``       | C header with version information  |
+| ``include/oneapi/dnnl/dnnl_graph.h``         | C header for graph API             |
+| ``include/oneapi/dnnl/dnnl_graph.hpp``       | C++ header for graph API           |
+| ``include/oneapi/dnnl/dnnl_graph_types.h``   | Auxiliary C header for graph API   |
+| ``include/oneapi/dnnl/dnnl_ukernel.h``       | C header for ukernel API           |
+| ``include/oneapi/dnnl/dnnl_ukernel.hpp``     | C++ header for ukernel API         |
+| ``include/oneapi/dnnl/dnnl_ukernel_types.h`` | Auxiliary C header for ukernel API |
 
 ## Libraries
 
