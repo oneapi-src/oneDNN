@@ -29,10 +29,13 @@
 /// @addtogroup dnnl_api
 /// @{
 
+namespace dnnl {
+
 /// @addtogroup dnnl_graph_api Graph API
+/// oneDNN Graph API
 /// @{
 
-namespace dnnl {
+/// oneDNN Graph namespace
 namespace graph {
 
 /// @cond DO_NOT_DOCUMENT_THIS
@@ -118,7 +121,6 @@ using req = typename std::enable_if<B, bool>::type;
 
 /// @addtogroup dnnl_graph_api_status Status
 /// Definitions of status values returned by the library functions.
-///
 /// @{
 
 /// Status values returned by the library functions.
@@ -147,7 +149,7 @@ enum class status {
     invalid_data_type = dnnl_invalid_data_type,
 };
 
-/// @} dnnl_api_status
+/// @} dnnl_graph_api_status
 
 /// @addtogroup dnnl_graph_api_allocator Allocator
 ///
@@ -1543,9 +1545,12 @@ inline size_t get_constant_tensor_cache_capacity(engine::kind kind) {
     return size;
 }
 
-/// @} dnnl_graph_constant_tensor_cache
+/// @} dnnl_graph_api_constant_tensor_cache
 
 } // namespace graph
+
+/// @} dnnl_graph_api
+
 } // namespace dnnl
 
 /// @cond DO_NOT_DOCUMENT_THIS
@@ -1561,8 +1566,6 @@ namespace dnnl = ::dnnl;
 } // namespace oneapi
 
 /// @endcond
-
-/// @} dnnl_graph_api
 
 /// @} dnnl_api
 

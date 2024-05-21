@@ -32,6 +32,9 @@
 extern "C" {
 #endif
 
+/// @addtogroup dnnl_api
+/// @{
+
 /// @addtogroup dnnl_graph_api
 /// @{
 
@@ -136,6 +139,8 @@ dnnl_status_t DNNL_API dnnl_graph_ocl_interop_compiled_partition_execute(
 /// @} dnnl_graph_api_interop
 
 /// @} dnnl_graph_api
+
+/// @} dnnl_api
 
 #ifdef __cplusplus
 }
