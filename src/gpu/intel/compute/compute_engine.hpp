@@ -163,12 +163,7 @@ public:
                 : device_info_->gpu_arch() >= compute::gpu_arch_t::xe_hpc;
     }
     bool mayiuse_large_grf_mode() const {
-        // XXX: XeHPG 128EU A0 causes hangs with large GRF mode.
-        if (is_xe_hpg() && device_info()->eu_count() == 128
-                && device_info()->stepping_id() == 0
-                && device_info()->mayiuse_systolic())
-            return false;
-        return device_info_->gpu_arch() >= compute::gpu_arch_t::xe_hp;
+        return device_info()->mayiuse_systolic();
     }
 
     dispatch_t create_dispatch(const memory_desc_t *md = nullptr) const {
