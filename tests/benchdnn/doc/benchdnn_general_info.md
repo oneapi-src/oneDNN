@@ -16,18 +16,18 @@ Returns `1` if any submitted tests returned status `FAILED` or `UNIMPLEMENTED`,
 
 ## Running Tests
 
-oneDNN comes with its own testing infrastructure enabled through CMake. Tests
-can be executed via the command:
+oneDNN comes with its own testing infrastructure enabled through CMake.
+If the project is built with `DNNL_BUILD_TESTS` set to `TRUE`, then Cmake will
+add test targets automatically.
+Targets can be triggered by the following command:
 ``` sh
-    make test_<test-name>
+    ctest [-R ".*benchdnn.*"]
 ```
-This instructs CMake to build a deployable project and run the specific test.
-
-These tests target specific oneDNN features and are based on benchdnn
-configurable executions.
+, where the content in brackets is optional and limits testing to benchdnn only.
+The pattern can be extended further for finer granularity.
 
 The available tests can be found in the oneDNN directory:
-tests/benchdnn/inputs/<driver>/<test-name>.
+tests/benchdnn/inputs/
 
 ## Glossary
 
