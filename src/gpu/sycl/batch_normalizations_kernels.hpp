@@ -74,7 +74,7 @@ struct batch_normalization_fwd_kernel_vec_t {
 private:
     const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
     const xpu::sycl::md_t &src1_md() const { return conf_.src1_md; }
-    const xpu::sycl::md_t &ws_md() const { return conf_.ws_md; }
+    const data_type_t &ws_dt() const { return conf_.ws_dt; }
     const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
     }
@@ -134,12 +134,10 @@ private:
                     if (bn_res <= 0) {
                         bn_res = 0;
                         if (conf_.is_training)
-                            store_float_value(
-                                    ws_md().data_type(), 0, ws_ptr(), d_off);
+                            store_float_value(ws_dt(), 0, ws_ptr(), d_off);
                     } else {
                         if (conf_.is_training)
-                            store_float_value(
-                                    ws_md().data_type(), 1, ws_ptr(), d_off);
+                            store_float_value(ws_dt(), 1, ws_ptr(), d_off);
                     }
                 }
 
@@ -150,12 +148,10 @@ private:
                     if (bn_res <= 0) {
                         bn_res = 0;
                         if (conf_.is_training)
-                            store_float_value(
-                                    ws_md().data_type(), 0, ws_ptr(), d_off);
+                            store_float_value(ws_dt(), 0, ws_ptr(), d_off);
                     } else {
                         if (conf_.is_training)
-                            store_float_value(
-                                    ws_md().data_type(), 1, ws_ptr(), d_off);
+                            store_float_value(ws_dt(), 1, ws_ptr(), d_off);
                     }
                 }
 
@@ -223,7 +219,7 @@ struct batch_normalization_fwd_kernel_vec_t1 {
 private:
     const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
     const xpu::sycl::md_t &src1_md() const { return conf_.src1_md; }
-    const xpu::sycl::md_t &ws_md() const { return conf_.ws_md; }
+    const data_type_t &ws_dt() const { return conf_.ws_dt; }
     const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
     }
@@ -312,12 +308,10 @@ private:
                     if (bn_res <= 0) {
                         bn_res = 0;
                         if (conf_.is_training)
-                            store_float_value(
-                                    ws_md().data_type(), 0, ws_ptr(), d_off);
+                            store_float_value(ws_dt(), 0, ws_ptr(), d_off);
                     } else {
                         if (conf_.is_training)
-                            store_float_value(
-                                    ws_md().data_type(), 1, ws_ptr(), d_off);
+                            store_float_value(ws_dt(), 1, ws_ptr(), d_off);
                     }
                 }
 
@@ -328,12 +322,10 @@ private:
                     if (bn_res <= 0) {
                         bn_res = 0;
                         if (conf_.is_training)
-                            store_float_value(
-                                    ws_md().data_type(), 0, ws_ptr(), d_off);
+                            store_float_value(ws_dt(), 0, ws_ptr(), d_off);
                     } else {
                         if (conf_.is_training)
-                            store_float_value(
-                                    ws_md().data_type(), 1, ws_ptr(), d_off);
+                            store_float_value(ws_dt(), 1, ws_ptr(), d_off);
                     }
                 }
 
@@ -392,7 +384,7 @@ struct batch_normalization_bwd_kernel_vec_t {
             xpu::sycl::in_memory_arg_t &stat, xpu::sycl::in_memory_arg_t &var,
             xpu::sycl::in_memory_arg_t &diff_dst,
             xpu::sycl::in_memory_arg_t &dst, xpu::sycl::in_memory_arg_t &ws,
-            xpu::sycl::in_memory_arg_t &diff_src1)
+            xpu::sycl::out_memory_arg_t &diff_src1)
         : conf_(conf)
         , data_(data)
         , diff_data_(diff_data)
@@ -416,9 +408,9 @@ struct batch_normalization_bwd_kernel_vec_t {
 private:
     const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
     const xpu::sycl::md_t &diff_data_md() const { return conf_.diff_data_md; }
-    const xpu::sycl::md_t &diff_src1_md() const { return conf_.diff_src1_md; }
+    const data_type_t &diff_src1_dt() const { return conf_.diff_src1_dt; }
     const xpu::sycl::md_t &stat_d() const { return conf_.stat_md; }
-    const xpu::sycl::md_t &ws_md() const { return conf_.ws_md; }
+    const data_type_t &ws_dt() const { return conf_.ws_dt; }
     const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
     }
@@ -499,17 +491,15 @@ private:
                         diff_dst_md().data_type(), diff_dst_ptr(),
                         DATA_OFF(diff_data_md(), n, c, d, h, w)));
                 if (conf_.fuse_norm_relu
-                        && !load_float_value(
-                                ws_md().data_type(), ws_ptr(), s_off))
+                        && !load_float_value(ws_dt(), ws_ptr(), s_off))
                     dd = 0;
 
                 if (conf_.fuse_norm_add_relu) {
                     dd = ::dnnl::impl::math::relu_bwd(dd,
-                            load_float_value(
-                                    ws_md().data_type(), ws_ptr(), s_off),
+                            load_float_value(ws_dt(), ws_ptr(), s_off),
                             conf_.alpha);
-                    store_float_value(diff_src1_md().data_type(), dd,
-                            diff_src1_ptr(), s_off);
+                    store_float_value(
+                            diff_src1_dt(), dd, diff_src1_ptr(), s_off);
                 }
 
                 diff_gamma
@@ -543,17 +533,15 @@ private:
                         diff_dst_md().data_type(), diff_dst_ptr(), dd_off));
 
                 if (conf_.fuse_norm_relu
-                        && !load_float_value(
-                                ws_md().data_type(), ws_ptr(), s_off))
+                        && !load_float_value(ws_dt(), ws_ptr(), s_off))
                     dd = 0;
 
                 if (conf_.fuse_norm_add_relu) {
                     dd = ::dnnl::impl::math::relu_bwd(dd,
-                            load_float_value(
-                                    ws_md().data_type(), ws_ptr(), s_off),
+                            load_float_value(ws_dt(), ws_ptr(), s_off),
                             conf_.alpha);
-                    store_float_value(diff_src1_md().data_type(), dd,
-                            diff_src1_ptr(), s_off);
+                    store_float_value(
+                            diff_src1_dt(), dd, diff_src1_ptr(), s_off);
                 }
 
                 float v_diff_src = dd;
@@ -587,7 +575,7 @@ private:
     xpu::sycl::in_memory_arg_t diff_dst_;
     xpu::sycl::in_memory_arg_t dst_;
     xpu::sycl::in_memory_arg_t ws_;
-    xpu::sycl::in_memory_arg_t diff_src1_;
+    xpu::sycl::out_memory_arg_t diff_src1_;
 };
 
 } // namespace sycl
