@@ -95,14 +95,15 @@ public:
     }
 
     void recompute_cost() {
-        cost_ = expr_cost(cse_expr_->expr) * cse_expr_->refs;
+        cost_ = expr_cost(cse_expr_->expr, var2entry_) * cse_expr_->refs;
     }
 
-private:
-    int expr_cost(const expr_t &e) {
+    static int expr_cost(const expr_t &e,
+            const object_map_t<expr_t, cse_var_entry_t *> *var2entry) {
         if (is_var(e)) {
-            auto it = var2entry_->find(e);
-            if (it == var2entry_->end()) return 0;
+            if (var2entry == nullptr) return 0;
+            auto it = var2entry->find(e);
+            if (it == var2entry->end()) return 0;
             if (it->second->allocated()) return 0;
             // If variable is not allocated, its value
             // has to be recomputed every time.
@@ -111,9 +112,12 @@ private:
         if (is_const(e)) return 0;
         if (e.is<cast_t>()) return e.type().is_bool();
         if (auto *op = e.as_ptr<binary_op_t>()) {
-            return expr_cost(op->a) + expr_cost(op->b) + 1;
+            return expr_cost(op->a, var2entry) + expr_cost(op->b, var2entry)
+                    + 1;
         }
-        if (auto *op = e.as_ptr<unary_op_t>()) { return expr_cost(op->a) + 1; }
+        if (auto *op = e.as_ptr<unary_op_t>()) {
+            return expr_cost(op->a, var2entry) + 1;
+        }
         if (auto *s = e.as_ptr<shuffle_t>()) {
             if (s->is_broadcast()) return 0;
             return s->elems();
@@ -122,6 +126,7 @@ private:
         return 0;
     }
 
+private:
     const cse_expr_t *cse_expr_ = nullptr;
     int cost_ = 0;
     bool allocated_ = true;
@@ -324,7 +329,14 @@ public:
                 || is_const(e))
             return false;
         auto &cse_expr = find_cse_expr(e);
-        if (cse_expr.refs <= (e.type().is_bool() ? 2 : 1)) return false;
+
+        if (cse_expr.refs <= 1) return false;
+        if (e.type().is_bool()) {
+            // Account for possible cost to move bool variable to and from flag
+            // register
+            auto cost = cse_var_entry_t::expr_cost(cse_expr.expr, nullptr);
+            if (cost + cse_expr.refs + 1 >= cost * cse_expr.refs) return false;
+        }
         if (skip_exprs_.count(cse_expr.orig_expr) != 0) return false;
         return true;
     }
