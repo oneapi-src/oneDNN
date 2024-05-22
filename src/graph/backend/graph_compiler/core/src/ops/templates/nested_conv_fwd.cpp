@@ -96,7 +96,7 @@ config_ptr_vec gen_nested_conv_fwd_t::get_dynamic_config_candidates(
   auto h_threads_candidates = get_splits(num_threads);
   if (h_threads_candidates.size() > 4)
     h_threads_candidates = std::vector<int>(
-      {h_threads_candidates.begin(), h_threads_candidates.begin() + 4});
+      h_threads_candidates.begin(), h_threads_candidates.begin() + 4);
   auto oc_threads_candidates = std::vector<int> {1, 4, 8};
   for (auto oc_c : oc_threads_candidates) {
     int candi = std::max(num_threads / oc_c, 1);
