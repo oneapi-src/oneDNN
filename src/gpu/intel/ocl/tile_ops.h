@@ -17,6 +17,8 @@
 #ifndef GPU_OCL_TILE_OPS_H
 #define GPU_OCL_TILE_OPS_H
 
+#include "gpu/intel/ocl/ocl_generic_vector_ops.h"
+
 float __builtin_IB_atomic_max_local_f32(__local float *, float);
 
 __attribute__((overloadable)) float local_atomic_max(local float *p, float v) {
@@ -35,9 +37,6 @@ __attribute__((overloadable)) uint local_atomic_max(local uint *p, uint v) {
 __attribute__((overloadable)) int local_atomic_max(local int *p, int v) {
     return atomic_max(p, v);
 }
-
-typedef half __attribute__((ext_vector_type(1))) half1;
-typedef uint __attribute__((ext_vector_type(1))) uint1;
 
 #define DEF_BLOCK_LOAD_STORE(type, itype, suffix, n) \
     __attribute__((overloadable)) type##n block_load( \

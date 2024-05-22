@@ -317,7 +317,7 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
         tile_vbroadcast_sub(&S_tile, S_max_tile);
 
 /* Scale + exponentiate */
-#define scaled_exp(x) native_exp2(x *scale)
+#define scaled_exp(x) native_vexp2(x *scale)
         tile_elementwise(S_tile, scaled_exp);
 
 #ifdef ALT_MAX
@@ -327,7 +327,7 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
         tile_copy(S_max_tile, S_max_tile1);
         tile_load_full(&S_max_tile, S_max_slm, ugemm_kq_wg_tile_n, sg_j0_kq, 0);
 
-#define binary_exp_neg(x, y) native_exp2(scale *((x) - (y)))
+#define binary_exp_neg(x, y) native_vexp2(scale *((x) - (y)))
         tile_binary(S_max_tile1, S_max_tile, binary_exp_neg);
         tile_vbroadcast_mul(&S_tile, S_max_tile1);
 #endif
@@ -349,7 +349,7 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 
         /* Rescale existing accumulator and sums to match new maxima */
         if (!first) {
-#define binary_exp_sub(x, y) native_exp2(scale *((x) - (y)))
+#define binary_exp_sub(x, y) native_vexp2(scale *((x) - (y)))
 #define binary_mul(x, y) ((x) * (y))
             tile_binary(S_max_tile_old, S_max_tile, binary_exp_sub);
             tile_binary(S_sum_tile, S_max_tile_old, binary_mul);
@@ -436,7 +436,7 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
     }
 
     /* Rescale by 1 / (column sums) */
-    tile_elementwise_s(A_scale_tile, native_recip);
+    tile_elementwise(A_scale_tile, native_vrecip);
     tile_hbroadcast_mul(&A_tile, A_scale_tile);
 
     /* Convert to half precision and store */
