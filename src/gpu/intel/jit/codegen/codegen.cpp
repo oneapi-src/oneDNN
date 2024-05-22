@@ -374,9 +374,8 @@ private:
         if (!attr.is_empty())
             mod = mod | to_ngen(attr.as<instruction_modifier_attr_t>().mod);
 
-        const int dwords = ngen::GRF::bytes(hw) / sizeof(int32_t);
         host_->slmfence(mod, tmp, host_->r0);
-        host_->template mov<int32_t>(dwords, host_->null, tmp);
+        host_->fencewait();
     }
 
     void barrier(const func_call_attr_t &attr) {
@@ -386,9 +385,8 @@ private:
         if (!attr.is_empty())
             mod = mod | to_ngen(attr.as<instruction_modifier_attr_t>().mod);
 
-        const int dwords = ngen::GRF::bytes(hw) / sizeof(int32_t);
         host_->slmfence(mod, tmp, host_->r0);
-        host_->template mov<int32_t>(dwords, host_->null, tmp);
+        host_->fencewait();
         host_->barriermsg(mod, host_->signal_header_);
         host_->barrierwait();
     }
