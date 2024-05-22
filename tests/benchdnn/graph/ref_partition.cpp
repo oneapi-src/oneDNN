@@ -186,6 +186,12 @@ void ref_partition_t::exec_ops(res_t *res) {
         // However, this practice must be limited to the cases when it's
         // mandatory. The requirement for input adjustment is having a parent
         // op, since there's an assumption the current op is unfusable.
+        //
+        // Note: Compiler backend doesn't down-convert to the lower precision
+        // data type when pass data to a transcendental op. However, this
+        // conversion can't be disabled without additional library API which
+        // would provide an info if Compiler or DNNL backend was used, since
+        // fall back to DNNL from Compiler backend fails.
         if (unfusable_transcendental_op && has_parent_op(op)) {
             for (size_t i = 0; i < op.in_lts_.size(); i++) {
                 const auto dt = ref_prim->get_lt_dt(op.in_lts_[i].id_);
