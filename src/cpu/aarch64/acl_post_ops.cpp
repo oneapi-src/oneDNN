@@ -22,35 +22,33 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-status_t acl_post_ops_t::execute(const exec_ctx_t &ctx, void *src_orig) const {
+status_t acl_post_ops_t::execute(
+        const exec_ctx_t &ctx, void *src, void *dst) const {
 
     int post_op_index = post_op_start_index_;
 
-    // As these are post ops, this src will also be our dst. If we have a sum
-    // post op, the src/dst will start off in a temporary, then change to
-    // DNNL_ARG_DST after the sum.
-    void *src = src_orig;
+    // By default, dst is expected to be the output buffer. However, in some
+    // cases we may want to override that behaviour and use a temporary buffer.
+    if (dst == nullptr) { dst = CTX_OUT_MEM(void *, DNNL_ARG_DST); }
 
-    // Post ops must operate in place on dst, unless when we have a sum op
-    if (!has_sum() && src != CTX_OUT_MEM(void *, DNNL_ARG_DST)) {
-        return status::runtime_error;
-    }
+    // Sum post-op requires distinct src and dst buffers.
+    if (has_sum() && dst == src) { return status::runtime_error; }
 
     for (auto &post_op : post_op_primitives) {
         if (post_op->kind() == primitive_kind::binary) {
             auto binary_post_op = dynamic_cast<acl_binary_t *>(post_op.get());
             if (binary_post_op == nullptr) return status::runtime_error;
 
-            // Sum post op accumulates to dst and changes future dst
+            // Sum post op accumulates to dst and changes future src
             if (post_op_index == sum_index) {
-                // Change src to final dst, then add orig source to it
-                src = CTX_OUT_MEM(void *, DNNL_ARG_DST);
-                CHECK(binary_post_op->execute_forward(ctx, src_orig, src, src));
+                CHECK(binary_post_op->execute_forward(ctx, src, dst, dst));
+                src = dst;
             } else {
-                const void *src1 = CTX_IN_MEM(const void *,
+                const void *src_binary = CTX_IN_MEM(const void *,
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(post_op_index)
                                 | DNNL_ARG_SRC_1));
-                CHECK(binary_post_op->execute_forward(ctx, src, src1, src));
+                CHECK(binary_post_op->execute_forward(
+                        ctx, src, src_binary, src));
             }
         } else if (post_op->kind() == primitive_kind::eltwise) {
             // The post op at the sum index must be binary
