@@ -18,13 +18,19 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/jit/binary_format.hpp"
 
 #include "gpu/intel/jit/gemm/gen_gemm.hpp"
 #include "gpu/intel/jit/gemm/xe_hp_systolic_gemm.hpp"
-#include "gpu/intel/ocl/gemm/conv_gemm.hpp"
 #include "gpu/intel/ocl/gemm/gemm_with_post_ops.hpp"
 #include "gpu/intel/ocl/gemm/ref_gemm.hpp"
+
+#ifdef DNNL_DEV_MODE
+#include "gpu/intel/ocl/gemm/conv_gemm.hpp"
+#endif
+
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -34,13 +40,11 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = {
-#ifdef DNNL_DEV_MODE
-        INSTANCE(intel::ocl::conv_gemm_t)
-#endif
-        INSTANCE(intel::jit::xe_hp_systolic_gemm_t)
-        INSTANCE(intel::ocl::gemm_with_post_ops_t)
-        INSTANCE(intel::jit::gen_gemm_t)
-        INSTANCE(intel::ocl::ref_gemm_t)
+        GPU_INSTANCE_INTEL_DEVMODE(intel::ocl::conv_gemm_t)
+        GPU_INSTANCE_INTEL(intel::jit::xe_hp_systolic_gemm_t)
+        GPU_INSTANCE_INTEL(intel::ocl::gemm_with_post_ops_t)
+        GPU_INSTANCE_INTEL(intel::jit::gen_gemm_t)
+        GPU_INSTANCE_INTEL(intel::ocl::ref_gemm_t)
         nullptr,
 };
 // clang-format on

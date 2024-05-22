@@ -282,13 +282,16 @@ const format_tag_t ba = dnnl_ba;
 const format_tag_t bac = dnnl_bac;
 const format_tag_t bacd = dnnl_bacd;
 const format_tag_t bca = dnnl_bca;
+const format_tag_t bcad = dnnl_bcad;
 const format_tag_t bcda = dnnl_bcda;
 const format_tag_t bcdea = dnnl_bcdea;
 const format_tag_t bacde = dnnl_bacde;
 const format_tag_t cab = dnnl_cab;
 const format_tag_t cba = dnnl_cba;
+const format_tag_t cabd = dnnl_cabd;
 const format_tag_t cdab = dnnl_cdab;
 const format_tag_t cdba = dnnl_cdba;
+const format_tag_t dabc = dnnl_dabc;
 const format_tag_t dcab = dnnl_dcab;
 const format_tag_t cdeab = dnnl_cdeab;
 const format_tag_t cdeba = dnnl_cdeba;
@@ -1939,6 +1942,7 @@ const primitive_kind_t group_normalization = dnnl_group_normalization;
 // Internal only primitive kinds.
 const primitive_kind_t internal_only_start = (primitive_kind_t)(1 << 12);
 const primitive_kind_t zero_pad = internal_only_start;
+const primitive_kind_t sdpa = (primitive_kind_t)(internal_only_start + 1);
 } // namespace primitive_kind
 
 using query_t = dnnl_query_t;

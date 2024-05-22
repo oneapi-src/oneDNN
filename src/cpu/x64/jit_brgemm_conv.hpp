@@ -47,7 +47,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa, bool use_inversion = false>
+template <cpu_isa_t isa>
 struct brgemm_convolution_fwd_t : public primitive_t {
 
     struct brgemm_thread_ctx_t;
@@ -119,7 +119,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         int get_any_brg_idx(bool is_N_tail, bool is_K_tail) const;
 
         inline int maybe_invert(int k, int K) const {
-            return use_inversion ? K - 1 - k : k;
+            return desc()->use_inversion ? K - 1 - k : k;
         };
 
         // This method calculates the value of k_l
@@ -203,7 +203,7 @@ private:
     }
 
     inline int maybe_invert_range(int k, int k_inv, int K) const {
-        return use_inversion ? K - k_inv : k;
+        return pd()->desc()->use_inversion ? K - k_inv : k;
     };
 
     void ker_base(brgemm_thread_ctx_t &btc) const;
@@ -247,7 +247,7 @@ private:
     brgemm_containers::brgemm_kernel_container_t brgemm_kernels_;
     brgemm_containers::brgemm_palette_container_t brgemm_palettes_;
 
-    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops<isa>>> kernels_po_;
+    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops_base_t>> kernels_po_;
     std::unique_ptr<jit_avx512_core_brgemm_conv_trans_kernel::
                     jit_avx512_core_brgemm_conv_trans_kernel_t>
             copy_to_pbuffer_;

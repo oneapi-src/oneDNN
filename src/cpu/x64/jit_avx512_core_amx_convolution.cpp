@@ -869,8 +869,8 @@ status_t jit_avx512_core_amx_convolution_bwd_weights_t::init(engine_t *engine) {
     }
     if (j.transform_to_vnni) {
         CHECK(safe_ptr_assign(diff_wei_trans_kernel_,
-                new jit_diff_wei_trans_to_vnni_t(
-                        j.wei_dt, j.kd, j.kh, j.kw, j.ic_block, j.oc_block)));
+                new jit_diff_wei_trans_to_vnni_t(j.wei_dt, j.kd, j.kh, j.kw,
+                        j.ic_block, j.oc_block, j.nb_ic)));
         CHECK(diff_wei_trans_kernel_->create_kernel());
     }
     return status::success;

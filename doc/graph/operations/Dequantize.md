@@ -26,7 +26,7 @@ where \f$ic\f$ is the number of channels.
 | [qtype](@ref dnnl::graph::op::attr::qtype)   | Specifies which de-quantization type is used.                        |string      | `per_tensor` (default), `per_channel`                                     | Optional             |
 | [axis](@ref dnnl::graph::op::attr::axis)     | Specifies dimension on which per-channel de-quantization is applied. |s64         | A s64 value in the range of [-r, r-1] where r = rank(src), `1` by default | Optional             |
 | [scales](@ref dnnl::graph::op::attr::scales) | Scalings applied on the src data.                                    |f32         | A f32 list (only contain one element if qtype is `per_tensor`)            | Required             |
-| [zps](@ref dnnl::graph::op::attr::zps)       | Offset values that maps to float zero.                               |s64         | A s64 list (only contain one element if qtype is `per_tensor`)            | Optional             |
+| [zps](@ref dnnl::graph::op::attr::zps)       | Offset values that maps to float zero.                               |s64         | A s64 list (only contain one element if qtype is `per_tensor`). If omitted, zps values are assumed to be zero. | Optional             |
 
 ## Execution arguments
 

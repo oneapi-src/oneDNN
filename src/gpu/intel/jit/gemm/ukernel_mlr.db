@@ -1,0 +1,31 @@
+/*******************************************************************************
+* Copyright 2024 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+/*@kcatalog@*/
+kcatalog::FlatCatalog<11> _CATALOG_
+{1, 18, 11, {
+{{'E', "ugemm", {"H", "H", "S"}, {"N", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {4, 4, 1}, "yI"}, "aB16x2 lB32 rB sys dw wg 4x8 vav", {8, (LoopType) 0, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {16, 4, 32}, {4, 8, 1}, 1, (WGType) 0, 257, 0, 0, {4, 4, 4}, {true, false, true}}, {'W', 1, {64}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"N", "B16", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {8, 1, 1}, "yzIA"}, "av16x2+m16@32 lB16x2 rB sys wg 2x4 vav", {16, (LoopType) 255, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 16, 16}, {2, 4, 1}, 1, (WGType) 1, 257, 0, 0, {8, 128, 4}, {true, false, false}}, {'W', 1, {512}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"N", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {8, 4, 1}, "yIA"}, "av16x2+m16@32 lB32x2 rB sys wg 4x8 vav", {16, (LoopType) 255, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {16, 8, 32}, {4, 8, 1}, 1, (WGType) 1, 257, 0, 0, {8, 4, 4}, {true, false, true}}, {'W', 1, {128}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"N", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {8, 4, 1}, "yIA"}, "av16x2+m16@32 lB32x2 rB sys wg 2x4 vav", {16, (LoopType) 255, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 8, 32}, {2, 4, 1}, 1, (WGType) 1, 257, 0, 0, {8, 4, 4}, {true, false, true}}, {'W', 1, {256}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"N", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {8, 4, 1}, "yIA"}, "av16x2+m16@32 lB32 rB sys wg 2x2 vav", {16, (LoopType) 255, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 16, 32}, {2, 2, 1}, 1, (WGType) 1, 257, 0, 0, {8, 4, 4}, {true, false, true}}, {'W', 1, {512}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"N", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {8, 4, 1}, "yIA"}, "av16x2+m16@32 lB32 rB sys wg 2x4 vav", {16, (LoopType) 255, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 16, 32}, {2, 4, 1}, 1, (WGType) 1, 257, 0, 0, {8, 4, 4}, {true, false, true}}, {'W', 1, {512}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"N", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {8, 4, 1}, "yIA"}, "av16x2+m16@32 lB32 rB sys wg 2x8 vav", {16, (LoopType) 255, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 16, 32}, {2, 8, 1}, 1, (WGType) 1, 257, 0, 0, {8, 4, 4}, {true, false, true}}, {'W', 1, {512}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"N", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {8, 4, 1}, "yIA"}, "av16x2+m32@32 lB32 rB sys wg 2x16 vav", {16, (LoopType) 255, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 8, 32}, {2, 16, 1}, 1, (WGType) 1, 257, 0, 0, {8, 4, 4}, {true, false, true}}, {'W', 1, {256}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"N", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {1, 4, 1}, "#AIy"}, "aB16x2+m32@32 lB32 rB sys wg 2x16 vav l4 grf256", {16, (LoopType) 255, 256, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 8, 32}, {2, 16, 1}, 1, (WGType) 1, 257, 0, 0, {2, 4, 4}, {true, false, true}}, {'W', 1, {256}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"N", "T", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {8, 4, 1}, "yzIA"}, "av16x2+m16@32 lS16x2 rB sys wg 2x4 vav", {16, (LoopType) 255, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 16, 16}, {2, 4, 1}, 1, (WGType) 1, 257, 0, 0, {8, 4, 4}, {true, false, false}}, {'W', 1, {512}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"T", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {8, 4, 1}, "yzIA"}, "at16x2+m16@32 lB32 rB sys wg 2x4 vav grf256", {16, (LoopType) 255, 256, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 1024}, {8192, 8192, 1024}, {32, 32, 32}, {2, 4, 1}, 1, (WGType) 1, 257, 0, 0, {8, 4, 4}, {true, false, false}}, {'W', 1, {1024}}}
+}}

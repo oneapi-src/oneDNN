@@ -83,6 +83,7 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(reorder)
             CASE(resampling)
             CASE(rnn)
+            CASE(sdpa)
             CASE(shuffle)
             CASE(softmax)
             CASE(sum)
@@ -382,6 +383,8 @@ size_t get_desc_hash(const convolution_desc_t &desc) {
     seed = get_array_hash(seed, desc.padding[1], DNNL_MAX_NDIMS);
     // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc.accum_data_type));
+    // Internal member
+    seed = hash_combine(seed, static_cast<size_t>(desc.use_inversion));
     // Combined hash for (de-)convolution desc
     return seed;
 }
@@ -702,6 +705,23 @@ size_t get_desc_hash(const zero_pad_desc_t &desc) {
     size_t seed = 0;
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
+    return seed;
+}
+
+size_t get_desc_hash(const sdpa_desc_t &desc) {
+    size_t seed = 0;
+    // Kinds
+    seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
+    // Memory descriptors
+    seed = hash_combine(seed, get_md_hash(desc.q_desc));
+    seed = hash_combine(seed, get_md_hash(desc.k_desc));
+    seed = hash_combine(seed, get_md_hash(desc.v_desc));
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.attn_mask_desc));
+    // Scale type
+    seed = hash_combine(seed, static_cast<size_t>(desc.scale_dt));
+    seed = hash_combine(seed, desc.invert_scale);
+    // Combined hash for sdpa desc
     return seed;
 }
 

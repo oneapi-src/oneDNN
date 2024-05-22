@@ -64,12 +64,12 @@ bool is_amx(cpu_isa_t isa) {
 }
 
 bool post_ops_ok(jit_brgemm_conv_conf_t &jcp, primitive_attr_t &attr,
-        const memory_desc_wrapper &dst_d, bool is_deconv) {
+        const memory_desc_wrapper &dst_d, bool use_inversion) {
     using namespace injector;
 
     const auto &post_ops = attr.post_ops_;
 
-    if (post_ops.len() > 0 && !is_deconv) return false;
+    if (post_ops.len() > 0 && !use_inversion) return false;
 
     return injector::post_ops_ok(post_ops_ok_args_t(jcp.isa,
             {sum, eltwise, binary}, post_ops, &dst_d,
@@ -1403,8 +1403,7 @@ brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
 status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &diff_dst_md,
         memory_desc_t &weights_md, memory_desc_t &diff_src_md,
-        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads,
-        bool is_deconv) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
     brg_blocking_t::L1 = platform::get_per_core_cache_size(1);
@@ -1451,7 +1450,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const bool has_uneven_spatial = jcp.id % jcp.stride_d != 0
             || jcp.ih % jcp.stride_h != 0 || jcp.has_uneven_iw;
 
-    if (is_deconv && has_uneven_spatial) return status::unimplemented;
+    if (cd.use_inversion && has_uneven_spatial) return status::unimplemented;
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
@@ -1623,10 +1622,12 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
 
     jcp.src_zero_point
-            = get_zp_type(attr, is_deconv ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST)
+            = get_zp_type(
+                      attr, cd.use_inversion ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST)
             != brgemm_broadcast_t::none;
     jcp.dst_zero_point
-            = get_zp_type(attr, is_deconv ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC)
+            = get_zp_type(
+                      attr, cd.use_inversion ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC)
             != brgemm_broadcast_t::none;
 
     const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
@@ -1634,11 +1635,13 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const bool params_ok
             = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
             && IMPLICATION(jcp.src_zero_point,
-                    attr.zero_points_.common(
-                            is_deconv ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST))
+                    attr.zero_points_.common(cd.use_inversion
+                                    ? DNNL_ARG_SRC
+                                    : DNNL_ARG_DIFF_DST))
             && IMPLICATION(jcp.dst_zero_point,
-                    attr.zero_points_.common(
-                            is_deconv ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC));
+                    attr.zero_points_.common(cd.use_inversion
+                                    ? DNNL_ARG_DST
+                                    : DNNL_ARG_DIFF_SRC));
     VDISPATCH_CONV_IC(params_ok, VERBOSE_UNSUPPORTED_ZP_CFG);
 
     jcp.nthr = nthreads;
@@ -1659,7 +1662,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     CHECK(init_tag(jcp.dst_tag, diff_src_md, diff_src_d, src_tag));
     CHECK(attr.set_default_formats(&diff_src_md));
 
-    VDISPATCH_CONV_IC(post_ops_ok(jcp, attr, diff_src_d, is_deconv),
+    VDISPATCH_CONV_IC(post_ops_ok(jcp, attr, diff_src_d, cd.use_inversion),
             VERBOSE_UNSUPPORTED_POSTOP);
 
     return status::success;
@@ -1892,8 +1895,7 @@ dim_t precalculate_comp_pad_kernels(const jit_brgemm_conv_conf_t &jcp,
 status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const convolution_desc_t &cd, memory_desc_t &diff_dst_md,
         memory_desc_t &weights_md, memory_desc_t &diff_src_md,
-        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads,
-        bool is_deconv) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
 
     using namespace prop_kind;
 
@@ -1901,7 +1903,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!mayiuse(isa)) return status::unimplemented;
 
     CHECK(init_jcp(jcp, isa, cd, diff_dst_md, weights_md, diff_src_md, bias_md,
-            attr, nthreads, is_deconv));
+            attr, nthreads));
 
     const memory_desc_wrapper diff_dst_d(&diff_dst_md);
     const memory_desc_wrapper weights_d(&weights_md);
@@ -2040,7 +2042,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             ? 1 / weights_md.extra.scale_adjust
             : 1.0f;
 
-    if (is_deconv) {
+    if (cd.use_inversion) {
         const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
         const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
         jcp.with_scales = !src_scales.has_default_values()

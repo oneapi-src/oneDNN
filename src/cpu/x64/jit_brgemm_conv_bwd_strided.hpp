@@ -40,7 +40,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa, bool is_deconv = false>
+template <cpu_isa_t isa>
 struct brgemm_convolution_bwd_strided_t : public primitive_t {
 
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
@@ -206,7 +206,7 @@ private:
     brgemm_containers::brgemm_kernel_container_t brg_kernels_;
     brgemm_containers::brgemm_palette_container_t brgemm_palettes_;
 
-    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops<isa>>> kernels_po_;
+    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops_base_t>> kernels_po_;
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
 

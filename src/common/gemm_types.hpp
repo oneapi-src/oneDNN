@@ -71,7 +71,7 @@ struct gemm_desc_t {
     inline bool is_batched() const { return c_desc.ndims >= 3; }
 
     // Simplified accessors that comply to GEMM API
-    transpose_t get_trans(const memory_desc_t &md) const {
+    static transpose_t get_trans(const memory_desc_t &md) {
         return md.format_desc.blocking.strides[md.ndims - 1] != 1
                 ? transpose::trans
                 : transpose::notrans;

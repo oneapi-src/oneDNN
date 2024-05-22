@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2023 Intel Corporation
+# Copyright 2020-2024 Intel Corporation
 # Copyright 2020 Codeplay Software Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,33 +15,12 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB_RECURSE SOURCES
+file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-set(OBJ_LIB ${LIB_PACKAGE_NAME}_sycl_nvidia)
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_nvidia)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
-
-set_target_properties(
-    ${OBJ_LIB}
-    PROPERTIES
-        COMPILE_DEFINITIONS
-        "$<TARGET_PROPERTY:cuBLAS::cuBLAS,INTERFACE_COMPILE_DEFINITIONS>;$<TARGET_PROPERTY:cuDNN::cuDNN,INTERFACE_COMPILE_DEFINITIONS>"
-        COMPILE_OPTIONS
-        "$<TARGET_PROPERTY:cuBLAS::cuBLAS,INTERFACE_COMPILE_OPTIONS>;$<TARGET_PROPERTY:cuDNN::cuDNN,INTERFACE_COMPILE_OPTIONS>"
-)
-target_include_directories(
-    ${OBJ_LIB}
-    PRIVATE $<TARGET_PROPERTY:cuDNN::cuDNN,INTERFACE_INCLUDE_DIRECTORIES>
-            $<TARGET_PROPERTY:cuBLAS::cuBLAS,INTERFACE_INCLUDE_DIRECTORIES>)
-
-add_library(${OBJ_LIB}_interface INTERFACE)
-target_link_libraries(${OBJ_LIB}_interface INTERFACE cuBLAS::cuBLAS
-                                                         cuDNN::cuDNN)
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
-
-set(${LIB_PACKAGE_NAME}_INTERFACE
-    ${${LIB_PACKAGE_NAME}_INTERFACE} ${OBJ_LIB}_interface
-    PARENT_SCOPE)

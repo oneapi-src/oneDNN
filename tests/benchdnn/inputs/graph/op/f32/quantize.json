@@ -5,8 +5,8 @@
   "graph": [
     {
       "id": 0,
-      "name": "DEQUANTIZE_0",
-      "kind": "Dequantize",
+      "name": "QUANTIZE_0",
+      "kind": "Quantize",
       "attrs": {
         "zps": {
           "type": "s64[]",
@@ -32,7 +32,7 @@
       "inputs": [
         {
           "id": 0,
-          "dtype": "u8",
+          "dtype": "f32",
           "shape": [
             1,
             32,
@@ -52,7 +52,7 @@
       "outputs": [
         {
           "id": 1,
-          "dtype": "f32",
+          "dtype": "u8",
           "shape": [
             1,
             32,

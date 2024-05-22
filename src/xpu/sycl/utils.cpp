@@ -155,14 +155,17 @@ bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs) {
     // Only one host device exists.
     if (lhs_be == backend_t::host) return true;
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL \
+        || DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
     if (lhs_be == backend_t::opencl) {
         // Use wrapper objects to avoid memory leak.
         auto lhs_ocl_handle = compat::get_native<cl_device_id>(lhs);
         auto rhs_ocl_handle = compat::get_native<cl_device_id>(rhs);
         return lhs_ocl_handle == rhs_ocl_handle;
     }
+#endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
     if (lhs_be == backend_t::level0) {
         return gpu::intel::sycl::compare_ze_devices(lhs, rhs);
     }

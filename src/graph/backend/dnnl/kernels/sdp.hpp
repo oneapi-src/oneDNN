@@ -68,6 +68,7 @@ public:
         reorder_prim_ = reorder(pd);
         return status::success;
     }
+    bool get_inplace() { return is_inplace_; }
     status_t execute(const stream &astream,
             const std::unordered_map<int, memory> &args) const {
         if (is_inplace_)
@@ -87,7 +88,7 @@ public:
     sdp_decomp_config_t() = default;
 
     // SDP input dimension
-    memory::dim batch_size, num_head, seq_len, size_per_head;
+    memory::dim batch_size, num_head, seq_len_q, size_per_head;
 
     // SDP input and output strides
     memory::dims src1_strides, wei1_strides, wei2_strides, dst_strides,
@@ -166,7 +167,7 @@ public:
         // Initialize SDP input dimension according to the src of mm1
         batch_size = src1_user_dims[0];
         num_head = src1_user_dims[1];
-        seq_len = src1_user_dims[2];
+        seq_len_q = src1_user_dims[2];
         size_per_head = src1_user_dims[3];
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
@@ -199,6 +200,14 @@ public:
         // Record the ops inside of SDP pattern for later usage
         record_sdp_ops(sg, quantized);
 
+        // Update SDPA input params. Sequence length for query and key/value are
+        // NOT always same.
+        memory::dim seq_len_kv;
+        const auto &lt_wei
+                = sdp_op[1]->get_input_value(1)->get_logical_tensor();
+        const ltw ltw_wei(lt_wei);
+        seq_len_kv = ltw_wei.vdims()[3];
+
         // Acquire the data type from input param for later primitive creation.
         // The src and wei dt of both quantized sdp and float sdp are the same.
         memory::data_type dt_src_user = static_cast<memory::data_type>(
@@ -229,7 +238,7 @@ public:
         sub_reorder0_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
         // per-head: reorder src1 to dense, for first matmul
-        memory::dims sub_src1_dims = {1, 1, seq_len, size_per_head};
+        memory::dims sub_src1_dims = {1, 1, seq_len_q, size_per_head};
         src1_strides = ltw(inputs[graph_inport[0]]).vstrides();
         sub_src1_md = memory::desc(sub_src1_dims, dt_src_user,
                 {1, 1, src1_strides[2], src1_strides[3]});
@@ -245,7 +254,7 @@ public:
         // create reorder1 primitive attr
         dnnl::primitive_attr sub_reorder1_attr
                 = make_primitive_attr(sdp_op[0], mgr);
-        memory::dims sub_wei1_dims = {1, 1, size_per_head, seq_len};
+        memory::dims sub_wei1_dims = {1, 1, size_per_head, seq_len_kv};
         auto wei_md = make_dnnl_memory_desc(
                 sdp_op[1]->get_input_value(1)->get_logical_tensor());
         wei1_strides = wei_md.get_strides();
@@ -261,9 +270,9 @@ public:
         // create first matmul primitive attr
         dnnl::primitive_attr sub_matmul1_attr
                 = make_primitive_attr(sdp_op[1], mgr);
-        memory::dims sub_mm1_src_dims = {1, 1, seq_len, size_per_head};
-        memory::dims sub_mm1_wei_dims = {1, 1, size_per_head, seq_len};
-        memory::dims sub_mm1_dst_dims = {1, 1, seq_len, seq_len};
+        memory::dims sub_mm1_src_dims = {1, 1, seq_len_q, size_per_head};
+        memory::dims sub_mm1_wei_dims = {1, 1, size_per_head, seq_len_kv};
+        memory::dims sub_mm1_dst_dims = {1, 1, seq_len_q, seq_len_kv};
 
         sub_mm1_src_md = memory::desc(sub_mm1_src_dims, dt_src_user, tag::abcd);
         sub_mm1_wei_md = memory::desc(sub_mm1_wei_dims, dt_wei, tag::abdc);
@@ -306,7 +315,7 @@ public:
         // create reorder2 primitive attr
         dnnl::primitive_attr sub_reorder2_attr
                 = make_primitive_attr(sdp_op[3], mgr);
-        memory::dims sub_wei2_dims = {1, 1, seq_len, size_per_head};
+        memory::dims sub_wei2_dims = {1, 1, seq_len_kv, size_per_head};
         wei2_strides = ltw(inputs[graph_inport[4]]).vstrides();
         sub_wei2_user_md = memory::desc(sub_wei2_dims, dt_wei_user,
                 {1, 1, wei2_strides[2], wei2_strides[3]});
@@ -320,9 +329,9 @@ public:
         // create second matmul primitive attr
         dnnl::primitive_attr sub_matmul2_attr
                 = make_primitive_attr(sdp_op[4], mgr);
-        memory::dims sub_mm2_src_dims = {1, 1, seq_len, seq_len};
-        memory::dims sub_mm2_wei_dims = {1, 1, seq_len, size_per_head};
-        memory::dims sub_mm2_dst_dims = {1, 1, seq_len, size_per_head};
+        memory::dims sub_mm2_src_dims = {1, 1, seq_len_q, seq_len_kv};
+        memory::dims sub_mm2_wei_dims = {1, 1, seq_len_kv, size_per_head};
+        memory::dims sub_mm2_dst_dims = {1, 1, seq_len_q, size_per_head};
         auto sub_mm2_src_md
                 = memory::desc(sub_mm2_src_dims, dt_src_user, tag::abcd);
         sub_mm2_wei_md = memory::desc(sub_mm2_wei_dims, dt_wei, tag::abcd);
@@ -334,7 +343,7 @@ public:
         // per-head: reorder dst2 from dense to strided
         primitive_attr sub_reorder3_attr;
         sub_reorder3_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
-        memory::dims sub_dst_dims = {1, 1, seq_len, size_per_head};
+        memory::dims sub_dst_dims = {1, 1, seq_len_q, size_per_head};
         auto out_lt = sdp_op[4]->get_output_value(0)->get_logical_tensor();
         dst_strides = ltw(out_lt).vstrides();
         sub_dst_md = memory::desc(sub_dst_dims, dt_src_user, tag::abcd);
@@ -537,7 +546,7 @@ private:
     impl::status_t record_input_offset(const std::shared_ptr<subgraph_t> &sg,
             const std::vector<logical_tensor_t> &inputs) {
         auto find_graph_inport = [&](std::shared_ptr<value_t> val) {
-            // for quantized mamtul, it has producer such as add_zp,sub_zp,mul_scale.
+            // for quantized matmul, it has producer such as add_zp,sub_zp,mul_scale.
             if (val->get_consumers()[0].get_op().get_kind()
                     == graph::op_kind::MatMul) {
                 while (val->has_producer()) {
@@ -555,8 +564,10 @@ private:
             if (mm1 != nullptr && mm2 != nullptr) break;
             if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
             auto post_op = get_post_op(cur_op);
-            if (post_op->get_kind() == graph::op_kind::Divide
-                    || post_op->get_kind() == graph::op_kind::Multiply) {
+            if (post_op
+                    && (post_op->get_kind() == graph::op_kind::Divide
+                            || post_op->get_kind()
+                                    == graph::op_kind::Multiply)) {
                 mm1 = cur_op;
                 scale = post_op;
                 const auto pop = get_post_op(post_op);
@@ -570,11 +581,15 @@ private:
                     add = nullptr;
                     select = nullptr;
                 }
-            } else if (post_op->get_kind() == graph::op_kind::Select) {
+            } else if (post_op
+                    && (post_op->get_kind() == graph::op_kind::Select)) {
                 return status::unimplemented;
             } else
                 mm2 = cur_op;
         }
+        if (impl::utils::one_of(nullptr, mm1, mm2))
+            return status::invalid_graph;
+
         int src1_id = find_graph_inport(mm1->get_input_value(0));
         graph_inport.emplace_back(src1_id);
         int wei1_id = find_graph_inport(mm1->get_input_value(1));
@@ -1138,6 +1153,10 @@ public:
             auto &sub_dst_user_tid
                     = res->mem_map[sdp_cfg_.sub_dst_user.get()][tid];
 
+            // matmul2
+            auto &sub_mm2_dst_tid
+                    = res->mem_map[sdp_cfg_.sub_mm2_dst.get()][tid];
+
             const size_t sub_src1_offset
                     = (bo * sdp_cfg_.src1_strides[0]
                               + bi * sdp_cfg_.src1_strides[1])
@@ -1162,6 +1181,14 @@ public:
                     wei2_user_pointer + sub_wei2_offset);
             sub_dst_user_tid.set_data_handle(
                     dst2_user_pointer + sub_dst_user_offset);
+
+            // If the last reorder is inplace, it means we don't have to do
+            // extra reorder, thus we should set matmul's output to the user's
+            // output directly.
+            if (sdp_cfg_.sub_reorder3.get_inplace()) {
+                sub_mm2_dst_tid.set_data_handle(
+                        dst2_user_pointer + sub_dst_user_offset);
+            }
 
             // in parallel region - these primitives should use single thread.
             sdp_cfg_.sub_reorder0.execute(strm, res->sub_reorder0_args[tid]);

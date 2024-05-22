@@ -56,6 +56,7 @@ struct Restrictions {
 };
 
 enum RestrictionTags : char {
+    ReqDisabled = '@',
     ReqAlignFallback = '#',
     ReqBlock2DA = 'A',
     ReqNoBlock2DA = 'a',

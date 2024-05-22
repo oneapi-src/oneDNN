@@ -312,6 +312,7 @@ struct cpu_isa_traits<avx512_core_bf16> : public cpu_isa_traits<avx512_core> {
 template <>
 struct cpu_isa_traits<avx10_1_512_amx> {
     typedef Xbyak::Zmm Vmm;
+    static constexpr int vlen = vreg_traits<Vmm>::vlen;
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx10_1_512_amx;
     static constexpr const char *user_option_env = "avx10_1_512_amx";

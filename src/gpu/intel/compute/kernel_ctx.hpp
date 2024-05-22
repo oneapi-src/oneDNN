@@ -23,6 +23,7 @@
 #include <sstream>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
 
 #include "common/bit_cast.hpp"
 #include "gpu/intel/gpu_primitive_attr.hpp"
@@ -121,6 +122,19 @@ public:
         return "";
     }
 
+    void add_custom_header(
+            const std::string &header_name, std::string &&source) {
+        custom_headers_[header_name] = source;
+    }
+
+    const char *get_custom_header(const std::string &header_name) const {
+        auto iter = custom_headers_.find(header_name);
+        if (iter != custom_headers_.end()) return iter->second.c_str();
+        return nullptr;
+    }
+
+    bool has_custom_headers() const { return !custom_headers_.empty(); }
+
 private:
     void set_default_options(const primitive_attr_t *attr) {
         // By default fp32 division and sqrt are not IEEE-compliant
@@ -150,6 +164,7 @@ private:
     std::map<std::string, int64_t> int_var_map_;
     std::map<std::string, float> float_var_map_;
     std::set<std::string> option_set_;
+    std::unordered_map<std::string, std::string> custom_headers_;
 };
 
 template <>

@@ -2,7 +2,7 @@
 
 --inplace=true,false
 
---dt=f32,bf16,f16
+--dt=f32,bf16,f16,f8_e5m2,f8_e4m3
 --tag=abx,axb
 --dir=FWD_D
 --attr-post-ops=,mul:s8:per_oc

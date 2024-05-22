@@ -121,6 +121,7 @@ public:
     void requireWorkgroup(size_t x, size_t y = 1,
                           size_t z = 1)                  { wg[0] = x; wg[1] = y; wg[2] = z; }
 
+    void setArgumentBase(RegData base)                   { baseOverride = base; }
     void setInlineGRFCount(int grfs)                     { requestedInlineGRFs = grfs; }
     void setSkipPerThreadOffset(int32_t offset)          { offsetSkipPerThread = offset; }
     void setSkipCrossThreadOffset(int32_t offset)        { offsetSkipCrossThread = offset; }
@@ -169,6 +170,7 @@ protected:
     bool allow64BitBuffers = false;
     ThreadArbitrationMode arbitrationMode = ThreadArbitrationMode::Default;
     int barrierCount = 0;
+    RegData baseOverride;
     bool needDPAS = false;
     bool needGlobalAtomics = false;
     int32_t needGRF = 128;
@@ -407,7 +409,7 @@ void InterfaceHandler::finalize()
     //      r3 (no local IDs)
     //      r5 (SIMD8/16, local IDs)
     //      r8 (SIMD32, local IDs)
-    // [- assign local ptr arguments left-to-right? not checked]
+    //  - assign local ptr arguments left-to-right
     //  - assign global pointer arguments left-to-right
     //  - assign scalar arguments left-to-right
     //  - assign surface indices left-to-right for global pointers
@@ -417,10 +419,18 @@ void InterfaceHandler::finalize()
     static const std::string localSizeArgs[3] = {"__local_size0", "__local_size1", "__local_size2"};
     static const std::string scratchSizeArg = "__scratch_size";
 
-    GRF base = getCrossthreadBase();
-    int offset = 32;
+    GRF base;
+    int offset;
     int nextSurface = 0;
     const int grfSize = GRF::bytes(hw);
+
+    if (baseOverride.isValid()) {
+        base = GRF(baseOverride.getBase());
+        offset = baseOverride.getByteOffset();
+    } else {
+        base = getCrossthreadBase();
+        offset = 32;
+    }
 
     auto assignArgsOfType = [&](ExternalArgumentType which) {
         for (auto &assignment : assignments) {

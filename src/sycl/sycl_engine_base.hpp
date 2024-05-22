@@ -39,8 +39,8 @@ class sycl_engine_base_t : public gpu::intel::compute::compute_engine_t {
 public:
     sycl_engine_base_t(engine_kind_t kind, const ::sycl::device &dev,
             const ::sycl::context &ctx, size_t index)
-        : gpu::intel::compute::compute_engine_t(new xpu::sycl::engine_impl_t(
-                engine_kind::gpu, dev, ctx, index)) {}
+        : gpu::intel::compute::compute_engine_t(
+                new xpu::sycl::engine_impl_t(kind, dev, ctx, index)) {}
 
     status_t init() override {
         CHECK(init_impl());

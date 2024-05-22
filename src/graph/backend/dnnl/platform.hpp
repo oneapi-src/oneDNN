@@ -37,6 +37,13 @@ enum dir_t {
     FLAG_FWD = 32,
     FLAG_BWD = 64,
     FLAG_INF = 128,
+    FWD_D = FLAG_FWD + FLAG_DAT,
+    FWD_I = FLAG_FWD + FLAG_DAT + FLAG_INF,
+    FWD_B = FLAG_FWD + FLAG_DAT + FLAG_BIA,
+    BWD_D = FLAG_BWD + FLAG_DAT,
+    BWD_DW = FLAG_BWD + FLAG_DAT + FLAG_WEI,
+    BWD_W = FLAG_BWD + FLAG_WEI,
+    BWD_WB = FLAG_BWD + FLAG_WEI + FLAG_BIA,
 };
 
 bool has_cpu_data_type_support(data_type_t data_type);

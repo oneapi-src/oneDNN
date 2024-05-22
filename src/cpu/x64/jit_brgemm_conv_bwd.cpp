@@ -93,6 +93,9 @@ status_t fwd_conv_desc_create(
         fwd_conv_d->diff_src_desc = fwd_conv_d->src_desc;
         fwd_conv_d->diff_dst_desc = fwd_conv_d->dst_desc;
     }
+    // Note: internal field to hint this conv is created from deconv.
+    fwd_conv_d->use_inversion = true;
+
     return status::success;
 }
 } // namespace
@@ -122,9 +125,7 @@ status_t brgemm_convolution_bwd_t<isa>::pd_t::init(engine_t *engine) {
         const auto pd_1x1 = dynamic_cast<fwd_1x1_conv_pd_t *>((*it).get());
         if (pd_1x1 != nullptr) break; // 1x1 implementation found
 
-        constexpr bool use_inversion = true; // invert weights' spatial indices
-        using fwd_conv_pd_t =
-                typename brgemm_convolution_fwd_t<isa, use_inversion>::pd_t;
+        using fwd_conv_pd_t = typename brgemm_convolution_fwd_t<isa>::pd_t;
         const auto pd = dynamic_cast<fwd_conv_pd_t *>((*it).get());
         if (pd != nullptr) break; // non-1x1 implementation found
     }

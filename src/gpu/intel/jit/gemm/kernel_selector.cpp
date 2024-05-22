@@ -83,6 +83,34 @@ inline bool tagMatch(const char *tref, const char *tpattern) {
     return true;
 }
 
+inline bool strategyMatch(
+        const CommonDriverInfo &info, const StrategyRequirement &req) {
+    int actual = 0;
+    switch (req.param) {
+        case StrategyRequirement::UnrollM: actual = info.unroll[LoopM]; break;
+        case StrategyRequirement::UnrollN: actual = info.unroll[LoopN]; break;
+        case StrategyRequirement::WGTileM: actual = info.wgTile(LoopM); break;
+        case StrategyRequirement::WGTileN: actual = info.wgTile(LoopN); break;
+        case StrategyRequirement::WGTileMN:
+            actual = info.wgTile(LoopM) * info.wgTile(LoopN);
+            break;
+        case StrategyRequirement::WGM: actual = info.wg[LoopM]; break;
+        case StrategyRequirement::WGN: actual = info.wg[LoopN]; break;
+        case StrategyRequirement::WGK: actual = info.wg[LoopK]; break;
+        case StrategyRequirement::WG:
+            actual = info.wg[LoopM] * info.wg[LoopN] * info.wg[LoopK];
+            break;
+        default: return false;
+    }
+
+    switch (req.relation) {
+        case StrategyRequirement::Equals: return (actual == req.value);
+        case StrategyRequirement::AtLeast: return (actual >= req.value);
+        case StrategyRequirement::AtMost: return (actual <= req.value);
+        default: return false;
+    }
+}
+
 bool matches(const kcatalog::Entry &e, const MatchParams &pattern) {
     bool ok = true;
 
@@ -119,6 +147,9 @@ bool matches(const kcatalog::Entry &e, const MatchParams &pattern) {
                 ok = ok && (mnk[i] <= e.restrictions.allowedSizesMax[i]);
         }
     }
+
+    for (int i = 0; i < pattern.nExtraReqs; i++)
+        ok = ok && strategyMatch(e.driverInfo, pattern.extraReqs[i]);
 
     // Should already be matched.
     ok = ok && (e.selector.hw == pattern.selector.hw);
@@ -318,6 +349,18 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, const GEMMProblem &problem) {
     if (hw == ngen::HW::Xe2) *tagPtr++ = ReqXe2Block2D;
 
     sizes.batch = sizes.m = sizes.n = sizes.k = 0;
+}
+
+void StrategyRequirement::transpose() {
+    switch (param) {
+        case UnrollM: param = UnrollN; break;
+        case UnrollN: param = UnrollM; break;
+        case WGTileM: param = WGTileN; break;
+        case WGTileN: param = WGTileM; break;
+        case WGM: param = WGN; break;
+        case WGN: param = WGM; break;
+        default: break;
+    }
 }
 
 } // namespace jit

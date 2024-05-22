@@ -393,6 +393,30 @@ inline void cvt_to_float<float16_t>(
     cvt_float16_to_float(out, inp, nelems);
 }
 
+template <>
+inline void cvt_to_float<float8_e5m2_t>(
+        float *out, const float8_e5m2_t *inp, size_t nelems) {
+    cvt_f8_e5m2_to_float(out, inp, nelems);
+}
+
+template <>
+inline void cvt_from_float<float8_e5m2_t>(
+        float8_e5m2_t *out, const float *inp, size_t nelems) {
+    cvt_float_to_f8_e5m2(out, inp, nelems);
+}
+
+template <>
+inline void cvt_to_float<float8_e4m3_t>(
+        float *out, const float8_e4m3_t *inp, size_t nelems) {
+    cvt_f8_e4m3_to_float(out, inp, nelems);
+}
+
+template <>
+inline void cvt_from_float<float8_e4m3_t>(
+        float8_e4m3_t *out, const float *inp, size_t nelems) {
+    cvt_float_to_f8_e4m3(out, inp, nelems);
+}
+
 inline void cvt_from_float(
         data_type_t dt, void *out, const float *inp, size_t nelems) {
     switch (dt) {
@@ -401,6 +425,12 @@ inline void cvt_from_float(
             break;
         case data_type::f16:
             cvt_from_float((float16_t *)out, inp, nelems);
+            break;
+        case data_type::f8_e5m2:
+            cvt_from_float((float8_e5m2_t *)out, inp, nelems);
+            break;
+        case data_type::f8_e4m3:
+            cvt_from_float((float8_e4m3_t *)out, inp, nelems);
             break;
         default: assert(!"unimplemented");
     }
@@ -414,6 +444,12 @@ inline void cvt_to_float(
             break;
         case data_type::f16:
             cvt_to_float(out, (const float16_t *)inp, nelems);
+            break;
+        case data_type::f8_e5m2:
+            cvt_to_float(out, (const float8_e5m2_t *)inp, nelems);
+            break;
+        case data_type::f8_e4m3:
+            cvt_to_float(out, (const float8_e4m3_t *)inp, nelems);
             break;
         default: assert(!"unimplemented");
     }
@@ -518,7 +554,8 @@ inline bool operator==(
             && COMPARE_DESC_ARRAY_MEMBERS(dilates, DNNL_MAX_NDIMS)
             && COMPARE_DESC_ARRAY_MEMBERS(padding[0], DNNL_MAX_NDIMS)
             && COMPARE_DESC_ARRAY_MEMBERS(padding[1], DNNL_MAX_NDIMS)
-            && COMPARE_DESC_MEMBERS(accum_data_type);
+            && COMPARE_DESC_MEMBERS(accum_data_type)
+            && COMPARE_DESC_MEMBERS(use_inversion);
     return ret;
 }
 
@@ -765,6 +802,19 @@ inline bool operator==(const zero_pad_desc_t &lhs, const zero_pad_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind);
     return ret;
 }
+
+inline bool operator==(const sdpa_desc_t &lhs, const sdpa_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(q_desc)
+            && COMPARE_DESC_MEMBERS(k_desc)
+            && COMPARE_DESC_MEMBERS(v_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(attn_mask_desc)
+            && COMPARE_DESC_MEMBERS(scale_dt)
+            && COMPARE_DESC_MEMBERS(invert_scale);
+    return ret;
+}
+
 // clang-format on
 
 #undef COMPARE_DESC_MEMBERS
@@ -1077,6 +1127,7 @@ inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {
         CASE_OP_DESC(reduction);
         CASE_OP_DESC(resampling);
         CASE_OP_DESC(rnn);
+        CASE_OP_DESC(sdpa);
         CASE_OP_DESC(shuffle);
         CASE_OP_DESC(softmax);
 

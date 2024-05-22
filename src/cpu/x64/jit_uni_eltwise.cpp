@@ -58,6 +58,10 @@ protected:
     }
     bool is_bf16() const { return data_type() == data_type::bf16; }
     bool is_f16() const { return data_type() == data_type::f16; }
+    bool is_f8() const {
+        return utils::one_of(
+                data_type(), data_type::f8_e5m2, data_type::f8_e4m3);
+    }
     int dtype_size() const { return types::data_type_size(data_type()); }
     cpu_isa_t get_io_isa(cpu_isa_t isa) const {
         // reusing avx512_core instantiation for bf16
@@ -77,6 +81,7 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
     jit_uni_kernel_t(const eltwise_pd_t *pd)
         : jit_uni_eltwise_kernel(pd, jit_name())
         , vlen_(is_bf16() || is_f16() ? cpu_isa_traits<isa>::vlen / 2
+                          : is_f8()   ? cpu_isa_traits<isa>::vlen / 4
                                       : cpu_isa_traits<isa>::vlen)
         , simd_w_(vlen_ / dtype_size())
         , is_fwd_(pd_->is_fwd()) {
@@ -86,17 +91,20 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
         // using the first 7 vregs can be considered volatile during the call
         // to eltwise injector
         const bool save_state = is_fwd_ ? false : true;
-        eltwise_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
-                desc.alg_kind, desc.alpha, desc.beta, 1.f, save_state,
+        eltwise_injector_.reset(new jit_uni_eltwise_injector_f32<injector_isa>(
+                this, desc.alg_kind, desc.alpha, desc.beta, 1.f, save_state,
                 reg_injector_table, injector_mask, is_fwd_, pd_->use_dst()));
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, tail_size_, tail_opmask_idx_,
                 vmm_tail_mask.getIdx(), reg_tmp);
-        io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx_,
-                bf16_emu_zmm_2_idx_, bf16_emu_zmm_3_idx_, reg_tmp,
-                bf16_emu_zmm_4_idx_);
+        io::io_emu_bf16_conf_t io_bf16_conf(emu_zmm_1_idx_, emu_zmm_2_idx_,
+                emu_zmm_3_idx_, reg_tmp, emu_zmm_4_idx_);
+        io::io_emu_fp8_conf_t io_fp8_conf(emu_zmm_1_idx_, emu_zmm_2_idx_,
+                emu_zmm_3_idx_, emu_zmm_4_idx_, emu_zmm_5_idx_,
+                emu_kmask_aux_idx_, reg_tmp);
         io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, get_io_isa(isa),
-                {data_type()}, io_conf, io_tail_conf, io_bf16_conf);
+                {data_type()}, io_conf, io_tail_conf, io_bf16_conf, {},
+                utils::nullopt, io_fp8_conf);
     }
 
     void compute_dst(const bool tail) {
@@ -217,10 +225,15 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
         postamble();
 
         eltwise_injector_->prepare_table();
+        if (is_superset(isa, avx512_core_amx) && is_f8()
+                && io_.at(data_type()) != nullptr)
+            io_[data_type()]->prepare_table_fp8();
     }
 
 private:
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
+    static constexpr cpu_isa_t injector_isa
+            = isa == avx512_core_amx ? avx512_core : isa;
 
     const int vlen_;
     const int simd_w_;
@@ -248,15 +261,18 @@ private:
     Vmm vmm_src_odd = Vmm(8);
     Vmm vmm_diff_dst_even = vmm_diff_dst;
     Vmm vmm_diff_dst_odd = Vmm(9);
-    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> eltwise_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector_f32<injector_isa>>
+            eltwise_injector_;
     io::jit_io_multi_dt_helper_t<Vmm> io_;
 
-    /* bf16 support */
-    const int bf16_emu_zmm_1_idx_ = 26;
-    const int bf16_emu_zmm_2_idx_ = 27;
-    const int bf16_emu_zmm_3_idx_ = 28;
-    const int bf16_emu_zmm_4_idx_ = 29;
+    /* bf16 and fp8 support */
+    const int emu_zmm_1_idx_ = 25;
+    const int emu_zmm_2_idx_ = 26;
+    const int emu_zmm_3_idx_ = 27;
+    const int emu_zmm_4_idx_ = 28;
+    const int emu_zmm_5_idx_ = 29;
     const int tail_opmask_idx_ = 6;
+    const int emu_kmask_aux_idx_ = 2;
 };
 
 } // namespace
@@ -269,6 +285,9 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 
     // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(isa)) return status::unimplemented;
+
+    static constexpr cpu_isa_t injector_isa
+            = isa == avx512_core_amx ? avx512_core : isa;
 
     VDISPATCH_ELTWISE(is_fwd(), VERBOSE_BAD_PROPKIND);
     VDISPATCH_ELTWISE(utils::everyone_is(
@@ -283,7 +302,8 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_ELTWISE(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VDISPATCH_ELTWISE(src_d.is_dense(true), VERBOSE_UNSUPPORTED_SPARSE_CFG);
-    VDISPATCH_ELTWISE(eltwise_injector::is_supported(isa, desc_.alg_kind),
+    VDISPATCH_ELTWISE(
+            eltwise_injector::is_supported(injector_isa, desc_.alg_kind),
             VERBOSE_BAD_ALGORITHM);
     // refer to a comment in jit_uni_kernel why this is needed
     VDISPATCH_ELTWISE(IMPLICATION(!src_d.is_dense(), is_zero_preserved()),
@@ -350,6 +370,9 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(isa)) return status::unimplemented;
 
+    static constexpr cpu_isa_t injector_isa
+            = isa == avx512_core_amx ? avx512_core : isa;
+
     VDISPATCH_ELTWISE(!is_fwd(), VERBOSE_BAD_PROPKIND);
     VDISPATCH_ELTWISE(
             utils::everyone_is(d_type, data_md()->data_type,
@@ -364,8 +387,8 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     VDISPATCH_ELTWISE(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VDISPATCH_ELTWISE(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
     VDISPATCH_ELTWISE(data_d.is_dense(true), VERBOSE_UNSUPPORTED_SPARSE_CFG);
-    VDISPATCH_ELTWISE(
-            eltwise_injector::is_isa_supported(isa), VERBOSE_UNSUPPORTED_ISA);
+    VDISPATCH_ELTWISE(eltwise_injector::is_isa_supported(injector_isa),
+            VERBOSE_UNSUPPORTED_ISA);
     VDISPATCH_ELTWISE(eltwise_injector::is_alg_supported(desc_.alg_kind),
             VERBOSE_BAD_ALGORITHM);
     // refer to a comment in jit_uni_kernel why this is needed
@@ -438,6 +461,8 @@ template struct jit_uni_eltwise_fwd_t<avx2_vnni_2, data_type::f16>;
 template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::bf16>;
 template struct jit_uni_eltwise_fwd_t<avx512_core_fp16, data_type::f16>;
+template struct jit_uni_eltwise_fwd_t<avx512_core_amx, data_type::f8_e5m2>;
+template struct jit_uni_eltwise_fwd_t<avx512_core_amx, data_type::f8_e4m3>;
 
 template struct jit_uni_eltwise_bwd_t<sse41, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx, data_type::f32>;
@@ -445,6 +470,8 @@ template struct jit_uni_eltwise_bwd_t<avx2, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx512_core, data_type::bf16>;
 template struct jit_uni_eltwise_bwd_t<avx512_core_fp16, data_type::f16>;
+template struct jit_uni_eltwise_bwd_t<avx512_core_amx, data_type::f8_e5m2>;
+template struct jit_uni_eltwise_bwd_t<avx512_core_amx, data_type::f8_e4m3>;
 
 } // namespace x64
 } // namespace cpu

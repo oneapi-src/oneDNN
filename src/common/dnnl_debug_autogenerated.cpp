@@ -24,6 +24,8 @@
 #include "oneapi/dnnl/dnnl_debug.h"
 #include "oneapi/dnnl/dnnl_types.h"
 
+#include "common/c_types_map.hpp"
+
 const char *dnnl_status2str(dnnl_status_t v) {
     if (v == dnnl_success) return "success";
     if (v == dnnl_out_of_memory) return "out_of_memory";
@@ -934,6 +936,9 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_aCB8b16c) return "aCB8b16c";
     if (v == dnnl_BA8a8b) return "BA8a8b";
     if (v == dnnl_aCB8b8c) return "aCB8b8c";
+    if (v == dnnl_bcad) return "bcad";
+    if (v == dnnl_cabd) return "cabd";
+    if (v == dnnl_dabc) return "dabc";
     if (v == dnnl_format_tag_last) return "format_tag_last";
     if (v == dnnl_x) return "x";
     if (v == dnnl_nc) return "nc";
@@ -1746,6 +1751,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_layer_normalization) return "layer_normalization";
     if (v == dnnl_group_normalization) return "group_normalization";
     if (v == dnnl_primitive_kind_max) return "primitive_kind_max";
+    if (v == dnnl::impl::primitive_kind::sdpa) return "sdpa";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
 }

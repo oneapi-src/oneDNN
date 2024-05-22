@@ -31,6 +31,40 @@ namespace intel {
 namespace jit {
 
 // Basic kernel selection API.
+struct StrategyRequirement {
+    enum Parameter {
+        UnrollM,
+        UnrollN,
+        WGTileM,
+        WGTileN,
+        WGTileMN,
+        WGM,
+        WGN,
+        WGK,
+        WG
+    } param;
+    enum Relation { Equals, AtLeast, AtMost } relation;
+    int value;
+
+    StrategyRequirement(Parameter param_, Relation relation_, int value_)
+        : param(param_), relation(relation_), value(value_) {}
+
+    template <typename T>
+    friend StrategyRequirement operator==(Parameter param_, T value_) {
+        return StrategyRequirement(param_, Equals, int(value_));
+    }
+    template <typename T>
+    friend StrategyRequirement operator<=(Parameter param_, T value_) {
+        return StrategyRequirement(param_, AtMost, int(value_));
+    }
+    template <typename T>
+    friend StrategyRequirement operator>=(Parameter param_, T value_) {
+        return StrategyRequirement(param_, AtLeast, int(value_));
+    }
+
+    void transpose();
+};
+
 struct MatchParamsBase {
     kcatalog::Selector selector;
     SizeParams sizes;
@@ -40,6 +74,8 @@ struct MatchParamsBase {
     int alignment[3] = {0, 0, 0};
     kcatalog::string tags, lateTags;
     int unroll[2] = {0, 0};
+    int nExtraReqs = 0;
+    const StrategyRequirement *extraReqs = nullptr;
 
     MatchParamsBase() {}
     MatchParamsBase(ngen::HW hw, const GEMMProblem &problem);

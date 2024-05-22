@@ -328,7 +328,9 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
                 pd_cache.at(op.get()));
         return {pd, true};
     }
-
+    bool can_use_blocked_layout = true;
+    if (p_engine.get_kind() == dnnl::engine::kind::gpu)
+        can_use_blocked_layout = mgr.get_use_blocked_layout();
     dnnl::primitive_attr prm_attr;
     if (op->has_attr(op_attr::fusion_info_key)
             && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
@@ -363,7 +365,9 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
     // convert src memory desc to any when:
     // 1) not the situation mentioned above
     // 2) the given md is blocked and convert to queried layout is necessary
-    if (!use_strided_src || !is_plain(src)) { src = to_format_any(src); }
+    if (can_use_blocked_layout && (!use_strided_src || !is_plain(src))) {
+        src = to_format_any(src);
+    }
     auto wei = make_dnnl_memory_desc(
             op->get_input_value(1)->get_logical_tensor());
     // For non-constant weight, create primitive desc with strided layout when:
@@ -378,7 +382,9 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
                     && (is_format(wei, dnnl::memory::format_tag::adbc)
                             || is_format(wei, dnnl::memory::format_tag::abdc)
                             || is_format(wei, dnnl::memory::format_tag::acbd)));
-    if (!use_strided_wei) { wei = to_format_any(wei); }
+    if (can_use_blocked_layout && !use_strided_wei) {
+        wei = to_format_any(wei);
+    }
     auto dst = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());
     const bool keep_dst_layout = op->has_attr(op_attr::keep_dst_layout)
@@ -387,7 +393,7 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
             = ((src.get_ndims() == 2 || src.get_ndims() == 3)
                       && p_engine.get_kind() == dnnl::engine::kind::gpu)
             || keep_dst_layout;
-    if (!use_strided_dst) {
+    if (can_use_blocked_layout && !use_strided_dst) {
         dst = to_format_any(dst);
     } else if (dst.get_format_kind() == dnnl::memory::format_kind::any
             && !keep_dst_layout) {

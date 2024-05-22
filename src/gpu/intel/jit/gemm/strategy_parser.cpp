@@ -60,7 +60,9 @@ AddressBase getAddressBase(char c) {
     switch (c) {
         case 'a': return AddressBase::createA64(true);
         case 'c': return AddressBase::createCC(0);
+        case 'l': return AddressBase::createSLM();
         case 'm': return AddressBase::createSC(0);
+        case 'r': return AddressBase {};
         case 's': return AddressBase::createBTS(0);
         default: throw std::runtime_error("Unknown address space.");
     }

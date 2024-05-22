@@ -89,7 +89,7 @@ Examples
      -
    * - 
      - GPU
-     - :ref:`doxid-graph_gpu_single_op_partition_cpp`
+     - :ref:`doxid-graph_sycl_single_op_partition_cpp`
      -
 
 

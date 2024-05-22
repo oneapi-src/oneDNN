@@ -79,6 +79,7 @@ void primitive_task_start(primitive_kind_t kind) {
             CASE(softmax),
             CASE(layer_normalization),
             CASE(group_normalization),
+            CASE(sdpa),
     };
 #undef CASE
     int kind_idx = (int)kind;

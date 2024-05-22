@@ -5606,13 +5606,21 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
 }
 
 // start of diff_bias kernel
+dim_t jit_avx512_core_amx_bwd_bias_kernel_t::get_ddst_offset(
+        dim_t w_idx, dim_t hd_idx) const {
+    int ow_per_oc = data_type_vnni_granularity(jcp.ddst_dt);
+    dim_t w_off = utils::rnd_dn(w_idx, ow_per_oc) * jcp.oc_block
+            + w_idx % ow_per_oc;
+    return jcp.typesize_in * (w_off + jcp.tr_ow * jcp.oc_block * hd_idx);
+}
+
 void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias_row(int ocb) {
 
     auto compute_step = [&]() {
-        if (jcp.ddst_dt == data_type::bf16) {
+        if (jcp.ddst_dt == bf16) {
             vmovups(vreg_bias_ddst, ptr[reg_ddst]);
             vdpbf16ps(vreg_bias_acc, vreg_bias_ddst, vreg_bias_unit);
-        } else if (jcp.ddst_dt == data_type::f16) {
+        } else if (jcp.ddst_dt == f16) {
             // The ddst_dt is in vnni format, (S16c2s) which needs to be
             // reduced along S dimension. Since, we do not have f16_vnni
             // instruction, we try to emulate it.
@@ -5633,22 +5641,69 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias_row(int ocb) {
             // [p+p, o+o, l+l, k+k, n+n, m+m, j+j, i+i] i.e., [P, O, L, K, N, M, J, I]
             vhaddps(yreg_bias_ddst0, yreg_bias_ddst0, yreg_bias_ddst1);
             vaddps(yreg_bias_acc1, yreg_bias_acc1, yreg_bias_ddst0);
+        } else if (one_of(jcp.ddst_dt, f8_e5m2, f8_e4m3)) {
+            // The ddst_dt is in vnni format, (S16c4s) which needs to be
+            // reduced along S dimension. Since, we do not have f8_vnni and f16_vnni
+            // instruction, we try to emulate f16_vnni.
+            // A, B, C,.. - corresponds to output channels
+            // ddst_data: [p,p,p,p, ...b,b,b,b, a,a,a,a] in fp8
+            // req_output = [p+p+p+p, ...b+b+b+b, a+a+a+a] in f32 i.e., [H, F, D, B, G, E, C, A]
+
+            const Xbyak::Zmm zmm_load(yreg_bias_ddst0.getIdx());
+
+            // process A,B,C,D,E,F,G,H channels
+            // load and process for <A,B,C,D>
+            f8_emu->vcvt_f8_to_f32(zmm_load, ptr[reg_ddst]);
+            // copy upper bytes to second ymm
+            vextractf64x4(yreg_bias_ddst1, zmm_load, 1);
+            // each yreg_bias_ddst contains 8 float values in vnni layout for <A, B> and for <C, D> correspondingly
+
+            // [d2+d3, d0+d1, b2+b3, b0+b1, c2+c3, c0+c1, a2+a3, a0+a1]
+            vhaddps(yreg_bias_ddst00, yreg_bias_ddst0, yreg_bias_ddst1);
+
+            // load and process for <E,F,G,H>
+            f8_emu->vcvt_f8_to_f32(zmm_load, ptr[reg_ddst + 16]);
+            // copy upper bytes to second ymm
+            vextractf64x4(yreg_bias_ddst1, zmm_load, 1);
+            // each yreg_bias_ddst contains 8 float values in vnni layout for <E, F> and for <G, H> correspondingly
+
+            // [h2+h3, h0+h1, f2+f3, f0+f1, g2+g3, g0+g1, e2+e3, e0+e1]
+            vhaddps(yreg_bias_ddst01, yreg_bias_ddst0, yreg_bias_ddst1);
+
+            // final summation for a,b,c,d,e,f, g,h
+            // [h0+h1+h2+h3, f0+f1+f2+f3, d0+d1+d2+d3, b0+b1+b2+b3, g0+g1+g2+g3, e0+e1+e2+e3, c0+c1+c2+c3, a0+a1+a2+a3] in f32 i.e., [H, F, D, B, G, E, C, A]
+            vhaddps(yreg_bias_ddst00, yreg_bias_ddst00, yreg_bias_ddst01);
+            vaddps(yreg_bias_acc0, yreg_bias_acc0, yreg_bias_ddst00);
+
+            // process I,J,K,L,M,N,O,P channels in same way as A,B,C,D,E,F,G,H
+            f8_emu->vcvt_f8_to_f32(zmm_load, ptr[reg_ddst + 32]);
+            vextractf64x4(yreg_bias_ddst1, zmm_load, 1);
+
+            vhaddps(yreg_bias_ddst00, yreg_bias_ddst0, yreg_bias_ddst1);
+
+            f8_emu->vcvt_f8_to_f32(zmm_load, ptr[reg_ddst + 48]);
+            vextractf64x4(yreg_bias_ddst1, zmm_load, 1);
+            vhaddps(yreg_bias_ddst01, yreg_bias_ddst0, yreg_bias_ddst1);
+
+            vhaddps(yreg_bias_ddst00, yreg_bias_ddst00, yreg_bias_ddst01);
+            vaddps(yreg_bias_acc1, yreg_bias_acc1, yreg_bias_ddst00);
         }
     };
 
     Label ow_loop;
-    int niters = jcp.tr_ow / 2;
+    const int sp_substep = data_type_vnni_granularity(jcp.ddst_dt);
+    const int niters = jcp.tr_ow / sp_substep;
     if (niters > 0) {
-        mov(reg_tmp, jcp.tr_ow / 2);
+        mov(reg_tmp, niters);
         L(ow_loop);
         compute_step();
-        add(reg_ddst, get_ddst_offset(2));
+        add(reg_ddst, get_ddst_offset(sp_substep));
         sub(reg_tmp, 1);
         jnz(ow_loop, T_NEAR);
     }
-    if (jcp.tr_ow % 2) compute_step();
+    if (jcp.tr_ow % jcp.typesize_in) compute_step();
 
-    if (niters > 0) sub(reg_ddst, get_ddst_offset(2 * niters));
+    if (niters > 0) sub(reg_ddst, get_ddst_offset(sp_substep * niters));
 }
 
 void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias(
@@ -5665,7 +5720,7 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias(
         mov(reg_oj, reg_nrows);
 
         // accumulator initialization
-        if (jcp.ddst_dt == data_type::f16) {
+        if (one_of(jcp.ddst_dt, f16, f8_e5m2, f8_e4m3)) {
             vpxord(yreg_bias_acc0, yreg_bias_acc0, yreg_bias_acc0);
             vpxord(yreg_bias_acc1, yreg_bias_acc1, yreg_bias_acc1);
         } else {
@@ -5674,15 +5729,28 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias(
         cmp(reg_initial, 0);
         jnz(bias_loop, T_NEAR);
         const size_t offset = sizeof(float) * ocb * jcp.oc_block;
-        if (jcp.ddst_dt == data_type::f16) {
+        if (jcp.ddst_dt == bf16) {
+            vmovups(vreg_bias_acc, ptr[reg_bias + offset]);
+        } else if (jcp.ddst_dt == f16) {
             // the data is in plain format, transform while loading.
             // i.e.,[H, G, F, E, D, C, B, A] -> [H, G, D, C, F, E, B, A]
             // and [P, O, N, M, L, K, J, I] -> [P, O, L, K, N, M, J, I]
             vpermq(yreg_bias_acc0, ptr[reg_bias + offset], 0xd8);
             vpermq(yreg_bias_acc1,
                     ptr[reg_bias + offset + vreg_traits<Ymm>::vlen], 0xd8);
+        } else if (one_of(jcp.ddst_dt, f8_e5m2, f8_e4m3)) {
+            // the data is in plain format, transform while loading to
+            // pseudo-vnni layout to 2 ymm registers conforming to calculations
+            // by vhaddps.
+            // i.e.,[H, G, F, E, D, C, B, A] -> [H, F, D, B, G, E, C, A]
+            // and [P, O, N, M, L, K, J, I] -> [P, N, L, J, O, M, K, I]
+
+            vpermd(yreg_bias_acc0, yreg_permute_to_vnni,
+                    ptr[reg_bias + offset]);
+            vpermd(yreg_bias_acc1, yreg_permute_to_vnni,
+                    ptr[reg_bias + offset + vreg_traits<Ymm>::vlen]);
         } else {
-            vmovups(vreg_bias_acc, ptr[reg_bias + offset]);
+            assert(!"non-supported type");
         }
         // loop by rows
         L(bias_loop);
@@ -5695,9 +5763,9 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias(
         }
 
         // store accumulator
-        if (jcp.ddst_dt == data_type::bf16) {
+        if (jcp.ddst_dt == bf16) {
             vmovups(ptr[reg_bias + offset], vreg_bias_acc);
-        } else if (jcp.ddst_dt == data_type::f16) {
+        } else if (jcp.ddst_dt == f16) {
             // transform to plain before storing.
             // i.e., [H, G, D, C, F, E, B, A] -> [H, G, F, E, D, C, B, A]
             // and [P, O, L, K, N, M, J, I] -> [P, O, N, M, L, K, J, I]
@@ -5706,11 +5774,24 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias(
             vmovups(ptr[reg_bias + offset], yreg_bias_acc0);
             vmovups(ptr[reg_bias + offset + vreg_traits<Ymm>::vlen],
                     yreg_bias_acc1);
+        } else if (one_of(jcp.ddst_dt, f8_e5m2, f8_e4m3)) {
+            // transform to plain before storing.
+            // i.e., [H, F, D, B, G, E, C, A] -> [H, G, F, E, D, C, B, A]
+            // and [P, N, L, J, O, M, K, I] -> [P, O, N, M, L, K, J, I]
+            vpermd(yreg_bias_acc0, yreg_permute_to_plain, yreg_bias_acc0);
+            vpermd(yreg_bias_acc1, yreg_permute_to_plain, yreg_bias_acc1);
+            vmovups(ptr[reg_bias + offset], yreg_bias_acc0);
+            vmovups(ptr[reg_bias + offset + vreg_traits<Ymm>::vlen],
+                    yreg_bias_acc1);
+        } else {
+            assert(!"non-supported type");
         }
     }
 }
 
 void jit_avx512_core_amx_bwd_bias_kernel_t::generate() {
+    Label f8_permute_to_vnni_table, f8_permute_to_plain_table;
+
     preamble();
 
     Label end_label;
@@ -5720,11 +5801,26 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::generate() {
     cmp(reg_nrows, 0);
     jle(end_label, T_NEAR); // nothing to do
 
-    if (jcp.ddst_dt == data_type::bf16) {
+    if (jcp.ddst_dt == bf16) {
         auto reg_unit_val = reg_tmp.cvt16();
         mov(reg_unit_val, 0x3f80); // bf16 value of 1.
         vpbroadcastw(vreg_bias_unit, reg_unit_val);
     }
+    if (jcp.ddst_dt == f8_e5m2)
+        f8_emu = utils::make_unique<fp8_emulation_e5m2_t>(this, emu_reserv_1,
+                emu_reserv_2, emu_reserv_3, emu_mask, emu_scratch);
+    else if (jcp.ddst_dt == f8_e4m3)
+        f8_emu = utils::make_unique<fp8_emulation_e4m3_t>(this, emu_reserv_1,
+                emu_reserv_2, emu_reserv_3, emu_reserv_4, emu_reserv_5,
+                emu_scratch);
+
+    if (one_of(jcp.ddst_dt, f8_e5m2, f8_e4m3)) {
+        mov(reg_tmp, f8_permute_to_vnni_table);
+        vmovdqu32(yreg_permute_to_vnni, ptr[reg_tmp]);
+        mov(reg_tmp, f8_permute_to_plain_table);
+        vmovdqu32(yreg_permute_to_plain, ptr[reg_tmp]);
+    }
+
     mov(reg_bias, ptr[param + GET_OFF(bias)]);
     mov(reg_initial, ptr[param + GET_OFF(channel)]);
 
@@ -5745,6 +5841,24 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::generate() {
     L(end_label);
 
     postamble();
+
+    if (f8_emu) f8_emu->prepare_table();
+
+    if (one_of(jcp.ddst_dt, f8_e5m2, f8_e4m3)) {
+        align(64);
+        L(f8_permute_to_vnni_table);
+        {
+            const uint32_t _idx[] = {0, 2, 4, 6, 1, 3, 5, 7};
+            for (size_t i = 0; i < sizeof(_idx) / sizeof(_idx[0]); ++i)
+                dd(_idx[i]);
+        }
+        L(f8_permute_to_plain_table);
+        {
+            const uint32_t _idx[] = {0, 4, 1, 5, 2, 6, 3, 7};
+            for (size_t i = 0; i < sizeof(_idx) / sizeof(_idx[0]); ++i)
+                dd(_idx[i]);
+        }
+    }
 }
 // end of diff_bias kernel
 

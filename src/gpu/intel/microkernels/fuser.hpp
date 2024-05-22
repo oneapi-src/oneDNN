@@ -1,6 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,27 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/nvidia/cudnn_sum.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#ifndef GPU_MICROKERNELS_FUSER_HPP
+#define GPU_MICROKERNELS_FUSER_HPP
+
+#include <cstdint>
+#include <vector>
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace nvidia {
+namespace intel {
+namespace micro {
 
-namespace {
+// Markers for patch sections.
+static constexpr uint32_t sigilStart = 0xCAFEFADE;
+static constexpr uint32_t sigilEnd = 0xFADECAFE;
+static constexpr const char *sigilBinary = "@_u_@";
 
-constexpr impl_list_item_t cuda_sum_impl_list[] = {
-        impl_list_item_t::sum_type_deduction_helper_t<cudnn_ref_sum_t::pd_t>(),
-        nullptr};
-} // namespace
+// Fuse the microkernel machine code into the program binary of a compiled host kernel.
+void fuseMicrokernel(std::vector<uint8_t> &binary,
+        const std::vector<uint8_t> &microkernel, int id = 0);
 
-const impl_list_item_t *
-cuda_gpu_engine_impl_list_t::get_sum_implementation_list() {
-    return cuda_sum_impl_list;
-}
+// Fusing microkernels that were embedded directly in source code.
+void fuseMicrokernels(std::vector<uint8_t> &binary, const char *source);
+bool hasMicrokernels(const char *source);
 
-} // namespace nvidia
+} /* namespace micro */
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#endif

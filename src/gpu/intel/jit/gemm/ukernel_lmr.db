@@ -1,0 +1,22 @@
+/*******************************************************************************
+* Copyright 2024 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+/*@kcatalog@*/
+kcatalog::FlatCatalog<2> _CATALOG_
+{1, 4, 2, {
+{{'F', "ugemm", {"H", "H", "S"}, {"A2#16,64", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {1, 8, 1}, "xzIB"}, "lB16x2 am32+m32@64 rB sys wg 2x4 vav grf256", {16, (LoopType) 255, 256, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 32, 32}, {2, 4, 1}, 1, (WGType) 1, 257, 0, 0, {128, 8, 4}, {false, true, false}}, {'W', 1, {1024}}},
+{{'F', "ugemm", {"H", "H", "S"}, {"T", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {4, 8, 1}, "xzIB"}, "lS16x2 am32+m32@64 rB sys wg 2x4 vav grf256", {16, (LoopType) 255, 256, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 1024}, {8192, 8192, 1024}, {32, 32, 32}, {2, 4, 1}, 1, (WGType) 1, 257, 0, 0, {4, 8, 4}, {false, true, false}}, {'W', 1, {1024}}}
+}}

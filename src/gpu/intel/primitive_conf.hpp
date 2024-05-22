@@ -1095,6 +1095,10 @@ inline void def_block_offsets(const block_layout_t &layout,
 inline void def_data_type(
         compute::kernel_ctx_t &kernel_ctx, data_type_t dt, const char *str) {
     switch (dt) {
+        case data_type::undef:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=void -D%s_DT_UNDEF", str, str));
+            break;
         case data_type::bf16:
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=ushort -D%s_DT_BF16", str, str));
@@ -1139,7 +1143,6 @@ inline void def_data_type(
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=int -D%s_DT_S32", str, str));
             break;
-        case data_type::undef: break;
         default:
             gpu_error_not_expected()
                     << "Unexpected data type " << dnnl_dt2str(dt);

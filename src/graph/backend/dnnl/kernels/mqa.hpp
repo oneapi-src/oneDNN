@@ -187,7 +187,7 @@ public:
             const std::vector<logical_tensor_t> &inputs) {
 
         // Record the ops inside of MQA pattern in a specific order.
-        record_mqa_ops(sg, quantized);
+        record_mqa_ops(sg);
 
         // Acquire the data type from input param for later primitive creation.
         // The src and wei dt of both quantized mqa and float mqa are the same.
@@ -441,7 +441,7 @@ private:
     impl::status_t record_input_offset(const std::shared_ptr<subgraph_t> &sg,
             const std::vector<logical_tensor_t> &inputs) {
         auto find_graph_inport = [&](std::shared_ptr<value_t> val) {
-            // for quantized mamtul, it has producer such as add_zp,sub_zp,mul_scale.
+            // for quantized matmul, it has producer such as add_zp,sub_zp,mul_scale.
             if (val->get_consumers()[0].get_op().get_kind()
                     == graph::op_kind::MatMul) {
                 while (val->has_producer()) {
@@ -471,6 +471,9 @@ private:
             } else
                 mm2 = cur_op;
         }
+        if (impl::utils::one_of(nullptr, mm1, mm2, add))
+            return status::invalid_graph;
+
         int src1_id = find_graph_inport(mm1->get_input_value(0));
         graph_inport.emplace_back(src1_id);
         int wei1_id = find_graph_inport(mm1->get_input_value(1));
@@ -485,8 +488,7 @@ private:
         return status::success;
     }
 
-    impl::status_t record_mqa_ops(
-            std::shared_ptr<subgraph_t> &sg, bool is_quantize) {
+    impl::status_t record_mqa_ops(std::shared_ptr<subgraph_t> &sg) {
         subgraph_rewriter_t rewriter(sg);
         op_ptr reorder1, reorder2, matmul1, softmax, matmul2;
         for (const auto &cur_op : sg->get_ops()) {

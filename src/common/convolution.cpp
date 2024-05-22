@@ -58,6 +58,7 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
     cd.primitive_kind = primitive_kind::convolution;
     cd.prop_kind = prop_kind;
     cd.alg_kind = alg_kind;
+    cd.use_inversion = false; // Not to be specified by user, only for internal.
 
     cd.diff_src_desc = cd.src_desc = zero_md();
     cd.diff_dst_desc = cd.dst_desc = zero_md();

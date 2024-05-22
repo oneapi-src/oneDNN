@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ TEST(test_op_executable_op_executable, DummyImpl) {
     auto returned_event2 = op_exec->execute_sycl(
             p_stream, {}, {std::move(input_event0), std::move(input_event1)});
     const auto &event_list2 = returned_event2.get_wait_list();
-    ASSERT_GT(event_list2.size(), 0U);
+    ASSERT_LE(event_list2.size(), 2U);
     returned_event2.wait();
     ASSERT_EQ(
             returned_event2

@@ -64,15 +64,15 @@ inline allocator make_allocator(dnnl_graph_ocl_allocate_f ocl_malloc,
 /// Constructs an engine from an OpenCL device, an OpenCL context, and an
 /// allocator.
 ///
-/// @param adevice A valid OpenCL device to construct the engine
-/// @param acontext A valid OpenCL context to construct the engine
+/// @param device A valid OpenCL device to construct the engine
+/// @param context A valid OpenCL context to construct the engine
 /// @param alloc An allocator to associate with the engine
 /// @returns Created engine
 inline engine make_engine_with_allocator(
-        cl_device_id adevice, cl_context acontext, const allocator &alloc) {
+        cl_device_id device, cl_context context, const allocator &alloc) {
     dnnl_engine_t c_engine;
     error::wrap_c_api(dnnl_graph_ocl_interop_make_engine_with_allocator(
-                              &c_engine, adevice, acontext, alloc.get()),
+                              &c_engine, device, context, alloc.get()),
             "could not make an engine with allocator");
     return engine(c_engine);
 }
@@ -80,8 +80,8 @@ inline engine make_engine_with_allocator(
 /// Constructs an engine from an OpenCL device, an OpenCL context, an
 /// allocator, and a serialized engine cache blob.
 ///
-/// @param adevice A valid OpenCL device to construct the engine
-/// @param acontext A valid OpenCL context to construct the engine
+/// @param device A valid OpenCL device to construct the engine
+/// @param context A valid OpenCL context to construct the engine
 /// @param alloc An allocator to associate with the engine
 /// @param cache_blob Cache blob serialized beforehand
 /// @returns Created engine

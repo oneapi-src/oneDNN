@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ status_t primitive_desc_create(primitive_desc_iface_t **primitive_desc_iface,
     const bool known_primitive_kind = utils::one_of(op_desc->kind,
             batch_normalization, binary, convolution, deconvolution, eltwise,
             gemm, group_normalization, inner_product, layer_normalization, lrn,
-            matmul, pooling, prelu, reduction, resampling, rnn, shuffle,
+            matmul, pooling, prelu, reduction, resampling, rnn, sdpa, shuffle,
             softmax);
     if (!known_primitive_kind) return invalid_arguments;
 

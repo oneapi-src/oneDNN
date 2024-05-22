@@ -50,7 +50,7 @@ if(NOT DNNL_EXPERIMENTAL_SPARSE)
 endif()
 
 if(NOT DNNL_EXPERIMENTAL_UKERNEL)
-    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/ukernels/brgemm.cpp)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/ukernels/cpu_brgemm.cpp)
 endif()
 
 # Remove tests for CUDA which use unimplemented primitives

@@ -30,6 +30,7 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
+#include "graph/backend/dnnl/patterns/data_type_check_pass.hpp"
 #include "graph/backend/dnnl/platform.hpp"
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
@@ -63,42 +64,7 @@ bool is_supported_partition(const std::shared_ptr<graph::partition_impl_t> &p) {
             && (p->get_assigned_backend()->get_name() != "fake_backend");
 }
 
-static inline dir_t get_op_dir(dnnl::impl::graph::op_kind_t op_kind) {
-    using namespace dnnl::impl::graph::op_kind;
-    dir_t dir = dir_t::FLAG_INF;
-    static std::unordered_set<op_kind_t> backward_op_kind = {
-            AbsBackward,
-            AvgPoolBackward,
-            BatchNormTrainingBackward,
-            BiasAddBackward,
-            ConvolutionBackwardData,
-            ConvolutionBackwardWeights,
-            ConvTransposeBackwardData,
-            ConvTransposeBackwardWeights,
-            HardSigmoidBackward,
-            InterpolateBackward,
-            LayerNormBackward,
-            LogSoftmaxBackward,
-            MaxPoolBackward,
-            MishBackward,
-            PReLUBackward,
-            ReLUBackward,
-            SigmoidBackward,
-            SoftPlusBackward,
-            TanhBackward,
-    };
-
-    if (backward_op_kind.find(op_kind) != backward_op_kind.end())
-        dir = dir_t::FLAG_BWD;
-    else if (op_kind == dnnl::impl::graph::op_kind::BatchNormForwardTraining)
-        // Currently, batchnorm forward training is the only forward op
-        // that provides extra output for training purpose.
-        dir = dir_t::FLAG_FWD;
-
-    return dir;
-}
-
-static bool is_supported_dtype(data_type_t dt, dir_t dir = dir_t::FLAG_INF) {
+static bool is_supported_dtype(data_type_t dt, dir_t dir = dir_t::FLAG_FWD) {
     static graph::engine_t *engine = get_engine();
     return get_dtype_support_status(engine->kind(), dt, dir);
 }
@@ -4831,7 +4797,10 @@ public:
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
-        if (!is_supported_dtype(params.data_type, get_op_dir(params.op_kind))) {
+        const auto aop_ptr = std::make_shared<op_t>(aop);
+        if (!is_supported_dtype(params.data_type,
+                    dnnl::impl::graph::dnnl_impl::pattern::get_op_dir(
+                            aop_ptr))) {
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
             auto p = agraph.get_partitions().front();
@@ -15213,7 +15182,8 @@ TEST(test_pass_pass_system, LayernormWithSpecialAxis) {
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
-    if (!is_supported_dtype(data_type::bf16)) {
+    if (!is_supported_dtype(data_type::bf16,
+                dnnl::impl::graph::dnnl_impl::platform::dir_t::FWD_I)) {
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
 
         auto p = agraph.get_partitions().front();

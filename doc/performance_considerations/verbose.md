@@ -149,7 +149,8 @@ onednn_verbose,primitive,create:dispatch,matmul,cpu,matmul,brg:avx512_core_bf16,
 Above, we can see that the highest performance implementations were
 not dispatched either because they required a higher ISA, or because
 they did not support that datatype configuration.
-
+A complete list of verbose messages encountered in the dispatch mode 
+can be found [here](https://oneapi-src.github.io/oneDNN/dev_guide_verbose_table.html) along with their explanation.
 
 ### Enable ONEDNN_VERBOSE with timestamps
 
