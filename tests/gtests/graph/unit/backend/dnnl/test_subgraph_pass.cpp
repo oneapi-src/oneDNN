@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <algorithm>
+#include <random>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -2179,4 +2180,312 @@ TEST(test_subgraph_pass_subgraph_pass, CombineBinaryPostOpScales) {
     ASSERT_EQ(
             graph::dnnl_impl::fuse_post_ops(subgraph), graph::status::success);
     ASSERT_EQ(subgraph->num_ops(), 2U);
+}
+
+TEST(test_subgraph_pass_subgraph_pass, FuseNCXConvolutionBinaryAddNC11PostSrc) {
+    using dims = dnnl::impl::graph::dnnl_impl::dims;
+    namespace utils = dnnl::graph::tests::unit::utils;
+    dnnl_impl::dnnl_backend::get_singleton();
+    graph::engine_t &engine = *get_engine();
+    dnnl::engine p_engine = graph::dnnl_impl::make_dnnl_engine(engine);
+
+    int64_t in_channel = 320, out_channel = 320;
+    std::vector<int64_t> src_shape = {2, in_channel, 96, 96};
+    std::vector<int64_t> weight_shape = {out_channel, in_channel / 1, 3, 3};
+    std::vector<int64_t> bias_shape = {2, out_channel, 1, 1};
+    std::vector<int64_t> dst_shape = {2, out_channel, 96, 96};
+
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<float> weight_data(product(weight_shape));
+    std::vector<float> bias_data(product(bias_shape));
+
+    // random generate src, weight data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> distribution(0.0f, 255.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return static_cast<uint8_t>(distribution(generator)); });
+    std::uniform_real_distribution<float> distribution2(-1.f, 1.f);
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return distribution2(generator); });
+    std::uniform_real_distribution<float> distribution3(0.0f, 20.0f);
+    std::generate(bias_data.begin(), bias_data.end(),
+            [&]() { return distribution3(generator); });
+    float scale_src = 1 / 255.f; // map to 0~255
+    int64_t zp_src = 110;
+
+    size_t scales_wei_sizes = dst_shape.back();
+    std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+    std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+
+    graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(graph::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+    graph::op_t dqweight_op(1, graph::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(graph::op_attr::qtype, "per_channel");
+    dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(graph::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+    graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
+    graph::op_t tcweight_op {3, graph::op_kind::TypeCast, "typecast_weight"};
+
+    graph::op_t conv_op(4, graph::op_kind::Convolution, "conv_op");
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims(2, 1));
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims(2, 1));
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims(2, 1));
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims(2, 1));
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NCX");
+    conv_op.set_attr<std::string>(graph::op_attr::weights_format, "OIX");
+
+    graph::op_t add_op {5, graph::op_kind::Add, "add_op"};
+
+    // prepare logical tensor
+    graph::logical_tensor_t src_u8
+            = utils::logical_tensor_init(0, src_shape, graph::data_type::u8);
+    graph::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(1, src_shape, graph::data_type::f32);
+    graph::logical_tensor_t src_bf16
+            = utils::logical_tensor_init(2, src_shape, graph::data_type::bf16);
+    graph::logical_tensor_t weight_s8
+            = utils::logical_tensor_init(3, weight_shape, graph::data_type::s8);
+    graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+            4, weight_shape, graph::data_type::f32);
+    graph::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+            5, weight_shape, graph::data_type::bf16);
+    graph::logical_tensor_t conv_bf16
+            = utils::logical_tensor_init(6, dst_shape, graph::data_type::bf16);
+    graph::logical_tensor_t add_bf16
+            = utils::logical_tensor_init(8, bias_shape, graph::data_type::bf16);
+    graph::logical_tensor_t add_out_bf16
+            = utils::logical_tensor_init(9, dst_shape, graph::data_type::bf16);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    dqweight_op.add_input(weight_s8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    tcdata_op.add_input(src_f32_dq);
+    tcdata_op.add_output(src_bf16);
+
+    tcweight_op.add_input(weight_f32_dq);
+    tcweight_op.add_output(weight_bf16);
+
+    conv_op.add_input(src_bf16);
+    conv_op.add_input(weight_bf16);
+    conv_op.add_output(conv_bf16);
+
+    add_op.add_input(conv_bf16);
+    add_op.add_input(add_bf16);
+    add_op.add_output(add_out_bf16);
+
+    graph::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&dqdata_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&tcdata_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&dqweight_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&tcweight_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&add_op), graph::status::success);
+    g.finalize();
+
+    auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(g.get_ops(),
+            p_engine, graph::fpmath_mode::any, false,
+            /* reset_layout */ false);
+    ASSERT_EQ(graph::dnnl_impl::lower_down(subgraph), graph::status::success);
+    ASSERT_EQ(
+            graph::dnnl_impl::fuse_bias_add(subgraph), graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_typecast_to_matmul_or_conv(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_typecast_to_add(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_typecast_to_mul_scales(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::convert_bias_to_f32(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::remove_quant_data_with_no_effect(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::check_with_bias(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::binary_canonicalization(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::binary_broadcast_swap(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::convert_to_runtime_src_scales(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_src_scales(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::convert_to_runtime_src_zero_points(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_src_zero_points(subgraph),
+            graph::status::success);
+    ASSERT_EQ(
+            graph::dnnl_impl::fuse_post_ops(subgraph), graph::status::success);
+    auto qconv_op = std::find_if(subgraph->get_ops().begin(),
+            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
+                return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
+            });
+    int64_t key = (*qconv_op)->get_attr<int64_t>(
+            dnnl_impl::op_attr::fusion_info_key);
+    auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
+    const auto &post_ops = fusion_info.get_post_ops();
+    ASSERT_EQ(post_ops.size(), 1U);
+}
+
+TEST(test_subgraph_pass_subgraph_pass, FuseNXCConvolutionBinaryAddNC11PostSrc) {
+    using dims = dnnl::impl::graph::dnnl_impl::dims;
+    namespace utils = dnnl::graph::tests::unit::utils;
+    dnnl_impl::dnnl_backend::get_singleton();
+    graph::engine_t &engine = *get_engine();
+    dnnl::engine p_engine = graph::dnnl_impl::make_dnnl_engine(engine);
+
+    int64_t in_channel = 320, out_channel = 320;
+    std::vector<int64_t> src_shape = {2, 96, 96, in_channel};
+    std::vector<int64_t> weight_shape = {out_channel, in_channel / 1, 3, 3};
+    std::vector<int64_t> bias_shape = {2, 1, 1, out_channel};
+    std::vector<int64_t> dst_shape = {2, 96, 96, out_channel};
+
+    std::vector<uint8_t> src_data(product(src_shape));
+    std::vector<float> weight_data(product(weight_shape));
+    std::vector<float> bias_data(product(bias_shape));
+
+    // random generate src, weight data
+    // random seed = 7
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> distribution(0.0f, 255.0f);
+    std::generate(src_data.begin(), src_data.end(),
+            [&]() { return static_cast<uint8_t>(distribution(generator)); });
+    std::uniform_real_distribution<float> distribution2(-1.f, 1.f);
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return distribution2(generator); });
+    std::uniform_real_distribution<float> distribution3(0.0f, 20.0f);
+    std::generate(bias_data.begin(), bias_data.end(),
+            [&]() { return distribution3(generator); });
+    float scale_src = 1 / 255.f; // map to 0~255
+    int64_t zp_src = 110;
+
+    size_t scales_wei_sizes = dst_shape.back();
+    std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+    std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+
+    graph::op_t dqdata_op(0, graph::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(graph::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+    graph::op_t dqweight_op(1, graph::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(graph::op_attr::qtype, "per_channel");
+    dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(graph::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+    graph::op_t tcdata_op {2, graph::op_kind::TypeCast, "typecast_data"};
+    graph::op_t tcweight_op {3, graph::op_kind::TypeCast, "typecast_weight"};
+
+    graph::op_t conv_op(4, graph::op_kind::Convolution, "conv_op");
+    conv_op.set_attr<dims>(graph::op_attr::strides, dims(2, 1));
+    conv_op.set_attr<dims>(graph::op_attr::dilations, dims(2, 1));
+    conv_op.set_attr<dims>(graph::op_attr::pads_begin, dims(2, 1));
+    conv_op.set_attr<dims>(graph::op_attr::pads_end, dims(2, 1));
+    conv_op.set_attr<int64_t>(graph::op_attr::groups, 1);
+    conv_op.set_attr<std::string>(graph::op_attr::data_format, "NXC");
+    conv_op.set_attr<std::string>(graph::op_attr::weights_format, "OIX");
+
+    graph::op_t add_op {5, graph::op_kind::Add, "add_op"};
+
+    // prepare logical tensor
+    graph::logical_tensor_t src_u8
+            = utils::logical_tensor_init(0, src_shape, graph::data_type::u8);
+    graph::logical_tensor_t src_f32_dq
+            = utils::logical_tensor_init(1, src_shape, graph::data_type::f32);
+    graph::logical_tensor_t src_bf16
+            = utils::logical_tensor_init(2, src_shape, graph::data_type::bf16);
+    graph::logical_tensor_t weight_s8
+            = utils::logical_tensor_init(3, weight_shape, graph::data_type::s8);
+    graph::logical_tensor_t weight_f32_dq = utils::logical_tensor_init(
+            4, weight_shape, graph::data_type::f32);
+    graph::logical_tensor_t weight_bf16 = utils::logical_tensor_init(
+            5, weight_shape, graph::data_type::bf16);
+    graph::logical_tensor_t conv_bf16
+            = utils::logical_tensor_init(6, dst_shape, graph::data_type::bf16);
+    graph::logical_tensor_t add_bf16
+            = utils::logical_tensor_init(8, bias_shape, graph::data_type::bf16);
+    graph::logical_tensor_t add_out_bf16
+            = utils::logical_tensor_init(9, dst_shape, graph::data_type::bf16);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    dqweight_op.add_input(weight_s8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    tcdata_op.add_input(src_f32_dq);
+    tcdata_op.add_output(src_bf16);
+
+    tcweight_op.add_input(weight_f32_dq);
+    tcweight_op.add_output(weight_bf16);
+
+    conv_op.add_input(src_bf16);
+    conv_op.add_input(weight_bf16);
+    conv_op.add_output(conv_bf16);
+
+    add_op.add_input(conv_bf16);
+    add_op.add_input(add_bf16);
+    add_op.add_output(add_out_bf16);
+
+    graph::graph_t g(engine.kind());
+    ASSERT_EQ(g.add_op(&dqdata_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&tcdata_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&dqweight_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&tcweight_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
+    ASSERT_EQ(g.add_op(&add_op), graph::status::success);
+    g.finalize();
+
+    auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(g.get_ops(),
+            p_engine, graph::fpmath_mode::any, false,
+            /* reset_layout */ false);
+    ASSERT_EQ(graph::dnnl_impl::lower_down(subgraph), graph::status::success);
+    ASSERT_EQ(
+            graph::dnnl_impl::fuse_bias_add(subgraph), graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_typecast_to_matmul_or_conv(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_typecast_to_add(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_typecast_to_mul_scales(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::convert_bias_to_f32(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::remove_quant_data_with_no_effect(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::check_with_bias(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::binary_canonicalization(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::binary_broadcast_swap(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::convert_to_runtime_src_scales(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_src_scales(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::convert_to_runtime_src_zero_points(subgraph),
+            graph::status::success);
+    ASSERT_EQ(graph::dnnl_impl::fuse_src_zero_points(subgraph),
+            graph::status::success);
+    ASSERT_EQ(
+            graph::dnnl_impl::fuse_post_ops(subgraph), graph::status::success);
+    auto qconv_op = std::find_if(subgraph->get_ops().begin(),
+            subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
+                return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
+            });
+    int64_t key = (*qconv_op)->get_attr<int64_t>(
+            dnnl_impl::op_attr::fusion_info_key);
+    auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
+    const auto &post_ops = fusion_info.get_post_ops();
+    ASSERT_EQ(post_ops.size(), 1U);
 }

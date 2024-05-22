@@ -288,6 +288,18 @@ static bool post_binary_fusible_impl(const op_t *base_op,
         return true;
     }
 
+    // allow fusion for conv + [N,C,1,1] shape post-binary src
+    if (base_op->get_kind() == op_kind::dnnl_convolution && output_ndims == 4) {
+        if (base_op->get_attr<std::string>(op_attr::data_format) == "NCX"
+                && other_shape[2] == 1 && other_shape[3] == 1) {
+            return true;
+        }
+        if (base_op->get_attr<std::string>(op_attr::data_format) == "NXC"
+                && other_shape[1] == 1 && other_shape[2] == 1) {
+            return true;
+        }
+    }
+
     // per channel broadcasted
     const auto is_not_one = [](dim_t d) { return d != 1; };
     const auto n_not_broadcastable
