@@ -13244,7 +13244,7 @@ void gemm_kernel_generator_t<hw>::gemmCalcKSLMA(const GEMMProblem &problem,
             krep = strategy.wg[LoopN];
             break;
         case CoopSplit::Linear:
-            kgran = std::max(state.Ai.crosspack, state.Ai.tileC);
+            kgran = std::max<int>(state.Ai.crosspack, state.Ai.tileC);
             kdiv = strategy.unrollKSLM / kgran;
             krep = strategy.wg[LoopN] / kdiv;
             if (krep > 0) break;
@@ -13272,7 +13272,7 @@ void gemm_kernel_generator_t<hw>::gemmCalcKSLMB(const GEMMProblem &problem,
             krep = strategy.wg[LoopM];
             break;
         case CoopSplit::Linear:
-            kgran = std::max(state.Bi.crosspack, state.Bi.tileR);
+            kgran = std::max<int>(state.Bi.crosspack, state.Bi.tileR);
             kdiv = strategy.unrollKSLM / kgran;
             krep = strategy.wg[LoopM] / kdiv;
             if (krep > 0) break;
