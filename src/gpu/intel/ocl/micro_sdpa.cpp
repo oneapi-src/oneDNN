@@ -219,7 +219,7 @@ status_t micro_sdpa_t::init(engine_t *engine) {
         if (ldq % 4 == 0) kernel_ctx.define_int("BLOCK_Q", 1);
         if (lda % 4 == 0 && v_full) kernel_ctx.define_int("BLOCK_A", 1);
         kernel_ctx.define_int("REMAINDER_Q", (d->queries() % tile_q) != 0);
-    } else if (lda % 16 == 0)
+    } else if (lda % 16 == 0 && pd()->arch() >= compute::gpu_arch_t::xe_hpc)
         kernel_ctx.define_int("BLOCK_2D_A", 1);
 
     if (pd()->arch() >= compute::gpu_arch_t::xe_hpc) {
