@@ -211,6 +211,9 @@ status_t micro_sdpa_t::init(engine_t *engine) {
 
     bool d_full = (d->head_size() == pd()->d_max());
     bool v_full = (d->head_size() == tile_v);
+    bool k_full = ((d->keys() % tile_k) == 0);
+
+    kernel_ctx.define_int("REMAINDER_K", !k_full);
 
     if (d_full) {
         if (ldq % 4 == 0) kernel_ctx.define_int("BLOCK_Q", 1);

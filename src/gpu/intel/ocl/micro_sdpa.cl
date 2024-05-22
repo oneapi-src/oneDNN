@@ -263,29 +263,35 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
         tile_load_block(&mask_tile, msk, 0, k0 + sg_i0_kq, 0);
 #endif
 
-        /* Prepare k mask: 0 in bounds, -inf out of bounds */
+#if REMAINDER_K
+        /* Prepare k mask: NaN in bounds, -inf out of bounds */
         mask_tile_type_float k_mask;
 #pragma unroll
         for (int ii = 0; ii < ugemm_kq_sg_tile_m / SUBGROUP_SIZE; ii++)
             k_mask.x[0][ii] = (k0 + sg_i0_kq + ii * SUBGROUP_SIZE
                                               + get_sub_group_local_id()
                                       < k)
-                    ? 0
+                    ? nan(0u)
                     : -INFINITY;
+#endif
 
         /* Calculate S = (K^T) * Q */
-        s_tile_type S_tile = ugemm_kq(K, ldk, Q_slm, D_MAX, k,
-                ugemm_kq_wg_tile_n, d, k0, 0, 0, sg_i_kq, sg_j_kq, (local char *) ugemm_slm);
+        s_tile_type S_tile
+                = ugemm_kq(K, ldk, Q_slm, D_MAX, k, ugemm_kq_wg_tile_n, d, k0,
+                        0, 0, sg_i_kq, sg_j_kq, (local char *)ugemm_slm);
 
+        /* Apply attention mask */
 #if WITH_ATTN_MASK
-/* Apply mask, manually masking in k dimension */
-#define unscale_mask(x, y) ((x)*iscale + (y))
+#define unscale(x) ((x)*iscale)
         mask_tile_type_float mask_tile_float;
         tile_copy(mask_tile, mask_tile_float);
-        tile_binary(mask_tile_float, k_mask, unscale_mask);
+        tile_elementwise(mask_tile_float, unscale);
         tile_hbroadcast_add(&S_tile, mask_tile_float);
-#else
-        tile_hbroadcast_add(&S_tile, k_mask);
+#endif
+
+        /* Apply k mask */
+#if REMAINDER_K
+        tile_hbroadcast_min(&S_tile, k_mask);
 #endif
 
         /* Before softmax, we will need to scale columns by maximum values to avoid overflow. */

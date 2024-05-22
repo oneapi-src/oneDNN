@@ -358,6 +358,16 @@ DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
                         *= xlane_tile_access(tr, j, 0, rsg, rbr, rbc, rnbr); \
             } \
         } \
+    } \
+    __attribute__((overloadable)) void tile_hbroadcast_min( \
+            tile_type *t, rtile_type tr) { \
+        _Pragma("unroll") for (int j = 0; j < bc * nbc; j++) { \
+            _Pragma("unroll") for (int i0 = 0; i0 < br * nbr; i0 += sg) { \
+                tile_access(*t, i0, j, sg, br, bc, nbr) = min( \
+                        tile_access(*t, i0, j, sg, br, bc, nbr), \
+                        xlane_tile_access(tr, j, 0, rsg, rbr, rbc, rnbr)); \
+            } \
+        } \
     }
 
 #define DECLARE_2D_TILE_RSELECT(tile_type0, sg0, br0, bc0, nbr0, nbc0, \
