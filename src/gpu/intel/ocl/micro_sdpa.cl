@@ -161,18 +161,24 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
     uint sg_i_vs = sg_ij % ugemm_vs_sg_per_wg_m;
     uint sg_j_vs = sg_ij / ugemm_vs_sg_per_wg_m;
 
-    /* SLM allocations */
-    local half Q_slm[D_MAX * ugemm_kq_wg_tile_n];
-    local half S_slm[ugemm_kq_wg_tile_m * ugemm_kq_wg_tile_n];
-    local float S_sum_slm[ugemm_kq_wg_tile_n * ugemm_kq_sg_per_wg_m];
-    local float S_max_slm[ugemm_kq_wg_tile_n];
+    /* SLM allocations -- place in one array to work around compiler bug */
+#define Q_slm_size (D_MAX * ugemm_kq_wg_tile_n * sizeof(half))
+#define S_slm_size (ugemm_kq_wg_tile_m * ugemm_kq_wg_tile_n * sizeof(half))
+#define S_sum_slm_size \
+    (ugemm_kq_wg_tile_n * ugemm_kq_sg_per_wg_m * sizeof(float))
+#define S_max_slm_size (ugemm_kq_wg_tile_n * sizeof(float))
+#define ugemm_slm_size MAX(ugemm_kq_slm_size, ugemm_vs_slm_size)
 
-#if ugemm_kq_slm_size + ugemm_vs_slm_size > 0
-    local uint
-            ugemm_slm[MAX(ugemm_kq_slm_size, ugemm_vs_slm_size) / sizeof(uint)];
-#else
-    local uint *ugemm_slm = NULL;
-#endif
+    local char slm[Q_slm_size + S_slm_size + S_sum_slm_size + S_max_slm_size
+            + ugemm_slm_size];
+
+    local half *Q_slm = (local half *)&slm[0];
+    local half *S_slm = (local half *)&slm[Q_slm_size];
+    local float *S_sum_slm = (local float *)&slm[Q_slm_size + S_slm_size];
+    local float *S_max_slm
+            = (local float *)&slm[Q_slm_size + S_slm_size + S_sum_slm_size];
+    local uint *ugemm_slm = (local uint *)&slm[Q_slm_size + S_slm_size
+            + S_sum_slm_size + S_max_slm_size];
 
     const bool need_sum_barrier = (ugemm_vs_barrier_count == 0);
 
