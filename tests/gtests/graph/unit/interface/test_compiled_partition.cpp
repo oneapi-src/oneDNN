@@ -29,6 +29,7 @@
 
 #include "oneapi/dnnl/dnnl.hpp"
 
+using dnnl::impl::cache_state_t;
 namespace utils = dnnl::graph::tests::unit::utils;
 
 namespace dnnl {
@@ -93,8 +94,8 @@ TEST(test_interface_compiled_partition_cache, SingleOpCase) {
             // highly possibly cache_miss
             tasks.emplace_back([eng, par, input, output]() {
                 impl::graph::compiled_partition_t cp(par);
-                std::pair<impl::graph::compiled_partition_t *, bool> cpcache {
-                        &cp, false};
+                std::pair<impl::graph::compiled_partition_t *, cache_state_t>
+                        cpcache {&cp, cache_state_t::miss};
                 std::vector<const impl::graph::logical_tensor_t *> inputs {
                         &input};
                 std::vector<const impl::graph::logical_tensor_t *> outputs {
@@ -105,8 +106,8 @@ TEST(test_interface_compiled_partition_cache, SingleOpCase) {
             // highly possibly cache_hit
             tasks.emplace_back([eng, par, input, output]() {
                 impl::graph::compiled_partition_t cp(par);
-                std::pair<impl::graph::compiled_partition_t *, bool> cpcache {
-                        &cp, false};
+                std::pair<impl::graph::compiled_partition_t *, cache_state_t>
+                        cpcache {&cp, cache_state_t::miss};
                 std::vector<const impl::graph::logical_tensor_t *> inputs {
                         &input};
                 std::vector<const impl::graph::logical_tensor_t *> outputs {
@@ -173,7 +174,8 @@ TEST(test_interface_lru_compiled_partition_cache, Method) {
     g.get_ordered_partitions(parts);
 
     graph::compiled_partition_t cp(par);
-    std::pair<graph::compiled_partition_t *, bool> cpcache {&cp, false};
+    std::pair<graph::compiled_partition_t *, cache_state_t> cpcache {
+            &cp, cache_state_t::miss};
     std::vector<const graph::logical_tensor_t *> inputs {&input};
     std::vector<const graph::logical_tensor_t *> outputs {&output};
     // Partition compilation

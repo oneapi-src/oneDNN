@@ -126,7 +126,8 @@ public:
             const graph::engine_t *e = nullptr) const;
 
     graph::status_t compile(
-            std::pair<graph::compiled_partition_t *, bool> &compiled_partition,
+            std::pair<graph::compiled_partition_t *, dnnl::impl::cache_state_t>
+                    &compiled_partition,
             std::vector<const graph::logical_tensor_t *> &inputs,
             std::vector<const graph::logical_tensor_t *> &outputs,
             const graph::engine_t *aengine) const;
