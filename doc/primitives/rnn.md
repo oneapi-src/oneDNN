@@ -47,9 +47,8 @@ where \f$t,l\f$ are the indices of the timestamp and the layer of the cell being
 
 And here is the equation for LSTM cells:
 
-\f[ \begin{equation*}
+\f[
 (h_{t, l},c_{t,l}) = Cell(h_{t, l-1}, h_{t-1, l}, c_{t-1,l})
-\end{equation*}
 \f]
 where \f$t,l\f$ are the indices of the timestamp and the layer of the cell being executed.
 
@@ -84,10 +83,8 @@ functions. The following equations defines the mathematical operation
 performed by the Vanilla RNN cell for the forward pass:
 
 \f[
-\begin{align}
 a_t &= W \cdot h_{t,l-1} + U \cdot h_{t-1, l} + B \\
 h_t &= activation(a_t)
-\end{align}
 \f]
 
 ### LSTM
@@ -111,7 +108,6 @@ following equation gives the mathematical description of these gates and output
 for the forward pass:
 
 \f[
-\begin{align}
 i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1, l} + B_i) \\
 f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1, l} + B_f) \\
 \\
@@ -120,7 +116,6 @@ c_t &= f_t * c_{t-1} + i_t * \tilde c_t \\
 \\
 o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1, l} + B_o) \\
 h_t &= \tanh(c_t) * o_t
-\end{align}
 \f]
 
 where \f$W_*\f$ are stored in \weightslayer, \f$U_*\f$ are stored in
@@ -151,7 +146,6 @@ on the gates. For peephole weights, the gates order is `i`, `f`,
 and output for the forward pass:
 
 \f[
-\begin{align}
 i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1, l} + P_i \cdot c_{t-1} + B_i) \\
 f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1, l} + P_f \cdot c_{t-1} + B_f) \\
 \\
@@ -160,7 +154,6 @@ c_t &= f_t * c_{t-1} + i_t * \tilde c_t \\
 \\
 o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1, l} + P_o \cdot c_t + B_o) \\
 h_t &= \tanh(c_t) * o_t
-\end{align}
 \f]
 
 where \f$P_*\f$ are stored in `weights_peephole`, and the other parameters are
@@ -192,7 +185,6 @@ description of these gates and output for the forward pass (for simplicity,
 LSTM without peephole is shown):
 
 \f[
-\begin{align}
     i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1,l} + B_i) \\
     f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1,l} + B_f) \\
     & \\
@@ -201,7 +193,6 @@ LSTM without peephole is shown):
     & \\
     o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1,l} + B_o) \\
     h_t &= R \cdot (\tanh(c_t) * o_t)
-\end{align}
 \f]
 
 where \f$R\f$ is stored in `weights_projection`, and the other parameters are
@@ -230,12 +221,10 @@ implicitly require the order of these gates to be `u`, `r`, and `o`. The
 following equation gives the mathematical definition of these gates.
 
 \f[
-\begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= \tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
 h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
-\end{align}
 \f]
 
 where \f$W_*\f$ are in \weightslayer, \f$U_*\f$ are in
@@ -264,12 +253,10 @@ The following equation describes the mathematical behavior of the
 Linear-Before-Reset GRU cell.
 
 \f[
-\begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= \tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
 h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
-\end{align}
 \f]
 
 Note that for all tensors with a dimension depending on the gate number, except
@@ -300,13 +287,11 @@ implicitly require the order of these gates to be `u`, `r`, and `o`. The
 following equation gives the mathematical definition of these gates.
 
 \f[
-\begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= \tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
 \tilde u_t &= (1 - a_t) * u_t \\
 h_t &= \tilde u_t * h_{t-1, l} + (1 - \tilde u_t) * o_t
-\end{align}
 \f]
 
 where \f$W_*\f$ are in \weightslayer, \f$U_*\f$ are in
@@ -330,13 +315,11 @@ The following equation describes the mathematical behavior of the
 Linear-Before-Reset AUGRU cell.
 
 \f[
-\begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= \tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
 \tilde u_t &= (1 - a_t) * u_t \\
 h_t &= \tilde u_t * h_{t-1, l} + (1 - \tilde u_t) * o_t
-\end{align}
 \f]
 
 Note that for all tensors with a dimension depending on the gate number, except

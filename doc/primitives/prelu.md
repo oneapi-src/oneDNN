@@ -55,17 +55,15 @@ and #dnnl_forward_inference propagation kinds.
 The backward propagation computes \f$\diffsrc\f$ and \f$\diffweights\f$.
 For no broadcast case, results are calculated using formula:
 
-\f[
-    \begin{align}
-    \mbox{diff_src}(n, c, h, w) &=
+\f[    
+    \diffdst(n, c, h, w) &=
         \begin{cases}
-        \mbox{diff_dst}(n, c, h, w)  & \mbox{if } \src(n, c, h, w) > 0 \\
-        \mbox{diff_dst}(n, c, h, w) \cdot \weights(n, c, h, w) &
+        \diffdst(n, c, h, w)  & \mbox{if } \src(n, c, h, w) > 0 \\
+        \diffdst(n, c, h, w) \cdot \weights(n, c, h, w) &
         \mbox{if } \src(n, c, h, w) \leq 0
         \end{cases}\\\\
-    \mbox{diff_weights}(n, c, h, w) &=
-        \min(\src(n, c, h, w), 0) \cdot \mbox{diff_dst}(n, c, h, w)
-    \end{align}
+    \diff_weights(n, c, h, w) &=
+        \min(\src(n, c, h, w), 0) \cdot \diffdst(n, c, h, w)
 \f]
 
 Similar to forward propagation, result is calculated taking into
