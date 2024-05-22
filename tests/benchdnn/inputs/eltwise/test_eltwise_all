@@ -31,5 +31,8 @@
 # f16
 --batch=test_eltwise_float16
 
+# f8
+--batch=test_eltwise_float8
+
 # regression check
 --batch=harness_eltwise_regression

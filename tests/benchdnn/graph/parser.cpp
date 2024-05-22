@@ -85,6 +85,35 @@ bool parse_op_attrs(std::vector<std::map<size_t, std::string>> &op_attrs_vec,
     return parse_key_value(op_attrs_vec, op_attrs_str), true;
 }
 
+bool parse_graph_expected_n_partitions(
+        std::vector<size_t> &expected_n_partition_vec, const char *str) {
+    std::string expected_n_partitions_str;
+    if (!parse_string(expected_n_partitions_str, str, "expected-n-partitions"))
+        return false;
+
+    std::stringstream ss(expected_n_partitions_str);
+    std::string expected_n_partitions;
+    while (std::getline(ss, expected_n_partitions, ',')) {
+        if (!expected_n_partitions.empty()) {
+            expected_n_partition_vec.clear();
+
+            const auto int_expected_n_partitions
+                    = std::stoi(expected_n_partitions);
+            if (int_expected_n_partitions >= 0) {
+                expected_n_partition_vec.emplace_back(
+                        int_expected_n_partitions);
+            } else {
+                BENCHDNN_PRINT(0,
+                        "Error: expected-n-partitions option supports only"
+                        "non-negative numbers, but `%d` was specified.\n",
+                        int_expected_n_partitions);
+                SAFE_V(FAIL);
+            }
+        }
+    }
+    return true;
+}
+
 bool parse_graph_fpmath_mode(
         std::vector<std::string> &fpmath_mode_vec, const char *str) {
     std::string graph_attrs_str;

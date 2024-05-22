@@ -1277,8 +1277,10 @@ inline void construct_dnnl_float_JAX_MHA(dnnl::impl::graph::graph_t *agraph,
 }
 
 inline void construct_dnnl_float_JAX_MQA(dnnl::impl::graph::graph_t *agraph,
-        impl::data_type_t dtype = impl::data_type::f32, int batch_size = 1,
-        int seq_len = 384, int num_head = 16, int size_per_head = 64) {
+        impl::data_type_t dtype = impl::data_type::f32,
+        impl::graph::dim_t batch_size = 1, impl::graph::dim_t seq_len = 384,
+        impl::graph::dim_t num_head = 16,
+        impl::graph::dim_t size_per_head = 64) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests;
 

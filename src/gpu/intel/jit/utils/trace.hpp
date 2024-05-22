@@ -60,10 +60,10 @@ inline void trace_perf() {};
 
 #if defined(DNNL_DEV_MODE)
 void trace_pass(
-        const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx);
+        const char *pass_name, const stmt_t &stmt, const ir_context_t &ir_ctx);
 #else
-inline void trace_pass(
-        const char *pass_name, const stmt_t &stmt, ir_context_t &ir_ctx) {};
+inline void trace_pass(const char *pass_name, const stmt_t &stmt,
+        const ir_context_t &ir_ctx) {};
 #endif
 
 } // namespace jit

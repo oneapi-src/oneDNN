@@ -1,0 +1,53 @@
+#f8_e5m2
+--reset
+--skip-impl=ref
+--mb=2
+--stag=axb --dtag=axb
+--dir=FWD_B
+--dt=f8_e5m2:f8_e5m2:f32,f8_e5m2
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--dir=BWD_D
+--dt=f32:f8_e5m2:f8_e5m2,f8_e5m2
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--dir=BWD_WB
+--dt=f8_e5m2:f32:f8_e5m2,f8_e5m2
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--reset
+--mb=2
+--skip-impl=ref
+--stag=axb --dtag=axb
+--dir=FWD_D
+--dt=f8_e5m2:f8_e5m2:f32,f8_e5m2
+--attr-post-ops=relu,sum,sum+relu,prelu,add:f8_e5m2:per_oc
+--batch=shapes_mobilenet_dw
+--batch=shapes_regression_dw
+
+#f8_e4m3
+--reset
+--skip-impl=ref
+--mb=2
+--stag=axb --dtag=axb
+--dir=FWD_B
+--dt=f8_e4m3:f8_e4m3:f32,f8_e4m3
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--dir=BWD_D
+--dt=f32:f8_e4m3:f8_e4m3,f8_e4m3
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--dir=BWD_WB
+--dt=f8_e4m3:f32:f8_e4m3,f8_e4m3
+--batch=shapes_mobilenet_dw --batch=shapes_ssd_mobilenet --batch=shapes_regression_dw
+
+--reset
+--mb=2
+--skip-impl=ref
+--stag=axb --dtag=axb
+--dir=FWD_D
+--dt=f8_e4m3:f8_e4m3:f32,f8_e4m3
+--attr-post-ops=relu,sum,sum+relu,prelu,add:f8_e4m3:per_oc
+--batch=shapes_mobilenet_dw
+--batch=shapes_regression_dw

@@ -51,8 +51,8 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
         OCL_CHECK(err);
 
         gpu::intel::ocl::init_gpu_hw_info(engine, ocl_dev_wrapper,
-                ocl_ctx_wrapper, gpu_arch_, stepping_id_, native_extensions_,
-                mayiuse_systolic_, mayiuse_ngen_kernels_);
+                ocl_ctx_wrapper, ip_version_, gpu_arch_, stepping_id_,
+                native_extensions_, mayiuse_systolic_, mayiuse_ngen_kernels_);
     } else if (be == xpu::sycl::backend_t::level0) {
         // TODO: add support for L0 binary ngen check
         // XXX: query from ocl_engine for now
@@ -66,6 +66,7 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
                         gpu::intel::compute::compute_engine_t *>(engine));
 
         auto *dev_info = compute_engine->device_info();
+        ip_version_ = dev_info->ip_version();
         gpu_arch_ = dev_info->gpu_arch();
         stepping_id_ = dev_info->stepping_id();
         mayiuse_systolic_ = dev_info->mayiuse_systolic();

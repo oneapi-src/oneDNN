@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,25 +33,6 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
-class hip_gpu_engine_impl_list_t {
-public:
-    static const impl_list_item_t *get_reorder_implementation_list(
-            const memory_desc_t *src_md, const memory_desc_t *dst_md);
-    static const dnnl::impl::impl_list_item_t *
-    get_concat_implementation_list() {
-        static impl_list_item_t hip_concat_impl_list[] = {
-                nullptr,
-        };
-        return hip_concat_impl_list;
-    }
-    static const dnnl::impl::impl_list_item_t *get_sum_implementation_list() {
-        static impl_list_item_t hip_sum_impl_list[] = {
-                nullptr,
-        };
-        return hip_sum_impl_list;
-    }
-};
-
 class sycl_hip_engine_t : public dnnl::impl::sycl::sycl_engine_base_t {
 public:
     using base_t = dnnl::impl::sycl::sycl_engine_base_t;
@@ -64,28 +45,29 @@ public:
     status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, ::sycl::queue &queue);
 
-    const dnnl::impl::impl_list_item_t *get_reorder_implementation_list(
-            const memory_desc_t *src_md,
-            const memory_desc_t *dst_md) const override {
-        return hip_gpu_engine_impl_list_t::get_reorder_implementation_list(
-                src_md, dst_md);
-    }
-
-    const dnnl::impl::impl_list_item_t *
-    get_concat_implementation_list() const override {
-        return hip_gpu_engine_impl_list_t::get_concat_implementation_list();
-    }
-
-    const dnnl::impl::impl_list_item_t *
-    get_sum_implementation_list() const override {
-        return hip_gpu_engine_impl_list_t::get_sum_implementation_list();
-    }
-
     void activate_stream_miopen(HIPstream hip_stream);
     void activate_stream_rocblas(HIPstream hip_stream);
 
+    const impl_list_item_t *get_reorder_implementation_list(
+            const memory_desc_t *src_md,
+            const memory_desc_t *dst_md) const override {
+        return gpu::gpu_impl_list_t::get_reorder_implementation_list(
+                src_md, dst_md);
+    }
+
+    const impl_list_item_t *get_concat_implementation_list() const override {
+        return gpu::gpu_impl_list_t::get_concat_implementation_list();
+    }
+
+    const impl_list_item_t *get_sum_implementation_list() const override {
+        return gpu::gpu_impl_list_t::get_sum_implementation_list();
+    }
+
     const impl_list_item_t *get_implementation_list(
-            const op_desc_t *) const override;
+            const op_desc_t *desc) const override {
+        return gpu::gpu_impl_list_t::get_implementation_list(desc);
+    }
+
     hipCtx_t get_underlying_context() const;
     hipDevice_t get_underlying_device() const;
     miopenHandle_t *get_miopen_handle();

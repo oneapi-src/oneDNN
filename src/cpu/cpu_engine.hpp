@@ -88,7 +88,7 @@ public:
 #define CASE(kind) \
     case primitive_kind::kind: \
         return get_##kind##_impl_list((const kind##_desc_t *)desc);
-        switch (desc->kind) {
+        switch ((int) desc->kind) {
             CASE(batch_normalization);
             CASE(binary);
             CASE(convolution);
@@ -106,6 +106,7 @@ public:
             CASE(rnn);
             CASE(shuffle);
             CASE(softmax);
+            case primitive_kind::sdpa: return empty_list;
             default: assert(!"unknown primitive kind"); return empty_list;
         }
 #undef CASE

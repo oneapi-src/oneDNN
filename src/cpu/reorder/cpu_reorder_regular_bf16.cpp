@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +52,8 @@ const impl_list_map_t &regular_bf16_impl_list_map() {
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, OIdhw16o16i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, OIdhw16i16o))
+
+            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
 
             REG_SR(bf16, any, bf16, any, fmt_order::any, spec::reference)
             REG_SR(bf16, any, f32, any, fmt_order::any, spec::reference)

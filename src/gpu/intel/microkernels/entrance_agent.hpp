@@ -1,6 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,28 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/ref_concat.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#ifndef GPU_MICROKERNELS_ENTRANCE_AGENT_HPP
+#define GPU_MICROKERNELS_ENTRANCE_AGENT_HPP
+
+#include "package.hpp"
+
+// The entrance agent is a stateless class that analyzes an incoming package from the microkernel provider,
+//   deducing information from the raw microkernel binary.
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace nvidia {
+namespace intel {
+namespace micro {
 
-namespace {
+class EntranceAgent {
+public:
+    enum class Status {
+        Success,
+        UncertainClobbers,
+        UnsupportedHW,
+    };
 
-constexpr impl_list_item_t cuda_concat_impl_list[]
-        = {impl_list_item_t::concat_type_deduction_helper_t<
-                   gpu::intel::ocl::ref_concat_t::pd_t>(),
-                nullptr};
-} // namespace
+    static Status scan(Package &package);
+};
 
-const impl_list_item_t *
-cuda_gpu_engine_impl_list_t::get_concat_implementation_list() {
-    return cuda_concat_impl_list;
-}
-
-} // namespace nvidia
+} /* namespace micro */
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#endif

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +23,7 @@
 
 #include "common/stream.hpp"
 #include "common/thread_local_storage.hpp"
+#include "gpu/gpu_impl_list.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_engine_base.hpp"
@@ -31,14 +32,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace nvidia {
-
-class cuda_gpu_engine_impl_list_t {
-public:
-    static const impl_list_item_t *get_reorder_implementation_list(
-            const memory_desc_t *src_md, const memory_desc_t *dst_md);
-    static const dnnl::impl::impl_list_item_t *get_concat_implementation_list();
-    static const dnnl::impl::impl_list_item_t *get_sum_implementation_list();
-};
 
 class sycl_cuda_engine_t : public dnnl::impl::sycl::sycl_engine_base_t {
 public:
@@ -52,28 +45,29 @@ public:
     status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, ::sycl::queue &queue);
 
-    const dnnl::impl::impl_list_item_t *get_reorder_implementation_list(
-            const memory_desc_t *src_md,
-            const memory_desc_t *dst_md) const override {
-        return cuda_gpu_engine_impl_list_t::get_reorder_implementation_list(
-                src_md, dst_md);
-    }
-
-    const dnnl::impl::impl_list_item_t *
-    get_concat_implementation_list() const override {
-        return cuda_gpu_engine_impl_list_t::get_concat_implementation_list();
-    }
-
-    const dnnl::impl::impl_list_item_t *
-    get_sum_implementation_list() const override {
-        return cuda_gpu_engine_impl_list_t::get_sum_implementation_list();
-    }
-
     void activate_stream_cudnn(CUstream cuda_stream);
     void activate_stream_cublas(CUstream cuda_stream);
 
+    const impl_list_item_t *get_reorder_implementation_list(
+            const memory_desc_t *src_md,
+            const memory_desc_t *dst_md) const override {
+        return gpu::gpu_impl_list_t::get_reorder_implementation_list(
+                src_md, dst_md);
+    }
+
+    const impl_list_item_t *get_concat_implementation_list() const override {
+        return gpu::gpu_impl_list_t::get_concat_implementation_list();
+    }
+
+    const impl_list_item_t *get_sum_implementation_list() const override {
+        return gpu::gpu_impl_list_t::get_sum_implementation_list();
+    }
+
     const impl_list_item_t *get_implementation_list(
-            const op_desc_t *) const override;
+            const op_desc_t *desc) const override {
+        return gpu::gpu_impl_list_t::get_implementation_list(desc);
+    }
+
     CUcontext get_underlying_context() const;
     CUdevice get_underlying_device() const;
     cudnnHandle_t *get_cudnn_handle();

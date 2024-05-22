@@ -16,12 +16,27 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/bnorm/gen9_batch_normalization.hpp"
 #include "gpu/intel/ocl/bnorm/nhwc_batch_normalization.hpp"
-#include "gpu/intel/ocl/bnorm/nhwc_reusable.hpp"
 #include "gpu/intel/ocl/bnorm/ref_batch_normalization.hpp"
 #include "gpu/intel/ocl/bnorm/reusable_bnorm.hpp"
 #include "gpu/intel/ocl/bnorm/simple_bnorm.hpp"
+
+#ifdef DNNL_DEV_MODE
+#include "gpu/intel/ocl/bnorm/nhwc_reusable.hpp"
+#endif
+
+#endif
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/nvidia/cudnn_batch_normalization.hpp"
+#include "gpu/sycl/ref_batch_normalization.hpp"
+#endif
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/amd/miopen_batch_normalization.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -30,35 +45,31 @@ namespace gpu {
 namespace {
 using namespace dnnl::impl::prop_kind;
 
-#ifdef DNNL_DEV_MODE
-#define NHWC_REUSABLE_FWD_INSTANCE \
-    INSTANCE(intel::ocl::nhwc_reusable_batch_normalization_fwd_t)
-#define NHWC_REUSABLE_BWD_INSTANCE \
-    INSTANCE(intel::ocl::nhwc_reusable_batch_normalization_bwd_t)
-#else
-#define NHWC_REUSABLE_FWD_INSTANCE
-#define NHWC_REUSABLE_BWD_INSTANCE
-#endif
-
 // clang-format off
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_BNORM_P({
     {{forward}, {
-        NHWC_REUSABLE_FWD_INSTANCE
-        INSTANCE(intel::ocl::nhwc_batch_normalization_fwd_t)
-        INSTANCE(intel::ocl::gen9_batch_normalization_fwd_t)
-        INSTANCE(intel::ocl::simple_batch_normalization_fwd_t)
-        INSTANCE(intel::ocl::reusable_batch_normalization_fwd_t)
-        INSTANCE(intel::ocl::ref_batch_normalization_fwd_t)
+        GPU_INSTANCE_INTEL_DEVMODE(intel::ocl::nhwc_reusable_batch_normalization_fwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::nhwc_batch_normalization_fwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::gen9_batch_normalization_fwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::simple_batch_normalization_fwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::reusable_batch_normalization_fwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::ref_batch_normalization_fwd_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_batch_normalization_fwd_t)
+        GPU_INSTANCE_AMD(amd::miopen_batch_normalization_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_batch_normalization_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        NHWC_REUSABLE_BWD_INSTANCE
-        INSTANCE(intel::ocl::nhwc_batch_normalization_bwd_t)
-        INSTANCE(intel::ocl::gen9_batch_normalization_bwd_t)
-        INSTANCE(intel::ocl::simple_batch_normalization_bwd_t)
-        INSTANCE(intel::ocl::reusable_batch_normalization_bwd_t)
-        INSTANCE(intel::ocl::ref_batch_normalization_bwd_t)
+        GPU_INSTANCE_INTEL_DEVMODE(intel::ocl::nhwc_reusable_batch_normalization_bwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::nhwc_batch_normalization_bwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::gen9_batch_normalization_bwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::simple_batch_normalization_bwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::reusable_batch_normalization_bwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::ref_batch_normalization_bwd_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_batch_normalization_bwd_t)
+        GPU_INSTANCE_AMD(amd::miopen_batch_normalization_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_batch_normalization_bwd_t)
         nullptr,
     })},
 });

@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example gpu_single_op_partition.cpp
-/// @copybrief graph_gpu_single_op_partition_cpp
-/// > Annotated version: @ref graph_gpu_single_op_partition_cpp
+/// @example sycl_single_op_partition.cpp
+/// @copybrief graph_sycl_single_op_partition_cpp
+/// > Annotated version: @ref graph_sycl_single_op_partition_cpp
 
-/// @page graph_gpu_single_op_partition_cpp Single op partition on GPU
+/// @page graph_sycl_single_op_partition_cpp Single op partition on GPU
 /// This is an example to demonstrate how to build a simple op graph and run it on gpu.
 ///
-/// > Example code: @ref gpu_single_op_partition.cpp
+/// > Example code: @ref sycl_single_op_partition.cpp
 ///
 /// Some key take-aways included in this example:
 ///
@@ -36,14 +36,14 @@
 /// * Unsupported partitions should be handled by users themselves
 ///
 
-/// @page graph_gpu_single_op_partition_cpp
-/// @section graph_gpu_single_op_partition_cpp_headers Public headers
+/// @page graph_sycl_single_op_partition_cpp
+/// @section graph_sycl_single_op_partition_cpp_headers Public headers
 ///
 /// To start using oneDNN Graph, we must include the @ref dnnl_graph.hpp header
 /// file in the application. All the C++ APIs reside in namespace `dnnl::graph`.
 ///
-/// @page graph_gpu_single_op_partition_cpp
-/// @snippet gpu_single_op_partition.cpp Headers and namespace
+/// @page graph_sycl_single_op_partition_cpp
+/// @snippet sycl_single_op_partition.cpp Headers and namespace
 //[Headers and namespace]
 #include "oneapi/dnnl/dnnl_graph.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
@@ -68,8 +68,8 @@ using dim = logical_tensor::dim;
 using dims = logical_tensor::dims;
 //[Headers and namespace]
 
-/// @page graph_gpu_single_op_partition_cpp
-/// @section graph_gpu_single_op_partition_cpp_tutorial gpu_single_op_partition_tutorial() function
+/// @page graph_sycl_single_op_partition_cpp
+/// @section graph_sycl_single_op_partition_cpp_tutorial sycl_single_op_partition_tutorial() function
 ///
 void gpu_single_op_partition_tutorial() {
 
@@ -78,8 +78,8 @@ void gpu_single_op_partition_tutorial() {
     dims src0_dims {M, K};
     dims src1_dims {K, N};
 
-    /// @page graph_gpu_single_op_partition_cpp
-    /// @subsection graph_gpu_single_op_partition_cpp_get_partition Build Graph and Get Partitions
+    /// @page graph_sycl_single_op_partition_cpp
+    /// @subsection graph_sycl_single_op_partition_cpp_get_partition Build Graph and Get Partitions
     ///
     /// In this section, we are trying to create a partition containing the
     /// single op `matmul` without building a graph and getting partition.
@@ -87,7 +87,7 @@ void gpu_single_op_partition_tutorial() {
 
     /// Create first `Matmul` op (#dnnl::graph::op) and attaches attributes
     /// to it, including `transpose_a` and `transpose_b`.
-    /// @snippet gpu_single_op_partition.cpp Create matmul
+    /// @snippet sycl_single_op_partition.cpp Create matmul
     //[Create matmul]
     logical_tensor matmul_src0_desc {0, data_type::f32};
     logical_tensor matmul_src1_desc {1, data_type::f32};
@@ -98,8 +98,8 @@ void gpu_single_op_partition_tutorial() {
     matmul.set_attr<bool>(op::attr::transpose_b, false);
     //[Create matmul]
 
-    /// @page graph_gpu_single_op_partition_cpp
-    /// @subsection graph_gpu_single_op_partition_cpp_compile Compile and Execute Partition
+    /// @page graph_sycl_single_op_partition_cpp
+    /// @subsection graph_sycl_single_op_partition_cpp_compile Compile and Execute Partition
     ///
     /// In the real case, users like framework should provide device information
     /// at this stage. But in this example, we just use a self-defined device to
@@ -109,7 +109,7 @@ void gpu_single_op_partition_tutorial() {
     /// #dnnl_graph_sycl_allocate_f and #dnnl_graph_sycl_deallocate_f
     /// call-back functions.
     ///
-    /// @snippet gpu_single_op_partition.cpp Create allocator
+    /// @snippet sycl_single_op_partition.cpp Create allocator
     //[Create allocator]
     allocator alloc = sycl_interop::make_allocator(
             sycl_malloc_wrapper, sycl_free_wrapper);
@@ -133,7 +133,7 @@ void gpu_single_op_partition_tutorial() {
 
     /// Create a #dnnl::stream on a given engine
     ///
-    /// @snippet gpu_single_op_partition.cpp Create stream
+    /// @snippet sycl_single_op_partition.cpp Create stream
     //[Create stream]
     dnnl::stream strm = dnnl::sycl_interop::make_stream(eng, q);
     //[Create stream]
@@ -168,7 +168,7 @@ void gpu_single_op_partition_tutorial() {
     partition part(matmul, dnnl::engine::kind::gpu);
     //[Create partition]
     if (!part.is_supported()) {
-        std::cout << "gpu_single_op_partition: Got unsupported partition, "
+        std::cout << "sycl_single_op_partition: Got unsupported partition, "
                      "users need to handle the operators by themselves."
                   << std::endl;
         return;
@@ -198,7 +198,7 @@ void gpu_single_op_partition_tutorial() {
     /// Compile the partition to generate compiled partition with the
     /// input and output logical tensors.
     ///
-    /// @snippet gpu_single_op_partition.cpp Compile partition
+    /// @snippet sycl_single_op_partition.cpp Compile partition
     //[Compile partition]
     compiled_partition cp = part.compile(inputs, outputs, eng);
     //[Compile partition]
@@ -217,7 +217,7 @@ void gpu_single_op_partition_tutorial() {
 
     /// Execute the compiled partition on the specified stream.
     ///
-    /// @snippet gpu_single_op_partition.cpp Execute compiled partition
+    /// @snippet sycl_single_op_partition.cpp Execute compiled partition
     //[Execute compiled partition]
     cp.execute(strm, inputs_ts, outputs_ts);
     //[Execute compiled partition]
@@ -225,7 +225,7 @@ void gpu_single_op_partition_tutorial() {
     // Wait for all compiled partition's execution finished
     strm.wait();
 
-    /// @page graph_gpu_single_op_partition_cpp
+    /// @page graph_sycl_single_op_partition_cpp
     ///
     std::cout << "Graph:" << std::endl
               << " [matmul_src0] [matmul_src1]" << std::endl

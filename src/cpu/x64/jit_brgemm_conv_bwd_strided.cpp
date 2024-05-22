@@ -294,15 +294,19 @@ status_t brgemm_convolution_bwd_strided_t<isa>::add_po_kernel(
     bcfg->LDD = (is_init && jcp.use_buffer) ? jcp.LDC : jcp.LDD;
     bcfg->dt_c = (!is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt;
     bcfg->dt_d = (is_init && jcp.use_buffer) ? jcp.acc_dt : jcp.dst_dt;
+    bcfg->typesize_C = types::data_type_size(bcfg->dt_c);
+    bcfg->typesize_D = types::data_type_size(bcfg->dt_d);
     bcfg->alpha
             = (!is_init && IMPLICATION(jcp.with_sum, jcp.use_buffer)) ? 1 : 0;
     bcfg->beta = is_init ? 0 : 1;
     CHECK(safe_ptr_assign(kernels_po_[ker_idx],
-            new jit_brgemm_kernel_post_ops<isa>(jcp, *bcfg, *_pd->attr())));
-    kernels_po_[ker_idx]->create_kernel();
+            jit_brgemm_kernel_post_ops_base_t::create(
+                    isa, *bcfg, *_pd->attr())));
+    kernels_po_[ker_idx]->generate_kernel();
     return status::success;
 }
 
+// TODO: consolidate with jit_brgemm_conv.cpp version.
 template <cpu_isa_t isa>
 void brgemm_convolution_bwd_strided_t<isa>::add_po_kernels(
         int i_N, int init_bcast_dim, int po_bcast_dim) {
@@ -340,6 +344,7 @@ void brgemm_convolution_bwd_strided_t<isa>::add_po_kernels(
         }
     }
 }
+
 template <cpu_isa_t isa>
 int brgemm_convolution_bwd_strided_t<isa>::get_comp_ker_idx(const int kd_b,
         const int kd_e, const int kh_b, const int kh_e, const int kw_b,
@@ -966,7 +971,7 @@ void brgemm_convolution_bwd_strided_t<isa>::perform_outwork(char *dst_base,
     auto iw_f = (kdh_l <= 0) ? iw : ker_iw_f;
     assert(iw <= iw_s && iw_s <= iw_f && iw_f <= iw + M);
 
-    brgemm_kernel_post_ops_t p;
+    brgemm_kernel_post_ops_args_t p;
     if (do_postwork) {
         p.ptr_bias = (void *)(bias_w);
         p.ptr_scales = (void *)(&oscales[jcp.is_ic_scale * g_ic]);
@@ -982,7 +987,8 @@ void brgemm_convolution_bwd_strided_t<isa>::perform_outwork(char *dst_base,
         auto ker_po_idx = get_ker_po_idx(iw_pw_l - 1, is_postwork, is_ic_tail);
         const auto outwork_ker = kernels_po_[ker_po_idx].get();
         const auto comp_iw_s = get_comp_iw(iw_pw_s);
-        assert(outwork_ker != nullptr && iw_pw_l == outwork_ker->brg.bcast_dim);
+        assert(outwork_ker != nullptr
+                && iw_pw_l == outwork_ker->get_bcast_dim());
         if (is_postwork) {
             p.apply_comp = has_postcomp;
             p.a_zp_compensation = has_postcomp && jcp.src_zero_point

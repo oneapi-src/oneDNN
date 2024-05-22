@@ -26,6 +26,7 @@ add_definitions_with_host_compiler(-DNGEN_NO_OP_NAMES)
 add_definitions_with_host_compiler(-DNGEN_WINDOWS_COMPAT)
 
 add_subdirectory(compute)
+add_subdirectory(microkernels)
 add_subdirectory(jit)
 add_subdirectory(ocl)
 

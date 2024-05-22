@@ -115,5 +115,6 @@
 #layernorm
 --reset --case=pattern/int8/int8_lnorm_gelu_quantize.json
 --reset --case=pattern/int8/int8_lnorm_multiply_quantize.json
+--reset --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
 #softmax
 --reset --case=pattern/int8/int8_softmax_add.json

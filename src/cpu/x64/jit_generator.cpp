@@ -44,7 +44,7 @@ void jit_generator::transpose(const Xbyak::Reg64 &reg_src,
 
     if (transpose_size > nrows) uni_vxorps(ymm_tmp, ymm_tmp, ymm_tmp);
 
-    auto load_src = [=](Xbyak::Xmm vmm, int r, int c) {
+    auto load_src = [= WA_THIS_COPY_CAPTURE](Xbyak::Xmm vmm, int r, int c) {
         const int simd_w = vmm.getBit() / (types::data_type_size(dt) * 8);
         const auto addr
                 = ptr[reg_src + r * src_stride + c * types::data_type_size(dt)];
@@ -61,7 +61,7 @@ void jit_generator::transpose(const Xbyak::Reg64 &reg_src,
         }
     };
 
-    auto vinsert = [=](Xbyak::Ymm ymm, int r, int c) {
+    auto vinsert = [= WA_THIS_COPY_CAPTURE](Xbyak::Ymm ymm, int r, int c) {
         const int xmm_simd_w = 4;
         const auto addr = ptr[reg_src + r * src_stride + c * sizeof(float)];
         if (r >= nrows) {
@@ -78,7 +78,7 @@ void jit_generator::transpose(const Xbyak::Reg64 &reg_src,
 
     // Intel(R) Software Optimization manual
     // Example 15-20. 8x8 Matrix Transpose Using VINSERTPS
-    auto transpose_8x4 = [=](int col) {
+    auto transpose_8x4 = [= WA_THIS_COPY_CAPTURE](int col) {
         load_src(xmm0, 0, col);
         vinsert(ymm0, 4, col);
         load_src(xmm1, 1, col);

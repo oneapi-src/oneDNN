@@ -16,7 +16,6 @@
 
 #include "dnnl_types.h"
 
-#include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
 #include "common/dnnl_thread.hpp"
@@ -54,6 +53,7 @@ bool allow_perf_heuristics(const jit_brgemm_conv_conf_t &jcp) {
     // Disable performance heuristics for f16 as there are no other
     // optimized implementations.
     if (jcp.wei_dt == f16) return false;
+    if (one_of(jcp.wei_dt, f8_e5m2, f8_e4m3)) return false;
     return true;
 }
 } // namespace
@@ -1682,8 +1682,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
 
+    const auto vnni_dt = jcp.prop_kind == prop_kind::backward_weights
+            ? jcp.dst_dt
+            : jcp.wei_dt;
     const data_type_t vnni_block_dt = get_mac_emu_data_type(
-            jcp.wei_dt, isa, isa == avx10_1_512 && !jcp.is_fp8_convert);
+            vnni_dt, isa, isa == avx10_1_512 && !jcp.is_fp8_convert);
     jcp.vnni_block = data_type_vnni_granularity(vnni_block_dt);
 
     if (one_of(jcp.prop_kind, prop_kind::forward_training,
@@ -2996,7 +2999,11 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
 
     const bool is_f16 = src_d.data_type() == data_type::f16;
 
-    jcp.isa = is_f16 ? avx512_core_amx_fp16 : avx512_core_amx;
+    const auto is_fp8 = one_of(src_d.data_type(), f8_e5m2, f8_e4m3)
+            && one_of(diff_weights_d.data_type(), f32, f16, f8_e5m2, f8_e4m3)
+            && one_of(diff_dst_d.data_type(), f8_e5m2, f8_e4m3);
+
+    jcp.isa = is_f16 || is_fp8 ? avx512_core_amx_fp16 : avx512_core_amx;
     // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(jcp.isa)) return status::unimplemented;
 
@@ -3031,7 +3038,7 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
             && everyone_is(0, jcp.f_pad, jcp.back_pad, jcp.t_pad, jcp.b_pad))
         jcp.var_bs = false;
 
-    jcp.typesize_in = sizeof(bfloat16_t);
+    jcp.typesize_in = jcp.src_dsz;
     jcp.typesize_out = sizeof(float);
 
     bool ok = true
@@ -3080,18 +3087,27 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
         jcp.dst_tag = diff_dst_d.matches_one_of_tag(jcp.src_tag);
     VDISPATCH_CONV_IC(jcp.dst_tag == jcp.src_tag, VERBOSE_UNSUPPORTED_TAG);
 
+    jcp.wei_dt = diff_weights_d.data_type();
+
     const int wei_format_tag = 2 * ndims - 6 + with_groups;
     format_tag_t wei_tag;
-    if (jcp.transform_to_vnni)
-        wei_tag = pick(wei_format_tag, format_tag::OIw16i16o2i,
-                format_tag::gOIw16i16o2i, format_tag::OIhw16i16o2i,
-                format_tag::gOIhw16i16o2i, format_tag::OIdhw16i16o2i,
-                format_tag::gOIdhw16i16o2i);
-    else
+    if (jcp.transform_to_vnni) {
+        if (one_of(jcp.wei_dt, f8_e5m2, f8_e4m3))
+            wei_tag = pick(wei_format_tag, format_tag::OIw16i16o4i,
+                    format_tag::gOIw16i16o4i, format_tag::OIhw16i16o4i,
+                    format_tag::gOIhw16i16o4i, format_tag::OIdhw16i16o4i,
+                    format_tag::gOIdhw16i16o4i);
+        else
+            wei_tag = pick(wei_format_tag, format_tag::OIw16i16o2i,
+                    format_tag::gOIw16i16o2i, format_tag::OIhw16i16o2i,
+                    format_tag::gOIhw16i16o2i, format_tag::OIdhw16i16o2i,
+                    format_tag::gOIdhw16i16o2i);
+    } else {
         wei_tag = pick(wei_format_tag, format_tag::OIw16i16o,
                 format_tag::gOIw16i16o, format_tag::OIhw16i16o,
                 format_tag::gOIhw16i16o, format_tag::OIdhw16i16o,
                 format_tag::gOIdhw16i16o);
+    }
     if (diff_weights_md.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
         jcp.wei_tag = wei_tag;
@@ -3100,7 +3116,6 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
         VDISPATCH_CONV_IC(
                 jcp.wei_tag == wei_tag, VERBOSE_UNSUPPORTED_TAG_S, "weights");
     }
-    jcp.wei_dt = diff_weights_d.data_type();
 
     /* kernel applicability check wrt boundaries
      * the conditions are quite general across the kernels we have,
@@ -3142,7 +3157,7 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
                         tr_round)
             * jcp.stride_w;
 
-    // TODO: xf16 training is supported only
+    // TODO: xf16 or fp8 training is supported only
     const auto rnd_val = jcp.vnni_block;
     jcp.tr_src_num_guard_elems = tr_pad; // upper bound
     jcp.tr_ow = rnd_up(jcp.ow, rnd_val);

@@ -42,6 +42,9 @@
 
 #include "gpu/intel/jit/emulation.hpp"
 
+#include "gpu/intel/microkernels/entrance_agent.hpp"
+#include "gpu/intel/microkernels/package.hpp"
+
 #include <array>
 #include <complex>
 #include <cstdint>
@@ -444,8 +447,9 @@ public:
 
 struct MatrixAddressing {
     MatrixLayout layout; // Layout type (N/T/Pr/Pc)
-    uint8_t packSize; // # of elements in a packed row/column for packed layouts.
-    uint8_t crosspack; // Crosspack for packed layouts.
+    uint8_t packSize
+            = 0; // # of elements in a packed row/column for packed layouts.
+    uint8_t crosspack = 1; // Crosspack for packed layouts.
     uint8_t alignment; // Alignment for all addresses, offsets, and leading dimensions.
     uint8_t tileR = 0, tileC = 0; // Tiling (0 if none) for packed layouts.
     uint8_t panelLength
@@ -456,6 +460,8 @@ struct MatrixAddressing {
         return sanitizeAlign(
                 (isPacked(layout) ? (packSize * crosspack) : 1) * T);
     }
+
+    void transpose();
 
 private:
     static int sanitizeAlign(int align) {
@@ -985,6 +991,8 @@ struct GEMMProblem : public CommonProblem {
     bool quantized2DA() const { return (aoPtrDims == 2) || aScale2D; }
     bool quantized2DB() const { return (boPtrDims == 2) || bScale2D; }
 
+    void transpose();
+
     /* Kernel cache helpers. */
     void serialize(serialized_data_t &s) const {
         s.append(Ta, Tb, Tc, Ts);
@@ -1316,6 +1324,10 @@ struct GEMMStrategy : public GEMMStrategyPOD {
 
     bool checkAdd32Rem() const { return checkAdd32 && emulate.emulate64; }
 
+    bool registerOutput() const {
+        return C.base.getModel() == ngen::ModelInvalid;
+    }
+
     int aqGroupKGranularity() const {
         return groupKReduce(slmA ? unrollKSLM : ka_load);
     }
@@ -1390,6 +1402,7 @@ struct GEMMState : public CommonState {
                 incr_beta; // ud, used for non-strided variable batch.
         ngen::Subregister alpha_array,
                 beta_array; // q, used for non-strided variable batch.
+        ngen::Subregister slmBase; // ud
         std::vector<ngen::Subregister> binarySrcs; // q
         std::vector<ngen::Subregister> binaryOffsets; // q/d
         std::vector<ngen::Subregister> binaryLDs; // d
@@ -1570,6 +1583,8 @@ struct GEMMState : public CommonState {
     } sysgemm;
 
     GEMMState(ngen::HW hw) : CommonState(hw) {}
+
+    int internalSIMD() const { return simd32KMasks ? 32 : 16; }
 };
 
 // GEMM superkernel problem.
@@ -1723,6 +1738,13 @@ public:
             const ngen::InterfaceHandler &interface_);
     void copy(CopyProblem problem, CopyStrategy strategy,
             const ngen::InterfaceHandler &interface_);
+    void gemmMicrokernel(GEMMProblem problem, GEMMStrategy strategy,
+            const ngen::InterfaceHandler &interface_);
+    micro::Package gemmMicrokernelPackage(const GEMMProblem &problem,
+            const GEMMStrategy &strategy,
+            const ngen::InterfaceHandler &interface_,
+            micro::GEMMProtocol protocol, uint32_t gmdid,
+            bool transposeC = false);
 
     static CommonDriverInfo driverInfo(
             GEMMProblem problem, const GEMMStrategy &strategy);
@@ -1736,6 +1758,8 @@ protected:
             &interface = ngen::OpenCLCodeGenerator<hw>::interface_;
 
     std::exception_ptr lastException;
+    GRFMultirange outputCRange;
+    std::vector<RegisterBlock> outputCLayout;
 
     std::ostream &getOutStream() const { return std::cerr; }
 
@@ -2080,6 +2104,7 @@ protected:
     void saveMNLocalIDs(const GEMMStrategy &strategy, GEMMState &state);
     void saveKLocalIDSize(const GEMMStrategy &strategy, GEMMState &state);
     void releaseSavedMNLocalIDs(GEMMState &state);
+    void makeSLMBaseRelative(ngen::Subregister addr, const GEMMState &state);
 
     void doReadSuppressionWA(
             const CommonStrategy &strategy, CommonState &state);
@@ -2818,14 +2843,16 @@ protected:
             bool prefetch = false);
     void gemmScaleInputs(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
+    void gemmCalcWGRemainders(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
     void gemmReverseLoops(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state);
     void gemmDowngradeAccess(const GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state);
     void gemmSubkernel(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState state);
-    static size_t gemmSLMSize(
-            const GEMMProblem &problem, const GEMMStrategy &strategy);
+    static size_t gemmSLMSize(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, bool computeMax = false);
     static size_t gemmPerKSLMSize(
             const GEMMProblem &problem, const GEMMStrategy &strategy);
     void gemmInitInterface(GEMMProblem &problem, GEMMStrategy &strategy,
@@ -2927,6 +2954,8 @@ protected:
             const SubregisterPair &alpha_imag, bool conjugate,
             const CommonStrategy &strategy, CommonState &state,
             bool preserveSrc = false);
+    void overlappedCopy(const GRFMultirange &src, const GRFMultirange &dst,
+            CommonState &state);
 
     bool copyBody(
             CopyProblem &problem, CopyStrategy &strategy, CopyState &state);

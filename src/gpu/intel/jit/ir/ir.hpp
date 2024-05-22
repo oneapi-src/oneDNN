@@ -841,6 +841,33 @@ public:
 
     int max_proven_gcd(const expr_t &var) const;
 
+    std::string str() const {
+        std::ostringstream oss;
+        oss << "relations:" << (relations_.empty() ? " (empty)\n" : "\n");
+        for (auto &r : relations_) {
+            oss << "\t" << r.first << ":";
+            bool first = true;
+            for (auto &s : r.second) {
+                oss << (first ? " " : ", ") << s;
+                first = false;
+            }
+            oss << "\n";
+        }
+
+        oss << "modulus_info:"
+            << (modulus_infos_.empty() ? " (empty)\n" : "\n");
+        for (auto &m : modulus_infos_) {
+            oss << "\t" << m.first << ":";
+            bool first = true;
+            for (auto &s : m.second) {
+                oss << (first ? " " : ", ") << s;
+                first = false;
+            }
+            oss << "\n";
+        }
+        return oss.str();
+    }
+
 private:
     bool can_prove_modulus(const expr_t &e) const {
         modulus_info_t unknown(e);

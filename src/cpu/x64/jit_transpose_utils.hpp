@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -122,14 +122,15 @@ struct jit_diff_wei_trans_to_vnni_t : public jit_generator {
 
     jit_diff_wei_trans_to_vnni_t(const data_type_t dt, const int &kd,
             const int &kh, const int &kw, const int &ic_block,
-            const int &oc_block)
+            const int &oc_block, const int nb_ic)
         : jit_generator(jit_name())
         , out_dt_(dt)
         , kd_(kd)
         , kh_(kh)
         , kw_(kw)
         , ic_block_(ic_block)
-        , oc_block_(oc_block) {}
+        , oc_block_(oc_block)
+        , nb_ic_(nb_ic) {}
 
     ~jit_diff_wei_trans_to_vnni_t() {}
 
@@ -137,7 +138,7 @@ struct jit_diff_wei_trans_to_vnni_t : public jit_generator {
 
     const data_type_t out_dt_;
     const int kd_, kh_, kw_;
-    const int ic_block_, oc_block_;
+    const int ic_block_, oc_block_, nb_ic_;
 
 private:
     void generate() override;

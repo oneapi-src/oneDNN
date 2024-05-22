@@ -98,7 +98,7 @@
 #define VERBOSE_ISA_DT_MISMATCH \
     "datatype configuration not supported on this isa"
 #define VERBOSE_OFFSET_DT_MISMATCH "%s offsets do not fit into %s datatype"
-#define VERBOSE_PROPKIND_DT_MISMATCH "data type and propagation kind mismatch"
+#define VERBOSE_PROPKIND_DT_MISMATCH "datatype and propagation kind mismatch"
 #define VERBOSE_WS_MISMATCH \
     "workspace mismatch between forward and backward primitive " \
     "descriptors"

@@ -172,17 +172,18 @@ bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
 static_params_t::static_params_t(const Xbyak::Reg64 &param1,
         const bcast_set_t &supported_strategy_set,
         const rhs_arg_static_params_t &rhs_arg_static_params,
-        fp8_emulation_base_t *f8_emu)
+        fp8_emulation_e5m2_t *f8_e5m2_emu, fp8_emulation_e4m3_t *f8_e4m3_emu)
     : param1(param1)
     , supported_strategy_set(supported_strategy_set)
     , rhs_arg_static_params(rhs_arg_static_params)
-    , f8_emu_(f8_emu) {}
+    , f8_e5m2_emu_(f8_e5m2_emu)
+    , f8_e4m3_emu_(f8_e4m3_emu) {}
 
 static_params_t::static_params_t(const Xbyak::Reg64 &param1,
         const bcast_set_t &supported_strategy_set,
         const rhs_arg_static_params_t &rhs_arg_static_params)
-    : static_params_t(
-            param1, supported_strategy_set, rhs_arg_static_params, nullptr) {}
+    : static_params_t(param1, supported_strategy_set, rhs_arg_static_params,
+            nullptr, nullptr) {}
 
 static_params_t::static_params_t(const Xbyak::Reg64 &param1,
         const rhs_arg_static_params_t &rhs_arg_static_params)
@@ -259,7 +260,8 @@ template <cpu_isa_t isa, typename Vmm>
 jit_uni_binary_injector_t<isa, Vmm>::jit_uni_binary_injector_t(
         jit_generator *host, const static_params_t &static_params)
     : host_(host)
-    , f8_emu_(static_params.f8_emu_)
+    , f8_e5m2_emu_(static_params.f8_e5m2_emu_)
+    , f8_e4m3_emu_(static_params.f8_e4m3_emu_)
     , rhs_arg_static_params_(static_params.rhs_arg_static_params)
     , param1_(static_params.param1)
     , supported_strategy_set_(static_params.supported_strategy_set) {}
@@ -2426,10 +2428,16 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_no_tail(
                 assert(!"unsupported ISA for given data type");
             break;
         case data_type::f8_e5m2:
+            if (is_superset(isa, avx512_core_fp16)) {
+                assert(f8_e5m2_emu_);
+                f8_e5m2_emu_->vcvt_f8_to_f32(tmp_vmm, rhs_addr);
+            } else
+                assert(!"unsupported ISA for given data type");
+            break;
         case data_type::f8_e4m3:
             if (is_superset(isa, avx512_core_fp16)) {
-                assert(f8_emu_);
-                f8_emu_->vcvt_f8_to_f32(tmp_vmm, rhs_addr);
+                assert(f8_e4m3_emu_);
+                f8_e4m3_emu_->vcvt_f8_to_f32(tmp_vmm, rhs_addr);
             } else
                 assert(!"unsupported ISA for given data type");
             break;
@@ -2580,10 +2588,17 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_opmask(
                 assert(!"unsupported masked tail processing");
             break;
         case data_type::f8_e5m2:
+            if (is_superset(isa, avx512_core_fp16)) {
+                assert(f8_e5m2_emu_);
+                f8_e5m2_emu_->vcvt_f8_to_f32(
+                        tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
+            } else
+                assert(!"unsupported ISA for given data type");
+            break;
         case data_type::f8_e4m3:
             if (is_superset(isa, avx512_core_fp16)) {
-                assert(f8_emu_);
-                f8_emu_->vcvt_f8_to_f32(
+                assert(f8_e4m3_emu_);
+                f8_e4m3_emu_->vcvt_f8_to_f32(
                         tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
             } else
                 assert(!"unsupported ISA for given data type");
@@ -2711,7 +2726,8 @@ struct helper_bcast_tail_t<avx2_vnni_2, Vmm> {
     static void execute_broadcast_tail_statically(jit_generator *host,
             const size_t tail_size, const data_type_t &data_type,
             const Vmm &tmp_vmm, const Xbyak::Address &rhs_addr,
-            fp8_emulation_base_t *f8_emu) {
+            fp8_emulation_e5m2_t *f8_e5m2_emu,
+            fp8_emulation_e4m3_t *f8_e4m3_emu) {
         if (utils::one_of(data_type, data_type::bf16, data_type::f16,
                     data_type::f8_e5m2, data_type::f8_e4m3)) {
             const auto tmp_lower_vmm =
@@ -2723,9 +2739,10 @@ struct helper_bcast_tail_t<avx2_vnni_2, Vmm> {
                 host->vpslld(tmp_vmm, tmp_vmm, 16);
             } else if (data_type == data_type::f16) {
                 host->vcvtph2ps(tmp_vmm, tmp_lower_vmm);
-            } else if (utils::one_of(data_type, data_type::f8_e5m2,
-                               data_type::f8_e4m3)) {
-                f8_emu->vcvt_f8_to_f32(tmp_vmm, tmp_lower_vmm);
+            } else if (data_type == data_type::f8_e5m2) {
+                f8_e5m2_emu->vcvt_f8_to_f32(tmp_vmm, tmp_lower_vmm);
+            } else if (data_type == data_type::f8_e4m3) {
+                f8_e4m3_emu->vcvt_f8_to_f32(tmp_vmm, tmp_lower_vmm);
             } else
                 assert(!"Unsupported data type");
 
@@ -2751,7 +2768,7 @@ void jit_uni_binary_injector_t<avx2_vnni_2,
         const std::size_t tail_size) const {
     helper_bcast_tail_t<avx2_vnni_2,
             Xbyak::Ymm>::execute_broadcast_tail_statically(host_, tail_size,
-            data_type, tmp_vmm, rhs_addr, f8_emu_);
+            data_type, tmp_vmm, rhs_addr, f8_e5m2_emu_, f8_e4m3_emu_);
 }
 
 template <>
@@ -2762,7 +2779,7 @@ void jit_uni_binary_injector_t<avx2_vnni_2,
         const std::size_t tail_size) const {
     helper_bcast_tail_t<avx2_vnni_2,
             Xbyak::Xmm>::execute_broadcast_tail_statically(host_, tail_size,
-            data_type, tmp_vmm, rhs_addr, f8_emu_);
+            data_type, tmp_vmm, rhs_addr, f8_e5m2_emu_, f8_e4m3_emu_);
 }
 
 template <>
@@ -2920,10 +2937,16 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_no_tail(
                 assert(!"unsupported ISA for given data type");
             break;
         case data_type::f8_e5m2:
+            if (is_superset(isa, avx512_core_fp16)) {
+                assert(f8_e5m2_emu_);
+                f8_e5m2_emu_->vcvt_f8_to_f32(tmp_vmm, rhs_addr);
+            } else
+                assert(!"unsupported ISA for given data type");
+            break;
         case data_type::f8_e4m3:
             if (is_superset(isa, avx512_core_fp16)) {
-                assert(f8_emu_);
-                f8_emu_->vcvt_f8_to_f32(tmp_vmm, rhs_addr);
+                assert(f8_e4m3_emu_);
+                f8_e4m3_emu_->vcvt_f8_to_f32(tmp_vmm, rhs_addr);
             } else
                 assert(!"unsupported ISA for given data type");
             break;
@@ -3002,10 +3025,17 @@ void jit_uni_binary_injector_t<isa, Vmm>::load_rhs_tail_dynamically_with_opmask(
                 assert(!"unsupported masked tail processing");
             break;
         case data_type::f8_e5m2:
+            if (is_superset(isa, avx512_core_fp16)) {
+                assert(f8_e5m2_emu_);
+                f8_e5m2_emu_->vcvt_f8_to_f32(
+                        tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
+            } else
+                assert(!"unsupported ISA for given data type");
+            break;
         case data_type::f8_e4m3:
             if (is_superset(isa, avx512_core_fp16)) {
-                assert(f8_emu_);
-                f8_emu_->vcvt_f8_to_f32(
+                assert(f8_e4m3_emu_);
+                f8_e4m3_emu_->vcvt_f8_to_f32(
                         tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
             } else
                 assert(!"unsupported ISA for given data type");

@@ -20,34 +20,10 @@
 
 #include "xpu/sycl/utils.hpp"
 
-#include "gpu/nvidia/cudnn_batch_normalization.hpp"
-#include "gpu/nvidia/cudnn_binary.hpp"
-#include "gpu/nvidia/cudnn_conv_inner_product.hpp"
-#include "gpu/nvidia/cudnn_convolution.hpp"
-#include "gpu/nvidia/cudnn_deconvolution.hpp"
-#include "gpu/nvidia/cudnn_eltwise.hpp"
-#include "gpu/nvidia/cudnn_gemm_inner_product.hpp"
-#include "gpu/nvidia/cudnn_lrn.hpp"
-#include "gpu/nvidia/cudnn_matmul.hpp"
-#include "gpu/nvidia/cudnn_pooling.hpp"
-#include "gpu/nvidia/cudnn_reduction.hpp"
-#include "gpu/nvidia/cudnn_resampling.hpp"
-#include "gpu/nvidia/cudnn_softmax.hpp"
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
 #include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
-
-#include "gpu/sycl/ref_batch_normalization.hpp"
-#include "gpu/sycl/ref_binary.hpp"
-#include "gpu/sycl/ref_eltwise.hpp"
-#include "gpu/sycl/ref_layer_normalizations.hpp"
-#include "gpu/sycl/ref_lrn.hpp"
-#include "gpu/sycl/ref_pooling.hpp"
-#include "gpu/sycl/ref_prelu.hpp"
-#include "gpu/sycl/ref_resampling.hpp"
-#include "gpu/sycl/ref_shuffle.hpp"
-#include "gpu/sycl/ref_softmax.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -170,94 +146,6 @@ void sycl_cuda_engine_t::activate_stream_cudnn(CUstream cuda_stream) {
     if (current_stream_id != cuda_stream) {
         CUDNN_EXECUTE_FUNC(cudnnSetStream, *cudnn_handle, cuda_stream);
     }
-}
-
-namespace {
-using namespace dnnl::impl::data_type;
-
-// clang-format off
-constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
-        // Elementwise
-        INSTANCE(cudnn_eltwise_fwd_t)
-        INSTANCE(cudnn_eltwise_bwd_t)
-        INSTANCE(sycl::ref_sycl_eltwise_fwd_t)
-        INSTANCE(sycl::ref_sycl_eltwise_bwd_t)
-
-        // Deconvolution
-        INSTANCE(cudnn_deconvolution_fwd_t)
-        INSTANCE(cudnn_deconvolution_bwd_data_t)
-        INSTANCE(cudnn_deconvolution_bwd_weights_t)
-
-        // Convolution
-        INSTANCE(cudnn_convolution_fwd_t)
-        INSTANCE(cudnn_convolution_bwd_data_t)
-        INSTANCE(cudnn_convolution_bwd_weights_t)
-
-        // Batch Normalization
-        INSTANCE(cudnn_batch_normalization_fwd_t)
-        INSTANCE(cudnn_batch_normalization_bwd_t)
-        INSTANCE(sycl::ref_batch_normalization_fwd_t)
-        INSTANCE(sycl::ref_batch_normalization_bwd_t)
-
-        // Layer Normalization
-        INSTANCE(sycl::ref_layer_normalization_fwd_t)
-        INSTANCE(sycl::ref_layer_normalization_bwd_t)
-
-        // PReLU
-        INSTANCE(sycl::ref_prelu_fwd_t)
-        INSTANCE(sycl::ref_prelu_bwd_t)
-
-        // Pooling
-        INSTANCE(cudnn_pooling_fwd_t)
-        INSTANCE(cudnn_pooling_bwd_t)
-        INSTANCE(sycl::ref_pooling_fwd_t)
-        INSTANCE(sycl::ref_pooling_bwd_t)
-
-        // LRN
-        INSTANCE(cudnn_lrn_fwd_t)
-        INSTANCE(cudnn_lrn_bwd_t)
-        INSTANCE(sycl::ref_sycl_lrn_fwd_t)
-        INSTANCE(sycl::ref_sycl_lrn_bwd_t)
-
-        // Inner Product
-        INSTANCE(cudnn_gemm_inner_product_fwd_t)
-        INSTANCE(cudnn_conv_inner_product_fwd_t)
-        INSTANCE(cudnn_gemm_inner_product_bwd_data_t)
-        INSTANCE(cudnn_conv_inner_product_bwd_data_t)
-        INSTANCE(cudnn_gemm_inner_product_bwd_weights_t)
-        INSTANCE(cudnn_conv_inner_product_bwd_weights_t)
-
-        // Softmax
-        INSTANCE(cudnn_softmax_fwd_t)
-        INSTANCE(cudnn_softmax_bwd_t)
-        INSTANCE(sycl::ref_sycl_softmax_fwd_t)
-        INSTANCE(sycl::ref_sycl_softmax_bwd_t)
-
-        // Binary
-        INSTANCE(cudnn_binary_t)
-        INSTANCE(sycl::ref_binary_t)
-
-        // MatMul
-        INSTANCE(cudnn_matmul_t)
-
-        // Resampling
-        INSTANCE(cudnn_resampling_fwd_t)
-        INSTANCE(cudnn_resampling_bwd_t)
-        INSTANCE(sycl::ref_resampling_fwd_t)
-        INSTANCE(sycl::ref_resampling_bwd_t)
-
-        // Reduction
-        INSTANCE(cudnn_reduction_t)
-
-        // Shuffle
-        INSTANCE(sycl::ref_shuffle_t)
-        nullptr,
-};
-// clang-format on
-} // namespace
-const dnnl::impl::impl_list_item_t *sycl_cuda_engine_t::get_implementation_list(
-        const op_desc_t *) const {
-    return sycl_cuda_impl_list;
 }
 
 } // namespace nvidia

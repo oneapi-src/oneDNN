@@ -349,6 +349,24 @@ inline graph::utils::pm::repetition_t *optional_select(
     return pselect;
 }
 
+// Optional (transpose + reorder/staticReshape)
+inline graph::utils::pm::repetition_t *optional_transpose_reshape(
+        const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
+        graph::utils::pm::pb_node_t *input, int input_index) {
+    auto popt_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
+
+    graph::utils::pm::pb_op_t *transpose
+            = popt_graph->append_op(graph::op_kind::StaticTranspose);
+    graph::utils::pm::pb_op_t *reshape_out = popt_graph->append_alternation(
+            {graph::op_kind::Reorder, graph::op_kind::StaticReshape},
+            {in_edge(0, transpose, 0)});
+    popt_graph->create_input_port(0, transpose, 0);
+    popt_graph->create_output_port(0, reshape_out, 0);
+    auto popt_transpose_reshape = pgraph->append_optional(popt_graph,
+            graph::utils::pm::in_edges_t {in_edge(input_index, input, 0)});
+    return popt_transpose_reshape;
+}
+
 inline graph::utils::pm::pb_node_t *create_dequant_matmul(
         const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
         graph::utils::pm::pb_node_t *input, bool is_bf16 = false,

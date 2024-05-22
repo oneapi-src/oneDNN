@@ -62,6 +62,19 @@ struct float8_e4m3_t {
         return *this;
     }
 };
+
+void cvt_f8_e5m2_to_float(float *out, const float8_e5m2_t *inp, size_t nelems);
+void cvt_f8_e4m3_to_float(float *out, const float8_e4m3_t *inp, size_t nelems);
+void cvt_float_to_f8_e5m2(float8_e5m2_t *out, const float *inp, size_t nelems);
+void cvt_float_to_f8_e4m3(float8_e4m3_t *out, const float *inp, size_t nelems);
+
+// performs element-by-element sum of inp and add float arrays and stores
+// result to f8 out array with down-conversion
+void add_floats_and_cvt_to_f8_e5m2(float8_e5m2_t *out, const float *inp0,
+        const float *inp1, size_t nelems);
+void add_floats_and_cvt_to_f8_e4m3(float8_e4m3_t *out, const float *inp0,
+        const float *inp1, size_t nelems);
+
 static_assert(sizeof(float8_e5m2_t) == 1, "float8_e4m3_t must be 1 byte");
 
 #if DNNL_X64

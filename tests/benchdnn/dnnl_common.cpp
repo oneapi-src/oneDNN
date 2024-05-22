@@ -640,7 +640,7 @@ void skip_unimplemented_data_type(
                     && (dir & FLAG_INF));
     const bool has_f8_e4m3_support = is_gpu()
             || (is_cpu() && has_data_type_support(dnnl_f8_e4m3)
-                    && (dir & FLAG_FWD));
+                    && (dir & FLAG_INF));
 #else
     const bool has_bf16_support = is_gpu();
     // f16 is supported on GPU for inference only.
