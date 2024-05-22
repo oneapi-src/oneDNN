@@ -170,7 +170,8 @@ struct acl_post_ops_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx, void *src) const;
+    status_t execute(
+            const exec_ctx_t &ctx, void *src, void *dst = nullptr) const;
 
 private:
     // Index of the sum post op if there is one, < 0 means no sum
