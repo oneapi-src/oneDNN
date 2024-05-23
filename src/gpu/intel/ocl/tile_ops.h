@@ -52,9 +52,9 @@ __attribute__((overloadable)) int local_atomic_max(local int *p, int v) {
     }
 
 #define DEF_BLOCK_LOAD_STORE1(type, itype, suffix) \
-    __attribute__((overloadable)) type##1 block_load( \
-            const global type *p, int vlen) \
-            __attribute__((enable_if(vlen == 1, "wrong vector length"))) { \
+    __attribute__((overloadable)) \
+            type##1 block_load(const global type *p, int vlen) __attribute__( \
+                    (enable_if(vlen == 1, "wrong vector length"))) { \
         type##1 x; \
         x[0] = as_##type( \
                 intel_sub_group_block_read##suffix((global void *)p)); \
@@ -302,7 +302,7 @@ DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
         _Pragma("unroll") for (int j = 0; j < bc * nbc; j++, ptr += ld) { \
             _Pragma("unroll") for (int i0 = 0; i0 < br * nbr; i0 += sg) { \
                 int i = i0 + get_sub_group_local_id(); \
-                (void) local_atomic_max( \
+                (void)local_atomic_max( \
                         ptr + i, tile_access(t, i0, j, sg, br, bc, nbr)); \
             } \
         } \
@@ -446,20 +446,21 @@ DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
         n -= offset_c; \
         _Pragma("unroll") for (int jj = 0; jj < nbc; jj++, ptr += ld * bc) { \
             if (jj < n) { \
-            _Pragma("unroll") for (int ii = 0; ii < nbr; ii++)(t) \
-                    ->x[ii + nbr * jj] \
-                    = block_load(ptr + ii * br, br / SUBGROUP_SIZE); \
+                _Pragma("unroll") for (int ii = 0; ii < nbr; ii++)(t) \
+                        ->x[ii + nbr * jj] \
+                        = block_load(ptr + ii * br, br / SUBGROUP_SIZE); \
             } \
         } \
     } \
     __attribute__((overloadable)) void tile_store_block(tile_type t, \
-            global element_type *ptr, int n, int ld, int offset_r, int offset_c) { \
+            global element_type *ptr, int n, int ld, int offset_r, \
+            int offset_c) { \
         ptr += ld * offset_c + offset_r; \
         n -= offset_c; \
         _Pragma("unroll") for (int jj = 0; jj < nbc; jj++, ptr += ld * bc) { \
             if (jj < n) { \
-            _Pragma("unroll") for (int ii = 0; ii < nbr; ii++) \
-                    block_store(ptr + ii * br, (t).x[ii + nbr * jj]); \
+                _Pragma("unroll") for (int ii = 0; ii < nbr; ii++) \
+                        block_store(ptr + ii * br, (t).x[ii + nbr * jj]); \
             } \
         } \
     }
@@ -522,12 +523,15 @@ DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
     }
 
 #define cooperative_prefetch_2d(ptr, r, c, ld, sg_id, n_sg, sg_size, caching) \
-    cooperative_prefetch_2d_internal((const global char *) ptr, (r) * sizeof(*(ptr)), c, \
-            (ld) * sizeof(*(ptr)), sg_id, n_sg, sg_size, caching)
+    cooperative_prefetch_2d_internal((const global char *)ptr, \
+            (r) * sizeof(*(ptr)), c, (ld) * sizeof(*(ptr)), sg_id, n_sg, \
+            sg_size, caching)
 
-#define cooperative_prefetch_2d_rem(ptr, r, c, rmax, cmax, ld, sg_id, n_sg, sg_size, caching) \
-    cooperative_prefetch_2d_internal((const global char *) ptr, (r) * sizeof(*(ptr)), c, \
-            (rmax) * sizeof(*(ptr)), cmax, (ld) * sizeof(*(ptr)), sg_id, n_sg, sg_size, caching)
+#define cooperative_prefetch_2d_rem( \
+        ptr, r, c, rmax, cmax, ld, sg_id, n_sg, sg_size, caching) \
+    cooperative_prefetch_2d_internal((const global char *)ptr, \
+            (r) * sizeof(*(ptr)), c, (rmax) * sizeof(*(ptr)), cmax, \
+            (ld) * sizeof(*(ptr)), sg_id, n_sg, sg_size, caching)
 
 /* IGC prefetch intrinsics */
 enum LSC_LDCC {
@@ -547,10 +551,9 @@ extern void __builtin_IB_lsc_prefetch_global_uchar(
 extern void __builtin_IB_lsc_prefetch_global_uint(
         const __global uint *base, int immElemOff, enum LSC_LDCC cacheOpt);
 
-__attribute__((overloadable))
-void cooperative_prefetch_2d_internal(const global char *ptr, uint rbytes,
-        uint c, uint ld_bytes, uint sg_id, uint n_sg, uint sg_size,
-        enum LSC_LDCC caching) {
+__attribute__((overloadable)) void cooperative_prefetch_2d_internal(
+        const global char *ptr, uint rbytes, uint c, uint ld_bytes, uint sg_id,
+        uint n_sg, uint sg_size, enum LSC_LDCC caching) {
     const uint cl_per_col = (rbytes + 63) >> 6;
     const uint cl = cl_per_col * c;
     const uint cl_per_sg = (cl + n_sg - 1) / n_sg;
@@ -568,8 +571,8 @@ void cooperative_prefetch_2d_internal(const global char *ptr, uint rbytes,
     }
 }
 
-__attribute__((overloadable))
-void cooperative_prefetch_2d_internal(const global char *ptr, uint rbytes, uint c, uint rbytes_max,
+__attribute__((overloadable)) void cooperative_prefetch_2d_internal(
+        const global char *ptr, uint rbytes, uint c, uint rbytes_max,
         uint c_max, uint ld_bytes, uint sg_id, uint n_sg, uint sg_size,
         enum LSC_LDCC caching) {
     const uint cl_per_col = (rbytes_max + 63) >> 6;
@@ -585,8 +588,7 @@ void cooperative_prefetch_2d_internal(const global char *ptr, uint rbytes, uint 
         uint pf_off = min(r_cl * 64 + c_cl * ld_bytes, max_off);
         if (i_cl < cl) {
             __builtin_IB_lsc_prefetch_global_uchar(
-                    (const global uchar *)(ptr + pf_off), 0,
-                    caching);
+                    (const global uchar *)(ptr + pf_off), 0, caching);
         }
     }
 }
