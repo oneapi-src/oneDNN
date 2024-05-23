@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "setting_handler.hpp"
+#include "graph/utils.hpp"
 
 namespace graph {
 
@@ -24,48 +25,6 @@ namespace graph {
                 __LINE__); \
         (res)->state = INVALID_ARGUMENTS; \
     }
-
-dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt) {
-    using graph_dt = dnnl::graph::logical_tensor::data_type;
-
-    switch (dt) {
-        case graph_dt::f16: return dnnl_f16;
-        case graph_dt::bf16: return dnnl_bf16;
-        case graph_dt::f32: return dnnl_f32;
-        case graph_dt::s32: return dnnl_s32;
-        case graph_dt::s8: return dnnl_s8;
-        case graph_dt::u8: return dnnl_u8;
-        // use u8 instead of boolean in the reference path
-        // dnn_graph_mem_t will use the data type from the logical tensor and the u8 data handle
-        case graph_dt::boolean: return dnnl_u8;
-        case graph_dt::f8_e5m2: return dnnl_f8_e5m2;
-        case graph_dt::f8_e4m3: return dnnl_f8_e4m3;
-        case graph_dt::undef:
-        default: return dnnl_data_type_undef;
-    }
-}
-
-logical_tensor::data_type get_data_type(const std::string &data_type) {
-    if (data_type == "f32") {
-        return logical_tensor::data_type::f32;
-    } else if (data_type == "f16") {
-        return logical_tensor::data_type::f16;
-    } else if (data_type == "s8") {
-        return logical_tensor::data_type::s8;
-    } else if (data_type == "u8") {
-        return logical_tensor::data_type::u8;
-    } else if (data_type == "bf16") {
-        return logical_tensor::data_type::bf16;
-    } else if (data_type == "s32") {
-        return logical_tensor::data_type::s32;
-    } else if (data_type == "f8_e5m2") {
-        return logical_tensor::data_type::f8_e5m2;
-    } else if (data_type == "f8_e4m3") {
-        return logical_tensor::data_type::f8_e4m3;
-    } else {
-        return logical_tensor::data_type::undef;
-    }
-}
 
 void assign_stride_padding_val(bool has_h, bool has_d, int64_t &w, int64_t &h,
         int64_t &d, const std::vector<int64_t> &val_, int64_t default_val) {
@@ -597,12 +556,9 @@ bool get_conv_dir(const deserialized_op &base_op_ref, dir_t &dir) {
 bool get_conv_dt(
         const deserialized_op &base_op_ref, std::vector<dnnl_data_type_t> &dt) {
     dnnl_data_type_t src_dt, wei_dt, dst_dt;
-    auto in_lt0_dt
-            = convert_dt(get_data_type(base_op_ref.in_lts_[0].data_type_));
-    auto in_lt1_dt
-            = convert_dt(get_data_type(base_op_ref.in_lts_[1].data_type_));
-    auto out_lt_dt
-            = convert_dt(get_data_type(base_op_ref.out_lts_[0].data_type_));
+    auto in_lt0_dt = convert_dt(base_op_ref.in_lts_[0].get_data_type());
+    auto in_lt1_dt = convert_dt(base_op_ref.in_lts_[1].get_data_type());
+    auto out_lt_dt = convert_dt(base_op_ref.out_lts_[0].get_data_type());
 
     const auto &op_kind = base_op_ref.kind_;
 
@@ -807,12 +763,9 @@ bool get_deconv_dir(const deserialized_op &base_op_ref, dir_t &dir) {
 bool get_deconv_dt(
         const deserialized_op &base_op_ref, std::vector<dnnl_data_type_t> &dt) {
     dnnl_data_type_t src_dt, wei_dt, dst_dt;
-    auto in_lt0_dt
-            = convert_dt(get_data_type(base_op_ref.in_lts_[0].data_type_));
-    auto in_lt1_dt
-            = convert_dt(get_data_type(base_op_ref.in_lts_[1].data_type_));
-    auto out_lt_dt
-            = convert_dt(get_data_type(base_op_ref.out_lts_[0].data_type_));
+    auto in_lt0_dt = convert_dt(base_op_ref.in_lts_[0].get_data_type());
+    auto in_lt1_dt = convert_dt(base_op_ref.in_lts_[1].get_data_type());
+    auto out_lt_dt = convert_dt(base_op_ref.out_lts_[0].get_data_type());
     const auto &op_kind = base_op_ref.kind_;
 
     if (op_kind == "ConvTranspose") {
@@ -1194,9 +1147,9 @@ bool get_matmul_prb_vdims(
 
 bool get_matmul_dt(
         const deserialized_op &base_op_ref, std::vector<dnnl_data_type_t> &dt) {
-    auto src_dt = convert_dt(get_data_type(base_op_ref.in_lts_[0].data_type_));
-    auto wei_dt = convert_dt(get_data_type(base_op_ref.in_lts_[1].data_type_));
-    auto dst_dt = convert_dt(get_data_type(base_op_ref.out_lts_[0].data_type_));
+    auto src_dt = convert_dt(base_op_ref.in_lts_[0].get_data_type());
+    auto wei_dt = convert_dt(base_op_ref.in_lts_[1].get_data_type());
+    auto dst_dt = convert_dt(base_op_ref.out_lts_[0].get_data_type());
     dt = {src_dt, wei_dt, dst_dt};
 
     return true;
@@ -1360,8 +1313,8 @@ bool get_pool_dir(const deserialized_op &base_op_ref, dir_t &dir) {
 
 bool get_pool_dt(
         const deserialized_op &base_op_ref, std::vector<dnnl_data_type_t> &dt) {
-    auto src_dt = convert_dt(get_data_type(base_op_ref.in_lts_[0].data_type_));
-    auto dst_dt = convert_dt(get_data_type(base_op_ref.out_lts_[0].data_type_));
+    auto src_dt = convert_dt(base_op_ref.in_lts_[0].get_data_type());
+    auto dst_dt = convert_dt(base_op_ref.out_lts_[0].get_data_type());
     dt = {src_dt, dst_dt};
     return true;
 }
