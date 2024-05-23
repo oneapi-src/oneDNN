@@ -1028,7 +1028,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
                         1, od, int(L1 / (ihp * src_w_block_size)));
                 if (cur_od_block == 1)
                     cur_oh_block = utils::saturate(
-                            1, oh, int(L1 / (src_w_block_size)));
+                            1, oh, static_cast<int>(L1 / src_w_block_size));
             }
             for (; cur_od_block > 1; cur_od_block--) {
                 const auto sp_size = cur_od_block * cur_oh_block * iwp;
@@ -1040,14 +1040,17 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
                 }
             }
             if (cur_od_block == 1) {
-                for (; cur_oh_block > 1; cur_oh_block--) {
-                    const auto sp_size = cur_oh_block * iwp;
-                    if ((static_cast<float>(oh) / rnd_up(oh, cur_oh_block))
+                auto tmp_oh_block = cur_oh_block;
+                while (tmp_oh_block >= 1) {
+                    const auto sp_size = tmp_oh_block * iwp;
+                    if ((static_cast<float>(oh) / rnd_up(oh, tmp_oh_block))
                                     > 0.9f
                             && sp_size > 128) {
                         L1_fit_res = true;
+                        cur_oh_block = tmp_oh_block;
                         break;
                     }
+                    tmp_oh_block--;
                 }
             }
             if (L1_fit_res) {
@@ -2234,6 +2237,14 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             !((req_large_cache || req_small_cache) && jcp.isa == avx2),
             VERBOSE_IMPL_HEURISTIC_FAIL,
             "Dispatch the shape that requires large/small cache size to jit");
+
+    // Dispatch the shape to VNNI for better performance on AMX
+    const bool is_int8_small_ic = jcp.oc == 32 && jcp.ic < jcp.simd_w / 2
+            && is_int8_convolution && is_amx(jcp.isa)
+            && everyone_is(640, jcp.oh, jcp.ow, jcp.ih, jcp.iw)
+            && everyone_is(3, jcp.kh, jcp.kw);
+    VDISPATCH_CONV_IC(!is_int8_small_ic, VERBOSE_IMPL_HEURISTIC_FAIL,
+            "Dispatch the shape that has small ic/oc to VNNI");
 
     // to avoid cache concurrent write access from different threads
     size_t sc_size = sizeof(brgemm_batch_element_t);

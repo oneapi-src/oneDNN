@@ -14,18 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example brgemm.cpp
-/// > Annotated version: @ref brgemm_example_cpp
+/// @example cpu_brgemm.cpp
+/// > Annotated version: @ref cpu_brgemm_example_cpp
 ///
-/// @page brgemm_example_cpp_short
-///
+/// @page cpu_brgemm_example_cpp BRGeMM ukernel example
 /// This C++ API example demonstrates how to create and execute a BRGeMM
 /// ukernel.
 ///
-/// @page brgemm_example_cpp Example of using BRGeMM ukernel to implement Matmul
-/// @copydetails brgemm_example_cpp_short
-///
-/// @include brgemm.cpp
+/// @include cpu_brgemm.cpp
 
 #include <algorithm>
 #include <cmath>

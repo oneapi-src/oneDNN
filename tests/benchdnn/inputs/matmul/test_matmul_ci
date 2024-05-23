@@ -1,6 +1,6 @@
 # Plain cases
 --reset
---dt=f32,bf16,f16,f8_e5m2,f8_e4m3,u8:s8:s8,s8:s8:f32
+--dt=f64,f32,bf16,f16,f8_e5m2,f8_e4m3,u8:s8:s8,s8:s8:f32
 --bia_dt=f32
 --bia_mask=2
 --batch=shapes_2d_ci
@@ -31,7 +31,7 @@
 
 # Different tags
 --reset
---dt=f32,bf16,f16,f8_e5m2,f8_e4m3,u8:s8:s8,s8:s8:f32
+--dt=f64,f32,bf16,f16,f8_e5m2,f8_e4m3,u8:s8:s8,s8:s8:f32
 --stag=ab,ba
 --wtag=ab,ba
 --dtag=ab,ba
@@ -43,7 +43,7 @@
 
 # Sum with different data type
 --reset
---dt=f32
+--dt=f64,f32
 --attr-post-ops=sum:0.25:0:s32
 --batch=shapes_2d
 --batch=shapes_3d
@@ -54,7 +54,7 @@
 
 # Arg scales check
 --reset
---dt=f32,bf16,f16,f8_e5m2,f8_e4m3,u8:s8:u8,s8:s8:f32
+--dt=f64,f32,bf16,f16,f8_e5m2,f8_e4m3,u8:s8:u8,s8:s8:f32
 --attr-scales=src:common:0.25+wei:common:0.5+dst:common:2,wei:per_oc
 --batch=shapes_2d_ci
 
@@ -83,7 +83,7 @@
 
 # Run-time dimensions check
 --reset
---dt=f32,bf16,f16,f8_e5m2,f8_e4m3
+--dt=f64,f32,bf16,f16,f8_e5m2,f8_e4m3
 --runtime_dims_masks=15:15
 --stag=ab,ba
 --wtag=ab,ba
@@ -151,7 +151,7 @@
 
 # test all the supported data type configurations + bias data types
 --reset
---dt=f32
+--dt=f64,f32
 --bia_dt=undef,f32
 --bia_mask=2,3  77x133:133x117
 --bia_mask=4,6  15x24x16:15x16x32

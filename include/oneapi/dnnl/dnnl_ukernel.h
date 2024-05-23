@@ -124,8 +124,8 @@ dnnl_status_t DNNL_API dnnl_brgemm_execute(const_dnnl_brgemm_t brgemm,
 /// Executes a BRGeMM ukernel object with post operations.
 ///
 /// @param brgemm BRGeMM ukernel object.
-/// @param A_ptr Base pointer to a tensor A.
-/// @param B_ptr Base pointer to a tensor B.
+/// @param A Base pointer to a tensor A.
+/// @param B Base pointer to a tensor B.
 /// @param A_B_offsets Pointer to a set of tensor A and tensor B offsets for
 ///     each batch. A set must be contiguous in memory. A single batch should
 ///     supply offsets for both tensors A and B simultaneously. The number of
@@ -177,7 +177,7 @@ dnnl_status_t DNNL_API dnnl_brgemm_pack_B_need_pack(
         const_dnnl_brgemm_pack_B_t brgemm_pack_B, int *need_pack);
 
 /// Generates an executable part of BRGeMM ukernel packing B object.
-/// @param brgemm BRGeMM ukernel packing B object.
+/// @param brgemm_pack_B BRGeMM ukernel packing B object.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_brgemm_pack_B_generate(

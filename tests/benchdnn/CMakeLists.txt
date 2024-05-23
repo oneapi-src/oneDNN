@@ -85,7 +85,7 @@ function(register_benchdnn_test engine driver test_file)
         set(cmd "--mode=${tm} ${mode_modifier} -v1 --engine=${engine} --${driver} --batch=${test_file}")
         set(benchdnn_target ${target_name}_${engine})
 
-        if(DNNL_BUILD_FOR_CI)
+        if(NOT WIN32 OR DNNL_BUILD_FOR_CI)
             string(REPLACE " " ";" cmd "benchdnn ${cmd}")
             add_dnnl_test(${benchdnn_target} ${cmd})
         else()

@@ -36,6 +36,7 @@ namespace jit {
 static inline Type convert_dnnl_to_kernel_type(data_type_t type) {
     switch (type) {
         default: assert(!"Unknown type");
+        case data_type::f64: return Type::f64;
         case data_type::f32: return Type::f32;
         case data_type::f16: return Type::f16;
         case data_type::bf16: return Type::bf16;
@@ -76,6 +77,7 @@ struct gen_gemm_kernel_desc_t {
             case Type::bf16: return compute::scalar_type_t::_bfloat16;
             case Type::f16: return compute::scalar_type_t::_half;
             case Type::f32: return compute::scalar_type_t::_float;
+            case Type::f64: return compute::scalar_type_t::_double;
             default: return compute::scalar_type_t::undef;
         }
     }

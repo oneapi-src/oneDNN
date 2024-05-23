@@ -27,19 +27,22 @@
 #include "oneapi/dnnl/dnnl_ocl.hpp"
 /// @endcond
 
-/// @addtogroup dnnl_graph_api
+/// @addtogroup dnnl_api
 /// @{
 
 namespace dnnl {
+
+/// @addtogroup dnnl_graph_api
+/// @{
+
 namespace graph {
 
 /// @addtogroup dnnl_graph_api_interop Runtime interoperability API
 /// API extensions to interact with the underlying run-time.
 /// @{
 
-/// @addtogroup dnnl_graph_api_ocl_interop OpenCL interoperability API API
-/// extensions to interact with the underlying OpenCL run-time.
-///
+/// @addtogroup dnnl_graph_api_ocl_interop OpenCL interoperability API
+/// API extensions to interact with the underlying OpenCL run-time.
 /// @{
 
 /// OpenCL interoperability namespace
@@ -140,8 +143,11 @@ inline cl_event execute(compiled_partition &c_partition, stream &astream,
 /// @} dnnl_graph_api_interop
 
 } // namespace graph
-} // namespace dnnl
 
 /// @} dnnl_graph_api
+
+} // namespace dnnl
+
+/// @} dnnl_api
 
 #endif

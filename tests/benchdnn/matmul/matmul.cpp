@@ -498,8 +498,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
 
-        // GPU supports only default sum_dt argument.
         const auto &po = prb->attr.post_ops;
+        // F64 post-ops unsupported.
+        if (prb->dst_dt() == dnnl_f64 && !po.is_def()) {
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
+            return;
+        }
+        // GPU supports only default sum_dt argument.
         const int sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
         if (sum_idx != -1 && po.entry[sum_idx].sum.dt != dnnl_data_type_undef) {
             res->state = SKIPPED;

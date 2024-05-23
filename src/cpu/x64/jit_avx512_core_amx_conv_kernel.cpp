@@ -696,7 +696,8 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row(int icb) {
 
 void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     assert(jcp.nb_ic_int == 1);
-    assert(jcp.ic_block_int * jcp.typesize_in == 64);
+    assert((jcp.is_bf32 ? jcp.ic_block : jcp.ic_block_int) * jcp.typesize_in
+            == 64);
     assert(jcp.is_nspc);
 
     auto load_mask = [this](int tail, Opmask kmask) {

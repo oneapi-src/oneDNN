@@ -38,8 +38,7 @@ struct reduction_phase_conf_t : public reduction_subproblem_t {
     data_type_t src_type, dst_type;
     compute::nd_range_t nd_range;
 
-    int vect_size, outer_tile_size;
-    bool reduce_vector;
+    int outer_tile_size, slm_reductions;
     bool is_final, is_first;
     int subgroup_size;
     bool with_block_reads;

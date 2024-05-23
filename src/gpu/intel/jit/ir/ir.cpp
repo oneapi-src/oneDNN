@@ -20,7 +20,6 @@
 
 #include "common/math_utils.hpp"
 #include "common/optional.hpp"
-#include "gpu/intel/jit/codegen/register_allocator.hpp"
 #include "gpu/intel/jit/ir/core.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/pass/simplify.hpp"
@@ -41,8 +40,8 @@ public:
     ir_printer_t(std::ostream &out) : out_(out) {}
 
     void _visit(const alloc_t &obj) override {
-        auto guard
-                = mem_usage_guard(obj.kind == alloc_kind_t::grf ? obj.size : 0);
+        auto grf_size = 1; // Assume all objects are grf aligned
+        auto guard = mem_usage_guard(obj.register_alloc_size(grf_size));
         print_indent();
         out_ << "alloc " << obj.buf.as<var_t>().name << "[" << obj.size
              << "] (mem_usage: " << mem_usage_bytes_ << ")\n";
@@ -135,11 +134,7 @@ public:
     }
 
     void _visit(const let_t &obj) override {
-        // Empty objects are allocated in reserved space
-        // nGEN only claims subregisters at dword granularity
-        int size = obj.value.is_empty() ? 0
-                                        : utils::rnd_up(obj.var.type().size(),
-                                                reg_allocator_t::granularity);
+        int size = obj.register_alloc_size();
         auto guard = mem_usage_guard(size);
         print_indent();
         out_ << obj.var << "." << obj.var.type() << " = " << obj.value << "\n";
@@ -670,19 +665,12 @@ public:
         : grf_size_(grf_size), skip_let_(skip_let), regs_(external_regs) {}
 
     void _visit(const alloc_t &obj) override {
-        int size = (obj.kind == alloc_kind_t::grf ? obj.size : 0);
-        size = utils::rnd_up(size, grf_size_);
-        auto guard = grf_usage_guard(size);
+        auto guard = grf_usage_guard(obj.register_alloc_size(grf_size_));
         ir_visitor_t::_visit(obj);
     }
 
     void _visit(const let_t &obj) override {
-        // Empty objects are allocated in reserved space
-        // nGEN only claims subregisters at dword granularity
-        int size = (skip_let_ || obj.value.is_empty())
-                ? 0
-                : utils::rnd_up(
-                        obj.var.type().size(), reg_allocator_t::granularity);
+        int size = skip_let_ ? 0 : obj.register_alloc_size();
         auto guard = grf_usage_guard(size);
         ir_visitor_t::_visit(obj);
     }

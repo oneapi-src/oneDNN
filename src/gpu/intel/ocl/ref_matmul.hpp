@@ -50,6 +50,10 @@ struct ref_matmul_t : public gpu_primitive_t {
             dst_dt_ = dst_md()->data_type;
             wei_dt_ = weights_md(0)->data_type;
             bia_dt_ = with_bias() ? weights_md(1)->data_type : data_type::f32;
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+
+            auto dev_info_ = compute_engine->device_info();
 
             VDISPATCH_MATMUL(
                     is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
@@ -75,6 +79,8 @@ struct ref_matmul_t : public gpu_primitive_t {
                                      utils::one_of(bia_dt_, f32, u8, s8, s32)))
                             || ((utils::everyone_is(
                                          f32, src_dt_, wei_dt_, dst_dt_)
+                                        || utils::everyone_is(
+                                                f64, src_dt_, wei_dt_, dst_dt_)
                                         || (utils::everyone_is(
                                                     f16, src_dt_, wei_dt_)
                                                 && utils::one_of(
@@ -97,6 +103,10 @@ struct ref_matmul_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_MATMUL_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_MATMUL(
+                    IMPLICATION(utils::one_of(f64, src_dt_, wei_dt_, dst_dt_),
+                            dev_info_->has_native(f64)),
+                    VERBOSE_UNSUPPORTED_DT);
 
             non_default_attrs_ = !attr()->has_default_values();
             attr_info_ = attr_info_t::create(attr());

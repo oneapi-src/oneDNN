@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/// @addtogroup dnnl_api
+/// @{
 
 /// @addtogroup dnnl_graph_api
 /// @{
@@ -728,6 +731,8 @@ dnnl_status_t DNNL_API dnnl_graph_get_constant_tensor_cache_capacity(
 /// @} dnnl_graph_api_constant_tensor_cache
 
 /// @} dnnl_graph_api
+
+/// @} dnnl_api
 
 #ifdef __cplusplus
 }
