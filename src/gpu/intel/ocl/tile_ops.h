@@ -87,9 +87,14 @@ DEF_BLOCK_LOAD_STORE(uint, uint, , 8)
             __attribute__((enable_if(bc == BC, "wrong #columns"))) \
                     __attribute__( \
                             (enable_if(sg == SG, "wrong subgroup size"))) { \
+        ulong pp = as_long(p); \
+        ulong prem = pp & 0x3F; \
+        pp &= ~0x3F; \
+        x += (prem / sizeof(type)); \
+        w += prem; \
         int2 coord = {x, y}; \
         return as_##type##vl(__builtin_IB_subgroup_block_read_flat_##suffix( \
-                as_long(p), w - 1, h - 1, ld - 1, coord)); \
+                pp, w - 1, h - 1, ld - 1, coord)); \
     } \
     __attribute__((overloadable)) void block2d_store(type##vl v, \
             global type *p, int w, int h, int ld, int x, int y, int br, \
@@ -98,9 +103,14 @@ DEF_BLOCK_LOAD_STORE(uint, uint, , 8)
             __attribute__((enable_if(bc == BC, "wrong #columns"))) \
                     __attribute__( \
                             (enable_if(sg == SG, "wrong subgroup size"))) { \
+        ulong pp = as_long(p); \
+        ulong prem = pp & 0x3F; \
+        pp &= ~0x3F; \
+        x += (prem / sizeof(type)); \
+        w += prem; \
         int2 coord = {x, y}; \
         __builtin_IB_subgroup_block_write_flat_##suffix( \
-                as_long(p), w - 1, h - 1, ld - 1, coord, as_##itype##vl(v)); \
+                pp, w - 1, h - 1, ld - 1, coord, as_##itype##vl(v)); \
     }
 
 DEF_BLOCK2D_LOAD_STORE(half, ushort, 8, 16, u16_m4k32v1, 32, 4)
