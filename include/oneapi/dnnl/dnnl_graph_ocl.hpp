@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+/// @file
+/// Graph OpenCL interop API
+
 #ifndef ONEAPI_DNNL_DNNL_GRAPH_OCL_HPP
 #define ONEAPI_DNNL_DNNL_GRAPH_OCL_HPP
 

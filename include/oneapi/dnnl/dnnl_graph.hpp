@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+/// @file
+/// Graph C++ API
+
 #ifndef ONEAPI_DNNL_DNNL_GRAPH_HPP
 #define ONEAPI_DNNL_DNNL_GRAPH_HPP
 

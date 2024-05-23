@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+/// @file
+/// Graph SYCL interop API
+
 #ifndef ONEAPI_DNNL_DNNL_GRAPH_SYCL_HPP
 #define ONEAPI_DNNL_DNNL_GRAPH_SYCL_HPP
 
