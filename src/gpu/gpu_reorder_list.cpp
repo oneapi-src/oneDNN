@@ -20,6 +20,7 @@
 #include "gpu/intel/jit/reorder/gen_reorder.hpp"
 #include "gpu/intel/ocl/cross_engine_reorder.hpp"
 #include "gpu/intel/ocl/custom_reorder.hpp"
+#include "gpu/intel/ocl/direct_copy.hpp"
 #include "gpu/intel/ocl/generic_reorder.hpp"
 #include "gpu/intel/ocl/ref_reorder.hpp"
 #include "gpu/intel/ocl/rnn/rnn_reorders.hpp"
@@ -46,6 +47,7 @@ using namespace dnnl::impl::data_type;
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_REORDER_P({
         GPU_REORDER_INSTANCE_INTEL(intel::ocl::rnn_weights_reorder_t::pd_t)
+        GPU_REORDER_INSTANCE_INTEL(intel::ocl::direct_copy_t::pd_t)
         GPU_REORDER_INSTANCE_INTEL(intel::ocl::cross_engine_reorder_t::pd_t)
         GPU_REORDER_INSTANCE_INTEL(intel::jit::gen_reorder_t::pd_t)
         GPU_REORDER_INSTANCE_INTEL(intel::ocl::custom_reorder_t::pd_t) // for specific tensor shapes
