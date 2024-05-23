@@ -1027,12 +1027,12 @@ public:
 
     /// Sets the attribute according to the name and type (int64_t).
     ///
-    /// @tparam Type Attribute's type.
+    /// @tparam Type_i Attribute's type.
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type, req<std::is_same<Type, int64_t>::value> = true>
-    op &set_attr(attr name, const Type &value) {
+    template <typename Type_i, req<std::is_same<Type_i, int64_t>::value> = true>
+    op &set_attr(attr name, const Type_i &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_s64(get(), attr, &value, 1),
                 "could not set attribute to the op");
@@ -1041,12 +1041,12 @@ public:
 
     /// Sets the attribute according to the name and type (float).
     ///
-    /// @tparam Type Attribute's type.
+    /// @tparam Type_f Attribute's type.
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type, req<std::is_same<Type, float>::value> = true>
-    op &set_attr(attr name, const Type &value) {
+    template <typename Type_f, req<std::is_same<Type_f, float>::value> = true>
+    op &set_attr(attr name, const Type_f &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_f32(get(), attr, &value, 1),
                 "could not set attribute to the op");
@@ -1055,12 +1055,12 @@ public:
 
     /// Sets the attribute according to the name and type (bool).
     ///
-    /// @tparam Type Attribute's type.
+    /// @tparam Type_b Attribute's type.
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type, req<std::is_same<Type, bool>::value> = true>
-    op &set_attr(attr name, const Type &value) {
+    template <typename Type_b, req<std::is_same<Type_b, bool>::value> = true>
+    op &set_attr(attr name, const Type_b &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         const uint8_t val = value;
         error::wrap_c_api(dnnl_graph_op_set_attr_bool(get(), attr, &val, 1),
@@ -1070,12 +1070,13 @@ public:
 
     /// Sets the attribute according to the name and type (string).
     ///
-    /// @tparam Type Attribute's type.
+    /// @tparam Type_s Attribute's type.
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type, req<std::is_same<Type, std::string>::value> = true>
-    op &set_attr(attr name, const Type &value) {
+    template <typename Type_s,
+            req<std::is_same<Type_s, std::string>::value> = true>
+    op &set_attr(attr name, const Type_s &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_str(
                                   get(), attr, value.c_str(), value.size()),
@@ -1086,13 +1087,13 @@ public:
     /// Sets the attribute according to the name and type
     /// (std::vector<int64_t>).
     ///
-    /// @tparam Type Attribute's type.
+    /// @tparam Type_is Attribute's type.
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type,
-            req<std::is_same<Type, std::vector<int64_t>>::value> = true>
-    op &set_attr(attr name, const Type &value) {
+    template <typename Type_is,
+            req<std::is_same<Type_is, std::vector<int64_t>>::value> = true>
+    op &set_attr(attr name, const Type_is &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_s64(
                                   get(), attr, value.data(), value.size()),
@@ -1102,13 +1103,13 @@ public:
 
     /// Sets the attribute according to the name and type (std::vector<float>).
     ///
-    /// @tparam Type Attribute's type.
+    /// @tparam Type_fs Attribute's type.
     /// @param name Attribute's name.
     /// @param value The attribute's value.
     /// @returns The Op self.
-    template <typename Type,
-            req<std::is_same<Type, std::vector<float>>::value> = true>
-    op &set_attr(attr name, const Type &value) {
+    template <typename Type_fs,
+            req<std::is_same<Type_fs, std::vector<float>>::value> = true>
+    op &set_attr(attr name, const Type_fs &value) {
         dnnl_graph_op_attr_t attr = convert_to_c(name);
         error::wrap_c_api(dnnl_graph_op_set_attr_f32(
                                   get(), attr, value.data(), value.size()),
