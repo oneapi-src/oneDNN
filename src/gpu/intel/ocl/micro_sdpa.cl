@@ -218,8 +218,8 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 
 #ifdef PREFETCH_K0
     /* Prefetch first K tile. */
-    cooperative_prefetch_2d_k(K, k, d, ugemm_kq_wg_tile_m, D_MAX, ldk, sg_ij, sg_per_wg,
-            SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
+    cooperative_prefetch_2d_k(K, k, d, ugemm_kq_wg_tile_m, PREFETCH_D_MAX, ldk,
+            sg_ij, sg_per_wg, SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
 #endif
 
     /* Initialize S column sums in SLM to -inf */
@@ -304,7 +304,8 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 
 #ifdef PREFETCH_V
         /* Prefetch V tile. */
-        cooperative_prefetch_2d_maybe_rem(V, d, k - k0, D_MAX, ugemm_kq_wg_tile_m, ldv, sg_ij,
+        cooperative_prefetch_2d_maybe_rem(V, d, k - k0, D_MAX,
+                (ugemm_kq_wg_tile_m * PREFETCH_D_MAX) / D_MAX, ldv, sg_ij,
                 sg_per_wg, SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
 #endif
 
@@ -391,8 +392,8 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
             const uint stride_k = 1;
 #endif
             cooperative_prefetch_2d_k(K + (k0 + ugemm_kq_wg_tile_m) * stride_k,
-                    k - k0 - ugemm_kq_wg_tile_m, d,
-                    ugemm_kq_wg_tile_m, D_MAX, ldk, sg_ij, sg_per_wg, SUBGROUP_SIZE,
+                    k - k0 - ugemm_kq_wg_tile_m, d, ugemm_kq_wg_tile_m,
+                    PREFETCH_D_MAX, ldk, sg_ij, sg_per_wg, SUBGROUP_SIZE,
                     LSC_LDCC_L1C_L3C);
         }
 #endif

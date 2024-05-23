@@ -292,6 +292,7 @@ status_t micro_sdpa_t::init(engine_t *engine) {
         kernel_ctx.define_int("PREFETCH_V", 1);
         bool no_rem = d_full && v_full && (d->keys() % tile_k == 0);
         kernel_ctx.define_int("PREFETCH_REMAINDER", !no_rem);
+        kernel_ctx.define_int("PREFETCH_D_MAX", nstl::min(pd()->d_max(), 64));
     }
 
     /* Generate microkernel shims */
