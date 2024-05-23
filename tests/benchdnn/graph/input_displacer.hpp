@@ -19,6 +19,8 @@
 
 #include "ref_primitive.hpp"
 
+#include "utils/fill.hpp"
+
 namespace graph {
 
 enum class filling_type_t {
@@ -53,8 +55,8 @@ private:
     int gen_quantize_filling(const ::graph::deserialized_op &main_op, int arg,
             dnn_mem_t &mem, const ::std::string &dt, res_t *res);
     // Generates floating-point power-of-2 values in the target memory.
-    int gen_pow2_filling(
-            dnn_mem_t &mem, const_dnnl_memory_desc_t lt, res_t *res) const;
+    int gen_pow2_filling(dnn_mem_t &mem, const_dnnl_memory_desc_t lt,
+            const fill_cfg_t &fill_cfg, res_t *res) const;
 };
 
 } // namespace graph
