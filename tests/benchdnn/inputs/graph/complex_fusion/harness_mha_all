@@ -32,9 +32,9 @@
 --reset --in-shapes=3:4x32x32x128+4:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-fp32-bs1.json
 --reset --in-shapes=3:4x32x32x128+4:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-bf16-bs1.json
 --reset --in-shapes=4:4x32x32x128+3:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-int8-bs1.json
---reset --in-shapes=3:56x16x384x64+4:56x16x64x384+0:56x16x384x64+1:56x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-fp32-bs1.json
---reset --in-shapes=3:56x16x384x64+4:56x16x64x384+0:56x16x384x64+1:56x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-bf16-bs1.json
---reset --in-shapes=4:56x16x384x64+3:56x16x64x384+0:56x16x384x64+1:56x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-int8-bs1.json
+--reset --in-shapes=3:20x16x384x64+4:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-fp32-bs1.json
+--reset --in-shapes=3:20x16x384x64+4:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-bf16-bs1.json
+--reset --in-shapes=4:20x16x384x64+3:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-int8-bs1.json
 --reset --in-shapes=4:56x12x128x64+5:56x12x64x128+0:56x12x128x64+1:56x1x1x128 --case=complex_fusion/mha/MHA-distill_bert-inf-fp32-bs1.json
 --reset --in-shapes=4:56x12x128x64+5:56x12x64x128+0:56x12x128x64+1:56x1x1x128 --case=complex_fusion/mha/MHA-distill_bert-inf-bf16-bs1.json
 --reset --in-shapes=5:56x12x128x64+4:56x12x64x128+0:56x12x128x64+1:56x1x1x128 --case=complex_fusion/mha/MHA-distill_bert-inf-int8-bs1.json
@@ -45,4 +45,4 @@
 --reset --in-shapes=4:20x117x48x128+3:20x1x128x117+0:20x1x117x128 --case=complex_fusion/mha/MHA-starcoder-inf-int8-bs1.json
 --reset --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2543:32x1x512x512+2547:32x16x512x512+2525:32x16x512x64 --op-attrs=4837:shape:16384x1024 --case=complex_fusion/mha/MHA_forward-Bert_large-train-bf16-bs4.json
 --reset --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2543:32x1x512x512+2547:32x16x512x512+2525:32x16x512x64 --op-attrs=4837:shape:16384x1024 --case=complex_fusion/mha/MHA_forward-Bert_large-train-fp32-bs4.json
---reset --in-shapes=4:112x16x384x64+3:112x16x64x384+0:112x16x384x64+1:112x1x1x384 --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
+--reset --in-shapes=4:32x16x384x64+3:32x16x64x384+0:32x16x384x64+1:32x1x1x384 --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
