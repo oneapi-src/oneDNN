@@ -36,7 +36,8 @@ struct sycl_binary_conf_t {
     bool do_scale_src0;
     bool do_scale_src1;
 
-    int broadcast_dims[xpu::sycl::md_t::max_dims];
+    int broadcast_dims0[xpu::sycl::md_t::max_dims];
+    int broadcast_dims1[xpu::sycl::md_t::max_dims];
     int ndims;
     bool is_tensor_op;
 
