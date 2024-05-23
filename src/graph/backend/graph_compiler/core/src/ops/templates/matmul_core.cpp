@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -154,8 +154,15 @@ config_ptr gen_matmul_core_t::get_default_config(context_ptr ctx) const {
                                      : (pad48_K >= pad32_K ? 32 : 48);
     if (K < 32) { cfg.K_block = K; }
   } else {
-    if (A_plain_dims[1] < 64) {
-      cfg.K_block = utils::rnd_up(A_plain_dims[1], is_vnni_low_fp ? 2 : 4);
+    int K = static_cast<int>(A_plain_dims[1]);
+    if (K < 64) {
+      cfg.K_block = utils::rnd_up(K, is_vnni_low_fp ? 2 : 4);
+    } else if (K < 256) {
+      int ceil64_K = static_cast<int>(utils::rnd_up(K, 64));
+      int ceil32_K = static_cast<int>(utils::rnd_up(K, 32));
+      int pad64_K = ceil64_K - K;
+      int pad32_K = ceil32_K - K;
+      cfg.K_block = pad64_K > pad32_K ? 32 : 64;
     }
   }
   bool is_cfg_set = false;
