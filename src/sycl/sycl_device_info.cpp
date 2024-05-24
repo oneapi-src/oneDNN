@@ -30,8 +30,8 @@ namespace impl {
 namespace sycl {
 
 status_t sycl_device_info_t::init_arch(engine_t *engine) {
-    auto &device
-            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
+    auto *sycl_engine = utils::downcast<const sycl_engine_base_t *>(engine);
+    auto &device = sycl_engine->device();
 
     // skip cpu engines
     if (!device.is_gpu()) return status::success;
@@ -56,17 +56,11 @@ status_t sycl_device_info_t::init_arch(engine_t *engine) {
     } else if (be == backend_t::level0) {
         // TODO: add support for L0 binary ngen check
         // XXX: query from ocl_engine for now
-        gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                ocl_engine;
+        CHECK(impl::sycl::create_ocl_engine(&ocl_engine, sycl_engine));
 
-        engine_t *engine;
-        CHECK(f.engine_create(&engine, 0));
-
-        std::unique_ptr<gpu::compute::compute_engine_t, engine_deleter_t>
-                compute_engine(
-                        utils::downcast<gpu::compute::compute_engine_t *>(
-                                engine));
-
-        auto *dev_info = compute_engine->device_info();
+        auto *dev_info = ocl_engine->device_info();
         gpu_arch_ = dev_info->gpu_arch();
         stepping_id_ = dev_info->stepping_id();
         mayiuse_systolic_ = dev_info->mayiuse_systolic();
