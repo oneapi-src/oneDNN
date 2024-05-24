@@ -240,4 +240,7 @@ void print_dhw(bool &print_d, bool &print_h, bool &print_w, int ndims,
         const std::vector<int64_t> &d, const std::vector<int64_t> &h,
         const std::vector<int64_t> &w);
 
+int benchdnn_getenv_int(const char *name, int default_value);
+std::string benchdnn_getenv_string(const char *name);
+
 #endif
