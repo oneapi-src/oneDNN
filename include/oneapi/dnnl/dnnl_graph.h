@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 /// @file
-/// C API
+/// Graph C API
 
 #ifndef ONEAPI_DNNL_DNNL_GRAPH_H
 #define ONEAPI_DNNL_DNNL_GRAPH_H
