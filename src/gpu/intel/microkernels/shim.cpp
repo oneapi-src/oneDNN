@@ -491,8 +491,12 @@ std::string generateShim(const Package &package, HostLanguage language,
             chunk = esize * tsize;
             int r = offset / gwidth;
             int c = (offset % gwidth) / tsize;
-            shim << "            \"mov (M1_NM, " << esize << ") " << to << i
-                 << '(' << r << ',' << c << ")<1> " << from << i << '(' << r
+            shim << "            \"mov (M1_NM, " << esize << ") ";
+            if (to)
+                shim << to << i;
+            else
+                shim << "V0";
+            shim << '(' << r << ',' << c << ")<1> " << from << i << '(' << r
                  << ',' << c << ")<1;1,0>\\n\"\n";
             offset += chunk;
         }
@@ -511,17 +515,17 @@ std::string generateShim(const Package &package, HostLanguage language,
 
     /* Temporarily, we need to subtract argument ranges from clobber ranges due to vISA restrictions.
        Sort arguments by location in preparation for that. */
-    std::vector<clobber_t> vargclobber_ts;
+    std::vector<clobber_t> vargClobbers;
     for (int i = 0; i < int(vargs.size()); i++) {
         clobber_t clobber;
         clobber.location = vargs[i].location;
         clobber.name = (vargs[i].copy ? "COPY" : "%") + std::to_string(i);
         clobber.arg = false; // Reuse 'arg' field as flag
         clobber.preclobbered = vargs[i].copy && vargs[i].in;
-        vargclobber_ts.push_back(clobber);
+        vargClobbers.push_back(clobber);
     }
 
-    std::sort(vargclobber_ts.begin(), vargclobber_ts.end(),
+    std::sort(vargClobbers.begin(), vargClobbers.end(),
             [](const clobber_t &vc1, const clobber_t &vc2) {
                 return (vc1.location.boffset < vc2.location.boffset);
             });
@@ -533,20 +537,20 @@ std::string generateShim(const Package &package, HostLanguage language,
         throw std::runtime_error(
                 "Microkernel does not define any clobber regions");
 
-    auto vargIter = vargclobber_ts.begin();
+    auto vargIter = vargClobbers.begin();
     for (auto &range : package.clobbers) {
         uint32_t offset = range.boffset;
         int remaining = range.blen;
 
         while (remaining > 0) {
             /* Subtract argument ranges */
-            while (vargIter != vargclobber_ts.end()
+            while (vargIter != vargClobbers.end()
                     && vargIter->location.boffset + vargIter->location.blen
                             <= offset)
                 ++vargIter;
 
             int nextOffset = 0, nextRemaining = 0;
-            if (vargIter != vargclobber_ts.end()
+            if (vargIter != vargClobbers.end()
                     && vargIter->location.boffset < offset + remaining) {
                 nextOffset
                         = vargIter->location.boffset + vargIter->location.blen;
@@ -586,8 +590,8 @@ std::string generateShim(const Package &package, HostLanguage language,
     }
 
     /* Add clobbered arguments to list */
-    for (auto &vargclobber_t : vargclobber_ts)
-        if (vargclobber_t.arg) clobbers.push_back(std::move(vargclobber_t));
+    for (auto &vargClobber : vargClobbers)
+        if (vargClobber.arg) clobbers.push_back(std::move(vargClobber));
 
     /* Declare clobbers and tie them to physical registers */
     for (int i = 0; i < int(clobbers.size()); i++) {
@@ -608,6 +612,10 @@ std::string generateShim(const Package &package, HostLanguage language,
          << std::hex << (sigilStart ^ options.microkernelID) << std::dec
          << ":ud\\n\"\n"
             "            \"fence_sw\\n\"\n";
+
+    /* Use inputs to ensure vISA considers their values live */
+    for (int i = 0; i < int(vargs.size()); i++)
+        if (vargs[i].in) copyArg(i, vargs[i].copy ? "COPY" : "%", nullptr);
 
     /* Overwrite clobbers to ensure vISA considers their ranges live */
     for (int i = 0; i < int(clobbers.size()); i++) {
