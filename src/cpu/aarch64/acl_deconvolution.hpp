@@ -37,7 +37,7 @@ struct acl_deconv_conf_t {
     bool with_bias;
     // If this is true, the result of the convolution goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
-    bool use_dst_acc;
+    bool use_dst_acc_for_sum;
     bool fast_math;
     arm_compute::TensorInfo src_info;
     arm_compute::TensorInfo wei_info;
@@ -88,7 +88,8 @@ struct acl_deconvolution_fwd_t : public primitive_t {
             , acl_pd_conf()
             , post_ops() {}
 
-        DECLARE_COMMON_PD_T("acl", acl_deconvolution_fwd_t);
+        DECLARE_COMMON_PD_T(
+                "acl:deconv", acl_deconvolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -291,7 +292,13 @@ struct acl_deconvolution_fwd_t : public primitive_t {
             }
 
             CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_));
-            acl_pd_conf.use_dst_acc = post_ops.has_sum();
+            acl_pd_conf.use_dst_acc_for_sum = post_ops.has_sum();
+
+            if (acl_pd_conf.use_dst_acc_for_sum) {
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.book(memory_tracking::names::key_none,
+                        dst_d.nelems(), dst_d.data_type_size());
+            }
 
             return status::success;
         }

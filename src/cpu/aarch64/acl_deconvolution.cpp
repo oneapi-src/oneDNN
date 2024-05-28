@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022,2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,10 +27,18 @@ status_t acl_deconvolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     // concurrent multithreaded access.
     std::lock_guard<std::mutex> _lock {this->mtx};
 
+    const auto scratchpad = ctx.get_scratchpad_grantor();
+
     auto src_base = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto wei_base = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
     auto bia_base = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
-    auto dst_base = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+
+    bool use_dst_acc_for_sum = pd()->acl_pd_conf.use_dst_acc_for_sum;
+    // If we have an unfused sum post op, put the result in a scratchpad tensor.
+    // Result will be summed to the dst during acl_post_ops.execute
+    auto dst_base = use_dst_acc_for_sum
+            ? scratchpad.get<void>(memory_tracking::names::key_none)
+            : CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     // Retrieve primitive resource and configured Compute Library objects
     auto *acl_resource
@@ -41,14 +49,7 @@ status_t acl_deconvolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     acl_obj.wei_tensor.allocator()->import_memory(const_cast<void *>(wei_base));
     acl_obj.bia_tensor.allocator()->import_memory(const_cast<void *>(bia_base));
 
-    bool use_dst_acc = pd()->acl_pd_conf.use_dst_acc;
-    if (use_dst_acc) {
-        // Put the result in a new tensor, it will be accumalated to the dst
-        // during the post ops
-        acl_obj.dst_tensor.allocator()->allocate();
-    } else {
-        acl_obj.dst_tensor.allocator()->import_memory(dst_base);
-    }
+    acl_obj.dst_tensor.allocator()->import_memory(dst_base);
 
     acl_obj.deconv.run();
 
