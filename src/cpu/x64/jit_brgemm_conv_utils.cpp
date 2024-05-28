@@ -484,6 +484,11 @@ void brg_blocking_t::select_ic_block() {
                 static_cast<int>((L2 - out_size)
                         / ((wei_per_ic + inp_per_ic) * simd_w)));
 
+        // use nb_simd as max_simd_blocks for some shapes on avx2
+        // TODO: optimize max_simd_blocks
+        if (isa == avx2 && nb_simd <= 256 && (wei_per_ic + inp_per_ic < 1400))
+            max_simd_blocks = nb_simd;
+
         auto simd_blocks = 1;
         for (int nb_icb = nstl::min(max_simd_blocks, nb_simd); nb_icb >= 1;
                 nb_icb--) {
