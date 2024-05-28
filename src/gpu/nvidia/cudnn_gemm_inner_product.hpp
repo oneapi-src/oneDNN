@@ -167,7 +167,7 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:gemm", cudnn_gemm_inner_product_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
             using namespace data_type;
@@ -251,7 +251,7 @@ struct cudnn_gemm_inner_product_bwd_data_t
         DECLARE_COMMON_PD_T(
                 "cuda:cudnn:gemm", cudnn_gemm_inner_product_bwd_data_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
@@ -316,7 +316,7 @@ struct cudnn_gemm_inner_product_bwd_weights_t
         DECLARE_COMMON_PD_T(
                 "cuda:cudnn:gemm", cudnn_gemm_inner_product_bwd_weights_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);

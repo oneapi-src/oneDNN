@@ -59,7 +59,7 @@ status_t ref_resampling_fwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_resampling_fwd_t::init(engine_t *engine) {
+status_t ref_resampling_fwd_t::init(impl::engine_t *engine) {
     const auto kid = ::sycl::get_kernel_id<resampling_kernel_fwd_vec_t>();
     return create_kernel(engine, kid, &kernel_);
 }
@@ -120,7 +120,7 @@ status_t ref_resampling_bwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_resampling_bwd_t::init(engine_t *engine) {
+status_t ref_resampling_bwd_t::init(impl::engine_t *engine) {
     if (pd()->conf_.alg == alg_kind::resampling_nearest) {
         const auto kid = ::sycl::get_kernel_id<resampling_kernel_bwd_vec_t>();
         CHECK(create_kernel(engine, kid, &kernel_));

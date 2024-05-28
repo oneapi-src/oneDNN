@@ -115,7 +115,7 @@ struct cudnn_conv_inner_product_fwd_impl_t
                     cudnnDestroyActivationDescriptor, act_desc_no_relu_);
         }
     }
-    virtual status_t init(engine_t *engine, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool with_relu, bool with_eltwise, bool with_sum,
             bool use_fuse_path_for_blocking) override {
         with_bias_ = pd->with_bias();
@@ -423,7 +423,7 @@ struct cudnn_conv_inner_product_bwd_data_impl_t
     // for nhwc filter the source must be nhwc as well.
     // So we use the src type for transforming the filter.
     cudnnTensorFormat_t diff_source_format_;
-    virtual status_t init(engine_t *engine, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool /*using_fused_path_for_blocking*/) override {
         // Pad out the dimensions to 4
@@ -575,7 +575,7 @@ struct cudnn_conv_inner_product_bwd_weights_impl_t
     cudnnConvolutionBwdFilterAlgo_t algo_;
     cudnnTensorFormat_t source_format_;
 
-    virtual status_t init(engine_t *engine, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool /*using_fused_path_for_blocking*/) override {
         // If any of the dimensions are 0 we should not continue with creating

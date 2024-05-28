@@ -40,7 +40,7 @@ struct cudnn_reduction_t : public primitive_t {
         using reduction_pd_t::reduction_pd_t;
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_reduction_t);
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             const bool ok = (set_default_params() == status::success)

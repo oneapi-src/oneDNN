@@ -40,7 +40,7 @@ struct cudnn_binary_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_binary_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             bool ok = (set_default_params() == status::success)
@@ -93,7 +93,7 @@ struct cudnn_binary_t : public primitive_t {
             return true;
         }
 
-        bool check_data_types(engine_t *engine) const {
+        bool check_data_types(impl::engine_t *engine) const {
             using namespace data_type;
             bool inputs_same = src_md(0)->data_type == src_md(1)->data_type;
             dnnl_data_type_t input_type = src_md(0)->data_type;
@@ -128,7 +128,7 @@ struct cudnn_binary_t : public primitive_t {
         std::shared_ptr<cudnn_binary_impl_base_t> binary_impl_;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         // Only single-element scale is supported
         host_scales_ = new float[2];
         if (!host_scales_) return status::out_of_memory;

@@ -39,7 +39,7 @@ struct ref_shuffle_t : public sycl_gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("dpcpp:ref:any", ref_shuffle_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
             const memory_desc_wrapper data_d(src_md(0));
@@ -62,7 +62,7 @@ struct ref_shuffle_t : public sycl_gpu_primitive_t {
         sycl_shuffle_conf_t conf_;
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

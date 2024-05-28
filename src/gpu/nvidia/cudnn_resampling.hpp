@@ -67,7 +67,7 @@ protected:
                 ->buffer();
     }
     template <typename data_t, typename pd_t>
-    status_t prepare_coordinate_grid(engine_t *engine, const pd_t *pd) {
+    status_t prepare_coordinate_grid(impl::engine_t *engine, const pd_t *pd) {
         using io = cudnn_resampling_impl_base_t::io;
         int ndims = pd->resampling_impl_->ndims();
         data_t OW = pd->resampling_impl_->dims_[io::dst][ndims - 1],
@@ -169,7 +169,7 @@ struct cudnn_resampling_fwd_t : public cudnn_resampling_base_t {
         using resampling_fwd_pd_t::resampling_fwd_pd_t;
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_resampling_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace format_tag;
 
@@ -197,7 +197,7 @@ struct cudnn_resampling_fwd_t : public cudnn_resampling_base_t {
         std::shared_ptr<cudnn_resampling_impl_base_t> resampling_impl_;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         status_t status;
         auto wrap = memory_desc_wrapper(pd()->src_md());
         switch (wrap.data_type()) {
@@ -226,7 +226,7 @@ struct cudnn_resampling_bwd_t : public cudnn_resampling_base_t {
         using resampling_bwd_pd_t::resampling_bwd_pd_t;
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_resampling_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace format_tag;
 
@@ -250,7 +250,7 @@ struct cudnn_resampling_bwd_t : public cudnn_resampling_base_t {
         }
         std::shared_ptr<cudnn_resampling_impl_base_t> resampling_impl_;
     };
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return prepare_coordinate_grid<float>(engine, pd());
     }
 

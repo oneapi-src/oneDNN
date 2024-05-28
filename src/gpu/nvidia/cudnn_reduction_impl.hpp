@@ -61,7 +61,8 @@ struct cudnn_reduction_impl_base_t {
 
     virtual status_t init(reduction_pd_t *pd) = 0;
 
-    virtual void create_and_set_workspace(reduction_pd_t *pd, engine_t *engine)
+    virtual void create_and_set_workspace(
+            reduction_pd_t *pd, impl::engine_t *engine)
             = 0;
 
     void execute(cudnnHandle_t handle, void *a, void *c, void *scratch) {
@@ -147,7 +148,7 @@ struct cudnn_reduction_impl_t : public cudnn_reduction_impl_base_t {
     }
 
     void create_and_set_workspace(
-            reduction_pd_t *pd, engine_t *engine) override {
+            reduction_pd_t *pd, impl::engine_t *engine) override {
         auto sycl_engine = utils::downcast<sycl_cuda_engine_t *>(engine);
 
         stream_t *service_stream;

@@ -143,8 +143,9 @@ struct cudnn_inner_product_impl_base_t {
         strides_[io::bia][1] = 1;
         strides_[io::bia][0] = bias_dim;
     }
-    virtual status_t init(engine_t * /*engine*/, inner_product_pd_t * /*pd*/,
-            bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
+    virtual status_t init(impl::engine_t * /*engine*/,
+            inner_product_pd_t * /*pd*/, bool /*with_relu*/,
+            bool /*with_eltwise*/, bool /*with_sum */,
             bool /*using_fused_path_for_blocking*/)
             = 0;
 

@@ -70,7 +70,7 @@ status_t ref_layer_normalization_fwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_layer_normalization_fwd_t::init(engine_t *engine) {
+status_t ref_layer_normalization_fwd_t::init(impl::engine_t *engine) {
     if (pd()->stats_are_src()) {
         const auto kid
                 = ::sycl::get_kernel_id<layer_normalization_fwd_kernel_vec_t>();
@@ -177,7 +177,7 @@ status_t ref_layer_normalization_bwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_layer_normalization_bwd_t::init(engine_t *engine) {
+status_t ref_layer_normalization_bwd_t::init(impl::engine_t *engine) {
     if (pd()->use_scale() || pd()->use_shift()) {
         const auto kid
                 = ::sycl::get_kernel_id<layer_normalization_bwd_kernel_vec_t>();

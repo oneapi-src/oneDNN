@@ -42,7 +42,7 @@ struct ref_pooling_fwd_t : public sycl_gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("dpcpp:ref:any", ref_pooling_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
             using namespace alg_kind;
@@ -78,7 +78,7 @@ struct ref_pooling_fwd_t : public sycl_gpu_primitive_t {
         sycl_pooling_conf_t conf_;
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
@@ -97,7 +97,7 @@ struct ref_pooling_bwd_t : public sycl_gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("dpcpp:ref:any", ref_pooling_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             const memory_desc_wrapper diff_dst_d(diff_dst_md(0));
@@ -128,7 +128,7 @@ struct ref_pooling_bwd_t : public sycl_gpu_primitive_t {
         sycl_pooling_conf_t conf_;
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
     }

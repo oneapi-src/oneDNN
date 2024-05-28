@@ -38,7 +38,7 @@ namespace nvidia {
 struct cudnn_batch_normalization_common_t {
     template <typename pd_t>
     static status_t execute(
-            const exec_ctx_t &ctx, engine_t *engine, const pd_t *pd) {
+            const exec_ctx_t &ctx, impl::engine_t *engine, const pd_t *pd) {
         if (memory_desc_wrapper(pd->src_md()).has_zero_dim())
             return status::success;
         return pd->executor_->execute(ctx, engine, pd->bnorm_impl_);
@@ -67,7 +67,7 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_batch_normalization_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace types;
 
@@ -139,7 +139,7 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_batch_normalization_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace types;
 

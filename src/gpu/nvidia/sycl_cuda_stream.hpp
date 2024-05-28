@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,7 +37,7 @@ public:
     cudnnHandle_t &get_cudnn_handle(CUstream cuda_stream = nullptr);
 
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, unsigned flags) {
+            stream_t **stream, impl::engine_t *engine, unsigned flags) {
         std::unique_ptr<sycl_cuda_stream_t> sycl_stream(
                 new sycl_cuda_stream_t(engine, flags));
         if (!sycl_stream) return status::out_of_memory;
@@ -48,7 +48,7 @@ public:
     }
 
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
+            stream_t **stream, impl::engine_t *engine, ::sycl::queue &queue) {
         unsigned flags;
         CHECK(base_t::init_flags(&flags, queue));
 
@@ -68,9 +68,10 @@ public:
 
 private:
     status_t init();
-    sycl_cuda_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
+    sycl_cuda_stream_t(
+            impl::engine_t *engine, unsigned flags, ::sycl::queue &queue)
         : base_t(engine, flags, queue) {}
-    sycl_cuda_stream_t(engine_t *engine, unsigned flags)
+    sycl_cuda_stream_t(impl::engine_t *engine, unsigned flags)
         : base_t(engine, flags) {}
 };
 

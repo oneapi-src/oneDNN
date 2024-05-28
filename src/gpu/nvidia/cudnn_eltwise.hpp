@@ -36,7 +36,7 @@ struct cudnn_eltwise_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_eltwise_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace alg_kind;
 
             auto sycl_dev
@@ -83,7 +83,7 @@ struct cudnn_eltwise_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_eltwise_bwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(impl::engine_t *) {
             using namespace alg_kind;
             bool ok = !is_fwd()
                     // Supported algorithms

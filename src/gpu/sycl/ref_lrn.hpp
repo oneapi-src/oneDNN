@@ -34,7 +34,7 @@ struct ref_sycl_lrn_fwd_t : public sycl_gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("dpcpp:ref:any", ref_sycl_lrn_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
 
@@ -61,7 +61,7 @@ struct ref_sycl_lrn_fwd_t : public sycl_gpu_primitive_t {
         status_t init_conf();
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
@@ -80,7 +80,7 @@ struct ref_sycl_lrn_bwd_t : public sycl_gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("dpcpp:ref:any", ref_sycl_lrn_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
 
@@ -107,7 +107,7 @@ struct ref_sycl_lrn_bwd_t : public sycl_gpu_primitive_t {
         status_t init_conf();
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
     }

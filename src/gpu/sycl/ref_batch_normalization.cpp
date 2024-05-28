@@ -77,7 +77,7 @@ status_t ref_batch_normalization_fwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_batch_normalization_fwd_t::init(engine_t *engine) {
+status_t ref_batch_normalization_fwd_t::init(impl::engine_t *engine) {
     if (pd()->stats_is_src()) {
         const auto kid
                 = ::sycl::get_kernel_id<batch_normalization_fwd_kernel_vec_t>();
@@ -179,7 +179,7 @@ status_t ref_batch_normalization_bwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_batch_normalization_bwd_t::init(engine_t *engine) {
+status_t ref_batch_normalization_bwd_t::init(impl::engine_t *engine) {
     const auto kid
             = ::sycl::get_kernel_id<batch_normalization_bwd_kernel_vec_t>();
     return create_kernel(engine, kid, &kernel_);

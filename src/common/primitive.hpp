@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ struct primitive_t : public c_compatible {
     }
 
     virtual status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const {
+            impl::engine_t *engine, resource_mapper_t &mapper) const {
         return status::success;
     }
 

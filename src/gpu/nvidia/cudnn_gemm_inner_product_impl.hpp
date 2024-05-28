@@ -76,8 +76,9 @@ struct cudnn_gemm_inner_product_fwd_impl_t
     cudnnTensorDescriptor_t y_acc_desc_;
     bool need_reorder_;
 
-    virtual status_t init(engine_t *, inner_product_pd_t *pd, bool with_relu,
-            bool with_eltwise, bool with_sum, bool need_reorder) override {
+    virtual status_t init(impl::engine_t *, inner_product_pd_t *pd,
+            bool with_relu, bool with_eltwise, bool with_sum,
+            bool need_reorder) override {
         need_reorder_ = need_reorder;
         // GEMM is column major, here the data is row major.
         // By switching the weight and source we convert the row major to
@@ -278,7 +279,7 @@ struct cudnn_gemm_inner_product_bwd_data_impl_t
       public cudnn_conv_filter_adjustment_base_t {
     bool need_reorder_;
 
-    virtual status_t init(engine_t *, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool need_reorder) override {
         need_reorder_ = need_reorder;
@@ -362,7 +363,7 @@ struct cudnn_gemm_inner_product_bwd_weights_impl_t
                 CUDNN_REDUCE_TENSOR_NO_INDICES, CUDNN_32BIT_INDICES);
         return status::success;
     }
-    virtual status_t init(engine_t *engine, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool need_reorder) override {
         need_reorder_ = need_reorder;

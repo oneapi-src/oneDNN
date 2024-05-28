@@ -65,7 +65,7 @@ status_t ref_binary_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_binary_t::init(engine_t *engine) {
+status_t ref_binary_t::init(impl::engine_t *engine) {
     const auto kid = ::sycl::get_kernel_id<binary_kernel_vec_t>();
     CHECK(create_kernel(engine, kid, &kernel_));
     return status::success;

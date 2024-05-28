@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,10 +52,10 @@ protected:
 } // namespace dnnl
 
 #define DECLARE_GPU_REORDER_CREATE() \
-    static status_t create(reorder_pd_t **reorder_pd, engine_t *engine, \
-            const primitive_attr_t *attr, engine_t *src_engine, \
-            const memory_desc_t *src_md, engine_t *dst_engine, \
-            const memory_desc_t *dst_md) { \
+    static status_t create(reorder_pd_t **reorder_pd, \
+            dnnl::impl::engine_t *engine, const primitive_attr_t *attr, \
+            dnnl::impl::engine_t *src_engine, const memory_desc_t *src_md, \
+            dnnl::impl::engine_t *dst_engine, const memory_desc_t *dst_md) { \
         auto _pd = make_unique_pd<pd_t>( \
                 attr, src_engine->kind(), src_md, dst_engine->kind(), dst_md); \
         if (_pd == nullptr) return status::out_of_memory; \
