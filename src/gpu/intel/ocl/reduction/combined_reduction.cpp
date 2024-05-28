@@ -184,52 +184,58 @@ status_t split_into_phases(const reduction_subproblem_t &subprb,
         data_type_t accum_data_type,
         const compute::compute_engine_t *compute_engine,
         std::vector<reduction_phase_conf_t> &phases, bool large_grf_mode) {
-
-    const int subgroup_size
-            = compute_engine->device_info()->max_subgroup_size();
-    const dim_t inner_elems = subprb.inner_block.block;
     const dim_t reduction_elems = subprb.reduction_block.block;
-    const dim_t outer_elems = subprb.outer_block.block;
 
-    const dim_t inner_dim_per_sg
-            = nstl::max(dim_t {1}, subgroup_size / inner_elems);
-    const int num_EU = compute_engine->device_info()->eu_count();
-    const dim_t num_sg_per_red_end
-            = outer_elems * utils::div_up(inner_elems, subgroup_size);
+    //Heuristic:
+    // subsplitting has a high cost due to launching multiple sequential threads,
+    // so only split when parallelism is low and reductions per thread is large
+    reduction_phase_conf_t try_phase(subprb, accum_data_type, accum_data_type,
+            compute_engine, large_grf_mode);
+    const bool low_parallelism = [&compute_engine, &large_grf_mode,
+                                         &try_phase]() {
+        compute::gpu_arch_t arch = compute_engine->device_info()->gpu_arch();
+        int threads_per_EU = large_grf_mode
+                ? 4
+                : compute::device_info_t::threads_per_eu(arch);
+        const int num_EU = compute_engine->device_info()->eu_count();
+        const int min_threads = gpu_utils::dev_getenv(
+                "combined_reduction_occ_thresh", threads_per_EU * num_EU / 2);
+        const int dispatched_threads
+                = gpu_utils::into<int>(try_phase.nd_range.global_range()[0]
+                        / gpu_utils::into<size_t>(try_phase.subgroup_size));
+        return dispatched_threads < min_threads;
+    }();
+    const bool large_reduction = [&try_phase]() {
+        const int slm_red
+                = gpu_utils::into<int>(try_phase.nd_range.local_range()[0]
+                        / gpu_utils::into<size_t>(try_phase.subgroup_size));
+        const dim_t sg_red = nstl::clamp(
+                try_phase.subgroup_size / try_phase.inner_block.block,
+                dim_t {1}, try_phase.reduction_block.block);
+        const dim_t red_per_thread
+                = try_phase.reduction_block.block / slm_red / sg_red;
+        const int red_thresh
+                = gpu_utils::dev_getenv("combined_reduction_split_thresh", 128);
+        return red_per_thread >= red_thresh;
+    }();
+    if (!large_reduction || !low_parallelism) {
+        phases.emplace_back(try_phase);
+        return status::success;
+    }
 
-    //Heuristics:
-    // EU_mult: reduce parallelism to at most num_EU*EU_mult (reduces scheduling overhead?)
-    const int EU_mult = 20;
-    // Target single_phase_threshold horizontal reductions with each phase
-    const int single_phase_threshold = 1024;
-
-    // Estimate the number of phases remaining, and divide it up evenly around this target
-    int N = static_cast<int>(std::ceil(std::log2(reduction_elems)
-            / std::log2(single_phase_threshold * inner_dim_per_sg)));
-    N = std::max(1, N); // N must be positive
-    dim_t reduction_end = static_cast<dim_t>(
-            std::pow(reduction_elems, 1.0f - 1.0f / static_cast<float>(N)));
-
-    // Reduce parallelism and finalize reduction_end
-    reduction_end = nstl::clamp(
-            num_EU * EU_mult / num_sg_per_red_end, dim_t {1}, reduction_end);
+    // Split into 2 phases
+    dim_t reduction_end = static_cast<dim_t>(std::sqrt(reduction_elems));
     reduction_end = get_previous_factor(reduction_elems, reduction_end);
 
-    // Create the phase and recursively enter
-    dim_t reduction_size = reduction_elems / reduction_end;
-
-    if (reduction_end == 1) {
-        phases.emplace_back(subprb, accum_data_type, accum_data_type,
+    auto subdivided
+            = subdivide_subproblem(subprb, reduction_elems / reduction_end);
+    phases.emplace_back(subdivided[0], accum_data_type, accum_data_type,
+            compute_engine, large_grf_mode);
+    if (reduction_end > 1) {
+        phases.emplace_back(subdivided[1], accum_data_type, accum_data_type,
                 compute_engine, large_grf_mode);
-        return status::success;
-    } else {
-        // Subdivide the subproblem by reducing by reduction_size first
-        auto subdivided = subdivide_subproblem(subprb, reduction_size);
-        phases.emplace_back(subdivided[0], accum_data_type, accum_data_type,
-                compute_engine, large_grf_mode);
-        return split_into_phases(subdivided[1], accum_data_type, compute_engine,
-                phases, large_grf_mode);
     }
+    return status::success;
 }
 
 status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
