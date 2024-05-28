@@ -18,6 +18,7 @@
 #define COMMON_ENGINE_IMPL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/engine_id.hpp"
 #include "common/utils.hpp"
 
 #ifdef ONEDNN_BUILD_GRAPH
@@ -46,6 +47,12 @@ public:
     engine_kind_t kind() const { return kind_; }
     runtime_kind_t runtime_kind() const { return runtime_kind_; }
     size_t index() const { return index_; }
+
+    virtual engine_id_t engine_id() const {
+        // Used for non-sycl CPU engine onlt that doesn't have device and
+        // context.
+        return {};
+    }
 
 #ifdef ONEDNN_BUILD_GRAPH
     void *get_allocator() const { return (void *)(&allocator_); };

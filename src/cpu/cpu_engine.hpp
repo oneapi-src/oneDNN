@@ -152,11 +152,6 @@ public:
 
     device_id_t device_id() const override { return std::make_tuple(0, 0, 0); }
 
-    engine_id_t engine_id() const override {
-        // Non-sycl CPU engine doesn't have device and context.
-        return {};
-    }
-
 protected:
     ~cpu_engine_t() override = default;
 };

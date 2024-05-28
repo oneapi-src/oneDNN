@@ -22,6 +22,7 @@
 
 #include "xpu/ocl/utils.hpp"
 #include "xpu/sycl/compat.hpp"
+#include "xpu/sycl/engine_id.hpp"
 #include "xpu/sycl/utils.hpp"
 
 namespace dnnl {
@@ -61,6 +62,11 @@ public:
     backend_t backend() const { return backend_; }
 
     device_id_t device_id() const { return xpu::sycl::device_id(device_); }
+
+    engine_id_t engine_id() const override {
+        return engine_id_t(new xpu::sycl::engine_id_impl_t(
+                device(), context(), kind(), runtime_kind(), index()));
+    }
 
 private:
     ::sycl::device device_;

@@ -65,7 +65,9 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
     virtual dnnl::impl::device_id_t device_id() const = 0;
 
-    virtual dnnl::impl::engine_id_t engine_id() const = 0;
+    virtual dnnl::impl::engine_id_t engine_id() const {
+        return impl()->engine_id();
+    }
 
     /** create memory storage */
     virtual dnnl::impl::status_t create_memory_storage(

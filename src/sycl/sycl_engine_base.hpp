@@ -29,7 +29,6 @@
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
 #include "xpu/ocl/utils.hpp"
-#include "xpu/sycl/engine_id.hpp"
 #include "xpu/sycl/engine_impl.hpp"
 
 namespace dnnl {
@@ -181,11 +180,6 @@ public:
     }
 
     device_id_t device_id() const override { return impl()->device_id(); }
-
-    engine_id_t engine_id() const override {
-        return engine_id_t(new xpu::sycl::engine_id_impl_t(
-                device(), context(), kind(), runtime_kind(), index()));
-    }
 
 protected:
     const xpu::sycl::engine_impl_t *impl() const {

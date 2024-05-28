@@ -21,7 +21,6 @@
 #include "common/utils.hpp"
 #include "gpu/gpu_impl_list.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"
-#include "gpu/intel/ocl/ocl_gpu_engine_id.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "xpu/ocl/engine_impl.hpp"
 #include "xpu/utils.hpp"
@@ -107,11 +106,6 @@ public:
 
     status_t get_cache_blob(size_t size, uint8_t *cache_blob) const {
         return device_info_->get_cache_blob(size, cache_blob);
-    }
-
-    engine_id_t engine_id() const override {
-        return engine_id_t(new ocl_gpu_engine_id_impl_t(
-                device(), context(), kind(), runtime_kind(), index()));
     }
 
 protected:
