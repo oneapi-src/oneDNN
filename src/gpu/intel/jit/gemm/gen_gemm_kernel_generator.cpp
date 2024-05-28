@@ -21834,7 +21834,9 @@ void gemm_kernel_generator_t<hw>::gemmMicrokernel(GEMMProblem problem,
     strategy.forceWGUpdate = WGFixed;
 
     state.isNested = true;
-    state.ra.claim(r0 - r6); /* Leave some space for host kernel arguments */
+
+    /* Leave some space for host kernel arguments */
+    state.ra.claim((GRF::bytes(hw) >= 64) ? r0 - r6 : r0 - r8);
 
     state.fullK = state.inputs.k;
 
