@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Arm Ltd. and affiliates
+* Copyright 2021-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ struct acl_ip_conf_t {
     bool with_bias;
     // If this is true, the result of the inner product goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
-    bool use_dst_acc;
+    bool use_dst_acc_for_sum;
     arm_compute::TensorInfo src_tensor_info;
     arm_compute::TensorInfo wei_tensor_info;
     arm_compute::TensorInfo bia_tensor_info;
@@ -118,6 +118,13 @@ struct acl_inner_product_fwd_t : public primitive_t {
 
             CHECK(init_conf_ip(engine, weights_format_kind_received));
 
+            if (aip.use_dst_acc_for_sum) {
+                const memory_desc_wrapper dst_d(&dst_md_);
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.book(memory_tracking::names::key_none,
+                        dst_d.nelems(), dst_d.data_type_size());
+            }
+
             return status::success;
         }
 
@@ -185,7 +192,7 @@ struct acl_inner_product_fwd_t : public primitive_t {
 
             CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_,
                     aip.fc_info.activation_info));
-            aip.use_dst_acc = post_ops.has_sum();
+            aip.use_dst_acc_for_sum = post_ops.has_sum();
 
             // WeightFormat::ANY tells ACL we can handle any format
             aip.weights_info = arm_compute::WeightsInfo(false, 1, 1, ic_total,

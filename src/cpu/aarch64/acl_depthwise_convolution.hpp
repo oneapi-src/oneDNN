@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Arm Ltd. and affiliates
+* Copyright 2023-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,7 +94,14 @@ struct acl_depthwise_convolution_fwd_t : public primitive_t {
 
             CHECK(post_ops.init(
                     engine, attr_.post_ops_, dst_md_, acp_.act_info));
-            acp_.use_dst_acc = post_ops.has_sum();
+            acp_.use_dst_acc_for_sum = post_ops.has_sum();
+
+            if (acp_.use_dst_acc_for_sum) {
+                const memory_desc_wrapper dst_d(&dst_md_);
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.book(memory_tracking::names::key_none,
+                        dst_d.nelems(), dst_d.data_type_size());
+            }
 
             return status::success;
         }

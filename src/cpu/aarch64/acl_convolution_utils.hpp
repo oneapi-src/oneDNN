@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Arm Ltd. and affiliates
+* Copyright 2020-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ struct acl_conv_conf_t {
     bool fast_math;
     // If this is true, the result of the convolution goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
-    bool use_dst_acc;
+    bool use_dst_acc_for_sum;
     // Tells that the selected algorithm is Winograd. This is needed because the
     // algorithm can be set to algorithm::convolution_auto and later on we need to
     // skip fixed-format protocol as ACL Winograd does not support it.
@@ -87,7 +87,7 @@ template <typename conv_obj_t, typename conv_pd_t, typename src_data_t,
 status_t execute_forward_conv_acl(
         const exec_ctx_t &ctx, conv_obj_t &acl_conv_obj, const conv_pd_t *pd) {
     bool with_bias = pd->acp_.with_bias;
-    bool use_dst_acc = pd->acp_.use_dst_acc;
+    bool use_dst_acc_for_sum = pd->acp_.use_dst_acc_for_sum;
 
     auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -99,14 +99,14 @@ status_t execute_forward_conv_acl(
     acl_conv_obj.wei_tensor.allocator()->import_memory(
             const_cast<wei_data_t *>(wei_base));
 
-    if (use_dst_acc) {
-        // Put the result in a new tensor, it will be accumalated to the dst
-        // during the post ops
-        acl_conv_obj.dst_tensor.allocator()->allocate();
-    } else {
-        auto dst_base = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
-        acl_conv_obj.dst_tensor.allocator()->import_memory(dst_base);
-    }
+    const auto scratchpad = ctx.get_scratchpad_grantor();
+
+    // If we have an unfused sum post op, put the result in a scratchpad tensor.
+    // Result will be summed to the dst during acl_post_ops.execute
+    auto dst_base = use_dst_acc_for_sum
+            ? scratchpad.get<void>(memory_tracking::names::key_none)
+            : CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    acl_conv_obj.dst_tensor.allocator()->import_memory(dst_base);
 
     if (with_bias) {
         auto bia_base = CTX_IN_MEM(const bia_data_t *, DNNL_ARG_BIAS);
