@@ -23,13 +23,21 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#if defined(DNNL_X64) && DNNL_X64 == 1 \
-        && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
+#if (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+
+#if defined(DNNL_X64) && DNNL_X64 == 1
 #include "src/cpu/x64/brgemm/brgemm.hpp"
-#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1 \
-        && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
+#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
 #include "src/cpu/aarch64/brgemm/brgemm.hpp"
 #endif
+
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+
+#include "oneapi/dnnl/dnnl_ukernel.h"
+
+#endif // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+#endif // (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
 
 #include "common.hpp"
 #include "dnnl_common.hpp"
