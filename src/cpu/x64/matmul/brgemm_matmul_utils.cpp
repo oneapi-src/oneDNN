@@ -1566,7 +1566,9 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
     conf.transposed_B = false;
     conf.s8s8_comp_b_str = utils::rnd_up(conf.N, conf.wei_n_blk);
     conf.s8s8_comp_n_str = conf.wei_n_blk;
-    conf.isa = is_f16 ? avx512_core_fp16 : avx512_core;
+    conf.isa = is_f16              ? avx512_core_fp16
+            : mayiuse(avx512_core) ? avx512_core
+                                   : avx2;
     // The following members are different from the upper level `init_conf()`
     // call from the reorder implementation due to lacking a memory descriptor
     // to tip on compensation.
