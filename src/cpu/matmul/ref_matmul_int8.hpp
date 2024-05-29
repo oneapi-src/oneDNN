@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,9 +73,11 @@ struct ref_matmul_int8_t : public primitive_t {
             attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
             attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
 
-            return (mask_src == 0 || (ndims() == 2 && mask_src == 1 << 1))
-                    && (mask_wei == 0)
-                    && (mask_dst == 0 || (ndims() == 2 && mask_dst == 1 << 1));
+            bool mask_src_ok = utils::one_of(mask_src, 0, wei_qmask_N());
+            bool mask_wei_ok = utils::one_of(mask_wei, 0);
+            bool mask_dst_ok = utils::one_of(mask_dst, 0, wei_qmask_N());
+
+            return mask_src_ok && mask_wei_ok && mask_dst_ok;
         }
     };
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,6 +70,8 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t K = helper.K();
     const dim_t batch = helper.batch();
 
+    const auto &attr_zps = pd()->attr()->zero_points_;
+
     const int src_mask
             = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
     const int wei_mask
@@ -78,10 +80,8 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
             = utils::get_dims_mask(dst_d.dims(), bia_d.dims(), ndims);
 
     // zp_idx_mult = 1 for per_dim1 zero points and 0, otherwise
-    const int src_zp_idx_mult
-            = !pd()->attr()->zero_points_.common(DNNL_ARG_SRC);
-    const int dst_zp_idx_mult
-            = !pd()->attr()->zero_points_.common(DNNL_ARG_DST);
+    const int src_zp_idx_mult = !attr_zps.common(DNNL_ARG_SRC);
+    const int dst_zp_idx_mult = !attr_zps.common(DNNL_ARG_DST);
 
     // mm kernel
     auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {

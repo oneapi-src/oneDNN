@@ -53,10 +53,12 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     // Matmul supports scales for floating point data types
     attr_mask |= smask_t::scales_runtime;
 
-    const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8);
-    if (is_int8) attr_mask |= smask_t::zero_points_runtime;
+    const bool src_is_int8
+            = utils::one_of(src_dt, data_type::s8, data_type::u8);
+    if (src_is_int8) attr_mask |= smask_t::zero_points_runtime;
 
-    // Matmul supports zero points for floating point data types as part of weights decompression
+    // Matmul supports zero points for floating point data types as part of
+    // weights decompression.
     const bool wei_is_int = utils::one_of(
             wei_dt, data_type::s8, data_type::u8, data_type::s4, data_type::u4);
     if (!is_int8 && wei_is_int) {
@@ -129,7 +131,8 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
                 VERBOSE_UNSUPPORTED_POSTOP);
 
         // Check sum
-        VCHECK_MATMUL_UNIMPL(po.check_sum_consistency(dst_dt, is_int8, true),
+        VCHECK_MATMUL_UNIMPL(
+                po.check_sum_consistency(dst_dt, src_is_int8, true),
                 VERBOSE_UNSUPPORTED_POSTOP);
     }
 

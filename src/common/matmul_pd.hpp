@@ -149,11 +149,15 @@ struct matmul_pd_t : public primitive_desc_t {
 
     virtual bool attr_scales_ok(const std::vector<int> &supported_args
             = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
+        if (attr()->scales_.has_default_values()) return true;
+
         bool ok = attr()->scales_.has_default_values(supported_args);
         for (int arg : supported_args) {
-            const auto &mask = attr()->scales_.get(arg).mask_;
+            const auto &sc = attr()->scales_.get(arg);
+            const auto &mask = sc.mask_;
+            if (sc.has_default_values()) { continue; }
+
             if (arg == DNNL_ARG_WEIGHTS) {
-                const auto &sc = attr()->scales_.get(arg);
                 ok = ok
                         && utils::one_of(mask, 0, wei_qmask_N(),
                                 wei_qmask_K() + wei_qmask_N());

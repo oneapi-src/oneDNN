@@ -195,13 +195,7 @@ struct runtime_scales_t : public c_compatible {
         return *this;
     }
 
-    status_t set(int mask) {
-        mask_ = mask;
-        is_set_ = true;
-        ndims_ = 0;
-        data_type_ = data_type::f32;
-        return status::success;
-    }
+    status_t set(int mask) { return set(0, mask, {}, data_type::f32); }
 
     status_t set(int ndims, int mask, const dims_t group_dims,
             data_type_t data_type = data_type::f32) {
@@ -281,8 +275,7 @@ struct arg_scales_t : public c_compatible {
     }
 
     status_t set(int arg, int mask) {
-        if (!check_arg(arg)) return status::invalid_arguments;
-        return scales_[arg].set(mask);
+        return set(arg, mask, 0, {}, data_type::f32);
     }
 
     status_t set(int arg, int mask, int ndims, const dims_t group_dims,
