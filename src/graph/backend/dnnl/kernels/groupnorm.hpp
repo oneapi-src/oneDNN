@@ -90,13 +90,14 @@ public:
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_predecessor);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_mul_sigmoid_to_swish);
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
+        BACKEND_DNNL_ADD_PASS(pipeline, replace_quant_data_with_binary_post_op);
 
         // broadcast and swap should be before fuse_post_ops
         BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
         BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
 
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_ops);
-        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
         BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
         BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);

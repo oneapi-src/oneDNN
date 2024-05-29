@@ -228,7 +228,7 @@ TEST(test_group_norm_execute, GroupnormSwishTypecastQuant) {
     graph::op_t typecast(3, graph::op_kind::TypeCast, "typecast");
     graph::op_t quantize(4, graph::op_kind::Quantize, "quantize");
     quantize.set_attr<std::vector<float>>(graph::op_attr::scales, {0.1f});
-    quantize.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {0});
+    quantize.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {9});
     quantize.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
 
     std::vector<int64_t> groupnorm_shape {2, 3, 2, 2};
