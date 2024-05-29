@@ -21,6 +21,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/thread_local_storage.hpp"
+
+#include "xpu/ocl/stream_impl.hpp"
+
 #include "gpu/intel/compute/compute_stream.hpp"
 #include "gpu/intel/compute/stream_profiler.hpp"
 #include "gpu/intel/ocl/mdapi_utils.hpp"
@@ -127,9 +130,9 @@ struct ocl_stream_t : public compute::compute_stream_t {
 
 private:
     ocl_stream_t(engine_t *engine, unsigned flags)
-        : compute_stream_t(engine, flags), queue_(nullptr) {}
+        : compute_stream_t(engine, new xpu::ocl::stream_impl_t(flags)) {}
     ocl_stream_t(engine_t *engine, unsigned flags, cl_command_queue queue)
-        : compute_stream_t(engine, flags), queue_(queue) {}
+        : compute_stream_t(engine, new xpu::ocl::stream_impl_t(queue, flags)) {}
     status_t init();
 
     static status_t init_flags(unsigned *flags, cl_command_queue queue) {

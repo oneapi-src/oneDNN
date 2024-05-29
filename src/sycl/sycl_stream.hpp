@@ -29,6 +29,7 @@
 #include "sycl/stream_profiler.hpp"
 #include "sycl/sycl_context.hpp"
 #include "xpu/sycl/memory_storage.hpp"
+#include "xpu/sycl/stream_impl.hpp"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
 #include "sycl/sycl_stream_cpu_thunk.hpp"
@@ -76,7 +77,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
     }
 
     status_t wait() override {
-        queue_->wait_and_throw();
+        queue().wait_and_throw();
         return status::success;
     }
 
@@ -103,7 +104,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
         return *profiler_;
     }
 
-    ::sycl::queue &queue() { return *queue_; }
+    ::sycl::queue &queue() const { return *impl()->queue(); }
 
     status_t enqueue_primitive(const primitive_iface_t *prim_iface,
             exec_ctx_t &exec_ctx) override {
@@ -112,7 +113,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
             if (engine()->kind() == engine_kind::cpu) {
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-                auto event = queue_->submit([&](::sycl::handler &cgh) {
+                auto event = queue().submit([&](::sycl::handler &cgh) {
                     register_deps(cgh);
                     submit_cpu_primitive(this, prim_iface, exec_ctx, cgh);
                 });
@@ -178,7 +179,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
             auto *usm_dst
                     = utils::downcast<const xpu::sycl::usm_memory_storage_t *>(
                             &dst);
-            e = queue_->submit([&](::sycl::handler &cgh) {
+            e = queue().submit([&](::sycl::handler &cgh) {
                 cgh.depends_on(sycl_event_t::from(deps).events);
                 cgh.memcpy(usm_dst->usm_ptr(), usm_src->usm_ptr(), size);
             });
@@ -189,7 +190,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
             auto *buffer_dst = utils::downcast<
                     const xpu::sycl::buffer_memory_storage_t *>(&dst);
             auto &b_dst = buffer_dst->buffer();
-            e = queue_->submit([&](::sycl::handler &cgh) {
+            e = queue().submit([&](::sycl::handler &cgh) {
                 cgh.depends_on(sycl_event_t::from(deps).events);
                 auto acc_dst
                         = b_dst.get_access<::sycl::access::mode::write>(cgh);
@@ -202,7 +203,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
             auto *usm_dst
                     = utils::downcast<const xpu::sycl::usm_memory_storage_t *>(
                             &dst);
-            e = queue_->submit([&](::sycl::handler &cgh) {
+            e = queue().submit([&](::sycl::handler &cgh) {
                 cgh.depends_on(sycl_event_t::from(deps).events);
                 auto acc_src
                         = b_src.get_access<::sycl::access::mode::read>(cgh);
@@ -216,7 +217,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
                     const xpu::sycl::buffer_memory_storage_t *>(&dst);
             auto &b_src = buffer_src->buffer();
             auto &b_dst = buffer_dst->buffer();
-            e = queue_->submit([&](::sycl::handler &cgh) {
+            e = queue().submit([&](::sycl::handler &cgh) {
                 auto acc_src
                         = b_src.get_access<::sycl::access::mode::read>(cgh);
                 auto acc_dst
@@ -254,14 +255,14 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
             auto dst_ptr = static_cast<uint8_t *>(usm_dst->usm_ptr());
             // Note: we cannot use queue_.fill since it cannot handle
             // events as input
-            out_event = queue_->submit([&](::sycl::handler &cgh) {
+            out_event = queue().submit([&](::sycl::handler &cgh) {
                 cgh.depends_on(sycl_event_t::from(deps).events);
                 cgh.memset(dst_ptr, pattern, size);
             });
         } else {
             auto *buffer_dst = utils::downcast<
                     const xpu::sycl::buffer_memory_storage_t *>(&dst);
-            out_event = queue_->submit([&](::sycl::handler &cgh) {
+            out_event = queue().submit([&](::sycl::handler &cgh) {
                 // need a u8 accessor to get the proper range
                 ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write,
                         xpu::sycl::compat::target_device>
@@ -304,7 +305,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
         // Otherwise, we run a trivial kernel to gather all deps. The
         // dummy task is needed to not get an error related to empty
         // kernel.
-        auto e = queue_->submit([&](::sycl::handler &cgh) {
+        auto e = queue().submit([&](::sycl::handler &cgh) {
             register_deps(cgh);
             cgh.single_task<class dnnl_dummy_kernel>([]() {});
         });
@@ -321,11 +322,16 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
     }
 
 protected:
+    xpu::sycl::stream_impl_t *impl() const {
+        return (xpu::sycl::stream_impl_t *)stream_t::impl_.get();
+    }
+
     sycl_stream_t(engine_t *engine, unsigned flags)
-        : gpu::intel::compute::compute_stream_t(engine, flags) {}
+        : gpu::intel::compute::compute_stream_t(
+                engine, new xpu::sycl::stream_impl_t(flags)) {}
     sycl_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
-        : gpu::intel::compute::compute_stream_t(engine, flags)
-        , queue_(new ::sycl::queue(queue)) {}
+        : gpu::intel::compute::compute_stream_t(
+                engine, new xpu::sycl::stream_impl_t(queue, flags)) {}
 
     static status_t init_flags(unsigned *flags, ::sycl::queue &queue) {
         *flags = queue.is_in_order() ? stream_flags::in_order
@@ -338,7 +344,6 @@ protected:
         return status::success;
     }
 
-    std::unique_ptr<::sycl::queue> queue_;
     std::unique_ptr<gpu::intel::compute::stream_profiler_t> profiler_;
     mutable utils::thread_local_storage_t<sycl_context_t> ctx_;
 

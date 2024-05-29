@@ -44,17 +44,17 @@ cudnnHandle_t &sycl_cuda_stream_t::get_cudnn_handle(CUstream cuda_stream) {
 }
 // the sycl_cuda_stream_t will not own this. it is an observer pointer
 CUstream sycl_cuda_stream_t::get_underlying_stream() {
-    return compat::get_native<CUstream>(*queue_);
+    return compat::get_native<CUstream>(queue());
 }
 
 // the sycl_cuda_stream_t will not own this. it is an observer pointer
 CUcontext sycl_cuda_stream_t::get_underlying_context() {
-    return compat::get_native<CUcontext>(queue_->get_device());
+    return compat::get_native<CUcontext>(queue().get_device());
 }
 
 // the sycl_cuda_stream_t will not own this. it is an observer pointer
 CUdevice sycl_cuda_stream_t::get_underlying_device() {
-    return compat::get_native<CUdevice>(queue_->get_device());
+    return compat::get_native<CUdevice>(queue().get_device());
 }
 
 status_t sycl_cuda_stream_t::init() {
@@ -70,13 +70,13 @@ status_t sycl_cuda_stream_t::init() {
     auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine());
     auto status = status::success;
 
-    if (!queue_) {
+    if (impl()->queue()) {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
         ::sycl::property_list prop_list;
         if (flags() & stream_flags::in_order)
             prop_list = {::sycl::property::queue::in_order {}};
-        queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev, prop_list));
+        impl()->set_queue(::sycl::queue(sycl_ctx, sycl_dev, prop_list));
     } else {
         auto sycl_dev = queue().get_device();
         bool args_ok
