@@ -172,7 +172,6 @@ TEST(test_mqa_decomp_execute, Bf16MqaDecomp_CPU) {
 // Test multiple thread execute
 TEST(test_mqa_decomp_execute, MultithreaMqaDecomp_CPU) {
     graph::engine_t *eng = get_engine();
-    graph::stream_t *strm = get_stream();
 
     SKIP_IF(eng->kind() == graph::engine_kind::gpu,
             "Skip for GPU - not supported yet.");
@@ -221,6 +220,8 @@ TEST(test_mqa_decomp_execute, MultithreaMqaDecomp_CPU) {
     }
 
     auto func = [&]() {
+        graph::stream_t *strm;
+        dnnl_stream_create(&strm, eng, dnnl_stream_in_order);
         std::vector<test_tensor> outputs_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;

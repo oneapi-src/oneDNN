@@ -50,7 +50,7 @@ struct kernel_t : public jit_uni_group_normalization_fwd_t::kernel_base_t,
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_group_normalization_fwd_t::kernel_t);
 
     kernel_t(const group_normalization_pd_t *pd)
-        : jit_generator(jit_name())
+        : jit_generator(jit_name(), isa)
         , src_d_(pd->src_md())
         , dst_d_(pd->dst_md())
         , C_(pd->src_md()->dims[1])

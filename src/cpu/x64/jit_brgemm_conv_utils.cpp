@@ -484,6 +484,11 @@ void brg_blocking_t::select_ic_block() {
                 static_cast<int>((L2 - out_size)
                         / ((wei_per_ic + inp_per_ic) * simd_w)));
 
+        // use nb_simd as max_simd_blocks for some shapes on avx2
+        // TODO: optimize max_simd_blocks
+        if (isa == avx2 && nb_simd <= 256 && (wei_per_ic + inp_per_ic < 1400))
+            max_simd_blocks = nb_simd;
+
         auto simd_blocks = 1;
         for (int nb_icb = nstl::min(max_simd_blocks, nb_simd); nb_icb >= 1;
                 nb_icb--) {
@@ -2172,19 +2177,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         // TODO: remove this restriction
         const auto iw_block = (jcp.ow_block - 1) * jcp.stride_w + 1;
         if (!must_exec_vpad && (iw_block > jcp.iw)) try_exec_type_res = false;
-
-        const dim_t work_amount = static_cast<dim_t>(jcp.mb) * jcp.ngroups
-                * jcp.nb_oc * jcp.nb_od * jcp.nb_oh * jcp.nb_ow;
-        const dim_t thr_work_amount = static_cast<dim_t>(jcp.oc_block) * jcp.ic
-                * jcp.od_block * jcp.oh_block * jcp.ow_block;
-        // Disable exec_vpad for large shapes on avx2 for better performance
-        // the threshold is approximate and empiric
-        if (!must_exec_vpad && jcp.isa == avx2
-                && work_amount >= static_cast<dim_t>(jcp.nthr) * 8
-                && jcp.ic >= 512 && jcp.oc >= 256
-                && thr_work_amount > 2 * brg_blocking_t::L1
-                && jcp.prop_kind == prop_kind::forward)
-            try_exec_type_res = false;
     }
     if (try_exec_base && try_exec_type_res == false) {
         jcp.exec_type = exec_base;
@@ -2215,28 +2207,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     VDISPATCH_CONV_IC(
             !(jcp.ow_block == 0 || jcp.ic_block == 0 || jcp.oc_block == 0),
             VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
-
-    // Dispatch the shape that requires large or small cache to JIT
-    // for better performance on AVX2
-    // The threshold is empirical
-    const size_t w_cache_sz
-            = static_cast<size_t>(jcp.src_dsz) * jcp.ic_block * jcp.iwp
-            + jcp.dst_dsz * jcp.ow * jcp.oc_block;
-    const size_t wei_cache_sz = static_cast<size_t>(jcp.wei_dsz) * jcp.kd_block
-            * jcp.kh_block * jcp.kw_block * jcp.ic_block * jcp.oc_block;
-    const size_t nthr_work_amount
-            = div_up(static_cast<size_t>(jcp.mb) * jcp.ngroups * jcp.nb_od
-                            * jcp.nb_oh * jcp.nb_ow * jcp.nb_oc,
-                    jcp.nthr);
-    const bool req_large_cache = jcp.oc >= 256 && jcp.ic >= 256
-            && nstl::max(w_cache_sz, wei_cache_sz) * nthr_work_amount
-                    >= brg_blocking_t::L2 * 10;
-    const bool req_small_cache = jcp.ic <= jcp.acc_simd_w
-            && nstl::max(w_cache_sz, wei_cache_sz) <= 2048;
-    VDISPATCH_CONV_IC(
-            !((req_large_cache || req_small_cache) && jcp.isa == avx2),
-            VERBOSE_IMPL_HEURISTIC_FAIL,
-            "Dispatch the shape that requires large/small cache size to jit");
 
     // Dispatch the shape to VNNI for better performance on AMX
     const bool is_int8_small_ic = jcp.oc == 32 && jcp.ic < jcp.simd_w / 2
@@ -2458,28 +2428,6 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     VDISPATCH_CONV_IC(!(jcp.ic_block == 0 || jcp.oc_block == 0),
             VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
-
-    // Dispatch the shape that requires large or small cache to JIT
-    // for better performance on AVX2
-    // The threshold is empirical
-    const size_t w_cache_sz
-            = static_cast<size_t>(jcp.src_dsz) * jcp.ic_block * jcp.iwp
-            + jcp.dst_dsz * jcp.ow * jcp.oc_block;
-    const size_t wei_cache_sz = static_cast<size_t>(jcp.wei_dsz) * jcp.kd_block
-            * jcp.kh_block * jcp.kw_block * jcp.ic_block * jcp.oc_block;
-    const size_t nthr_work_amount
-            = div_up(static_cast<size_t>(jcp.mb) * jcp.ngroups * jcp.nb_od
-                            * jcp.nb_oh * jcp.nb_ow * jcp.nb_oc,
-                    jcp.nthr);
-    const bool req_large_cache = jcp.oc >= 256 && jcp.ic >= 256
-            && nstl::max(w_cache_sz, wei_cache_sz) * nthr_work_amount
-                    >= brg_blocking_t::L2 * 10;
-    const bool req_small_cache = jcp.ic <= jcp.acc_simd_w
-            && nstl::max(w_cache_sz, wei_cache_sz) <= 2048;
-    VDISPATCH_CONV_IC(
-            !((req_large_cache || req_small_cache) && jcp.isa == avx2),
-            VERBOSE_IMPL_HEURISTIC_FAIL,
-            "Dispatch the shapes that requie large cache size to jit");
 
     // Configure matrix sizes
 

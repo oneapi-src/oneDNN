@@ -44,8 +44,9 @@ struct jit_args_t {
 };
 
 struct jit_uni_eltwise_kernel : public jit_generator {
-    jit_uni_eltwise_kernel(const eltwise_pd_t *pd, const char *name)
-        : jit_generator(name), pd_(pd) {}
+    jit_uni_eltwise_kernel(
+            const eltwise_pd_t *pd, const char *name, cpu_isa_t isa)
+        : jit_generator(name, isa), pd_(pd) {}
 
     void operator()(jit_args_t *p) { jit_generator::operator()(p); }
 
@@ -79,7 +80,7 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_kernel)
 
     jit_uni_kernel_t(const eltwise_pd_t *pd)
-        : jit_uni_eltwise_kernel(pd, jit_name())
+        : jit_uni_eltwise_kernel(pd, jit_name(), isa)
         , vlen_(is_bf16() || is_f16() ? cpu_isa_traits<isa>::vlen / 2
                           : is_f8()   ? cpu_isa_traits<isa>::vlen / 4
                                       : cpu_isa_traits<isa>::vlen)
