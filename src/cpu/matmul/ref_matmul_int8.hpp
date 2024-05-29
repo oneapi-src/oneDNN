@@ -74,7 +74,8 @@ struct ref_matmul_int8_t : public primitive_t {
             attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
 
             bool mask_src_ok = utils::one_of(mask_src, 0, wei_qmask_N());
-            bool mask_wei_ok = utils::one_of(mask_wei, 0);
+            bool mask_wei_ok = utils::one_of(
+                    mask_wei, 0, wei_qmask_N(), wei_qmask_K() + wei_qmask_N());
             bool mask_dst_ok = utils::one_of(mask_dst, 0, wei_qmask_N());
 
             return mask_src_ok && mask_wei_ok && mask_dst_ok;
