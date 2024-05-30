@@ -79,7 +79,12 @@ status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
         VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_set_postops failed");
     }
 
-    VCHECK_BRGEMM(batch_size > 0, "batch size is non-positive");
+    if (batch_size <= 0) {
+        delete _brgemm;
+        VCHECK_BRGEMM_STATUS(
+                status::invalid_arguments, false, "batch size is non-positive");
+    }
+
     brgemm_attr_t brgemm_attr;
     brgemm_attr.max_bs = batch_size;
     if (mayiuse(avx512_core_amx)) {
