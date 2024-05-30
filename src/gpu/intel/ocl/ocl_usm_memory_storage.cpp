@@ -53,15 +53,14 @@ status_t ocl_usm_memory_storage_t::map_data(
     leak_guard.release();
 
     auto *usm_ptr_for_unmap = usm_ptr();
-    auto unmap_callback
-            = [size, usm_ptr_for_unmap](
-                      impl::stream_t *stream, void *mapped_ptr) {
-                  CHECK(usm::memcpy(stream, usm_ptr_for_unmap, mapped_ptr, size,
-                          0, nullptr, nullptr));
-                  CHECK(stream->wait());
-                  usm::free(stream->engine(), mapped_ptr);
-                  return status::success;
-              };
+    auto unmap_callback = [size, usm_ptr_for_unmap](
+                                  impl::stream_t *stream, void *mapped_ptr) {
+        CHECK(usm::memcpy(stream, usm_ptr_for_unmap, mapped_ptr, size, 0,
+                nullptr, nullptr));
+        CHECK(stream->wait());
+        usm::free(stream->engine(), mapped_ptr);
+        return status::success;
+    };
 
     auto &map_manager = memory_map_manager_t<map_usm_tag>::instance();
 

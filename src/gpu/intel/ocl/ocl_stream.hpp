@@ -121,11 +121,6 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return deps[0];
     }
 
-    const xpu::stream_profiler_t &profiler() const override {
-        return *profiler_;
-    }
-    xpu::stream_profiler_t &profiler() override { return *profiler_; }
-
 private:
     ocl_stream_t(engine_t *engine, unsigned flags)
         : compute_stream_t(engine, new xpu::ocl::stream_impl_t(flags)) {}
@@ -156,7 +151,6 @@ private:
 
     cl_command_queue queue_;
     std::unique_ptr<mdapi_helper_t> mdapi_helper_;
-    std::unique_ptr<xpu::stream_profiler_t> profiler_;
     mutable utils::thread_local_storage_t<ocl_context_t> ctx_;
 };
 

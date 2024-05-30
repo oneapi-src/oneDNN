@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,39 +14,42 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_COMPUTE_COMPUTE_STREAM_HPP
-#define GPU_INTEL_COMPUTE_COMPUTE_STREAM_HPP
+#ifndef GPU_GPU_STREAM_HPP
+#define GPU_GPU_STREAM_HPP
+
+#include "common/memory_storage.hpp"
+#include "common/stream.hpp"
 
 #include "xpu/context.hpp"
 #include "xpu/stream_profiler.hpp"
 
-#include "gpu/gpu_stream.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace intel {
-namespace compute {
 
-class nd_range_t;
-class kernel_arg_list_t;
-
-class compute_stream_t : public gpu::stream_t {
+class stream_t : public impl::stream_t {
 public:
-    using stream_t::stream_t;
+    using dnnl::impl::stream_t::stream_t;
 
-    status_t notify_profiling_complete() const override;
+    virtual status_t copy(const memory_storage_t &src,
+            const memory_storage_t &dst, size_t size, const xpu::event_t &dep,
+            xpu::event_t &out_dep)
+            = 0;
+    virtual status_t fill(const memory_storage_t &dst, uint8_t pattern,
+            size_t size, const xpu::event_t &deps, xpu::event_t &out_dep)
+            = 0;
+
+    virtual xpu::context_t &ctx() = 0;
+    virtual const xpu::context_t &ctx() const = 0;
+    virtual const xpu::stream_profiler_t &profiler() const {
+        return *profiler_;
+    }
+    virtual xpu::stream_profiler_t &profiler() { return *profiler_; }
 
 protected:
-    bool has_zero_pad_primitive() const {
-        return engine()->kind() == dnnl_gpu;
-    };
-
-    status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) override;
+    std::unique_ptr<xpu::stream_profiler_t> profiler_;
 };
 
-} // namespace compute
-} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
