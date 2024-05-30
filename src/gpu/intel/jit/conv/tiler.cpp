@@ -20,7 +20,8 @@
 #include <mutex>
 #include <unordered_set>
 
-#include "gpu/intel/compute/stream_profiler.hpp"
+#include "xpu/stream_profiler.hpp"
+
 #include "gpu/intel/jit/conv/config.hpp"
 #include "gpu/intel/jit/conv/lookup_table.hpp"
 #include "gpu/intel/jit/conv/model_bridge.hpp"

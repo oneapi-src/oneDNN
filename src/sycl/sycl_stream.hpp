@@ -95,13 +95,11 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
         return profiler_->get_info(data_kind, num_entries, data);
     }
 
-    const gpu::intel::compute::stream_profiler_t &profiler() const override {
+    const xpu::stream_profiler_t &profiler() const override {
         return *profiler_;
     }
 
-    gpu::intel::compute::stream_profiler_t &profiler() override {
-        return *profiler_;
-    }
+    xpu::stream_profiler_t &profiler() override { return *profiler_; }
 
     ::sycl::queue &queue() const { return *impl()->queue(); }
 
@@ -204,7 +202,7 @@ protected:
         return status::success;
     }
 
-    std::unique_ptr<gpu::intel::compute::stream_profiler_t> profiler_;
+    std::unique_ptr<xpu::stream_profiler_t> profiler_;
 
     // XXX: this is a temporary solution to make sycl_memory_arg_t
     // default constructible.

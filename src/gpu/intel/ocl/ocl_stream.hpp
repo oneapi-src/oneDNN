@@ -23,9 +23,9 @@
 #include "common/thread_local_storage.hpp"
 
 #include "xpu/ocl/stream_impl.hpp"
+#include "xpu/stream_profiler.hpp"
 
 #include "gpu/intel/compute/compute_stream.hpp"
-#include "gpu/intel/compute/stream_profiler.hpp"
 #include "gpu/intel/ocl/mdapi_utils.hpp"
 #include "gpu/intel/ocl/ocl_context.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
@@ -121,10 +121,10 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return deps[0];
     }
 
-    const compute::stream_profiler_t &profiler() const override {
+    const xpu::stream_profiler_t &profiler() const override {
         return *profiler_;
     }
-    compute::stream_profiler_t &profiler() override { return *profiler_; }
+    xpu::stream_profiler_t &profiler() override { return *profiler_; }
 
 private:
     ocl_stream_t(engine_t *engine, unsigned flags)
@@ -156,7 +156,7 @@ private:
 
     cl_command_queue queue_;
     std::unique_ptr<mdapi_helper_t> mdapi_helper_;
-    std::unique_ptr<compute::stream_profiler_t> profiler_;
+    std::unique_ptr<xpu::stream_profiler_t> profiler_;
     mutable utils::thread_local_storage_t<ocl_context_t> ctx_;
 };
 

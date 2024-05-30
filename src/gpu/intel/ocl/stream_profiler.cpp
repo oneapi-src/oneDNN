@@ -48,7 +48,7 @@ status_t ocl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
         return status::success;
     }
 
-    std::unordered_map<uint64_t, stream_profiler_t::entry_t> stamp2entry;
+    std::unordered_map<uint64_t, xpu::stream_profiler_t::entry_t> stamp2entry;
     for (auto &ev : events_) {
         auto &entry = stamp2entry[ev.stamp];
         const ocl_event_t &ocl_event
@@ -64,7 +64,7 @@ status_t ocl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
         entry.freq += ocl_stream->mdapi_helper().get_freq(ocl_event[0]);
         entry.kernel_count++;
     }
-    return stream_profiler_t::get_info_impl(stamp2entry, data_kind, data);
+    return xpu::stream_profiler_t::get_info_impl(stamp2entry, data_kind, data);
 }
 
 } // namespace ocl

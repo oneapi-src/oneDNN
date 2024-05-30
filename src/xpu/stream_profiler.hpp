@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_COMPUTE_STREAM_PROFILER_HPP
-#define GPU_INTEL_COMPUTE_STREAM_PROFILER_HPP
+#ifndef XPU_STREAM_PROFILER_HPP
+#define XPU_STREAM_PROFILER_HPP
 
 #include <cassert>
 #include <limits>
@@ -29,9 +29,7 @@
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
-namespace compute {
+namespace xpu {
 
 struct stream_profiler_t {
     stream_profiler_t(const stream_t *stream, int stamp = 0)
@@ -116,9 +114,7 @@ protected:
     void (*callback_)(uint64_t, uint64_t) = nullptr;
 };
 
-} // namespace compute
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 
