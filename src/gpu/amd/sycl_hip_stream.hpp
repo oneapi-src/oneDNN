@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +49,7 @@ public:
     static status_t create_stream(
             stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
         unsigned flags;
-        CHECK(base_t::init_flags(&flags, queue));
+        CHECK(xpu::sycl::stream_impl_t::init_flags(&flags, queue));
 
         std::unique_ptr<sycl_hip_stream_t> sycl_stream(
                 new sycl_hip_stream_t(engine, flags, queue));

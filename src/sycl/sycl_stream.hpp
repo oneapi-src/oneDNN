@@ -62,7 +62,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
     static status_t create_stream(
             impl::stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
         unsigned flags;
-        status_t status = sycl_stream_t::init_flags(&flags, queue);
+        status_t status = xpu::sycl::stream_impl_t::init_flags(&flags, queue);
         if (status != status::success) return status;
 
         std::unique_ptr<sycl_stream_t> sycl_stream(
@@ -184,17 +184,6 @@ protected:
     sycl_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
         : gpu::intel::compute::compute_stream_t(
                 engine, new xpu::sycl::stream_impl_t(queue, flags)) {}
-
-    static status_t init_flags(unsigned *flags, ::sycl::queue &queue) {
-        *flags = queue.is_in_order() ? stream_flags::in_order
-                                     : stream_flags::out_of_order;
-
-#ifdef DNNL_EXPERIMENTAL_PROFILING
-        if (queue.has_property<::sycl::property::queue::enable_profiling>())
-            *flags |= stream_flags::profiling;
-#endif
-        return status::success;
-    }
 
     // XXX: this is a temporary solution to make sycl_memory_arg_t
     // default constructible.

@@ -54,15 +54,13 @@ struct ocl_stream_t : public compute::compute_stream_t {
     static status_t create_stream(
             impl::stream_t **stream, engine_t *engine, cl_command_queue queue) {
         unsigned flags;
-        status_t status = ocl_stream_t::init_flags(&flags, queue);
-        if (status != status::success) return status;
+        CHECK(xpu::ocl::stream_impl_t::init_flags(&flags, queue));
 
         std::unique_ptr<ocl_stream_t> ocl_stream(
                 new ocl_stream_t(engine, flags, queue));
         if (!ocl_stream) return status::out_of_memory;
 
-        status = ocl_stream->init();
-        if (status != status::success) return status;
+        CHECK(ocl_stream->init());
 
         *stream = ocl_stream.release();
         return status::success;
@@ -127,24 +125,6 @@ private:
     ocl_stream_t(engine_t *engine, unsigned flags, cl_command_queue queue)
         : compute_stream_t(engine, new xpu::ocl::stream_impl_t(queue, flags)) {}
     status_t init();
-
-    static status_t init_flags(unsigned *flags, cl_command_queue queue) {
-        *flags = 0;
-        // Determine if the passed queue is in-order/out-of-order
-        cl_command_queue_properties props;
-        OCL_CHECK(clGetCommandQueueInfo(queue, CL_QUEUE_PROPERTIES,
-                sizeof(cl_command_queue_properties), &props, nullptr));
-
-        *flags |= (props & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
-                ? stream_flags::out_of_order
-                : stream_flags::in_order;
-#ifdef DNNL_EXPERIMENTAL_PROFILING
-        if (props & CL_QUEUE_PROFILING_ENABLE)
-            *flags |= stream_flags::profiling;
-#endif
-
-        return status::success;
-    }
 
     cl_command_queue create_queue(
             cl_context ctx, cl_device_id dev, cl_int *err) const;
