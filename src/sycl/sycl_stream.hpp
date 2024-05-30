@@ -134,8 +134,8 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
     }
 
     status_t copy(const memory_storage_t &src, const memory_storage_t &dst,
-            size_t size, const gpu::intel::compute::event_t &deps,
-            gpu::intel::compute::event_t &out_dep) override {
+            size_t size, const xpu::event_t &deps,
+            xpu::event_t &out_dep) override {
         if (size == 0) return status::success;
         // TODO: add src and dst sizes check
 
@@ -239,8 +239,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
     }
 
     status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
-            const gpu::intel::compute::event_t &deps,
-            gpu::intel::compute::event_t &out_dep) override {
+            const xpu::event_t &deps, xpu::event_t &out_dep) override {
         auto *sycl_dst
                 = utils::downcast<const xpu::sycl::memory_storage_base_t *>(
                         &dst);
@@ -292,10 +291,8 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
                 = const_cast<const sycl_stream_t *>(this)->sycl_ctx();
         return *const_cast<sycl_context_t *>(&ctx);
     }
-    gpu::intel::compute::context_t &ctx() override { return sycl_ctx(); }
-    const gpu::intel::compute::context_t &ctx() const override {
-        return sycl_ctx();
-    }
+    xpu::context_t &ctx() override { return sycl_ctx(); }
+    const xpu::context_t &ctx() const override { return sycl_ctx(); }
 
     ::sycl::event get_output_event() const {
         // Fast path: if only one event, return it.

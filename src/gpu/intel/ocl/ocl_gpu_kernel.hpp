@@ -46,7 +46,7 @@ public:
 
     status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
             const compute::kernel_arg_list_t &arg_list,
-            const compute::event_t &deps, compute::event_t &out_dep) override;
+            const xpu::event_t &deps, xpu::event_t &out_dep) override;
 
     const std::vector<gpu::intel::compute::scalar_type_t> &
     arg_types() const override {

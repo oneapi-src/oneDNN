@@ -25,7 +25,7 @@
 
 #include "common/c_types_map.hpp"
 
-#include "gpu/intel/compute/context.hpp"
+#include "xpu/context.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -48,10 +48,11 @@ struct stream_profiler_t {
     };
 
     struct registered_event_t {
-        registered_event_t(std::unique_ptr<event_t> &&event, uint64_t stamp)
+        registered_event_t(
+                std::unique_ptr<xpu::event_t> &&event, uint64_t stamp)
             : event(std::move(event)), stamp(stamp) {}
 
-        std::unique_ptr<event_t> event;
+        std::unique_ptr<xpu::event_t> event;
         uint64_t stamp;
     };
 
@@ -60,7 +61,7 @@ struct stream_profiler_t {
 
     uint64_t stamp() const { return stamp_; }
 
-    void register_event(std::unique_ptr<event_t> &&event) {
+    void register_event(std::unique_ptr<xpu::event_t> &&event) {
         events_.emplace_back(std::move(event), stamp_);
     }
 

@@ -31,6 +31,7 @@
 #include "gpu/intel/jit/jit_generator_base.hpp"
 #include "gpu/intel/kernel_cache.hpp"
 #include "gpu/intel/ocl/types_interop.hpp"
+#include "xpu/context.hpp"
 #include "xpu/utils.hpp"
 
 #define CTX_GPU_RES_STORAGE(arg) \
@@ -303,7 +304,7 @@ private:
     static status_t parallel_for(stream_t &stream,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
             const compute::kernel_arg_list_t &arg_list,
-            const compute::event_t &deps, compute::event_t &out_dep) {
+            const xpu::event_t &deps, xpu::event_t &out_dep) {
         return kernel.parallel_for(stream, range, arg_list, deps, out_dep);
     }
 

@@ -132,8 +132,8 @@ status_t ocl_gpu_kernel_t::get_binary_size(
 
 status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const compute::nd_range_t &range,
-        const compute::kernel_arg_list_t &arg_list,
-        const compute::event_t &deps, compute::event_t &out_dep) {
+        const compute::kernel_arg_list_t &arg_list, const xpu::event_t &deps,
+        xpu::event_t &out_dep) {
 
     auto *ocl_stream = utils::downcast<ocl_stream_t *>(&stream);
     cl_command_queue queue = ocl_stream->queue();

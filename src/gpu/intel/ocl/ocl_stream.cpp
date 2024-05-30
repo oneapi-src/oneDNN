@@ -115,8 +115,8 @@ void ocl_stream_t::after_exec_hook() {
 }
 
 status_t ocl_stream_t::copy(const memory_storage_t &src,
-        const memory_storage_t &dst, size_t size, const compute::event_t &deps,
-        compute::event_t &out_dep) {
+        const memory_storage_t &dst, size_t size, const xpu::event_t &deps,
+        xpu::event_t &out_dep) {
 
     if (size == 0) return status::success;
 
@@ -258,7 +258,7 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
 }
 
 status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
-        size_t size, const compute::event_t &deps, compute::event_t &out_dep) {
+        size_t size, const xpu::event_t &deps, xpu::event_t &out_dep) {
     using namespace dnnl::impl::utils;
 
     const auto *ocl_dst = downcast<const ocl_memory_storage_base_t *>(&dst);

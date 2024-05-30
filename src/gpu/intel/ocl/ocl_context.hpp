@@ -17,7 +17,8 @@
 #ifndef GPU_INTEL_OCL_OCL_CONTEXT_HPP
 #define GPU_INTEL_OCL_OCL_CONTEXT_HPP
 
-#include "gpu/intel/compute/context.hpp"
+#include "xpu/context.hpp"
+
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -26,7 +27,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-struct ocl_event_t final : compute::event_t {
+struct ocl_event_t final : xpu::event_t {
     ocl_event_t() = default;
     ocl_event_t(const std::vector<xpu::ocl::wrapper_t<cl_event>> &events)
         : events(events) {}
@@ -42,17 +43,17 @@ struct ocl_event_t final : compute::event_t {
     xpu::ocl::wrapper_t<cl_event> &operator[](size_t i) { return events[i]; }
     size_t size() const { return events.size(); }
 
-    static ocl_event_t &from(compute::event_t &event) {
+    static ocl_event_t &from(xpu::event_t &event) {
         return *utils::downcast<ocl_event_t *>(&event);
     }
-    static const ocl_event_t &from(const compute::event_t &event) {
+    static const ocl_event_t &from(const xpu::event_t &event) {
         return *utils::downcast<const ocl_event_t *>(&event);
     }
-    std::unique_ptr<compute::event_t> clone() const {
-        return std::unique_ptr<compute::event_t>(new ocl_event_t(*this));
+    std::unique_ptr<xpu::event_t> clone() const {
+        return std::unique_ptr<xpu::event_t>(new ocl_event_t(*this));
     }
 
-    void append(const compute::event_t &event) {
+    void append(const xpu::event_t &event) {
         auto &other = *utils::downcast<const ocl_event_t *>(&event);
         events.insert(events.end(), other.events.begin(), other.events.end());
     };
@@ -60,7 +61,7 @@ struct ocl_event_t final : compute::event_t {
     std::vector<xpu::ocl::wrapper_t<cl_event>> events;
 };
 
-struct ocl_context_t final : public gpu::intel::compute::context_t {
+struct ocl_context_t final : public xpu::context_t {
     ocl_context_t() = default;
     ocl_context_t(const std::vector<xpu::ocl::wrapper_t<cl_event>> &&events)
         : events_(std::move(events)) {};
@@ -74,17 +75,15 @@ struct ocl_context_t final : public gpu::intel::compute::context_t {
 
     ocl_event_t &get_ocl_deps() { return events_; }
     const ocl_event_t &get_ocl_deps() const { return events_; }
-    gpu::intel::compute::event_t &get_deps() override { return events_; }
-    const gpu::intel::compute::event_t &get_deps() const override {
-        return events_;
-    }
+    xpu::event_t &get_deps() override { return events_; }
+    const xpu::event_t &get_deps() const override { return events_; }
 
     void set_deps(std::vector<xpu::ocl::wrapper_t<cl_event>> &&event) {
         events_ = ocl_event_t(std::move(event));
     }
     void set_deps(ocl_event_t &&events) { events_ = std::move(events); };
 
-    void append_deps(const compute::event_t &event) override {
+    void append_deps(const xpu::event_t &event) override {
         events_.append(event);
     }
 

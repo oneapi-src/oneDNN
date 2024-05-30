@@ -93,11 +93,11 @@ struct ocl_stream_t : public compute::compute_stream_t {
     const mdapi_helper_t &mdapi_helper() const { return *mdapi_helper_; }
 
     status_t copy(const memory_storage_t &src, const memory_storage_t &dst,
-            size_t size, const compute::event_t &deps,
-            compute::event_t &out_dep) override;
+            size_t size, const xpu::event_t &deps,
+            xpu::event_t &out_dep) override;
 
     status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
-            const compute::event_t &deps, compute::event_t &out_dep) override;
+            const xpu::event_t &deps, xpu::event_t &out_dep) override;
 
     ~ocl_stream_t() override {
         if (queue_) { clReleaseCommandQueue(queue_); }
@@ -112,10 +112,8 @@ struct ocl_stream_t : public compute::compute_stream_t {
                 = const_cast<const ocl_stream_t *>(this)->ocl_ctx();
         return *const_cast<ocl_context_t *>(&ctx);
     }
-    gpu::intel::compute::context_t &ctx() override { return ocl_ctx(); }
-    const gpu::intel::compute::context_t &ctx() const override {
-        return ocl_ctx();
-    }
+    xpu::context_t &ctx() override { return ocl_ctx(); }
+    const xpu::context_t &ctx() const override { return ocl_ctx(); }
 
     const xpu::ocl::wrapper_t<cl_event> &get_output_event() const {
         auto &deps = ocl_event_t::from(ctx().get_deps());

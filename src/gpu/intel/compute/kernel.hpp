@@ -22,10 +22,10 @@
 #include <utility>
 
 #include "common/verbose.hpp"
-#include "gpu/intel/compute/context.hpp"
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/utils.hpp"
+#include "xpu/context.hpp"
 #include "xpu/utils.hpp"
 
 namespace dnnl {
@@ -43,8 +43,8 @@ public:
     virtual ~kernel_impl_t() = default;
 
     virtual status_t parallel_for(stream_t &stream, const nd_range_t &range,
-            const kernel_arg_list_t &arg_list, const event_t &deps,
-            event_t &out_dep) {
+            const kernel_arg_list_t &arg_list, const xpu::event_t &deps,
+            xpu::event_t &out_dep) {
         gpu_assert(false) << "unimplemented function parallel_for() called";
         return status::runtime_error;
     }
@@ -130,8 +130,8 @@ public:
     kernel_impl_t *impl() const { return impl_.get(); }
 
     status_t parallel_for(stream_t &stream, const nd_range_t &range,
-            const kernel_arg_list_t &arg_list, const event_t &deps,
-            event_t &out_dep) const {
+            const kernel_arg_list_t &arg_list, const xpu::event_t &deps,
+            xpu::event_t &out_dep) const {
         return impl_->parallel_for(stream, range, arg_list, deps, out_dep);
     }
 
