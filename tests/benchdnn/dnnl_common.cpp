@@ -46,6 +46,7 @@
 #include "dnnl_memory.hpp"
 
 #include "utils/cold_cache.hpp"
+#include "utils/dnnl_query.hpp"
 #include "utils/fill.hpp"
 #include "utils/stream_kind.hpp"
 
@@ -1309,6 +1310,39 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
             const auto &po_md = query_md(const_pd, po_arg);
             add_md_size(po_md, check_mem_in_size_args);
         }
+    }
+
+    // Forward nearest neighbor down sampling (one or more bigger source
+    // dimensions than in destination) cases by the nature of the operation
+    // read only a part of a source tensor. Here we adjust the `ibytes` variable
+    // so that reported bandwidth numbers reflect the reality, otherwise
+    // final numbers are much higher than they should be.
+    dnnl_primitive_kind_t kind = query_prim_kind(const_pd);
+    dnnl_alg_kind_t alg = query_alg_kind(const_pd);
+    dnnl_prop_kind_t prop = query_prop_kind(const_pd);
+    if (is_fwd_prop_kind(prop) && kind == dnnl_resampling
+            && alg == dnnl_resampling_nearest) {
+        auto src = query_md(const_pd, DNNL_ARG_SRC);
+        auto dst = query_md(const_pd, DNNL_ARG_DST);
+        auto ndims = query_md_ndims(src);
+        auto src_pdims = query_md_padded_dims(src);
+        auto dst_pdims = query_md_padded_dims(dst);
+        dnnl_dim_t total_elems = 1;
+        dnnl_dim_t read_elems = 1;
+        for (int i = 0; i < ndims; i++) {
+            if (dst_pdims[i] < src_pdims[i]) {
+                total_elems *= src_pdims[i];
+                read_elems *= dst_pdims[i];
+            }
+        }
+        size_t in_size_no_scratchpad = check_mem_in_size_args.total_size_device
+                - check_mem_in_size_args.scratchpad_size;
+        // Assumes the input size is a multiple of total_elems
+        assert(in_size_no_scratchpad % total_elems == 0);
+        check_mem_in_size_args.total_size_device = in_size_no_scratchpad
+                        / static_cast<size_t>(total_elems)
+                        * static_cast<size_t>(read_elems)
+                + check_mem_in_size_args.scratchpad_size;
     }
 
     res->ibytes = check_mem_in_size_args.total_size_device;
