@@ -21,7 +21,7 @@
 #include "cudnn.h"
 
 #include "gpu/nvidia/engine.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -154,8 +154,7 @@ struct cudnn_reduction_impl_t : public cudnn_reduction_impl_base_t {
         impl::stream_t *service_stream;
         sycl_engine->get_service_stream(service_stream);
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto cuda_handle = cuda_stream->get_cudnn_handle();
 
         CUDNN_EXECUTE_FUNC_S(cudnnGetReductionWorkspaceSize, cuda_handle,

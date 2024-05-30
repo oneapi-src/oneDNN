@@ -26,8 +26,8 @@
 #include "gpu/nvidia/cudnn_conv_filter_adjustment_base.hpp"
 #include "gpu/nvidia/cudnn_convolution_pd.hpp"
 #include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 // `CUDNN_FMA_MATH` is available starting from cuDNN v8.
@@ -680,8 +680,7 @@ public:
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         // The scratchpad size will need to be modified in
@@ -713,8 +712,7 @@ public:
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionForwardAlgorithmMaxCount,
@@ -845,8 +843,7 @@ protected:
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(
@@ -910,8 +907,7 @@ protected:
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionBackwardDataWorkspaceSize,
@@ -995,8 +991,7 @@ public:
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(
@@ -1062,8 +1057,7 @@ public:
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(

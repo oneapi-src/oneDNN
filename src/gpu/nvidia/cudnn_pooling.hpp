@@ -24,7 +24,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/nvidia/cudnn_pooling_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -62,8 +62,7 @@ struct cudnn_pooling_fwd_t : public primitive_t {
 
             assert(engine->kind() == engine_kind::gpu);
             auto src_dt = src_md()->data_type;
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             bool ok = true && is_fwd()
                     && utils::one_of(desc()->prop_kind, forward_training,
@@ -130,8 +129,7 @@ struct cudnn_pooling_bwd_t : public primitive_t {
             using namespace alg_kind;
             using namespace format_tag;
             assert(engine->kind() == engine_kind::gpu);
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             bool ok = true && !is_fwd()
                     && set_default_params() == status::success

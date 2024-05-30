@@ -438,7 +438,7 @@ struct cudnn_gemm_inner_product_bwd_weights_impl_t
             CHECK(sycl_engine.get_service_stream(service_stream));
 
             auto cuda_stream
-                    = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+                    = utils::downcast<nvidia::stream_t *>(service_stream);
             auto handle = cuda_stream->get_cudnn_handle();
 
             // get the required workspace size

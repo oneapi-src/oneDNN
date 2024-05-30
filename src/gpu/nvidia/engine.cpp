@@ -18,9 +18,9 @@
 #include "xpu/sycl/utils.hpp"
 
 #include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -95,12 +95,12 @@ CUdevice engine_t::get_underlying_device() const {
 }
 
 status_t engine_t::create_stream(impl::stream_t **stream, unsigned flags) {
-    return sycl_cuda_stream_t::create_stream(stream, this, flags);
+    return nvidia::stream_t::create_stream(stream, this, flags);
 }
 
 status_t engine_t::create_stream(
         impl::stream_t **stream, ::sycl::queue &queue) {
-    return sycl_cuda_stream_t::create_stream(stream, this, queue);
+    return nvidia::stream_t::create_stream(stream, this, queue);
 }
 
 cudnnHandle_t *engine_t::get_cudnn_handle() {

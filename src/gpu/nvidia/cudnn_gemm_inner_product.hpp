@@ -26,7 +26,7 @@
 #include "gpu/nvidia/cudnn_gemm_inner_product_impl.hpp"
 #include "gpu/nvidia/cudnn_inner_product.hpp"
 #include "gpu/nvidia/engine.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -210,8 +210,7 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             dnnl_data_type_t dst_type = dst_md()->data_type;
             dnnl_data_type_t acc_type = desc()->accum_data_type;
 
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             ok = ok && memory_format_ok(src_md())
                     && memory_format_ok(weights_md(0))
@@ -265,8 +264,7 @@ struct cudnn_gemm_inner_product_bwd_data_t
                     ? false
                     : reorder_check(diff_src_md(), weights_md(), diff_dst_md());
 
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             auto diff_src_dt = diff_src_md()->data_type;
             auto weights_dt = weights_md(0)->data_type;
@@ -330,8 +328,7 @@ struct cudnn_gemm_inner_product_bwd_weights_t
                     ? false
                     : reorder_check(src_md(), diff_weights_md(), diff_dst_md());
 
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             ok = ok && expect_data_types(f32, f32, f32, f32, f32)
                     && attr()->has_default_values()

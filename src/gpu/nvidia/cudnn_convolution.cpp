@@ -16,8 +16,8 @@
 *******************************************************************************/
 
 #include "gpu/nvidia/cudnn_convolution.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 #include "xpu/sycl/memory_storage_helper.hpp"
 
@@ -28,8 +28,8 @@ namespace nvidia {
 
 status_t cudnn_convolution_fwd_t::execute_convolution(
         const exec_ctx_t &ctx, bool with_bias, bool with_scratchpad) const {
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -98,8 +98,8 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
 
 status_t cudnn_convolution_bwd_data_t::execute_convolution(
         const exec_ctx_t &ctx, bool with_bias, bool with_scratchpad) const {
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
@@ -132,8 +132,8 @@ status_t cudnn_convolution_bwd_data_t::execute_convolution(
 
 status_t cudnn_convolution_bwd_weights_t::execute_zero_dims(
         const exec_ctx_t &ctx) const {
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_diff_weights = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
@@ -155,8 +155,8 @@ status_t cudnn_convolution_bwd_weights_t::execute_zero_dims(
 
 status_t cudnn_convolution_bwd_weights_t::execute_convolution(
         const exec_ctx_t &ctx, bool with_bias, bool with_scratchpad) const {
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);

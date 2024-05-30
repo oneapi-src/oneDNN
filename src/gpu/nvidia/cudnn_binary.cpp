@@ -16,8 +16,8 @@
 *******************************************************************************/
 
 #include "gpu/nvidia/cudnn_binary.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_stream_utils.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 #include "xpu/sycl/buffer_memory_storage.hpp"
@@ -32,8 +32,8 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
     if (memory_desc_wrapper(pd()->src_md(0)).has_zero_dim())
         return status::success;
 
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     if (!pd()->attr()->scales_.get(DNNL_ARG_SRC_0).defined())
         CHECK(stream_utils::copy_input_arg_to_host(ctx, cuda_stream,

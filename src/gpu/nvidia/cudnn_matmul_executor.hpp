@@ -21,8 +21,8 @@
 #include "gpu/nvidia/cudnn_matmul.hpp"
 #include "gpu/nvidia/cudnn_matmul_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "xpu/sycl/memory_storage_helper.hpp"
 
 #include <memory>
@@ -43,7 +43,7 @@ protected:
     template <::sycl::access::mode bias_m, ::sycl::access::mode scratch_m>
     void interop_task(std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             impl::engine_t *engine, ::sycl::handler &cgh,
-            nvidia::sycl_cuda_stream_t *cuda_stream,
+            nvidia::stream_t *cuda_stream,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read>
                     arg_weights,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read> arg_src,
@@ -122,8 +122,8 @@ struct cudnn_matmul_scratch_runtime_args_bias_exec_t
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
-        nvidia::sycl_cuda_stream_t *cuda_stream
-                = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+        nvidia::stream_t *cuda_stream
+                = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
         init_scratch_buffer(scratchpad_size);
 
@@ -155,8 +155,8 @@ struct cudnn_matmul_runtime_args_scratch_exec_t
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
-        nvidia::sycl_cuda_stream_t *cuda_stream
-                = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+        nvidia::stream_t *cuda_stream
+                = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
         init_scratch_buffer(scratchpad_size);
 
@@ -188,8 +188,8 @@ struct cudnn_matmul_runtime_args_bias_exec_t : public cudnn_matmul_exec_base_t {
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
-        nvidia::sycl_cuda_stream_t *cuda_stream
-                = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+        nvidia::stream_t *cuda_stream
+                = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -219,8 +219,8 @@ struct cudnn_matmul_runtime_args_exec_t : public cudnn_matmul_exec_base_t {
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
-        nvidia::sycl_cuda_stream_t *cuda_stream
-                = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+        nvidia::stream_t *cuda_stream
+                = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -252,8 +252,8 @@ struct cudnn_matmul_bias_scratch_exec_t : public cudnn_matmul_exec_base_t {
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
-        nvidia::sycl_cuda_stream_t *cuda_stream
-                = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+        nvidia::stream_t *cuda_stream
+                = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -282,8 +282,8 @@ struct cudnn_matmul_scratch_exec_t : public cudnn_matmul_exec_base_t {
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
-        nvidia::sycl_cuda_stream_t *cuda_stream
-                = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+        nvidia::stream_t *cuda_stream
+                = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -314,8 +314,8 @@ struct cudnn_matmul_bias_exec_t : public cudnn_matmul_exec_base_t {
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
-        nvidia::sycl_cuda_stream_t *cuda_stream
-                = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+        nvidia::stream_t *cuda_stream
+                = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -345,8 +345,8 @@ struct cudnn_matmul_exec_t : public cudnn_matmul_exec_base_t {
             const std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
-        nvidia::sycl_cuda_stream_t *cuda_stream
-                = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+        nvidia::stream_t *cuda_stream
+                = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
         return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);

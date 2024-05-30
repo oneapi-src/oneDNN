@@ -27,6 +27,7 @@
 #include "gpu/nvidia/cudnn_convolution_pd.hpp"
 #include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
+#include "xpu/sycl/memory_storage.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -51,8 +52,7 @@ struct cudnn_convolution_fwd_t : public primitive_t {
             using sm_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask
                     = sm_t::scales_runtime | sm_t::post_ops | sm_t::fpmath_mode;
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             bool ok = utils::one_of(desc()->prop_kind,
                     prop_kind::forward_training, prop_kind::forward_inference);

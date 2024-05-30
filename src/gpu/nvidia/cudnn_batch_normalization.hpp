@@ -27,7 +27,7 @@
 #include "gpu/nvidia/cudnn_batch_normalization_executor.hpp"
 #include "gpu/nvidia/cudnn_batch_normalization_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {

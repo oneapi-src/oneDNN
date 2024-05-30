@@ -177,8 +177,7 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             dnnl_data_type_t dst_type = dst_md()->data_type;
             dnnl_data_type_t acc_type = desc()->accum_data_type;
 
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             if (!IMPLICATION(utils::one_of(bf16, src_type, weights_type,
                                      bias_type, dst_type, acc_type),
@@ -290,8 +289,7 @@ struct cudnn_conv_inner_product_bwd_data_t
         }
 
         bool data_types_ok(impl::engine_t *engine) const {
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             auto diff_src_dt = diff_src_md()->data_type;
             auto weights_dt = weights_md(0)->data_type;
@@ -385,8 +383,7 @@ struct cudnn_conv_inner_product_bwd_weights_t
         }
 
         bool data_types_ok(impl::engine_t *engine) const {
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             if (!IMPLICATION(utils::one_of(data_type::bf16,
                                      diff_weights_md(1)->data_type,

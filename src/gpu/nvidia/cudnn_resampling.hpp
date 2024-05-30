@@ -24,9 +24,12 @@
 #include "common/primitive.hpp"
 #include "common/resampling_pd.hpp"
 #include "common/type_helpers.hpp"
+
+#include "xpu/sycl/memory_storage.hpp"
+
 #include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 #include "gpu/nvidia/cudnn_resampling_impl.hpp"
@@ -108,8 +111,7 @@ protected:
         impl::stream_t *service_stream;
         CHECK(sycl_engine->get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto event = copy(cuda_stream->queue(),
                 reinterpret_cast<uint8_t *>(theta_data.data()),
                 buffer(theta_storage_.get()));
