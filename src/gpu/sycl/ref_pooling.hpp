@@ -75,7 +75,7 @@ struct ref_pooling_fwd_t : public sycl_gpu_primitive_t {
         }
 
         status_t init_conf();
-        sycl_pooling_conf_t conf_;
+        sycl_pooling_fwd_conf_t conf_;
     };
 
     status_t init(impl::engine_t *engine) override;
@@ -125,7 +125,7 @@ struct ref_pooling_bwd_t : public sycl_gpu_primitive_t {
         }
 
         status_t init_conf();
-        sycl_pooling_conf_t conf_;
+        sycl_pooling_bwd_conf_t conf_;
     };
 
     status_t init(impl::engine_t *engine) override;
