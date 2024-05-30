@@ -37,7 +37,7 @@ public:
     cudnnHandle_t &get_cudnn_handle(CUstream cuda_stream = nullptr);
 
     static status_t create_stream(
-            stream_t **stream, impl::engine_t *engine, unsigned flags) {
+            impl::stream_t **stream, impl::engine_t *engine, unsigned flags) {
         std::unique_ptr<sycl_cuda_stream_t> sycl_stream(
                 new sycl_cuda_stream_t(engine, flags));
         if (!sycl_stream) return status::out_of_memory;
@@ -47,8 +47,8 @@ public:
         return status::success;
     }
 
-    static status_t create_stream(
-            stream_t **stream, impl::engine_t *engine, ::sycl::queue &queue) {
+    static status_t create_stream(impl::stream_t **stream,
+            impl::engine_t *engine, ::sycl::queue &queue) {
         unsigned flags;
         CHECK(base_t::init_flags(&flags, queue));
 

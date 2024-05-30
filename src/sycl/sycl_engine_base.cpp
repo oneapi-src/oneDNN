@@ -32,11 +32,12 @@ status_t sycl_engine_base_t::create_memory_storage(
     return impl()->create_memory_storage(storage, this, flags, size, handle);
 }
 
-status_t sycl_engine_base_t::create_stream(stream_t **stream, unsigned flags) {
+status_t sycl_engine_base_t::create_stream(
+        impl::stream_t **stream, unsigned flags) {
     return sycl_stream_t::create_stream(stream, this, flags);
 }
 status_t sycl_engine_base_t::create_stream(
-        stream_t **stream, ::sycl::queue &queue) {
+        impl::stream_t **stream, ::sycl::queue &queue) {
     return sycl_stream_t::create_stream(stream, this, queue);
 }
 

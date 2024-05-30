@@ -44,7 +44,7 @@ cl_context get_ocl_context(engine_t *engine) {
     return utils::downcast<ocl_gpu_engine_t *>(engine)->context();
 }
 
-cl_command_queue get_ocl_queue(stream_t *stream) {
+cl_command_queue get_ocl_queue(impl::stream_t *stream) {
     return utils::downcast<ocl_stream_t *>(stream)->queue();
 }
 
@@ -126,7 +126,7 @@ status_t set_kernel_arg_usm(engine_t *engine, cl_kernel kernel, int arg_index,
             ext_func(engine, kernel, arg_index, arg_value));
 }
 
-status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size,
+status_t memcpy(impl::stream_t *stream, void *dst, const void *src, size_t size,
         cl_uint num_events, const cl_event *events, cl_event *out_event) {
     using clEnqueueMemcpyINTEL_func_t
             = cl_int (*)(cl_command_queue, cl_bool, void *, const void *,
@@ -139,11 +139,12 @@ status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size,
                     out_event));
 }
 
-status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size) {
+status_t memcpy(
+        impl::stream_t *stream, void *dst, const void *src, size_t size) {
     return memcpy(stream, dst, src, size, 0, nullptr, nullptr);
 }
 
-status_t fill(stream_t *stream, void *ptr, const void *pattern,
+status_t fill(impl::stream_t *stream, void *ptr, const void *pattern,
         size_t pattern_size, size_t size, cl_uint num_events,
         const cl_event *events, cl_event *out_event) {
     using clEnqueueMemFillINTEL_func_t
@@ -156,7 +157,7 @@ status_t fill(stream_t *stream, void *ptr, const void *pattern,
                     pattern_size, size, num_events, events, out_event));
 }
 
-status_t memset(stream_t *stream, void *ptr, int value, size_t size) {
+status_t memset(impl::stream_t *stream, void *ptr, int value, size_t size) {
     uint8_t pattern = (uint8_t)value;
     return fill(
             stream, ptr, &pattern, sizeof(uint8_t), size, 0, nullptr, nullptr);

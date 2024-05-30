@@ -57,9 +57,10 @@ public:
         return status::success;
     }
 
-    status_t map_data(
-            void **mapped_ptr, stream_t *stream, size_t size) const override;
-    status_t unmap_data(void *mapped_ptr, stream_t *stream) const override;
+    status_t map_data(void **mapped_ptr, impl::stream_t *stream,
+            size_t size) const override;
+    status_t unmap_data(
+            void *mapped_ptr, impl::stream_t *stream) const override;
 
     bool is_host_accessible() const override {
         return utils::one_of(usm_kind_, usm::ocl_usm_kind_t::host,

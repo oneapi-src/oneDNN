@@ -99,12 +99,13 @@ hipDevice_t sycl_hip_engine_t::get_underlying_device() const {
     return compat::get_native<hipDevice_t>(device());
 }
 
-status_t sycl_hip_engine_t::create_stream(stream_t **stream, unsigned flags) {
+status_t sycl_hip_engine_t::create_stream(
+        impl::stream_t **stream, unsigned flags) {
     return sycl_hip_stream_t::create_stream(stream, this, flags);
 }
 
 status_t sycl_hip_engine_t::create_stream(
-        stream_t **stream, ::sycl::queue &queue) {
+        impl::stream_t **stream, ::sycl::queue &queue) {
     return sycl_hip_stream_t::create_stream(stream, this, queue);
 }
 

@@ -151,7 +151,7 @@ struct cudnn_reduction_impl_t : public cudnn_reduction_impl_base_t {
             reduction_pd_t *pd, impl::engine_t *engine) override {
         auto sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         sycl_engine->get_service_stream(service_stream);
 
         auto cuda_stream

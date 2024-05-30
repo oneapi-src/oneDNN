@@ -42,15 +42,15 @@ public:
     kernel_impl_t &operator=(const kernel_impl_t &) = delete;
     virtual ~kernel_impl_t() = default;
 
-    virtual status_t parallel_for(stream_t &stream, const nd_range_t &range,
-            const kernel_arg_list_t &arg_list, const xpu::event_t &deps,
-            xpu::event_t &out_dep) {
+    virtual status_t parallel_for(impl::stream_t &stream,
+            const nd_range_t &range, const kernel_arg_list_t &arg_list,
+            const xpu::event_t &deps, xpu::event_t &out_dep) {
         gpu_assert(false) << "unimplemented function parallel_for() called";
         return status::runtime_error;
     }
 
     virtual status_t parallel_for(
-            stream_t &stream, const std::function<void(void *)> &cgf) {
+            impl::stream_t &stream, const std::function<void(void *)> &cgf) {
         gpu_assert(false) << "unimplemented function parallel_for() called";
         return status::runtime_error;
     }
@@ -129,14 +129,14 @@ public:
 
     kernel_impl_t *impl() const { return impl_.get(); }
 
-    status_t parallel_for(stream_t &stream, const nd_range_t &range,
+    status_t parallel_for(impl::stream_t &stream, const nd_range_t &range,
             const kernel_arg_list_t &arg_list, const xpu::event_t &deps,
             xpu::event_t &out_dep) const {
         return impl_->parallel_for(stream, range, arg_list, deps, out_dep);
     }
 
-    status_t parallel_for(
-            stream_t &stream, const std::function<void(void *)> &cgf) const {
+    status_t parallel_for(impl::stream_t &stream,
+            const std::function<void(void *)> &cgf) const {
         return impl_->parallel_for(stream, cgf);
     }
 

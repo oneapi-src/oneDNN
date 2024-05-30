@@ -258,7 +258,7 @@ struct cudnn_conv_inner_product_fwd_impl_t
                 CUDNN_CROSS_CORRELATION, data_types_[NUM_IO]));
 
         auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto cuda_stream
@@ -506,7 +506,7 @@ struct cudnn_conv_inner_product_bwd_data_impl_t
                 zero_padding.data(), unit_strides.data(), unit_dilation.data(),
                 CUDNN_CROSS_CORRELATION, data_types_[NUM_IO]));
         auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto cuda_stream
@@ -679,7 +679,7 @@ struct cudnn_conv_inner_product_bwd_weights_impl_t
                 zero_padding.data(), unit_strides.data(), unit_dilation.data(),
                 CUDNN_CROSS_CORRELATION, data_types_[NUM_IO]));
         auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto cuda_stream

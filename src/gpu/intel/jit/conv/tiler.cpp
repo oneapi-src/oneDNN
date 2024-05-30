@@ -1597,7 +1597,7 @@ void conv_tiler_t::after_create_hook(
 }
 
 void conv_tiler_t::before_exec_hook(
-        const primitive_t *primitive, stream_t *stream) {
+        const primitive_t *primitive, impl::stream_t *stream) {
     if (tiler_params().mode != tiler_mode_t::tune) return;
     if (!stream->is_profiling_enabled()) return;
     auto &info = conv_tuner_t::get_primitive_info(primitive);

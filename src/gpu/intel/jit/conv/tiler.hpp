@@ -48,7 +48,7 @@ public:
     static void after_create_hook(
             const conv_config_t &cfg, const primitive_t *primitive);
     static void before_exec_hook(
-            const primitive_t *primitive, stream_t *stream);
+            const primitive_t *primitive, impl::stream_t *stream);
 
 private:
     std::shared_ptr<conv_tiler_impl_t> impl_;

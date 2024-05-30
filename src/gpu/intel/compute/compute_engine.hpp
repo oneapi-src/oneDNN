@@ -170,12 +170,12 @@ public:
         return dispatch_t(this, md);
     }
 
-    status_t get_service_stream(stream_t *&stream) override {
+    status_t get_service_stream(impl::stream_t *&stream) override {
         status_t status = status::success;
         if (service_stream_ == nullptr) {
             const std::lock_guard<std::mutex> lock(service_stream_mutex_);
             if (service_stream_ == nullptr) {
-                stream_t *service_stream_ptr;
+                impl::stream_t *service_stream_ptr;
                 status = create_stream(
                         &service_stream_ptr, stream_flags::default_flags);
                 if (status == status::success)
@@ -205,7 +205,7 @@ private:
     std::shared_ptr<primitive_t> zero_pad_primitive_;
     resource_mapper_t zero_pad_resources_;
     std::once_flag zero_pad_init_;
-    std::unique_ptr<stream_t> service_stream_;
+    std::unique_ptr<impl::stream_t> service_stream_;
     std::mutex service_stream_mutex_;
 };
 

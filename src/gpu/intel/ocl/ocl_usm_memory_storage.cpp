@@ -29,7 +29,7 @@ namespace ocl {
 struct map_usm_tag;
 
 status_t ocl_usm_memory_storage_t::map_data(
-        void **mapped_ptr, stream_t *stream, size_t size) const {
+        void **mapped_ptr, impl::stream_t *stream, size_t size) const {
 
     if (is_host_accessible()) {
         *mapped_ptr = usm_ptr();
@@ -54,7 +54,8 @@ status_t ocl_usm_memory_storage_t::map_data(
 
     auto *usm_ptr_for_unmap = usm_ptr();
     auto unmap_callback
-            = [size, usm_ptr_for_unmap](stream_t *stream, void *mapped_ptr) {
+            = [size, usm_ptr_for_unmap](
+                      impl::stream_t *stream, void *mapped_ptr) {
                   CHECK(usm::memcpy(stream, usm_ptr_for_unmap, mapped_ptr, size,
                           0, nullptr, nullptr));
                   CHECK(stream->wait());
@@ -69,7 +70,7 @@ status_t ocl_usm_memory_storage_t::map_data(
 }
 
 status_t ocl_usm_memory_storage_t::unmap_data(
-        void *mapped_ptr, stream_t *stream) const {
+        void *mapped_ptr, impl::stream_t *stream) const {
     if (!mapped_ptr || is_host_accessible()) return status::success;
 
     if (!stream) CHECK(engine()->get_service_stream(stream));

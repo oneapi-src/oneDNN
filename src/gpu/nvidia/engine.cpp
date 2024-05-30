@@ -94,11 +94,12 @@ CUdevice engine_t::get_underlying_device() const {
     return compat::get_native<CUdevice>(device());
 }
 
-status_t engine_t::create_stream(stream_t **stream, unsigned flags) {
+status_t engine_t::create_stream(impl::stream_t **stream, unsigned flags) {
     return sycl_cuda_stream_t::create_stream(stream, this, flags);
 }
 
-status_t engine_t::create_stream(stream_t **stream, ::sycl::queue &queue) {
+status_t engine_t::create_stream(
+        impl::stream_t **stream, ::sycl::queue &queue) {
     return sycl_cuda_stream_t::create_stream(stream, this, queue);
 }
 

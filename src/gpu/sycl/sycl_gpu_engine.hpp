@@ -46,7 +46,7 @@ public:
                 storage, flags, size, handle);
     }
 
-    status_t create_stream(stream_t **stream, unsigned flags) override {
+    status_t create_stream(impl::stream_t **stream, unsigned flags) override {
         return sycl_engine_base_t::create_stream(stream, flags);
     }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -562,7 +562,7 @@ public:
     }
     status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
         auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);
         auto handle = hip_stream->get_miopen_handle();
@@ -605,7 +605,7 @@ public:
             engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
         hip_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         double activAlpha, activBeta, activGamma;
@@ -676,7 +676,7 @@ protected:
             engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
         hip_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         return status::success;
@@ -684,7 +684,7 @@ protected:
 
     status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);
@@ -812,7 +812,7 @@ public:
             engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
         hip_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         return status::success;
@@ -820,7 +820,7 @@ public:
 
     status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);

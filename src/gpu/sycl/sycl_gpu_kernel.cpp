@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ namespace gpu {
 namespace sycl {
 
 status_t sycl_gpu_kernel_t::parallel_for(
-        stream_t &stream, const std::function<void(void *)> &cgf) {
+        impl::stream_t &stream, const std::function<void(void *)> &cgf) {
     auto *sycl_stream = utils::downcast<impl::sycl::sycl_stream_t *>(&stream);
     auto &queue = sycl_stream->queue();
     auto &deps = sycl_stream->sycl_ctx().get_sycl_deps().events;

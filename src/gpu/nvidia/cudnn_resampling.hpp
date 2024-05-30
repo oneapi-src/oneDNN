@@ -105,7 +105,7 @@ protected:
                 memory_flags_t::alloc, theta_size_in_byte, nullptr));
         theta_storage_.reset(mem_theta_ptr);
 
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine->get_service_stream(service_stream));
 
         auto cuda_stream

@@ -42,8 +42,8 @@ public:
     sycl_hip_engine_t(const ::sycl::device &dev, const ::sycl::context &ctx,
             size_t index);
 
-    status_t create_stream(stream_t **stream, unsigned flags) override;
-    status_t create_stream(stream_t **stream, ::sycl::queue &queue);
+    status_t create_stream(impl::stream_t **stream, unsigned flags) override;
+    status_t create_stream(impl::stream_t **stream, ::sycl::queue &queue);
 
     void activate_stream_miopen(HIPstream hip_stream);
     void activate_stream_rocblas(HIPstream hip_stream);

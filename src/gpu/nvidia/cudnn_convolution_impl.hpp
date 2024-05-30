@@ -677,7 +677,7 @@ public:
     }
     status_t init_scratchpad(impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto cuda_stream
@@ -710,7 +710,7 @@ public:
             impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
         cuda_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto cuda_stream
@@ -842,7 +842,7 @@ protected:
             impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
         cuda_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto cuda_stream
@@ -907,7 +907,7 @@ protected:
 
     status_t init_scratchpad(impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto cuda_stream
@@ -992,7 +992,7 @@ public:
             impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
         cuda_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto cuda_stream
@@ -1059,7 +1059,7 @@ public:
 
     status_t init_scratchpad(impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto cuda_stream

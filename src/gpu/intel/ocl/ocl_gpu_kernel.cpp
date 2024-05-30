@@ -132,7 +132,7 @@ status_t ocl_gpu_kernel_t::get_binary_size(
             ocl_kernel(), ocl_engine->device(), binary_size);
 }
 
-status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
+status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
         const compute::nd_range_t &range,
         const compute::kernel_arg_list_t &arg_list, const xpu::event_t &deps,
         xpu::event_t &out_dep) {

@@ -51,8 +51,9 @@ public:
     }
 
     status_t map_data(
-            void **mapped_ptr, stream_t *stream, size_t) const override;
-    status_t unmap_data(void *mapped_ptr, stream_t *stream) const override;
+            void **mapped_ptr, impl::stream_t *stream, size_t) const override;
+    status_t unmap_data(
+            void *mapped_ptr, impl::stream_t *stream) const override;
 
     cl_mem mem_object() const { return mem_object_.get(); }
 

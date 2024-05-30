@@ -48,7 +48,7 @@ namespace sycl {
 
 struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, unsigned flags) {
+            impl::stream_t **stream, engine_t *engine, unsigned flags) {
         std::unique_ptr<sycl_stream_t> sycl_stream(
                 new sycl_stream_t(engine, flags));
         if (!sycl_stream) return status::out_of_memory;
@@ -60,7 +60,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
     }
 
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
+            impl::stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
         unsigned flags;
         status_t status = sycl_stream_t::init_flags(&flags, queue);
         if (status != status::success) return status;
@@ -181,7 +181,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
 
 protected:
     xpu::sycl::stream_impl_t *impl() const {
-        return (xpu::sycl::stream_impl_t *)stream_t::impl_.get();
+        return (xpu::sycl::stream_impl_t *)impl::stream_t::impl_.get();
     }
 
     sycl_stream_t(engine_t *engine, unsigned flags)
