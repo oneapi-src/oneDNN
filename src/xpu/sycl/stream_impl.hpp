@@ -18,10 +18,16 @@
 #define XPU_SYCL_STREAM_IMPL_HPP
 
 #include "common/stream_impl.hpp"
+#include "common/thread_local_storage.hpp"
 #include "common/utils.hpp"
+
+#include "xpu/context.hpp"
 
 #include "xpu/sycl/compat.hpp"
 #include "xpu/sycl/utils.hpp"
+
+// TODO: move sycl_context to xpu
+#include "sycl/sycl_context.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -44,8 +50,27 @@ public:
 
     ::sycl::queue *queue() { return queue_.get(); }
 
+    status_t copy(impl::stream_t *stream, const memory_storage_t &src,
+            const memory_storage_t &dst, size_t size, const xpu::event_t &deps,
+            xpu::event_t &out_dep);
+
+    status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
+            const xpu::event_t &deps, xpu::event_t &out_dep);
+
+    const impl::sycl::sycl_context_t &sycl_ctx() const;
+    impl::sycl::sycl_context_t &sycl_ctx();
+
+    xpu::context_t &ctx();
+    const xpu::context_t &ctx() const;
+
+    ::sycl::event get_output_event();
+
+    void register_deps(::sycl::handler &cgh) const;
+
 private:
     std::unique_ptr<::sycl::queue> queue_;
+
+    mutable utils::thread_local_storage_t<impl::sycl::sycl_context_t> ctx_;
 };
 
 } // namespace sycl
