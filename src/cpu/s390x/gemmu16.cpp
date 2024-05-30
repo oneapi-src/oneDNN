@@ -50,7 +50,7 @@ __attribute__((noinline)) void addResults(offset_type offsetType, dim_t m,
                 for (dim_t i = 0; i < m; i++) {
                     double val = alpha * (double)Ctemp[j * ldCtemp + i] + co[0];
                     gPtr(i, j) = static_cast<int32_t>(
-                            nearbyint(saturate<int32_t, double>(val)));
+                            nearbyint(q10n::saturate<int32_t, double>(val)));
                 }
             }
         } else {
@@ -59,7 +59,7 @@ __attribute__((noinline)) void addResults(offset_type offsetType, dim_t m,
                     double val = beta * (double)gPtr(i, j)
                             + alpha * (double)Ctemp[j * ldCtemp + i] + co[0];
                     gPtr(i, j) = static_cast<int32_t>(
-                            nearbyint(saturate<int32_t, double>(val)));
+                            nearbyint(q10n::saturate<int32_t, double>(val)));
                 }
             }
         }
@@ -69,7 +69,7 @@ __attribute__((noinline)) void addResults(offset_type offsetType, dim_t m,
                 for (dim_t i = 0; i < m; i++) {
                     double val = alpha * (double)Ctemp[j * ldCtemp + i] + co[i];
                     gPtr(i, j) = static_cast<int32_t>(
-                            nearbyint(saturate<int32_t, double>(val)));
+                            nearbyint(q10n::saturate<int32_t, double>(val)));
                 }
             }
         } else {
@@ -78,7 +78,7 @@ __attribute__((noinline)) void addResults(offset_type offsetType, dim_t m,
                     double val = beta * (double)gPtr(i, j)
                             + alpha * (double)Ctemp[j * ldCtemp + i] + co[i];
                     gPtr(i, j) = static_cast<int32_t>(
-                            nearbyint(saturate<int32_t, double>(val)));
+                            nearbyint(q10n::saturate<int32_t, double>(val)));
                 }
             }
         }
@@ -89,7 +89,7 @@ __attribute__((noinline)) void addResults(offset_type offsetType, dim_t m,
                 for (dim_t i = 0; i < m; i++) {
                     double val = alpha * (double)Ctemp[j * ldCtemp + i] + co[j];
                     gPtr(i, j) = static_cast<int32_t>(
-                            nearbyint(saturate<int32_t, double>(val)));
+                            nearbyint(q10n::saturate<int32_t, double>(val)));
                 }
             }
         } else {
@@ -98,7 +98,7 @@ __attribute__((noinline)) void addResults(offset_type offsetType, dim_t m,
                     double val = beta * (double)gPtr(i, j)
                             + alpha * (double)Ctemp[j * ldCtemp + i] + co[j];
                     gPtr(i, j) = static_cast<int32_t>(
-                            nearbyint(saturate<int32_t, double>(val)));
+                            nearbyint(q10n::saturate<int32_t, double>(val)));
                 }
             }
         }
@@ -107,7 +107,7 @@ __attribute__((noinline)) void addResults(offset_type offsetType, dim_t m,
             for (dim_t j = 0; j < n; j++) {
                 for (dim_t i = 0; i < m; i++) {
                     gPtr(i, j) = static_cast<int32_t>(
-                            nearbyint(saturate<int32_t, double>(
+                            nearbyint(q10n::saturate<int32_t, double>(
                                     alpha * (double)Ctemp[j * ldCtemp + i])));
                 }
             }
@@ -117,7 +117,7 @@ __attribute__((noinline)) void addResults(offset_type offsetType, dim_t m,
                     double val = beta * (double)gPtr(i, j)
                             + alpha * (double)Ctemp[j * ldCtemp + i];
                     gPtr(i, j) = static_cast<int32_t>(
-                            nearbyint(saturate<int32_t, double>(val)));
+                            nearbyint(q10n::saturate<int32_t, double>(val)));
                 }
             }
         }
