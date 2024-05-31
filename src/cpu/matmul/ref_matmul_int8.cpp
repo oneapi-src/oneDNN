@@ -90,6 +90,7 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t src_zp_stride_k = src_zp_per_k ? 1 : 0;
     const dim_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
     const dim_t wei_zp_stride_k = wei_zp_group_k < K ? wei_zp_per_n ? N : 1 : 0;
+    const auto wei_zp_ngroups_k = K / wei_zp_group_k;
 
     const int src_mask
             = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
@@ -101,47 +102,6 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     // zp_idx_mult = 1 for per_dim1 zero points and 0, otherwise
     const int dst_zp_idx_mult = !attr_zps.common(DNNL_ARG_DST);
 
-    // mm kernel
-    auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
-        int acc = 0;
-        dims_t src_dims_idx, weights_dims_idx;
-        utils::copy_dims_with_mask(src_dims_idx, dst_dims_idx, ndims, src_mask);
-        utils::copy_dims_with_mask(
-                weights_dims_idx, dst_dims_idx, ndims, wei_mask);
-        src_dims_idx[ndims - 2] = m;
-        weights_dims_idx[ndims - 1] = n;
-        auto &src_k_dim = src_dims_idx[ndims - 1];
-        auto &wei_k_dim = weights_dims_idx[ndims - 2];
-        for (dim_t k = 0; k < K; ++k) {
-            src_k_dim = k;
-            wei_k_dim = k;
-            const auto src_off = src_d.off_v(src_dims_idx);
-            const auto weights_off = weights_d.off_v(weights_dims_idx);
-            int s = io::load_int_value(src_d.data_type(), src, src_off);
-            int w = io::load_int_value(
-                    weights_d.data_type(), weights, weights_off);
-            if (with_src_zero_points) {
-                s -= io::load_int_value(
-                        data_type::s32, src_zero_point, src_zp_stride_k * k);
-            }
-            if (with_wei_zero_points) {
-                w -= io::load_float_value(wei_zp_dt, wei_zero_points,
-                        wei_zp_stride_n * n
-                                + wei_zp_stride_k * (k / wei_zp_group_k));
-            }
-            acc += s * w;
-        }
-        return acc;
-    };
-
-    // bias section
-    auto ker_bias = [&](const dims_t &dst_dims_idx) -> float {
-        dims_t bia_dims_idx;
-        utils::copy_dims_with_mask(bia_dims_idx, dst_dims_idx, ndims, bia_mask);
-        const auto bias_off = bia_d.off_v(bia_dims_idx);
-        return io::load_float_value(bia_d.data_type(), bias, bias_off);
-    };
-
     // arg scales section
     const auto &attr_scales = pd()->attr()->scales_;
     const bool with_src_scales
@@ -152,9 +112,89 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
             = !attr_scales.get(DNNL_ARG_DST).has_default_values();
     const int src_scale_mask = attr_scales.get(DNNL_ARG_SRC).mask_;
     const int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-    const dim_t wei_scale_stride = wei_scale_mask != 0;
     const auto &src_scales_dt = attr_scales.get_data_type(DNNL_ARG_SRC);
     const auto &wei_scales_dt = attr_scales.get_data_type(DNNL_ARG_WEIGHTS);
+    const bool wei_scale_per_n = wei_scale_mask & pd()->wei_qmask_N();
+    const bool wei_scale_per_k = wei_scale_mask & pd()->wei_qmask_K();
+    const auto wei_scale_group_ndim = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
+    const auto wei_scale_group_k = wei_scale_group_ndim > 0
+            ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
+            : (wei_scale_per_k ? 1 : K);
+    const dim_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
+    const dim_t wei_scale_stride_k
+            = wei_scale_group_k < K ? wei_scale_per_n ? N : 1 : 0;
+    const auto wei_scale_ngroups_k = K / wei_scale_group_k;
+
+    // For compute kernel, the minimal group is picked.
+    const auto ngroups_k = std::max(wei_zp_ngroups_k, wei_scale_ngroups_k);
+    const auto group_k = std::min(wei_zp_group_k, wei_scale_group_k);
+
+    // mm kernel
+    auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
+        float d = 0;
+        dims_t src_dims_idx, weights_dims_idx;
+        utils::copy_dims_with_mask(src_dims_idx, dst_dims_idx, ndims, src_mask);
+        utils::copy_dims_with_mask(
+                weights_dims_idx, dst_dims_idx, ndims, wei_mask);
+        src_dims_idx[ndims - 2] = m;
+        weights_dims_idx[ndims - 1] = n;
+        auto &src_k_dim = src_dims_idx[ndims - 1];
+        auto &wei_k_dim = weights_dims_idx[ndims - 2];
+        for (dim_t i_group = 0; i_group < ngroups_k; i_group++) {
+            int acc = 0;
+            for (dim_t k = 0; k < group_k; ++k) {
+                src_k_dim = k + i_group * group_k;
+                wei_k_dim = k + i_group * group_k;
+                const auto src_off = src_d.off_v(src_dims_idx);
+                const auto weights_off = weights_d.off_v(weights_dims_idx);
+                int s = io::load_int_value(src_d.data_type(), src, src_off);
+                int w = io::load_int_value(
+                        weights_d.data_type(), weights, weights_off);
+                if (with_src_zero_points) {
+                    s -= io::load_int_value(data_type::s32, src_zero_point,
+                            src_zp_stride_k * k);
+                }
+                if (with_wei_zero_points) {
+                    const auto wei_zp_offset = wei_zp_stride_n * n
+                            + wei_zp_stride_k * (wei_k_dim / wei_zp_group_k);
+                    const auto wei_zp = io::load_int_value(
+                            wei_zp_dt, wei_zero_points, wei_zp_offset);
+                    w -= wei_zp;
+                }
+                acc += s * w;
+            }
+
+            // Apply scaling after computing a group.
+            float acc_f = static_cast<float>(acc);
+            if (with_src_scales) {
+                // Single scale value was already converted into f32.
+                const float src_scale = src_scale_mask == 0
+                        ? src_scales[0]
+                        : io::load_float_value(src_scales_dt, src_scales, 0);
+                acc_f *= src_scale;
+            }
+            if (with_wei_scales) {
+                // Single scale value was already converted into f32.
+                const auto wei_scale_offset = wei_scale_stride_n * n
+                        + wei_scale_stride_k * (wei_k_dim / wei_scale_group_k);
+                const float wei_scale = wei_scale_mask == 0
+                        ? wei_scales[0]
+                        : io::load_float_value(
+                                wei_scales_dt, wei_scales, wei_scale_offset);
+                acc_f *= wei_scale;
+            }
+            d += acc_f;
+        }
+        return d;
+    };
+
+    // bias section
+    auto ker_bias = [&](const dims_t &dst_dims_idx) -> float {
+        dims_t bia_dims_idx;
+        utils::copy_dims_with_mask(bia_dims_idx, dst_dims_idx, ndims, bia_mask);
+        const auto bias_off = bia_d.off_v(bia_dims_idx);
+        return io::load_float_value(bia_d.data_type(), bias, bias_off);
+    };
 
     auto sum_dt = pd()->attr()->post_ops_.get_sum_dt(dst_d.data_type());
 
@@ -164,23 +204,7 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
         // account for M, N dims for index calculations
         const size_t l_offset = mb * M * N + m * N + n;
         utils::l_dims_by_l_offset(dst_dims_idx, l_offset, dst_d.dims(), ndims);
-        int acc = ker(dst_dims_idx, m, n);
-        float d = static_cast<float>(acc);
-        if (with_src_scales) {
-            // Single scale value was already converted into f32.
-            const float src_scale = src_scale_mask == 0
-                    ? src_scales[0]
-                    : io::load_float_value(src_scales_dt, src_scales, 0);
-            d *= src_scale;
-        }
-        if (with_wei_scales) {
-            // Single scale value was already converted into f32.
-            const float wei_scale = wei_scale_mask == 0
-                    ? wei_scales[0]
-                    : io::load_float_value(
-                            wei_scales_dt, wei_scales, wei_scale_stride * n);
-            d *= wei_scale;
-        }
+        float d = ker(dst_dims_idx, m, n);
         if (bias) d += ker_bias(dst_dims_idx);
 
         const auto dst_off = dst_d.off_v(dst_dims_idx);

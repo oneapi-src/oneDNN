@@ -55,6 +55,7 @@ struct ref_matmul_int8_t : public primitive_t {
                     && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
                     && attr()->has_default_values(
                             smask_t::scales_runtime_data_type
+                                    | smask_t::scales_runtime_groups
                                     | smask_t::zero_points_runtime_data_type
                                     | smask_t::zero_points_runtime_groups
                                     | smask_t::post_ops | smask_t::sum_dt,
