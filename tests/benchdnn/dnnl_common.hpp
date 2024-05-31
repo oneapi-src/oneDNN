@@ -603,7 +603,9 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
 
         // Replace engine kind for repro line from GPU to CPU.
         const auto eng_pos = res->prim_ref_repro.find("engine=gpu");
-        res->prim_ref_repro[eng_pos + 7] = 'c'; // Replace `g` in `gpu` with `c`
+        if (eng_pos != std::string::npos)
+            // Replace `g` in `gpu` with `c`
+            res->prim_ref_repro[eng_pos + 7] = 'c';
 
         BENCHDNN_PRINT(
                 0, "[PRIM_REF][REPRO]: %s\n", res->prim_ref_repro.c_str());
