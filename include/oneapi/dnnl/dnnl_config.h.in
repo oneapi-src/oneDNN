@@ -192,6 +192,7 @@
 #cmakedefine01 BUILD_REORDER
 #cmakedefine01 BUILD_RESAMPLING
 #cmakedefine01 BUILD_RNN
+#cmakedefine01 BUILD_SDPA
 #cmakedefine01 BUILD_SHUFFLE
 #cmakedefine01 BUILD_SOFTMAX
 #cmakedefine01 BUILD_SUM
