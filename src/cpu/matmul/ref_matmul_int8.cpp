@@ -82,10 +82,14 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const bool src_zp_per_k = src_zp_mask & pd()->src_qmask_K();
     const bool wei_zp_per_n = wei_zp_mask & pd()->wei_qmask_N();
     const bool wei_zp_per_k = wei_zp_mask & pd()->wei_qmask_K();
+    const auto &wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
+    const auto wei_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS);
+    const auto wei_zp_group_k = wei_zp_group_ndims > 0
+            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
+            : (wei_zp_per_k ? 1 : K);
     const dim_t src_zp_stride_k = src_zp_per_k ? 1 : 0;
     const dim_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
-    const dim_t wei_zp_stride_k = wei_zp_per_k ? wei_zp_per_n ? N : 1 : 0;
-    const auto &wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
+    const dim_t wei_zp_stride_k = wei_zp_group_k < K ? wei_zp_per_n ? N : 1 : 0;
 
     const int src_mask
             = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
@@ -121,8 +125,9 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
                         data_type::s32, src_zero_point, src_zp_stride_k * k);
             }
             if (with_wei_zero_points) {
-                w -= io::load_int_value(wei_zp_dt, wei_zero_points,
-                        wei_zp_stride_n * n + wei_zp_stride_k * k);
+                w -= io::load_float_value(wei_zp_dt, wei_zero_points,
+                        wei_zp_stride_n * n
+                                + wei_zp_stride_k * (k / wei_zp_group_k));
             }
             acc += s * w;
         }
