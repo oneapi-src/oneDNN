@@ -89,7 +89,7 @@ struct acl_deconvolution_fwd_t : public primitive_t {
             , post_ops() {}
 
         DECLARE_COMMON_PD_T(
-                "acl:deconv", acl_deconvolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
+                "acl", acl_deconvolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -296,7 +296,7 @@ struct acl_deconvolution_fwd_t : public primitive_t {
 
             if (acl_pd_conf.use_dst_acc_for_sum) {
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(memory_tracking::names::key_none,
+                scratchpad.book(memory_tracking::names::key_generic_acc,
                         dst_d.nelems(), dst_d.data_type_size());
             }
 
