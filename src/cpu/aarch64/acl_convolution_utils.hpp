@@ -104,7 +104,7 @@ status_t execute_forward_conv_acl(
     // If we have an unfused sum post op, put the result in a scratchpad tensor.
     // Result will be summed to the dst during acl_post_ops.execute
     auto dst_base = use_dst_acc_for_sum
-            ? scratchpad.get<void>(memory_tracking::names::key_none)
+            ? scratchpad.get<void>(memory_tracking::names::key_generic_acc)
             : CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
     acl_conv_obj.dst_tensor.allocator()->import_memory(dst_base);
 

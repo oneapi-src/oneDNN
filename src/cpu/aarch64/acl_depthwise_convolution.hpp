@@ -99,7 +99,7 @@ struct acl_depthwise_convolution_fwd_t : public primitive_t {
             if (acp_.use_dst_acc_for_sum) {
                 const memory_desc_wrapper dst_d(&dst_md_);
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(memory_tracking::names::key_none,
+                scratchpad.book(memory_tracking::names::key_generic_acc,
                         dst_d.nelems(), dst_d.data_type_size());
             }
 
