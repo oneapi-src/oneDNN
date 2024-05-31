@@ -84,6 +84,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
             = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).groups;
     const int64_t wei_zp_group_k
             = !wei_zp_groups.empty() ? wei_zp_groups[0] : 1;
+    const bool apply_scales_in_ker = wei_decompression || wei_scale_per_k;
 
     // Fast return if any dim is zero. Common logic doesn't apply because of
     // broadcast semantics.
@@ -117,7 +118,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
             auto w = wei[wei_off_f(prb, wei_mb, k, n)] - wei_zp;
             // Compression scaling happens before the matmul, unlike regular
             // quantization, to preserve the accuracy.
-            if (has_wei_scale && wei_decompression) {
+            if (has_wei_scale && apply_scales_in_ker) {
                 float wei_scale = wei_scales.get_elem(
                         wei_scale_stride_k * (k / wei_scale_group_k)
                         + wei_scale_stride_n * n);
@@ -135,7 +136,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         float &dst = ((float *)dst_m)[dst_off];
 
         float wei_scale = 1.f;
-        if (has_wei_scale && !wei_decompression)
+        if (has_wei_scale && !apply_scales_in_ker)
             wei_scale = wei_scales.get_elem(wei_scale_mask > 0 ? n : 0);
         float tmp = ((float *)dst_tmp)[dst_off] * src_scale * wei_scale;
 
