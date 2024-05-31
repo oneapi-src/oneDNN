@@ -38,7 +38,7 @@ struct ref_matmul_int8_t : public primitive_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any", ref_matmul_int8_t);
+        DECLARE_COMMON_PD_T("ref_int8:any", ref_matmul_int8_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -53,8 +53,9 @@ struct ref_matmul_int8_t : public primitive_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(bia_type, f32, bf16, s32, s8, u8))
                     && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
-                    && attr()->has_default_values(smask_t::scales_runtime
-                                    | smask_t::zero_points_runtime
+                    && attr()->has_default_values(
+                            smask_t::scales_runtime_data_type
+                                    | smask_t::zero_points_runtime_data_type
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_type)
                     && attr_.post_ops_.check_sum_consistency(dst_type,
