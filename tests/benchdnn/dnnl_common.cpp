@@ -1480,16 +1480,30 @@ float reorder_rescale_factor() {
     return factor;
 }
 
-dims_t md2dims(const_dnnl_memory_desc_t md, int mask, bool extend_by_ones) {
+dims_t md2dims(const_dnnl_memory_desc_t md, int mask, bool extend_by_ones,
+        const std::vector<int64_t> &groups) {
     auto ndims = query_md_ndims(md);
     dims_t dims;
     for (int d = 0; d < ndims; ++d) {
-        if (mask & (1 << d))
+        if (mask & (1 << d)) {
             dims.push_back(query_md_dims(md)[d]);
-        else if (extend_by_ones)
+            // Note: groups are done for matmul's last two dimensions.
+            const auto group_dim = d - (ndims - 2);
+            if (!groups.empty() && group_dim >= 0) {
+                // If groups are passed, divide dims on the correspondent group
+                // size. It's needed to pass proper memory objects.
+                assert(dims.back() % groups[group_dim] == 0);
+                dims.back() /= groups[group_dim];
+            }
+        } else if (extend_by_ones) {
             dims.push_back(1);
+        }
     }
     return dims;
+}
+
+dims_t md2dims(const_dnnl_memory_desc_t md, int mask, bool extend_by_ones) {
+    return md2dims(md, mask, extend_by_ones, {});
 }
 
 dnnl_data_type_t deduce_cfg_data_type(
