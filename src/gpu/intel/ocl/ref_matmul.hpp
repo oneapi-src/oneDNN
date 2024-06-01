@@ -24,8 +24,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 

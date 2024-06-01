@@ -17,9 +17,9 @@
 #ifndef GPU_INTEL_OCL_REF_ZERO_PAD_HPP
 #define GPU_INTEL_OCL_REF_ZERO_PAD_HPP
 
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_zero_pad_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {

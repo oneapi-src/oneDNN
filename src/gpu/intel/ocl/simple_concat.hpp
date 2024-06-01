@@ -20,8 +20,8 @@
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
 #include "gpu/gpu_concat_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {

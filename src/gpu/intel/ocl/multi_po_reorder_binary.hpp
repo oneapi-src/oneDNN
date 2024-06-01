@@ -23,8 +23,8 @@
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 #include "gpu/gpu_binary_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
