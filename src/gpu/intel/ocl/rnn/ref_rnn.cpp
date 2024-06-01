@@ -1110,7 +1110,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
     std::unique_ptr<nested_scratchpad_t> ns;
     const auto init_gemm_nested_scratchpad
-            = [&](const std::shared_ptr<primitive_t> &gemm, int key) {
+            = [&](const std::shared_ptr<impl::primitive_t> &gemm, int key) {
                   ns = utils::make_unique<nested_scratchpad_t>(ctx, key, gemm);
                   gemm_ctx.set_scratchpad_grantor(ns->grantor());
               };

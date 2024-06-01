@@ -250,7 +250,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_p_;
+    std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
 struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
@@ -370,7 +370,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_p_;
+    std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
 struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
@@ -546,7 +546,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_p_;
+    std::shared_ptr<impl::primitive_t> conv_p_;
     compute::kernel_t bias_kernel_;
     compute::range_t gws = compute::range_t::empty(1);
     data_type_t dst_data_type = data_type::undef;

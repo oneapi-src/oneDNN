@@ -78,7 +78,7 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> gemm_prim_;
+    std::shared_ptr<impl::primitive_t> gemm_prim_;
     compute::kernel_t post_process_kernel_;
 };
 

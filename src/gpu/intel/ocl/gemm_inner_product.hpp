@@ -128,7 +128,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::shared_ptr<primitive_t> gemm_;
+    std::shared_ptr<impl::primitive_t> gemm_;
 };
 
 struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
@@ -217,7 +217,7 @@ private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::shared_ptr<primitive_t> gemm_;
+    std::shared_ptr<impl::primitive_t> gemm_;
 };
 
 struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
@@ -393,8 +393,8 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> gemm_;
-    std::shared_ptr<primitive_t> reduction_;
+    std::shared_ptr<impl::primitive_t> gemm_;
+    std::shared_ptr<impl::primitive_t> reduction_;
 };
 
 } // namespace ocl

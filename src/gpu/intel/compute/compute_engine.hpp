@@ -88,7 +88,7 @@ public:
             const std::vector<const char *> &kernel_names) const = 0;
 
     status_t get_zero_pad_primitive(
-            primitive_t *&result, const resource_mapper_t *&resources) {
+            impl::primitive_t *&result, const resource_mapper_t *&resources) {
         std::call_once(zero_pad_init_, [&]() -> void {
             zero_pad_desc_t desc;
             desc.primitive_kind = primitive_kind::zero_pad;
@@ -202,7 +202,7 @@ private:
     // to prevent extra overhead associated with creating zero_pad_primitives
     // for different inputs as ideally the zero_pad operations fast relative to
     // the time to create the primitive.
-    std::shared_ptr<primitive_t> zero_pad_primitive_;
+    std::shared_ptr<impl::primitive_t> zero_pad_primitive_;
     resource_mapper_t zero_pad_resources_;
     std::once_flag zero_pad_init_;
     std::unique_ptr<impl::stream_t> service_stream_;

@@ -169,7 +169,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::vector<std::shared_ptr<primitive_t>> reorder_primitive_list;
+    std::vector<std::shared_ptr<impl::primitive_t>> reorder_primitive_list;
 };
 } // namespace ocl
 } // namespace intel

@@ -124,9 +124,9 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_;
-    std::shared_ptr<primitive_t> postop_reorder_;
-    std::shared_ptr<primitive_t> dst_reorder_;
+    std::shared_ptr<impl::primitive_t> conv_;
+    std::shared_ptr<impl::primitive_t> postop_reorder_;
+    std::shared_ptr<impl::primitive_t> dst_reorder_;
 };
 
 } // namespace ocl

@@ -475,7 +475,7 @@ protected:
         return new_pd.release(); \
     } \
     status_t create_primitive( \
-            std::pair<std::shared_ptr<primitive_t>, bool> &primitive, \
+            std::pair<std::shared_ptr<impl::primitive_t>, bool> &primitive, \
             dnnl::impl::engine_t *engine, const cache_blob_t &cache_blob) \
             const override { \
         return primitive_t::create_primitive_common<impl_type, pd_t>( \

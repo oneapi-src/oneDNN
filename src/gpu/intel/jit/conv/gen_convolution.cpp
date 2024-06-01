@@ -46,7 +46,7 @@ struct conv_pd_data_t {
     tensor_config_t tensor_cfg;
     std::vector<kernel_info_t> kernel_infos;
     std::shared_ptr<dnnl_primitive_desc> zp_pd;
-    std::shared_ptr<primitive_t> zp_prim;
+    std::shared_ptr<impl::primitive_t> zp_prim;
 };
 
 class gen_convolution_t {

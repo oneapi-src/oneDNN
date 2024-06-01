@@ -165,7 +165,7 @@ status_t convolution_inner_product_fwd_t::execute_forward(
 
     std::unique_ptr<memory_t> wspace_dst;
     auto exec_reorder = [&](memory_t *in, memory_t *out,
-                                const std::shared_ptr<primitive_t> &prim,
+                                const std::shared_ptr<impl::primitive_t> &prim,
                                 int r_num) -> status_t {
         exec_args_t r_args;
         r_args[DNNL_ARG_FROM] = memory_arg_t {in, true};

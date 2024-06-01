@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -237,7 +237,7 @@ struct miopen_deconvolution_fwd_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_p_;
+    std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
 struct miopen_deconvolution_bwd_data_t : public primitive_t {
@@ -337,7 +337,7 @@ struct miopen_deconvolution_bwd_data_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_p_;
+    std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
 struct miopen_deconvolution_bwd_weights_t : public primitive_t {
@@ -454,7 +454,7 @@ struct miopen_deconvolution_bwd_weights_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_p_;
+    std::shared_ptr<impl::primitive_t> conv_p_;
     std::shared_ptr<miopen_deconvolution_bwd_bias_impl_t> impl_;
 };
 

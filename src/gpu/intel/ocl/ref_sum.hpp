@@ -193,7 +193,7 @@ struct ref_sum_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::vector<std::shared_ptr<primitive_t>> reorders_;
+    std::vector<std::shared_ptr<impl::primitive_t>> reorders_;
 };
 
 } // namespace ocl

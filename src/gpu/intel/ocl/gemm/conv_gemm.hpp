@@ -222,7 +222,7 @@ struct conv_gemm_t : public gpu_gemm_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_;
+    std::shared_ptr<impl::primitive_t> conv_;
 };
 
 } // namespace ocl

@@ -180,7 +180,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     compute::kernel_t kernel_;
-    std::shared_ptr<primitive_t> reduction_p_;
+    std::shared_ptr<impl::primitive_t> reduction_p_;
 };
 
 } // namespace ocl

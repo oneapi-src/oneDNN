@@ -151,7 +151,7 @@ private:
     }
 
     std::vector<compute::kernel_t> kernels_;
-    std::shared_ptr<primitive_t> eltwise_p_;
+    std::shared_ptr<impl::primitive_t> eltwise_p_;
 };
 
 } // namespace ocl
