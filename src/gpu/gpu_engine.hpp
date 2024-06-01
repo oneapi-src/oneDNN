@@ -48,6 +48,8 @@ public:
             const op_desc_t *desc) const override {
         return gpu::gpu_impl_list_t::get_implementation_list(desc);
     }
+
+    int get_buffer_alignment() const { return 128; }
 };
 
 } // namespace gpu
