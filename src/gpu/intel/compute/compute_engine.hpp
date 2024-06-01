@@ -29,12 +29,16 @@
 #include "common/resource.hpp"
 #include "common/stream.hpp"
 #include "common/verbose.hpp"
+
+#include "xpu/utils.hpp"
+
+#include "gpu/gpu_engine.hpp"
+
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/compute/dispatch.hpp"
 #include "gpu/intel/compute/kernel.hpp"
 #include "gpu/intel/compute/kernel_ctx.hpp"
 #include "gpu/intel/jit/jit_generator_base.hpp"
-#include "xpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -42,7 +46,7 @@ namespace gpu {
 namespace intel {
 namespace compute {
 
-class compute_engine_t : public engine_t {
+class compute_engine_t : public gpu::engine_t {
 public:
     compute_engine_t(impl::engine_impl_t *impl) : engine_t(impl) {}
 
@@ -170,22 +174,6 @@ public:
         return dispatch_t(this, md);
     }
 
-    status_t get_service_stream(impl::stream_t *&stream) override {
-        status_t status = status::success;
-        if (service_stream_ == nullptr) {
-            const std::lock_guard<std::mutex> lock(service_stream_mutex_);
-            if (service_stream_ == nullptr) {
-                impl::stream_t *service_stream_ptr;
-                status = create_stream(
-                        &service_stream_ptr, stream_flags::default_flags);
-                if (status == status::success)
-                    service_stream_.reset(service_stream_ptr);
-            }
-        }
-        stream = service_stream_.get();
-        return status;
-    }
-
 protected:
     virtual status_t init_device_info() = 0;
     virtual status_t init_device_info(const std::vector<uint8_t> &cache_blob) {
@@ -205,8 +193,6 @@ private:
     std::shared_ptr<impl::primitive_t> zero_pad_primitive_;
     resource_mapper_t zero_pad_resources_;
     std::once_flag zero_pad_init_;
-    std::unique_ptr<impl::stream_t> service_stream_;
-    std::mutex service_stream_mutex_;
 };
 
 } // namespace compute

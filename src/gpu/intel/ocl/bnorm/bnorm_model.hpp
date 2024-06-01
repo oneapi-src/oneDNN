@@ -27,7 +27,7 @@ namespace ocl {
 namespace bn_model {
 
 struct hw_params_t {
-    engine_t *engine;
+    impl::engine_t *engine;
     compute::gpu_arch_t gpu_arch;
     int eu_count;
     int threads_per_eu;
@@ -63,7 +63,7 @@ struct model_params_t {
     int vect_size;
     std::vector<kernel_desc_t> kernel_descs;
 };
-void init_hw_params(hw_params_t &hw_params, engine_t *engine);
+void init_hw_params(hw_params_t &hw_params, impl::engine_t *engine);
 float get_used_ss_thr_utilization(hw_params_t &hw_params, int sg_size,
         const compute::range_t &gws, const compute::range_t &lws);
 std::string to_string(const kernel_kind_t &kernel);

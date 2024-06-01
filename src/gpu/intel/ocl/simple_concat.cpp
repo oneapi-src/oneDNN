@@ -382,7 +382,7 @@ struct prb_info_t {
 };
 
 static status_t init_conf_common(
-        engine_t *engine, concat_conf_t &conf, const concat_pd_t *pd) {
+        impl::engine_t *engine, concat_conf_t &conf, const concat_pd_t *pd) {
     using namespace utils;
     const memory_desc_t &ref_dst_md = *pd->dst_md();
     if (ref_dst_md.format_kind != format_kind::blocked)
@@ -555,7 +555,7 @@ static status_t init_kernel_ctx_common(
     return status::success;
 }
 
-status_t simple_concat_t::pd_t::init_conf(engine_t *engine) {
+status_t simple_concat_t::pd_t::init_conf(impl::engine_t *engine) {
     return init_conf_common(engine, conf, this);
 }
 

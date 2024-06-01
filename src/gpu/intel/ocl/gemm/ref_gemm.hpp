@@ -35,7 +35,7 @@ struct ref_gemm_t : public gpu_gemm_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_gemm_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
@@ -158,7 +158,7 @@ struct ref_gemm_t : public gpu_gemm_t {
         attr_info_t attr_info = {};
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());

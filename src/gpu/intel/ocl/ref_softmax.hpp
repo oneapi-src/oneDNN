@@ -42,7 +42,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
                     {primitive_kind::eltwise, primitive_kind::binary});
         }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
@@ -125,7 +125,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         int subgroup_size = 16;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         using namespace dnnl::impl::format_tag;
@@ -202,7 +202,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
@@ -276,7 +276,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         size_t group_size = 0;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         compute::kernel_ctx_t kernel_ctx;

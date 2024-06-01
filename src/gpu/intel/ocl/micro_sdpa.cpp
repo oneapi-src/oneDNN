@@ -95,7 +95,7 @@ sdpa_config_t *choose_config_xehpc(int head_size, int seq, bool thin_q) {
 
 } /* anonymous namespace */
 
-status_t micro_sdpa_t::pd_t::init_microkernels(engine_t *engine) {
+status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     using namespace jit;
     using arch_t = compute::gpu_arch_t;
 
@@ -219,7 +219,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(engine_t *engine) {
     return status::success;
 }
 
-status_t micro_sdpa_t::init(engine_t *engine) {
+status_t micro_sdpa_t::init(impl::engine_t *engine) {
     using namespace micro;
 
     compute::kernel_ctx_t kernel_ctx;

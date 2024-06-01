@@ -24,7 +24,7 @@ namespace intel {
 namespace ocl {
 
 static status_t init_conf_common(
-        prelu_conf_t &conf, const prelu_pd_t *pd, engine_t *engine) {
+        prelu_conf_t &conf, const prelu_pd_t *pd, impl::engine_t *engine) {
 
     conf.is_forward = pd->is_fwd();
 
@@ -100,7 +100,7 @@ static status_t init_kernel_ctx_common(
     return status::success;
 }
 
-status_t ref_prelu_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_prelu_fwd_t::pd_t::init_conf(impl::engine_t *engine) {
     return init_conf_common(conf, this, engine);
 }
 
@@ -127,7 +127,7 @@ status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     return status;
 }
 
-status_t ref_prelu_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_prelu_bwd_t::pd_t::init_conf(impl::engine_t *engine) {
     return init_conf_common(conf, this, engine);
 }
 

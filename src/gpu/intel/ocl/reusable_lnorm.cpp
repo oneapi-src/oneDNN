@@ -73,7 +73,7 @@ static compute::named_buffer_t get_ss_buffer(
 
 static status_t init_conf_common(const layer_normalization_pd_t *pd,
         reusable_lnorm_params_t *conf, reusable_lnorm_runtime_params_t *rt_conf,
-        const engine_t *engine, const compute::named_buffer_t &src_buf,
+        const impl::engine_t *engine, const compute::named_buffer_t &src_buf,
         const compute::named_buffer_t &dst_buf,
         const compute::named_buffer_t &stat_buf,
         const compute::named_buffer_t &ss_buf) {
@@ -180,7 +180,8 @@ void init_scratchpad_common(
     }
 }
 
-status_t reusable_layer_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t reusable_layer_normalization_fwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     size_t ndims = static_cast<size_t>(src_md()->ndims);
     std::vector<compute::dim_id_t> dims = get_dims(ndims);
     std::vector<compute::dim_id_t> stat_dims = get_dims(ndims, true);
@@ -313,7 +314,8 @@ status_t reusable_layer_normalization_fwd_t::execute_forward(
 
 /********** BWD implementation ***********/
 
-status_t reusable_layer_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t reusable_layer_normalization_bwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     size_t ndims = static_cast<size_t>(diff_dst_md()->ndims);
     std::vector<compute::dim_id_t> dims = get_dims(ndims);
     std::vector<compute::dim_id_t> stat_dims = get_dims(ndims, true);

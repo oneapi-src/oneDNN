@@ -39,7 +39,7 @@ public:
 
         DECLARE_COMMON_PD_T("jit:ir", gen_reorder_t);
 
-        status_t init(engine_t *, engine_t *, engine_t *);
+        status_t init(impl::engine_t *, impl::engine_t *, impl::engine_t *);
         status_t init_kernel_info();
 
         std::shared_ptr<reorder_config_t> cfg;
@@ -51,7 +51,7 @@ public:
 
     using gpu_primitive_t::gpu_primitive_t;
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:

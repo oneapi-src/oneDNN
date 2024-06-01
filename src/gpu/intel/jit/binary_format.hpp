@@ -25,7 +25,7 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-status_t gpu_supports_binary_format(bool *ok, engine_t *engine);
+status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine);
 
 } // namespace jit
 } // namespace intel

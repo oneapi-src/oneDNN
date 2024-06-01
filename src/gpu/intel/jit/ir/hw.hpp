@@ -74,7 +74,7 @@ class hw_t {
 public:
     hw_t() = default;
     explicit hw_t(ngen::HW hw) : hw_(hw) {}
-    explicit hw_t(const engine_t *engine) {
+    explicit hw_t(const impl::engine_t *engine) {
         using namespace compute;
         auto compute_engine = utils::downcast<const compute_engine_t *>(engine);
 

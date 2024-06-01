@@ -42,7 +42,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         DECLARE_COMMON_PD_T("jit:gemm:any", gen_gemm_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
             using namespace primitive_kind;
@@ -598,9 +598,11 @@ struct gen_gemm_t : public gpu_gemm_t {
         if (zero_pool_) release_zero_pool(zero_pool_);
     }
 
-    status_t init(engine_t *engine) override { return init_nocopy(engine); }
+    status_t init(impl::engine_t *engine) override {
+        return init_nocopy(engine);
+    }
 
-    status_t init_nocopy(engine_t *engine) {
+    status_t init_nocopy(impl::engine_t *engine) {
         using namespace data_type;
 
         auto kd = pd()->kernel_desc();

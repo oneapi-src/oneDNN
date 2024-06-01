@@ -37,7 +37,7 @@ struct ref_reduction_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("reduction_ref:any", ref_reduction_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm::post_ops | sm::gpu_attr;
 
@@ -57,13 +57,13 @@ struct ref_reduction_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         reduction_conf_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);

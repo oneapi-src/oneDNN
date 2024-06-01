@@ -36,7 +36,7 @@ public:
     rocblas_handle &get_rocblas_handle(HIPstream hip_stream = nullptr);
 
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, unsigned flags) {
+            stream_t **stream, impl::engine_t *engine, unsigned flags) {
         std::unique_ptr<sycl_hip_stream_t> sycl_stream(
                 new sycl_hip_stream_t(engine, flags));
         if (!sycl_stream) return status::out_of_memory;
@@ -47,7 +47,7 @@ public:
     }
 
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
+            stream_t **stream, impl::engine_t *engine, ::sycl::queue &queue) {
         unsigned flags;
         CHECK(xpu::sycl::stream_impl_t::init_flags(&flags, queue));
 
@@ -67,9 +67,10 @@ public:
 
 private:
     status_t init();
-    sycl_hip_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
+    sycl_hip_stream_t(
+            impl::engine_t *engine, unsigned flags, ::sycl::queue &queue)
         : base_t(engine, flags, queue) {}
-    sycl_hip_stream_t(engine_t *engine, unsigned flags)
+    sycl_hip_stream_t(impl::engine_t *engine, unsigned flags)
         : base_t(engine, flags) {}
 };
 

@@ -59,7 +59,7 @@ bool check_broadcast(
     return true;
 }
 
-status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
+status_t gen9_binary_t::pd_t::init_conf(impl::engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));

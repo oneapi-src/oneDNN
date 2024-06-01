@@ -31,7 +31,7 @@ namespace ocl {
 void print_verbose_header() {
     ocl_engine_factory_t factory(engine_kind::gpu);
     for (size_t i = 0; i < factory.count(); ++i) {
-        engine_t *eng_ptr = nullptr;
+        impl::engine_t *eng_ptr = nullptr;
         status_t status = factory.engine_create(&eng_ptr, i);
         if (status != status::success) {
             VERROR(common, ocl, VERBOSE_INVALID_DEVICE_ENV,

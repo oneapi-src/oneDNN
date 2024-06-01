@@ -33,7 +33,7 @@ namespace ocl {
 
 static void init_calculate_stats_conf(bnorm_conf_t &conf,
         compute::dispatch_t &dispatch_calc_stat,
-        compute::dispatch_t &dispatch_reduce_stat, engine_t *engine,
+        compute::dispatch_t &dispatch_reduce_stat, impl::engine_t *engine,
         const memory_desc_wrapper &data_mdw) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     const int ndims = conf.ndims;
@@ -78,7 +78,7 @@ static void init_calculate_stats_conf(bnorm_conf_t &conf,
 
 static void init_conf_common(bnorm_conf_t &conf, compute::dispatch_t &dispatch,
         offsets_t &off, const batch_normalization_pd_t *pd,
-        const memory_desc_wrapper &data_mdw, engine_t *engine) {
+        const memory_desc_wrapper &data_mdw, impl::engine_t *engine) {
 
     const batch_normalization_desc_t &bd = *pd->desc();
     const int ndims = data_mdw.ndims();
@@ -157,7 +157,7 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     def_dispatch(kernel_ctx, dispatch);
 }
 
-void ref_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+void ref_batch_normalization_fwd_t::pd_t::init_conf(impl::engine_t *engine) {
     const memory_desc_wrapper data_mdw(src_md());
     init_conf_common(conf, dispatch, off, this, data_mdw, engine);
 
@@ -287,7 +287,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
 
-void ref_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+void ref_batch_normalization_bwd_t::pd_t::init_conf(impl::engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper data_mdw(diff_src_md());
     init_conf_common(conf, dispatch, off, this, data_mdw, engine);

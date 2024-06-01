@@ -64,7 +64,7 @@ static status_t init_kernel_ctx_common(
     return status::success;
 }
 
-status_t ref_group_normalization_fwd_t::pd_t::init(engine_t *engine) {
+status_t ref_group_normalization_fwd_t::pd_t::init(impl::engine_t *engine) {
     using namespace data_type;
 
     using skip_mask_t = primitive_attr_t::skip_mask_t;
@@ -159,7 +159,7 @@ status_t ref_group_normalization_fwd_t::execute(const exec_ctx_t &ctx) const {
     return status;
 }
 
-status_t ref_group_normalization_bwd_t::pd_t::init(engine_t *engine) {
+status_t ref_group_normalization_bwd_t::pd_t::init(impl::engine_t *engine) {
     using namespace data_type;
 
     const data_type_t src_dt = src_md()->data_type;

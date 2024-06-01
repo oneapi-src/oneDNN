@@ -30,9 +30,9 @@ class ocl_memory_storage_base_t : public memory_storage_t {
 public:
     // Explicitly define ctors due to a "circular dependencies" bug in ICC.
     ocl_memory_storage_base_t(
-            engine_t *engine, const memory_storage_t *parent_storage)
+            impl::engine_t *engine, const memory_storage_t *parent_storage)
         : memory_storage_t(engine, parent_storage) {}
-    ocl_memory_storage_base_t(engine_t *engine)
+    ocl_memory_storage_base_t(impl::engine_t *engine)
         : ocl_memory_storage_base_t(engine, this) {}
 
     virtual memory_kind_t memory_kind() const = 0;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -167,7 +167,7 @@ struct miopen_gemm_inner_product_fwd_t : public miopen_inner_product_fwd_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:gemm", miopen_gemm_inner_product_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
             using namespace data_type;
@@ -250,7 +250,7 @@ struct miopen_gemm_inner_product_bwd_data_t
         DECLARE_COMMON_PD_T(
                 "hip:miopen:gemm", miopen_gemm_inner_product_bwd_data_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
@@ -308,7 +308,7 @@ struct miopen_gemm_inner_product_bwd_weights_t
         DECLARE_COMMON_PD_T(
                 "hip:miopen:gemm", miopen_gemm_inner_product_bwd_weights_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);

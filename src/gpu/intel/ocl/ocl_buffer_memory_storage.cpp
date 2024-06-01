@@ -38,8 +38,8 @@ status_t ocl_buffer_memory_storage_t::init_allocate(size_t size) {
 }
 
 namespace {
-status_t get_map_queue(
-        cl_command_queue &queue, engine_t *engine, impl::stream_t *stream) {
+status_t get_map_queue(cl_command_queue &queue, impl::engine_t *engine,
+        impl::stream_t *stream) {
     ocl_stream_t *ocl_stream;
     if (stream == nullptr) {
         auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);

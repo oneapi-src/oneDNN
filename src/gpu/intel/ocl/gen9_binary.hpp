@@ -36,7 +36,7 @@ struct gen9_binary_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9", gen9_binary_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace format_tag;
             using sm = primitive_attr_t::skip_mask_t;
@@ -101,7 +101,7 @@ struct gen9_binary_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
 
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
@@ -116,7 +116,7 @@ struct gen9_binary_t : public gpu_primitive_t {
         binary_conf_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);

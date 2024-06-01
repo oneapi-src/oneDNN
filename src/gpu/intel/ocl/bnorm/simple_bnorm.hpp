@@ -39,7 +39,7 @@ struct simple_batch_normalization_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:simple", simple_batch_normalization_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -88,7 +88,7 @@ struct simple_batch_normalization_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
@@ -99,7 +99,7 @@ struct simple_batch_normalization_fwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
         compute::kernel_ctx_t kernel_ctx;
 
@@ -138,7 +138,7 @@ struct simple_batch_normalization_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:simple", simple_batch_normalization_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -177,7 +177,7 @@ struct simple_batch_normalization_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
@@ -188,7 +188,7 @@ struct simple_batch_normalization_bwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
         compute::kernel_ctx_t kernel_ctx;
 

@@ -32,7 +32,7 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-status_t xe_hp_systolic_gemm_t::pd_t::init(engine_t *engine) {
+status_t xe_hp_systolic_gemm_t::pd_t::init(impl::engine_t *engine) {
     using namespace prop_kind;
     using namespace data_type;
     using namespace primitive_kind;
@@ -457,7 +457,7 @@ void xe_hp_systolic_gemm_t::pd_t::init_scratchpad() {
     }
 }
 
-status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
+status_t xe_hp_systolic_gemm_t::init(impl::engine_t *engine) {
     arch_ = pd()->dev_info_->gpu_arch();
     eu_count_ = pd()->dev_info_->eu_count();
 
@@ -519,7 +519,7 @@ status_t xe_hp_systolic_gemm_t::init(engine_t *engine) {
     return status::success;
 }
 
-status_t xe_hp_systolic_gemm_t::init_compute(engine_t *engine) {
+status_t xe_hp_systolic_gemm_t::init_compute(impl::engine_t *engine) {
     using kd_t = gen_gemm_xe_systolic_kernel_desc_t;
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);

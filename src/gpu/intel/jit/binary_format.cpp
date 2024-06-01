@@ -200,7 +200,7 @@ public:
     }
 };
 
-status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
+status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
     *ok = false;
 
     auto gpu_engine = utils::downcast<compute::compute_engine_t *>(engine);

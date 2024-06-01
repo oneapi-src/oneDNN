@@ -26,7 +26,7 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-status_t gen9_simple_sum_t::init(engine_t *engine) {
+status_t gen9_simple_sum_t::init(impl::engine_t *engine) {
     compute::kernel_ctx_t kernel_ctx;
 
     auto *gpu_engine = utils::downcast<ocl::ocl_gpu_engine_t *>(engine);

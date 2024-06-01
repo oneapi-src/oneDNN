@@ -38,7 +38,7 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             const auto *compute_engine
@@ -78,13 +78,13 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         lnorm_conf_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         compute::kernel_ctx_t kernel_ctx;
@@ -122,7 +122,7 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             const auto *compute_engine
@@ -159,14 +159,14 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
         lnorm_conf_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         compute::kernel_ctx_t kernel_ctx;

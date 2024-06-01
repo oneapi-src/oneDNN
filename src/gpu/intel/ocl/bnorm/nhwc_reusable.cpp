@@ -95,7 +95,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
         compute::dispatch_t &dispatch_calc_stat,
         compute::dispatch_t &dispatch_reduce_stat,
         compute::dispatch_t &dispatch, compute::dispatch_t &dispatch_reduce_aux,
-        const batch_normalization_pd_t *pd, engine_t *engine) {
+        const batch_normalization_pd_t *pd, impl::engine_t *engine) {
 
     // This implementation is temporarly unavailable by default
     // TODO: remove the guard after performance tuning
@@ -230,7 +230,7 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 }
 
 status_t nhwc_reusable_batch_normalization_fwd_t::pd_t::init_conf(
-        engine_t *engine) {
+        impl::engine_t *engine) {
     return init_conf_common(bn_conf, cmpl_conf, rt_conf, dispatch_calc_stat,
             dispatch_reduce_stat, dispatch, dispatch_reduce_aux, this, engine);
 }
@@ -528,7 +528,7 @@ status_t nhwc_reusable_batch_normalization_fwd_t::execute_forward(
 }
 
 status_t nhwc_reusable_batch_normalization_bwd_t::pd_t::init_conf(
-        engine_t *engine) {
+        impl::engine_t *engine) {
     return init_conf_common(bn_conf, cmpl_conf, rt_conf, dispatch_calc_stat,
             dispatch_reduce_stat, dispatch, dispatch_reduce_aux, this, engine);
 }

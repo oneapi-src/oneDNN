@@ -32,7 +32,7 @@ struct sycl_gpu_primitive_t : public primitive_t {
     using primitive_t::primitive_t;
 
 protected:
-    status_t create_kernel(engine_t *engine, ::sycl::kernel_id kid,
+    status_t create_kernel(impl::engine_t *engine, ::sycl::kernel_id kid,
             intel::compute::kernel_t *kernel) {
         using namespace impl::sycl;
         auto ctx = utils::downcast<const xpu::sycl::engine_impl_t *>(

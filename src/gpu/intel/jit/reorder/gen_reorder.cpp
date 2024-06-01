@@ -37,8 +37,8 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-status_t gen_reorder_t::pd_t::init(
-        engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
+        impl::engine_t *src_engine, impl::engine_t *dst_engine) {
     const auto src_dt = src_md()->data_type;
     const auto dst_dt = dst_md()->data_type;
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -198,7 +198,7 @@ status_t gen_reorder_t::pd_t::init_kernel_info() {
     return status::success;
 }
 
-status_t gen_reorder_t::init(engine_t *engine) {
+status_t gen_reorder_t::init(impl::engine_t *engine) {
     auto &cfg = *pd()->cfg;
     auto &info = *pd()->kernel_info;
 

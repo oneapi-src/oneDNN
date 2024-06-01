@@ -383,7 +383,7 @@ public:
     int kernel_count() const { return (int)entries_.size(); }
 
     status_t create_kernels(std::vector<compute::kernel_t> &kernels,
-            gpu_primitive_t *primitive, engine_t *engine) const {
+            gpu_primitive_t *primitive, impl::engine_t *engine) const {
         for (auto &e : entries_) {
             compute::kernel_t kernel;
             CHECK(e.desc->create_kernel(kernel, primitive, engine));

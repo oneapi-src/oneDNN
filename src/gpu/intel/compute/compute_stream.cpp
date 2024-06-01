@@ -53,7 +53,7 @@ status_t compute_stream_t::zero_pad(
     if (step_nelems > max_step_nelems)
         return impl::stream_t::zero_pad(memory, ctx);
 
-    engine_t *engine = this->engine();
+    impl::engine_t *engine = this->engine();
 
     primitive_t *zero_pad_primitive;
     const resource_mapper_t *mapper;

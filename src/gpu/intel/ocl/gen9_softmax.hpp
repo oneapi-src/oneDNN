@@ -37,7 +37,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9", gen9_softmax_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace dnnl::impl::format_tag;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -188,7 +188,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         int buffer_size = 128;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         compute::kernel_ctx_t kernel_ctx;
@@ -251,7 +251,7 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9", gen9_softmax_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace dnnl::impl::format_tag;
 
             auto *compute_engine
@@ -325,7 +325,7 @@ struct gen9_softmax_bwd_t : public gpu_primitive_t {
         const int buffer_size = 128;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         compute::kernel_ctx_t kernel_ctx;

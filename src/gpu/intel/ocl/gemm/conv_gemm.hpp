@@ -39,7 +39,7 @@ struct conv_gemm_t : public gpu_gemm_t {
 
         DECLARE_COMMON_PD_T("ocl:conv:ir", conv_gemm_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             // This is currently only used for experimentation purposes
             bool enable_conv_gemm
                     = gpu_utils::dev_getenv("enable_conv_gemm", false);
@@ -182,7 +182,7 @@ struct conv_gemm_t : public gpu_gemm_t {
         std::shared_ptr<primitive_desc_t> conv_pd;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_nested_primitive(conv_, pd()->conv_pd, engine);
     }
 

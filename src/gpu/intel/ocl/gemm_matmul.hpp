@@ -41,7 +41,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_matmul_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             primitive_attr_t gemm_attr;
@@ -304,7 +304,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_nested_primitive(gemm_, pd()->gemm_pd_, engine);
     }
 

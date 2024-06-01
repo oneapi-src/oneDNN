@@ -25,7 +25,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-status_t gen9_eltwise_jit_params_t::init(engine_t *engine,
+status_t gen9_eltwise_jit_params_t::init(impl::engine_t *engine,
         const memory_desc_wrapper data_d, alg_kind_t alg_kind_) {
     *this = {};
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -81,7 +81,7 @@ compute::kernel_ctx_t gen9_eltwise_jit_params_t::get_kernel_ctx() const {
     return kernel_ctx;
 }
 
-status_t gen9_eltwise_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t gen9_eltwise_fwd_t::pd_t::init_conf(impl::engine_t *engine) {
     const memory_desc_wrapper data_d(use_dst() ? dst_md() : src_md());
     status_t status = conf.init(engine, data_d, this->desc()->alg_kind);
     return status;
@@ -123,7 +123,7 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
     return status;
 }
 
-status_t gen9_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t gen9_eltwise_bwd_t::pd_t::init_conf(impl::engine_t *engine) {
     using namespace dnnl::impl::format_tag;
 
     const memory_desc_wrapper data_d(data_md());

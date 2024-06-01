@@ -113,7 +113,7 @@ void reusable_ref_reduction_t::pd_t::init_scratchpad() {
     }
 }
 
-status_t reusable_ref_reduction_t::pd_t::init_conf(engine_t *engine) {
+status_t reusable_ref_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
     const int ndims = src_mdw.ndims();

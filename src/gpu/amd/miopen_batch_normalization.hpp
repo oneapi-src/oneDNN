@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,7 +38,7 @@ namespace amd {
 struct miopen_batch_normalization_common_t {
     template <typename pd_t>
     static status_t execute(
-            const exec_ctx_t &ctx, engine_t *engine, const pd_t *pd) {
+            const exec_ctx_t &ctx, impl::engine_t *engine, const pd_t *pd) {
         if (memory_desc_wrapper(pd->src_md()).has_zero_dim()) {
             return status::success;
         }

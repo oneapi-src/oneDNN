@@ -38,7 +38,7 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
+status_t gen_pooling_fwd_t::pd_t::init(impl::engine_t *engine) {
     using namespace data_type;
     using namespace prop_kind;
     using namespace alg_kind;
@@ -108,7 +108,7 @@ status_t gen_pooling_fwd_t::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
-status_t gen_pooling_fwd_t::init(engine_t *engine) {
+status_t gen_pooling_fwd_t::init(impl::engine_t *engine) {
     cfg_ = pooling_config_t(
             *pd()->exec_cfg, *pd()->pool_conf, *pd()->src, *pd()->dst);
     zero_points_config_t zp_cfg(pd());

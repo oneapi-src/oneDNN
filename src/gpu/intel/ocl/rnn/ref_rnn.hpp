@@ -78,7 +78,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         status_t set_default_params();
 
@@ -126,7 +126,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         }
     }; // struct pd_t : public base_pd_t
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_(ctx);
@@ -134,7 +134,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
 protected:
     status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override;
+            impl::engine_t *engine, gpu_resource_t *r) const override;
 
 private:
     status_t execute_(const exec_ctx_t &ctx) const;

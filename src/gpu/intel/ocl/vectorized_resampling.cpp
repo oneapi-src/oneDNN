@@ -100,7 +100,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-status_t vectorized_resampling_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t vectorized_resampling_bwd_t::pd_t::init_conf(impl::engine_t *engine) {
     using namespace data_type;
     assert(engine->kind() == engine_kind::gpu);
     bool ok = !is_fwd() && set_default_params() == status::success

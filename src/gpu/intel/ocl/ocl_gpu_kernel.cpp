@@ -62,7 +62,7 @@ public:
     }
 
     status_t set_usm_arg(
-            engine_t *engine, int arg_index, const void *arg_value) {
+            impl::engine_t *engine, int arg_index, const void *arg_value) {
         return usm::set_kernel_arg_usm(engine, kernel_, arg_index, arg_value);
     }
 
@@ -120,13 +120,13 @@ ocl_gpu_kernel_t::~ocl_gpu_kernel_t() {
 }
 
 status_t ocl_gpu_kernel_t::get_binary(
-        const engine_t *engine, xpu::binary_t &binary) const {
+        const impl::engine_t *engine, xpu::binary_t &binary) const {
     auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
     return get_ocl_program_binary(ocl_kernel(), ocl_engine->device(), binary);
 }
 
 status_t ocl_gpu_kernel_t::get_binary_size(
-        const engine_t *engine, size_t *binary_size) const {
+        const impl::engine_t *engine, size_t *binary_size) const {
     auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
     return get_ocl_program_binary_size(
             ocl_kernel(), ocl_engine->device(), binary_size);

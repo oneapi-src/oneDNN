@@ -84,7 +84,7 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:reusable", reusable_softmax_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
@@ -175,7 +175,7 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
         reusable_softmax_runtime_params_t rt_conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         std::vector<compute::kernel_t> kernels;

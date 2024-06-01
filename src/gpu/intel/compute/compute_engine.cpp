@@ -44,7 +44,7 @@ device_info_cache_t &device_info_cache() {
 
 // Returns true if found, false otherwise.
 bool device_info_cache_get(
-        std::shared_ptr<device_info_t> *result, engine_t *engine) {
+        std::shared_ptr<device_info_t> *result, impl::engine_t *engine) {
     utils::lock_read_t lock(device_info_cache_mutex());
 
     auto it = device_info_cache().find(engine->device_id());
@@ -53,8 +53,8 @@ bool device_info_cache_get(
     return true;
 }
 
-void device_info_cache_set(
-        engine_t *engine, const std::shared_ptr<device_info_t> &device_info) {
+void device_info_cache_set(impl::engine_t *engine,
+        const std::shared_ptr<device_info_t> &device_info) {
     utils::lock_write_t lock(device_info_cache_mutex());
 
     // Clear the cache to avoid hypothetically large growth.

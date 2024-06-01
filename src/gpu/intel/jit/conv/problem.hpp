@@ -70,7 +70,8 @@ class conv_problem_t {
 public:
     conv_problem_t() = default;
 
-    status_t init(const engine_t *engine, const convolution_pd_t *conv_pd);
+    status_t init(
+            const impl::engine_t *engine, const convolution_pd_t *conv_pd);
 
     bool is_stride1() const { return sd == 1 && sh == 1 && sw == 1; }
 

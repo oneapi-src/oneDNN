@@ -40,7 +40,8 @@ public:
         return ocl_devices.size();
     }
 
-    status_t engine_create(engine_t **engine, size_t index) const override {
+    status_t engine_create(
+            impl::engine_t **engine, size_t index) const override {
 #ifdef DNNL_WITH_SYCL
         gpu_error_not_expected() << "This interface is not for use with SYCL";
         return status::runtime_error;
@@ -68,7 +69,7 @@ public:
         return status::success;
     }
 
-    status_t engine_create(engine_t **engine, cl_device_id device,
+    status_t engine_create(impl::engine_t **engine, cl_device_id device,
             cl_context context, size_t index,
             const std::vector<uint8_t> &cache_blob = {}) {
         auto *ocl_engine = new ocl_gpu_engine_t(device, context, index);

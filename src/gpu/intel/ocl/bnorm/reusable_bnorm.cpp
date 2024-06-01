@@ -54,7 +54,7 @@ static std::vector<compute::dim_id_t> get_dims(size_t ndims) {
 }
 
 static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
-        reusable_bnorm_runtime_params_t &rt_conf, engine_t *engine,
+        reusable_bnorm_runtime_params_t &rt_conf, impl::engine_t *engine,
         const memory_desc_wrapper &data_mdw,
         const gpu_primitive_attr_t *gpu_attr) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -143,7 +143,7 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
 static status_t init_conf_common(reusable_bnorm_params_t &conf,
         reusable_bnorm_runtime_params_t &rt_conf,
         const batch_normalization_pd_t *pd, const memory_desc_wrapper &data_mdw,
-        engine_t *engine, const gpu_primitive_attr_t *&gpu_attr) {
+        impl::engine_t *engine, const gpu_primitive_attr_t *&gpu_attr) {
     const batch_normalization_desc_t &bd = *pd->desc();
 
     conf = utils::zero<decltype(conf)>();
@@ -205,7 +205,8 @@ static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     conf.reduce_stat_params.def_kernel_macros(kernel_ctx, "REDUCE");
 }
 
-status_t reusable_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t reusable_batch_normalization_fwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     const memory_desc_wrapper data_mdw(src_md());
     const auto *gpu_attr
             = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
@@ -356,7 +357,8 @@ status_t reusable_batch_normalization_fwd_t::execute_forward(
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
 
-status_t reusable_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t reusable_batch_normalization_bwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper data_mdw(diff_src_md());
     const auto *gpu_attr

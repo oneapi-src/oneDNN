@@ -33,7 +33,7 @@ namespace gpu {
 namespace amd {
 
 struct miopen_matmul_exec_base_t {
-    virtual status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    virtual status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size)
             = 0;
@@ -42,7 +42,7 @@ struct miopen_matmul_exec_base_t {
 protected:
     template <::sycl::access::mode bias_m, ::sycl::access::mode scratch_m>
     void interop_task(std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
-            engine_t *engine, ::sycl::handler &cgh,
+            impl::engine_t *engine, ::sycl::handler &cgh,
             amd::sycl_hip_stream_t *hip_stream,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read>
                     arg_weights,
@@ -74,7 +74,7 @@ protected:
 
 struct miopen_matmul_scratch_runtime_args_base_exec_t
     : public miopen_matmul_exec_base_t {
-    virtual status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    virtual status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size)
             = 0;
@@ -92,7 +92,7 @@ protected:
 
 struct miopen_matmul_scratch_runtime_args_bias_exec_t
     : public miopen_matmul_scratch_runtime_args_base_exec_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
@@ -117,7 +117,7 @@ struct miopen_matmul_scratch_runtime_args_bias_exec_t
 
 struct miopen_matmul_runtime_args_scratch_exec_t
     : public miopen_matmul_scratch_runtime_args_base_exec_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
@@ -143,7 +143,7 @@ struct miopen_matmul_runtime_args_scratch_exec_t
 
 struct miopen_matmul_runtime_args_bias_exec_t
     : public miopen_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
@@ -166,7 +166,7 @@ struct miopen_matmul_runtime_args_bias_exec_t
 };
 
 struct miopen_matmul_runtime_args_exec_t : public miopen_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
@@ -191,7 +191,7 @@ struct miopen_matmul_runtime_args_exec_t : public miopen_matmul_exec_base_t {
 };
 
 struct miopen_matmul_bias_scratch_exec_t : public miopen_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
@@ -213,7 +213,7 @@ struct miopen_matmul_bias_scratch_exec_t : public miopen_matmul_exec_base_t {
 };
 
 struct miopen_matmul_scratch_exec_t : public miopen_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
@@ -237,7 +237,7 @@ struct miopen_matmul_scratch_exec_t : public miopen_matmul_exec_base_t {
 };
 
 struct miopen_matmul_bias_exec_t : public miopen_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 
@@ -260,7 +260,7 @@ struct miopen_matmul_bias_exec_t : public miopen_matmul_exec_base_t {
 };
 
 struct miopen_matmul_exec_t : public miopen_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_matmul_impl_t> matmul_impl_,
             std::size_t scratchpad_size) override {
 

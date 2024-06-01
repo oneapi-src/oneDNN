@@ -215,7 +215,7 @@ public:
     virtual ~device_info_t() = default;
 
     status_t init(
-            engine_t *engine, const std::vector<uint8_t> &cache_blob = {}) {
+            impl::engine_t *engine, const std::vector<uint8_t> &cache_blob = {}) {
         if (!cache_blob.empty()) {
             CHECK(init_from_cache_blob(cache_blob));
             return init_serialized_device_info(cache_blob);
@@ -308,11 +308,11 @@ public:
     }
 
 protected:
-    virtual status_t init_device_name(engine_t *engine) = 0;
-    virtual status_t init_arch(engine_t *engine) = 0;
-    virtual status_t init_runtime_version(engine_t *engine) = 0;
-    virtual status_t init_extensions(engine_t *engine) = 0;
-    virtual status_t init_attributes(engine_t *engine) = 0;
+    virtual status_t init_device_name(impl::engine_t *engine) = 0;
+    virtual status_t init_arch(impl::engine_t *engine) = 0;
+    virtual status_t init_runtime_version(impl::engine_t *engine) = 0;
+    virtual status_t init_extensions(impl::engine_t *engine) = 0;
+    virtual status_t init_attributes(impl::engine_t *engine) = 0;
 
     compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
     int stepping_id_ = 0;
@@ -341,7 +341,7 @@ protected:
     uint64_t native_extensions_ = 0;
 
 private:
-    status_t init_attributes_common(engine_t *engine);
+    status_t init_attributes_common(impl::engine_t *engine);
     status_t init_serialized_device_info(
             const std::vector<uint8_t> &cache_blob = {});
     status_t init_from_cache_blob(const std::vector<uint8_t> &cache_blob);

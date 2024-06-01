@@ -17,6 +17,8 @@
 #ifndef GPU_GPU_ENGINE_HPP
 #define GPU_GPU_ENGINE_HPP
 
+#include <mutex>
+
 #include "common/engine.hpp"
 
 #include "gpu/gpu_impl_list.hpp"
@@ -50,6 +52,26 @@ public:
     }
 
     int get_buffer_alignment() const { return 128; }
+
+    status_t get_service_stream(impl::stream_t *&stream) override {
+        status_t status = status::success;
+        if (service_stream_ == nullptr) {
+            const std::lock_guard<std::mutex> lock(service_stream_mutex_);
+            if (service_stream_ == nullptr) {
+                impl::stream_t *service_stream_ptr;
+                status = create_stream(
+                        &service_stream_ptr, stream_flags::default_flags);
+                if (status == status::success)
+                    service_stream_.reset(service_stream_ptr);
+            }
+        }
+        stream = service_stream_.get();
+        return status;
+    }
+
+private:
+    std::unique_ptr<impl::stream_t> service_stream_;
+    std::mutex service_stream_mutex_;
 };
 
 } // namespace gpu

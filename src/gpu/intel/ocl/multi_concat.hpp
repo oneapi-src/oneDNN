@@ -50,7 +50,7 @@ struct multi_concat_t : public gpu_primitive_t {
             return batch_failure;
         }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             VDISPATCH_CONCAT(max_batch_size() != batch_failure,
                     VERBOSE_SKIP_PRIMITIVE_IMPL);
             VDISPATCH_CONCAT(
@@ -103,7 +103,7 @@ struct multi_concat_t : public gpu_primitive_t {
         std::vector<memory_desc_t> dst_chunk_mds_;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         const auto &pds = pd()->concat_pds_;
         const size_t n = pds.size();
         concats_.resize(n);

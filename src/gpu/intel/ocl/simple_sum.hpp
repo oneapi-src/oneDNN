@@ -36,7 +36,7 @@ struct simple_sum_t : public gpu_primitive_t {
 
         DECLARE_SUM_PD_T("ocl:simple:any", simple_sum_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             const int n = n_inputs();
 
             VDISPATCH_SUM_SC(
@@ -58,7 +58,7 @@ struct simple_sum_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         CHECK(create_kernel(engine, &kernel_, "simple_sum", kernel_ctx));
         if (!kernel_) return status::runtime_error;

@@ -43,7 +43,7 @@ struct multi_po_reorder_sum : public gpu_primitive_t {
 
         DECLARE_SUM_PD_T("multi_po_reorder_sum", multi_po_reorder_sum);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             VDISPATCH_SUM_SC(
                     gpu_sum_pd_t::init(engine), VERBOSE_BAD_ENGINE_KIND);
 
@@ -135,7 +135,7 @@ struct multi_po_reorder_sum : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i) {

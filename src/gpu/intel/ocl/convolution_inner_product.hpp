@@ -39,7 +39,7 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:conv", convolution_inner_product_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
             using namespace data_type;
@@ -91,7 +91,7 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         inner_product_conf_t conf;
@@ -106,7 +106,7 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
 
     convolution_inner_product_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         CHECK(create_nested_primitive(conv_, pd()->cpd_, engine));
         if (pd()->rpd_postop_)
             CHECK(create_nested_primitive(

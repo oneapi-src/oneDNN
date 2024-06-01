@@ -572,7 +572,7 @@ public:
 
     status_t init_kernel_info(kernel_info_t &kernel_info) const override;
     status_t create_kernel(compute::kernel_t &kernel,
-            gpu_primitive_t *primitive, engine_t *engine) const override;
+            gpu_primitive_t *primitive, impl::engine_t *engine) const override;
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_t &kernel) const;
     serialized_t serialize() const override;

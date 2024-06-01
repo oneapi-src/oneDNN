@@ -36,7 +36,7 @@ namespace gpu {
 namespace amd {
 
 struct bnorm_exec_base_t {
-    virtual status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    virtual status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<miopen_batch_normalization_impl_base_t>
                     bnorm_impl) const = 0;
     virtual ~bnorm_exec_base_t() = default;
@@ -45,7 +45,7 @@ protected:
     template <::sycl::access::mode mean_var_m = ::sycl::access::mode::write>
     void interop_task_fwd(
             std::shared_ptr<miopen_batch_normalization_impl_base_t> bnorm_impl,
-            engine_t *engine, ::sycl::handler &cgh,
+            impl::engine_t *engine, ::sycl::handler &cgh,
             amd::sycl_hip_stream_t *hip_stream,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read> arg_src,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::write>
@@ -111,7 +111,7 @@ protected:
 
     void interop_task_bwd(
             std::shared_ptr<miopen_batch_normalization_impl_base_t> bnorm_impl,
-            engine_t *engine, ::sycl::handler &cgh,
+            impl::engine_t *engine, ::sycl::handler &cgh,
             amd::sycl_hip_stream_t *hip_stream,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read> arg_src,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read>
@@ -235,7 +235,7 @@ protected:
 };
 
 struct bnorm_exec_fwd_t : public bnorm_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             std::shared_ptr<miopen_batch_normalization_impl_base_t> bnorm_impl)
             const override {
         amd::sycl_hip_stream_t *hip_stream
@@ -283,7 +283,7 @@ struct bnorm_exec_fwd_t : public bnorm_exec_base_t {
 };
 
 struct bnorm_exec_bwd_t : public bnorm_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, engine_t *engine,
+    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             std::shared_ptr<miopen_batch_normalization_impl_base_t> bnorm_impl)
             const override {
         amd::sycl_hip_stream_t *hip_stream

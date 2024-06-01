@@ -28,7 +28,7 @@ namespace intel {
 namespace ocl {
 
 static status_t init_conf_common(lnorm_conf_t &conf,
-        const layer_normalization_pd_t *pd, engine_t *engine) {
+        const layer_normalization_pd_t *pd, impl::engine_t *engine) {
     using namespace dnnl::impl::format_tag;
 
     memory_desc_wrapper src_mdw(
@@ -283,7 +283,8 @@ static status_t init_kernel_ctx_common(
     return status::success;
 }
 
-status_t ref_layer_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_layer_normalization_fwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     return init_conf_common(conf, this, engine);
 }
 
@@ -330,7 +331,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     return status;
 }
 
-status_t ref_layer_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_layer_normalization_bwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     return init_conf_common(conf, this, engine);
 }
 

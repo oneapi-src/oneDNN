@@ -40,7 +40,8 @@ void maybe_override_bn_conf_params_env(params_t &conf) {
 
 // Gets bnorm parameters from a lookup table
 // BN_TUNING env var must be unset or zero;
-void maybe_override_bn_conf_params_table(params_t &conf, engine_t *engine) {
+void maybe_override_bn_conf_params_table(
+        params_t &conf, impl::engine_t *engine) {
     assert(!conf.bn_tuning);
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
@@ -52,7 +53,7 @@ void maybe_override_bn_conf_params_table(params_t &conf, engine_t *engine) {
     }
 }
 
-void maybe_override_bn_conf_params(params_t &conf, engine_t *engine) {
+void maybe_override_bn_conf_params(params_t &conf, impl::engine_t *engine) {
     // Environment var BN_TUNING turns ON/OFF tuning mode
     conf.bn_tuning = getenv_int("BN_TUNING", 0);
 

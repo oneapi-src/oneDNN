@@ -113,7 +113,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-status_t simple_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t simple_batch_normalization_fwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     CHECK(init_conf_common(conf, off, this));
 
     // This implementation optimizes the stat calculation - skip it if we're not calculating stats
@@ -286,7 +287,8 @@ status_t simple_batch_normalization_fwd_t::execute_forward(
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
 
-status_t simple_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t simple_batch_normalization_bwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     CHECK(init_conf_common(conf, off, this));
     compute::compute_engine_t *compute_engine

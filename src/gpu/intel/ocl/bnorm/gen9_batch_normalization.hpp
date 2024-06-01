@@ -42,7 +42,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         const char *impl_name() const {
             return conf.use_stats_one_pass ? "ocl:gen9:onepass" : "ocl:gen9";
         }
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -93,7 +93,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
@@ -105,7 +105,7 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch_reduce_aux;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -196,7 +196,7 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
 
         const char *impl_name() const { return "ocl:gen9"; }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
             using namespace data_type;
@@ -239,7 +239,7 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
@@ -251,7 +251,7 @@ struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch_reduce_aux;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);

@@ -44,7 +44,7 @@ struct ref_sum_t : public gpu_primitive_t {
 
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             VDISPATCH_SUM_SC(
                     gpu_sum_pd_t::init(engine), VERBOSE_BAD_ENGINE_KIND);
 
@@ -101,7 +101,7 @@ struct ref_sum_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i) {
@@ -112,7 +112,7 @@ struct ref_sum_t : public gpu_primitive_t {
     }
 
     status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
+            impl::engine_t *engine, gpu_resource_t *r) const override {
         // TODO: this is a dirty fix to a real problem that pops up when
         // multiple threads creating this primitive. Execution hangs at unmap().
         static std::mutex mutex;

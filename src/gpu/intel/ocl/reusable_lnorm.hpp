@@ -90,7 +90,7 @@ struct reusable_layer_normalization_fwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T(
                 "ocl:reusable:ref", reusable_layer_normalization_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -125,14 +125,14 @@ struct reusable_layer_normalization_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         void init_scratchpad();
 
         reusable_lnorm_params_t conf;
         reusable_lnorm_runtime_params_t rt_conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
         std::vector<const char *> kernel_names = pd()->conf.get_kernel_names();
 
@@ -169,7 +169,7 @@ struct reusable_layer_normalization_bwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T(
                 "ocl:reusable:ref", reusable_layer_normalization_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -201,13 +201,13 @@ struct reusable_layer_normalization_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
 
         reusable_lnorm_params_t conf;
         reusable_lnorm_runtime_params_t rt_conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
         std::vector<const char *> kernel_names = pd()->conf.get_kernel_names();
 

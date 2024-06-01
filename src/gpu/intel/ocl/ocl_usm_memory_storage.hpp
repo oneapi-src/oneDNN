@@ -39,7 +39,7 @@ class ocl_usm_memory_storage_t : public ocl_memory_storage_base_t {
 public:
     using ocl_memory_storage_base_t::ocl_memory_storage_base_t;
 
-    ocl_usm_memory_storage_t(engine_t *engine, usm::ocl_usm_kind_t kind)
+    ocl_usm_memory_storage_t(impl::engine_t *engine, usm::ocl_usm_kind_t kind)
         : ocl_memory_storage_base_t(engine), usm_kind_(kind) {}
 
     void *usm_ptr() const { return usm_ptr_.get(); }

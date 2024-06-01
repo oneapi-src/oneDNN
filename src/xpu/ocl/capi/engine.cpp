@@ -26,8 +26,8 @@
 using namespace dnnl::impl;
 using namespace dnnl::impl::gpu::intel::ocl;
 
-status_t dnnl_ocl_interop_engine_create(
-        engine_t **engine, cl_device_id device, cl_context context) {
+status_t dnnl_ocl_interop_engine_create(dnnl::impl::engine_t **engine,
+        cl_device_id device, cl_context context) {
     bool args_ok = !utils::any_null(engine, device, context);
     VERROR_ENGINE(args_ok, status::invalid_arguments, VERBOSE_NULL_ARG);
 

@@ -32,11 +32,11 @@ namespace ocl {
 
 class ocl_buffer_memory_storage_t : public ocl_memory_storage_base_t {
 public:
-    ocl_buffer_memory_storage_t(engine_t *engine)
+    ocl_buffer_memory_storage_t(impl::engine_t *engine)
         : ocl_memory_storage_base_t(engine), mem_object_(nullptr) {}
 
     ocl_buffer_memory_storage_t(
-            engine_t *engine, const memory_storage_t *parent_storage)
+            impl::engine_t *engine, const memory_storage_t *parent_storage)
         : ocl_memory_storage_base_t(engine, parent_storage) {}
 
     status_t get_data_handle(void **handle) const override {

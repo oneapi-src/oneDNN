@@ -177,7 +177,7 @@ static status_t create_ocl_engine(
         }
         default: assert(!"not expected"); return status::invalid_arguments;
     }
-    engine_t *ocl_engine_ptr;
+    impl::engine_t *ocl_engine_ptr;
     size_t index;
     CHECK(xpu::ocl::get_device_index(&index, ocl_dev));
     CHECK(f.engine_create(&ocl_engine_ptr, ocl_dev, ocl_ctx, index));

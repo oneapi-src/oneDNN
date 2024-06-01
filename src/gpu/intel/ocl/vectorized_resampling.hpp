@@ -37,7 +37,7 @@ struct vectorized_resampling_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:vectorized", vectorized_resampling_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
 
@@ -52,11 +52,11 @@ struct vectorized_resampling_bwd_t : public gpu_primitive_t {
         }
         resampling_conf_t conf;
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         using namespace alg_kind;
 
         compute::kernel_ctx_t kernel_ctx;

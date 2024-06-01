@@ -300,7 +300,7 @@ void atomic_reduction_t::pd_t::init_scratchpad() {
     }
 }
 
-status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
+status_t atomic_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
     const int ndims = src_mdw.ndims();
@@ -420,7 +420,8 @@ status_t atomic_reduction_t::pd_t::init_conf(engine_t *engine) {
     return status::success;
 }
 
-status_t atomic_reduction_t::pd_t::init_finalization_pd(engine_t *engine) {
+status_t atomic_reduction_t::pd_t::init_finalization_pd(
+        impl::engine_t *engine) {
     eltwise_desc_t eltwise_desc;
     memory_desc_t eltwise_mem_desc(*dst_md());
     // XXX: Just for mean currently

@@ -770,7 +770,7 @@ bool fill_conf_vld(const memory_desc_wrapper &src,
     return true;
 }
 
-status_t generic_reorder_t::pd_t::init_conf(engine_t *engine) {
+status_t generic_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
     using namespace format_tag;
 
     size_t memlimit_bytes;

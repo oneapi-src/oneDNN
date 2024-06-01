@@ -36,9 +36,9 @@ struct ref_group_normalization_fwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T("gnorm_ref:any", ref_group_normalization_fwd_t);
 
         // check data types compatibility and initialize `dispatch`
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         // define kernel compile time environment
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
@@ -46,7 +46,7 @@ struct ref_group_normalization_fwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         compute::kernel_ctx_t kernel_ctx;
@@ -76,7 +76,7 @@ struct ref_group_normalization_bwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T("gnorm_ref:any", ref_group_normalization_bwd_t);
 
         // check data types compatibility and initialize `dispatch`
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         // define kernel compile time environment
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
@@ -85,7 +85,7 @@ struct ref_group_normalization_bwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         compute::kernel_ctx_t kernel_ctx;

@@ -31,7 +31,7 @@ namespace ocl {
 using namespace compute;
 using namespace dnnl::impl::format_tag;
 
-bool mayiuse_sg(const int sg_size, engine_t *engine) {
+bool mayiuse_sg(const int sg_size, impl::engine_t *engine) {
     auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
     return compute_engine->mayiuse_sub_group(sg_size)
             && compute_engine->mayiuse_block_reads_writes_with_sub_group(
@@ -39,7 +39,7 @@ bool mayiuse_sg(const int sg_size, engine_t *engine) {
 };
 
 bool is_fused_kernel_applicable(lnorm_conf_t &conf,
-        const layer_normalization_pd_t *pd, engine_t *engine,
+        const layer_normalization_pd_t *pd, impl::engine_t *engine,
         bool large_grf_mode) {
     auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
 
@@ -176,7 +176,7 @@ bool is_fused_kernel_applicable(lnorm_conf_t &conf,
 }
 
 static status_t init_conf_common(lnorm_conf_t &conf,
-        const layer_normalization_pd_t *pd, engine_t *engine) {
+        const layer_normalization_pd_t *pd, impl::engine_t *engine) {
 
     auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
@@ -520,7 +520,7 @@ static status_t init_kernel_ctx_common(
     return status::success;
 }
 
-status_t vectorized_lnorm_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t vectorized_lnorm_fwd_t::pd_t::init_conf(impl::engine_t *engine) {
     return init_conf_common(conf, this, engine);
 }
 
@@ -565,7 +565,7 @@ status_t vectorized_lnorm_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     return status;
 }
 
-status_t vectorized_lnorm_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t vectorized_lnorm_bwd_t::pd_t::init_conf(impl::engine_t *engine) {
     return init_conf_common(conf, this, engine);
 }
 

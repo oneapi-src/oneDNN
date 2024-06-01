@@ -42,7 +42,7 @@ public:
 
         DECLARE_COMMON_PD_T("jit:ir", gen_pooling_fwd_t);
 
-        status_t init(engine_t *);
+        status_t init(impl::engine_t *);
 
         std::shared_ptr<pool_conf_t> pool_conf;
         std::shared_ptr<exec_config_t> exec_cfg;
@@ -52,7 +52,7 @@ public:
 
     using gpu_primitive_t::gpu_primitive_t;
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:

@@ -38,7 +38,7 @@ namespace ocl {
 
 struct ocl_stream_t : public compute::compute_stream_t {
     static status_t create_stream(
-            impl::stream_t **stream, engine_t *engine, unsigned flags) {
+            impl::stream_t **stream, impl::engine_t *engine, unsigned flags) {
 
         std::unique_ptr<ocl_stream_t> ocl_stream(
                 new ocl_stream_t(engine, flags));
@@ -51,8 +51,8 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return status::success;
     }
 
-    static status_t create_stream(
-            impl::stream_t **stream, engine_t *engine, cl_command_queue queue) {
+    static status_t create_stream(impl::stream_t **stream,
+            impl::engine_t *engine, cl_command_queue queue) {
         unsigned flags;
         CHECK(xpu::ocl::stream_impl_t::init_flags(&flags, queue));
 
@@ -120,9 +120,9 @@ struct ocl_stream_t : public compute::compute_stream_t {
     }
 
 private:
-    ocl_stream_t(engine_t *engine, unsigned flags)
+    ocl_stream_t(impl::engine_t *engine, unsigned flags)
         : compute_stream_t(engine, new xpu::ocl::stream_impl_t(flags)) {}
-    ocl_stream_t(engine_t *engine, unsigned flags, cl_command_queue queue)
+    ocl_stream_t(impl::engine_t *engine, unsigned flags, cl_command_queue queue)
         : compute_stream_t(engine, new xpu::ocl::stream_impl_t(queue, flags)) {}
     status_t init();
 
