@@ -14,26 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_REF_CONCAT_HPP
-#define GPU_INTEL_OCL_REF_CONCAT_HPP
+#ifndef GPU_GENERIC_REF_CONCAT_HPP
+#define GPU_GENERIC_REF_CONCAT_HPP
 
-#include "common/engine.hpp"
 #include "common/primitive.hpp"
 #include "common/reorder.hpp"
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 #include "gpu/gpu_concat_pd.hpp"
-#include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/gpu_engine.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace intel {
-namespace ocl {
+namespace generic {
 
-struct ref_concat_t : public gpu_primitive_t {
-    using gpu_primitive_t::gpu_primitive_t;
+struct ref_concat_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public gpu_concat_pd_t {
         pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
                 int concat_dim, const memory_desc_t *const *src_mds)
@@ -45,7 +43,7 @@ struct ref_concat_t : public gpu_primitive_t {
 
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
 
             VDISPATCH_CONCAT(attr()->has_default_values(sm::scales_runtime),
@@ -90,7 +88,7 @@ struct ref_concat_t : public gpu_primitive_t {
                                 &tent_dst_md_, &dst_md_),
                         "reorder_primitive_desc_create");
             }
-            init_scratchpad();
+            init_scratchpad(engine);
             return status::success;
         }
 
@@ -101,13 +99,15 @@ struct ref_concat_t : public gpu_primitive_t {
         memory_desc_t tent_dst_md_;
 
     private:
-        void init_scratchpad() {
+        void init_scratchpad(impl::engine_t *engine) {
+            auto *gpu_engine = utils::downcast<gpu::engine_t *>(engine);
             auto scratchpad = scratchpad_registry().registrar();
 
             if (use_tent_dst()) {
                 const memory_desc_wrapper wtent_dst_md(tent_dst_md_);
                 scratchpad.book(memory_tracking::names::key_concat_tent_dst,
-                        wtent_dst_md.size(), 1, OCL_BUFFER_ALIGNMENT);
+                        wtent_dst_md.size(), 1,
+                        gpu_engine->get_buffer_alignment());
             }
 
             for (size_t i = 0; i < reorder_pds_.size(); i++) {
@@ -118,7 +118,7 @@ struct ref_concat_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i) {
@@ -130,25 +130,26 @@ struct ref_concat_t : public gpu_primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
-        engine_t *engine = ctx.stream()->engine();
+        impl::engine_t *engine = ctx.stream()->engine();
         const auto n = pd()->n_inputs();
 
-        auto execute_reorder = [&](const std::shared_ptr<primitive_t> &reorder,
-                                       const memory_arg_t &src,
-                                       const memory_arg_t &dst,
-                                       const memory_arg_t *src_scales,
-                                       int r_num) {
-            exec_args_t r_args;
-            r_args[DNNL_ARG_SRC] = src;
-            r_args[DNNL_ARG_DST] = dst;
-            if (src_scales)
-                r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC] = *src_scales;
-            exec_ctx_t r_ctx(ctx, std::move(r_args));
+        auto execute_reorder
+                = [&](const std::shared_ptr<impl::primitive_t> &reorder,
+                          const memory_arg_t &src, const memory_arg_t &dst,
+                          const memory_arg_t *src_scales, int r_num) {
+                      exec_args_t r_args;
+                      r_args[DNNL_ARG_SRC] = src;
+                      r_args[DNNL_ARG_DST] = dst;
+                      if (src_scales)
+                          r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC]
+                                  = *src_scales;
+                      exec_ctx_t r_ctx(ctx, std::move(r_args));
 
-            nested_scratchpad_t ns(ctx, key_nested_multiple + r_num, reorder);
-            r_ctx.set_scratchpad_grantor(ns.grantor());
-            return reorder->execute(r_ctx);
-        };
+                      nested_scratchpad_t ns(
+                              ctx, key_nested_multiple + r_num, reorder);
+                      r_ctx.set_scratchpad_grantor(ns.grantor());
+                      return reorder->execute(r_ctx);
+                  };
 
         if (pd()->use_tent_dst()) {
             auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
@@ -191,11 +192,10 @@ struct ref_concat_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::vector<std::shared_ptr<primitive_t>> reorders_;
+    std::vector<std::shared_ptr<impl::primitive_t>> reorders_;
 };
 
-} // namespace ocl
-} // namespace intel
+} // namespace generic
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
