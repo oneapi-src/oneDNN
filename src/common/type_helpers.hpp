@@ -319,7 +319,8 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
     if (everyone_is(f64, src_dt, wei_dt)) return f64;
 
     if (one_of(prop_kind, forward_training, forward_inference)) {
-        if ((src_dt == u8 || src_dt == s8) && wei_dt == s8) return s32;
+        if (one_of(src_dt, u8, s8) && one_of(wei_dt, u8, s8, s4, u4))
+            return s32;
         if (one_of(f16, src_dt, wei_dt)) return f32;
         // weights decompression
         if (one_of(src_dt, bf16, f32) && one_of(wei_dt, u8, s8, s4, u4))
