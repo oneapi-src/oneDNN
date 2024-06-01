@@ -23,6 +23,11 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#define CTX_GPU_RES_STORAGE(arg) \
+    (*(ctx.get_resource_mapper() \
+                    ->template get<gpu_resource_t>(this) \
+                    ->get_memory_storage(arg)))
+
 namespace dnnl {
 namespace impl {
 namespace gpu {

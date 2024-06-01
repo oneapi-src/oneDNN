@@ -20,6 +20,8 @@
 #include "common/cache_blob.hpp"
 #include "common/primitive.hpp"
 
+#include "gpu/gpu_resource.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -77,6 +79,11 @@ struct primitive_t : public impl::primitive_t {
     }
 
 protected:
+    virtual status_t init_res_storage(
+            impl::engine_t *engine, gpu_resource_t *r) const {
+        return status::success;
+    }
+
     void register_compute_block(compute_block_t *cb) {
         compute_blocks_.emplace_back(cb);
     }
