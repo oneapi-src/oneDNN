@@ -37,7 +37,7 @@ VECT_SUM_DEFINE(float8)
 __attribute__((vec_type_hint(VECT_DATA_T)))
 __attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 lnorm_reusable_vectorized(__global SRC_DATA_T *src,
-#if SAVE_STATS || CALCULATE_STATS == 0
+#if STATS_ARE_TMP == 0
         __global float *mean, __global float *variance,
 #endif
         dim_t reduce_size, __global DST_DATA_T *dst, __global WEI_DATA_T *scale,

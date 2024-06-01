@@ -106,6 +106,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     conf->ss_dt = ss_buf.data_type;
     conf->calculate_stats = !pd->stats_are_src();
     conf->save_stats = pd->is_training();
+    conf->stats_are_tmp = pd->stats_are_tmp();
 
     auto scales = pd->attr()->scales_;
     conf->with_src_scale = !scales.get(DNNL_ARG_SRC).has_default_values();
@@ -237,6 +238,7 @@ reusable_vectorized_lnorm_params_t::get_kernel_ctx() const {
     kernel_ctx.define_int("VECT_DT_N", vector_size);
     kernel_ctx.define_int("SG_STRIDE", sg_size * vector_size);
     kernel_ctx.define_int("N_UNROLL", unroll);
+    kernel_ctx.define_int("STATS_ARE_TMP", stats_are_tmp);
 
     gws_params.def_kernel_macros(kernel_ctx);
 
@@ -256,19 +258,21 @@ status_t reusable_vectorized_layer_normalization_fwd_t::execute_forward(
     auto &src_scale = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
     auto &dst_scale = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
-    unique_ptr<memory_storage_t> tmp_mean = nullptr;
-    unique_ptr<memory_storage_t> tmp_var = nullptr;
-
     memory_storage_t *mean_ptr;
     memory_storage_t *variance_ptr;
-    if (conf.save_stats || !conf.calculate_stats) {
-        mean_ptr = ctx.output(DNNL_ARG_MEAN)->memory_storage();
-        variance_ptr = ctx.output(DNNL_ARG_VARIANCE)->memory_storage();
+    if(!pd()->stats_are_tmp()) {
+        if (pd()->stats_are_src()) {
+            mean_ptr = ctx.input(DNNL_ARG_MEAN)->memory_storage();
+            variance_ptr = ctx.input(DNNL_ARG_VARIANCE)->memory_storage();
+        } else {
+            mean_ptr = ctx.output(DNNL_ARG_MEAN)->memory_storage();
+            variance_ptr = ctx.output(DNNL_ARG_VARIANCE)->memory_storage();
+        }
     }
 
     compute::kernel_arg_list_t lnorm_arg_list;
     lnorm_arg_list.append(src);
-    if (conf.save_stats || !conf.calculate_stats) {
+    if(!pd()->stats_are_tmp()) {
         lnorm_arg_list.append(*mean_ptr);
         lnorm_arg_list.append(*variance_ptr);
     }

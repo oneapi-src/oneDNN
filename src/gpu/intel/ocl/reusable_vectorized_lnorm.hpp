@@ -62,6 +62,7 @@ struct reusable_vectorized_lnorm_params_t
     bool use_shift = false;
     bool calculate_stats = false;
     bool save_stats = false;
+    bool stats_are_tmp = false;
 
     // Not used by bwd impl, but would be padding otherwise
     bool with_src_scale = false;
