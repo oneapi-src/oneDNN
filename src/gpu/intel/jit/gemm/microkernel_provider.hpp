@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +38,8 @@ struct HWInformation {
 micro::Package selectGEMMMicrokernel(micro::GEMMProtocol protocol,
         HWInformation hwInfo, SizeParams sizes, const GEMMProblem &problem,
         const std::vector<StrategyRequirement> &reqs
-        = std::vector<StrategyRequirement>());
+        = std::vector<StrategyRequirement>(),
+        void (*strategyAdjuster)(GEMMStrategy &strategy) = nullptr);
 
 /* Helpers */
 static inline int alignmentForLD(int ld) {

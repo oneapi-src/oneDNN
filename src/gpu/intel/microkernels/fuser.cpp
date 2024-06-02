@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,28 +56,28 @@ void fuseMicrokernel(std::vector<uint8_t> &binary,
     bool foundZeInfo = false;
     SectionHeader *text = nullptr;
     const char *snames = nullptr;
-    int textSectionID = -1;
+    int textSectionID = -1, relSectionID = -1;
 
-    auto *sheaderPtr = reinterpret_cast<SectionHeader *>(
+    auto *sheaders = reinterpret_cast<SectionHeader *>(
             base + fheaderPtr->sectionTableOff);
 
     if (fheaderPtr->strTableIndex >= 0)
         snames = reinterpret_cast<char *>(
-                base + sheaderPtr[fheaderPtr->strTableIndex].offset);
+                base + sheaders[fheaderPtr->strTableIndex].offset);
 
-    for (int s = 0; s < fheaderPtr->sectionCount; s++, sheaderPtr++) {
-        switch (sheaderPtr->type) {
+    for (int s = 0; s < fheaderPtr->sectionCount; s++) {
+        switch (sheaders[s].type) {
             case SectionHeader::Type::ZeInfo: foundZeInfo = true; break;
             case SectionHeader::Type::Program: {
                 if (snames) {
-                    std::string sname(snames + sheaderPtr->name);
+                    std::string sname(snames + sheaders[s].name);
                     if (sname == ".text.Intel_Symbol_Table_Void_Program")
                         continue;
                     if (sname.substr(0, 6) != ".text.") continue;
                 }
                 if (text)
                     throw std::runtime_error("Multiple kernels in program");
-                text = sheaderPtr;
+                text = sheaders + s;
                 textSectionID = s;
                 break;
             }
@@ -87,6 +88,16 @@ void fuseMicrokernel(std::vector<uint8_t> &binary,
     if (!foundZeInfo || !text || text->offset + text->size > bytes)
         throw std::runtime_error(
                 "IGC did not generate a valid zebin program binary");
+
+    std::string rname = ".rel";
+    rname += (snames + text->name);
+    for (int s = 0; s < fheaderPtr->sectionCount; s++) {
+        if (sheaders[s].type != SectionHeader::Type::Relocation) continue;
+        if (rname != (snames + sheaders[s].name)) continue;
+        if (relSectionID >= 0)
+            throw std::runtime_error("Multiple relocation sections for kernel");
+        relSectionID = s;
+    }
 
     auto *insn = reinterpret_cast<const uint32_t *>(base + text->offset);
     auto *iend = reinterpret_cast<const uint32_t *>(
@@ -134,11 +145,21 @@ void fuseMicrokernel(std::vector<uint8_t> &binary,
     if (fheaderPtr->sectionTableOff > before)
         fheaderPtr->sectionTableOff += sizeAdjust;
 
-    sheaderPtr = reinterpret_cast<SectionHeader *>(
+    sheaders = reinterpret_cast<SectionHeader *>(
             newBase + fheaderPtr->sectionTableOff);
-    sheaderPtr[textSectionID].size += sizeAdjust;
-    for (int s = 0; s < fheaderPtr->sectionCount; s++, sheaderPtr++)
-        if (sheaderPtr->offset > before) sheaderPtr->offset += sizeAdjust;
+    sheaders[textSectionID].size += sizeAdjust;
+    for (int s = 0; s < fheaderPtr->sectionCount; s++)
+        if (sheaders[s].offset > before) sheaders[s].offset += sizeAdjust;
+
+    if (relSectionID >= 0) {
+        auto relSection = sheaders + relSectionID;
+        auto rel = reinterpret_cast<Relocation *>(newBase + relSection->offset);
+        auto relEnd = reinterpret_cast<Relocation *>(
+                newBase + relSection->offset + relSection->size);
+        for (; rel < relEnd; rel++) {
+            if (rel->offset >= kbefore) rel->offset += sizeAdjust;
+        }
+    }
 
 #ifdef SPLICE_DEBUG
     std::ofstream dump0("original.bin");
@@ -198,7 +219,6 @@ static void fixupJumpTargets(uint8_t *start, size_t len, ptrdiff_t adjust) {
 
         if (hasUIP) jumpFixup(insn[2]);
         jumpFixup(insn[3]);
-        insn += 4;
     }
 }
 

@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +51,8 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy,
 
 Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo,
         SizeParams sizes, const GEMMProblem &problem_,
-        const std::vector<StrategyRequirement> &reqs_) {
+        const std::vector<StrategyRequirement> &reqs_,
+        void (*strategyAdjuster)(GEMMStrategy &strategy)) {
     kcatalog::Catalog catalog;
 
     bool localA = protocol.options().localA;
@@ -168,6 +170,10 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo,
     /* C output in registers */
     strategy.C.base = AddressBase {};
 
+    /* Allow caller to adjust strategy further */
+    if (strategyAdjuster) strategyAdjuster(strategy);
+
+    /* Preflight */
     strategy.preflight(hw, problem);
 
     /* Set up arguments for microkernel */

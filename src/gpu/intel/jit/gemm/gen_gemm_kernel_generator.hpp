@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -453,9 +454,10 @@ struct MatrixAddressing {
             = 0; // # of elements in a packed row/column for packed layouts.
     uint8_t crosspack = 1; // Crosspack for packed layouts.
     uint8_t alignment; // Alignment for all addresses, offsets, and leading dimensions.
-    uint8_t tileR = 0, tileC = 0; // Tiling (0 if none) for packed layouts.
     uint8_t panelLength
             = 0; // Length of the panel for packed layouts = #cols/rows for Pc/Pr respectively.
+    uint8_t pad0[1] = {};
+    uint16_t tileR = 0, tileC = 0; // Tiling (0 if none) for packed layouts.
 
     void setAlignment(int align) { alignment = sanitizeAlign(align); }
     int defaultAlignment(Type T) const {

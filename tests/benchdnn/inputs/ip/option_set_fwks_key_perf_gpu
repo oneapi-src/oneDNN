@@ -1,16 +1,32 @@
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb1024ic4096oc1024_n'bert_large_tr_fp32_tf_mb2'
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb1024ic1024oc4096_n'bert_large_tr_fp32_tf_mb2'
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb1024ic1024oc1024_n'bert_large_tr_fp32_tf_mb2'
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb16384ic3072oc768_n'bert_base_blocked_tr_fp32_tf_mb128'
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb16384ic768oc3072_n'bert_base_blocked_tr_fp32_tf_mb128'
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb16384ic768oc768_n'bert_base_blocked_tr_fp32_tf_mb128'
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ab --dtag=ab mb1216ic1024oc30522_n'bert_large_tr_bf16_tf_mb16'
---reset --check_ref_impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb8192ic4096oc1024_n'bert_large_tr_bf16_tf_mb16'
---reset --check_ref_impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb8192ic1024oc4096_n'bert_large_tr_bf16_tf_mb16'
---reset --check_ref_impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb8192ic1024oc1024_n'bert_large_tr_bf16_tf_mb16'
---reset --check_ref_impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic1000oc1_n'uno_tr_bf16_tf_mb128'
---reset --check_ref_impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic1000oc1000_n'uno_tr_bf16_tf_mb128'
---reset --check_ref_impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic2000oc1000_n'uno_tr_bf16_tf_mb128'
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic1000oc1_n'uno_tr_fp32_tf_mb128'
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic1000oc1000_n'uno_tr_fp32_tf_mb128'
---reset --check_ref_impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic2000oc1000_n'uno_tr_fp32_tf_mb128'
+# ******************************************************************************
+# Copyright 2024 Arm Ltd. and affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ******************************************************************************
+
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb1024ic4096oc1024_n'bert_large_tr_fp32_tf_mb2'
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb1024ic1024oc4096_n'bert_large_tr_fp32_tf_mb2'
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb1024ic1024oc1024_n'bert_large_tr_fp32_tf_mb2'
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb16384ic3072oc768_n'bert_base_blocked_tr_fp32_tf_mb128'
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb16384ic768oc3072_n'bert_base_blocked_tr_fp32_tf_mb128'
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb16384ic768oc768_n'bert_base_blocked_tr_fp32_tf_mb128'
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ab --dtag=ab mb1216ic1024oc30522_n'bert_large_tr_bf16_tf_mb16'
+--reset --check-ref-impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb8192ic4096oc1024_n'bert_large_tr_bf16_tf_mb16'
+--reset --check-ref-impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb8192ic1024oc4096_n'bert_large_tr_bf16_tf_mb16'
+--reset --check-ref-impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb8192ic1024oc1024_n'bert_large_tr_bf16_tf_mb16'
+--reset --check-ref-impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic1000oc1_n'uno_tr_bf16_tf_mb128'
+--reset --check-ref-impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic1000oc1000_n'uno_tr_bf16_tf_mb128'
+--reset --check-ref-impl=true --dt=bf16 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic2000oc1000_n'uno_tr_bf16_tf_mb128'
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic1000oc1_n'uno_tr_fp32_tf_mb128'
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic1000oc1000_n'uno_tr_fp32_tf_mb128'
+--reset --check-ref-impl=true --dt=f32 --dir=BWD_WB --stag=ab --wtag=ba --dtag=ab mb128ic2000oc1000_n'uno_tr_fp32_tf_mb128'

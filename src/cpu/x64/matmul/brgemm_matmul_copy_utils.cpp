@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -4412,8 +4413,10 @@ status_t create_brgemm_matmul_copy_b(
             if (is_superset(conf->isa, avx512_core))
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_brgemm_matmul_copy_b_cvt_bf16_t<Zmm>(conf)));
-            else
+            else {
                 assert("Unsupported isa for bf16_with_int_wei");
+                return status::unimplemented;
+            }
         } else if (is_bf16 || is_f16 || conf->is_bf32) {
             if (is_superset(conf->isa, avx512_core))
                 CHECK(safe_ptr_assign(copy_ker,
@@ -4468,7 +4471,8 @@ status_t create_brgemm_matmul_copy_a(
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_brgemm_matmul_copy_a_impl_t<Ymm>(conf)));
             } else {
-                assert("Unsoported isa for jit_brgemm_matmul_copy_a_impl_t");
+                assert("Unsupported isa for jit_brgemm_matmul_copy_a_impl_t");
+                return status::unimplemented;
             }
         }
     }

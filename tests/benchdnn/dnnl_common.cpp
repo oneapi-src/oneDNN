@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2017-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -224,12 +225,15 @@ int test_persistent_cache_api(
         st = get_cache_blob(cache_blob, prim);
         if (st != OK) return res->state = FAILED, FAIL;
 
-        // The cross-engine reorder is a special primitive that may contain no
-        // kernels therefore the cache blob will always be empty, which is
-        // the correct behavior.
+        // The cross-engine and direct copy reorders are special primitives that
+        // may contain no kernels therefore the cache blob will always be empty,
+        // which is the correct behavior.
         if (cache_blob.empty()) {
             set_primitive_cache_capacity_without_clearing(old_capacity);
-            if (res->impl_name.find("cross_engine") != std::string::npos)
+            if (query_prim_kind(pd) == dnnl_reorder
+                    && (res->impl_name.find("cross_engine") != std::string::npos
+                            || res->impl_name.find("direct_copy")
+                                    != std::string::npos))
                 return OK;
 
             BENCHDNN_PRINT(

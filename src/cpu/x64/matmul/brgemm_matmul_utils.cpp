@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1537,6 +1538,9 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
         format_tag_t in_tag) {
     if (n_blk <= 0) return status::invalid_arguments;
 
+    const auto vnni_granularity = data_type_vnni_granularity(out_type);
+    if (vnni_granularity <= 0) return status::invalid_arguments;
+
     const bool is_f16 = utils::one_of(data_type::f16, in_type, out_type);
     const bool is_bf16_with_int_wei = out_type == data_type::bf16
             && utils::one_of(in_type, data_type::s8, data_type::u8);
@@ -1553,7 +1557,7 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
     conf.N = N;
     conf.wei_n_blk = conf.N_blk = conf.LDB = n_blk;
     conf.N_tail = conf.N % conf.N_blk;
-    conf.K_blk = 16 * data_type_vnni_granularity(out_type);
+    conf.K_blk = 16 * vnni_granularity;
     conf.K_tail = conf.K % conf.K_blk;
     conf.src_dt = conf.wei_dt = out_type;
     conf.a_dt_sz = conf.tr_a_dt_sz = types::data_type_size(conf.src_dt);

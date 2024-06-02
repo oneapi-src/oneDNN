@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +29,73 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
+namespace {
+
+struct sdpa_config_t {
+    int unroll_m_kq, unroll_n_kq; // Subgroup tile sizes for K*Q GEMM
+    int unroll_m_vs, unroll_n_vs; // Subgroup tile sizes for V*S GEMM
+    int wg_m_kq, wg_n_kq; // Workgroup configuration for K*Q GEMM
+    int wg_m_vs, wg_n_vs; // Workgroup configuration for V*S GEMM
+};
+
+// Kernel configurations:
+//  h<N> -- maximum head size = N
+//  s<M> -- target sequence length = M
+//   2nd -- second token (thin Q)
+sdpa_config_t xehpg_h64 = {16, 32, 16, 16, 8, 4, 4, 8};
+
+sdpa_config_t xehpc_h32 = {16, 64, 32, 16, 4, 2, 1, 8};
+sdpa_config_t xehpc_h32_s32 = {16, 16, 16, 16, 2, 4, 2, 4};
+sdpa_config_t xehpc_h32_2nd = {16, 64, 16, 16, 8, 1, 2, 4};
+
+sdpa_config_t xehpc_h64 = {16, 64, 32, 16, 8, 2, 2, 8};
+sdpa_config_t xehpc_h64_s64 = {32, 32, 32, 16, 4, 2, 2, 4};
+sdpa_config_t xehpc_h64_s32 = {16, 16, 16, 16, 4, 2, 4, 2};
+sdpa_config_t xehpc_h64_2nd = {32, 32, 32, 16, 4, 1, 2, 2};
+sdpa_config_t xehpc_h64_s64_2nd = {16, 16, 16, 16, 4, 1, 4, 1};
+
+sdpa_config_t xehpc_h128 = {16, 64, 32, 16, 16, 2, 4, 8};
+sdpa_config_t xehpc_h128_s64 = {16, 32, 32, 32, 4, 2, 4, 2};
+sdpa_config_t xehpc_h128_s32 = {16, 16, 16, 16, 8, 2, 8, 2};
+sdpa_config_t xehpc_h128_2nd = {32, 32, 32, 16, 8, 1, 4, 2};
+
+sdpa_config_t xehpc_h256 = {16, 32, 32, 32, 8, 4, 8, 4};
+sdpa_config_t xehpc_h256_s64 = {16, 32, 32, 32, 8, 1, 8, 1};
+sdpa_config_t xehpc_h256_2nd = {16, 16, 16, 16, 16, 1, 16, 1};
+
+sdpa_config_t *choose_config_xehpg(int head_size, int seq, bool thin_q) {
+    if (head_size <= 64) return &xehpg_h64;
+    return nullptr;
+}
+
+sdpa_config_t *choose_config_xehpc(int head_size, int seq, bool thin_q) {
+    if (head_size <= 32) {
+        if (thin_q) return &xehpc_h32_2nd;
+        if (seq <= 32) return &xehpc_h32_s32;
+        return &xehpc_h32;
+    } else if (head_size <= 64) {
+        if (thin_q) {
+            if (seq <= 64) return &xehpc_h64_s64_2nd;
+            return &xehpc_h64_2nd;
+        }
+        if (seq <= 32) return &xehpc_h64_s32;
+        if (seq <= 64) return &xehpc_h64_s64;
+        return &xehpc_h64;
+    } else if (head_size <= 128) {
+        if (thin_q) return &xehpc_h128_2nd;
+        if (seq <= 32) return &xehpc_h128_s32;
+        if (seq <= 64) return &xehpc_h128_s64;
+        return &xehpc_h128;
+    } else if (head_size <= 256) {
+        if (thin_q) return &xehpc_h256_2nd;
+        if (seq <= 64) return &xehpc_h256_s64;
+        return &xehpc_h256;
+    }
+    return nullptr;
+}
+
+} /* anonymous namespace */
+
 status_t micro_sdpa_t::pd_t::init_microkernels(engine_t *engine) {
     using namespace jit;
     using arch_t = compute::gpu_arch_t;
@@ -37,6 +105,22 @@ status_t micro_sdpa_t::pd_t::init_microkernels(engine_t *engine) {
     auto *dev_info = compute_engine->device_info();
     arch_ = dev_info->gpu_arch();
     auto *d = desc();
+
+    /* Retrieve pre-tuned kernel configuration */
+    sdpa_config_t *config = nullptr;
+    bool thin_q = (d->queries() <= 16);
+
+    switch (arch_) {
+        case arch_t::xe_hpg:
+            config = choose_config_xehpg(d->head_size(), d->keys(), thin_q);
+            break;
+        case arch_t::xe_hpc:
+        case arch_t::xe2:
+            config = choose_config_xehpc(d->head_size(), d->keys(), thin_q);
+        default: break;
+    }
+
+    if (!config) return status::unimplemented;
 
     /* Get device information */
     HWInformation hw_info;
@@ -48,27 +132,6 @@ status_t micro_sdpa_t::pd_t::init_microkernels(engine_t *engine) {
     if (hw_info.gmdid == 0) return status::unimplemented;
 
     sg_size_ = dev_info->min_subgroup_size();
-
-    /* Choose kernel configuration */
-    std::vector<StrategyRequirement> reqs_kq;
-    int unroll_m_kq = 32, unroll_n_kq = 32;
-    int unroll_m_vs = 32, unroll_n_vs = 16;
-    int wg_m_kq = 4, wg_n_kq = 4;
-    int wg_m_vs = 2, wg_n_vs = 8;
-
-    if (d->head_size() > 64) return status::unimplemented;
-
-    switch (arch_) {
-        case arch_t::xe_hpg:
-            unroll_m_kq /= 2;
-            unroll_m_vs /= 2;
-            wg_m_kq *= 2;
-            wg_m_vs *= 2;
-            break;
-        case arch_t::xe_hpc:
-        case arch_t::xe2: break;
-        default: return status::unimplemented;
-    }
 
     auto convert_dnnl_to_kernel_layout = [](const memory_desc_t *md) {
         return (gemm_desc_t::get_trans(*md) == dnnl_trans) ? MatrixLayout::T
@@ -101,11 +164,12 @@ status_t micro_sdpa_t::pd_t::init_microkernels(engine_t *engine) {
     sizes.k = d->head_size();
     sizes.batch = d->batch_size();
 
-    /* Set up microkernel requirements */
-    reqs_kq.push_back(StrategyRequirement::UnrollM == unroll_m_kq);
-    reqs_kq.push_back(StrategyRequirement::UnrollN == unroll_n_kq);
-    reqs_kq.push_back(StrategyRequirement::WGM == wg_m_kq);
-    reqs_kq.push_back(StrategyRequirement::WGN == wg_n_kq);
+    /* Set up microkernel strategy */
+    std::vector<StrategyRequirement> reqs_kq;
+    reqs_kq.push_back(StrategyRequirement::UnrollM == config->unroll_m_kq);
+    reqs_kq.push_back(StrategyRequirement::UnrollN == config->unroll_n_kq);
+    reqs_kq.push_back(StrategyRequirement::WGM == config->wg_m_kq);
+    reqs_kq.push_back(StrategyRequirement::WGN == config->wg_n_kq);
 
     /* Set up microkernel options */
     micro::GEMMProtocol::Options opts_kq;
@@ -132,12 +196,12 @@ status_t micro_sdpa_t::pd_t::init_microkernels(engine_t *engine) {
     sizes.n = gemm_kq_.getSetting("wg_tile_n");
     sizes.k = gemm_kq_.getSetting("wg_tile_m");
 
-    /* Set up special kernel requirements */
+    /* Set up microkernel strategy */
     std::vector<StrategyRequirement> reqs_vs;
-    reqs_vs.push_back(StrategyRequirement::UnrollM == unroll_m_vs);
-    reqs_vs.push_back(StrategyRequirement::UnrollN == unroll_n_vs);
-    reqs_vs.push_back(StrategyRequirement::WGM == wg_m_vs);
-    reqs_vs.push_back(StrategyRequirement::WGN == wg_n_vs);
+    reqs_vs.push_back(StrategyRequirement::UnrollM == config->unroll_m_vs);
+    reqs_vs.push_back(StrategyRequirement::UnrollN == config->unroll_n_vs);
+    reqs_vs.push_back(StrategyRequirement::WGM == config->wg_m_vs);
+    reqs_vs.push_back(StrategyRequirement::WGN == config->wg_n_vs);
 
     micro::GEMMProtocol::Options opts_vs;
     opts_vs.localB = true;
@@ -145,8 +209,12 @@ status_t micro_sdpa_t::pd_t::init_microkernels(engine_t *engine) {
 
     /* Ask microkernel provider for microkernel */
     try {
+        auto adjust_vs = [](GEMMStrategy &strategy) {
+            /* Enable dpasw */
+            strategy.dpasw |= strategy.fused;
+        };
         gemm_vs_ = selectGEMMMicrokernel(
-                opts_vs, hw_info, sizes, problem_vs, reqs_vs);
+                opts_vs, hw_info, sizes, problem_vs, reqs_vs, adjust_vs);
     } catch (...) { return status::unimplemented; }
 
     return status::success;
@@ -190,6 +258,9 @@ status_t micro_sdpa_t::init(engine_t *engine) {
     kernel_ctx.define_int("V_ALIGN", jit::alignmentForLD(int(ldv)));
     kernel_ctx.define_int("A_ALIGN", jit::alignmentForLD(int(lda)));
 
+    kernel_ctx.define_int("TRANSPOSE_K",
+            gemm_desc_t::get_trans(*pd()->key_md()) == dnnl_trans);
+
     def_data_type(kernel_ctx, d->scale_dt, "SCALE");
     kernel_ctx.define_int("INVERT_SCALE", d->invert_scale);
 
@@ -198,25 +269,34 @@ status_t micro_sdpa_t::init(engine_t *engine) {
     kernel_ctx.define_int("SUBGROUP_SIZE", pd()->sg_size());
     kernel_ctx.define_int("D_MAX", pd()->d_max());
 
-    bool d_full = (d->head_size() == pd()->d_max());
-    int tile_m = pd()->gemm_kq().getSetting("wg_tile_m");
-    int tile_n = pd()->gemm_kq().getSetting("wg_tile_n");
+    int tile_k = pd()->gemm_kq().getSetting("wg_tile_m");
+    int tile_q = pd()->gemm_kq().getSetting("wg_tile_n");
+    int tile_v = pd()->gemm_vs().getSetting("wg_tile_m");
 
-    if (d_full && (d->queries() % tile_n) == 0) {
+    bool d_full = (d->head_size() == pd()->d_max());
+    bool v_full = (d->head_size() == tile_v);
+    bool k_full = ((d->keys() % tile_k) == 0);
+
+    kernel_ctx.define_int("REMAINDER_K", !k_full);
+
+    if (d_full) {
         if (ldq % 4 == 0) kernel_ctx.define_int("BLOCK_Q", 1);
-        if (lda % 4 == 0) kernel_ctx.define_int("BLOCK_A", 1);
-    } else if (lda % 16 == 0)
-        kernel_ctx.define_int("BLOCK_2D_A", 1);
+        if (lda % 4 == 0 && v_full) kernel_ctx.define_int("BLOCK_A", 1);
+        kernel_ctx.define_int("REMAINDER_Q", (d->queries() % tile_q) != 0);
+    } else if (pd()->arch() >= compute::gpu_arch_t::xe_hpc) {
+        auto vbytes = d->values() * val_mdw.data_type_size();
+        if (lda % 16 == 0 && vbytes % 4 == 0)
+            kernel_ctx.define_int("BLOCK_2D_A", 1);
+    }
 
     if (pd()->arch() >= compute::gpu_arch_t::xe_hpc) {
         kernel_ctx.define_int("PREFETCH_MASK", 1);
-        if (d_full) {
-            if (d->keys() >= tile_m) kernel_ctx.define_int("PREFETCH_K0", 1);
-            if (d->keys() % tile_m == 0) {
-                kernel_ctx.define_int("PREFETCH_K", 1);
-                kernel_ctx.define_int("PREFETCH_V", 1);
-            }
-        }
+        kernel_ctx.define_int("PREFETCH_K0", 1);
+        kernel_ctx.define_int("PREFETCH_K", 1);
+        kernel_ctx.define_int("PREFETCH_V", 1);
+        bool no_rem = d_full && v_full && (d->keys() % tile_k == 0);
+        kernel_ctx.define_int("PREFETCH_REMAINDER", !no_rem);
+        kernel_ctx.define_int("PREFETCH_D_MAX", nstl::min(pd()->d_max(), 64));
     }
 
     /* Generate microkernel shims */
