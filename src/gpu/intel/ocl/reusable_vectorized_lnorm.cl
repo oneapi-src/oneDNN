@@ -46,14 +46,11 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src,
         dispatch_gws_rt_params_t gws_params) {
     src = (GWS_GET_BUFFER_POS(SRC, gws_params, src)) - get_local_id(0);
 
-    DEF_ACC_DATA_T running_variance = 0.f;
-    DEF_ACC_DATA_T running_mean = 0.f;
+    FLT_ACC_DATA_T local_variance = 0.f;
+    FLT_ACC_DATA_T local_mean = 0.f;
 #if CALCULATE_STATS
-    float M2 = 0.f;
-    int wt = 0;
-
     /// Read global memory and mean and variance
-    float sum = 0;
+    FLT_ACC_DATA_T sum = 0;
 #pragma unroll N_UNROLL
     for (int sg_idx = 0; sg_idx < reduce_size; sg_idx += SG_STRIDE) {
         VECT_FLOAT_T val = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
@@ -61,33 +58,37 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src,
         sum += vec_sum(val);
     }
 
-    running_mean = sub_group_reduce_add(sum) * rrs;
-    float sumsq = 0;
+    local_mean = sub_group_reduce_add(sum) * rrs;
+    FLT_ACC_DATA_T sumsq = 0;
 #pragma unroll N_UNROLL
     for (int i = 0; i < greads; i++) {
         VECT_FLOAT_T val;
         val = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
                       (const __global BLOCK_DATA_T *)(&src[i * SG_STRIDE]))))
-                - running_mean;
+                - local_mean;
         val *= val;
         sumsq += vec_sum(val);
     }
-    running_variance = sub_group_reduce_add(sumsq) * rrs;
+    local_variance = sub_group_reduce_add(sumsq) * rrs;
 
 #else // CALCULATE_STATS
     mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
     variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
-    running_mean = *mean;
-    running_variance = *variance;
+    local_mean = *mean;
+    local_variance = *variance;
 #endif // CALCULATE_STATS
 
+#if USE_SCALE
     scale = GWS_GET_BUFFER_POS(SS, gws_params, scale)
             + ((greads - 1) * SG_STRIDE);
+#endif
+#if USE_SHIFT
     shift = GWS_GET_BUFFER_POS(SS, gws_params, shift)
             + ((greads - 1) * SG_STRIDE);
+#endif
 
     /// Normalize layer
-    float sqrt_variance = rsqrt(running_variance + eps);
+    FLT_ACC_DATA_T sqrt_variance = rsqrt(local_variance + eps);
     __global DST_DATA_T *dst_vect = (GWS_GET_BUFFER_POS(DST, gws_params, dst))
             - get_local_id(0) + ((greads - 1) * SG_STRIDE);
 
@@ -95,36 +96,45 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src,
     float src_scale_val = *src_scale;
 #endif
 #if WITH_DST_SCALES
-    float dst_scale_val = *dst_scale;
+    float dst_scale_val = native_recip(*dst_scale);
 #endif
 #pragma unroll N_UNROLL
     for (int i = greads - 1; i >= 0; i--) {
-        VECT_FLOAT_T sm = USE_SCALE ? LOAD_VECT_WEI(scale) : 1.0f;
-        VECT_FLOAT_T sv = USE_SHIFT ? LOAD_VECT_WEI(shift) : 0.0f;
+        VECT_FLOAT_T res
+                = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ((
+                          const __global BLOCK_DATA_T *)(&src[i * SG_STRIDE]))))
+                - local_mean;
+        res *= sqrt_variance;
+#if USE_SCALE
+        res *= LOAD_VECT_WEI(scale);
+#endif
 
-        VECT_FLOAT_T src_val;
-        src_val = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
-                (const __global BLOCK_DATA_T *)(&src[i * SG_STRIDE]))));
-        VECT_FLOAT_T res = sm * (src_val - running_mean) * sqrt_variance + sv;
+#if USE_SHIFT
+        res += LOAD_VECT_WEI(shift);
+#endif
 
 #if WITH_SRC_SCALES
         res *= src_scale_val;
 #endif
 #if WITH_DST_SCALES
-        res /= dst_scale_val;
+        res *= dst_scale_val;
 #endif
 
         VECT_DST_BLOCK_WRITE(dst_vect, CONVERT_VECTOR_DST_DATA_T(res));
         dst_vect -= SG_STRIDE;
+#if USE_SCALE
         scale -= SG_STRIDE;
+#endif
+#if USE_SHIFT
         shift -= SG_STRIDE;
+#endif
     }
 #if SAVE_STATS
     if (get_local_id(0) == 0) {
         mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
         variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
-        *mean = running_mean;
-        *variance = running_variance;
+        *mean = local_mean;
+        *variance = local_variance;
     }
 #endif
 }

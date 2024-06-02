@@ -29,14 +29,12 @@
 #include "gpu/intel/ocl/reusable_lnorm.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
-#include <memory>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 using std::make_tuple;
 using std::tie;
-using std::unique_ptr;
 using std::vector;
 
 namespace dnnl {
@@ -232,7 +230,7 @@ reusable_vectorized_lnorm_params_t::get_kernel_ctx() const {
     kernel_ctx.define_int("WITH_DST_SCALES", with_dst_scale);
 
     kernel_ctx.define_int("CALCULATE_STATS", calculate_stats);
-    kernel_ctx.define_int("SAVE_STATS", save_stats);
+    kernel_ctx.define_int("SAVE_STATS", save_stats && calculate_stats);
 
     kernel_ctx.define_int("SG_SIZE", sg_size);
     kernel_ctx.define_int("VECT_DT_N", vector_size);
@@ -260,7 +258,7 @@ status_t reusable_vectorized_layer_normalization_fwd_t::execute_forward(
 
     memory_storage_t *mean_ptr;
     memory_storage_t *variance_ptr;
-    if(!pd()->stats_are_tmp()) {
+    if (!pd()->stats_are_tmp()) {
         if (pd()->stats_are_src()) {
             mean_ptr = ctx.input(DNNL_ARG_MEAN)->memory_storage();
             variance_ptr = ctx.input(DNNL_ARG_VARIANCE)->memory_storage();
@@ -272,7 +270,7 @@ status_t reusable_vectorized_layer_normalization_fwd_t::execute_forward(
 
     compute::kernel_arg_list_t lnorm_arg_list;
     lnorm_arg_list.append(src);
-    if(!pd()->stats_are_tmp()) {
+    if (!pd()->stats_are_tmp()) {
         lnorm_arg_list.append(*mean_ptr);
         lnorm_arg_list.append(*variance_ptr);
     }
