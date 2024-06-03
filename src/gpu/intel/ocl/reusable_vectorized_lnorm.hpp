@@ -55,21 +55,7 @@ struct reusable_vectorized_lnorm_params_t
 
     compute::kernel_ctx_t get_kernel_ctx() const;
 
-    data_type_t input_dt = data_type::undef;
-    data_type_t output_dt = data_type::undef;
-    data_type_t ss_dt = data_type::undef;
-    bool use_scale = false;
-    bool use_shift = false;
-    bool calculate_stats = false;
-    bool save_stats = false;
-    bool stats_are_tmp = false;
-
-    // Not used by bwd impl, but would be padding otherwise
-    bool with_src_scale = false;
-    bool with_dst_scale = false;
-
     compute::dispatch_compile_params_t gws_params;
-
     /// Number of work items in a sub-group
     size_t sg_size;
 
@@ -78,6 +64,25 @@ struct reusable_vectorized_lnorm_params_t
 
     /// The number of times the loops need to unroll
     size_t unroll;
+
+    data_type_t input_dt = data_type::undef;
+    data_type_t output_dt = data_type::undef;
+    data_type_t ss_dt = data_type::undef;
+
+    bool use_scale = false;
+    bool use_shift = false;
+
+    /// If true calculate the mean and variance values. Otherwise reads from global memory
+    bool calculate_stats = false;
+
+    /// Saves the mean and variance to memory
+    bool save_stats = false;
+    bool stats_are_tmp = false;
+
+    bool with_src_scale = false;
+    bool with_dst_scale = false;
+
+    bool padding[5] = {false};
 };
 
 struct reusable_vectorized_lnorm_runtime_params_t {
