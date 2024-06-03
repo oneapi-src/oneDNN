@@ -50,16 +50,20 @@ struct resampling_kernel_fwd_vec_t {
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
-        dim_t MB = conf_.MB;
-        dim_t C = conf_.C;
 
-        dim_t ID = conf_.ID;
-        dim_t IH = conf_.IH;
-        dim_t IW = conf_.IW;
+        const auto &src_ndims = conf_.src_md.ndims();
+        const auto &src_dims = conf_.src_md.dims();
+        dim_t MB = src_dims[0];
+        dim_t C = src_dims[1];
+        dim_t ID = src_ndims >= 5 ? src_dims[src_ndims - 3] : 1;
+        dim_t IH = src_ndims >= 4 ? src_dims[src_ndims - 2] : 1;
+        dim_t IW = src_ndims >= 3 ? src_dims[src_ndims - 1] : 1;
 
-        dim_t OD = conf_.OD;
-        dim_t OH = conf_.OH;
-        dim_t OW = conf_.OW;
+        const auto &dst_ndims = conf_.dst_md.ndims();
+        const auto &dst_dims = conf_.dst_md.dims();
+        dim_t OD = dst_ndims >= 5 ? dst_dims[dst_ndims - 3] : 1;
+        dim_t OH = dst_ndims >= 4 ? dst_dims[dst_ndims - 2] : 1;
+        dim_t OW = dst_ndims >= 3 ? dst_dims[dst_ndims - 1] : 1;
 
         auto lin_interp = [&](float c0, float c1, float w) {
             return c0 * w + c1 * (1 - w);
@@ -229,16 +233,21 @@ struct resampling_kernel_bwd_vec_t {
     void operator()(::sycl::nd_item<1> item) const {
 
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
-        dim_t MB = conf_.MB;
-        dim_t C = conf_.C;
 
-        dim_t ID = conf_.ID;
-        dim_t IH = conf_.IH;
-        dim_t IW = conf_.IW;
+        const auto &diff_src_ndims = conf_.diff_src_md.ndims();
+        const auto &diff_src_dims = conf_.diff_src_md.dims();
+        dim_t MB = diff_src_dims[0];
+        dim_t C = diff_src_dims[1];
 
-        dim_t OD = conf_.OD;
-        dim_t OH = conf_.OH;
-        dim_t OW = conf_.OW;
+        dim_t ID = diff_src_ndims >= 5 ? diff_src_dims[diff_src_ndims - 3] : 1;
+        dim_t IH = diff_src_ndims >= 4 ? diff_src_dims[diff_src_ndims - 2] : 1;
+        dim_t IW = diff_src_ndims >= 3 ? diff_src_dims[diff_src_ndims - 1] : 1;
+
+        const auto &diff_dst_ndims = conf_.diff_dst_md.ndims();
+        const auto &diff_dst_dims = conf_.diff_dst_md.dims();
+        dim_t OD = diff_dst_ndims >= 5 ? diff_dst_dims[diff_dst_ndims - 3] : 1;
+        dim_t OH = diff_dst_ndims >= 4 ? diff_dst_dims[diff_dst_ndims - 2] : 1;
+        dim_t OW = diff_dst_ndims >= 3 ? diff_dst_dims[diff_dst_ndims - 1] : 1;
 
         const dim_t work_amount = MB * C * ID * IH * IW;
         if (work_amount == 0) return;
@@ -308,16 +317,21 @@ struct resampling_kernel_bwd_vec1_t {
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
-        dim_t MB = conf_.MB;
-        dim_t C = conf_.C;
 
-        dim_t ID = conf_.ID;
-        dim_t IH = conf_.IH;
-        dim_t IW = conf_.IW;
+        const auto &diff_src_ndims = conf_.diff_src_md.ndims();
+        const auto &diff_src_dims = conf_.diff_src_md.dims();
+        dim_t MB = diff_src_dims[0];
+        dim_t C = diff_src_dims[1];
 
-        dim_t OD = conf_.OD;
-        dim_t OH = conf_.OH;
-        dim_t OW = conf_.OW;
+        dim_t ID = diff_src_ndims >= 5 ? diff_src_dims[diff_src_ndims - 3] : 1;
+        dim_t IH = diff_src_ndims >= 4 ? diff_src_dims[diff_src_ndims - 2] : 1;
+        dim_t IW = diff_src_ndims >= 3 ? diff_src_dims[diff_src_ndims - 1] : 1;
+
+        const auto &diff_dst_ndims = conf_.diff_dst_md.ndims();
+        const auto &diff_dst_dims = conf_.diff_dst_md.dims();
+        dim_t OD = diff_dst_ndims >= 5 ? diff_dst_dims[diff_dst_ndims - 3] : 1;
+        dim_t OH = diff_dst_ndims >= 4 ? diff_dst_dims[diff_dst_ndims - 2] : 1;
+        dim_t OW = diff_dst_ndims >= 3 ? diff_dst_dims[diff_dst_ndims - 1] : 1;
 
         const dim_t work_amount = MB * C * ID * IH * IW;
         if (work_amount == 0) return;
