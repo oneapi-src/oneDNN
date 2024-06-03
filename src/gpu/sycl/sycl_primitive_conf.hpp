@@ -284,6 +284,7 @@ struct sycl_lrn_conf_t {
 
 struct sycl_pooling_conf_t {
     xpu::sycl::md_t src_md;
+    // The size "5" is lower than DNNL_MAX_NDIMS because only 5 dimension formats are supported.
     xpu::sycl::md_t src1_md[5];
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t ws_md;
