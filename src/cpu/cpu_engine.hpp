@@ -150,8 +150,6 @@ public:
         return cpu_engine_impl_list_t::get_implementation_list(desc);
     }
 
-    device_id_t device_id() const override { return std::make_tuple(0, 0, 0); }
-
 protected:
     ~cpu_engine_t() override = default;
 };

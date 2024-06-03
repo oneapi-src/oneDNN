@@ -113,12 +113,6 @@ cublasHandle_t *engine_t::get_cublas_handle() {
     return cublas_handle_.get().get();
 }
 
-device_id_t engine_t::device_id() const {
-    return device_id_t(static_cast<int>(xpu::sycl::backend_t::nvidia),
-            static_cast<uint64_t>(compat::get_native<CUdevice>(device())),
-            static_cast<uint64_t>(0));
-}
-
 void engine_t::activate_stream_cublas(CUstream cuda_stream) {
     cuda_sycl_scoped_context_handler_t sc(*this);
     cudaStream_t current_stream_id = nullptr;

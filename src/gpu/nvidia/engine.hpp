@@ -61,7 +61,6 @@ public:
     CUdevice get_underlying_device() const;
     cudnnHandle_t *get_cudnn_handle();
     cublasHandle_t *get_cublas_handle();
-    device_id_t device_id() const override;
 
 protected:
     const xpu::sycl::engine_impl_t *impl() const {

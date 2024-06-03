@@ -119,12 +119,6 @@ rocblas_handle *sycl_hip_engine_t::get_rocblas_handle() {
     return rocblas_handle_.get().get();
 }
 
-device_id_t sycl_hip_engine_t::device_id() const {
-    return device_id_t(static_cast<int>(xpu::sycl::backend_t::amd),
-            static_cast<uint64_t>(compat::get_native<hipDevice_t>(device())),
-            static_cast<uint64_t>(0));
-}
-
 void sycl_hip_engine_t::activate_stream_rocblas(HIPstream hip_stream) {
     hip_sycl_scoped_context_handler_t sc(*this);
     hipStream_t current_stream_id = nullptr;

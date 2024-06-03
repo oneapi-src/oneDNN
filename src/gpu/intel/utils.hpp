@@ -228,6 +228,23 @@ bool is_jit_dump_enabled();
 status_t dump_kernel_binary(
         const std::vector<uint8_t> &binary, const std::string &name);
 
+// -------------------------------------------------------------
+//  Backend      | Compound ID
+// -------------------------------------------------------------
+//  OpenCL       | <backend_t::opencl, cl_device, 0>
+//  Level0       | <backend_t::level0, uuid[0-63], uuid[64-127]>
+using device_id_t = std::tuple<int, uint64_t, uint64_t>;
+
+struct device_id_hash_t {
+    size_t operator()(const device_id_t &id) const {
+        size_t result = 0;
+        result = hash_combine(result, std::get<0>(id));
+        result = hash_combine(result, std::get<1>(id));
+        result = hash_combine(result, std::get<2>(id));
+        return result;
+    }
+};
+
 } // namespace gpu_utils
 } // namespace intel
 } // namespace gpu

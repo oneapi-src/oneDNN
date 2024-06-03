@@ -67,7 +67,6 @@ bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs);
 status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
         const ::sycl::context &ctx);
 
-device_id_t device_id(const ::sycl::device &dev);
 bool dev_ctx_consistency_check(
         const ::sycl::device &dev, const ::sycl::context &ctx);
 

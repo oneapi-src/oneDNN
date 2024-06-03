@@ -50,6 +50,8 @@ status_t create_ocl_engine(
                 *ocl_engine,
         const impl::sycl::sycl_engine_base_t *engine);
 
+gpu_utils::device_id_t device_id(const ::sycl::device &dev);
+
 } // namespace sycl
 } // namespace intel
 } // namespace gpu

@@ -29,8 +29,8 @@ namespace compute {
 // Cache for device_info_t objects. Reuse the already initialized
 // device_info_t objects to save time on HW detection and nGEN binary
 // check.
-using device_info_cache_t = std::unordered_map<device_id_t,
-        std::shared_ptr<device_info_t>, device_id_hash_t>;
+using device_info_cache_t = std::unordered_map<gpu_utils::device_id_t,
+        std::shared_ptr<device_info_t>, gpu_utils::device_id_hash_t>;
 
 utils::rw_mutex_t &device_info_cache_mutex() {
     static utils::rw_mutex_t m;
@@ -46,8 +46,8 @@ device_info_cache_t &device_info_cache() {
 bool device_info_cache_get(
         std::shared_ptr<device_info_t> *result, impl::engine_t *engine) {
     utils::lock_read_t lock(device_info_cache_mutex());
-
-    auto it = device_info_cache().find(engine->device_id());
+    auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
+    auto it = device_info_cache().find(compute_engine->device_id());
     if (it == device_info_cache().end()) return false;
     if (result) *result = it->second;
     return true;
@@ -57,12 +57,13 @@ void device_info_cache_set(impl::engine_t *engine,
         const std::shared_ptr<device_info_t> &device_info) {
     utils::lock_write_t lock(device_info_cache_mutex());
 
+    auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
     // Clear the cache to avoid hypothetically large growth.
     const int cache_size_threshold = 1024;
     if (device_info_cache().size() > cache_size_threshold)
         device_info_cache().clear();
 
-    device_info_cache().insert({engine->device_id(), device_info});
+    device_info_cache().insert({compute_engine->device_id(), device_info});
 }
 
 status_t compute_engine_t::init() {

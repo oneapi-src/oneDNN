@@ -80,10 +80,6 @@ public:
     cl_context context() const { return context_; }
     cl_platform_id platform() const { return platform_; }
 
-    device_id_t device_id() const {
-        return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
-    }
-
     engine_id_t engine_id() const override {
         return engine_id_t(new xpu::ocl::engine_id_impl_t(
                 device(), context(), kind(), runtime_kind(), index()));

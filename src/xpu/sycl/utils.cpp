@@ -186,33 +186,6 @@ bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs) {
     return false;
 }
 
-device_id_t device_id(const ::sycl::device &dev) {
-    if (is_host(dev))
-        return std::make_tuple(static_cast<int>(backend_t::host), 0, 0);
-
-    device_id_t device_id
-            = device_id_t {static_cast<int>(backend_t::unknown), 0, 0};
-    switch (get_backend(dev)) {
-        case backend_t::opencl: {
-            auto ocl_device = xpu::ocl::make_wrapper(
-                    compat::get_native<cl_device_id>(dev));
-            device_id = std::make_tuple(static_cast<int>(backend_t::opencl),
-                    reinterpret_cast<uint64_t>(ocl_device.get()), 0);
-            break;
-        }
-        case backend_t::level0: {
-            device_id = std::tuple_cat(
-                    std::make_tuple(static_cast<int>(backend_t::level0)),
-                    gpu::intel::sycl::get_device_uuid(dev));
-            break;
-        }
-        case backend_t::unknown: assert(!"unknown backend"); break;
-        default: assert(!"unreachable");
-    }
-    assert(std::get<0>(device_id) != static_cast<int>(backend_t::unknown));
-    return device_id;
-}
-
 bool dev_ctx_consistency_check(
         const ::sycl::device &dev, const ::sycl::context &ctx) {
     auto ctx_devs = ctx.get_devices();

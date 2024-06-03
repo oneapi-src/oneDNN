@@ -174,6 +174,8 @@ public:
         return dispatch_t(this, md);
     }
 
+    virtual gpu_utils::device_id_t device_id() const = 0;
+
 protected:
     virtual status_t init_device_info() = 0;
     virtual status_t init_device_info(const std::vector<uint8_t> &cache_blob) {

@@ -63,8 +63,6 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     /** get index of the current engine */
     size_t index() const { return impl()->index(); }
 
-    virtual dnnl::impl::device_id_t device_id() const = 0;
-
     virtual dnnl::impl::engine_id_t engine_id() const {
         return impl()->engine_id();
     }

@@ -179,7 +179,9 @@ public:
                 xpu::sycl::compat::get_native<cl_context>(context()));
     }
 
-    device_id_t device_id() const override { return impl()->device_id(); }
+    gpu::intel::gpu_utils::device_id_t device_id() const override {
+        return gpu::intel::sycl::device_id(device());
+    }
 
 protected:
     const xpu::sycl::engine_impl_t *impl() const {

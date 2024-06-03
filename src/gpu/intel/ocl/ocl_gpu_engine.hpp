@@ -96,7 +96,9 @@ public:
     cl_context context() const { return impl()->context(); }
     cl_platform_id platform() const { return impl()->platform(); }
 
-    device_id_t device_id() const override { return impl()->device_id(); }
+    gpu_utils::device_id_t device_id() const override {
+        return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
+    }
 
     status_t serialize_device(serialization_stream_t &sstream) const override;
 

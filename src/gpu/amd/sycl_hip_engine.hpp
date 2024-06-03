@@ -73,7 +73,6 @@ public:
     miopenHandle_t *get_miopen_handle();
     rocblas_handle *get_rocblas_handle();
     const bool has_primary_context() const { return primary_context_; }
-    device_id_t device_id() const override;
 
 protected:
     ~sycl_hip_engine_t() override = default;
