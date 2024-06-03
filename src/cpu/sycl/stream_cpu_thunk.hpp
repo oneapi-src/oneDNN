@@ -14,24 +14,44 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_STREAM_SUBMIT_CPU_DISPATCH_HPP
-#define SYCL_STREAM_SUBMIT_CPU_DISPATCH_HPP
+#ifndef CPU_SYCL_STREAM_CPU_THUNK_HPP
+#define CPU_SYCL_STREAM_CPU_THUNK_HPP
 
 #include "common/c_types_map.hpp"
-#include "sycl/sycl_stream_cpu_thunk.hpp"
-#include "xpu/sycl/utils.hpp"
+#include "common/primitive_exec_types.hpp"
 
+#include <stddef.h>
+#include <stdint.h>
 #include <vector>
 
 namespace dnnl {
 namespace impl {
+namespace cpu {
 namespace sycl {
 
-void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
-        const exec_ctx_t &exec_ctx, ::sycl::handler &cgh);
+struct submit_ctx_t {
+    stream_t *stream = nullptr;
+    const primitive_iface_t *prim_iface = nullptr;
+    exec_ctx_t exec_ctx;
+    std::vector<const memory_storage_t *> sycl_mem_storages;
+
+    submit_ctx_t(const exec_ctx_t &exec_ctx) : exec_ctx(exec_ctx) {}
+};
+
+struct thunk_params_t {
+    static constexpr size_t max_size = 32;
+
+    size_t size;
+    uintptr_t native_pointers[max_size];
+    submit_ctx_t *submit_ctx_ptr;
+};
 
 } // namespace sycl
+} // namespace cpu
 } // namespace impl
 } // namespace dnnl
 
-#endif
+void DNNL_API dnnl_impl_sycl_cpu_thunk(
+        const dnnl::impl::cpu::sycl::thunk_params_t *params);
+
+#endif // SYCL_STREAM_CPU_THUNK_HPP

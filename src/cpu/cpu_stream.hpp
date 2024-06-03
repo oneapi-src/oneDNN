@@ -32,8 +32,8 @@ namespace impl {
 namespace cpu {
 
 struct cpu_stream_t : public stream_t {
-    cpu_stream_t(engine_t *engine, unsigned flags)
-        : stream_t(engine, new impl::stream_impl_t(flags)) {}
+    cpu_stream_t(engine_t *engine, impl::stream_impl_t *stream_impl)
+        : stream_t(engine, stream_impl) {}
     virtual ~cpu_stream_t() = default;
 
     dnnl::impl::status_t wait() override {

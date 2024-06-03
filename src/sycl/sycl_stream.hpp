@@ -30,11 +30,6 @@
 #include "xpu/sycl/memory_storage.hpp"
 #include "xpu/sycl/stream_impl.hpp"
 
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-#include "sycl/sycl_stream_cpu_thunk.hpp"
-#include "sycl/sycl_stream_submit_cpu_primitive.hpp"
-#endif
-
 #include <algorithm>
 #include <cstring>
 #include <map>
@@ -99,29 +94,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
 
     status_t enqueue_primitive(const primitive_iface_t *prim_iface,
             exec_ctx_t &exec_ctx) override {
-        auto execute_func = [&]() {
-            status_t status = status::success;
-            if (engine()->kind() == engine_kind::cpu) {
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-                auto event = queue().submit([&](::sycl::handler &cgh) {
-                    register_deps(cgh);
-                    submit_cpu_primitive(this, prim_iface, exec_ctx, cgh);
-                });
-                sycl_ctx().set_deps({event});
-#else
-                assert(!"not expected");
-                return status::runtime_error;
-#endif
-            } else if (engine()->kind() == engine_kind::gpu) {
-                status = prim_iface->execute(exec_ctx);
-            } else {
-                assert(!"not expected");
-            }
-            return status;
-        };
-        status_t status = execute_func();
-        return status;
+        return prim_iface->execute(exec_ctx);
     }
 
     status_t copy(const memory_storage_t &src, const memory_storage_t &dst,

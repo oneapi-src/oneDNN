@@ -23,8 +23,7 @@
 #include "xpu/sycl/utils.hpp"
 
 #include "cpu/cpu_engine.hpp"
-
-#include "sycl/sycl_stream.hpp"
+#include "cpu/sycl/stream.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -50,11 +49,11 @@ public:
     }
 
     status_t create_stream(impl::stream_t **stream, unsigned flags) override {
-        return impl::sycl::sycl_stream_t::create_stream(stream, this, flags);
+        return cpu::sycl::stream_t::create_stream(stream, this, flags);
     }
 
     status_t create_stream(impl::stream_t **stream, ::sycl::queue &queue) {
-        return impl::sycl::sycl_stream_t::create_stream(stream, this, queue);
+        return cpu::sycl::stream_t::create_stream(stream, this, queue);
     }
 
     const ::sycl::device &device() const { return impl()->device(); }

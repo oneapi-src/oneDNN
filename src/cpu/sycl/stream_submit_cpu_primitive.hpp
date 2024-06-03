@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,42 +14,28 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_STREAM_CPU_THUNK_HPP
-#define SYCL_STREAM_CPU_THUNK_HPP
+#ifndef CPU_SYCL_STREAM_SUBMIT_CPU_DISPATCH_HPP
+#define CPU_SYCL_STREAM_SUBMIT_CPU_DISPATCH_HPP
+
+#include <vector>
 
 #include "common/c_types_map.hpp"
-#include "common/primitive_exec_types.hpp"
 
-#include <stddef.h>
-#include <stdint.h>
-#include <vector>
+#include "xpu/sycl/utils.hpp"
+
+#include "cpu/sycl/stream_cpu_thunk.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace cpu {
 namespace sycl {
 
-struct submit_ctx_t {
-    stream_t *stream = nullptr;
-    const primitive_iface_t *prim_iface = nullptr;
-    exec_ctx_t exec_ctx;
-    std::vector<const memory_storage_t *> sycl_mem_storages;
+void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
+        const exec_ctx_t &exec_ctx, ::sycl::handler &cgh);
 
-    submit_ctx_t(const exec_ctx_t &exec_ctx) : exec_ctx(exec_ctx) {}
-};
-
-struct thunk_params_t {
-    static constexpr size_t max_size = 32;
-
-    size_t size;
-    uintptr_t native_pointers[max_size];
-    submit_ctx_t *submit_ctx_ptr;
-};
-
-} // namespace sycl
+}
+} // namespace cpu
 } // namespace impl
 } // namespace dnnl
 
-void DNNL_API dnnl_impl_sycl_cpu_thunk(
-        const dnnl::impl::sycl::thunk_params_t *params);
-
-#endif // SYCL_STREAM_CPU_THUNK_HPP
+#endif

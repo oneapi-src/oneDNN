@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,17 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "sycl/sycl_stream_cpu_thunk.hpp"
+#include <assert.h>
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
-#include "common/primitive.hpp"
+#include "common/primitive_iface.hpp"
 #include "common/utils.hpp"
-#include "sycl/sycl_stream.hpp"
 
-#include <assert.h>
+#include "cpu/sycl/stream_cpu_thunk.hpp"
 
-using namespace dnnl::impl::sycl;
+using namespace dnnl::impl::cpu::sycl;
 
 void dnnl_impl_sycl_cpu_thunk(const thunk_params_t *params) {
     using namespace dnnl::impl;

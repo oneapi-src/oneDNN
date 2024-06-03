@@ -14,28 +14,21 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "oneapi/dnnl/dnnl.h"
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-
-#include "sycl/sycl_stream_submit_cpu_primitive.hpp"
-
-#include "common/dnnl_traits.hpp"
-#include "common/nstl.hpp"
-#include "common/primitive_iface.hpp"
-#include "common/stream.hpp"
-#include "common/utils.hpp"
-#include "gpu/intel/sycl/compat.hpp"
-#include "xpu/sycl/c_types_map.hpp"
-#include "xpu/sycl/memory_storage.hpp"
-
 #include <assert.h>
-#include <exception>
 #include <tuple>
 #include <vector>
 
+#include "common/primitive_iface.hpp"
+#include "common/utils.hpp"
+
+#include "xpu/sycl/c_types_map.hpp"
+#include "xpu/sycl/memory_storage.hpp"
+
+#include "cpu/sycl/stream_submit_cpu_primitive.hpp"
+
 namespace dnnl {
 namespace impl {
+namespace cpu {
 namespace sycl {
 
 namespace {
@@ -351,7 +344,6 @@ void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
 }
 
 } // namespace sycl
+} // namespace cpu
 } // namespace impl
 } // namespace dnnl
-
-#endif

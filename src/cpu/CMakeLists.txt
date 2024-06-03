@@ -110,7 +110,9 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
 endif()
 
 if(DNNL_WITH_SYCL)
-    add_subdirectory(sycl)
+    if(DNNL_CPU_RUNTIME MATCHES "^(DPCPP|SYCL)$")
+        add_subdirectory(sycl)
+    endif()
 
     set(FILES_WITHNO_OPT)
     foreach(src in ${SOURCES})

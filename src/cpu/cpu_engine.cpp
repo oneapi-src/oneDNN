@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include <assert.h>
 
 #include "common/memory.hpp"
+#include "common/stream_impl.hpp"
 #include "common/type_helpers.hpp"
 
 #include "cpu/cpu_engine.hpp"
@@ -41,7 +42,8 @@ status_t cpu_engine_t::create_memory_storage(
 }
 
 status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
-    return safe_ptr_assign(*stream, new cpu_stream_t(this, flags));
+    return safe_ptr_assign(
+            *stream, new cpu_stream_t(this, new impl::stream_impl_t(flags)));
 }
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
