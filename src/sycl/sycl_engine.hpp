@@ -32,7 +32,7 @@
 #include "xpu/sycl/utils.hpp"
 
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-#include "sycl/sycl_cpu_engine.hpp"
+#include "cpu/sycl/engine.hpp"
 #endif
 
 #ifdef DNNL_SYCL_CUDA

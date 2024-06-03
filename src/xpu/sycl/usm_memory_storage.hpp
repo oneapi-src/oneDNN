@@ -121,10 +121,11 @@ public:
 
 protected:
     status_t init_allocate(size_t size) override {
-        auto *sycl_engine
-                = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine());
-        auto &sycl_dev = sycl_engine->device();
-        auto &sycl_ctx = sycl_engine->context();
+        const auto *sycl_engine_impl
+                = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                        engine()->impl());
+        auto &sycl_dev = sycl_engine_impl->device();
+        auto &sycl_ctx = sycl_engine_impl->context();
         using ::sycl::usm::alloc;
 
         if (usm_kind_ == alloc::unknown) usm_kind_ = alloc::shared;

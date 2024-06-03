@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2023 Intel Corporation
+# Copyright 2019-2024 Intel Corporation
 # Copyright 2020 Arm Ltd. and affiliates
 # Copyright 2021 FUJITSU LIMITED
 #
@@ -110,6 +110,8 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
 endif()
 
 if(DNNL_WITH_SYCL)
+    add_subdirectory(sycl)
+
     set(FILES_WITHNO_OPT)
     foreach(src in ${SOURCES})
         string(REGEX MATCH ".*jit.*kern.cpp" match ${src})

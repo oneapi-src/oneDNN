@@ -19,7 +19,6 @@
 #include "common/verbose.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "sycl/stream_profiler.hpp"
-#include "sycl/sycl_engine.hpp"
 
 #include <map>
 #include <memory>
@@ -37,9 +36,11 @@ status_t sycl_stream_t::init() {
     if (is_profiling_enabled())
         profiler_ = utils::make_unique<sycl_stream_profiler_t>(this);
 
-    auto &sycl_engine = *utils::downcast<sycl_engine_base_t *>(engine());
-    auto &sycl_ctx = sycl_engine.context();
-    auto &sycl_dev = sycl_engine.device();
+    const auto &sycl_engine_impl
+            = *utils::downcast<const xpu::sycl::engine_impl_t *>(
+                    engine()->impl());
+    auto &sycl_ctx = sycl_engine_impl.context();
+    auto &sycl_dev = sycl_engine_impl.device();
 
     // If queue_ is not set then construct it
     if (!impl()->queue()) {
