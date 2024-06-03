@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -7219,10 +7220,7 @@ TEST(test_pass_pass, FuseToInt8Matmul) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -7377,10 +7375,7 @@ TEST(test_pass_pass, OptionalQuantForInt8Matmul) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -7471,10 +7466,7 @@ TEST(test_pass_pass, OptionalQuantWith2ConsumersForInt8Matmul) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -7570,9 +7562,7 @@ TEST(test_pass_pass, FuseToInt8MatMulBinary) {
             agraph.finalize();
 
             graph::pass::pass_base_ptr apass
-                    = get_pass(engine_kind == graph::engine_kind::gpu
-                                    ? "x8s8x_matmul_post_ops_gpu"
-                                    : "x8x8x_matmul_post_ops_cpu");
+                    = get_pass("x8x8x_matmul_post_ops");
             ASSERT_NE(apass, nullptr);
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -7669,10 +7659,7 @@ TEST(test_pass_pass, FailToFuseToInt8MatMulDivOrSubtract) {
 
         agraph.finalize();
 
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine_kind == graph::engine_kind::gpu
-                                ? "x8s8x_matmul_post_ops_gpu"
-                                : "x8x8x_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
         ASSERT_NE(apass, nullptr);
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -7826,10 +7813,7 @@ TEST(test_pass_pass, FuseToInt8MatmulBias) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -7972,10 +7956,7 @@ TEST(test_pass_pass, FuseToInt8MatmulRelu) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -8126,10 +8107,7 @@ TEST(test_pass_pass, FuseToInt8MatmulBiasRelu) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -8185,10 +8163,7 @@ TEST(test_pass_pass, FuseToX8s8f32Matmul) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -8246,10 +8221,7 @@ TEST(test_pass_pass, FuseToX8s8f32MatmulBias) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9030,10 +9002,7 @@ TEST(test_pass_pass, FuseToX8x8f32MatmulDivAdd) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_matmul_post_ops_gpu"
-                            : "x8x8x_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9178,10 +9147,7 @@ TEST(test_pass_pass, FuseToX8s8bf16Matmul) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9330,10 +9296,7 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulDiv) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9530,10 +9493,7 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulScaleAdd) {
 
         agraph.finalize();
 
-        graph::pass::pass_base_ptr apass
-                = get_pass(engine_kind == graph::engine_kind::gpu
-                                ? "x8s8x_tc_matmul_post_ops_gpu"
-                                : "x8x8x_tc_matmul_post_ops_cpu");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
         ASSERT_NE(apass, nullptr);
         apass->run(agraph);
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9702,10 +9662,7 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBias) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9883,10 +9840,7 @@ TEST(test_pass_pass, FuseToX8s8bf16MatmulBiasAddBF16) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     ASSERT_TRUE(apass);
     apass->run(agraph);
@@ -10070,10 +10024,7 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBiasGelu) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
 
@@ -10262,10 +10213,7 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulGelu) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
 
@@ -10453,10 +10401,7 @@ TEST(test_pass_pass, MixInt8AndBf16MatmulBias) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
 
@@ -10637,10 +10582,7 @@ TEST(test_pass_pass, MixInt8AndBf16Matmul) {
 
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass
-            = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x_tc_matmul_post_ops_gpu"
-                            : "x8x8x_tc_matmul_post_ops_cpu");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_tc_matmul_post_ops");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
 

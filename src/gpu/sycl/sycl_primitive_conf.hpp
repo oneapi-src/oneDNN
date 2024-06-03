@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2022-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +37,8 @@ struct sycl_binary_conf_t {
     bool do_scale_src0;
     bool do_scale_src1;
 
-    int broadcast_dims[xpu::sycl::md_t::max_dims];
+    int broadcast_dims0[xpu::sycl::md_t::max_dims];
+    int broadcast_dims1[xpu::sycl::md_t::max_dims];
     int ndims;
     bool is_tensor_op;
 
@@ -127,25 +129,33 @@ struct sycl_shuffle_conf_t {
     dim_t work_amount;
 };
 
+struct sycl_reorder_conf_t {
+    xpu::sycl::md_t src_md;
+    xpu::sycl::md_t dst_md;
+    xpu::sycl::md_t scales;
+
+    bool do_scale_src;
+    int scale_src_mask;
+    bool do_scale_dst;
+    int scale_dst_mask;
+
+    int ndims;
+
+    int block_size;
+    int wg_size;
+    int wk_size;
+
+    sycl_post_ops_t post_ops;
+};
+
 struct sycl_resampling_conf_t {
-    dim_t MB;
-    dim_t C;
-    dim_t ID;
-    dim_t IH;
-    dim_t IW;
-    dim_t OD;
-    dim_t OH;
-    dim_t OW;
     dims_t dst_dims;
     int dst_ndims;
     int po_len;
     size_t work_amount;
 
-    data_type_t src_dt;
-    data_type_t dst_dt;
-
     xpu::sycl::md_t src_md;
-    xpu::sycl::md_t src1_md[8];
+    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t diff_src_md;
     xpu::sycl::md_t diff_dst_md;
@@ -154,7 +164,6 @@ struct sycl_resampling_conf_t {
     float src_scale;
     bool do_scale_src;
     int broadcast_dims[xpu::sycl::md_t::max_dims];
-    int ndims;
     bool is_tensor_op;
 
     int block_size;
@@ -173,8 +182,7 @@ struct sycl_layer_normalization_conf_t {
     xpu::sycl::md_t scale;
     xpu::sycl::md_t shift;
     xpu::sycl::md_t stat_md;
-    xpu::sycl::md_t stat_d;
-    xpu::sycl::md_t var_md;
+    data_type_t var_dt;
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t diff_dst_md;
     dim_t wk_size;
@@ -220,14 +228,13 @@ struct sycl_batch_normalization_conf_t {
     bool dir;
     xpu::sycl::md_t data_md;
     xpu::sycl::md_t src1_md;
-    xpu::sycl::md_t dst1_md;
     xpu::sycl::md_t diff_data_md;
-    xpu::sycl::md_t diff_src1_md;
+    data_type_t diff_src1_dt;
     xpu::sycl::md_t data_scaleshift_md;
     xpu::sycl::md_t diff_data_scaleshift_md;
     xpu::sycl::md_t stat_md;
     xpu::sycl::md_t var_md;
-    xpu::sycl::md_t ws_md;
+    data_type_t ws_dt;
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t diff_dst_md;
     dim_t N;
@@ -296,7 +303,8 @@ struct sycl_lrn_conf_t {
 
 struct sycl_pooling_conf_t {
     xpu::sycl::md_t src_md;
-    xpu::sycl::md_t src1_md[8];
+    // The size "5" is lower than DNNL_MAX_NDIMS because only 5 dimension formats are supported.
+    xpu::sycl::md_t src1_md[5];
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t ws_md;
     xpu::sycl::md_t diff_src_md;

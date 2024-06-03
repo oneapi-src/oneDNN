@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2023-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,21 +34,27 @@ status_t ref_batch_normalization_fwd_t::pd_t::init_conf() {
     conf_.ndims = ndims();
     conf_.flags = desc()->flags;
     conf_.wk_size = memory_desc_wrapper(src_md(0)).nelems();
-    conf_.src1_md = xpu::sycl::md_t(dst_md(3));
-    conf_.dst1_md = xpu::sycl::md_t(dst_md(0));
+    // Here and below only set the memory descriptors in `conf_` if they are used
+    // by the current configuration. Setting them uncoditionally triggers the
+    // assertion in xpu::sycl::md_t's constructor in Debug mode.
+    if (fuse_norm_add_relu()) { conf_.src1_md = xpu::sycl::md_t(dst_md(3)); }
     conf_.block_size = 16;
     conf_.wg_size = 32;
     conf_.dir = !is_fwd();
     conf_.use_scale = use_scale();
     conf_.use_shift = use_shift();
     conf_.data_md = xpu::sycl::md_t(src_md(0));
-    conf_.data_scaleshift_md = xpu::sycl::md_t(weights_md(0));
-    conf_.stat_md = stats_is_src() ? xpu::sycl::md_t(src_md(1))
-                                   : xpu::sycl::md_t(dst_md(1));
+    if (use_scale() || use_shift()) {
+        conf_.data_scaleshift_md = xpu::sycl::md_t(weights_md(0));
+    }
+    if (is_training() || use_global_stats()) {
+        conf_.stat_md = stats_is_src() ? xpu::sycl::md_t(src_md(1))
+                                       : xpu::sycl::md_t(dst_md(1));
+        conf_.var_md = stats_is_src() ? xpu::sycl::md_t(src_md(2))
+                                      : xpu::sycl::md_t(dst_md(2));
+    }
     conf_.dst_md = xpu::sycl::md_t(dst_md(0));
-    conf_.var_md = stats_is_src() ? xpu::sycl::md_t(src_md(2))
-                                  : xpu::sycl::md_t(dst_md(2));
-    conf_.ws_md = xpu::sycl::md_t(workspace_md(0));
+    if (is_training()) { conf_.ws_dt = workspace_md(0)->data_type; }
     int work_per_wg = conf_.wg_size * conf_.block_size;
     int n_wgs = (C() + work_per_wg - 1) / work_per_wg;
     conf_.n_thr = n_wgs * conf_.wg_size;
@@ -64,7 +71,9 @@ status_t ref_batch_normalization_fwd_t::pd_t::init_conf() {
     conf_.zero_dims = has_zero_dim_memory();
     conf_.is_training = is_training();
     conf_.with_relu = with_relu_post_op(is_training());
-    conf_.alpha = alpha();
+    if (conf_.fuse_norm_add_relu || conf_.fuse_norm_relu || conf_.with_relu) {
+        conf_.alpha = alpha();
+    }
 
     return status::success;
 }
@@ -138,16 +147,20 @@ status_t ref_batch_normalization_bwd_t::pd_t::init_conf() {
     conf_.use_scale = use_scale();
     conf_.use_shift = use_shift();
     conf_.data_md = xpu::sycl::md_t(src_md(0));
-    conf_.dst1_md = xpu::sycl::md_t(dst_md(0));
     conf_.diff_data_md = xpu::sycl::md_t(diff_src_md(0));
-    conf_.diff_src1_md = xpu::sycl::md_t(diff_dst_md(1));
-    conf_.data_scaleshift_md = xpu::sycl::md_t(weights_md(0));
-    conf_.diff_data_scaleshift_md = xpu::sycl::md_t(diff_weights_md(0));
-    conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md(0));
+    if (fuse_norm_add_relu()) {
+        conf_.diff_src1_dt = diff_dst_md(1)->data_type;
+    }
+    if (use_scale() || use_shift()) {
+        conf_.data_scaleshift_md = xpu::sycl::md_t(weights_md(0));
+        conf_.diff_data_scaleshift_md = xpu::sycl::md_t(diff_weights_md(0));
+    }
     conf_.stat_md = xpu::sycl::md_t(stat_md());
     conf_.var_md = xpu::sycl::md_t(src_md(2));
-    conf_.dst_md = xpu::sycl::md_t(dst_md(0));
-    conf_.ws_md = xpu::sycl::md_t(workspace_md(0));
+    conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md(0));
+    if (fuse_norm_add_relu() || fuse_norm_relu()) {
+        conf_.ws_dt = workspace_md(0)->data_type;
+    }
     int work_per_wg = conf_.wg_size * conf_.block_size;
     int n_wgs = (C() + work_per_wg - 1) / work_per_wg;
     conf_.n_thr = n_wgs * conf_.wg_size;
@@ -162,7 +175,7 @@ status_t ref_batch_normalization_bwd_t::pd_t::init_conf() {
     conf_.fuse_norm_relu = fuse_norm_relu();
     conf_.fuse_norm_add_relu = fuse_norm_add_relu();
     conf_.calculate_diff_stats = !use_global_stats();
-    conf_.alpha = alpha();
+    if (fuse_norm_add_relu()) { conf_.alpha = alpha(); }
 
     return status::success;
 }
@@ -179,7 +192,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         auto data = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
         auto diff_data = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC);
-        auto diff_src1 = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC_1);
+        auto diff_src1 = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC_1);
         auto scale = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE);
         auto diff_scale
                 = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SCALE); //added

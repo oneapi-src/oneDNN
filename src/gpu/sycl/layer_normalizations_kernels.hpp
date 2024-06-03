@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2023-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,8 +68,7 @@ private:
     const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
     }
-    const xpu::sycl::md_t &var_md() const { return conf_.var_md; }
-    const xpu::sycl::md_t &stat_d() const { return conf_.stat_d; }
+    const data_type_t &var_dt() const { return conf_.var_dt; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     const unsigned flags() const { return conf_.flags; }
@@ -89,8 +89,7 @@ private:
         const size_t s_off = conf_.stat_md.off_l(idx);
         auto v_mean
                 = load_float_value(stat_md().data_type(), stat_ptr(), s_off);
-        auto v_variance
-                = load_float_value(var_md().data_type(), var_ptr(), s_off);
+        auto v_variance = load_float_value(var_dt(), var_ptr(), s_off);
         dim_t C = conf_.C;
 
         float sqrt_variance = sqrtf(v_variance + eps);
@@ -177,8 +176,7 @@ private:
     const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
     }
-    const xpu::sycl::md_t &var_md() const { return conf_.var_md; }
-    const xpu::sycl::md_t &stat_d() const { return conf_.stat_d; }
+    const data_type_t &var_dt() const { return conf_.var_dt; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     const unsigned flags() const { return conf_.flags; }
@@ -196,7 +194,7 @@ private:
     inline void compute_alg_n(int idx) const {
         if (conf_.zero_dims && conf_.calculate_stats && conf_.save_stats) {
             store_float_value(stat_md().data_type(), 0, stat_out_ptr(), idx);
-            store_float_value(var_md().data_type(), 0, var_out_ptr(), idx);
+            store_float_value(var_dt(), 0, var_out_ptr(), idx);
         }
         float eps = epsilon();
         const size_t s_off = conf_.stat_md.off_l(idx);
@@ -261,8 +259,7 @@ private:
         if (conf_.calculate_stats && conf_.save_stats) {
             store_float_value(
                     stat_md().data_type(), v_mean, stat_out_ptr(), s_off);
-            store_float_value(
-                    var_md().data_type(), v_variance, var_out_ptr(), s_off);
+            store_float_value(var_dt(), v_variance, var_out_ptr(), s_off);
         }
     }
 
@@ -307,7 +304,6 @@ struct layer_normalization_bwd_kernel_vec_t {
 private:
     const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
     const xpu::sycl::md_t &diff_data_md() const { return conf_.diff_data_md; }
-    const xpu::sycl::md_t &stat_d() const { return conf_.stat_d; }
     const xpu::sycl::md_t &stat_md() const { return conf_.stat_md; }
     const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
@@ -315,7 +311,7 @@ private:
     const xpu::sycl::md_t &diff_data_scaleshift_md() const {
         return conf_.diff_data_scaleshift_md;
     }
-    const xpu::sycl::md_t &var_md() const { return conf_.var_md; }
+    const data_type_t &var_dt() const { return conf_.var_dt; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
     const unsigned flags() const { return conf_.flags; }
@@ -360,8 +356,7 @@ private:
                                s_off = stat_md().off_l(n);
 
                     float inv_sqrt_variance = 1.f
-                            / sqrtf(load_float_value(var_md().data_type(),
-                                            var_ptr(), s_off)
+                            / sqrtf(load_float_value(var_dt(), var_ptr(), s_off)
                                     + eps); //stat
                     float s = load_float_value(
                             data_md().data_type(), data_ptr(), src_off);
@@ -428,7 +423,6 @@ struct layer_normalization_bwd_kernel_vec2_t {
 private:
     const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
     const xpu::sycl::md_t &diff_data_md() const { return conf_.diff_data_md; }
-    const xpu::sycl::md_t &stat_d() const { return conf_.stat_d; }
     const xpu::sycl::md_t &stat_md() const { return conf_.stat_md; }
     const xpu::sycl::md_t &data_scaleshift_md() const {
         return conf_.data_scaleshift_md;
@@ -436,7 +430,7 @@ private:
     const xpu::sycl::md_t &diff_data_scaleshift_md() const {
         return conf_.diff_data_scaleshift_md;
     }
-    const xpu::sycl::md_t &var_md() const { return conf_.var_md; }
+    const data_type_t &var_dt() const { return conf_.var_dt; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
 
     const unsigned flags() const { return conf_.flags; }
@@ -461,9 +455,7 @@ private:
         for (dim_t n = start_n; n < end_n; ++n) {
             const size_t s_off = stat_md().off_l(n);
             float inv_sqrt_variance = 1.f
-                    / sqrtf(load_float_value(
-                                    var_md().data_type(), var_ptr(), s_off)
-                            + eps);
+                    / sqrtf(load_float_value(var_dt(), var_ptr(), s_off) + eps);
             float dd_gamma = 0.f;
             float dd_gamma_x = 0.f;
             if (conf_.calculate_diff_stats) {

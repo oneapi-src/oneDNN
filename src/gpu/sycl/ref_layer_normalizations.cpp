@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2023-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,13 +30,15 @@ using namespace impl::sycl;
 status_t ref_layer_normalization_fwd_t::pd_t::init_conf() {
     conf_ = sycl_layer_normalization_conf_t();
 
-    conf_.var_md = stats_are_src() ? xpu::sycl::md_t(src_md(2))
-            : is_training()        ? xpu::sycl::md_t(dst_md(2))
-                                   : xpu::sycl::md_t {};
+    if (stats_are_src()) {
+        conf_.var_dt = src_md(2)->data_type;
+    } else if (is_training()) {
+        conf_.var_dt = dst_md(2)->data_type;
+    }
+
     conf_.ndims = ndims();
     conf_.flags = desc()->flags;
     conf_.wk_size = memory_desc_wrapper(src_md(0)).nelems();
-    conf_.stat_d = xpu::sycl::md_t(stat_md());
     conf_.block_size = 16;
     conf_.wg_size = 32;
 
@@ -47,7 +50,9 @@ status_t ref_layer_normalization_fwd_t::pd_t::init_conf() {
     conf_.use_shift = use_shift();
     conf_.use_ss = conf_.use_scale || conf_.use_shift;
     conf_.data_md = xpu::sycl::md_t(src_md(0));
-    conf_.data_scaleshift_md = xpu::sycl::md_t(weights_md(0));
+    if (conf_.use_ss) {
+        conf_.data_scaleshift_md = xpu::sycl::md_t(weights_md(0));
+    }
 
     conf_.stat_md = stats_are_src() ? xpu::sycl::md_t(src_md(1))
             : is_training()         ? xpu::sycl::md_t(dst_md(2))
@@ -138,7 +143,7 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
 status_t ref_layer_normalization_bwd_t::pd_t::init_conf() {
     conf_ = sycl_layer_normalization_conf_t();
 
-    conf_.var_md = xpu::sycl::md_t(src_md(2));
+    conf_.var_dt = src_md(2)->data_type;
     conf_.ndims = ndims();
     conf_.flags = desc()->flags;
     conf_.block_size = (16);
@@ -149,13 +154,12 @@ status_t ref_layer_normalization_bwd_t::pd_t::init_conf() {
     conf_.use_ss = conf_.use_scale || conf_.use_shift;
     conf_.data_md = xpu::sycl::md_t(src_md(0));
     conf_.diff_data_md = xpu::sycl::md_t(diff_src_md(0));
-    conf_.data_scaleshift_md = xpu::sycl::md_t(weights_md(0));
-    conf_.diff_data_scaleshift_md = conf_.use_ss
-            ? xpu::sycl::md_t(diff_weights_md(0))
-            : xpu::sycl::md_t {};
+    if (conf_.use_ss) {
+        conf_.data_scaleshift_md = xpu::sycl::md_t(weights_md(0));
+        conf_.diff_data_scaleshift_md = xpu::sycl::md_t(diff_weights_md(0));
+    }
     conf_.stat_md = xpu::sycl::md_t(src_md(1));
     conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md(0));
-    conf_.stat_d = xpu::sycl::md_t(stat_md());
     conf_.zero_dims = has_zero_dim_memory();
     auto nelems_A = memory_desc_wrapper(src_md(0)).nelems();
     conf_.diff_shift_off = conf_.use_ss && !conf_.zero_dims

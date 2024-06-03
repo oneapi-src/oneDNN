@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2023-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,20 +26,8 @@ namespace sycl {
 status_t ref_resampling_fwd_t::pd_t::init_conf() {
     conf_ = sycl_resampling_conf_t();
 
-    conf_.src_dt = src_md(0)->data_type;
-    conf_.dst_dt = dst_md()->data_type;
-
     conf_.block_size = 16;
     conf_.wg_size = 32;
-
-    conf_.MB = MB();
-    conf_.C = C();
-    conf_.ID = ID();
-    conf_.IH = IH();
-    conf_.IW = IW();
-    conf_.OD = OD();
-    conf_.OH = OH();
-    conf_.OW = OW();
 
     for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
         conf_.dst_dims[i] = dst_md()->dims[i];
@@ -56,6 +45,9 @@ status_t ref_resampling_fwd_t::pd_t::init_conf() {
     conf_.alg = desc()->alg_kind;
     const auto *att = attr();
     const auto &attr_po = att->post_ops_;
+    if (attr_po.len() > sycl_post_ops_t::max_post_ops) {
+        return dnnl_unimplemented;
+    }
     conf_.po_len = attr_po.len();
 
     for (auto i = 0; i < attr_po.len(); ++i) {
@@ -113,8 +105,6 @@ status_t ref_resampling_bwd_t::pd_t::init_conf() {
     conf_.diff_src_md = xpu::sycl::md_t(diff_src_md(0));
     conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md());
 
-    conf_.src_dt = src_md(0)->data_type;
-    conf_.dst_dt = dst_md()->data_type;
     conf_.block_size = 16;
     conf_.wg_size = 32;
     conf_.dst_ndims = dst_md()->ndims;
@@ -124,15 +114,6 @@ status_t ref_resampling_bwd_t::pd_t::init_conf() {
     int n_wgs = (nelems_A + work_per_wg - 1) / work_per_wg;
     conf_.n_thr = n_wgs * conf_.wg_size;
     conf_.alg = desc()->alg_kind;
-
-    conf_.MB = MB();
-    conf_.C = C();
-    conf_.ID = ID();
-    conf_.IH = IH();
-    conf_.IW = IW();
-    conf_.OD = OD();
-    conf_.OH = OH();
-    conf_.OW = OW();
 
     for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
         conf_.dst_dims[i] = dst_md()->dims[i];

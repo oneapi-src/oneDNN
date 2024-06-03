@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2022-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,7 +31,7 @@ namespace sycl {
 
 struct binary_kernel_vec_t {
     static constexpr int vec_len = 8;
-    static constexpr int max_supported_ndims = 5;
+    static constexpr int max_supported_ndims = 6;
 
     binary_kernel_vec_t(const sycl_binary_conf_t &conf,
             xpu::sycl::in_memory_arg_t &src0, xpu::sycl::in_memory_arg_t &src1,
@@ -75,12 +76,17 @@ struct binary_kernel_vec_t {
                         ? load_float_value(scales_dt_, src1_scale_ptr(), 0)
                         : 1.f);
 
-        dims_t dims, off;
+        dims_t dims, strides, off_dst, off0, off1;
         bool any_broadcast = false;
         for (int i = 0; i < max_supported_ndims; i++) {
-            dims[i] = (i < src0_md().ndims()) ? src0_md().dims()[i] : 1;
-            if (i < src0_md().ndims()) {
-                any_broadcast |= conf_.broadcast_dims[i];
+            if (i < dst_md().ndims()) {
+                dims[i] = dst_md().dims()[i];
+                strides[i] = dst_md().strides()[i];
+                any_broadcast |= conf_.broadcast_dims0[i];
+                any_broadcast |= conf_.broadcast_dims1[i];
+            } else {
+                dims[i] = 1;
+                strides[i] = INT_MAX;
             }
         }
         if (!any_broadcast && conf_.post_ops.get_post_op() == 0
@@ -111,19 +117,20 @@ struct binary_kernel_vec_t {
             for (int i = 0; i < conf_.block_size; i++) {
                 int idx = base_idx + i;
                 if (idx < conf_.wk_size) {
-                    utils::l_dims_by_l_offset(
-                            off, idx, dims, max_supported_ndims);
-
                     for (int i = 0; i < max_supported_ndims; i++) {
-                        if (conf_.broadcast_dims[i] && i < src0_md().ndims()) {
-                            off[i] = 0;
-                        }
+                        off_dst[i] = idx / strides[i] % dims[i];
                     }
 
-                    int idx1 = src1_md().off_v(off);
+                    for (int i = 0; i < max_supported_ndims; i++) {
+                        off0[i] = conf_.broadcast_dims0[i] ? 0 : off_dst[i];
+                        off1[i] = conf_.broadcast_dims1[i] ? 0 : off_dst[i];
+                    }
+
+                    int idx0 = src0_md().off_v(off0);
+                    int idx1 = src1_md().off_v(off1);
 
                     auto src0 = load_float_value(
-                            src0_md().data_type(), src0_ptr(), idx);
+                            src0_md().data_type(), src0_ptr(), idx0);
                     auto src1 = load_float_value(
                             src1_md().data_type(), src1_ptr(), idx1);
                     auto dst = load_float_value(
@@ -133,7 +140,8 @@ struct binary_kernel_vec_t {
                     if (conf_.do_scale_src1) src1 *= sm_1;
 
                     auto acc = compute_alg_n(src0, src1, conf_.alg_kind);
-                    ::sycl::vec<float, 16> post_po_sr = post_op_src_val(idx);
+                    ::sycl::vec<float, 16> post_po_sr
+                            = post_op_src_val(off_dst);
                     acc = conf_.post_ops.apply(acc, dst, post_po_sr);
                     store_float_value(
                             dst_md().data_type(), acc, dst_ptr(), idx);
@@ -157,22 +165,22 @@ private:
         return static_cast<float *>(src1_scale_.get_pointer());
     }
 
-    inline ::sycl::vec<float, 16> post_op_src_val(dim_t data_l_off) const {
+    inline ::sycl::vec<float, 16> post_op_src_val(dims_t data_off) const {
         ::sycl::vec<float, 16> post_po_sr;
         const auto maxPostPo = conf_.post_ops.get_post_op();
 
         for (dim_t po_idx = 0; po_idx < maxPostPo; po_idx++) {
             float res = 0.0f;
             if (po_idx == 0)
-                res = get_post_op_val(po1_src_, po_idx, data_l_off);
+                res = get_post_op_val(po1_src_, po_idx, data_off);
             else if (po_idx == 1)
-                res = get_post_op_val(po2_src_, po_idx, data_l_off);
+                res = get_post_op_val(po2_src_, po_idx, data_off);
             else if (po_idx == 2)
-                res = get_post_op_val(po3_src_, po_idx, data_l_off);
+                res = get_post_op_val(po3_src_, po_idx, data_off);
             else if (po_idx == 3)
-                res = get_post_op_val(po4_src_, po_idx, data_l_off);
+                res = get_post_op_val(po4_src_, po_idx, data_off);
             else if (po_idx == 4)
-                res = get_post_op_val(po5_src_, po_idx, data_l_off);
+                res = get_post_op_val(po5_src_, po_idx, data_off);
 
             post_po_sr[po_idx] = res;
         }
@@ -180,7 +188,7 @@ private:
     }
 
     float get_post_op_val(const xpu::sycl::in_memory_arg_t &bin_src_op,
-            dim_t &idx, dim_t offset) const {
+            dim_t &idx, dims_t offset) const {
         auto src1_desc = conf_.binary_src_arr[idx];
 
         const auto off = get_binary_src1_off(
@@ -191,13 +199,13 @@ private:
         return dst;
     }
 
-    dim_t get_binary_src1_off(const xpu::sycl::md_t &src1_md, dim_t l_offset,
+    dim_t get_binary_src1_off(const xpu::sycl::md_t &src1_md, dims_t offset,
             const xpu::sycl::md_t::dims32_t &dst_dims,
             const xpu::sycl::md_t::dim32_t &dst_ndims) const {
         const dim_t mask_binary_po
                 = get_dims_mask(dst_dims, src1_md.dims(), dst_ndims);
         return get_po_tensor_off(
-                src1_md, l_offset, dst_dims, dst_ndims, mask_binary_po);
+                src1_md, offset, dst_dims, dst_ndims, mask_binary_po);
     }
 
     inline dim_t get_dims_mask(const xpu::sycl::md_t::dims32_t &dims1,
@@ -213,35 +221,11 @@ private:
     }
 
     inline dim_t get_po_tensor_off(const xpu::sycl::md_t &tensor_md,
-            dim_t l_offset, const xpu::sycl::md_t::dims32_t &dst_dims,
+            dims_t offset, const xpu::sycl::md_t::dims32_t &dst_dims,
             const dim_t &dst_ndims, const dim_t &mask) const {
-        dims_t l_dims_po {};
-        get_l_dims_po(l_dims_po, l_offset, dst_dims, dst_ndims, mask);
-
-        return tensor_md.off_v(l_dims_po);
-    }
-
-    inline void get_l_dims_po(dims_t l_dims_po, dim_t l_offset,
-            const xpu::sycl::md_t::dims32_t &dst_dims, const dim_t &dst_ndims,
-            const dim_t &mask) const {
-
-        l_dims_by_l_offset(l_dims_po, l_offset, dst_dims, dst_ndims);
-        utils::apply_mask_on_dims(l_dims_po, dst_ndims, mask);
-    }
-
-    inline void l_dims_by_l_offset(dims_t dims_pos, dim_t l_offset,
-            const xpu::sycl::md_t::dims32_t &dims, const dim_t &ndims) const {
-        for (dim_t rd = 0; rd < ndims; ++rd) {
-            const dim_t d = ndims - 1 - rd;
-            /* switch to faster 32-bit division when possible. */
-            if (l_offset <= INT32_MAX && dims[d] <= INT32_MAX) {
-                dims_pos[d] = (int32_t)l_offset % (int32_t)dims[d];
-                l_offset = (int32_t)l_offset / (int32_t)dims[d];
-            } else {
-                dims_pos[d] = l_offset % dims[d];
-                l_offset /= dims[d];
-            }
-        }
+        dims_t offset_po {};
+        utils::copy_dims_with_mask(offset_po, offset, dst_ndims, mask);
+        return tensor_md.off_v(offset_po);
     }
 
     template <int width>
