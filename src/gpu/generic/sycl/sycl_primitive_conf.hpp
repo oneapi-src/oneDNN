@@ -69,7 +69,7 @@ struct sycl_eltwise_conf_t {
     dim_t wg_size;
     dim_t wk_size;
     dim_t post_po_len;
-    xpu::sycl::md_t binary_src_arr[8];
+    xpu::sycl::md_t binary_src_arr[sycl::sycl_post_ops_t::max_post_ops];
     sycl_post_ops_t post_ops;
 };
 
