@@ -33,10 +33,11 @@ inline event_t::~event_t() = default;
 // Abstract class for runtime inputs and outputs
 class context_t {
 public:
-    virtual xpu::event_t &get_deps() = 0;
-    virtual const xpu::event_t &get_deps() const = 0;
+    virtual event_t &get_deps() = 0;
+    virtual const event_t &get_deps() const = 0;
 
-    virtual void append_deps(const xpu::event_t &event) = 0;
+    virtual void append_deps(const event_t &event) = 0;
+    virtual ~context_t() = default;
 };
 
 } // namespace xpu
