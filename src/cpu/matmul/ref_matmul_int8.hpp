@@ -51,8 +51,9 @@ struct ref_matmul_int8_t : public primitive_t {
             bool ok = is_dense_format_kind() && utils::one_of(src_type, s8, u8)
                     && utils::one_of(wei_type, s8, u8, s4, u4)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16, s32, s8, u8))
-                    && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
+                            utils::one_of(
+                                    bia_type, f32, bf16, f16, s32, s8, u8))
+                    && utils::one_of(dst_type, f32, bf16, f16, s32, s8, u8)
                     && attr()->has_default_values(
                             smask_t::scales_runtime_data_type
                                     | smask_t::scales_runtime_groups
