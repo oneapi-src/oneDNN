@@ -5,7 +5,6 @@ Performance Profiling and Inspection
    :maxdepth: 1
 
    dev_guide_verbose
-   dev_guide_verbose_table
    dev_guide_performance_settings
    dev_guide_benchdnn
    dev_guide_profilers
@@ -13,4 +12,5 @@ Performance Profiling and Inspection
    page_performance_profiling_cpp
    dev_guide_cpu_dispatcher_control
    dev_guide_cpu_isa_hints
+   dev_guide_verbose_table
    
