@@ -232,13 +232,13 @@ int parse_value_and_runtime(float &value, const std::string &s) {
                 "Error: scale or zero point input value is expected to be a "
                 "real number. Given input:",
                 s.c_str());
-        SAFE_V(FAIL);
+        SAFE(FAIL, WARN);
     }
     if (scale_pos != s.size()) {
         BENCHDNN_PRINT(0, "%s \'%s\'. %s \'%g\'.\n",
                 "Error: not every input symbol was processed. Given input:",
                 s.c_str(), "Parsed value:", value);
-        SAFE_V(FAIL);
+        SAFE(FAIL, WARN);
     }
     return OK;
 }
