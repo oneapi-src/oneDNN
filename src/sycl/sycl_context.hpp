@@ -36,6 +36,8 @@ struct sycl_event_t : public xpu::event_t {
         return *this;
     }
 
+    ~sycl_event_t() override = default;
+
     const ::sycl::event &operator[](size_t i) const { return events[i]; }
     ::sycl::event &operator[](size_t i) { return events[i]; }
     size_t size() const { return events.size(); }
@@ -46,7 +48,7 @@ struct sycl_event_t : public xpu::event_t {
     static const sycl_event_t &from(const xpu::event_t &event) {
         return *utils::downcast<const sycl_event_t *>(&event);
     }
-    std::unique_ptr<xpu::event_t> clone() const {
+    std::unique_ptr<xpu::event_t> clone() const override {
         return std::unique_ptr<xpu::event_t>(new sycl_event_t(*this));
     }
 
@@ -63,7 +65,7 @@ struct sycl_context_t final : public xpu::context_t {
     sycl_context_t(const std::vector<::sycl::event> &&events)
         : events_(std::move(events)) {};
     sycl_context_t(const sycl_context_t &) = default;
-    ~sycl_context_t() = default;
+    ~sycl_context_t() override = default;
 
     sycl_context_t &operator=(const sycl_context_t &other) {
         events_ = other.events_;
