@@ -145,14 +145,9 @@ struct reusable_vectorized_layer_normalization_fwd_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
-        std::vector<const char *> kernel_names = pd()->conf.get_kernel_names();
 
-        std::vector<compute::kernel_t> kernels;
-        CHECK(create_kernels(engine, kernels, kernel_names, pd()->conf));
-
-        calculate_lnorm_kernel_ = kernels[0];
-
-        return status::success;
+        return create_kernel(engine, calculate_lnorm_kernel_,
+                pd()->conf.get_kernel_names()[0], pd()->conf);
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
