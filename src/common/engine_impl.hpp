@@ -49,7 +49,7 @@ public:
     size_t index() const { return index_; }
 
     virtual engine_id_t engine_id() const {
-        // Used for non-sycl CPU engine onlt that doesn't have device and
+        // Used for non-sycl CPU engine only that doesn't have device and
         // context.
         return {};
     }
