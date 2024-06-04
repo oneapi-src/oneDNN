@@ -274,9 +274,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
 HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScalesWithGroups) {
     dnnl::primitive_attr attr;
 
-    const std::vector<int> supported_args = {DNNL_ARG_WEIGHTS};
-    const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_SRC,
-            DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
+    const std::vector<int> supported_args = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
+    const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_MEAN,
+            DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
 
     for (auto arg : supported_args) {
         // single non-default scales for supported arg

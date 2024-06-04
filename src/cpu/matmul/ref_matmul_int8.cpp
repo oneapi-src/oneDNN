@@ -114,20 +114,29 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
     const auto &src_scales_dt = attr_scales.get_data_type(DNNL_ARG_SRC);
     const auto &wei_scales_dt = attr_scales.get_data_type(DNNL_ARG_WEIGHTS);
+    const bool src_scale_per_k = src_scale_mask & pd()->src_qmask_K();
     const bool wei_scale_per_n = wei_scale_mask & pd()->wei_qmask_N();
     const bool wei_scale_per_k = wei_scale_mask & pd()->wei_qmask_K();
+    const auto src_scale_group_ndim = attr_scales.get(DNNL_ARG_SRC).ndims_;
     const auto wei_scale_group_ndim = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
+    const auto src_scale_group_k = src_scale_group_ndim > 0
+            ? attr_scales.get(DNNL_ARG_SRC).group_dims_[1]
+            : (src_scale_per_k ? 1 : K);
     const auto wei_scale_group_k = wei_scale_group_ndim > 0
             ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
             : (wei_scale_per_k ? 1 : K);
     const dim_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
+    const dim_t src_scale_stride_k = src_scale_group_k < K ? 1 : 0;
     const dim_t wei_scale_stride_k
             = wei_scale_group_k < K ? wei_scale_per_n ? N : 1 : 0;
+    const auto src_scale_ngroups_k = K / src_scale_group_k;
     const auto wei_scale_ngroups_k = K / wei_scale_group_k;
+    const auto scale_ngroups_k
+            = std::max(src_scale_ngroups_k, wei_scale_ngroups_k);
 
     // For compute kernel, the minimal group is picked.
-    const auto ngroups_k = std::max(wei_zp_ngroups_k, wei_scale_ngroups_k);
-    const auto group_k = std::min(wei_zp_group_k, wei_scale_group_k);
+    const auto ngroups_k = std::max(wei_zp_ngroups_k, scale_ngroups_k);
+    const auto group_k = K / ngroups_k;
 
     // mm kernel
     auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
@@ -168,9 +177,12 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
             float acc_f = static_cast<float>(acc);
             if (with_src_scales) {
                 // Single scale value was already converted into f32.
+                const auto src_scale_offset
+                        = src_scale_stride_k * (src_k_dim / src_scale_group_k);
                 const float src_scale = src_scale_mask == 0
                         ? src_scales[0]
-                        : io::load_float_value(src_scales_dt, src_scales, 0);
+                        : io::load_float_value(
+                                src_scales_dt, src_scales, src_scale_offset);
                 acc_f *= src_scale;
             }
             if (with_wei_scales) {

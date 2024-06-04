@@ -197,11 +197,13 @@ int attr_t::policy2mask(int arg, policy_t policy,
             default: SAFE(FAIL, CRIT); return -1;
         }
     } else if (prim_kind == dnnl_matmul) {
-        if (arg != DNNL_ARG_WEIGHTS || policy == policy_t::COMMON)
+        if ((arg != DNNL_ARG_SRC && arg != DNNL_ARG_WEIGHTS)
+                || policy == policy_t::COMMON)
             return attr_t::get_default_mask(policy);
 
         if (ndims <= 0) SAFE_V(FAIL);
         switch (policy) {
+            case PER_DIM_1:
             case PER_OC: return (1 << (ndims - 1));
             case PER_OCIC: return (1 << (ndims - 1)) + (1 << (ndims - 2));
             default: SAFE_V(FAIL); return -1;
@@ -296,6 +298,7 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
 
     if (!groups.empty()) {
         switch (this->policy) {
+            case PER_OC:
             case PER_OCIC:
                 if (this->groups.size() != 2) {
                     BENCHDNN_PRINT(0, "%s\n",
@@ -306,7 +309,8 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
                 break;
             default:
                 BENCHDNN_PRINT(0, "%s\n",
-                        "Error: groups are supported only for policy PER_OCIC");
+                        "Error: groups are supported only for PER_OC and "
+                        "PER_OCIC policies.");
                 SAFE_V(FAIL);
         }
     }

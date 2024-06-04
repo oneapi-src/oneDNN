@@ -73,8 +73,11 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     VCHECK_MATMUL_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);
 
+    int ndims_src = desc.src_desc.ndims;
     int ndims_wei = desc.weights_desc.ndims;
+    assert(ndims_src >= 2);
     assert(ndims_wei >= 2);
+    int src_qmask_K = 1 << (ndims_src - 1);
     int wei_qmask_N = 1 << (ndims_wei - 1);
     int wei_qmask_K = 1 << (ndims_wei - 2);
 
@@ -85,9 +88,27 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         const int mask_wei = sc.get(DNNL_ARG_WEIGHTS).mask_;
         const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
 
-        VCHECK_MATMUL_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
+        // Check allowed masks.
+        VCHECK_MATMUL_UNIMPL(utils::one_of(mask_src, 0, src_qmask_K)
                         && utils::one_of(mask_wei, 0, wei_qmask_N,
-                                wei_qmask_N + wei_qmask_K),
+                                wei_qmask_N + wei_qmask_K)
+                        && mask_dst == 0,
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+        // Check dependency between scales.
+        // Source scales groups are supported for int8 source and must divide
+        // or be divided by weights groups when both are greater than 1.
+        const auto src_scale_group_k = (mask_src & src_qmask_K)
+                ? sc.get(DNNL_ARG_SRC).group_dims_[1]
+                : 1;
+        const auto wei_scale_group_k = (mask_wei & wei_qmask_K)
+                ? sc.get(DNNL_ARG_WEIGHTS).group_dims_[0]
+                : 1;
+        const bool groups_are_divisible = IMPLICATION(
+                src_scale_group_k > 1 && wei_scale_group_k > 1,
+                (src_scale_group_k % wei_scale_group_k == 0)
+                        || (wei_scale_group_k % src_scale_group_k == 0));
+        VCHECK_MATMUL_UNIMPL(IMPLICATION(src_scale_group_k > 1,
+                                     src_is_int8 && groups_are_divisible),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
