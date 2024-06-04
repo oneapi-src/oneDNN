@@ -22,7 +22,7 @@ on:
 
 env:
   SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-  channel: "onednn"
+  channel: "rc-test"
 
 permissions:
   pull-requests: read
