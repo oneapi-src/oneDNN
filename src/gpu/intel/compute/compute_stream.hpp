@@ -17,9 +17,9 @@
 #ifndef GPU_INTEL_COMPUTE_COMPUTE_STREAM_HPP
 #define GPU_INTEL_COMPUTE_COMPUTE_STREAM_HPP
 
+#include "gpu/gpu_stream.hpp"
 #include "xpu/context.hpp"
 #include "xpu/stream_profiler.hpp"
-#include "gpu/gpu_stream.hpp"
 
 namespace dnnl {
 namespace impl {
