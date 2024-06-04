@@ -82,8 +82,8 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
         status_t set_default_params();
 
-        rnn_utils::ocl_conf_t ocl_conf;
-        rnn_offsets_t off;
+        rnn_utils::ocl_conf_t ocl_conf = {};
+        rnn_offsets_t off = {};
         rnn_utils::conf_t rnn_conf = {};
         data_type_t acc_data_t = data_type::undef;
         data_type_t src_type = data_type::undef;
