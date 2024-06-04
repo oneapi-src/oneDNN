@@ -55,3 +55,5 @@ The RFC life-cycle is:
 4. To accept the RFC, at least two approvals from oneDNN maintainers (excluding
    the author of the proposal) are required. Once general consensus is reached
    and the approvals are in place, the RFC is merged to the branch.
+
+More words to test RFC notification mechanism
