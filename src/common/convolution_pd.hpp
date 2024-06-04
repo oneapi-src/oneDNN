@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -234,8 +235,16 @@ protected:
                         || invariant_dst_md()->data_type == dst_dt)
                 && (acc_dt == data_type::undef
                         || desc_.accum_data_type == acc_dt);
-        if (with_bias() && bia_dt != data_type::undef)
+        if (with_bias() && bia_dt != data_type::undef) {
+#ifdef __aarch64__
+            // ACL only supports s32 bias for quantization. Therefore internally
+            // we convert from f32 to s32. So here the types doesn't match.
+            if (utils::one_of(
+                        dst_dt, data_type_t::dnnl_s8, data_type_t::dnnl_u8))
+                return ok;
+#endif
             ok = ok && invariant_bia_md()->data_type == bia_dt;
+        }
         return ok;
     }
 
