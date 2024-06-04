@@ -65,8 +65,13 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
                               everyone_is(data_type::f16, src_d.data_type(),
                                       wei_d.data_type(), dst_d.data_type()),
                               everyone_is(data_type::bf16, src_d.data_type(),
-                                      wei_d.data_type(), dst_d.data_type())),
-            " src, dst and wei must be fp16, bf16 or fp32");
+                                      wei_d.data_type(), dst_d.data_type()),
+                              everyone_is(data_type::s8, src_d.data_type(),
+                                      wei_d.data_type(), dst_d.data_type()),
+                              (everyone_is(data_type::u8, src_d.data_type(),
+                                       dst_d.data_type())
+                                      && wei_d.data_type() == data_type::s8)),
+            " src, dst and wei must be s8, u8, bf16, fp16 or fp32");
     // batch size
     const int mb = src_d.dims()[0];
 
@@ -165,7 +170,8 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
                                     : arm_compute::DataLayout::NCHW;
 
     // all have the same datatype
-    auto acl_data_type = acl_utils::get_acl_data_t(src_d.data_type());
+    auto acl_data_type
+            = acl_utils::get_acl_data_t(src_d.data_type(), acp.is_quantized);
 
     // clang-format off
     acp.src_tensor_info = arm_compute::TensorInfo(
@@ -179,8 +185,9 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
             is_nhwc ? arm_compute::TensorShape(ic, kw, kh, oc) :
             arm_compute::TensorShape(kw, kh, ic, oc),
             1,
-            acl_data_type,
+            acl_utils::get_acl_data_t(wei_d.data_type(), acp.is_quantized),
             acl_layout);
+
     if(is_depthwise) {
        // We need to set that values are not constant so that we
        // we can update them in-place in ACL
@@ -198,9 +205,19 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
             acp.with_bias ? arm_compute::TensorShape(oc)
                           : arm_compute::TensorShape(),
             1,
-            acl_data_type,
+            acp.is_quantized ? acl_utils::get_acl_data_t(data_type::s32) : acl_data_type,
             acl_layout);
     // clang-format on
+
+    if (acp.is_quantized) {
+        // ACL rejects the operation if quantization information is empty during configuration.
+        // Since the correct parameters are not available at this stage, we provide placeholder values.
+        // These values are then updated with the correct ones during the run stage.
+        arm_compute::QuantizationInfo qi {1.0, 0, true};
+        acp.src_tensor_info.set_quantization_info(qi);
+        acp.wei_tensor_info.set_quantization_info(qi);
+        acp.dst_tensor_info.set_quantization_info(qi);
+    }
 
     // ACL Winograd is not prepared for fixed format kernels
     if (acp.alg_winograd) {
@@ -216,7 +233,7 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     // Are we allowed to cast down to bf16 or not?
     acp.fast_math
             = one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
-    if (is_depthwise) {
+    if (is_depthwise || acp.is_quantized) {
         // There is no support for fixed format kernels for depthwise convolution
         // in ACL so we are going to use weight format that we set up earlier
         return status::success;
