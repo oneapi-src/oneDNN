@@ -84,6 +84,7 @@ private:
     void release() {
         auto t = utils::make_unique<mapper_t>();
         std::swap(*t, mapper_);
+        // This explicitly leaks memory so that the cache doesn't get destroyed
         t.release();
     }
     mapper_t mapper_;

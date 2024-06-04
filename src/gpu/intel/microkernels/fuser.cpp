@@ -60,9 +60,8 @@ void fuseMicrokernel(std::vector<uint8_t> &binary,
     auto *sheaders = reinterpret_cast<SectionHeader *>(
             base + fheaderPtr->sectionTableOff);
 
-    if (fheaderPtr->strTableIndex >= 0)
-        snames = reinterpret_cast<char *>(
-                base + sheaders[fheaderPtr->strTableIndex].offset);
+    snames = reinterpret_cast<char *>(
+            base + sheaders[fheaderPtr->strTableIndex].offset);
 
     for (int s = 0; s < fheaderPtr->sectionCount; s++) {
         switch (sheaders[s].type) {
