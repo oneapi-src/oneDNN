@@ -14,30 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_DIRECT_COPY_HPP
-#define GPU_INTEL_OCL_DIRECT_COPY_HPP
+#ifndef GPU_GENERIC_DIRECT_COPY_HPP
+#define GPU_GENERIC_DIRECT_COPY_HPP
 
-#include "common/c_types_map.hpp"
-#include "common/memory.hpp"
-#include "common/primitive.hpp"
-#include "common/utils.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
-#include "gpu/gpu_resource.hpp"
-#include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/primitive_conf.hpp"
+#include "gpu/gpu_stream.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace intel {
-namespace ocl {
+namespace generic {
 
-struct direct_copy_t : public gpu_primitive_t {
-    using gpu_primitive_t::gpu_primitive_t;
+struct direct_copy_t : public primitive_t {
+    using primitive_t::primitive_t;
     struct pd_t : public gpu_reorder_pd_t {
         using gpu_reorder_pd_t::gpu_reorder_pd_t;
 
-        DECLARE_COMMON_PD_T("ocl:direct_copy", direct_copy_t);
+        DECLARE_COMMON_PD_T("gpu:direct_copy", direct_copy_t);
 
         status_t init(impl::engine_t *engine, impl::engine_t * /*src_engine*/,
                 impl::engine_t * /*dst_engine*/) {
@@ -58,16 +52,16 @@ struct direct_copy_t : public gpu_primitive_t {
             VDISPATCH_REORDER(dst_mdw.offset0() == 0,
                     VERBOSE_UNSUPPORTED_PAD_FEATURE, "dst offset");
 
-            block_layout_t src_layout {src_mdw}, dst_layout {dst_mdw};
-            auto src_it = src_layout.begin(), dst_it = dst_layout.begin();
-            const auto src_end = src_layout.end(), dst_end = dst_layout.end();
+            std::vector<block_t> src_blocks, dst_blocks;
+            VDISPATCH_REORDER_SC(normalize(src_mdw, src_blocks),
+                    VERBOSE_UNSUPPORTED_MEM_STRIDE);
+            VDISPATCH_REORDER_SC(normalize(dst_mdw, dst_blocks),
+                    VERBOSE_UNSUPPORTED_MEM_STRIDE);
+            auto src_it = src_blocks.begin(), dst_it = dst_blocks.begin();
+            const auto src_end = src_blocks.end(), dst_end = dst_blocks.end();
 
-            dim_t stride = 1;
             for (; src_it != src_end && dst_it != dst_end; ++src_it, ++dst_it) {
                 if (*src_it != *dst_it) break;
-                VDISPATCH_REORDER((dim_t)src_it->stride == stride,
-                        VERBOSE_UNSUPPORTED_MEM_STRIDE);
-                stride *= src_it->block;
             }
 
             if (src_it == src_end) {
@@ -81,41 +75,88 @@ struct direct_copy_t : public gpu_primitive_t {
             // of size 3.
             VDISPATCH_REORDER(std::distance(src_it, src_end) == 1,
                     VERBOSE_INCONSISTENT_MDS, "src", "dst");
-            VDISPATCH_REORDER((dim_t)src_it->stride == stride,
-                    VERBOSE_UNSUPPORTED_MEM_STRIDE);
             if (dst_it == dst_end) return status::success;
             VDISPATCH_REORDER(std::distance(dst_it, dst_end) == 1,
                     VERBOSE_INCONSISTENT_MDS, "src", "dst");
-            VDISPATCH_REORDER((dim_t)dst_it->stride == stride,
-                    VERBOSE_UNSUPPORTED_MEM_STRIDE);
-            VDISPATCH_REORDER(dst_it->block <= src_it->block,
+            VDISPATCH_REORDER(dst_it->second <= src_it->second,
                     VERBOSE_INCONSISTENT_MDS, "src", "dst");
             return status::success;
         }
 
     private:
         DECLARE_GPU_REORDER_CREATE();
+        using block_t = std::pair<int, dim_t>;
+
+        status_t normalize(
+                const memory_desc_wrapper &mdw, std::vector<block_t> &blocks) {
+            if (mdw.ndims() == 0) return status::success;
+            blocks.clear();
+            auto &blocking = mdw.blocking_desc();
+            blocks.reserve(mdw.ndims() + blocking.inner_nblks);
+
+            dim_t stride = 1;
+            std::vector<dim_t> dim_blocking(mdw.ndims(), 1);
+            for (int i = blocking.inner_nblks - 1; i >= 0; --i) {
+                int dim_idx = blocking.inner_idxs[i];
+                dim_t block = blocking.inner_blks[i];
+                if (block == 1) continue;
+                if (blocks.empty() || blocks.back().first != dim_idx)
+                    blocks.emplace_back(dim_idx, block);
+                else
+                    blocks.back().second *= block;
+                dim_blocking[dim_idx] *= block;
+                stride *= block;
+            }
+
+            size_t offset = blocks.size();
+            for (int i = 0; i < mdw.ndims(); ++i) {
+                dim_t block = mdw.padded_dims()[i] / dim_blocking[i];
+                if (block == 1) continue;
+                blocks.emplace_back(i, block);
+            }
+            auto cmp = [&](const block_t &l, const block_t &r) {
+                auto &l_stride = blocking.strides[l.first];
+                auto &r_stride = blocking.strides[r.first];
+                return l_stride < r_stride
+                        || (l_stride == r_stride && l.first > r.first);
+            };
+            std::sort(blocks.begin() + offset, blocks.end(), cmp);
+            if (offset > 0 && blocks[offset].first == blocks[offset - 1].first
+                    && blocking.strides[blocks[offset].first] == stride) {
+                blocks[offset - 1].second *= blocks[offset].second;
+                stride *= blocks[offset].second;
+                blocks.erase(blocks.begin() + offset);
+            }
+
+            for (; offset < blocks.size(); ++offset) {
+                int dim_idx = blocks[offset].first;
+                dim_t block = blocks[offset].second;
+
+                if (blocking.strides[dim_idx] != stride)
+                    return status::unimplemented;
+                stride *= block;
+            }
+            return status::success;
+        }
     };
 
     status_t init(impl::engine_t *engine) override { return status::success; }
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        auto *compute_stream
-                = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+        auto *stream = utils::downcast<stream_t *>(ctx.stream());
 
         size_t size = memory_desc_wrapper(pd()->dst_md()).size();
         auto &input = CTX_IN_STORAGE(DNNL_ARG_FROM);
         auto &output = CTX_OUT_STORAGE(DNNL_ARG_TO);
-        auto &deps = compute_stream->ctx().get_deps();
-        return compute_stream->copy(input, output, size, deps, deps);
+        auto &deps = stream->ctx().get_deps();
+        return stream->copy(input, output, size, deps, deps);
     }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-} // namespace ocl
-} // namespace intel
+} // namespace generic
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
