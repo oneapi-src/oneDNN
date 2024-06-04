@@ -142,10 +142,10 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
                 vec_size /= 2) {
             size = desired_sg_size;
             while (size > 1) {
-                if (compute_engine->mayiuse_sub_group(size)
+                if (compute_engine->mayiuse_sub_group(static_cast<int>(size))
                         && compute_engine
                                    ->mayiuse_block_reads_writes_with_sub_group(
-                                           size)
+                                           static_cast<int>(size))
                         && (pd->norm_axis()
                                 >= static_cast<dim_t>(size * vec_size))
                         && ((pd->norm_axis() % (size * vec_size)) == 0)) {
@@ -154,14 +154,14 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
                 size /= 2;
             }
         }
-        return make_tuple(size, 0UL);
+        return make_tuple(size, size_t(0));
     }();
 
     if (conf->sg_size <= 1) {
         VDEBUGINFO(15, primitive, lnorm,
                 "Reusable Vectorized LNorm not used because norm_axis(%ld) "
                 "is not a multiple of the vector size and subgroup size.",
-                pd->norm_axis());
+                long(pd->norm_axis()));
         return status::unimplemented;
     }
 
