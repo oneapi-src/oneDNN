@@ -108,8 +108,8 @@ public:
                 }
                 memory::dims S1 {1, 1, 1};
                 memory::dims P1 {0, 0, 0};
-                memory::dims dims_src {1, prb.g * prb.ic};
-                memory::dims dims_dst {1, prb.g * prb.oc};
+                memory::dims dims_src {1, dim_t(prb.g) * prb.ic};
+                memory::dims dims_dst {1, dim_t(prb.g) * prb.oc};
 
                 for (int i = off; i < int(K.size()); i++) {
                     const auto KD = (K[i] - 1) * (D[i] + 1) + 1;
