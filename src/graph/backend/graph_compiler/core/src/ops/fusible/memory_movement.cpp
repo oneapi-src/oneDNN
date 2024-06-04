@@ -506,16 +506,9 @@ void transpose_op_t::query_format(context_ptr ctx,
     auto in_format = info_.inputs_[0]->details_.get_format();
     auto in_strides = info_.inputs_[0]->details_.get_strides();
     auto in_format_code = in_format.format_code_;
-    int batch_dims = info_.inputs_[0]->details_.get_plain_dims().size()
-            - in_format_code.norig_dims();
     std::unordered_map<int, int> order_map;
     for (size_t i = 0; i < order_.size(); ++i) {
-        COMPILE_ASSERT((order_[i] >= batch_dims)
-                        == (static_cast<int>(i) >= batch_dims),
-                "Permutation on batch dims is not supported.")
-        if (order_[i] >= batch_dims && static_cast<int>(i) >= batch_dims) {
-            order_map[order_[i] - batch_dims] = i - batch_dims;
-        }
+        order_map[order_[i]] = i;
     }
 
     std::vector<int> storage_args;
@@ -524,6 +517,8 @@ void transpose_op_t::query_format(context_ptr ctx,
         storage_args.push_back(order_map[axis]);
     }
     auto out_format = sc_data_format_t(storage_args, in_format.blocks_);
+
+    attrs_["layout_transformed"] = true;
 
     supported_ins.resize(1);
     supported_outs.resize(1);
