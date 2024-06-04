@@ -17,15 +17,12 @@
 #include <mutex>
 #include <unordered_map>
 
-#include "xpu/context.hpp"
-
-#include "gpu/intel/jit/gemm/zero_pool.hpp"
+#include "gpu/intel/compute/zero_pool.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace intel {
-namespace jit {
 
 static std::unordered_map<engine_id_t, zero_pool_t *> zero_pool_cache;
 static std::mutex zero_pool_cache_mutex;
@@ -183,7 +180,6 @@ void zero_pool_t::async_release(int token, const xpu::event_t &ev) {
     }
 }
 
-} // namespace jit
 } // namespace intel
 } // namespace gpu
 } // namespace impl
