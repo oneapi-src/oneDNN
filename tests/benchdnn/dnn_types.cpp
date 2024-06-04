@@ -1039,13 +1039,11 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (as.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
-            // Weights mask differs from primitive to primitive, that's why it
-            // is stashed in `attr_args` at primitive creation time.
-            const bool is_wei_arg = arg_name == DNNL_ARG_WEIGHTS
-                    || arg_name
-                            == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-            int mask = (is_wei_arg && e.policy != policy_t::COMMON)
-                    ? attr_args.get_mask(arg_name)
+            // Check if there's a arg with pre-defined mask in `attr_args`...
+            int args_mask = attr_args.get_mask(DNNL_ARG_ATTR_SCALES | arg_name);
+            // If it's non-default, use it, otherwise, deduce it.
+            int mask = args_mask != attr_args_t::undefined_mask
+                    ? args_mask
                     : attr_t::policy2mask(arg_name, e.policy);
 
             DNN_SAFE_V(dnnl_primitive_attr_set_scales(dnnl_attr, arg_name, mask,
@@ -1060,13 +1058,12 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (zp.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
-            // Weights mask differs from primitive to primitive, that's why it
-            // is stashed in `attr_args` at primitive creation time.
-            const bool is_wei_arg = arg_name == DNNL_ARG_WEIGHTS
-                    || arg_name
-                            == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-            int mask = (is_wei_arg && e.policy != policy_t::COMMON)
-                    ? attr_args.get_mask(DNNL_ARG_ATTR_ZERO_POINTS | arg_name)
+            // Check if there's a arg with pre-defined mask in `attr_args`...
+            int args_mask
+                    = attr_args.get_mask(DNNL_ARG_ATTR_ZERO_POINTS | arg_name);
+            // If it's non-default, use it, otherwise, deduce it.
+            int mask = args_mask != attr_args_t::undefined_mask
+                    ? args_mask
                     : attr_t::policy2mask(arg_name, e.policy);
 
             int ndims = static_cast<int>(e.groups.size());

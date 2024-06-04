@@ -528,7 +528,7 @@ struct attr_args_t {
     attr_args_t() = default;
 
     void prepare_scales(const attr_t &attr, int arg, int mask = -1) {
-        entries.insert(std::make_pair(arg, mask));
+        entries.insert(std::make_pair(DNNL_ARG_ATTR_SCALES | arg, mask));
     };
 
     void prepare_zero_points(const attr_t &attr, int arg, int mask = -1) {
@@ -545,7 +545,7 @@ struct attr_args_t {
     // Returns mask set for correspondent `arg`. The default value is `-1`.
     int get_mask(int arg) const {
         const auto it = entries.find(arg);
-        return it == entries.end() ? -1 : it->second;
+        return it == entries.end() ? undefined_mask : it->second;
     }
 
     dnnl_memory_desc_t get_md(int arg) const {
@@ -563,6 +563,8 @@ struct attr_args_t {
             return dnnl_data_type_undef;
         }
     }
+
+    static constexpr int undefined_mask = -1;
 
 private:
     std::map<int, int /* mask*/> entries;
