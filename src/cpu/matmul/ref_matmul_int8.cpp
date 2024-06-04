@@ -139,6 +139,13 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto group_k = K / ngroups_k;
 
     // mm kernel
+    // Note: classical int8 computation involve scales precomputing
+    // (src_0 x wei_i) and further applying them to accumulated result. It is
+    // possible since no unique value appears on reduction pass. With groups of
+    // scales introduced, this holds no more - each reduction group has a unique
+    // value to multiply on. This moves scales application inside the kernel.
+    // This reference kernel applies scales inside unconditionally as it is
+    // always possible to do that.
     auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
         float d = 0;
         dims_t src_dims_idx, weights_dims_idx;
