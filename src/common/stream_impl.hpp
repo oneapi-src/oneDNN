@@ -31,9 +31,7 @@ public:
     stream_impl_t(unsigned flags) : flags_(flags) {}
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     stream_impl_t(threadpool_interop::threadpool_iface *threadpool)
-        : stream_impl_t(stream_flags::in_order) {
-        threadpool_ = threadpool;
-    }
+        : flags_(stream_flags::in_order), threadpool_(threadpool) {}
 #endif
 
     virtual ~stream_impl_t() = default;
