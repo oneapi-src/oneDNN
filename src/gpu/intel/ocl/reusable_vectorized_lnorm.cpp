@@ -88,19 +88,9 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     // be represented by a stride + size alone.
     size_t ndims = gpu_utils::into<size_t>(input_buf.ndims);
     vector<compute::dim_id_t> dims = get_dims(ndims);
-    block_layout_t layout = input_buf.layout();
-    const block_t *norm_block = [&layout, &dims]() -> const block_t * {
-        const block_t *ret = nullptr;
-        for (const block_t &block : layout) {
-            if (gpu_utils::into<size_t>(block.dim_idx) == dims.back()) {
-                if (ret) return nullptr;
-                ret = &block;
-            }
-        }
-        gpu_assert(ret) << "Expected to find a norm block";
-        return ret;
-    }();
-    if (!norm_block) return status::unimplemented;
+
+    memory_desc_wrapper src_mdw(pd->src_md());
+    if (src_mdw.blocking_desc().inner_nblks != 0) return status::unimplemented;
 
     const auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
             pd->attr()->gpu_attr_.get());
@@ -140,9 +130,8 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     }
 
     conf->unroll = std::min<size_t>(
-            4UL, pd->norm_axis() / (conf->sg_size * conf->vector_size));
+            size_t(4), pd->norm_axis() / (conf->sg_size * conf->vector_size));
 
-    memory_desc_wrapper src_mdw(pd->src_md());
     bool c_is_last_physical = false;
     c_is_last_physical = src_mdw.blocking_desc().strides[ndims - 1] == 1;
     if (!(src_mdw.is_dense() && c_is_last_physical))
