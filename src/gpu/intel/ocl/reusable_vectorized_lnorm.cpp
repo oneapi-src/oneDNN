@@ -25,6 +25,7 @@
 #include "gpu/intel/compute/dispatch_reusable.hpp"
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/compute/utils.hpp"
+#include "gpu/intel/ocl/lnorm_utils.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/ocl/reusable_lnorm.hpp"
 #include "gpu/intel/primitive_conf.hpp"
@@ -42,33 +43,6 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace ocl {
-
-static vector<compute::dim_id_t> get_dims(
-        size_t ndims, bool for_stats = false) {
-    assert(ndims > 1 && ndims < 6);
-    // The last logical dimension is not included in lnorm stats
-    if (for_stats) ndims--;
-    vector<compute::dim_id_t> ret(ndims);
-    uint8_t idx = 0;
-    ret[idx++] = lnorm_dims::mb;
-    if (ndims >= 2) ret[idx++] = lnorm_dims::ic;
-    if (ndims >= 3) ret[idx++] = lnorm_dims::sp0;
-    if (ndims >= 4) ret[idx++] = lnorm_dims::sp1;
-    if (ndims >= 5) ret[idx++] = lnorm_dims::sp2;
-    return ret;
-}
-
-static compute::named_buffer_t get_ss_buffer(
-        const memory_desc_t *md, compute::dim_id_t dim) {
-    if (types::is_zero_md(md)) {
-        // Scale/shift are unused. We need to construct a buffer that will not be dispatched to
-        compute::named_buffer_t ret("SS");
-        ret.data_type = data_type::f32; // Anything but undef
-        return ret;
-    } else {
-        return compute::named_buffer_t("SS", *md, {dim});
-    }
-}
 
 using namespace dnnl::impl::gpu::intel::compute;
 struct single_subgroup_lws_strategy_t : public lws_strategy_t {

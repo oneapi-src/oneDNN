@@ -32,14 +32,6 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-namespace lnorm_dims {
-constexpr compute::dim_id_t mb = 0;
-constexpr compute::dim_id_t ic = 1;
-constexpr compute::dim_id_t sp0 = 2;
-constexpr compute::dim_id_t sp1 = 3;
-constexpr compute::dim_id_t sp2 = 4;
-}; // namespace lnorm_dims
-
 //************* Common Reusable structs *************//
 
 struct reusable_lnorm_params_t
