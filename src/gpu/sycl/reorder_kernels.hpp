@@ -89,8 +89,8 @@ struct reorder_kernel_t {
                 }
 
                 int dst_idx = dst_md().off_v(off);
-                auto src = load_float_value(
-                        src_md().data_type(), src_ptr(), idx);
+                auto src = load_float_value(src_md().data_type(), src_ptr(),
+                        idx + src_md().offset0());
                 auto dst = load_float_value(
                         dst_md().data_type(), dst_ptr(), dst_idx);
 

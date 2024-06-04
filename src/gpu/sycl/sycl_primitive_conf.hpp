@@ -50,6 +50,10 @@ struct sycl_binary_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+struct sycl_concat_conf_t {
+    int n;
+};
+
 struct sycl_eltwise_conf_t {
     prop_kind_t prop_kind;
     xpu::sycl::md_t src_md;
