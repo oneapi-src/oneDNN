@@ -343,7 +343,8 @@ struct brgemm_desc_t {
 
     int get_A_tensor(int m, bool m_tail = false) const noexcept {
         const auto full_A_tiles = get_num_A_tiles() - (bdb_tail ? 1 : 0);
-        auto M = m_tail ? get_num_A_tiles() - 1 : m % full_A_tiles;
+        auto M = (m_tail || full_A_tiles == 0) ? get_num_A_tiles() - 1
+                                               : m % full_A_tiles;
         return (get_num_C_tiles() + M);
     }
 
@@ -358,7 +359,8 @@ struct brgemm_desc_t {
 
     int get_B_tensor(int n, bool n_tail = false) const noexcept {
         const auto full_B_tiles = get_num_B_tiles() - (ldb_tail ? 1 : 0);
-        auto N = n_tail ? get_num_B_tiles() - 1 : n % full_B_tiles;
+        auto N = (n_tail || full_B_tiles == 0) ? get_num_B_tiles() - 1
+                                               : n % full_B_tiles;
         return (get_num_C_tiles() + get_num_A_tiles() + N);
     }
 
