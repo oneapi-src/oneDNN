@@ -77,12 +77,8 @@ struct reusable_vectorized_lnorm_params_t
 
     /// Saves the mean and variance to memory
     bool save_stats = false;
-    bool stats_are_tmp = false;
 
-    bool with_src_scale = false;
-    bool with_dst_scale = false;
-
-    bool padding[1] = {false};
+    uint8_t padding[4] = {false};
 };
 
 struct reusable_vectorized_lnorm_runtime_params_t {
