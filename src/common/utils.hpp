@@ -69,20 +69,20 @@ static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
 
 #define CHECK(f) \
     do { \
-        status_t _status_ = f; \
-        if (_status_ != status::success) return _status_; \
+        dnnl::impl::status_t _status_ = f; \
+        if (_status_ != dnnl::impl::status::success) return _status_; \
     } while (0)
 
 #define CHECK_BOOL(f) \
     do { \
-        status_t _status_ = f; \
-        if (_status_ != status::success) return false; \
+        dnnl::impl::status_t _status_ = f; \
+        if (_status_ != dnnl::impl::status::success) return false; \
     } while (0)
 
 #define UNUSED_STATUS(f) \
     do { \
-        status_t _status_ = f; \
-        assert(_status_ == status::success); \
+        dnnl::impl::status_t _status_ = f; \
+        assert(_status_ == dnnl::impl::status::success); \
         MAYBE_UNUSED(_status_); \
     } while (0)
 
