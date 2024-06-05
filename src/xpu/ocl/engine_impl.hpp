@@ -74,6 +74,32 @@ public:
 
         CHECK(check_device(engine_kind::gpu, device(), context()));
 
+        // TODO: Remove it as soon as device info is generalized.
+        size_t param_size = 0;
+        err = clGetDeviceInfo(device_, CL_DEVICE_NAME, 0, nullptr, &param_size);
+        OCL_CHECK(err);
+
+        name_ = std::string(param_size, '\0');
+        err = clGetDeviceInfo(
+                device_, CL_DEVICE_NAME, param_size, &name_[0], &param_size);
+        OCL_CHECK(err);
+
+        err = clGetDeviceInfo(
+                device_, CL_DRIVER_VERSION, 0, nullptr, &param_size);
+        OCL_CHECK(err);
+
+        std::string driver_version(param_size, '\0');
+        err = clGetDeviceInfo(device_, CL_DRIVER_VERSION, param_size,
+                &driver_version[0], nullptr);
+        OCL_CHECK(err);
+
+        if (runtime_version_.set_from_string(&driver_version[0])
+                != status::success) {
+            runtime_version_.major = 0;
+            runtime_version_.minor = 0;
+            runtime_version_.build = 0;
+        }
+
         return status::success;
     }
 
@@ -93,6 +119,18 @@ public:
         *stream_impl = si;
         return status::success;
     }
+
+    // TODO: The device info class should be generalized to support multiple
+    // vendors. For now, put common device info parts in engine_impl_t
+    // directly.
+    const std::string &name() const { return name_; }
+    const runtime_version_t &runtime_version() const {
+        return runtime_version_;
+    }
+
+private:
+    std::string name_;
+    runtime_version_t runtime_version_;
 
 private:
     xpu::ocl::wrapper_t<cl_device_id> device_;

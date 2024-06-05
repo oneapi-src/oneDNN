@@ -51,6 +51,19 @@ public:
                 status::invalid_arguments, VERBOSE_UNSUPPORTED_BACKEND, "sycl");
 
         CHECK(check_device(kind(), device_, context_));
+
+        // TODO: Remove it as soon as device info is generalized.
+        name_ = device_.get_info<::sycl::info::device::name>();
+        const auto driver_version
+                = device_.get_info<::sycl::info::device::driver_version>();
+
+        if (runtime_version_.set_from_string(driver_version.c_str())
+                != status::success) {
+            runtime_version_.major = 0;
+            runtime_version_.minor = 0;
+            runtime_version_.build = 0;
+        }
+
         return status::success;
     }
 
@@ -74,6 +87,18 @@ public:
         *stream_impl = si;
         return status::success;
     }
+
+    // TODO: The device info class should be generalized to support multiple
+    // vendors. For now, put common device info parts in engine_impl_t
+    // directly.
+    const std::string &name() const { return name_; }
+    const runtime_version_t &runtime_version() const {
+        return runtime_version_;
+    }
+
+private:
+    std::string name_;
+    runtime_version_t runtime_version_;
 
 private:
     ::sycl::device device_;
