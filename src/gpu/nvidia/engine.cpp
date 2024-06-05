@@ -94,13 +94,9 @@ CUdevice engine_t::get_underlying_device() const {
     return compat::get_native<CUdevice>(device());
 }
 
-status_t engine_t::create_stream(impl::stream_t **stream, unsigned flags) {
-    return nvidia::stream_t::create_stream(stream, this, flags);
-}
-
 status_t engine_t::create_stream(
-        impl::stream_t **stream, ::sycl::queue &queue) {
-    return nvidia::stream_t::create_stream(stream, this, queue);
+        impl::stream_t **stream, impl::stream_impl_t *stream_impl) {
+    return nvidia::stream_t::create_stream(stream, this, stream_impl);
 }
 
 cudnnHandle_t *engine_t::get_cudnn_handle() {

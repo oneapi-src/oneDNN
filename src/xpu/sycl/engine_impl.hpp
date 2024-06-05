@@ -23,6 +23,7 @@
 #include "xpu/ocl/utils.hpp"
 #include "xpu/sycl/compat.hpp"
 #include "xpu/sycl/engine_id.hpp"
+#include "xpu/sycl/stream_impl.hpp"
 #include "xpu/sycl/utils.hpp"
 
 namespace dnnl {
@@ -64,6 +65,14 @@ public:
     engine_id_t engine_id() const override {
         return engine_id_t(new xpu::sycl::engine_id_impl_t(
                 device(), context(), kind(), runtime_kind(), index()));
+    }
+
+    status_t create_stream_impl(
+            impl::stream_impl_t **stream_impl, unsigned flags) const override {
+        auto *si = new xpu::sycl::stream_impl_t(flags);
+        if (!si) return status::out_of_memory;
+        *stream_impl = si;
+        return status::success;
     }
 
 private:

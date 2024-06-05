@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <memory>
+
 #include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
@@ -23,6 +25,8 @@
 #include "primitive_iface.hpp"
 #include "stream.hpp"
 #include "utils.hpp"
+
+#include "common/stream_impl.hpp"
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::status;

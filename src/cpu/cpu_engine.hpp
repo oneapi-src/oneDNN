@@ -123,12 +123,8 @@ public:
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override;
 
-    status_t create_stream(stream_t **stream, unsigned flags) override;
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    status_t create_stream(stream_t **stream,
-            dnnl::threadpool_interop::threadpool_iface *threadpool) override;
-#endif
+    status_t create_stream(
+            stream_t **stream, impl::stream_impl_t *stream_impl) override;
 
     const impl_list_item_t *get_concat_implementation_list() const override {
         return cpu_engine_impl_list_t::get_concat_implementation_list();

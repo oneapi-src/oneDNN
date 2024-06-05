@@ -48,12 +48,9 @@ public:
                 storage, this, flags, size, handle);
     }
 
-    status_t create_stream(impl::stream_t **stream, unsigned flags) override {
-        return cpu::sycl::stream_t::create_stream(stream, this, flags);
-    }
-
-    status_t create_stream(impl::stream_t **stream, ::sycl::queue &queue) {
-        return cpu::sycl::stream_t::create_stream(stream, this, queue);
+    status_t create_stream(impl::stream_t **stream,
+            impl::stream_impl_t *stream_impl) override {
+        return cpu::sycl::stream_t::create_stream(stream, this, stream_impl);
     }
 
     const ::sycl::device &device() const { return impl()->device(); }

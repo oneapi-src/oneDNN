@@ -37,32 +37,20 @@ namespace intel {
 namespace ocl {
 
 struct ocl_stream_t : public compute::compute_stream_t {
-    static status_t create_stream(
-            impl::stream_t **stream, impl::engine_t *engine, unsigned flags) {
-
-        std::unique_ptr<ocl_stream_t> ocl_stream(
-                new ocl_stream_t(engine, flags));
-        if (!ocl_stream) return status::out_of_memory;
-
-        status_t status = ocl_stream->init();
-        if (status != status::success) return status;
-
-        *stream = ocl_stream.release();
-        return status::success;
-    }
-
     static status_t create_stream(impl::stream_t **stream,
-            impl::engine_t *engine, cl_command_queue queue) {
-        unsigned flags;
-        CHECK(xpu::ocl::stream_impl_t::init_flags(&flags, queue));
+            impl::engine_t *engine, impl::stream_impl_t *stream_impl) {
 
-        std::unique_ptr<ocl_stream_t> ocl_stream(
-                new ocl_stream_t(engine, flags, queue));
-        if (!ocl_stream) return status::out_of_memory;
+        std::unique_ptr<ocl_stream_t> s(new ocl_stream_t(engine, stream_impl));
+        if (!s) return status::out_of_memory;
 
-        CHECK(ocl_stream->init());
+        status_t status = s->init();
+        if (status != status::success) {
+            // Stream owns stream_impl only if it's created successfully (including initialization).
+            s->impl_.release();
+            return status;
+        }
 
-        *stream = ocl_stream.release();
+        *stream = s.release();
         return status::success;
     }
 
@@ -109,10 +97,10 @@ private:
     xpu::ocl::stream_impl_t *impl() const {
         return (xpu::ocl::stream_impl_t *)impl::stream_t::impl_.get();
     }
-    ocl_stream_t(impl::engine_t *engine, unsigned flags)
-        : compute_stream_t(engine, new xpu::ocl::stream_impl_t(flags)) {}
-    ocl_stream_t(impl::engine_t *engine, unsigned flags, cl_command_queue queue)
-        : compute_stream_t(engine, new xpu::ocl::stream_impl_t(queue, flags)) {}
+
+    ocl_stream_t(impl::engine_t *engine, impl::stream_impl_t *stream_impl)
+        : compute_stream_t(engine, stream_impl) {}
+
     status_t init();
 
     cl_command_queue create_queue(

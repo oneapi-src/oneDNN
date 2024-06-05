@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/engine_id.hpp"
+#include "common/stream_impl.hpp"
 #include "common/utils.hpp"
 
 #ifdef ONEDNN_BUILD_GRAPH
@@ -60,6 +61,14 @@ public:
 #endif
 
     virtual status_t init() { return status::success; }
+
+    virtual status_t create_stream_impl(
+            impl::stream_impl_t **stream_impl, unsigned flags) const {
+        auto *si = new impl::stream_impl_t(flags);
+        if (!si) return status::out_of_memory;
+        *stream_impl = si;
+        return status::success;
+    }
 
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(engine_impl_t)

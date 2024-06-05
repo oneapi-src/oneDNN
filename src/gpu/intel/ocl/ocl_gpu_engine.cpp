@@ -84,13 +84,8 @@ status_t ocl_gpu_engine_t::create_memory_storage(
 }
 
 status_t ocl_gpu_engine_t::create_stream(
-        impl::stream_t **stream, unsigned flags) {
-    return ocl_stream_t::create_stream(stream, this, flags);
-}
-
-status_t ocl_gpu_engine_t::create_stream(
-        impl::stream_t **stream, cl_command_queue queue) {
-    return ocl_stream_t::create_stream(stream, this, queue);
+        impl::stream_t **stream, impl::stream_impl_t *stream_impl) {
+    return ocl_stream_t::create_stream(stream, this, stream_impl);
 }
 
 namespace {

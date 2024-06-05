@@ -19,12 +19,9 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
-#endif
-
 #include "c_types_map.hpp"
 #include "common/engine_impl.hpp"
+#include "common/stream_impl.hpp"
 #include "engine_id.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
@@ -79,16 +76,23 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     }
 
     /** create stream */
-    virtual dnnl::impl::status_t create_stream(
-            dnnl::impl::stream_t **stream, unsigned flags)
+    virtual dnnl::impl::status_t create_stream(dnnl::impl::stream_t **stream,
+            dnnl::impl::stream_impl_t *stream_impl)
             = 0;
 
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    virtual dnnl::impl::status_t create_stream(dnnl::impl::stream_t **stream,
-            dnnl::threadpool_interop::threadpool_iface *threadpool) {
-        return dnnl::impl::status::invalid_arguments;
+    dnnl::impl::status_t create_stream(
+            dnnl::impl::stream_t **stream, unsigned flags) {
+        std::unique_ptr<dnnl::impl::stream_impl_t> stream_impl;
+        dnnl::impl::stream_impl_t *stream_impl_ptr = nullptr;
+        CHECK(impl()->create_stream_impl(&stream_impl_ptr, flags));
+        stream_impl.reset(stream_impl_ptr);
+
+        dnnl::impl::stream_t *s;
+        CHECK(create_stream(&s, stream_impl.get()));
+        stream_impl.release();
+        *stream = s;
+        return dnnl::impl::status::success;
     }
-#endif
 
     virtual dnnl::impl::status_t get_service_stream(
             dnnl::impl::stream_t *&stream) {

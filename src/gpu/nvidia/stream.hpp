@@ -38,26 +38,18 @@ public:
     cublasHandle_t &get_cublas_handle(CUstream cuda_stream = nullptr);
     cudnnHandle_t &get_cudnn_handle(CUstream cuda_stream = nullptr);
 
-    static status_t create_stream(
-            impl::stream_t **stream, impl::engine_t *engine, unsigned flags) {
+    static status_t create_stream(impl::stream_t **stream,
+            impl::engine_t *engine, impl::stream_impl_t *stream_impl) {
         std::unique_ptr<nvidia::stream_t> sycl_stream(
-                new nvidia::stream_t(engine, flags));
+                new nvidia::stream_t(engine, stream_impl));
         if (!sycl_stream) return status::out_of_memory;
 
-        CHECK(sycl_stream->init());
-        *stream = sycl_stream.release();
-        return status::success;
-    }
-
-    static status_t create_stream(impl::stream_t **stream,
-            impl::engine_t *engine, ::sycl::queue &queue) {
-        unsigned flags;
-        CHECK(xpu::sycl::stream_impl_t::init_flags(&flags, queue));
-
-        std::unique_ptr<nvidia::stream_t> sycl_stream(
-                new nvidia::stream_t(engine, flags, queue));
-
-        CHECK(sycl_stream->init());
+        status_t status = sycl_stream->init();
+        if (status != status::success) {
+            // Stream owns stream_impl only if it's created successfully (including initialization).
+            s->impl_.release();
+            return status;
+        }
 
         *stream = sycl_stream.release();
         return status::success;
@@ -126,10 +118,8 @@ private:
     }
 
     status_t init();
-    stream_t(impl::engine_t *engine, unsigned flags, ::sycl::queue &queue)
-        : gpu::stream_t(engine, new xpu::sycl::stream_impl_t(queue, flags)) {}
-    stream_t(impl::engine_t *engine, unsigned flags)
-        : gpu::stream_t(engine, new xpu::sycl::stream_impl_t(flags)) {}
+    stream_t(impl::engine_t *engine, impl::stream_impl_t *stream_impl)
+        : gpu::stream_t(engine, stream_impl) {}
 };
 
 } // namespace nvidia

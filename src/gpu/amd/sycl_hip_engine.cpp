@@ -100,13 +100,8 @@ hipDevice_t sycl_hip_engine_t::get_underlying_device() const {
 }
 
 status_t sycl_hip_engine_t::create_stream(
-        impl::stream_t **stream, unsigned flags) {
-    return sycl_hip_stream_t::create_stream(stream, this, flags);
-}
-
-status_t sycl_hip_engine_t::create_stream(
-        impl::stream_t **stream, ::sycl::queue &queue) {
-    return sycl_hip_stream_t::create_stream(stream, this, queue);
+        impl::stream_t **stream, impl::stream_impl_t *stream_impl) {
+    return sycl_hip_stream_t::create_stream(stream, this, stream_impl);
 }
 
 miopenHandle_t *sycl_hip_engine_t::get_miopen_handle() {

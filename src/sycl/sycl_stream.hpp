@@ -42,31 +42,20 @@ namespace impl {
 namespace sycl {
 
 struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
-    static status_t create_stream(
-            impl::stream_t **stream, engine_t *engine, unsigned flags) {
-        std::unique_ptr<sycl_stream_t> sycl_stream(
-                new sycl_stream_t(engine, flags));
-        if (!sycl_stream) return status::out_of_memory;
+    static status_t create_stream(impl::stream_t **stream, engine_t *engine,
+            impl::stream_impl_t *stream_impl) {
+        std::unique_ptr<sycl_stream_t> s(
+                new sycl_stream_t(engine, stream_impl));
+        if (!s) return status::out_of_memory;
 
-        status_t status = sycl_stream->init();
-        if (status != status::success) return status;
-        *stream = sycl_stream.release();
-        return status::success;
-    }
+        status_t status = s->init();
+        if (status != status::success) {
+            // Stream owns stream_impl only if it's created successfully (including initialization).
+            s->impl_.release();
+            return status;
+        }
 
-    static status_t create_stream(
-            impl::stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
-        unsigned flags;
-        status_t status = xpu::sycl::stream_impl_t::init_flags(&flags, queue);
-        if (status != status::success) return status;
-
-        std::unique_ptr<sycl_stream_t> sycl_stream(
-                new sycl_stream_t(engine, flags, queue));
-
-        status = sycl_stream->init();
-        if (status != status::success) return status;
-
-        *stream = sycl_stream.release();
+        *stream = s.release();
         return status::success;
     }
 
@@ -131,12 +120,8 @@ protected:
         return (xpu::sycl::stream_impl_t *)impl::stream_t::impl_.get();
     }
 
-    sycl_stream_t(engine_t *engine, unsigned flags)
-        : gpu::intel::compute::compute_stream_t(
-                engine, new xpu::sycl::stream_impl_t(flags)) {}
-    sycl_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
-        : gpu::intel::compute::compute_stream_t(
-                engine, new xpu::sycl::stream_impl_t(queue, flags)) {}
+    sycl_stream_t(engine_t *engine, impl::stream_impl_t *stream_impl)
+        : gpu::intel::compute::compute_stream_t(engine, stream_impl) {}
 
     // XXX: this is a temporary solution to make sycl_memory_arg_t
     // default constructible.
