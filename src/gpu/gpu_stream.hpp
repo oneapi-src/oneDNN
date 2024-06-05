@@ -44,7 +44,7 @@ public:
     virtual const xpu::stream_profiler_t &profiler() const {
         return *profiler_;
     }
-    virtual xpu::stream_profiler_t &profiler() { return *profiler_; }
+    xpu::stream_profiler_t &profiler() { return *profiler_; }
 
 protected:
     std::unique_ptr<xpu::stream_profiler_t> profiler_;
