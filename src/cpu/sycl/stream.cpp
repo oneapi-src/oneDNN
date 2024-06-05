@@ -39,7 +39,13 @@ status_t stream_t::init() {
                 : ::sycl::property_list {};
         impl()->set_queue(::sycl::queue(sycl_ctx, sycl_dev, props));
     } else {
-        const bool args_ok = engine()->kind() == engine_kind::cpu;
+        // TODO: Compare device and context of the engine with those of the
+        // queue after SYCL adds support for device/context comparison.
+        //
+        // For now perform some simple checks.
+        auto sycl_dev = queue().get_device();
+        const bool args_ok = engine()->kind() == engine_kind::cpu
+                && (sycl_dev.is_cpu() || xpu::sycl::is_host(sycl_dev));
         if (!args_ok) return status::invalid_arguments;
     }
 
