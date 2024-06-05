@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,10 +37,11 @@ using namespace dnnl::impl::graph::gc;
 
 template <class T>
 static std::vector<T> ref_transpose(const std::vector<T> &data,
-        const sc_dims &input_dims, const std::vector<int> &axis) {
-    assert(axis.size() == 2);
+        const sc_dims &input_dims, std::vector<int> axis) {
+    assert(axis.size() == 2 || axis.empty());
     const int num_of_loops = input_dims.size();
     sc_dims output_dims = input_dims;
+    if (axis.empty()) { axis = {0, 0}; }
     std::swap(output_dims[axis[0]], output_dims[axis[1]]);
     std::vector<int> lp_vars(num_of_loops);
     std::vector<T> ret(data.size());
@@ -155,4 +156,5 @@ TEST(GCCore_CPU_transpose_test, TestQueryFormat) {
 TEST(GCCore_CPU_transpose_test, TestSingleTranspose) {
     transpose_test({4, 8, 16, 32}, {0, 1, 3, 2}, {2, 3});
     transpose_test({4, 8, 16, 32}, {0, 2, 1, 3}, {1, 2});
+    transpose_test({4, 8, 16, 32}, {0, 1, 2, 3}, {});
 }

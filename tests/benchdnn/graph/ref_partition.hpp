@@ -65,7 +65,10 @@ private:
     bool has_child_op(const deserialized_op &op,
             const deserialized_op **child_op_ptr) const;
     // Returns `true` if unfusable transcendental op should have cropped output.
-    bool need_unfusable_output_crop(const deserialized_op &op) const;
+    // `dt` is a target data type for following transform. Updated only when the
+    // function returns `true`.
+    bool need_unfusable_output_crop(
+            const deserialized_op &op, dnnl_data_type_t &dt) const;
 
     const deserialized_graph *dg_;
     // Objects below are constructed.

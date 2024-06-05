@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -215,9 +215,10 @@ bool should_transform_reorder(const sc_op_ptr &node) {
 
 static bool should_transform_transpose(const sc_op_ptr &node) {
     assert(node->isa<transpose_op_t>());
-    if (node->info_.inputs_[0]->details_.get_format()
-            != node->info_.outputs_[0]->details_.get_format()) {
-        // means that we have permuted the data format
+    // all transpose op can be converted to tensor_view as long as layout
+    // propagation is in effect
+    if (node->attrs_.get_or_else("layout_transformed", false)) {
+        // means that we have transformed the data format
         return true;
     }
     return false;

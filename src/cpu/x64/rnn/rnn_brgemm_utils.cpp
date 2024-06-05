@@ -563,7 +563,7 @@ status_t init_brgemm_kernel(x64::brgemm_desc_t *desc, x64::cpu_isa_t isa,
     brgattr.max_bs = max_bs;
     brgattr.max_top_vpad = 0;
     brgattr.max_bottom_vpad = 0;
-    brgemm_desc_set_attr(desc, brgattr);
+    CHECK(brgemm_desc_set_attr(desc, brgattr));
 
     x64::brgemm_kernel_t *_t_ptr;
     CHECK(brgemm_kernel_create(&_t_ptr, *desc));

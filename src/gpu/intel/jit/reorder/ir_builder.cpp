@@ -476,7 +476,7 @@ struct layout_normalization_t {
         blocks_ = blocks;
     }
 
-    void reindex(int ndims, std::vector<int> map) {
+    void reindex(int ndims, const std::vector<int> &map) {
         ndims_ = ndims;
         for (auto &blk : blocks_)
             blk.dim_idx = map[blk.dim_idx];
@@ -575,8 +575,8 @@ void reorder_ir_builder_t::normalize_reorder_layouts(layout_t &a, layout_t &b) {
             b_merges.emplace_back(p[1].idx, direction);
         }
     }
-    a_normalization.merge(a_merges);
-    b_normalization.merge(b_merges);
+    a_normalization.merge(std::move(a_merges));
+    b_normalization.merge(std::move(b_merges));
 
     // Find dimensions present in either normalized layout and construct map of
     // new dimension indices

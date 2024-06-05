@@ -173,6 +173,13 @@
     {}
 #endif
 
+#if BUILD_PRIMITIVE_ALL || BUILD_SDPA
+#define REG_SDPA_P(...) __VA_ARGS__
+#else
+#define REG_SDPA_P(...) \
+    {}
+#endif
+
 #if BUILD_PRIMITIVE_ALL || BUILD_SHUFFLE
 #define REG_SHUFFLE_P(...) __VA_ARGS__
 #else

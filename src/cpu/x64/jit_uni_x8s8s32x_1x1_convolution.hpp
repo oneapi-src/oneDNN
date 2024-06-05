@@ -270,19 +270,20 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             // for 1x1: Check that no better ISA is available.
             // for dw: Always fuse with same ISA.
             // Caveat: May be a better dw conv exists.
-            VDISPATCH_CONV(!mayiuse(isa == avx2 ? avx512_core : avx2),
+            VDISPATCH_CONV_IC(!mayiuse(isa == avx2 ? avx512_core : avx2),
                     VERBOSE_1x1CONV_HEURISTIC_FAIL, "higher isa is supported");
 
-            VDISPATCH_CONV(attr_1x1.post_ops_.find(primitive_kind::sum) == -1,
+            VDISPATCH_CONV_IC(
+                    attr_1x1.post_ops_.find(primitive_kind::sum) == -1,
                     VERBOSE_UNSUPPORTED_FEATURE, "unsupported sum post-op");
 
             // TODO: Below may be further tuned.
-            VDISPATCH_CONV(l2_cache < src_d.size(),
+            VDISPATCH_CONV_IC(l2_cache < src_d.size(),
                     VERBOSE_1x1CONV_HEURISTIC_FAIL, "cache size check failed");
             // load_grp_count check can be redundant due to l2 check
             // above. Adding it explicitly as the current driver doesn't
             // work if this condition fails.
-            VDISPATCH_CONV(jcp_1x1.load_grp_count < 2,
+            VDISPATCH_CONV_IC(jcp_1x1.load_grp_count < 2,
                     VERBOSE_1x1CONV_HEURISTIC_FAIL, "load group count > 1");
 
             int dw_po_index
@@ -299,14 +300,15 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             jcp_dw_ = &(fusable_pd->jcp_);
             dw_conv_pd_ = std::move(fusable_pd);
 
-            VDISPATCH_CONV(
+            VDISPATCH_CONV_IC(
                     dnnl_memory_desc_equal(&src_md, dw_conv_pd_->src_md(0)),
                     VERBOSE_INCONSISTENT_MDS, "src_md", "dw_conv_pd_->src_md");
-            VDISPATCH_CONV(jcp_1x1.oc_without_padding % jcp_1x1.oc_block == 0,
+            VDISPATCH_CONV_IC(
+                    jcp_1x1.oc_without_padding % jcp_1x1.oc_block == 0,
                     VERBOSE_1x1CONV_HEURISTIC_FAIL,
                     "output-channel is not an exact multiple of oc_block");
-            VDISPATCH_CONV(IMPLICATION(jcp_dw_->ow_block,
-                                   jcp_dw_->ow_block == jcp_dw_->ow),
+            VDISPATCH_CONV_IC(IMPLICATION(jcp_dw_->ow_block,
+                                      jcp_dw_->ow_block == jcp_dw_->ow),
                     VERBOSE_1x1CONV_HEURISTIC_FAIL,
                     "ow_block does not equal output-width");
 

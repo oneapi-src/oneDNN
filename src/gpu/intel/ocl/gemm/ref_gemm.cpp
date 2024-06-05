@@ -30,8 +30,8 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
     auto pd_desc = pd()->desc();
-    bool runtime_dims = utils::one_of(
-            DNNL_RUNTIME_DIM_VAL, pd_desc->m(), pd_desc->n(), pd_desc->k());
+    bool runtime_dims = utils::one_of(DNNL_RUNTIME_DIM_VAL, pd_desc->batch(),
+            pd_desc->m(), pd_desc->n(), pd_desc->k());
     const auto exec_d = runtime_dims ? ctx.desc() : pd()->desc();
 
     if (exec_d->batch() == 0 || exec_d->n() == 0) return status::success;

@@ -143,6 +143,30 @@ inline pm::pb_node_t *append_single_op_repetition_subgraph(
     return rep;
 };
 
+inline pm::pb_node_t *append_optional_scale(
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_node_t *input) {
+    in_edges_t in_edges {in_edge(0, input, 0)};
+    auto optional_subgraph = std::make_shared<pb_graph_t>();
+    auto scale_op = optional_subgraph->append_alternation(
+            {graph::op_kind::Divide, graph::op_kind::Multiply});
+    optional_subgraph->create_input_port(0, scale_op, 0);
+    optional_subgraph->create_output_port(0, scale_op, 0);
+    auto optional = pgraph->append_optional(optional_subgraph, in_edges);
+    return optional;
+};
+
+inline pm::pb_node_t *append_optional_output_reshape(
+        const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_node_t *input) {
+    in_edges_t in_edges {in_edge(0, input, 0)};
+    auto optional_subgraph = std::make_shared<pb_graph_t>();
+    auto reshape_op = optional_subgraph->append_alternation(
+            {graph::op_kind::Reorder, graph::op_kind::StaticReshape});
+    optional_subgraph->create_input_port(0, reshape_op, 0);
+    optional_subgraph->create_output_port(0, reshape_op, 0);
+    auto optional = pgraph->append_optional(optional_subgraph, in_edges);
+    return optional;
+};
+
 inline pm::pb_node_t *create_dequant_matmul(
         const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_node_t *input,
         bool is_bf16 = false, bool is_int8 = false) {

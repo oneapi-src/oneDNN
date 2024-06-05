@@ -1573,8 +1573,7 @@ private:
             edge_t min_edge;
             type_t min_type;
             v.cost(v, edges, min_edge, min_type);
-            reorder_step_t step(v.layout, min_edge.tile(), min_type);
-            return {step};
+            return {{v.layout, min_edge.tile(), min_type}};
         }
 
         // Dijkstra's algorithm, find the minimal cost path between src and

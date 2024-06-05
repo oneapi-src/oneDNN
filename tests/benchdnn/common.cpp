@@ -657,3 +657,63 @@ void print_dhw(bool &print_d, bool &print_h, bool &print_w, int ndims,
     print_w = ndims == 3 || (ndims == 5 && (!cubic_shape || canonical))
             || (ndims == 4 && (!square_shape || canonical));
 }
+
+// Copied from utils::getenv.
+// An underlined unified implementation for getting env var value.
+int getenv(const char *name, char *buffer, int buffer_size) {
+    if (name == nullptr || buffer_size < 0
+            || (buffer == nullptr && buffer_size > 0))
+        return INT_MIN;
+
+    int result = 0;
+    int term_zero_idx = 0;
+    size_t value_length = 0;
+
+#ifdef _WIN32
+    value_length = GetEnvironmentVariable(name, buffer, buffer_size);
+#else
+    const char *value = ::getenv(name);
+    value_length = value == nullptr ? 0 : strlen(value);
+#endif
+
+    if (value_length > INT_MAX)
+        result = INT_MIN;
+    else {
+        int int_value_length = (int)value_length;
+        if (int_value_length >= buffer_size) {
+            result = -int_value_length;
+        } else {
+            term_zero_idx = int_value_length;
+            result = int_value_length;
+#ifndef _WIN32
+            if (value) strncpy(buffer, value, buffer_size - 1);
+#endif
+        }
+    }
+
+    if (buffer != nullptr) buffer[term_zero_idx] = '\0';
+    return result;
+}
+
+// Copied from utils::getenv_int_user.
+// Collects an integer value from an env var.
+int benchdnn_getenv_int(const char *name, int default_value) {
+    int value = default_value;
+    // # of digits in the longest 32-bit signed int + sign + terminating null
+    const int len = 12;
+    char value_str[len];
+    if (getenv(name, value_str, len) > 0) { value = atoi(value_str); }
+    return value;
+}
+
+// Copied from utils::getenv_string_user.
+// Collects a string lower case value from an env var.
+std::string benchdnn_getenv_string(const char *name) {
+    // Random number to fit possible string input.
+    std::string value;
+    const int len = 128;
+    char value_str[len];
+    if (getenv(name, value_str, len) > 0) { value = value_str; }
+    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+    return value;
+}

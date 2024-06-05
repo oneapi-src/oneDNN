@@ -50,14 +50,35 @@ fill_cfg_t::fill_cfg_t(dnnl_data_type_t dt, float range_min_val,
     }
 }
 
+fill_cfg_t::fill_cfg_t(
+        const std::vector<float> &user_set, const std::string &name)
+    : dt_(dnnl_data_type_undef)
+    , range_min_val_(-FLT_MAX)
+    , range_max_val_(FLT_MAX)
+    , predefined_set_(user_set)
+    , only_integer_(false)
+    , name_(name) {
+    assert(!predefined_set_.empty());
+}
+
 std::string fill_cfg_t::print_verbose() const {
     std::stringstream ss;
 
     ss << "[FILL_CFG]";
     if (!name_.empty()) ss << " name:" << name_;
-    ss << " dt:" << dt_;
-    ss << " range:[" << range_min_val_ << ";" << range_max_val_ << "]";
-    if (only_integer_) ss << " only_integer:true";
+
+    // Predefined set is mutually excluded with a range setting.
+    if (!predefined_set_.empty()) {
+        ss << " set:[";
+        for (const auto &e : predefined_set_) {
+            ss << e << ";";
+        }
+        ss << "]";
+    } else {
+        ss << " dt:" << dt_;
+        ss << " range:[" << range_min_val_ << ";" << range_max_val_ << "]";
+        if (only_integer_) ss << " only_integer:true";
+    }
 
     return ss.str();
 }
@@ -161,6 +182,9 @@ int fill_random_real_dense(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
     if (nelems == 0) return OK;
 
     BENCHDNN_PRINT(6, "%s\n", fill_cfg.print_verbose().c_str());
+
+    // This function doesn't handle the predefined set yet.
+    assert(!fill_cfg.predefined_set_.empty());
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     // The `nelems()` function returns a product of dims/pdims regardless of

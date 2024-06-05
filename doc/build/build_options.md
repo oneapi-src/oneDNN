@@ -89,11 +89,11 @@ This option supports several values: `ALL` (the default) which enables all
 primitives implementations or a set of `BATCH_NORMALIZATION`, `BINARY`,
 `CONCAT`, `CONVOLUTION`, `DECONVOLUTION`, `ELTWISE`, `INNER_PRODUCT`,
 `LAYER_NORMALIZATION`, `LRN`, `MATMUL`, `POOLING`, `PRELU`, `REDUCTION`,
-`REORDER`, `RESAMPLING`, `RNN`, `SHUFFLE`, `SOFTMAX`, `SUM`. When a set is used,
-only those selected primitives implementations will be available. Attempting to
-use other primitive implementations will end up returning an unimplemented
-status when creating primitive descriptor. In order to specify a set, a
-CMake-style string should be used, with semicolon delimiters, as in this
+`REORDER`, `RESAMPLING`, `RNN`, `SDPA`, `SHUFFLE`, `SOFTMAX`, `SUM`. When a set
+is used, only those selected primitives implementations will be available.
+Attempting to use other primitive implementations will end up returning an
+unimplemented status when creating primitive descriptor. In order to specify a
+set, a CMake-style string should be used, with semicolon delimiters, as in this
 example:
 ```
 -DONEDNN_ENABLE_PRIMITIVE=CONVOLUTION;MATMUL;REORDER

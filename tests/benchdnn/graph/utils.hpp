@@ -234,5 +234,7 @@ inline const cpp_engine_t &get_graph_engine() {
 
 bool is_gc_backend();
 
+dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt);
+
 } // namespace graph
 #endif
