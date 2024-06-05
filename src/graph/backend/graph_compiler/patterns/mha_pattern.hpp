@@ -258,7 +258,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(fp32_mha_pattern)
                  \    /
 [Attention Mask] Div|Mul  [Value](f32)
               \   /        |
-                Add     Reshape
+        Add (optional)  Reshape
                  |         |
               Softmax  Transpose*[1-2]
                     \     /
@@ -332,17 +332,17 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fp32_mha_pattern)
               \     /
                MatMul  [fscore scale](f32)
                  \    /
-[Attention Mask] Div|Mul
+[Attention Mask] Div|Mul (optional)
               \   /
-                Add
+           Add (optional)
                  |
               Softmax  [Value](f32)
                     \     /
                      MatMul
                         |
-                    Transpose
+                    Transpose (optional)
                         |
-                Reorder|StaticReshape
+                Reorder|StaticReshape (optional)
                         |
                      [output](f32)
 */
@@ -356,9 +356,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
-                    auto fscore_scale = pgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_scale
+                            = append_optional_scale(pgraph, matmul_qk);
                     auto fscore_add = append_single_op_repetition_subgraph(
                             pgraph, graph::op_kind::Add, fscore_scale);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
@@ -367,13 +366,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     matmul_v->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
-                    auto transpose_output
-                            = pgraph->append_op(graph::op_kind::StaticTranspose,
-                                    {in_edge(0, matmul_v, 0)});
-                    pgraph->append_alternation(
-                            {graph::op_kind::Reorder,
-                                    graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)});
+                    auto transpose = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::StaticTranspose, matmul_v);
+                    append_optional_output_reshape(pgraph, transpose);
                 });
 
 // fp32_distill_bert_mha_pattern
@@ -433,7 +428,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                      \    /
 (f32)[AttentionMask] Div|Mul
                   \   /
-                    Add
+              Add (optional)
                      |
                   Softmax   [Dropout](f32)
                       \     /
@@ -788,51 +783,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, fake_int8_mha_pattern)
               \     /
                MatMul
                  |
-        Divide|Multiply (optional)
-                 |
-               Add (optional)
-                 |
-              Softmax    [Value](f32)
-                    \     /
-                     MatMul
-                       |
-                    [output](f32)
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        compiler, fp32_mha_pattern_alternative3)
-        .set_priority(4.4f) // lower priority than mha_pattern_alternative
-        .set_engine_kind(graph::engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::mha)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
-                    matmul_qk->append_decision_function(
-                            check_input_dtype<graph::data_type::f32>);
-                    auto optional_postops_subgraph
-                            = std::make_shared<pb_graph_t>();
-                    auto scale = optional_postops_subgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply});
-                    auto add = optional_postops_subgraph->append_op(
-                            graph::op_kind::Add, {in_edge(0, scale, 0)});
-                    optional_postops_subgraph->create_input_port(0, scale, 0);
-                    optional_postops_subgraph->create_output_port(0, add, 0);
-                    auto postops
-                            = pgraph->append_optional(optional_postops_subgraph,
-                                    {in_edge(0, matmul_qk, 0)});
-                    auto softmax = pgraph->append_op(
-                            graph::op_kind::SoftMax, {in_edge(0, postops, 0)});
-                    pgraph->append_op(
-                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
-                });
-
-/*
-   (f32)[Query]     [Key](f32)
-              \     /
-               MatMul
-                 |
          Divide|Multiply
                  |
-                Add
+             Add (optional)
                  |
               Softmax
                  |
@@ -945,7 +898,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(bf16_mha_pattern)
                  \    /
 [Attention Mask] Div|Mul  [Value](bf16)
               \   /        |
-                Add     Reshape
+         Add (optional)  Reshape
                  |         |
               Softmax  Transpose*[1-2]
                     \     /
@@ -1017,17 +970,17 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, bf16_mha_pattern)
               \     /
                MatMul  [fscore scale]
                  \    /
-[Attention Mask] Div|Mul
+[Attention Mask] Div|Mul (optional)
               \   /
-                Add
+          Add (optional)
                  |
               Softmax  [Value](bf16)
                     \     /
                      MatMul
                         |
-                    Transpose
+                    Transpose (optional)
                         |
-                Reorder|StaticReshape
+                Reorder|StaticReshape (optional)
                         |
                      [output](bf16)
 */
@@ -1041,9 +994,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
-                    auto fscore_scale = pgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_scale
+                            = append_optional_scale(pgraph, matmul_qk);
                     auto fscore_add = append_single_op_repetition_subgraph(
                             pgraph, graph::op_kind::Add, fscore_scale);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
@@ -1052,13 +1004,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     matmul_v->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
-                    auto transpose_output
-                            = pgraph->append_op(graph::op_kind::StaticTranspose,
-                                    {in_edge(0, matmul_v, 0)});
-                    pgraph->append_alternation(
-                            {graph::op_kind::Reorder,
-                                    graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)});
+                    auto transpose = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::StaticTranspose, matmul_v);
+                    append_optional_output_reshape(pgraph, transpose);
                 });
 
 // bf16_distill_bert_mha_pattern
@@ -1118,7 +1066,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                      \    /
 (bf16)[AttentionMask] Div|Mul
                   \   /
-                    Add
+                Add (optional)
                      |
                   Softmax   [Dropout](bf16)
                       \     /
@@ -1281,40 +1229,13 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                 });
 
 /*
-   (bf16)[Query]   [Key](bf16)
-              \     /
-               MatMul
-                 |
-              Softmax    [Value](bf16)
-                    \     /
-                     MatMul
-                       |
-                   [output](bf16)
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        compiler, bf16_mha_pattern_alternative3)
-        .set_priority(5.0f)
-        .set_engine_kind(graph::engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::mha)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
-                    matmul_qk->append_decision_function(
-                            check_input_dtype<graph::data_type::bf16>);
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, matmul_qk, 0)});
-                    pgraph->append_op(
-                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
-                });
-
-/*
    (bf16)[Query]     [Key](bf16)
               \     /
                MatMul
                  |
          Divide|Multiply
                  |
-                Add
+          Add (optional)
                  |
               Softmax
                  |
@@ -1382,7 +1303,7 @@ COMPILER_BACKEND_REGISTER_PASSES_DEF_BEGIN(int8_mha_pattern)
                       \    /
 (f32)[Attention Mask] Div|Mul
                    \   /
-                     Add    [Value](u8/s8)
+                Add (optional) [Value](u8/s8)
                       |         |
                    Softmax   Dequantize
                       |         |
@@ -1496,7 +1417,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_mha_pattern)
                       \    /
 (b16)[Attention Mask] Div|Mul
                    \   /
-                     Add
+                Add (optional)
                       |
                    Softmax   [Value](u8/s8)
                       |         |
@@ -1615,9 +1536,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
                    \     /
                     MatMul  [Fscore Scale](f32)
                       \    /
-(f32)[Attention Mask] Div|Mul
+(f32)[Attention Mask] Div|Mul (optional)
                    \   /
-                     Add
+                Add (optional)
                       |
                    Softmax
                       |
@@ -1627,9 +1548,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(compiler, int8_bf16_mha_pattern)
                          \     /
                           MatMul
                              |
-                         Transpose
+                         Transpose (optional)
                              |
-                Reorder|StaticReshape
+                Reorder|StaticReshape (optional)
                              |
                           Quantize
                              |
@@ -1655,9 +1576,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edge(1, dequantize_key, 0)});
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::f32>);
-                    auto fscore_scale = pgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_scale
+                            = append_optional_scale(pgraph, matmul_qk);
                     auto fscore_add = append_single_op_repetition_subgraph(
                             pgraph, graph::op_kind::Add, fscore_scale);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
@@ -1677,18 +1597,14 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, dequantize_softmax, 0),
                                     in_edge(1, dequantize_value, 0)});
-
-                    auto transpose_output
-                            = pgraph->append_op(graph::op_kind::StaticTranspose,
-                                    {in_edge(0, matmul_v, 0)});
-                    auto reshape_reorder_output = pgraph->append_alternation(
-                            {graph::op_kind::Reorder,
-                                    graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)});
+                    auto transpose = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::StaticTranspose, matmul_v);
+                    auto reshape
+                            = append_optional_output_reshape(pgraph, transpose);
                     pgraph->append_alternation(
                             {graph::op_kind::Quantize,
                                     graph::op_kind::DynamicQuantize},
-                            {in_edge(0, reshape_reorder_output, 0)});
+                            {in_edge(0, reshape, 0)});
                 });
 
 /*
@@ -1700,9 +1616,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                    \     /
                     MatMul  [Fscore Scale](f32)
                       \    /
-(bf16)[Attention Mask] Div|Mul
+(bf16)[Attention Mask] Div|Mul (optional)
                    \   /
-                     Add
+                Add (optional)
                       |
                    Softmax
                       |
@@ -1716,9 +1632,9 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                          \     /
                           MatMul
                              |
-                         Transpose
+                         Transpose (optional)
                              |
-                Reorder|StaticReshape
+                Reorder|StaticReshape (optional)
                              |
                           TypeCast
                              |
@@ -1751,9 +1667,8 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                                     in_edge(1, cast_key, 0)});
                     matmul_qk->append_decision_function(
                             check_input_dtype<graph::data_type::bf16>);
-                    auto fscore_scale = pgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)});
+                    auto fscore_scale
+                            = append_optional_scale(pgraph, matmul_qk);
                     auto fscore_add = append_single_op_repetition_subgraph(
                             pgraph, graph::op_kind::Add, fscore_scale);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
@@ -1782,167 +1697,16 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
                             {in_edge(0, cast_softmax, 0),
                                     in_edge(1, cast_value, 0)});
-                    auto transpose_output
-                            = pgraph->append_op(graph::op_kind::StaticTranspose,
-                                    {in_edge(0, matmul_v, 0)});
-                    auto reshape_reorder_output = pgraph->append_alternation(
-                            {graph::op_kind::Reorder,
-                                    graph::op_kind::StaticReshape},
-                            {in_edge(0, transpose_output, 0)});
-                    auto cast_output_fp32
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, reshape_reorder_output, 0)});
+                    auto transpose = append_single_op_repetition_subgraph(
+                            pgraph, graph::op_kind::StaticTranspose, matmul_v);
+                    auto reshape
+                            = append_optional_output_reshape(pgraph, transpose);
+                    auto cast_output_fp32 = pgraph->append_op(
+                            graph::op_kind::TypeCast, {in_edge(0, reshape, 0)});
                     pgraph->append_alternation(
                             {graph::op_kind::Quantize,
                                     graph::op_kind::DynamicQuantize},
                             {in_edge(0, cast_output_fp32, 0)});
-                });
-
-/*
-        (int8)[Query]   [Key](int8)
-                 |          |
-             Dequantize Dequantize
-                   \     /
-                    MatMul
-                      |
-                   Softmax
-                      |
-                   Quantize  [Value](int8)
-                      |          |
-                  Dequantize Dequantize
-                         \     /
-                          MatMul
-                            |
-                         Quantize
-                            |
-                        [output](int8)
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        compiler, int8_mha_pattern_alternative3)
-        .set_priority(5.0f)
-        .set_engine_kind(graph::engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::quantized_mha)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto dequantize_key = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-
-                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, dequantize_query, 0),
-                                    in_edge(1, dequantize_key, 0)});
-                    matmul_qk->append_decision_function(
-                            check_input_dtype<graph::data_type::f32>);
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, matmul_qk, 0)});
-                    auto quantize_softmax = pgraph->append_alternation(
-                            {graph::op_kind::Quantize,
-                                    graph::op_kind::DynamicQuantize},
-                            {in_edge(0, softmax, 0)});
-                    auto dequantize_softmax = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize},
-                            {in_edge(0, quantize_softmax, 0)});
-
-                    auto dequantize_value = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-
-                    auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, dequantize_softmax, 0),
-                                    in_edge(1, dequantize_value, 0)});
-                    pgraph->append_alternation(
-                            {graph::op_kind::Quantize,
-                                    graph::op_kind::DynamicQuantize},
-                            {in_edge(0, matmul_v, 0)});
-                });
-
-/*
-        (int8)[Query]    [Key](int8)
-                 |          |
-             Dequantize Dequantize
-                 |          |
-              TypeCast   TypeCast
-                   \     /
-                    MatMul
-                      |
-                   Softmax
-                      |
-                   TypeCast
-                      |
-                   Quantize  [Value](int8)
-                      |          |
-                  Dequantize Dequantize
-                      |          |
-                   TypeCast   TypeCast
-                         \     /
-                          MatMul
-                             |
-                          TypeCast
-                             |
-                          Quantize
-                             |
-                        [output](int8)
-*/
-COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
-        compiler, int8_bf16_mha_pattern_alternative3)
-        .set_priority(5.0f)
-        .set_engine_kind(graph::engine_kind::cpu)
-        .set_kind(graph::partition_kind_t::quantized_mha)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    auto dequantize_query = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto cast_query
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_query, 0)});
-
-                    auto dequantize_key = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto cast_key = pgraph->append_op(graph::op_kind::TypeCast,
-                            {in_edge(0, dequantize_key, 0)});
-
-                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, cast_query, 0),
-                                    in_edge(1, cast_key, 0)});
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, matmul_qk, 0)});
-                    auto cast_softmax_fp32 = pgraph->append_op(
-                            graph::op_kind::TypeCast, {in_edge(0, softmax, 0)});
-                    auto quantize_softmax = pgraph->append_alternation(
-                            {graph::op_kind::Quantize,
-                                    graph::op_kind::DynamicQuantize},
-                            {in_edge(0, cast_softmax_fp32, 0)});
-                    auto dequantize_softmax = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize},
-                            {in_edge(0, quantize_softmax, 0)});
-                    auto cast_softmax
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_softmax, 0)});
-
-                    auto dequantize_value = pgraph->append_alternation(
-                            {graph::op_kind::Dequantize,
-                                    graph::op_kind::DynamicDequantize});
-                    auto cast_value
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, dequantize_value, 0)});
-
-                    auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
-                            {in_edge(0, cast_softmax, 0),
-                                    in_edge(1, cast_value, 0)});
-                    auto cast_output
-                            = pgraph->append_op(graph::op_kind::TypeCast,
-                                    {in_edge(0, matmul_v, 0)});
-                    pgraph->append_alternation(
-                            {graph::op_kind::Quantize,
-                                    graph::op_kind::DynamicQuantize},
-                            {in_edge(0, cast_output, 0)});
                 });
 
 /*
@@ -1954,7 +1718,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                  |
          Divide|Multiply
                  |
-                Add
+          Add (optional)
                  |
               Softmax
                  |
@@ -2012,7 +1776,7 @@ COMPILER_BACKEND_REGISTER_TRANSFORMATION_PASS(
                  |
           Divide|Multiply
                  |
-                Add
+           Add (optional)
                  |
               Softmax
                  |

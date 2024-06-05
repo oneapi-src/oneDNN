@@ -1011,7 +1011,7 @@ TEST(GCPatternTests, FP32BartMHAPattern_CPU) {
     compiler_utils::add_bart_MHA(&agraph, false, false);
     agraph.finalize();
 
-    test_pattern_matched(agraph, {"fp32_mha_pattern_alternative3"}, 1,
+    test_pattern_matched(agraph, {"fp32_mha_pattern_alternative"}, 1,
             std::vector<partition_info_t> {{3, 3, 1}});
 }
 
@@ -1022,7 +1022,7 @@ TEST(GCPatternTests, BF16BartMHAPattern_CPU) {
     compiler_utils::add_bart_MHA(&agraph, true, false);
     agraph.finalize();
 
-    test_pattern_matched(agraph, {"bf16_mha_pattern_alternative3"}, 1,
+    test_pattern_matched(agraph, {"bf16_mha_pattern_alternative"}, 1,
             std::vector<partition_info_t> {{3, 3, 1}});
 }
 
@@ -1033,7 +1033,7 @@ TEST(GCPatternTests, INT8FP32BartMHAPattern_CPU) {
     compiler_utils::add_bart_MHA(&agraph, false, true);
     agraph.finalize();
 
-    test_pattern_matched(agraph, {"int8_mha_pattern_alternative3"}, 1,
+    test_pattern_matched(agraph, {"int8_mha_pattern_alternative"}, 1,
             std::vector<partition_info_t> {{9, 3, 1}});
 }
 
@@ -1044,7 +1044,7 @@ TEST(GCPatternTests, INT8BF16BartMHAPattern_CPU) {
     compiler_utils::add_bart_MHA(&agraph, true, true);
     agraph.finalize();
 
-    test_pattern_matched(agraph, {"int8_bf16_mha_pattern_alternative3"}, 1,
+    test_pattern_matched(agraph, {"int8_bf16_mha_pattern_alternative"}, 1,
             std::vector<partition_info_t> {{15, 3, 1}});
 }
 
