@@ -51,6 +51,11 @@ public:
 
     ::sycl::queue *queue() { return queue_.get(); }
 
+    status_t wait() {
+        queue()->wait_and_throw();
+        return status::success;
+    }
+
     status_t copy(impl::stream_t *stream, const memory_storage_t &src,
             const memory_storage_t &dst, size_t size, const xpu::event_t &deps,
             xpu::event_t &out_dep,

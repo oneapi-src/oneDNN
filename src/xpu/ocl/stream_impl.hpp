@@ -47,6 +47,11 @@ public:
 
     cl_command_queue queue() { return queue_; }
 
+    status_t wait() {
+        OCL_CHECK(clFinish(queue()));
+        return status::success;
+    }
+
     static status_t init_flags(unsigned *flags, cl_command_queue queue) {
         *flags = 0;
         // Determine if the passed queue is in-order/out-of-order

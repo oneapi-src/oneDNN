@@ -66,10 +66,7 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return status::success;
     }
 
-    status_t wait() override {
-        OCL_CHECK(clFinish(queue_));
-        return status::success;
-    }
+    status_t wait() override { return impl()->wait(); }
 
     void before_exec_hook() override;
     void after_exec_hook() override;

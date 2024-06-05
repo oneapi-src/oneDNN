@@ -70,10 +70,7 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
         return status::success;
     }
 
-    status_t wait() override {
-        queue().wait_and_throw();
-        return status::success;
-    }
+    status_t wait() override { return impl()->wait(); }
 
     void before_exec_hook() override;
     void after_exec_hook() override;
