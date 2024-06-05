@@ -71,7 +71,7 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
 #endif
 
 #ifdef DNNL_SYCL_HIP
-    if (gpu::amd::is_amd_gpu(dev))
+    if (xpu::sycl::is_amd_gpu(dev))
         return gpu::amd::hip_engine_create(
                 engine, engine_kind_, dev, ctx, index);
 #endif

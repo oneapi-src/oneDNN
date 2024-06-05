@@ -32,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
-status_t hip_engine_create(engine_t **engine, engine_kind_t engine_kind,
+status_t hip_engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index) {
     CHECK(amd::check_device(engine_kind));
     std::unique_ptr<amd::sycl_hip_engine_t, engine_deleter_t> hip_engine(

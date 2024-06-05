@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,7 +41,7 @@ struct miopen_softmax_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_softmax_fwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(impl::engine_t *) {
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper dst_d(dst_md());
             bool ok = is_fwd()
@@ -86,7 +86,7 @@ struct miopen_softmax_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_softmax_bwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(impl::engine_t *) {
             const memory_desc_wrapper diff_src_d(diff_src_md());
             const memory_desc_wrapper diff_dst_d(diff_dst_md());
             const memory_desc_wrapper dst_d(dst_md());

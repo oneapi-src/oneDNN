@@ -69,7 +69,7 @@ struct miopen_batch_normalization_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_batch_normalization_fwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(impl::engine_t *) {
             using namespace data_type;
             using namespace types;
 
@@ -146,7 +146,7 @@ struct miopen_batch_normalization_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_batch_normalization_bwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(impl::engine_t *) {
             using namespace data_type;
             using namespace types;
 

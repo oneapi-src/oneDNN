@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +36,7 @@ struct miopen_eltwise_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_eltwise_fwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(impl::engine_t *) {
             using namespace alg_kind;
             bool ok = is_fwd()
                     // Supported algorithms
@@ -77,7 +77,7 @@ struct miopen_eltwise_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_eltwise_bwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(impl::engine_t *) {
             using namespace alg_kind;
             bool ok = !is_fwd()
                     // Supported algorithms

@@ -48,12 +48,12 @@ HIPstream sycl_hip_stream_t::get_underlying_stream() {
 
 // the sycl_hip_stream_t will not own this. it is an observer pointer
 HIPcontext sycl_hip_stream_t::get_underlying_context() {
-    return compat::get_native<HIPcontext>(queue()->get_device());
+    return compat::get_native<HIPcontext>(queue().get_device());
 }
 
 // the sycl_hip_stream_t will not own this. it is an observer pointer
 HIPdevice sycl_hip_stream_t::get_underlying_device() {
-    return compat::get_native<HIPdevice>(queue()->get_device());
+    return compat::get_native<HIPdevice>(queue().get_device());
 }
 
 status_t sycl_hip_stream_t::init() {
