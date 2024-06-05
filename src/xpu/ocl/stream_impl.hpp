@@ -42,7 +42,9 @@ public:
         assert(queue_);
     }
 
-    ~stream_impl_t() override = default;
+    ~stream_impl_t() override {
+        if (queue_) { clReleaseCommandQueue(queue_); }
+    }
 
     status_t set_queue(cl_command_queue queue) {
         queue_ = queue;
@@ -90,7 +92,7 @@ public:
     }
 
 private:
-    xpu::ocl::wrapper_t<cl_command_queue> queue_;
+    cl_command_queue queue_;
 
     mutable utils::thread_local_storage_t<gpu::intel::ocl::ocl_context_t> ctx_;
 };
