@@ -27,7 +27,8 @@ namespace sycl {
 
 status_t stream_impl_t::copy(impl::stream_t *stream,
         const memory_storage_t &src, const memory_storage_t &dst, size_t size,
-        const xpu::event_t &deps, xpu::event_t &out_dep) {
+        const xpu::event_t &deps, xpu::event_t &out_dep,
+        xpu::stream_profiler_t *stream_profiler) {
 
     if (size == 0) return status::success;
     // TODO: add src and dst sizes check
@@ -118,13 +119,20 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
         });
     }
 
+    if (is_profiling_enabled()) {
+        auto sycl_event = utils::make_unique<impl::sycl::sycl_event_t>(
+                std::vector<::sycl::event> {e});
+        stream_profiler->register_event(std::move(sycl_event));
+    }
+
     impl::sycl::sycl_event_t::from(out_dep).events = {e};
 
     return status::success;
 }
 
 status_t stream_impl_t::fill(const memory_storage_t &dst, uint8_t pattern,
-        size_t size, const xpu::event_t &deps, xpu::event_t &out_dep) {
+        size_t size, const xpu::event_t &deps, xpu::event_t &out_dep,
+        xpu::stream_profiler_t *stream_profiler) {
     auto *sycl_dst
             = utils::downcast<const xpu::sycl::memory_storage_base_t *>(&dst);
     bool usm = sycl_dst->memory_kind() == xpu::sycl::memory_kind::usm;
@@ -155,6 +163,12 @@ status_t stream_impl_t::fill(const memory_storage_t &dst, uint8_t pattern,
             cgh.depends_on(impl::sycl::sycl_event_t::from(deps).events);
             cgh.fill(acc_dst, pattern);
         });
+    }
+
+    if (is_profiling_enabled()) {
+        auto sycl_event = utils::make_unique<impl::sycl::sycl_event_t>(
+                std::vector<::sycl::event> {out_event});
+        stream_profiler->register_event(std::move(sycl_event));
     }
 
     impl::sycl::sycl_event_t::from(out_dep).events = {out_event};

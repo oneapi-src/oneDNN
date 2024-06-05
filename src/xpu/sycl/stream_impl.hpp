@@ -22,6 +22,7 @@
 #include "common/utils.hpp"
 
 #include "xpu/context.hpp"
+#include "xpu/stream_profiler.hpp"
 
 #include "xpu/sycl/compat.hpp"
 #include "xpu/sycl/utils.hpp"
@@ -52,10 +53,12 @@ public:
 
     status_t copy(impl::stream_t *stream, const memory_storage_t &src,
             const memory_storage_t &dst, size_t size, const xpu::event_t &deps,
-            xpu::event_t &out_dep);
+            xpu::event_t &out_dep,
+            xpu::stream_profiler_t *stream_profiler = nullptr);
 
     status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
-            const xpu::event_t &deps, xpu::event_t &out_dep);
+            const xpu::event_t &deps, xpu::event_t &out_dep,
+            xpu::stream_profiler_t *stream_profiler = nullptr);
 
     const impl::sycl::sycl_context_t &sycl_ctx() const;
     impl::sycl::sycl_context_t &sycl_ctx();
