@@ -19,8 +19,12 @@
 
 #include <cstdio>
 
+#include "xpu/ocl/engine_impl.hpp"
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/ocl/ocl_engine.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -39,15 +43,25 @@ void print_verbose_header() {
             continue;
         }
 
-        ocl_gpu_engine_t *eng = utils::downcast<ocl_gpu_engine_t *>(eng_ptr);
-        auto *dev_info = eng->device_info();
-        auto s_name = dev_info->name();
-        auto s_ver = dev_info->runtime_version().str();
+        const auto *engine_impl
+                = utils::downcast<const xpu::ocl::engine_impl_t *>(
+                        eng_ptr->impl());
+        auto s_name = engine_impl->name();
+        auto s_ver = engine_impl->runtime_version().str();
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(eng_ptr);
+        auto *dev_info = compute_engine->device_info();
         printf("onednn_verbose,info,gpu,engine,%d,name:%s,"
                "driver_version:%s,binary_kernels:%s\n",
                 (int)i, s_name.c_str(), s_ver.c_str(),
                 dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
+        return;
+#endif
+        printf("onednn_verbose,info,gpu,engine,%d,name:%s,"
+               "driver_version:%s\n",
+                (int)i, s_name.c_str(), s_ver.c_str());
         eng_ptr->release();
     }
 }
