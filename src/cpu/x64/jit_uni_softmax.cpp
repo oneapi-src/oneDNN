@@ -65,8 +65,8 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
     const memory_desc_wrapper src_d_, dst_d_, diff_dst_d_;
     io::jit_io_multi_dt_helper_t<Vmm> io_;
 
-    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> exp_injector_;
-    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> log_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector<isa>> exp_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector<isa>> log_injector_;
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
             postops_injector_;
 
@@ -609,7 +609,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                     // Prepare indices for exp aux vmms.
                     injector_utils::vmm_index_set_t exp_aux_indices;
                     const auto exp_vmm_aux_count
-                            = jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(
+                            = jit_uni_eltwise_injector<isa>::aux_vecs_count(
                                     alg_kind::eltwise_exp, pd_->is_fwd(), 0.f);
                     for (size_t j = 0; j < exp_vmm_aux_count; j++) {
                         // Insert the next idx starting after `vreg_tmp_sum`.
@@ -892,13 +892,13 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
     // initialization.
     void generate() override {
         if (pd_->is_fwd() || is_logsoftmax_)
-            exp_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
-                    alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, !use_ext_aux_vmms_,
-                    reg_exp_injector_table, injector_mask));
+            exp_injector_.reset(new jit_uni_eltwise_injector<isa>(this,
+                    alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, data_type::f32,
+                    !use_ext_aux_vmms_, reg_exp_injector_table, injector_mask));
         if (pd_->is_fwd() && is_logsoftmax_) {
-            log_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
-                    alg_kind::eltwise_log, 0.0f, 0.0f, 1.0f, true,
-                    reg_log_injector_table, injector_mask));
+            log_injector_.reset(new jit_uni_eltwise_injector<isa>(this,
+                    alg_kind::eltwise_log, 0.0f, 0.0f, 1.0f, data_type::f32,
+                    true, reg_log_injector_table, injector_mask));
         }
         if (with_postops_) {
             static constexpr bool preserve_gpr = true;
@@ -997,8 +997,8 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
     const memory_desc_wrapper src_d_, dst_d_;
     io::jit_io_multi_dt_helper_t<Vmm> io_;
 
-    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> exp_injector_;
-    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> log_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector<isa>> exp_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector<isa>> log_injector_;
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
             postops_injector_;
 
@@ -1440,13 +1440,13 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
 
     void generate() override {
         if (pd_->is_fwd() || is_logsoftmax_)
-            exp_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
-                    alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, true,
-                    reg_exp_injector_table, injector_mask));
+            exp_injector_.reset(new jit_uni_eltwise_injector<isa>(this,
+                    alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, data_type::f32,
+                    true, reg_exp_injector_table, injector_mask));
         if (pd_->is_fwd() && is_logsoftmax_) {
-            log_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
-                    alg_kind::eltwise_log, 0.0f, 0.0f, 1.0f, true,
-                    reg_log_injector_table, injector_mask));
+            log_injector_.reset(new jit_uni_eltwise_injector<isa>(this,
+                    alg_kind::eltwise_log, 0.0f, 0.0f, 1.0f, data_type::f32,
+                    true, reg_log_injector_table, injector_mask));
         }
         if (with_postops_) {
             static constexpr bool preserve_gpr = true;

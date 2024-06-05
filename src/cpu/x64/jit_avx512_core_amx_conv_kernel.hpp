@@ -475,7 +475,7 @@ struct jit_avx512_core_amx_bwd_data_kernel_t : public jit_generator {
         , attr_(attr)
         , eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
+            eltwise_injector_ = new jit_uni_eltwise_injector<avx512_core>(
                     this, jcp.eltwise);
         bwd_data_copy_kernel_
                 = new jit_avx512_core_amx_bwd_data_copy_kernel_t(jcp);
@@ -510,7 +510,7 @@ struct jit_avx512_core_amx_bwd_data_kernel_t : public jit_generator {
     }
 
 private:
-    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
+    jit_uni_eltwise_injector<avx512_core> *eltwise_injector_;
     jit_avx512_core_amx_bwd_data_copy_kernel_t *bwd_data_copy_kernel_;
 
     int prv_width_ = 0;

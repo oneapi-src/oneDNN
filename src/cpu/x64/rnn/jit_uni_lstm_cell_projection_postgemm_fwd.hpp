@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ struct jit_uni_lstm_cell_projection_postgemm_fwd : public jit_uni_rnn_postgemm {
 
 protected:
     // register size in bytes
-    using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
+    using Vmm = typename jit_uni_eltwise_injector<isa>::Vmm;
     static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
     static constexpr size_t qscale_dt_size = sizeof(float);
     const size_t vlen_dst

@@ -71,12 +71,12 @@ bool is_alg_supported(alg_kind_t alg);
 /*
  * Checks if eltwise injection for given args is supported.
  */
-bool is_supported(cpu_isa_t isa, alg_kind_t alg);
+bool is_supported(cpu_isa_t isa, alg_kind_t alg, data_type_t dt);
 
 } // namespace eltwise_injector
 
 template <cpu_isa_t isa, typename Wmm = typename cpu_isa_traits<isa>::Vmm>
-struct jit_uni_eltwise_injector_f32 {
+struct jit_uni_eltwise_injector {
     using Vmm = Wmm;
 
     // Arguments description:
@@ -91,8 +91,9 @@ struct jit_uni_eltwise_injector_f32 {
     //   - algorithm derivative.
     // use_dst - defines whether source or destination point is passed to alg
     //   code. Depends on algorithm. See `_use_dst_for_bwd` algs definition.
-    jit_uni_eltwise_injector_f32(jit_generator *host, alg_kind_t alg,
-            float alpha, float beta, float scale, bool save_state = true,
+    jit_uni_eltwise_injector(jit_generator *host, alg_kind_t alg, float alpha,
+            float beta, float scale, data_type_t dt = data_type::f32,
+            bool save_state = true,
             Xbyak::Reg64 p_table = Xbyak::Reg64(Xbyak::Operand::RAX),
             Xbyak::Opmask k_mask = Xbyak::Opmask(1), bool is_fwd = true,
             bool use_dst = false, bool preserve_vmm = true,
@@ -101,6 +102,7 @@ struct jit_uni_eltwise_injector_f32 {
         , alpha_(alpha)
         , beta_(beta)
         , scale_(scale)
+        , dt_(dt)
         , h(host)
         , save_state_(save_state)
         , p_table_(p_table)
@@ -110,20 +112,20 @@ struct jit_uni_eltwise_injector_f32 {
         , preserve_vmm_(preserve_vmm)
         , preserve_p_table_(preserve_p_table)
         , n_vregs_to_preserve_(aux_vecs_count(alg_, is_fwd_, alpha_)) {
-        assert(eltwise_injector::is_supported(isa, alg_));
+        assert(eltwise_injector::is_supported(isa, alg_, dt_));
 
         register_table_entries();
     }
 
-    jit_uni_eltwise_injector_f32(jit_generator *host,
+    jit_uni_eltwise_injector(jit_generator *host,
             const post_ops_t::entry_t::eltwise_t &eltwise,
-            bool save_state = true,
+            data_type_t dt = data_type::f32, bool save_state = true,
             Xbyak::Reg64 p_table = Xbyak::Reg64(Xbyak::Operand::RAX),
             Xbyak::Opmask k_mask = Xbyak::Opmask(1), bool is_fwd = true,
             bool use_dst = false, bool preserve_vmm = true,
             bool preserve_p_table = true)
-        : jit_uni_eltwise_injector_f32(host, eltwise.alg, eltwise.alpha,
-                eltwise.beta, eltwise.scale, save_state, p_table, k_mask,
+        : jit_uni_eltwise_injector(host, eltwise.alg, eltwise.alpha,
+                eltwise.beta, eltwise.scale, dt, save_state, p_table, k_mask,
                 is_fwd, use_dst, preserve_vmm, preserve_p_table) {}
 
     void compute_vector_range(size_t start_compute_idx, size_t end_compute_idx,
@@ -148,6 +150,7 @@ private:
     const float alpha_;
     const float beta_;
     const float scale_;
+    const data_type_t dt_;
 
     jit_generator *const h;
 
