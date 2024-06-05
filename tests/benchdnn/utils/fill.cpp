@@ -184,7 +184,7 @@ int fill_random_real_dense(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
     BENCHDNN_PRINT(6, "%s\n", fill_cfg.print_verbose().c_str());
 
     // This function doesn't handle the predefined set yet.
-    assert(!fill_cfg.predefined_set_.empty());
+    assert(fill_cfg.predefined_set_.empty());
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     // The `nelems()` function returns a product of dims/pdims regardless of
