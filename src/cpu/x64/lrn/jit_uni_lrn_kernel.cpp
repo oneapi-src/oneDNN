@@ -51,8 +51,8 @@ template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
 jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
         const char *name)
     : jit_generator(name, isa)
-    , emulate_bfloat_(isa == avx512_core && d_type == data_type::bf16
-              && !mayiuse(avx512_core_bf16))
+    , emulate_bfloat_(d_type == data_type::bf16 && !mayiuse(avx512_core_bf16)
+              && is_superset(isa, avx512_core))
     , bf16_emu_(
               emulate_bfloat_ ? utils::make_unique<bf16_emulation_t>(this,
                       bf16_emu_reserv_1_, bf16_emu_reserv_2_,
