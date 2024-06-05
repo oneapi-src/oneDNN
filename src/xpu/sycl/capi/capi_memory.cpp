@@ -63,7 +63,8 @@ status_t dnnl_sycl_interop_memory_create(memory_t **memory,
             auto &sycl_ctx = sycl_engine->context();
             ::sycl::usm::alloc ptr_type = get_pointer_type(handle, sycl_ctx);
             if (ptr_type == ::sycl::usm::alloc::unknown
-                    && !sycl_engine->mayiuse_system_memory_allocators())
+                    && !sycl_engine_impl->device().has(
+                            ::sycl::aspect::usm_system_allocations))
                 return status::invalid_arguments;
         }
 
