@@ -36,6 +36,68 @@ struct device_uuid_hasher_t {
     size_t operator()(const device_uuid_t &uuid) const;
 };
 
+struct runtime_version_t {
+    int major;
+    int minor;
+    int build;
+
+    runtime_version_t(int major = 0, int minor = 0, int build = 0)
+        : major {major}, minor {minor}, build {build} {}
+
+    bool operator==(const runtime_version_t &other) const {
+        return (major == other.major) && (minor == other.minor)
+                && (build == other.build);
+    }
+
+    bool operator!=(const runtime_version_t &other) const {
+        return !(*this == other);
+    }
+
+    bool operator<(const runtime_version_t &other) const {
+        if (major < other.major) return true;
+        if (major > other.major) return false;
+        if (minor < other.minor) return true;
+        if (minor > other.minor) return false;
+        return (build < other.build);
+    }
+
+    bool operator>(const runtime_version_t &other) const {
+        return (other < *this);
+    }
+
+    bool operator<=(const runtime_version_t &other) const {
+        return !(*this > other);
+    }
+
+    bool operator>=(const runtime_version_t &other) const {
+        return !(*this < other);
+    }
+
+    status_t set_from_string(const char *s) {
+        int i_major = 0, i = 0;
+
+        for (; s[i] != '.'; i++)
+            if (!s[i]) return status::invalid_arguments;
+
+        auto i_minor = ++i;
+
+        for (; s[i] != '.'; i++)
+            if (!s[i]) return status::invalid_arguments;
+
+        auto i_build = ++i;
+
+        major = atoi(&s[i_major]);
+        minor = atoi(&s[i_minor]);
+        build = atoi(&s[i_build]);
+
+        return status::success;
+    }
+
+    std::string str() const {
+        return utils::format("%d.%d.%d", major, minor, build);
+    }
+};
+
 } // namespace xpu
 } // namespace impl
 } // namespace dnnl
