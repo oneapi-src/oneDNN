@@ -57,13 +57,13 @@ struct reusable_vectorized_lnorm_params_t
 
     compute::dispatch_compile_params_t gws_params;
     /// Number of work items in a sub-group
-    size_t sg_size;
+    int sg_size;
 
     /// Number of elements to process in each work-item
-    size_t vector_size;
+    int vector_size;
 
     /// The number of times the loops need to unroll
-    size_t unroll;
+    int unroll;
 
     data_type_t input_dt = data_type::undef;
     data_type_t output_dt = data_type::undef;
@@ -82,7 +82,7 @@ struct reusable_vectorized_lnorm_params_t
     bool with_src_scale = false;
     bool with_dst_scale = false;
 
-    bool padding[5] = {false};
+    bool padding[1] = {false};
 };
 
 struct reusable_vectorized_lnorm_runtime_params_t {

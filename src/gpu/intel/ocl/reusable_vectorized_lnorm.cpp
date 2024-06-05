@@ -30,12 +30,8 @@
 #include "gpu/intel/ocl/reusable_lnorm.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
-#include <tuple>
-#include <utility>
 #include <vector>
 
-using std::make_tuple;
-using std::tie;
 using std::vector;
 
 namespace dnnl {
@@ -64,6 +60,28 @@ struct single_subgroup_lws_strategy_t : public lws_strategy_t {
     }
 };
 
+bool is_sg_and_vector_size_compatible(
+        const compute_engine_t *engine, int sg_size, int vector_size) {
+    // Check if subgroup size is supported
+    if (!engine->mayiuse_sub_group(sg_size)) return false;
+
+    // Check if subgroup size is supported for block reads and writes
+    if (!engine->mayiuse_block_reads_writes_with_sub_group(sg_size))
+        return false;
+
+    return true;
+}
+
+bool is_sg_stride_compatible(int norm_axis, int sg_stride) {
+    // Check if norm_axis size is less than the number of elements read by the subgroup
+    if (norm_axis < sg_stride) return false;
+
+    // Check if norm_axis is a multiple of the subgroup size and vector size
+    if (norm_axis % sg_stride != 0) return false;
+
+    return true;
+}
+
 static status_t init_conf_common(const layer_normalization_pd_t *pd,
         reusable_vectorized_lnorm_params_t *conf,
         reusable_vectorized_lnorm_runtime_params_t *rt_conf,
@@ -90,7 +108,25 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     vector<compute::dim_id_t> dims = get_dims(ndims);
 
     memory_desc_wrapper src_mdw(pd->src_md());
-    if (src_mdw.blocking_desc().inner_nblks != 0) return status::unimplemented;
+    memory_desc_wrapper dst_mdw(pd->dst_md());
+    if (src_mdw.blocking_desc().inner_nblks != 0
+            || src_mdw.blocking_desc().inner_nblks != 0) {
+        VDEBUGINFO(15, primitive, lnorm,
+                "Reusable Vectorized LNorm not used because source or "
+                "destination tensors have blocked memory layouts.");
+        return status::unimplemented;
+    }
+
+    bool c_is_last_physical = src_mdw.blocking_desc().strides[ndims - 1] == 1;
+    if (!(src_mdw.is_dense() && c_is_last_physical)) {
+        VDEBUGINFO(15, primitive, lnorm,
+                "Reusable Vectorized LNorm not used because the source tensor "
+                "is not dense(%s) or the last axis(stride[ndims-1] = %d) "
+                "is not continuous.",
+                src_mdw.is_dense() ? "true" : "false",
+                int(src_mdw.blocking_desc().strides[ndims - 1]));
+        return status::unimplemented;
+    }
 
     const auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
             pd->attr()->gpu_attr_.get());
@@ -98,30 +134,26 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     const auto *compute_engine
             = utils::downcast<const compute::compute_engine_t *>(engine);
 
-    int desired_sg_size = 32;
-    int desired_vector_size = 8;
-    tie(conf->sg_size, conf->vector_size) = [&]() {
-        size_t size = desired_sg_size;
-        for (size_t vec_size = desired_vector_size; vec_size > 1;
-                vec_size /= 2) {
-            size = desired_sg_size;
-            while (size > 1) {
-                if (compute_engine->mayiuse_sub_group(static_cast<int>(size))
-                        && compute_engine
-                                   ->mayiuse_block_reads_writes_with_sub_group(
-                                           static_cast<int>(size))
-                        && (pd->norm_axis()
-                                >= static_cast<dim_t>(size * vec_size))
-                        && ((pd->norm_axis() % (size * vec_size)) == 0)) {
-                    return make_tuple(size, vec_size);
-                }
-                size /= 2;
+    conf->sg_size = 0;
+    conf->vector_size = 0;
+    bool found_compatible_sg_and_vector_size = false;
+    for (int sg_size : {32, 16}) {
+        for (int vector_size : {8, 4, 2, 1}) {
+            bool sg_and_vector_size_ok = is_sg_and_vector_size_compatible(
+                    compute_engine, sg_size, vector_size);
+            bool sg_stride_ok = is_sg_stride_compatible(
+                    pd->norm_axis(), sg_size * vector_size);
+
+            if (sg_and_vector_size_ok && sg_stride_ok) {
+                conf->sg_size = sg_size;
+                conf->vector_size = vector_size;
+                found_compatible_sg_and_vector_size = true;
+                break;
             }
         }
-        return make_tuple(size, size_t(0));
-    }();
+    }
 
-    if (conf->sg_size <= 1) {
+    if (found_compatible_sg_and_vector_size == false) {
         VDEBUGINFO(15, primitive, lnorm,
                 "Reusable Vectorized LNorm not used because norm_axis(%ld) "
                 "is not a multiple of the vector size and subgroup size.",
@@ -129,13 +161,8 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         return status::unimplemented;
     }
 
-    conf->unroll = std::min<size_t>(
-            size_t(4), pd->norm_axis() / (conf->sg_size * conf->vector_size));
-
-    bool c_is_last_physical = false;
-    c_is_last_physical = src_mdw.blocking_desc().strides[ndims - 1] == 1;
-    if (!(src_mdw.is_dense() && c_is_last_physical))
-        return status::unimplemented;
+    conf->unroll = std::min<int>(
+            4, (int)pd->norm_axis() / (conf->sg_size * conf->vector_size));
 
     // Norm dispatch: all dimensions
     auto lws_strategy = single_subgroup_lws_strategy_t(
@@ -251,9 +278,10 @@ status_t reusable_vectorized_layer_normalization_fwd_t::execute_forward(
     lnorm_arg_list.append(rt_conf.gws_params.get());
 
     compute::nd_range_t gws_nd_range_calc(
-            {conf.sg_size, rt_conf.gws_params.nd_range.global_range().data()[1],
+            {static_cast<size_t>(conf.sg_size),
+                    rt_conf.gws_params.nd_range.global_range().data()[1],
                     rt_conf.gws_params.nd_range.global_range().data()[2]},
-            {conf.sg_size, 1, 1});
+            {static_cast<size_t>(conf.sg_size), 1, 1});
 
     return parallel_for(
             ctx, gws_nd_range_calc, calculate_lnorm_kernel_, lnorm_arg_list);
