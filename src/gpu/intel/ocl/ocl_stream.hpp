@@ -83,7 +83,7 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return profiler_->get_info(data_kind, num_entries, data);
     }
 
-    cl_command_queue queue() const { return queue_; }
+    cl_command_queue queue() const { return impl()->queue(); }
 
     const mdapi_helper_t &mdapi_helper() const { return *mdapi_helper_; }
 
@@ -94,29 +94,21 @@ struct ocl_stream_t : public compute::compute_stream_t {
     status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
             const xpu::event_t &deps, xpu::event_t &out_dep) override;
 
-    ~ocl_stream_t() override {
-        if (queue_) { clReleaseCommandQueue(queue_); }
-    }
+    ~ocl_stream_t() override = default;
 
-    const ocl_context_t &ocl_ctx() const {
-        static ocl_context_t empty_ctx {};
-        return ctx_.get(empty_ctx);
-    }
-    ocl_context_t &ocl_ctx() {
-        const ocl_context_t &ctx
-                = const_cast<const ocl_stream_t *>(this)->ocl_ctx();
-        return *const_cast<ocl_context_t *>(&ctx);
-    }
-    xpu::context_t &ctx() override { return ocl_ctx(); }
-    const xpu::context_t &ctx() const override { return ocl_ctx(); }
+    const ocl_context_t &ocl_ctx() const { return impl()->ocl_ctx(); }
+    ocl_context_t &ocl_ctx() { return impl()->ocl_ctx(); }
+    xpu::context_t &ctx() override { return impl()->ocl_ctx(); }
+    const xpu::context_t &ctx() const override { return impl()->ocl_ctx(); }
 
     const xpu::ocl::wrapper_t<cl_event> &get_output_event() const {
-        auto &deps = ocl_event_t::from(ctx().get_deps());
-        assert(deps.size() == 1);
-        return deps[0];
+        return impl()->get_output_event();
     }
 
 private:
+    xpu::ocl::stream_impl_t *impl() const {
+        return (xpu::ocl::stream_impl_t *)impl::stream_t::impl_.get();
+    }
     ocl_stream_t(impl::engine_t *engine, unsigned flags)
         : compute_stream_t(engine, new xpu::ocl::stream_impl_t(flags)) {}
     ocl_stream_t(impl::engine_t *engine, unsigned flags, cl_command_queue queue)
@@ -126,9 +118,7 @@ private:
     cl_command_queue create_queue(
             cl_context ctx, cl_device_id dev, cl_int *err) const;
 
-    cl_command_queue queue_;
     std::unique_ptr<mdapi_helper_t> mdapi_helper_;
-    mutable utils::thread_local_storage_t<ocl_context_t> ctx_;
 };
 
 } // namespace ocl
