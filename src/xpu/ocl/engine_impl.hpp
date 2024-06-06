@@ -128,6 +128,8 @@ public:
         return runtime_version_;
     }
 
+    int get_buffer_alignment() const override { return 128; }
+
 private:
     std::string name_;
     runtime_version_t runtime_version_;

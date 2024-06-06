@@ -70,6 +70,11 @@ public:
         return status::success;
     }
 
+    virtual int get_buffer_alignment() const {
+        assert(!"unexpected");
+        return -1;
+    }
+
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(engine_impl_t)
 

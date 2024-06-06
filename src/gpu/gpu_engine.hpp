@@ -56,7 +56,7 @@ public:
         return gpu::gpu_impl_list_t::get_implementation_list(desc);
     }
 
-    int get_buffer_alignment() const { return 128; }
+    int get_buffer_alignment() const { return impl()->get_buffer_alignment(); }
 
     status_t get_service_stream(impl::stream_t *&stream) override {
         status_t status = status::success;
