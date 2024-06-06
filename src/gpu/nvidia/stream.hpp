@@ -40,18 +40,18 @@ public:
 
     static status_t create_stream(impl::stream_t **stream,
             impl::engine_t *engine, impl::stream_impl_t *stream_impl) {
-        std::unique_ptr<nvidia::stream_t> sycl_stream(
+        std::unique_ptr<nvidia::stream_t> s(
                 new nvidia::stream_t(engine, stream_impl));
-        if (!sycl_stream) return status::out_of_memory;
+        if (!s) return status::out_of_memory;
 
-        status_t status = sycl_stream->init();
+        status_t status = s->init();
         if (status != status::success) {
             // Stream owns stream_impl only if it's created successfully (including initialization).
             s->impl_.release();
             return status;
         }
 
-        *stream = sycl_stream.release();
+        *stream = s.release();
         return status::success;
     }
 
