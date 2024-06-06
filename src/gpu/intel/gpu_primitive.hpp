@@ -74,44 +74,18 @@ struct gpu_primitive_t : public gpu::primitive_t {
         compute::kernel_t kernel_;
     };
 
-    status_t create_resource(
-            impl::engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<gpu_resource_t>();
-        if (!r) return status::out_of_memory;
-        CHECK(init_res_storage(engine, r.get()));
-        mapper.add(this, std::move(r));
-
-        for (const auto &cb : compute_blocks()) {
-            if (cb->empty()) continue;
-            // The compute block is a "primitive".
-            if (cb->primitive())
-                CHECK(cb->primitive()->create_resource(engine, mapper));
-        }
-        return status::success;
-    }
-
     status_t get_cache_blob_size(
             impl::engine_t *engine, size_t *size) const override {
         if (!size) return status::invalid_arguments;
         if (version_ != -1) (*size) += sizeof(version_);
-        // Query binary size for each created kernel.
-        for (const auto &cb : compute_blocks()) {
-            if (cb->empty()) continue;
-            CHECK(cb->get_cache_blob_size(engine, size));
-        }
-        return status::success;
+        return gpu::primitive_t::get_cache_blob_size(engine, size);
     }
 
     status_t get_cache_blob(
             impl::engine_t *engine, cache_blob_t &blob) const override {
         if (version_ != -1)
             CHECK(blob.add_value((const uint8_t *)&version_, sizeof(version_)));
-        for (const auto &cb : compute_blocks()) {
-            if (cb->empty()) continue;
-            CHECK(cb->get_cache_blob(engine, blob));
-        }
-        return status::success;
+        return gpu::primitive_t::get_cache_blob(engine, blob);
     }
 
     status_t create_kernel(impl::engine_t *engine, compute::kernel_t *kernel,
