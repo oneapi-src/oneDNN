@@ -615,26 +615,29 @@ status_t jit_uni_group_normalization_fwd_t::pd_t::init(engine_t *engine) {
     VDISPATCH_GNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
     VDISPATCH_GNORM(mayiuse(avx2), VERBOSE_UNSUPPORTED_ISA);
     VDISPATCH_GNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
-    VDISPATCH_GNORM(utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8)
-                    && IMPLICATION(
-                            utils::one_of(src_md()->data_type, bf16, f16),
-                            mayiuse(avx512_core)),
+    VDISPATCH_GNORM(utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8),
             VERBOSE_UNSUPPORTED_DT);
-    VDISPATCH_GNORM(utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8)
-                    && IMPLICATION(
-                            utils::one_of(dst_md()->data_type, bf16, f16),
-                            mayiuse(avx512_core)),
+    VDISPATCH_GNORM(utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8),
             VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_GNORM(IMPLICATION(utils::one_of(bf16, src_md()->data_type,
+                                        dst_md()->data_type),
+                            mayiuse(avx512_core) || mayiuse(avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_GNORM(IMPLICATION(utils::one_of(f16, src_md()->data_type,
+                                        dst_md()->data_type),
+                            mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_GNORM(attr()->has_default_values(skip_mask_t::scales_runtime)
                     && attr_scales_ok(),
             VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_GNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VDISPATCH_GNORM(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
     VDISPATCH_GNORM(
             memory_desc_matches_one_of_tag(*src_md(), ndhwc, nhwc, nwc, nc),
             VERBOSE_UNSUPPORTED_TAG_S, "src");
     VDISPATCH_GNORM(
             memory_desc_matches_one_of_tag(*dst_md(), ndhwc, nhwc, nwc, nc),
             VERBOSE_UNSUPPORTED_TAG_S, "dst");
-    VDISPATCH_GNORM(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
     const size_t C_PER_G = C() / G();
     const size_t vlen = isa_max_vlen(get_max_cpu_isa());
