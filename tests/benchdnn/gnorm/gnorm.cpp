@@ -81,20 +81,28 @@ int fill_src(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
         b_seed.discard(2);
         std::bernoulli_distribution b_dist(0.5f);
 
+        float m_check = 0.f; // To verify that filled data mean will match.
+        bool bigger_val = false; // Out of all loops.
+
         for (int64_t c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
                 ++c) {
-            // l[0] must be even
-            int64_t l_base = spatial * (idx * prb->ic / prb->g + c * 239 * 2);
+            // The filling logic must start from scratch for odd n_channels.
+            // This var helps to make `index_order` even.
+            const int64_t odd_start
+                    = g % 2 && prb->get_c_start(1) % 2 && spatial % 2;
             int64_t off = data_off(prb, mb, c, 0, 0, 0);
-            bool bigger_val = false; // Out of spatial loop.
 
             for_(int64_t d = 0; d < prb->id; ++d)
             for_(int64_t h = 0; h < prb->ih; ++h)
             for (int64_t w = 0; w < prb->iw; ++w) {
                 const int64_t sp = d * prb->ih * prb->iw + h * prb->iw + w;
+                // If spatial and channels are odd, the algorithm must adjust
+                // values accordingly by specifying pairs of elements and a tail
+                // element.
+                const int64_t index_order = c * spatial + sp + odd_start;
                 float val = 0.f;
                 if (cfg.check_alg_ == ALG_2) {
-                    const bool is_even = sp % 2 == 0;
+                    const bool is_even = index_order % 2 == 0;
                     const float sign = is_even ? 1.f : -1.f;
                     // Update the value for even cases.
                     bigger_val = is_even ? b_dist(b_seed) : bigger_val;
@@ -102,31 +110,51 @@ int fill_src(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
                     // Shift left and right from mean val, shift bigger with
                     // probability.
                     val = m + val_shift + 3.f * bigger_val * val_shift;
+                    if (cfg.L_ % 2
+                            && (c * spatial + sp == cfg.L_ * (g + 1) - 1)) {
+                        // Due to groups, the condition above involves them to
+                        // set the tail value for each group of channels.
+                        val = m;
+                    }
                 } else {
-                    const int64_t l = l_base + sp;
-
                     // Shortcut for zero values.
                     if (cfg.check_alg_ == ALG_0
-                            && !flip_coin(l / 2 * 257ULL, cfg.density_)) {
+                            && !flip_coin(
+                                    index_order / 2 * 257ULL, cfg.density_)) {
                         mem_fp.set_elem(off + sp, 0);
                         continue;
                     }
 
-                    const int64_t gen = (l / 2 * 1637) & cfg.flex_mask_;
+                    const int64_t gen
+                            = (index_order / 2 * 1637) & cfg.flex_mask_;
                     // s_{i} + s_{i+1} = 2 * m
-                    const float sign = l % 2 == 0 ? 1.f : -1.f;
+                    const float sign = index_order % 2 == 0 ? 1.f : -1.f;
                     const float f = sign * gen / (1 << cfg.flex_bits_);
 
                     val = cfg.check_alg_ == ALG_0 ? f : m * (1.f + f);
                     if (prb->flags & GLOB_STATS) {
-                        val = (l % 65) - 32;
-                    } else if (cfg.L_ % 2 && (c * spatial + sp == cfg.L_ - 1)) {
+                        val = (index_order % 65) - 32;
+                    } else if (cfg.L_ % 2
+                            && (c * spatial + sp == cfg.L_ * (g + 1) - 1)) {
+                        // Due to groups, the condition above involves them to
+                        // set the tail value for each group of channels.
                         val = m;
                     }
                 }
-                mem_fp.set_elem(off + sp,
-                        round_to_nearest_representable(prb->dt[0], val));
+                auto round_val
+                        = round_to_nearest_representable(prb->dt[0], val);
+                mem_fp.set_elem(off + sp, round_val);
+                m_check += round_val;
             }
+        }
+        m_check /= prb->get_c_start(1) * spatial;
+        if (!(prb->flags & GLOB_STATS) && m_check != m) {
+            BENCHDNN_PRINT(0,
+                    "Error: Mean of MB(%ld):G(%ld) for filled src values "
+                    "doesn't match the one filled ahead: `%g` (exp) versus "
+                    "`%g` (got).\n",
+                    (long)mb, (long)g, m, m_check);
+            SAFE_V(FAIL);
         }
     });
 
@@ -607,7 +635,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
     std::vector<data_kind_t> check_kinds;
     if (prb->dir & FLAG_FWD) {
-        if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
+        if (!(prb->flags & GLOB_STATS)) {
             check_kinds.push_back(MEAN);
             check_kinds.push_back(VAR);
         }
