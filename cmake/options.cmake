@@ -373,6 +373,10 @@ option(DNNL_ENABLE_STACK_CHECKER "enables stack checker that can be used to get
     Note: This option requires enabling concurrent scratchpad
     (DNNL_ENABLE_CONCURRENT_EXEC)." OFF)
 
+option(DNNL_DISABLE_GPU_REF_KERNELS
+        "builds oneDNN with only optimized kernels for GPU compute
+        primitives" OFF)
+
 # =============================
 # External BLAS library options
 # =============================
