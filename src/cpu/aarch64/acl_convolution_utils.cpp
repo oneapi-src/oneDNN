@@ -322,10 +322,6 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
 
-    // Indirect is slower than gemm for low thread counts, except for fast math
-    if (dnnl_get_max_threads() < 28 && !acp.fast_math)
-        return status::unimplemented;
-
     // If we do not need to pad input channels for fast math mode then it would
     // be faster to run convolution with im2row instead of using indirect kernel
     int block_by = arm_compute::block_by(acp.weights_info.weight_format());
