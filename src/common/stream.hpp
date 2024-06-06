@@ -78,7 +78,7 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
         using namespace dnnl::impl;
         if (engine_->kind() != engine_kind::cpu)
             return status::invalid_arguments;
-        return impl()->get_threadpool(threadpool);
+        return impl_->get_threadpool(threadpool);
     }
 #endif
 

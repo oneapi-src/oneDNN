@@ -46,14 +46,6 @@ status_t cpu_engine_t::create_stream(
     return safe_ptr_assign(*stream, new cpu_stream_t(this, stream_impl));
 }
 
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-status_t cpu_engine_t::create_stream(stream_t **stream,
-        dnnl::threadpool_interop::threadpool_iface *threadpool) {
-    return safe_ptr_assign<stream_t>(
-            *stream, new cpu_stream_t(this, threadpool));
-}
-#endif
-
 engine_t *get_service_engine() {
     static std::unique_ptr<engine_t, engine_deleter_t> cpu_engine;
     static std::once_flag initialized;
