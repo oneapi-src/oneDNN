@@ -38,8 +38,8 @@ struct ref_reorder_t : public sycl_gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("dpcpp:ref:any", ref_reorder_t);
 
-        status_t init(
-                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+        status_t init(impl::engine_t *engine, impl::engine_t *src_engine,
+                impl::engine_t *dst_engine) {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
@@ -101,7 +101,7 @@ struct ref_reorder_t : public sycl_gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:

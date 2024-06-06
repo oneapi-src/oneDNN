@@ -45,7 +45,7 @@ struct primitive_t : public c_compatible {
     primitive_t(const primitive_desc_t *pd) : pd_(pd->clone()) {}
     virtual ~primitive_t() = default;
 
-    virtual status_t init(engine_t *engine) { return status::success; }
+    virtual status_t init(impl::engine_t *engine) { return status::success; }
 
     status_t init(engine_t *engine, bool use_global_scratchpad,
             const cache_blob_t &cache_blob) {
