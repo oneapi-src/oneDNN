@@ -61,6 +61,7 @@ struct jit_uni_group_normalization_fwd_t : public primitive_t {
         virtual void operator()(const void *src, void *dst, const float *scale,
                 const float *shift, float *mean, float *var,
                 const float *src_scales, const float *dst_scales,
+                const void *post_ops_binary_rhs_arg_vec,
                 const size_t block_size) const = 0;
         static kernel_base_t *create(const group_normalization_pd_t *pd);
         virtual status_t create_kernel() = 0;
