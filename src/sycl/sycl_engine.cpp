@@ -81,7 +81,7 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
     VERROR_ENGINE(!(engine_kind_ == engine_kind::gpu && !dev.is_gpu()),
             status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
     if (engine_kind_ == engine_kind::cpu) {
         return cpu::sycl::engine_create(engine, dev, ctx, index);
     }

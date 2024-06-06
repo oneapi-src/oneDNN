@@ -31,7 +31,7 @@
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 #include "xpu/sycl/utils.hpp"
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
 #include "cpu/sycl/engine.hpp"
 #endif
 
