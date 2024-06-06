@@ -242,7 +242,7 @@ status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
 }
 
 static bool is_vendor_device(const ::sycl::device &dev, int vendor_id) {
-    return dev.get_info<::sycl::info::device::vendor_id>() == vendor_id;
+    return (int)dev.get_info<::sycl::info::device::vendor_id>() == vendor_id;
 }
 
 bool is_intel_device(const ::sycl::device &dev) {
