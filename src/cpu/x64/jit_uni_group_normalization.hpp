@@ -127,6 +127,13 @@ struct jit_uni_group_normalization_fwd_t : public primitive_t {
         static kernel_base_t *create(const group_normalization_pd_t *pd);
         virtual status_t create_kernel() = 0;
         virtual ~kernel_base_t() = default;
+
+    protected:
+        kernel_base_t(const group_normalization_pd_t *pd) : pd_(pd) {}
+
+        // `pd_` is needed to access its members (such as `attr()`) in
+        // `generate()` call.
+        const group_normalization_pd_t *pd_;
     };
 
     struct kernel_stat_base_t {
