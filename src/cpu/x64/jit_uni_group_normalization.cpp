@@ -61,6 +61,11 @@ struct kernel_t : public jit_uni_group_normalization_fwd_t::kernel_base_t,
         , use_scale_(pd->use_scale())
         , use_shift_(pd->use_shift())
         , eps_(pd->desc()->group_norm_epsilon) {
+
+        const auto &attr_scales = pd->attr()->scales_;
+        with_src_scales_ = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
+        with_dst_scales_ = !attr_scales.get(DNNL_ARG_DST).has_default_values();
+
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,
                 tail_opmask_idx, vmm_tail_mask.getIdx(), reg_tmp);
@@ -121,12 +126,6 @@ struct kernel_t : public jit_uni_group_normalization_fwd_t::kernel_base_t,
             cmp(reg_block_end, reg_src);
             jle(end, T_NEAR);
 
-            // precompute and broadcast scales
-            uni_vmovss(xmm_tmp, dword[reg_src_scales]);
-            uni_vbroadcastss(vmm_combined_scales, xmm_tmp);
-            uni_vmovss(xmm_tmp, dword[reg_dst_scales]);
-            uni_vbroadcastss(vmm_tmp, xmm_tmp);
-            uni_vmulps(vmm_combined_scales, vmm_combined_scales, vmm_tmp);
             io_.init_saturate_f32({dst_d_.data_type()});
 
             // calculate dst
@@ -192,6 +191,8 @@ protected:
     const bool use_scale_ = false;
     const bool use_shift_ = false;
     const float eps_;
+    bool with_src_scales_ = false;
+    bool with_dst_scales_ = false;
 
     void compute_dst_body(size_t offt_elems, bool tail = false) {
         if (use_scale_) {
@@ -227,7 +228,14 @@ protected:
             if (use_scale_) uni_vmulps(vmm_dst, vmm_dst, vmm_scale);
             if (use_shift_) uni_vaddps(vmm_dst, vmm_dst, vmm_shift);
         }
-        uni_vmulps(vmm_dst, vmm_dst, vmm_combined_scales);
+        if (with_src_scales_) {
+            uni_vmovups(vmm_qscale, ptr[reg_src_scales]);
+            uni_vmulps(vmm_dst, vmm_dst, vmm_qscale);
+        }
+        if (with_dst_scales_) {
+            uni_vmovups(vmm_qscale, ptr[reg_dst_scales]);
+            uni_vmulps(vmm_dst, vmm_dst, vmm_qscale);
+        }
         io_[dst_d_.data_type()]->store(vmm_dst, dst_ptr(offt_elems), tail);
     }
 
@@ -278,7 +286,7 @@ protected:
     const Vmm vmm_zero = Vmm(5); // In unroll range, safe for dst compute.
     const Vmm vmm_saturation_ubound
             = Vmm(6); // In unroll range, safe for dst compute.
-    const Vmm vmm_combined_scales = Vmm(7);
+    const Vmm vmm_qscale = Vmm(7);
     const Vmm vmm_scale = Vmm(8); // In unroll range, safe for dst compute.
     const Vmm vmm_shift = Vmm(9); // In unroll range, safe for dst compute.
     const Vmm vmm_ones = Vmm(10);
