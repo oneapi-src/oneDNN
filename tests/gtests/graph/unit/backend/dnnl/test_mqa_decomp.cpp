@@ -234,6 +234,7 @@ TEST(test_mqa_decomp_execute, MultithreaMqaDecomp_CPU) {
                     graph::status::success);
         }
         strm->wait();
+        dnnl_stream_destroy(strm);
     };
 
     std::thread t1(func);

@@ -525,6 +525,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecomp_CPU) {
                                   test_tensor::to_graph_tensor(outputs_ts)),
                         graph::status::success);
             strm->wait();
+            dnnl_stream_destroy(strm);
         };
 
         std::thread t1(func);
@@ -1571,6 +1572,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecompCorr_CPU) {
             ASSERT_TRUE(allclose<int8_t>(outputs1_ts[0], outputs_ts[0],
                     /*rtol*/ 0.01f,
                     /*atol*/ 1e-6f));
+            dnnl_stream_destroy(strm_eng);
         };
 
         std::thread t1(func);
