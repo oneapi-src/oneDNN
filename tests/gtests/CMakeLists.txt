@@ -37,8 +37,7 @@ endif()
 include_directories_with_host_compiler(${CMAKE_CURRENT_SOURCE_DIR}
                                        ${CMAKE_CURRENT_SOURCE_DIR}/gtest
                                        ${CMAKE_CURRENT_SOURCE_DIR}/in
-                                       ${CMAKE_CURRENT_SOURCE_DIR}/../../src/common
-                                       ${CMAKE_CURRENT_SOURCE_DIR}/../../src/cpu
+                                       ${CMAKE_CURRENT_SOURCE_DIR}/../../src
 )
 
 if(WIN32)

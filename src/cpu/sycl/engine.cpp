@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,24 +14,27 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_STREAM_SUBMIT_CPU_DISPATCH_HPP
-#define SYCL_STREAM_SUBMIT_CPU_DISPATCH_HPP
+#include <memory>
 
-#include "common/c_types_map.hpp"
-#include "sycl/sycl_stream_cpu_thunk.hpp"
-#include "xpu/sycl/utils.hpp"
-
-#include <vector>
+#include "cpu/sycl/engine.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace cpu {
 namespace sycl {
 
-void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
-        const exec_ctx_t &exec_ctx, ::sycl::handler &cgh);
+status_t engine_create(impl::engine_t **engine, const ::sycl::device &dev,
+        const ::sycl::context &ctx, size_t index) {
+    std::unique_ptr<cpu::sycl::engine_t, engine_deleter_t> e(
+            (new cpu::sycl::engine_t(dev, ctx, index)));
+    if (!e) return status::out_of_memory;
 
+    CHECK(e->init());
+    *engine = e.release();
+
+    return status::success;
+}
 } // namespace sycl
+} // namespace cpu
 } // namespace impl
 } // namespace dnnl
-
-#endif

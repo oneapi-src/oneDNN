@@ -31,8 +31,8 @@ struct jit_uni_gru_lbr_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_gru_lbr_cell_postgemm_fwd)
 
     using injector_t = typename utils::conditional<isa == avx512_core,
-            jit_uni_eltwise_injector_f32<avx512_core>,
-            jit_uni_eltwise_injector_f32<isa>>::type;
+            jit_uni_eltwise_injector<avx512_core>,
+            jit_uni_eltwise_injector<isa>>::type;
 
     jit_uni_gru_lbr_cell_postgemm_fwd(
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
@@ -42,10 +42,12 @@ struct jit_uni_gru_lbr_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
         CHECK(jit_uni_rnn_postgemm::init(src_data_t));
         // we use rax for both constant tables and load correspondent label
         // into it when calling correspondent injector.
-        sigmoid_injector_ = utils::make_unique<injector_t>(
-                this, alg_kind::eltwise_logistic, 0.0f, 0.0f, 1.0f, true, rax);
-        tanh_injector_ = utils::make_unique<injector_t>(
-                this, alg_kind::eltwise_tanh, 0.0f, 0.0f, 1.0f, true, rax);
+        sigmoid_injector_ = utils::make_unique<injector_t>(this,
+                alg_kind::eltwise_logistic, 0.0f, 0.0f, 1.0f, data_type::f32,
+                true, rax);
+        tanh_injector_
+                = utils::make_unique<injector_t>(this, alg_kind::eltwise_tanh,
+                        0.0f, 0.0f, 1.0f, data_type::f32, true, rax);
         return create_kernel();
     }
 
@@ -54,7 +56,7 @@ protected:
     std::unique_ptr<injector_t> tanh_injector_;
 
     // register size in bytes
-    using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
+    using Vmm = typename jit_uni_eltwise_injector<isa>::Vmm;
     static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
 
     const size_t vlen_dst

@@ -36,7 +36,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             const auto *compute_engine
@@ -103,7 +103,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
             return init_conf(engine);
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
@@ -119,7 +119,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
@@ -149,7 +149,7 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_data_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm::post_ops | sm::scales_runtime
                     | sm::zero_points_runtime;
@@ -194,7 +194,7 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
             return init_conf(engine);
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
@@ -210,7 +210,7 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
@@ -241,7 +241,7 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_weights_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -289,7 +289,7 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
             return init_conf(engine);
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
@@ -305,7 +305,7 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);

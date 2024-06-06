@@ -19,9 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_sum_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -37,7 +37,7 @@ struct many_inputs_sum_t : public gpu_primitive_t {
 
         DECLARE_SUM_PD_T("ocl:many_inputs", many_inputs_sum_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             const int n = n_inputs();
 
             VDISPATCH_SUM_SC(
@@ -56,7 +56,7 @@ struct many_inputs_sum_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         const memory_desc_wrapper data_d(pd()->dst_md());
@@ -89,7 +89,7 @@ struct many_inputs_sum_t : public gpu_primitive_t {
     }
 
     status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
+            impl::engine_t *engine, gpu_resource_t *r) const override {
         const dim_t count = pd()->n_inputs();
         const float *s_data = pd()->scales();
 

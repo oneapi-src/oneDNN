@@ -26,6 +26,7 @@
 #include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_eltwise_pd.hpp"
+#include "gpu/gpu_utils.hpp"
 #include "gpu/intel/block_structure.hpp"
 #include "gpu/intel/compute/dispatch.hpp"
 #include "gpu/intel/compute/kernel_arg_list.hpp"
@@ -46,18 +47,6 @@ inline bool memory_desc_ndims_ok(const memory_desc_t *md) {
 template <typename T, typename... Rest>
 bool memory_desc_ndims_ok(const T *first, const Rest *...rest) {
     return memory_desc_ndims_ok(first) || memory_desc_ndims_ok(rest...);
-}
-
-inline dim_t get_attr_oscales_count(int mask, const memory_desc_wrapper &md) {
-    dim_t count = 1;
-    if (mask == 0) return count;
-
-    for (int d = 0; d < md.ndims(); d++) {
-        const int dim_mask = 1 << d;
-        if (dim_mask & mask) count *= md.dims()[d];
-    }
-
-    return count;
 }
 
 struct memory_desc_info_t {
@@ -668,71 +657,9 @@ union reorder_implementation {
     vectorize_last_dim_t vld;
 };
 
-class scales_query_t {
+struct quantization_t : public gpu::quantization_t {
 public:
-    bool has_default_values() const { return scales_.has_default_values(); }
-    int get_mask() const { return scales_.mask_; }
-    size_t get_count() const { return count_; }
-    memory_storage_t &get_scales(const exec_ctx_t &ctx) const {
-        return CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | arg_);
-    }
-
-    scales_query_t() = default;
-    scales_query_t(const primitive_attr_t *attr, const memory_desc_wrapper &mdw,
-            int arg)
-        : arg_(arg) {
-        scales_ = attr->scales_.get(arg);
-        count_ = get_attr_oscales_count(scales_.mask_, mdw);
-    }
-
-private:
-    runtime_scales_t scales_;
-    dim_t count_ = 0;
-    int arg_ = 0;
-};
-
-class zero_points_query_t {
-public:
-    bool has_default_values() const { return zps_.has_default_values(arg_); }
-    int get_mask() const {
-        int mask = zps_.get(arg_);
-        return mask;
-    }
-    size_t get_count() const { return count_; }
-    memory_storage_t &get_zero_points(const exec_ctx_t &ctx) const {
-        return CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | arg_);
-    }
-
-    zero_points_query_t() = default;
-    zero_points_query_t(const primitive_attr_t *attr,
-            const memory_desc_wrapper &mdw, int arg)
-        : arg_(arg) {
-        zps_ = attr->zero_points_;
-        int mask = zps_.get(arg);
-        count_ = get_attr_oscales_count(mask, mdw);
-    }
-
-private:
-    zero_points_t zps_;
-    dim_t count_ = 0;
-    int arg_ = 0;
-};
-
-struct quantization_t {
-public:
-    bool with_scale() const { return !scale_.has_default_values(); }
-    int scale_mask() const { return scale_.get_mask(); }
-    size_t num_scales() const { return scale_.get_count(); }
-    memory_storage_t &scales(const exec_ctx_t &ctx) const {
-        return scale_.get_scales(ctx);
-    }
-
-    bool with_zp() const { return !zp_.has_default_values(); }
-    int zp_mask() const { return zp_.get_mask(); }
-    size_t num_zps() const { return zp_.get_count(); }
-    memory_storage_t &zero_points(const exec_ctx_t &ctx) const {
-        return zp_.get_zero_points(ctx);
-    }
+    using gpu::quantization_t::quantization_t;
 
     void define_macros(
             compute::kernel_ctx_t &kernel_ctx, const std::string &name) const {
@@ -748,49 +675,17 @@ public:
             kernel_ctx.define_int(name + "_NUM_ZPOINTS", num_zps());
         }
     }
-
-    quantization_t(const primitive_attr_t *attr, const memory_desc_wrapper &mdw,
-            int arg)
-        : scale_(attr, mdw, arg), zp_(attr, mdw, arg) {}
-    quantization_t() = default;
-
-private:
-    scales_query_t scale_;
-    zero_points_query_t zp_;
 };
 
-struct sum_quantization_t {
+struct sum_quantization_t : public gpu::sum_quantization_t {
 public:
-    bool with_scale() const { return scale_ != 0; }
-    int scale_mask() const { return 0; }
-    size_t num_scales() const { return (size_t)(with_scale()); }
-    float scales() const { return scale_; }
-
-    bool with_zp() const { return zp_ != 0; }
-    int zp_mask() const { return 0; }
-    size_t num_zps() const { return (size_t)(with_zp()); }
-    int zero_points() const { return zp_; }
+    using gpu::sum_quantization_t::sum_quantization_t;
 
     void define_macros(
             compute::kernel_ctx_t &kernel_ctx, const std::string &name) const {
         if (with_scale()) kernel_ctx.define_int("WITH_" + name + "_SCALE", 1);
         if (with_zp()) kernel_ctx.define_int("WITH_" + name + "_ZPOINT", 1);
     }
-
-    sum_quantization_t(const primitive_attr_t *attr) {
-        const auto &post_ops = attr->post_ops_;
-        const int sum_idx = post_ops.find(primitive_kind::sum);
-        if (sum_idx != -1) {
-            const auto &sum = post_ops.entry_[sum_idx].sum;
-            scale_ = sum.scale;
-            zp_ = sum.zero_point;
-        }
-    }
-    sum_quantization_t() = default;
-
-private:
-    float scale_ = 0;
-    int zp_ = 0;
 };
 
 struct reorder_conf_t {

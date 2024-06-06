@@ -25,8 +25,9 @@
 #include "common/primitive_desc.hpp"
 #include "gpu/nvidia/cudnn_convolution_impl.hpp"
 #include "gpu/nvidia/cudnn_convolution_pd.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
+#include "xpu/sycl/memory_storage.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -45,14 +46,13 @@ struct cudnn_convolution_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_convolution_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             using sm_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask
                     = sm_t::scales_runtime | sm_t::post_ops | sm_t::fpmath_mode;
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             bool ok = utils::one_of(desc()->prop_kind,
                     prop_kind::forward_training, prop_kind::forward_inference);
@@ -167,9 +167,9 @@ struct cudnn_convolution_fwd_t : public primitive_t {
         }
     };
 
-    status_t init_temp_dst(engine_t *engine) {
+    status_t init_temp_dst(impl::engine_t *engine) {
         const auto impl = pd()->impl_.get();
-        auto sycl_engine = utils::downcast<sycl_cuda_engine_t *>(engine);
+        auto sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
         memory_storage_t *scratch_ptr = nullptr;
         auto wrap = memory_desc_wrapper(pd()->dst_md_temp_);
         if (impl && impl->use_temp_dst()) {
@@ -190,7 +190,7 @@ struct cudnn_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    virtual status_t init(engine_t *engine) override {
+    virtual status_t init(impl::engine_t *engine) override {
         init_temp_dst(engine);
 
         return status::success;
@@ -226,7 +226,7 @@ struct cudnn_convolution_bwd_data_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_convolution_bwd_data_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             bool ok = desc()->prop_kind == prop_kind::backward_data;
@@ -303,7 +303,7 @@ struct cudnn_convolution_bwd_weights_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_convolution_bwd_weights_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             bool ok = desc()->prop_kind == prop_kind::backward_weights;
             auto *sycl_engine

@@ -25,11 +25,11 @@ namespace sycl {
 
 class sycl_device_info_t : public gpu::intel::compute::device_info_t {
 protected:
-    status_t init_device_name(engine_t *engine) override;
-    status_t init_arch(engine_t *engine) override;
-    status_t init_runtime_version(engine_t *engine) override;
-    status_t init_extensions(engine_t *engine) override;
-    status_t init_attributes(engine_t *engine) override;
+    status_t init_device_name(impl::engine_t *engine) override;
+    status_t init_arch(impl::engine_t *engine) override;
+    status_t init_runtime_version(impl::engine_t *engine) override;
+    status_t init_extensions(impl::engine_t *engine) override;
+    status_t init_attributes(impl::engine_t *engine) override;
 };
 
 } // namespace sycl

@@ -29,7 +29,7 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-status_t sycl_device_info_t::init_arch(engine_t *engine) {
+status_t sycl_device_info_t::init_arch(impl::engine_t *engine) {
     auto *sycl_engine = utils::downcast<const sycl_engine_base_t *>(engine);
     auto &device = sycl_engine->device();
 

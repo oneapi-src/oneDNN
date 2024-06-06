@@ -24,8 +24,8 @@
 #include "common/sdpa_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
@@ -66,7 +66,7 @@ struct ref_sdpa_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         kernel_ctx.set_data_type(pd()->dst_md()->data_type);

@@ -80,7 +80,7 @@ int get_nhwc_calc_stat_ic(int ic, int ic_block, int sg_size) {
     return div_up(ic, ic_block) * sg_size;
 }
 
-void init_hw_params(hw_params_t &hw_params, engine_t *engine) {
+void init_hw_params(hw_params_t &hw_params, impl::engine_t *engine) {
     const bool large_grf_mode = false;
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();

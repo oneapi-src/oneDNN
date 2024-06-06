@@ -15,55 +15,46 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/impl_list_item.hpp"
-#include "common/utils.hpp"
-
 #include "xpu/sycl/utils.hpp"
 
+#include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_compat.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace nvidia {
 
-bool is_nvidia_gpu(const ::sycl::device &dev) {
-    constexpr int nvidia_vendor_id = 0x10DE;
-    return dev.is_gpu()
-            && dev.get_info<::sycl::info::device::vendor_id>()
-            == nvidia_vendor_id;
-}
-
-status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
+status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index) {
     CHECK(nvidia::check_device(engine_kind));
-    std::unique_ptr<nvidia::sycl_cuda_engine_t, engine_deleter_t> cuda_engine(
-            (new nvidia::sycl_cuda_engine_t(dev, ctx, index)));
-    if (!cuda_engine) return status::out_of_memory;
+    std::unique_ptr<nvidia::engine_t, engine_deleter_t> e(
+            (new nvidia::engine_t(dev, ctx, index)));
+    if (!e) return status::out_of_memory;
 
-    CHECK(cuda_engine->init());
-    *engine = cuda_engine.release();
+    CHECK(e->init());
+    *engine = e.release();
 
     return status::success;
 }
 
-sycl_cuda_engine_t::sycl_cuda_engine_t(engine_kind_t kind,
+status_t engine_t::create_memory_storage(
+        memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
+    return impl()->create_memory_storage(storage, this, flags, size, handle);
+}
+
+engine_t::engine_t(
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
-    : base_t(kind, dev, ctx, index) {
+    : impl::gpu::engine_t(
+            new xpu::sycl::engine_impl_t(engine_kind::gpu, dev, ctx, index)) {
+    assert(xpu::sycl::is_nvidia_gpu(dev));
     set_cudnn_handle();
     set_cublas_handle();
 }
 
-sycl_cuda_engine_t::sycl_cuda_engine_t(
-        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
-    : sycl_cuda_engine_t(engine_kind::gpu, dev, ctx, index) {
-    assert(is_nvidia_gpu(dev));
-}
-
-status_t sycl_cuda_engine_t::set_cublas_handle() {
+status_t engine_t::set_cublas_handle() {
     // scoped context will make sure the top of the stack context is
     // the engine context while creating the cublas handle.
     cuda_sycl_scoped_context_handler_t sc(*this);
@@ -80,7 +71,7 @@ status_t sycl_cuda_engine_t::set_cublas_handle() {
     return status::success;
 }
 
-status_t sycl_cuda_engine_t::set_cudnn_handle() {
+status_t engine_t::set_cudnn_handle() {
     // scoped context will make sure the top of the stack context is
     // the engine context while creating the cudnn handle.
     cuda_sycl_scoped_context_handler_t sc(*this);
@@ -95,40 +86,30 @@ status_t sycl_cuda_engine_t::set_cudnn_handle() {
     return status::success;
 }
 
-CUcontext sycl_cuda_engine_t::get_underlying_context() const {
+CUcontext engine_t::get_underlying_context() const {
     return compat::get_native<CUcontext>(device());
 }
 
-CUdevice sycl_cuda_engine_t::get_underlying_device() const {
+CUdevice engine_t::get_underlying_device() const {
     return compat::get_native<CUdevice>(device());
 }
 
-status_t sycl_cuda_engine_t::create_stream(stream_t **stream, unsigned flags) {
-    return sycl_cuda_stream_t::create_stream(stream, this, flags);
+status_t engine_t::create_stream(
+        impl::stream_t **stream, impl::stream_impl_t *stream_impl) {
+    return nvidia::stream_t::create_stream(stream, this, stream_impl);
 }
 
-status_t sycl_cuda_engine_t::create_stream(
-        stream_t **stream, ::sycl::queue &queue) {
-    return sycl_cuda_stream_t::create_stream(stream, this, queue);
-}
-
-cudnnHandle_t *sycl_cuda_engine_t::get_cudnn_handle() {
+cudnnHandle_t *engine_t::get_cudnn_handle() {
     if (!cudnn_handle_.is_set()) set_cudnn_handle();
     return cudnn_handle_.get().get();
 }
 
-cublasHandle_t *sycl_cuda_engine_t::get_cublas_handle() {
+cublasHandle_t *engine_t::get_cublas_handle() {
     if (!cublas_handle_.is_set()) set_cublas_handle();
     return cublas_handle_.get().get();
 }
 
-device_id_t sycl_cuda_engine_t::device_id() const {
-    return device_id_t(static_cast<int>(xpu::sycl::backend_t::nvidia),
-            static_cast<uint64_t>(compat::get_native<CUdevice>(device())),
-            static_cast<uint64_t>(0));
-}
-
-void sycl_cuda_engine_t::activate_stream_cublas(CUstream cuda_stream) {
+void engine_t::activate_stream_cublas(CUstream cuda_stream) {
     cuda_sycl_scoped_context_handler_t sc(*this);
     cudaStream_t current_stream_id = nullptr;
     auto cublas_handle = get_cublas_handle();
@@ -138,7 +119,7 @@ void sycl_cuda_engine_t::activate_stream_cublas(CUstream cuda_stream) {
     }
 }
 
-void sycl_cuda_engine_t::activate_stream_cudnn(CUstream cuda_stream) {
+void engine_t::activate_stream_cudnn(CUstream cuda_stream) {
     cuda_sycl_scoped_context_handler_t sc(*this);
     cudaStream_t current_stream_id = nullptr;
     auto cudnn_handle = get_cudnn_handle();

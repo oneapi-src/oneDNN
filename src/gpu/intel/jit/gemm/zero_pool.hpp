@@ -39,7 +39,7 @@ public:
 
     status_t claim(compute::compute_stream_t *stream, size_t len,
             std::unique_ptr<memory_storage_t> &out_mem, int *out_token);
-    void async_release(int token, const compute::event_t &ev);
+    void async_release(int token, const xpu::event_t &ev);
 
     void attach_client();
     int detach_client();
@@ -60,8 +60,7 @@ private:
     bool inited_ = false;
 
     std::array<bool, max_chunks> event_pending_ = {false};
-    std::array<std::unique_ptr<compute::event_t>, max_chunks> events_
-            = {nullptr};
+    std::array<std::unique_ptr<xpu::event_t>, max_chunks> events_ = {nullptr};
     std::mutex mutex_;
 
     status_t claim_unpooled(compute::compute_stream_t *stream, size_t len,

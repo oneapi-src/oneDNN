@@ -59,11 +59,14 @@ status_t dnnl_sycl_interop_memory_create(memory_t **memory,
     std::unique_ptr<memory_storage_t> mem_storage;
     if (is_usm) {
         if (handle != DNNL_MEMORY_NONE && handle != DNNL_MEMORY_ALLOCATE) {
-            auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine);
-            auto &sycl_ctx = sycl_engine->context();
+            const auto *sycl_engine_impl
+                    = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            engine->impl());
+            auto &sycl_ctx = sycl_engine_impl->context();
             ::sycl::usm::alloc ptr_type = get_pointer_type(handle, sycl_ctx);
             if (ptr_type == ::sycl::usm::alloc::unknown
-                    && !sycl_engine->mayiuse_system_memory_allocators())
+                    && !sycl_engine_impl->device().has(
+                            ::sycl::aspect::usm_system_allocations))
                 return status::invalid_arguments;
         }
 

@@ -32,13 +32,7 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
-bool is_amd_gpu(const ::sycl::device &dev) {
-    constexpr int amd_vendor_id = 0x1002;
-    return dev.is_gpu()
-            && dev.get_info<::sycl::info::device::vendor_id>() == amd_vendor_id;
-}
-
-status_t hip_engine_create(engine_t **engine, engine_kind_t engine_kind,
+status_t hip_engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index) {
     CHECK(amd::check_device(engine_kind));
     std::unique_ptr<amd::sycl_hip_engine_t, engine_deleter_t> hip_engine(
@@ -61,7 +55,7 @@ sycl_hip_engine_t::sycl_hip_engine_t(engine_kind_t kind,
 sycl_hip_engine_t::sycl_hip_engine_t(
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
     : sycl_hip_engine_t(engine_kind::gpu, dev, ctx, index) {
-    assert(is_amd_gpu(dev));
+    assert(xpu::sycl::is_amd_gpu(dev));
 }
 
 status_t sycl_hip_engine_t::set_rocblas_handle() {
@@ -105,13 +99,9 @@ hipDevice_t sycl_hip_engine_t::get_underlying_device() const {
     return compat::get_native<hipDevice_t>(device());
 }
 
-status_t sycl_hip_engine_t::create_stream(stream_t **stream, unsigned flags) {
-    return sycl_hip_stream_t::create_stream(stream, this, flags);
-}
-
 status_t sycl_hip_engine_t::create_stream(
-        stream_t **stream, ::sycl::queue &queue) {
-    return sycl_hip_stream_t::create_stream(stream, this, queue);
+        impl::stream_t **stream, impl::stream_impl_t *stream_impl) {
+    return sycl_hip_stream_t::create_stream(stream, this, stream_impl);
 }
 
 miopenHandle_t *sycl_hip_engine_t::get_miopen_handle() {
@@ -122,12 +112,6 @@ miopenHandle_t *sycl_hip_engine_t::get_miopen_handle() {
 rocblas_handle *sycl_hip_engine_t::get_rocblas_handle() {
     if (!rocblas_handle_.is_set()) set_rocblas_handle();
     return rocblas_handle_.get().get();
-}
-
-device_id_t sycl_hip_engine_t::device_id() const {
-    return device_id_t(static_cast<int>(xpu::sycl::backend_t::amd),
-            static_cast<uint64_t>(compat::get_native<hipDevice_t>(device())),
-            static_cast<uint64_t>(0));
 }
 
 void sycl_hip_engine_t::activate_stream_rocblas(HIPstream hip_stream) {

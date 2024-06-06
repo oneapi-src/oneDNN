@@ -600,7 +600,7 @@ status_t _ref_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
+status_t _ref_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
     using namespace prop_kind;
     using namespace utils;
     using namespace rnn_utils;
@@ -966,7 +966,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
+status_t _ref_rnn_common_t<aprop>::init(impl::engine_t *engine) {
     using namespace rnn_utils;
 
     switch (pd()->cell_kind()) {
@@ -1056,7 +1056,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::init_res_storage(
-        engine_t *engine, gpu_resource_t *r) const {
+        impl::engine_t *engine, gpu_resource_t *r) const {
     if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
         dim_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc
                 * sizeof(float); // G * O * sizeof(float);
@@ -1110,7 +1110,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
     std::unique_ptr<nested_scratchpad_t> ns;
     const auto init_gemm_nested_scratchpad
-            = [&](const std::shared_ptr<primitive_t> &gemm, int key) {
+            = [&](const std::shared_ptr<impl::primitive_t> &gemm, int key) {
                   ns = utils::make_unique<nested_scratchpad_t>(ctx, key, gemm);
                   gemm_ctx.set_scratchpad_grantor(ns->grantor());
               };
@@ -1571,7 +1571,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
-    engine_t *engine = ctx.stream()->engine();
+    impl::engine_t *engine = ctx.stream()->engine();
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 

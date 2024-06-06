@@ -19,7 +19,6 @@
 #include "common/verbose.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "sycl/stream_profiler.hpp"
-#include "sycl/sycl_engine.hpp"
 
 #include <map>
 #include <memory>
@@ -37,12 +36,14 @@ status_t sycl_stream_t::init() {
     if (is_profiling_enabled())
         profiler_ = utils::make_unique<sycl_stream_profiler_t>(this);
 
-    auto &sycl_engine = *utils::downcast<sycl_engine_base_t *>(engine());
-    auto &sycl_ctx = sycl_engine.context();
-    auto &sycl_dev = sycl_engine.device();
+    const auto &sycl_engine_impl
+            = *utils::downcast<const xpu::sycl::engine_impl_t *>(
+                    engine()->impl());
+    auto &sycl_ctx = sycl_engine_impl.context();
+    auto &sycl_dev = sycl_engine_impl.device();
 
     // If queue_ is not set then construct it
-    if (!queue_) {
+    if (!impl()->queue()) {
         ::sycl::property_list props;
         if (is_profiling_enabled() && sycl_dev.is_gpu()) {
             props = (flags() & stream_flags::in_order)
@@ -57,13 +58,13 @@ status_t sycl_stream_t::init() {
                             property_list {::sycl::property::queue::in_order {}}
                     : ::sycl::property_list {};
         }
-        queue_.reset(new ::sycl::queue(sycl_ctx, sycl_dev, props));
+        impl()->set_queue(::sycl::queue(sycl_ctx, sycl_dev, props));
     } else {
         // TODO: Compare device and context of the engine with those of the
         // queue after SYCL adds support for device/context comparison.
         //
         // For now perform some simple checks.
-        auto sycl_dev = queue_->get_device();
+        auto sycl_dev = queue().get_device();
         bool args_ok = true
                 && IMPLICATION(
                         engine()->kind() == engine_kind::gpu, sycl_dev.is_gpu())
@@ -72,7 +73,7 @@ status_t sycl_stream_t::init() {
         if (!args_ok) return status::invalid_arguments;
     }
 
-    if (is_profiling_enabled() && sycl_dev.is_gpu() && !queue_->is_in_order()) {
+    if (is_profiling_enabled() && sycl_dev.is_gpu() && !queue().is_in_order()) {
         VERROR(common, dpcpp,
                 "DPC++ kernel profiling is not supported with out-of-order "
                 "queues");

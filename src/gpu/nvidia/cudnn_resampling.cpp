@@ -16,8 +16,8 @@
 *******************************************************************************/
 
 #include "gpu/nvidia/cudnn_resampling.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "xpu/sycl/buffer_memory_storage.hpp"
 #include "xpu/sycl/memory_storage_helper.hpp"
 
@@ -30,8 +30,8 @@ status_t cudnn_resampling_fwd_t::execute(const exec_ctx_t &ctx) const {
     if (memory_desc_wrapper(pd()->src_md()).has_zero_dim())
         return status::success;
 
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -40,7 +40,7 @@ status_t cudnn_resampling_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto grid_acc = buffer(grid_storage_.get())
                                 .get_access<::sycl::access::mode::read>(cgh);
         compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
@@ -61,8 +61,8 @@ status_t cudnn_resampling_bwd_t::execute(const exec_ctx_t &ctx) const {
     if (memory_desc_wrapper(pd()->diff_src_md()).has_zero_dim())
         return status::success;
 
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
@@ -72,7 +72,7 @@ status_t cudnn_resampling_bwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_diff_grid
                 = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
         compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();

@@ -403,7 +403,7 @@ status_t kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info) const {
 }
 
 status_t kernel_desc_t::create_kernel(compute::kernel_t &kernel,
-        gpu_primitive_t *primitive, engine_t *engine) const {
+        gpu_primitive_t *primitive, impl::engine_t *engine) const {
     return primitive->create_kernel(
             engine, kernel, kernel_name().c_str(), *this);
 }

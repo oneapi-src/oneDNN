@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +24,8 @@
 #include "common/type_helpers.hpp"
 #include "gpu/nvidia/cudnn_conv_filter_adjustment_base.hpp"
 #include "gpu/nvidia/cudnn_inner_product_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -115,7 +115,7 @@ struct cudnn_conv_inner_product_fwd_impl_t
                     cudnnDestroyActivationDescriptor, act_desc_no_relu_);
         }
     }
-    virtual status_t init(engine_t *engine, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool with_relu, bool with_eltwise, bool with_sum,
             bool use_fuse_path_for_blocking) override {
         with_bias_ = pd->with_bias();
@@ -257,12 +257,11 @@ struct cudnn_conv_inner_product_fwd_impl_t
                 zero_padding.data(), unit_strides.data(), unit_dilation.data(),
                 CUDNN_CROSS_CORRELATION, data_types_[NUM_IO]));
 
-        auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
-        stream_t *service_stream;
+        auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         // Inner product can choose whatever algorithm it prefers, although
@@ -423,7 +422,7 @@ struct cudnn_conv_inner_product_bwd_data_impl_t
     // for nhwc filter the source must be nhwc as well.
     // So we use the src type for transforming the filter.
     cudnnTensorFormat_t diff_source_format_;
-    virtual status_t init(engine_t *engine, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool /*using_fused_path_for_blocking*/) override {
         // Pad out the dimensions to 4
@@ -505,12 +504,11 @@ struct cudnn_conv_inner_product_bwd_data_impl_t
         CHECK(create_and_set_conv_descriptor(&conv_desc_, conv_dims,
                 zero_padding.data(), unit_strides.data(), unit_dilation.data(),
                 CUDNN_CROSS_CORRELATION, data_types_[NUM_IO]));
-        auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
-        stream_t *service_stream;
+        auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         // Inner product can choose whatever algorithm it prefers.
@@ -575,7 +573,7 @@ struct cudnn_conv_inner_product_bwd_weights_impl_t
     cudnnConvolutionBwdFilterAlgo_t algo_;
     cudnnTensorFormat_t source_format_;
 
-    virtual status_t init(engine_t *engine, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool /*using_fused_path_for_blocking*/) override {
         // If any of the dimensions are 0 we should not continue with creating
@@ -678,12 +676,11 @@ struct cudnn_conv_inner_product_bwd_weights_impl_t
         CHECK(create_and_set_conv_descriptor(&conv_desc_, conv_dims,
                 zero_padding.data(), unit_strides.data(), unit_dilation.data(),
                 CUDNN_CROSS_CORRELATION, data_types_[NUM_IO]));
-        auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
-        stream_t *service_stream;
+        auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         // Inner product can choose whatever algorithm it prefers.

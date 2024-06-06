@@ -22,8 +22,8 @@
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
@@ -42,8 +42,8 @@ struct custom_reorder_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:custom:any", custom_reorder_t);
 
-        status_t init(
-                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+        status_t init(impl::engine_t *engine, impl::engine_t *src_engine,
+                impl::engine_t *dst_engine) {
 
             VDISPATCH_REORDER(
                     src_engine == dst_engine, VERBOSE_BAD_ENGINE_KIND);
@@ -108,7 +108,7 @@ struct custom_reorder_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         void alt_gen();
         void alt_defines(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
@@ -120,7 +120,7 @@ struct custom_reorder_t : public gpu_primitive_t {
         DECLARE_GPU_REORDER_CREATE();
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);

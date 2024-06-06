@@ -42,9 +42,13 @@ jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
         const auto &post_op = post_ops.entry_[i];
         if (post_op.is_eltwise()) {
             is_eltwise = true;
+            // Note: `dt` argument for eltwise injector is not propagated from
+            // the top-level constructor due to lack of use cases till this
+            // moment. Once the use case show up, add the argument to the
+            // top-level ctor and propagate its value.
             alg_to_eltwise_injector_.emplace(i,
-                    jit_uni_eltwise_injector_f32<isa, Vmm>(host_,
-                            post_op.eltwise, esp.save_state, esp.p_table_,
+                    jit_uni_eltwise_injector<isa, Vmm>(host_, post_op.eltwise,
+                            data_type::f32, esp.save_state, esp.p_table_,
                             esp.k_mask_, esp.is_fwd, esp.use_dst,
                             esp.preserve_vmm, esp.preserve_p_table));
         } else if (post_op.is_like_binary()) {
@@ -352,7 +356,8 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                 case eltwise:
                     if (entry.is_eltwise()) {
                         const auto alg = entry.eltwise.alg;
-                        return eltwise_injector::is_supported(isa, alg);
+                        return eltwise_injector::is_supported(
+                                isa, alg, data_type::f32);
                     }
                     break;
                 case binary:

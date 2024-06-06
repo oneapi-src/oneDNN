@@ -20,8 +20,8 @@
 #ifdef DNNL_DEV_MODE
 
 #include "gpu/gpu_gemm_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gemm/gpu_gemm.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/jit/conv/gen_convolution.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 #include "gpu/intel/utils.hpp"
@@ -39,7 +39,7 @@ struct conv_gemm_t : public gpu_gemm_t {
 
         DECLARE_COMMON_PD_T("ocl:conv:ir", conv_gemm_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             // This is currently only used for experimentation purposes
             bool enable_conv_gemm
                     = gpu_utils::dev_getenv("enable_conv_gemm", false);
@@ -182,7 +182,7 @@ struct conv_gemm_t : public gpu_gemm_t {
         std::shared_ptr<primitive_desc_t> conv_pd;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_nested_primitive(conv_, pd()->conv_pd, engine);
     }
 
@@ -222,7 +222,7 @@ struct conv_gemm_t : public gpu_gemm_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_;
+    std::shared_ptr<impl::primitive_t> conv_;
 };
 
 } // namespace ocl

@@ -38,7 +38,7 @@ struct ref_prelu_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("prelu_ref:any", ref_prelu_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
 
             VDISPATCH_PRELU(is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_PRELU(src_md()->data_type == dst_md()->data_type,
@@ -57,13 +57,13 @@ struct ref_prelu_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         prelu_conf_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -101,7 +101,7 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("prelu_ref:any", ref_prelu_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
 
             VDISPATCH_PRELU(!is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_PRELU(
@@ -127,11 +127,11 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
-        status_t init_reduction(engine_t *engine) {
+        status_t init_reduction(impl::engine_t *engine) {
             reduction_desc_t rdesc;
             memory_desc_t red_diff_mem_desc(*src_md(0));
             red_diff_mem_desc.data_type = dnnl_f32;
@@ -155,7 +155,7 @@ struct ref_prelu_bwd_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> reduction_pd_;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -180,7 +180,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     compute::kernel_t kernel_;
-    std::shared_ptr<primitive_t> reduction_p_;
+    std::shared_ptr<impl::primitive_t> reduction_p_;
 };
 
 } // namespace ocl

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_REF_SUM_HPP
-#define GPU_INTEL_OCL_REF_SUM_HPP
+#ifndef GPU_GENERIC_REF_SUM_HPP
+#define GPU_GENERIC_REF_SUM_HPP
 
 #include <mutex>
 
@@ -23,19 +23,19 @@
 #include "common/reorder.hpp"
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
+
+#include "gpu/gpu_engine.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_sum_pd.hpp"
-#include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace intel {
-namespace ocl {
+namespace generic {
 
-struct ref_sum_t : public gpu_primitive_t {
-    using gpu_primitive_t::gpu_primitive_t;
+struct ref_sum_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public gpu_sum_pd_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
 
@@ -44,7 +44,7 @@ struct ref_sum_t : public gpu_primitive_t {
 
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             VDISPATCH_SUM_SC(
                     gpu_sum_pd_t::init(engine), VERBOSE_BAD_ENGINE_KIND);
 
@@ -77,7 +77,7 @@ struct ref_sum_t : public gpu_primitive_t {
             VDISPATCH_SUM_SC(memory_desc_init_by_tag(scale_md_, format_tag::x),
                     VERBOSE_UNSUPPORTED_TAG);
 
-            init_scratchpad();
+            init_scratchpad(engine);
             return status::success;
         }
 
@@ -85,13 +85,14 @@ struct ref_sum_t : public gpu_primitive_t {
         memory_desc_t scale_md_;
 
     private:
-        void init_scratchpad() {
+        void init_scratchpad(impl::engine_t *engine) {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
+            auto *gpu_engine = utils::downcast<gpu::engine_t *>(engine);
             if (need_output_reorder()) {
                 const memory_desc_wrapper dst_acc_d(dst_acc_md());
                 scratchpad.book(key_sum_reduction, dst_acc_d.size(), 1,
-                        OCL_BUFFER_ALIGNMENT);
+                        gpu_engine->get_buffer_alignment());
             }
 
             for (size_t i = 0; i < reorder_pds_.size(); i++) {
@@ -101,7 +102,7 @@ struct ref_sum_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i) {
@@ -112,7 +113,7 @@ struct ref_sum_t : public gpu_primitive_t {
     }
 
     status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
+            impl::engine_t *engine, gpu_resource_t *r) const override {
         // TODO: this is a dirty fix to a real problem that pops up when
         // multiple threads creating this primitive. Execution hangs at unmap().
         static std::mutex mutex;
@@ -193,11 +194,10 @@ struct ref_sum_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::vector<std::shared_ptr<primitive_t>> reorders_;
+    std::vector<std::shared_ptr<impl::primitive_t>> reorders_;
 };
 
-} // namespace ocl
-} // namespace intel
+} // namespace generic
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

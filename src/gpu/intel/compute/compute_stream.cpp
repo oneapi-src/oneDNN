@@ -16,9 +16,10 @@
 
 #include "common/compiler_workarounds.hpp"
 
+#include "xpu/stream_profiler.hpp"
+
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/compute_stream.hpp"
-#include "gpu/intel/compute/stream_profiler.hpp"
 #include "gpu/intel/ocl/types_interop.hpp"
 
 namespace dnnl {
@@ -34,7 +35,7 @@ status_t compute_stream_t::zero_pad(
 
     if (mdw.nelems(false) == mdw.nelems(true)) return status::success;
 
-    if (!has_zero_pad_primitive()) return stream_t::zero_pad(memory, ctx);
+    if (!has_zero_pad_primitive()) return impl::stream_t::zero_pad(memory, ctx);
 
     // Kernel only compiled to support data types of length 1, 2, 4 or 8 currently
     if (!utils::one_of(mdw.data_type_size(), 1u, 2u, 4u, 8u))
@@ -49,9 +50,10 @@ status_t compute_stream_t::zero_pad(
     }
 
     assert(step_nelems <= max_step_nelems);
-    if (step_nelems > max_step_nelems) return stream_t::zero_pad(memory, ctx);
+    if (step_nelems > max_step_nelems)
+        return impl::stream_t::zero_pad(memory, ctx);
 
-    engine_t *engine = this->engine();
+    impl::engine_t *engine = this->engine();
 
     primitive_t *zero_pad_primitive;
     const resource_mapper_t *mapper;

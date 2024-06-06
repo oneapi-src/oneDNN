@@ -28,7 +28,7 @@ namespace intel {
 namespace ocl {
 
 static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
-        const inner_product_pd_t *pd, engine_t *engine) {
+        const inner_product_pd_t *pd, impl::engine_t *engine) {
     const inner_product_desc_t &ipd = *pd->desc();
     const memory_desc_wrapper src_d(pd->invariant_src_md());
     const memory_desc_wrapper wei_d(pd->invariant_wei_md());
@@ -163,7 +163,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-status_t ref_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_inner_product_fwd_t::pd_t::init_conf(impl::engine_t *engine) {
     return init_conf_common(conf, off, this, engine);
 }
 
@@ -207,7 +207,7 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     return status;
 }
 
-status_t ref_inner_product_bwd_data_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_inner_product_bwd_data_t::pd_t::init_conf(impl::engine_t *engine) {
     return init_conf_common(conf, off, this, engine);
 }
 
@@ -239,7 +239,8 @@ status_t ref_inner_product_bwd_data_t::execute_backward_data(
     return status;
 }
 
-status_t ref_inner_product_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_inner_product_bwd_weights_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     return init_conf_common(conf, off, this, engine);
 }
 

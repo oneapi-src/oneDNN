@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/math_utils.hpp"
 #include "dnnl_test_common.hpp"
-#include "math_utils.hpp"
 #include "oneapi/dnnl/dnnl.hpp"
 #include "test_convolution_eltwise_forward_common.hpp"
 #include "gtest/gtest.h"

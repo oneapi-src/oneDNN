@@ -40,7 +40,7 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
@@ -84,7 +84,7 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         using namespace alg_kind;
 
         compute::kernel_ctx_t kernel_ctx;
@@ -171,7 +171,7 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
@@ -212,7 +212,7 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         using namespace alg_kind;
 
         compute::kernel_ctx_t kernel_ctx;

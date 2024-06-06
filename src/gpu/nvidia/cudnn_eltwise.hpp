@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@
 #include "common/eltwise_pd.hpp"
 #include "common/primitive.hpp"
 #include "gpu/nvidia/cudnn_eltwise_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,12 +36,11 @@ struct cudnn_eltwise_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_eltwise_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace alg_kind;
 
             auto sycl_dev
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine)
-                              ->device();
+                    = utils::downcast<nvidia::engine_t *>(engine)->device();
 
             bool ok = is_fwd()
                     // Supported algorithms
@@ -83,7 +82,7 @@ struct cudnn_eltwise_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_eltwise_bwd_t);
 
-        status_t init(engine_t *) {
+        status_t init(impl::engine_t *) {
             using namespace alg_kind;
             bool ok = !is_fwd()
                     // Supported algorithms

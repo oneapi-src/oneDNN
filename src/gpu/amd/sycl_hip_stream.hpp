@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,28 +35,20 @@ public:
     miopenHandle_t &get_miopen_handle(HIPstream hip_stream = nullptr);
     rocblas_handle &get_rocblas_handle(HIPstream hip_stream = nullptr);
 
-    static status_t create_stream(
-            stream_t **stream, engine_t *engine, unsigned flags) {
-        std::unique_ptr<sycl_hip_stream_t> sycl_stream(
-                new sycl_hip_stream_t(engine, flags));
-        if (!sycl_stream) return status::out_of_memory;
+    static status_t create_stream(impl::stream_t **stream,
+            impl::engine_t *engine, impl::stream_impl_t *stream_impl) {
+        std::unique_ptr<sycl_hip_stream_t> s(
+                new sycl_hip_stream_t(engine, stream_impl));
+        if (!s) return status::out_of_memory;
 
-        CHECK(sycl_stream->init());
-        *stream = sycl_stream.release();
-        return status::success;
-    }
+        status_t status = s->init();
+        if (status != status::success) {
+            // Stream owns stream_impl only if it's created successfully (including initialization).
+            s->impl_.release();
+            return status;
+        }
 
-    static status_t create_stream(
-            stream_t **stream, engine_t *engine, ::sycl::queue &queue) {
-        unsigned flags;
-        CHECK(base_t::init_flags(&flags, queue));
-
-        std::unique_ptr<sycl_hip_stream_t> sycl_stream(
-                new sycl_hip_stream_t(engine, flags, queue));
-
-        CHECK(sycl_stream->init());
-
-        *stream = sycl_stream.release();
+        *stream = s.release();
         return status::success;
     }
 
@@ -67,10 +59,8 @@ public:
 
 private:
     status_t init();
-    sycl_hip_stream_t(engine_t *engine, unsigned flags, ::sycl::queue &queue)
-        : base_t(engine, flags, queue) {}
-    sycl_hip_stream_t(engine_t *engine, unsigned flags)
-        : base_t(engine, flags) {}
+    sycl_hip_stream_t(impl::engine_t *engine, impl::stream_impl_t *stream_impl)
+        : base_t(engine, stream_impl) {}
 };
 
 } // namespace amd

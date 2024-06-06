@@ -46,7 +46,7 @@ struct conv_pd_data_t {
     tensor_config_t tensor_cfg;
     std::vector<kernel_info_t> kernel_infos;
     std::shared_ptr<dnnl_primitive_desc> zp_pd;
-    std::shared_ptr<primitive_t> zp_prim;
+    std::shared_ptr<impl::primitive_t> zp_prim;
 };
 
 class gen_convolution_t {
@@ -54,7 +54,7 @@ public:
     static const int max_kernels = 16;
 
     template <typename T>
-    static status_t init_pd(T *pd, engine_t *engine) {
+    static status_t init_pd(T *pd, impl::engine_t *engine) {
         try {
             using compute::compute_engine_t;
             auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
@@ -160,7 +160,7 @@ public:
     gen_convolution_t() = default;
 
     template <typename T>
-    status_t init(T *primitive, engine_t *engine) {
+    status_t init(T *primitive, impl::engine_t *engine) {
         auto &data = *primitive->pd()->data;
         auto &tensor_cfg = data.tensor_cfg;
         auto tiler = std::make_shared<conv_tiler_t>(data.pd_cfg);
@@ -285,8 +285,8 @@ public:
     }
 
     template <typename T>
-    status_t init_res_storage(
-            const T *primitive, engine_t *engine, gpu_resource_t *r) const {
+    status_t init_res_storage(const T *primitive, impl::engine_t *engine,
+            gpu_resource_t *r) const {
         auto &data = *primitive->pd()->data;
         auto &kernel_infos = data.kernel_infos;
         for (int i = 0; i < int(kernel_infos.size()); i++) {
@@ -518,7 +518,7 @@ private:
 
     template <typename ExceptionT, typename T>
     static bool handle_exception(const ExceptionT &err, T *primitive,
-            engine_t *engine, int iter, int max_iters) {
+            impl::engine_t *engine, int iter, int max_iters) {
         if (iter + 1 < max_iters) return false;
         VERROR(primitive, gpu, "%s,%s", primitive->pd()->info(engine),
                 err.what());
@@ -529,13 +529,13 @@ private:
     std::vector<compute::nd_range_t> nd_ranges_;
 };
 
-status_t gen_convolution_fwd_t::pd_t::init(engine_t *engine) {
+status_t gen_convolution_fwd_t::pd_t::init(impl::engine_t *engine) {
     VDISPATCH_CONV_IC(is_fwd(), VERBOSE_BAD_PROPKIND);
     CHECK(gen_convolution_t::init_pd(this, engine));
     return status::success;
 }
 
-status_t gen_convolution_fwd_t::init(engine_t *engine) {
+status_t gen_convolution_fwd_t::init(impl::engine_t *engine) {
     impl_.reset(new gen_convolution_t());
     return impl_->init(this, engine);
 }
@@ -545,28 +545,28 @@ status_t gen_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
 }
 
 status_t gen_convolution_fwd_t::init_res_storage(
-        engine_t *engine, gpu_resource_t *r) const {
+        impl::engine_t *engine, gpu_resource_t *r) const {
     return impl_->init_res_storage(this, engine, r);
 }
 
-status_t gen_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
+status_t gen_convolution_bwd_data_t::pd_t::init(impl::engine_t *engine) {
     VDISPATCH_CONV_IC(is_bwd_d(), VERBOSE_BAD_PROPKIND);
     CHECK(gen_convolution_t::init_pd(this, engine));
     return status::success;
 }
 
 status_t gen_convolution_bwd_data_t::init_res_storage(
-        engine_t *engine, gpu_resource_t *r) const {
+        impl::engine_t *engine, gpu_resource_t *r) const {
     return impl_->init_res_storage(this, engine, r);
 }
 
-status_t gen_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
+status_t gen_convolution_bwd_weights_t::pd_t::init(impl::engine_t *engine) {
     VDISPATCH_CONV_IC(is_bwd_w(), VERBOSE_BAD_PROPKIND);
     CHECK(gen_convolution_t::init_pd(this, engine));
     return status::success;
 }
 
-status_t gen_convolution_bwd_data_t::init(engine_t *engine) {
+status_t gen_convolution_bwd_data_t::init(impl::engine_t *engine) {
     impl_.reset(new gen_convolution_t());
     return impl_->init(this, engine);
 }
@@ -575,13 +575,13 @@ status_t gen_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
     return impl_->execute(this, ctx);
 }
 
-status_t gen_convolution_bwd_weights_t::init(engine_t *engine) {
+status_t gen_convolution_bwd_weights_t::init(impl::engine_t *engine) {
     impl_.reset(new gen_convolution_t());
     return impl_->init(this, engine);
 }
 
 status_t gen_convolution_bwd_weights_t::init_res_storage(
-        engine_t *engine, gpu_resource_t *r) const {
+        impl::engine_t *engine, gpu_resource_t *r) const {
     return impl_->init_res_storage(this, engine, r);
 }
 

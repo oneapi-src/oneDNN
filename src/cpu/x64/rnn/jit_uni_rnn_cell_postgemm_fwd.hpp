@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@ struct jit_uni_rnn_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_rnn_cell_postgemm_fwd)
 
     using injector_t = typename utils::conditional<isa == avx512_core,
-            jit_uni_eltwise_injector_f32<avx512_core>,
-            jit_uni_eltwise_injector_f32<isa>>::type;
+            jit_uni_eltwise_injector<avx512_core>,
+            jit_uni_eltwise_injector<isa>>::type;
 
     jit_uni_rnn_cell_postgemm_fwd(
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
@@ -42,7 +42,8 @@ struct jit_uni_rnn_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
         CHECK(jit_uni_rnn_postgemm::init(src_data_t));
         // we use rax for constant tables
         injector_ = utils::make_unique<injector_t>(this, pd_->activation_kind(),
-                pd_->desc()->alpha, pd_->desc()->beta, 1.0f, true, rax);
+                pd_->desc()->alpha, pd_->desc()->beta, 1.0f, data_type::f32,
+                true, rax);
         return create_kernel();
     }
 
@@ -50,7 +51,7 @@ protected:
     std::unique_ptr<injector_t> injector_;
 
     // register size in bytes
-    using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
+    using Vmm = typename jit_uni_eltwise_injector<isa>::Vmm;
     static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
     static constexpr size_t cstate_dt_size = sizeof(float);
     static constexpr size_t qscale_dt_size = sizeof(float);

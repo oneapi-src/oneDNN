@@ -40,7 +40,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9:wino", gen9_wino_convolution_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
@@ -109,7 +109,7 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
         conv_conf_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         bool is_fused = pd()->conf.is_fused;
         bool is_nonfused_2x3 = pd()->conf.wino_m == 2 && !is_fused;
 

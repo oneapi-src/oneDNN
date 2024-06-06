@@ -39,7 +39,7 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9", gen9_pooling_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
             using namespace alg_kind;
@@ -98,14 +98,14 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         pool_conf_t conf;
         offsets_t off;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
@@ -135,7 +135,7 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9:any", gen9_pooling_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace alg_kind;
             auto *compute_engine
@@ -189,14 +189,14 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         pool_conf_t conf;
         offsets_t off;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);

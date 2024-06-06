@@ -108,7 +108,7 @@ int gen9_concat_t::pd_t::calculate_sub_group_size(
     return 1;
 }
 
-status_t gen9_concat_t::pd_t::init_conf(engine_t *engine) {
+status_t gen9_concat_t::pd_t::init_conf(impl::engine_t *engine) {
     const concat_pd_t *pd = this;
 
     const memory_desc_wrapper dst_mdw(pd->dst_md());

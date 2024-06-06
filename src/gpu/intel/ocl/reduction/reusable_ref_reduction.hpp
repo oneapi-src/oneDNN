@@ -86,7 +86,7 @@ struct reusable_ref_reduction_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:reusable:ref", reusable_ref_reduction_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using smask_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = smask_t::gpu_attr;
             VDISPATCH_REDUCTION_SC(
@@ -104,14 +104,14 @@ struct reusable_ref_reduction_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         void init_scratchpad();
 
         int div = 0;
         std::vector<ref_reduction_conf_t> phases;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         auto &phases = pd()->phases;
 
         for (auto &phase : phases) {

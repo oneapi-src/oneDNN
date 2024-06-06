@@ -95,7 +95,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_fwd_t);
-        status_t init_convolution(engine_t *engine) {
+        status_t init_convolution(impl::engine_t *engine) {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr(*attr());
@@ -108,7 +108,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             return (conv_pd_) ? status::success : status::unimplemented;
         }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace format_tag;
             using sm = primitive_attr_t::skip_mask_t;
 
@@ -204,7 +204,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_nested_primitive(conv_p_, pd()->conv_pd_, engine);
     }
 
@@ -250,7 +250,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_p_;
+    std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
 struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
@@ -267,7 +267,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_data_t);
 
-        status_t init_convolution(engine_t *engine) {
+        status_t init_convolution(impl::engine_t *engine) {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr(*attr());
@@ -279,7 +279,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
             return (conv_pd_) ? status::success : status::unimplemented;
         }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             VDISPATCH_DECONVOLUTION(
                     desc()->prop_kind == prop_kind::backward_data,
                     VERBOSE_BAD_PROPKIND);
@@ -347,7 +347,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_nested_primitive(conv_p_, pd()->conv_pd_, engine);
     }
 
@@ -370,7 +370,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_p_;
+    std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
 struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
@@ -386,7 +386,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_weights_t);
 
-        status_t init_convolution(engine_t *engine) {
+        status_t init_convolution(impl::engine_t *engine) {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr(*attr());
@@ -398,7 +398,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
             return (conv_pd_) ? status::success : status::unimplemented;
         }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace format_tag;
             VDISPATCH_DECONVOLUTION(
                     desc()->prop_kind == prop_kind::backward_weights,
@@ -471,7 +471,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         // Creating convolution primitve
         CHECK(create_nested_primitive(conv_p_, pd()->conv_pd_, engine));
 
@@ -546,7 +546,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> conv_p_;
+    std::shared_ptr<impl::primitive_t> conv_p_;
     compute::kernel_t bias_kernel_;
     compute::range_t gws = compute::range_t::empty(1);
     data_type_t dst_data_type = data_type::undef;

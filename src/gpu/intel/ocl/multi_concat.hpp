@@ -50,7 +50,7 @@ struct multi_concat_t : public gpu_primitive_t {
             return batch_failure;
         }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             VDISPATCH_CONCAT(max_batch_size() != batch_failure,
                     VERBOSE_SKIP_PRIMITIVE_IMPL);
             VDISPATCH_CONCAT(
@@ -103,7 +103,7 @@ struct multi_concat_t : public gpu_primitive_t {
         std::vector<memory_desc_t> dst_chunk_mds_;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         const auto &pds = pd()->concat_pds_;
         const size_t n = pds.size();
         concats_.resize(n);
@@ -118,19 +118,20 @@ struct multi_concat_t : public gpu_primitive_t {
         const auto max_batch_size = pd()->max_batch_size();
         if (max_batch_size == pd_t::batch_failure) return status::runtime_error;
 
-        auto execute_concat = [&](const std::shared_ptr<primitive_t> &concat,
-                                      int c_num, int n_inputs) {
-            exec_args_t r_args;
-            const auto arg_offset = DNNL_ARG_MULTIPLE_SRC;
-            for (int i = 0; i < n_inputs; ++i)
-                r_args[arg_offset + i] = ctx.args().at(
-                        arg_offset + max_batch_size * c_num + i);
-            r_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DST);
-            exec_ctx_t r_ctx(ctx, std::move(r_args));
+        auto execute_concat
+                = [&](const std::shared_ptr<impl::primitive_t> &concat,
+                          int c_num, int n_inputs) {
+                      exec_args_t r_args;
+                      const auto arg_offset = DNNL_ARG_MULTIPLE_SRC;
+                      for (int i = 0; i < n_inputs; ++i)
+                          r_args[arg_offset + i] = ctx.args().at(
+                                  arg_offset + max_batch_size * c_num + i);
+                      r_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DST);
+                      exec_ctx_t r_ctx(ctx, std::move(r_args));
 
-            r_ctx.set_scratchpad_grantor(ctx.grantor_handle());
-            return concat->execute(r_ctx);
-        };
+                      r_ctx.set_scratchpad_grantor(ctx.grantor_handle());
+                      return concat->execute(r_ctx);
+                  };
 
         const auto n_batches = utils::div_up(n, max_batch_size);
         for (int i = 0; i < n_batches; ++i) {
@@ -143,7 +144,7 @@ struct multi_concat_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::vector<std::shared_ptr<primitive_t>> concats_;
+    std::vector<std::shared_ptr<impl::primitive_t>> concats_;
 };
 
 } // namespace ocl

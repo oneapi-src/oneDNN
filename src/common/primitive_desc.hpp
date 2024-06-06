@@ -475,8 +475,9 @@ protected:
         return new_pd.release(); \
     } \
     status_t create_primitive( \
-            std::pair<std::shared_ptr<primitive_t>, bool> &primitive, \
-            engine_t *engine, const cache_blob_t &cache_blob) const override { \
+            std::pair<std::shared_ptr<impl::primitive_t>, bool> &primitive, \
+            dnnl::impl::engine_t *engine, const cache_blob_t &cache_blob) \
+            const override { \
         return primitive_t::create_primitive_common<impl_type, pd_t>( \
                 primitive, this, engine, use_global_scratchpad, cache_blob); \
     } \
@@ -484,7 +485,7 @@ protected:
     template <typename pd_t> \
     friend status_t primitive_desc_t::create(primitive_desc_t **pd, \
             const op_desc_t *adesc, const primitive_attr_t *attr, \
-            engine_t *engine, const primitive_desc_t *hint_fwd);
+            dnnl::impl::engine_t *engine, const primitive_desc_t *hint_fwd);
 
 #define DECLARE_COMMON_PD_T_USE_GLOBAL_SCRATCHPAD(impl_name, impl_type) \
     DECLARE_COMMON_PD_t(impl_name, impl_type, true)

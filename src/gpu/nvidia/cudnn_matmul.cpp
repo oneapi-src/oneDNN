@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,9 +22,9 @@
 #include "common/type_helpers.hpp"
 
 #include "gpu/nvidia/cudnn_matmul_executor.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_stream_utils.hpp"
 
 namespace dnnl {
@@ -52,8 +52,8 @@ status_t cudnn_matmul_t::execute(const exec_ctx_t &ctx) const {
         scratchpad_size = pd()->scratchpad_size(dst_d.md_);
     }
 
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     status = executor_->execute(
             ctx, ctx.stream()->engine(), matmul_impl_, scratchpad_size);

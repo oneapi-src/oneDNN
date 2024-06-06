@@ -38,7 +38,7 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:vectorized", vectorized_lnorm_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             auto *compute_engine
@@ -76,13 +76,13 @@ struct vectorized_lnorm_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         lnorm_conf_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -119,7 +119,7 @@ struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:vectorized", vectorized_lnorm_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -154,14 +154,14 @@ struct vectorized_lnorm_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
         lnorm_conf_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);

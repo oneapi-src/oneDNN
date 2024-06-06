@@ -25,9 +25,9 @@
 #include "common/utils.hpp"
 #include "gpu/nvidia/cudnn_conv_filter_adjustment_base.hpp"
 #include "gpu/nvidia/cudnn_convolution_pd.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 // `CUDNN_FMA_MATH` is available starting from cuDNN v8.
@@ -85,7 +85,8 @@ public:
             CUDNN_EXECUTE_FUNC_V(cudnnDestroyTensorDescriptor, descs[i]);
         }
     }
-    virtual status_t configure_alg_kind(engine_t *, convolution_pd_t *pd) = 0;
+    virtual status_t configure_alg_kind(impl::engine_t *, convolution_pd_t *pd)
+            = 0;
 
     virtual bool supported_filter_format(
             const memory_desc_t *md) const override {
@@ -104,7 +105,7 @@ public:
     bool using_transformed_filter() const { return filter_needs_transform; }
     bool with_scratchpad() const { return scratchpad_size > 0; }
 
-    virtual status_t init(engine_t *engine, convolution_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, convolution_pd_t *pd,
             bool use_scratch_dst = false, bool use_scales_dst = false) {
         CHECK(configure_parameters(pd));
         CHECK(create_cudnn_descs(pd));
@@ -217,7 +218,8 @@ public:
 
         return status::success;
     }
-    virtual status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) {
+    virtual status_t init_scratchpad(
+            impl::engine_t *engine, convolution_pd_t *pd) {
         if (filter_needs_transform) {
             auto sz = memory_desc_wrapper(&dnnl_descs[weights]).size();
             auto data_size
@@ -490,8 +492,8 @@ public:
         return status::success;
     }
 
-    status_t init(engine_t *engine, convolution_pd_t *pd, bool use_scratch_dst,
-            bool use_scales_dst) override {
+    status_t init(impl::engine_t *engine, convolution_pd_t *pd,
+            bool use_scratch_dst, bool use_scales_dst) override {
         use_temp_dst_ = use_scratch_dst;
         use_scales_dst_ = use_scales_dst;
         CHECK(configure_parameters(pd));
@@ -673,13 +675,13 @@ public:
             }
         }
     }
-    status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
-        stream_t *service_stream;
+    status_t init_scratchpad(
+            impl::engine_t *engine, convolution_pd_t *pd) override {
+        auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         // The scratchpad size will need to be modified in
@@ -705,14 +707,13 @@ public:
         return cudnn_convolution_impl_base_t::init_scratchpad(engine, pd);
     }
     status_t configure_alg_kind(
-            engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
+            impl::engine_t *engine, convolution_pd_t *pd) override {
+        auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
         cuda_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionForwardAlgorithmMaxCount,
@@ -837,14 +838,13 @@ protected:
     int requested_algo_count = 0;
     int returned_algo_count = 0;
     status_t configure_alg_kind(
-            engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
+            impl::engine_t *engine, convolution_pd_t *pd) override {
+        auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
         cuda_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(
@@ -903,13 +903,13 @@ protected:
         return status::success;
     }
 
-    status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
-        stream_t *service_stream;
+    status_t init_scratchpad(
+            impl::engine_t *engine, convolution_pd_t *pd) override {
+        auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionBackwardDataWorkspaceSize,
@@ -987,14 +987,13 @@ public:
         return status::success;
     }
     virtual status_t configure_alg_kind(
-            engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
+            impl::engine_t *engine, convolution_pd_t *pd) override {
+        auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
         cuda_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(
@@ -1055,13 +1054,13 @@ public:
         return status::success;
     }
 
-    status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
-        stream_t *service_stream;
+    status_t init_scratchpad(
+            impl::engine_t *engine, convolution_pd_t *pd) override {
+        auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto handle = cuda_stream->get_cudnn_handle();
 
         CHECK(CUDNN_EXECUTE_FUNC_S(

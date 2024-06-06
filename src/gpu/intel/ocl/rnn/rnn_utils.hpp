@@ -83,15 +83,15 @@
             const memory_storage_t &diff_bias, int part) const
 
 #define cell_execution_sig(f) \
-    status_t f(engine_t *engine, const exec_ctx_t &ctx, dim_t dir, dim_t lay, \
-            dim_t iter, const rnn_utils::user_data_t &user_data, \
+    status_t f(impl::engine_t *engine, const exec_ctx_t &ctx, dim_t dir, \
+            dim_t lay, dim_t iter, const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
             const memory_storage_t &diff_bias, const memory_storage_t *scales, \
             const memory_storage_t *tm_scales) const
 
 #define grid_execution_sig(f) \
-    status_t f(engine_t *engine, const exec_ctx_t &ctx, \
+    status_t f(impl::engine_t *engine, const exec_ctx_t &ctx, \
             const rnn_utils::user_data_t &user_data, \
             const rnn_utils::workspace_t &workspace, \
             const rnn_utils::scratch_t &scratch, \
@@ -99,7 +99,7 @@
             const memory_storage_t *tm_scales) const
 
 #define gemm_sig(f) \
-    status_t f(engine_t *engine, const exec_ctx_t &ctx, \
+    status_t f(impl::engine_t *engine, const exec_ctx_t &ctx, \
             const rnn_utils::sub_buffer_t &a, \
             const rnn_utils::sub_buffer_t &b, \
             const rnn_utils::sub_buffer_t &c, gemm_kind_t gemm_kind) const

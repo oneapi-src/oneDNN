@@ -58,7 +58,7 @@ struct gen9_eltwise_jit_params_t {
         return t;
     }
 
-    status_t init(engine_t *engine, const memory_desc_wrapper data_d,
+    status_t init(impl::engine_t *engine, const memory_desc_wrapper data_d,
             alg_kind_t alg_kind);
     compute::kernel_ctx_t get_kernel_ctx() const;
 
@@ -79,7 +79,7 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9:any", gen9_eltwise_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
@@ -110,12 +110,12 @@ struct gen9_eltwise_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
 
         gen9_eltwise_jit_params_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_kernel(engine, kernel_, "gen9_eltwise_fwd", pd()->conf);
     }
 
@@ -138,7 +138,7 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9:any", gen9_eltwise_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace utils;
             assert(engine->kind() == engine_kind::gpu);
@@ -178,12 +178,12 @@ struct gen9_eltwise_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
 
         gen9_eltwise_jit_params_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_kernel(engine, kernel_, "gen9_eltwise_bwd", pd()->conf);
     }
 

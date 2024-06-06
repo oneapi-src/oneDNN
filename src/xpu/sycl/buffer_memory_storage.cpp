@@ -94,8 +94,8 @@ std::unique_ptr<memory_storage_t> buffer_memory_storage_t::get_sub_storage(
     } else {
         gpu_assert(IMPLICATION(
                 xpu::sycl::is_intel_device(
-                        utils::downcast<const impl::sycl::sycl_engine_base_t *>(
-                                engine())
+                        utils::downcast<const xpu::sycl::engine_impl_t *>(
+                                engine()->impl())
                                 ->device()),
                 offset % gpu::intel::ocl::OCL_BUFFER_ALIGNMENT == 0));
         xpu::sycl::buffer_u8_t *sub_buffer = buffer_
@@ -123,9 +123,9 @@ std::unique_ptr<memory_storage_t> buffer_memory_storage_t::clone() const {
 }
 
 status_t buffer_memory_storage_t::init_allocate(size_t size) {
-    const auto &device
-            = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine())
-                      ->device();
+    const auto &device = utils::downcast<const xpu::sycl::engine_impl_t *>(
+            engine()->impl())
+                                 ->device();
     if (size > device.get_info<::sycl::info::device::max_mem_alloc_size>()) {
         return status::out_of_memory;
     }

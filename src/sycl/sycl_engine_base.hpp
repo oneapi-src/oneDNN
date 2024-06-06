@@ -28,7 +28,7 @@
 #include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
-#include "xpu/sycl/engine_id.hpp"
+#include "xpu/ocl/utils.hpp"
 #include "xpu/sycl/engine_impl.hpp"
 
 namespace dnnl {
@@ -52,8 +52,8 @@ public:
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override;
 
-    status_t create_stream(stream_t **stream, unsigned flags) override;
-    status_t create_stream(stream_t **stream, ::sycl::queue &queue);
+    status_t create_stream(
+            stream_t **stream, impl::stream_impl_t *stream_impl) override;
 
     status_t convert_to_sycl(
             std::vector<gpu::intel::compute::kernel_t> &kernels,
@@ -159,14 +159,28 @@ public:
 
     xpu::sycl::backend_t backend() const { return impl()->backend(); }
 
-    cl_device_id ocl_device() const { return impl()->ocl_device(); }
-    cl_context ocl_context() const { return impl()->ocl_context(); }
+    cl_device_id ocl_device() const {
+        if (backend() != xpu::sycl::backend_t::opencl) {
+            assert(!"not expected");
+            return nullptr;
+        }
+        assert(device().is_cpu() || device().is_gpu());
+        return xpu::ocl::make_wrapper(
+                xpu::sycl::compat::get_native<cl_device_id>(device()));
+    }
 
-    device_id_t device_id() const override { return impl()->device_id(); }
+    cl_context ocl_context() const {
+        if (backend() != xpu::sycl::backend_t::opencl) {
+            assert(!"not expected");
+            return nullptr;
+        }
+        assert(device().is_cpu() || device().is_gpu());
+        return xpu::ocl::make_wrapper(
+                xpu::sycl::compat::get_native<cl_context>(context()));
+    }
 
-    engine_id_t engine_id() const override {
-        return engine_id_t(new xpu::sycl::engine_id_impl_t(
-                device(), context(), kind(), runtime_kind(), index()));
+    gpu::intel::gpu_utils::device_id_t device_id() const override {
+        return gpu::intel::sycl::device_id(device());
     }
 
 protected:

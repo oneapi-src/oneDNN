@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #ifndef COMMON_REORDER_HPP
 #define COMMON_REORDER_HPP
+
+#include <memory>
 
 #include "c_types_map.hpp"
 

@@ -186,33 +186,6 @@ bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs) {
     return false;
 }
 
-device_id_t device_id(const ::sycl::device &dev) {
-    if (is_host(dev))
-        return std::make_tuple(static_cast<int>(backend_t::host), 0, 0);
-
-    device_id_t device_id
-            = device_id_t {static_cast<int>(backend_t::unknown), 0, 0};
-    switch (get_backend(dev)) {
-        case backend_t::opencl: {
-            auto ocl_device = xpu::ocl::make_wrapper(
-                    compat::get_native<cl_device_id>(dev));
-            device_id = std::make_tuple(static_cast<int>(backend_t::opencl),
-                    reinterpret_cast<uint64_t>(ocl_device.get()), 0);
-            break;
-        }
-        case backend_t::level0: {
-            device_id = std::tuple_cat(
-                    std::make_tuple(static_cast<int>(backend_t::level0)),
-                    gpu::intel::sycl::get_device_uuid(dev));
-            break;
-        }
-        case backend_t::unknown: assert(!"unknown backend"); break;
-        default: assert(!"unreachable");
-    }
-    assert(std::get<0>(device_id) != static_cast<int>(backend_t::unknown));
-    return device_id;
-}
-
 bool dev_ctx_consistency_check(
         const ::sycl::device &dev, const ::sycl::context &ctx) {
     auto ctx_devs = ctx.get_devices();
@@ -268,10 +241,23 @@ status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
     return status::success;
 }
 
+static bool is_vendor_device(const ::sycl::device &dev, int vendor_id) {
+    return (int)dev.get_info<::sycl::info::device::vendor_id>() == vendor_id;
+}
+
 bool is_intel_device(const ::sycl::device &dev) {
     const int intel_vendor_id = 0x8086;
-    auto vendor_id = dev.get_info<::sycl::info::device::vendor_id>();
-    return vendor_id == intel_vendor_id;
+    return is_vendor_device(dev, intel_vendor_id);
+}
+
+bool is_nvidia_gpu(const ::sycl::device &dev) {
+    const int nvidia_vendor_id = 0x10DE;
+    return dev.is_gpu() && is_vendor_device(dev, nvidia_vendor_id);
+}
+
+bool is_amd_gpu(const ::sycl::device &dev) {
+    const int amd_vendor_id = 0x1002;
+    return dev.is_gpu() && is_vendor_device(dev, amd_vendor_id);
 }
 
 std::vector<::sycl::device> get_devices(

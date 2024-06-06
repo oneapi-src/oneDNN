@@ -16,8 +16,8 @@
 *******************************************************************************/
 
 #include "gpu/nvidia/cudnn_reorder.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_stream_utils.hpp"
 
 #include "xpu/sycl/memory_storage_helper.hpp"
@@ -31,8 +31,8 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
     memory_desc_wrapper wrap(pd()->src_md());
     if (wrap.size() == 0) { return status::success; }
 
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -43,7 +43,7 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
                 = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
         compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();

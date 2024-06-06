@@ -24,8 +24,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
@@ -42,7 +42,7 @@ struct ref_matmul_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_matmul_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
@@ -123,7 +123,7 @@ struct ref_matmul_t : public gpu_primitive_t {
         attr_info_t attr_info_ = {};
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         int ndims = pd()->dst_md()->ndims;

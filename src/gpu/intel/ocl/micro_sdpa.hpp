@@ -27,8 +27,8 @@
 #include "common/sdpa_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/microkernels/shim.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
@@ -46,7 +46,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:micro:any", micro_sdpa_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
@@ -112,10 +112,10 @@ struct micro_sdpa_t : public gpu_primitive_t {
         int sg_size_ = 0;
         compute::gpu_arch_t arch_;
 
-        status_t init_microkernels(engine_t *engine);
+        status_t init_microkernels(impl::engine_t *engine);
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

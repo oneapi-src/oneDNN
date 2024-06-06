@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,8 +23,8 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/nvidia/cudnn_pooling_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -54,7 +54,7 @@ struct cudnn_pooling_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_pooling_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
             using namespace alg_kind;
@@ -62,8 +62,7 @@ struct cudnn_pooling_fwd_t : public primitive_t {
 
             assert(engine->kind() == engine_kind::gpu);
             auto src_dt = src_md()->data_type;
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             bool ok = true && is_fwd()
                     && utils::one_of(desc()->prop_kind, forward_training,
@@ -125,13 +124,12 @@ struct cudnn_pooling_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_pooling_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace alg_kind;
             using namespace format_tag;
             assert(engine->kind() == engine_kind::gpu);
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             bool ok = true && !is_fwd()
                     && set_default_params() == status::success

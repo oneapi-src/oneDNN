@@ -31,23 +31,25 @@ namespace usm {
 
 enum class ocl_usm_kind_t { unknown, host, device, shared };
 
-bool is_usm_supported(engine_t *engine);
-void *malloc_host(engine_t *engine, size_t size);
-void DNNL_API *malloc_device(engine_t *engine, size_t size);
-void DNNL_API *malloc_shared(engine_t *engine, size_t size);
+bool is_usm_supported(impl::engine_t *engine);
+void *malloc_host(impl::engine_t *engine, size_t size);
+void DNNL_API *malloc_device(impl::engine_t *engine, size_t size);
+void DNNL_API *malloc_shared(impl::engine_t *engine, size_t size);
 
-void DNNL_API free(engine_t *engine, void *ptr);
-status_t set_kernel_arg_usm(engine_t *engine, cl_kernel kernel, int arg_index,
-        const void *arg_value);
-status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size,
+void DNNL_API free(impl::engine_t *engine, void *ptr);
+status_t set_kernel_arg_usm(impl::engine_t *engine, cl_kernel kernel,
+        int arg_index, const void *arg_value);
+status_t memcpy(impl::stream_t *stream, void *dst, const void *src, size_t size,
         cl_uint num_events, const cl_event *events, cl_event *out_event);
 status_t DNNL_API memcpy(
-        stream_t *stream, void *dst, const void *src, size_t size);
-status_t fill(stream_t *stream, void *ptr, const void *pattern,
+        impl::stream_t *stream, void *dst, const void *src, size_t size);
+status_t fill(impl::stream_t *stream, void *ptr, const void *pattern,
         size_t pattern_size, size_t size, cl_uint num_events,
         const cl_event *events, cl_event *out_event);
-status_t DNNL_API memset(stream_t *stream, void *ptr, int value, size_t size);
-ocl_usm_kind_t DNNL_API get_pointer_type(engine_t *engine, const void *ptr);
+status_t DNNL_API memset(
+        impl::stream_t *stream, void *ptr, int value, size_t size);
+ocl_usm_kind_t DNNL_API get_pointer_type(
+        impl::engine_t *engine, const void *ptr);
 
 } // namespace usm
 } // namespace ocl

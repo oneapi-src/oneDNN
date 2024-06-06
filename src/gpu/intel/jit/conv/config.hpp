@@ -647,7 +647,8 @@ private:
 };
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
-        const engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr);
+        const impl::engine_t *engine, convolution_pd_t *pd,
+        primitive_attr_t *attr);
 status_t init_cfg(conv_config_t &cfg, const primitive_t *prim);
 status_t init_regs(conv_config_t &cfg);
 int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,

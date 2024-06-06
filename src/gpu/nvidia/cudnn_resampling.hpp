@@ -24,9 +24,12 @@
 #include "common/primitive.hpp"
 #include "common/resampling_pd.hpp"
 #include "common/type_helpers.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+
+#include "xpu/sycl/memory_storage.hpp"
+
+#include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 #include "gpu/nvidia/cudnn_resampling_impl.hpp"
@@ -67,7 +70,7 @@ protected:
                 ->buffer();
     }
     template <typename data_t, typename pd_t>
-    status_t prepare_coordinate_grid(engine_t *engine, const pd_t *pd) {
+    status_t prepare_coordinate_grid(impl::engine_t *engine, const pd_t *pd) {
         using io = cudnn_resampling_impl_base_t::io;
         int ndims = pd->resampling_impl_->ndims();
         data_t OW = pd->resampling_impl_->dims_[io::dst][ndims - 1],
@@ -90,7 +93,7 @@ protected:
         std::vector<theta_t<data_t>> theta_data(theta_size, tau_theta);
 
         auto grid_size = pd->MB() * pd->OH() * pd->OW() * 2;
-        auto sycl_engine = utils::downcast<sycl_cuda_engine_t *>(engine);
+        auto sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
         auto theta_size_in_byte = tau_thea_size * theta_size * sizeof(data_t);
         auto grid_size_in_byte = grid_size * sizeof(data_t);
@@ -105,11 +108,10 @@ protected:
                 memory_flags_t::alloc, theta_size_in_byte, nullptr));
         theta_storage_.reset(mem_theta_ptr);
 
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine->get_service_stream(service_stream));
 
-        auto cuda_stream
-                = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+        auto cuda_stream = utils::downcast<nvidia::stream_t *>(service_stream);
         auto event = copy(cuda_stream->queue(),
                 reinterpret_cast<uint8_t *>(theta_data.data()),
                 buffer(theta_storage_.get()));
@@ -126,7 +128,7 @@ protected:
             compat::host_task(cgh, [=](const compat::interop_handle &ih) {
                 // scoped context will make sure the top of the stack context is
                 // the engine context while creating the cublas handle.
-                auto &s_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
+                auto &s_engine = *utils::downcast<nvidia::engine_t *>(engine);
                 cuda_sycl_scoped_context_handler_t sc(s_engine);
                 auto handle = cuda_stream->get_cudnn_handle();
                 auto theta = sc.memory<void *>(ih, theta_acc);
@@ -169,7 +171,7 @@ struct cudnn_resampling_fwd_t : public cudnn_resampling_base_t {
         using resampling_fwd_pd_t::resampling_fwd_pd_t;
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_resampling_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace format_tag;
 
@@ -197,7 +199,7 @@ struct cudnn_resampling_fwd_t : public cudnn_resampling_base_t {
         std::shared_ptr<cudnn_resampling_impl_base_t> resampling_impl_;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         status_t status;
         auto wrap = memory_desc_wrapper(pd()->src_md());
         switch (wrap.data_type()) {
@@ -226,7 +228,7 @@ struct cudnn_resampling_bwd_t : public cudnn_resampling_base_t {
         using resampling_bwd_pd_t::resampling_bwd_pd_t;
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_resampling_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace format_tag;
 
@@ -250,7 +252,7 @@ struct cudnn_resampling_bwd_t : public cudnn_resampling_base_t {
         }
         std::shared_ptr<cudnn_resampling_impl_base_t> resampling_impl_;
     };
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return prepare_coordinate_grid<float>(engine, pd());
     }
 

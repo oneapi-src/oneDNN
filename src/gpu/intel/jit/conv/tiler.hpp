@@ -46,9 +46,9 @@ public:
     void notify_out_of_registers(const conv_config_t &cfg);
     bool is_grf_limit_ok(const conv_config_t &cfg) const;
     static void after_create_hook(
-            const conv_config_t &cfg, const primitive_t *primitive);
+            const conv_config_t &cfg, const impl::primitive_t *primitive);
     static void before_exec_hook(
-            const primitive_t *primitive, stream_t *stream);
+            const impl::primitive_t *primitive, impl::stream_t *stream);
 
 private:
     std::shared_ptr<conv_tiler_impl_t> impl_;

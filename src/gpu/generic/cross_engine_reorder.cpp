@@ -14,36 +14,37 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/cross_engine_reorder.hpp"
-
 #include "common/reorder.hpp"
 #include "common/utils.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
-#include "gpu/intel/primitive_conf.hpp"
+
+#include "gpu/generic/cross_engine_reorder.hpp"
+#include "gpu/gpu_engine.hpp"
+#include "gpu/gpu_stream.hpp"
+#include "gpu/gpu_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace intel {
-namespace ocl {
+namespace generic {
 
-void cross_engine_reorder_t::pd_t::init_scratchpad() {
+void cross_engine_reorder_t::pd_t::init_scratchpad(impl::engine_t *engine) {
     using namespace memory_tracking::names;
     if (!do_reorder_) return;
+
+    auto *gpu_engine = utils::downcast<gpu::engine_t *>(engine);
 
     const memory_desc_wrapper wspace_md(
             desc()->src_engine_kind == reorder_engine_kind_ ? dst_md()
                                                             : src_md());
     auto scratchpad = scratchpad_registry().registrar();
     scratchpad.book(memory_tracking::names::key_reorder_cross_space,
-            wspace_md.size(), 1, OCL_BUFFER_ALIGNMENT);
+            wspace_md.size(), 1, gpu_engine->get_buffer_alignment());
     scratchpad.book(key_nested, reorder_pd_->scratchpad_registry().size(), 1,
-            OCL_BUFFER_ALIGNMENT);
+            gpu_engine->get_buffer_alignment());
 }
 
-status_t cross_engine_reorder_t::pd_t::init(
-        engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+status_t cross_engine_reorder_t::pd_t::init(impl::engine_t *engine,
+        impl::engine_t *src_engine, impl::engine_t *dst_engine) {
     VDISPATCH_REORDER(src_engine != dst_engine, VERBOSE_BAD_ENGINE_KIND);
     VDISPATCH_REORDER(utils::one_of(engine_kind::gpu, src_engine->kind(),
                               dst_engine->kind()),
@@ -57,15 +58,15 @@ status_t cross_engine_reorder_t::pd_t::init(
     VDISPATCH_REORDER(!src_mdw.has_runtime_dims_or_strides(),
             VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
-    quantization_t src_quant {attr(), src_mdw, DNNL_ARG_SRC};
-    quantization_t dst_quant {attr(), dst_mdw, DNNL_ARG_DST};
-    sum_quantization_t sum_quant {attr()};
+    gpu::quantization_t src_quant {attr(), src_mdw, DNNL_ARG_SRC};
+    gpu::quantization_t dst_quant {attr(), dst_mdw, DNNL_ARG_DST};
+    gpu::sum_quantization_t sum_quant {attr()};
     bool with_sum_ab = src_quant.with_scale() || src_quant.with_zp()
             || dst_quant.with_scale() || dst_quant.with_zp()
             || sum_quant.with_scale() || sum_quant.with_zp();
     do_reorder_ = with_sum_ab || src_mdw != dst_mdw;
 
-    engine_t *reorder_engine
+    impl::engine_t *reorder_engine
             = src_engine->kind() == engine_kind::gpu ? src_engine : dst_engine;
 
     primitive_attr_t r_attr(*attr());
@@ -74,7 +75,7 @@ status_t cross_engine_reorder_t::pd_t::init(
     VDISPATCH_REORDER_SC(reorder_primitive_desc_create(reorder_pd_,
                                  reorder_engine, src_md(), dst_md(), &r_attr),
             VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
-    init_scratchpad();
+    init_scratchpad(engine);
 
     reorder_pd_t::init_desc(
             src_engine->kind(), dst_engine->kind(), true /* is_cross_engine */);
@@ -84,8 +85,7 @@ status_t cross_engine_reorder_t::pd_t::init(
 
 status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
-    auto *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+    auto *gpu_stream = utils::downcast<gpu::stream_t *>(ctx.stream());
 
     status_t status = status::success;
 
@@ -131,9 +131,9 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         memory_desc_wrapper dst_mdw(pd()->dst_md());
         if (pd()->do_reorder_) {
             if (pd()->beta() != 0.f) {
-                status = compute_stream->copy(dst, *wspace->memory_storage(),
-                        dst_mdw.size(), compute_stream->ctx().get_deps(),
-                        compute_stream->ctx().get_deps());
+                status = gpu_stream->copy(dst, *wspace->memory_storage(),
+                        dst_mdw.size(), gpu_stream->ctx().get_deps(),
+                        gpu_stream->ctx().get_deps());
             }
             if (status == status::success)
                 status = exec_reorder(ctx.input(DNNL_ARG_FROM), wspace.get(),
@@ -141,18 +141,18 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
                         ctx.input(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST));
         }
         if (status == status::success) {
-            status = compute_stream->copy(
+            status = gpu_stream->copy(
                     pd()->do_reorder_ ? *wspace->memory_storage() : src, dst,
-                    dst_mdw.size(), compute_stream->ctx().get_deps(),
-                    compute_stream->ctx().get_deps());
+                    dst_mdw.size(), gpu_stream->ctx().get_deps(),
+                    gpu_stream->ctx().get_deps());
         }
     } else {
         // CPU -> GPU
         memory_desc_wrapper src_mdw(pd()->src_md());
-        status = compute_stream->copy(src,
+        status = gpu_stream->copy(src,
                 pd()->do_reorder_ ? *wspace->memory_storage() : dst,
-                src_mdw.size(), compute_stream->ctx().get_deps(),
-                compute_stream->ctx().get_deps());
+                src_mdw.size(), gpu_stream->ctx().get_deps(),
+                gpu_stream->ctx().get_deps());
         if (status == status::success && pd()->do_reorder_) {
             status = exec_reorder(wspace.get(), ctx.output(DNNL_ARG_TO),
                     ctx.input(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC),
@@ -162,8 +162,7 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     return status;
 }
 
-} // namespace ocl
-} // namespace intel
+} // namespace generic
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -35,7 +35,8 @@ static int adjust_dims(dims_t &dims, const memory_desc_t *dst, int ndims) {
     return max_dims;
 }
 
-status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t convolution_inner_product_fwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     const inner_product_desc_t &ipd = *desc();
 
     const auto *src_md = invariant_src_md();
@@ -165,7 +166,7 @@ status_t convolution_inner_product_fwd_t::execute_forward(
 
     std::unique_ptr<memory_t> wspace_dst;
     auto exec_reorder = [&](memory_t *in, memory_t *out,
-                                const std::shared_ptr<primitive_t> &prim,
+                                const std::shared_ptr<impl::primitive_t> &prim,
                                 int r_num) -> status_t {
         exec_args_t r_args;
         r_args[DNNL_ARG_FROM] = memory_arg_t {in, true};

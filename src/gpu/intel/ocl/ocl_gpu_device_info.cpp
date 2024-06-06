@@ -26,7 +26,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-status_t ocl_gpu_device_info_t::init_arch(engine_t *engine) {
+status_t ocl_gpu_device_info_t::init_arch(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
     auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 
@@ -68,7 +68,7 @@ status_t ocl_gpu_device_info_t::init_arch(engine_t *engine) {
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_device_name(engine_t *engine) {
+status_t ocl_gpu_device_info_t::init_device_name(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
     auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 
@@ -84,7 +84,7 @@ status_t ocl_gpu_device_info_t::init_device_name(engine_t *engine) {
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_runtime_version(engine_t *engine) {
+status_t ocl_gpu_device_info_t::init_runtime_version(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
     auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 
@@ -107,7 +107,7 @@ status_t ocl_gpu_device_info_t::init_runtime_version(engine_t *engine) {
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_extensions(engine_t *engine) {
+status_t ocl_gpu_device_info_t::init_extensions(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
     auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 
@@ -139,7 +139,7 @@ status_t ocl_gpu_device_info_t::init_extensions(engine_t *engine) {
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_attributes(engine_t *engine) {
+status_t ocl_gpu_device_info_t::init_attributes(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
     auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 

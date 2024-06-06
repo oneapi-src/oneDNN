@@ -46,14 +46,14 @@ public:
         using gpu_convolution_fwd_pd_t::gpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("jit:ir_v2", gen_convolution_fwd_t);
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         std::shared_ptr<exec_plan_t> exec_plan;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
@@ -71,14 +71,14 @@ public:
         using gpu_convolution_bwd_data_pd_t::gpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T("jit:ir_v2", gen_convolution_bwd_data_t);
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         std::shared_ptr<exec_plan_t> exec_plan;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
@@ -97,14 +97,14 @@ public:
                 gpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T("jit:ir_v2", gen_convolution_bwd_weights_t);
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         std::shared_ptr<exec_plan_t> exec_plan;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:

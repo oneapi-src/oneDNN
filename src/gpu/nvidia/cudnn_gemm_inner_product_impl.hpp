@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@
 
 #include "common/type_helpers.hpp"
 #include "gpu/nvidia/cudnn_inner_product_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
@@ -76,8 +76,9 @@ struct cudnn_gemm_inner_product_fwd_impl_t
     cudnnTensorDescriptor_t y_acc_desc_;
     bool need_reorder_;
 
-    virtual status_t init(engine_t *, inner_product_pd_t *pd, bool with_relu,
-            bool with_eltwise, bool with_sum, bool need_reorder) override {
+    virtual status_t init(impl::engine_t *, inner_product_pd_t *pd,
+            bool with_relu, bool with_eltwise, bool with_sum,
+            bool need_reorder) override {
         need_reorder_ = need_reorder;
         // GEMM is column major, here the data is row major.
         // By switching the weight and source we convert the row major to
@@ -278,7 +279,7 @@ struct cudnn_gemm_inner_product_bwd_data_impl_t
       public cudnn_conv_filter_adjustment_base_t {
     bool need_reorder_;
 
-    virtual status_t init(engine_t *, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool need_reorder) override {
         need_reorder_ = need_reorder;
@@ -362,7 +363,7 @@ struct cudnn_gemm_inner_product_bwd_weights_impl_t
                 CUDNN_REDUCE_TENSOR_NO_INDICES, CUDNN_32BIT_INDICES);
         return status::success;
     }
-    virtual status_t init(engine_t *engine, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool need_reorder) override {
         need_reorder_ = need_reorder;
@@ -432,12 +433,12 @@ struct cudnn_gemm_inner_product_bwd_weights_impl_t
                     strides_[io::bia]));
             CHECK(create_and_set_reduce_descriptor());
 
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(engine);
-            stream_t *service_stream;
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine);
+            impl::stream_t *service_stream;
             CHECK(sycl_engine.get_service_stream(service_stream));
 
             auto cuda_stream
-                    = utils::downcast<sycl_cuda_stream_t *>(service_stream);
+                    = utils::downcast<nvidia::stream_t *>(service_stream);
             auto handle = cuda_stream->get_cudnn_handle();
 
             // get the required workspace size

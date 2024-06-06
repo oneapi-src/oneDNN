@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,7 @@
 #include "common/primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/nvidia/cudnn_reorder_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
+#include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -39,10 +39,9 @@ struct cudnn_reorder_t : public primitive_t {
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_reorder_t);
 
         // Function to verify data and memory format
-        bool valid_data_n_mem_format(engine_t *engine) const {
+        bool valid_data_n_mem_format(impl::engine_t *engine) const {
             auto sycl_dev
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine)
-                              ->device();
+                    = utils::downcast<nvidia::engine_t *>(engine)->device();
 
             bool ok = utils::one_of(src_md()->data_type, data_type::s8,
                               data_type::bf16, data_type::f16, data_type::f32)
@@ -100,8 +99,8 @@ struct cudnn_reorder_t : public primitive_t {
             return p.len() == 0 || (p.len() == 1 && p.entry_[0].is_sum(false));
         }
 
-        status_t init(
-                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+        status_t init(impl::engine_t *engine, impl::engine_t *src_engine,
+                impl::engine_t *dst_engine) {
             const auto attr_skip_mask
                     = primitive_attr_t::skip_mask_t::scales_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;

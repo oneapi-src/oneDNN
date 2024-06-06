@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -142,8 +142,9 @@ struct miopen_inner_product_impl_base_t {
         strides_[io::bia][1] = 1;
         strides_[io::bia][0] = bias_dim;
     }
-    virtual status_t init(engine_t * /*engine*/, inner_product_pd_t * /*pd*/,
-            bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
+    virtual status_t init(impl::engine_t * /*engine*/,
+            inner_product_pd_t * /*pd*/, bool /*with_relu*/,
+            bool /*with_eltwise*/, bool /*with_sum */,
             bool /*using_fused_path_for_blocking*/)
             = 0;
 

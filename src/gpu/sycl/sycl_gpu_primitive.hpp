@@ -17,7 +17,6 @@
 #ifndef GPU_SYCL_SYCL_GPU_PRIMITIVE_HPP
 #define GPU_SYCL_SYCL_GPU_PRIMITIVE_HPP
 
-#include "gpu/intel/gpu_primitive.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_stream.hpp"
 
@@ -33,14 +32,16 @@ struct sycl_gpu_primitive_t : public primitive_t {
     using primitive_t::primitive_t;
 
 protected:
-    status_t create_kernel(engine_t *engine, ::sycl::kernel_id kid,
+    status_t create_kernel(impl::engine_t *engine, ::sycl::kernel_id kid,
             intel::compute::kernel_t *kernel) {
         using namespace impl::sycl;
-        auto sycl_engine = utils::downcast<sycl_engine_base_t *>(engine);
+        auto ctx = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                engine->impl())
+                           ->context();
 
         auto input_bundle
                 = ::sycl::get_kernel_bundle<::sycl::bundle_state::input>(
-                        sycl_engine->context(), {kid});
+                        ctx, {kid});
         auto exe_bundle = ::sycl::build(input_bundle);
 
         auto kernel_impl

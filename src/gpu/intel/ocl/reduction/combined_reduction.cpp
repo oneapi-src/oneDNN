@@ -238,7 +238,7 @@ status_t split_into_phases(const reduction_subproblem_t &subprb,
     return status::success;
 }
 
-status_t combined_reduction_t::pd_t::init_conf(engine_t *engine) {
+status_t combined_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
     // To start, check for compatibility
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());

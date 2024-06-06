@@ -45,7 +45,7 @@ public:
     virtual bool with_dpas() const = 0;
     virtual status_t init_kernel_info(kernel_info_t &kernel_info) const = 0;
     virtual status_t create_kernel(compute::kernel_t &kernel,
-            gpu_primitive_t *primitive, engine_t *engine) const = 0;
+            gpu_primitive_t *primitive, impl::engine_t *engine) const = 0;
     virtual serialized_t serialize() const = 0;
     hw_t hw() const { return exec_cfg().hw(); }
 };

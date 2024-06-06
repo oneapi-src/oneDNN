@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +39,7 @@ struct miopen_binary_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_binary_t);
 
-        status_t init(engine_t *) {
+        status_t init(impl::engine_t *) {
             using namespace data_type;
 
             bool ok = (set_default_params() == status::success)

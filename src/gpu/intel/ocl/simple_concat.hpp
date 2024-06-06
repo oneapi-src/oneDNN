@@ -20,8 +20,8 @@
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
 #include "gpu/gpu_concat_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -37,7 +37,7 @@ struct simple_concat_t : public gpu_primitive_t {
 
         DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             VDISPATCH_CONCAT(n_inputs() <= 64, VERBOSE_BAD_PARAM, "n_inputs");
             VDISPATCH_CONCAT(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
@@ -49,12 +49,12 @@ struct simple_concat_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         concat_conf_t conf;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);

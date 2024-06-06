@@ -39,7 +39,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
 
         DECLARE_COMMON_PD_T("jit:xe_hp:gemm:any", xe_hp_systolic_gemm_t);
 
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
         void init_scratchpad();
 
         bool use_nocopy();
@@ -168,7 +168,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
         bool alt_ = false;
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
 
 public:
     xe_hp_systolic_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
@@ -176,7 +176,7 @@ public:
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
-    status_t init_compute(engine_t *engine);
+    status_t init_compute(impl::engine_t *engine);
 
     bool enable_mn_blocking() const;
     std::tuple<int64_t, int64_t, int64_t> get_blocking() const;

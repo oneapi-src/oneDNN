@@ -39,7 +39,7 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
 
         pd_t(const pd_t &other) = default;
 
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         void init_scratchpad();
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
@@ -55,7 +55,7 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
         attr_info_t attr_info_;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         auto ret_status
                 = create_nested_primitive(gemm_prim_, pd()->gemm_pd_, engine);
         CHECK(ret_status);
@@ -78,7 +78,7 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> gemm_prim_;
+    std::shared_ptr<impl::primitive_t> gemm_prim_;
     compute::kernel_t post_process_kernel_;
 };
 

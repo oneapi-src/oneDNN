@@ -46,8 +46,9 @@ public:
                 storage, flags, size, handle);
     }
 
-    status_t create_stream(stream_t **stream, unsigned flags) override {
-        return sycl_engine_base_t::create_stream(stream, flags);
+    status_t create_stream(impl::stream_t **stream,
+            impl::stream_impl_t *stream_impl) override {
+        return sycl_engine_base_t::create_stream(stream, stream_impl);
     }
 
     const impl_list_item_t *get_reorder_implementation_list(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,8 +26,8 @@
 #include "common/type_helpers.hpp"
 #include "gpu/nvidia/cudnn_batch_normalization_executor.hpp"
 #include "gpu/nvidia/cudnn_batch_normalization_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -38,7 +38,7 @@ namespace nvidia {
 struct cudnn_batch_normalization_common_t {
     template <typename pd_t>
     static status_t execute(
-            const exec_ctx_t &ctx, engine_t *engine, const pd_t *pd) {
+            const exec_ctx_t &ctx, impl::engine_t *engine, const pd_t *pd) {
         if (memory_desc_wrapper(pd->src_md()).has_zero_dim())
             return status::success;
         return pd->executor_->execute(ctx, engine, pd->bnorm_impl_);
@@ -67,7 +67,7 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_batch_normalization_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace types;
 
@@ -139,7 +139,7 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_batch_normalization_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace types;
 

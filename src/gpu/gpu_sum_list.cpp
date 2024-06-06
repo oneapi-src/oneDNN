@@ -19,12 +19,13 @@
 #include "common/utils.hpp"
 #include "gpu/gpu_sum_pd.hpp"
 
+#include "gpu/generic/ref_sum.hpp"
+
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/jit/gen9_simple_sum.hpp"
 #include "gpu/intel/ocl/gen9_sum.hpp"
 #include "gpu/intel/ocl/many_inputs_sum.hpp"
 #include "gpu/intel/ocl/multi_po_reorder_sum.hpp"
-#include "gpu/intel/ocl/ref_sum.hpp"
 #include "gpu/intel/ocl/simple_sum.hpp"
 #endif
 
@@ -47,8 +48,8 @@ constexpr impl_list_item_t impl_list[] = REG_SUM_P({
         GPU_SUM_INSTANCE_INTEL(intel::ocl::gen9_sum_t)
         GPU_SUM_INSTANCE_INTEL(intel::ocl::many_inputs_sum_t)
         GPU_SUM_INSTANCE_INTEL(intel::ocl::simple_sum_t<data_type::f32>)
-        GPU_SUM_INSTANCE_INTEL(intel::ocl::ref_sum_t)
         GPU_SUM_INSTANCE_NVIDIA(nvidia::cudnn_ref_sum_t)
+        GPU_SUM_INSTANCE_GENERIC(generic::ref_sum_t)
         nullptr,
 });
 // clang-format on

@@ -24,6 +24,8 @@ add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
 
+add_subdirectory(generic)
+
 if(DNNL_WITH_SYCL)
     add_subdirectory(sycl)
 endif()

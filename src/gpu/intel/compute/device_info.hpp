@@ -26,6 +26,8 @@
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
 
+#include "xpu/utils.hpp"
+
 #include "oneapi/dnnl/dnnl_config.h"
 
 namespace dnnl {
@@ -144,68 +146,6 @@ enum class native_ext_t : uint64_t {
     last
 };
 
-struct runtime_version_t {
-    int major;
-    int minor;
-    int build;
-
-    runtime_version_t(int major = 0, int minor = 0, int build = 0)
-        : major {major}, minor {minor}, build {build} {}
-
-    bool operator==(const runtime_version_t &other) const {
-        return (major == other.major) && (minor == other.minor)
-                && (build == other.build);
-    }
-
-    bool operator!=(const runtime_version_t &other) const {
-        return !(*this == other);
-    }
-
-    bool operator<(const runtime_version_t &other) const {
-        if (major < other.major) return true;
-        if (major > other.major) return false;
-        if (minor < other.minor) return true;
-        if (minor > other.minor) return false;
-        return (build < other.build);
-    }
-
-    bool operator>(const runtime_version_t &other) const {
-        return (other < *this);
-    }
-
-    bool operator<=(const runtime_version_t &other) const {
-        return !(*this > other);
-    }
-
-    bool operator>=(const runtime_version_t &other) const {
-        return !(*this < other);
-    }
-
-    status_t set_from_string(const char *s) {
-        int i_major = 0, i = 0;
-
-        for (; s[i] != '.'; i++)
-            if (!s[i]) return status::invalid_arguments;
-
-        auto i_minor = ++i;
-
-        for (; s[i] != '.'; i++)
-            if (!s[i]) return status::invalid_arguments;
-
-        auto i_build = ++i;
-
-        major = atoi(&s[i_major]);
-        minor = atoi(&s[i_minor]);
-        build = atoi(&s[i_build]);
-
-        return status::success;
-    }
-
-    std::string str() const {
-        return utils::format("%d.%d.%d", major, minor, build);
-    }
-};
-
 // Needed workaround for future HW extensions
 uint64_t get_future_extensions(
         compute::gpu_arch_t gpu_arch, bool mayiuse_systolic);
@@ -215,7 +155,7 @@ public:
     virtual ~device_info_t() = default;
 
     status_t init(
-            engine_t *engine, const std::vector<uint8_t> &cache_blob = {}) {
+            impl::engine_t *engine, const std::vector<uint8_t> &cache_blob = {}) {
         if (!cache_blob.empty()) {
             CHECK(init_from_cache_blob(cache_blob));
             return init_serialized_device_info(cache_blob);
@@ -267,7 +207,7 @@ public:
     size_t l3_cache_size() const { return l3_cache_size_; }
     size_t icache_size() const;
 
-    const runtime_version_t &runtime_version() const {
+    const xpu::runtime_version_t &runtime_version() const {
         return runtime_version_;
     }
     const std::string &name() const { return name_; }
@@ -308,11 +248,11 @@ public:
     }
 
 protected:
-    virtual status_t init_device_name(engine_t *engine) = 0;
-    virtual status_t init_arch(engine_t *engine) = 0;
-    virtual status_t init_runtime_version(engine_t *engine) = 0;
-    virtual status_t init_extensions(engine_t *engine) = 0;
-    virtual status_t init_attributes(engine_t *engine) = 0;
+    virtual status_t init_device_name(impl::engine_t *engine) = 0;
+    virtual status_t init_arch(impl::engine_t *engine) = 0;
+    virtual status_t init_runtime_version(impl::engine_t *engine) = 0;
+    virtual status_t init_extensions(impl::engine_t *engine) = 0;
+    virtual status_t init_attributes(impl::engine_t *engine) = 0;
 
     compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
     int stepping_id_ = 0;
@@ -322,7 +262,7 @@ protected:
     bool mayiuse_system_memory_allocators_ = false;
 
     std::string name_;
-    runtime_version_t runtime_version_;
+    xpu::runtime_version_t runtime_version_;
 
     // total number of hardware threads:
     // [0] - default mode
@@ -341,7 +281,7 @@ protected:
     uint64_t native_extensions_ = 0;
 
 private:
-    status_t init_attributes_common(engine_t *engine);
+    status_t init_attributes_common(impl::engine_t *engine);
     status_t init_serialized_device_info(
             const std::vector<uint8_t> &cache_blob = {});
     status_t init_from_cache_blob(const std::vector<uint8_t> &cache_blob);

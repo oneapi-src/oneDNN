@@ -23,7 +23,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_binary_t::pd_t::init_conf(impl::engine_t *engine) {
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));
     const memory_desc_wrapper dst_d(dst_md());

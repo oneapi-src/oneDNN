@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "oneapi/dnnl/dnnl_threadpool.h"
 
 #include "c_types_map.hpp"
+#include "common/stream_impl.hpp"
 #include "engine.hpp"
 #include "primitive.hpp"
 #include "primitive_exec_types.hpp"
@@ -41,7 +42,13 @@ dnnl_status_t dnnl_threadpool_interop_stream_create(
     auto tp = static_cast<dnnl::threadpool_interop::threadpool_iface *>(
             threadpool);
 
-    return engine->create_stream(stream, tp);
+    std::unique_ptr<dnnl::impl::stream_impl_t> stream_impl(
+            new dnnl::impl::stream_impl_t(tp));
+    if (!stream_impl) return status::out_of_memory;
+
+    CHECK(engine->create_stream(stream, stream_impl.get()));
+    stream_impl.release();
+    return status::success;
 }
 
 dnnl_status_t dnnl_threadpool_interop_stream_get_threadpool(

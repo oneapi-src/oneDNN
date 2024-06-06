@@ -47,7 +47,7 @@ struct jit_reduction_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("jit:ref", jit_reduction_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             // Require the corresponding environment variable - skip this impl
             // unless requested (do not report this skip to verbose)
             bool enable_jit_reduction
@@ -79,14 +79,14 @@ struct jit_reduction_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         dim_t reduction_size = 0;
         dim_t reduction_stride = 0;
         int nregs = 1;
         compute::nd_range_t nd_range;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto *gpu_engine = utils::downcast<ocl::ocl_gpu_engine_t *>(engine);

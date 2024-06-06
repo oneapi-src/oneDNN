@@ -42,8 +42,8 @@ public:
     sycl_hip_engine_t(const ::sycl::device &dev, const ::sycl::context &ctx,
             size_t index);
 
-    status_t create_stream(stream_t **stream, unsigned flags) override;
-    status_t create_stream(stream_t **stream, ::sycl::queue &queue);
+    status_t create_stream(
+            impl::stream_t **stream, impl::stream_impl_t *stream_impl) override;
 
     void activate_stream_miopen(HIPstream hip_stream);
     void activate_stream_rocblas(HIPstream hip_stream);
@@ -73,7 +73,6 @@ public:
     miopenHandle_t *get_miopen_handle();
     rocblas_handle *get_rocblas_handle();
     const bool has_primary_context() const { return primary_context_; }
-    device_id_t device_id() const override;
 
 protected:
     ~sycl_hip_engine_t() override = default;

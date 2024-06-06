@@ -21,7 +21,6 @@
 #include "common/utils.hpp"
 #include "gpu/gpu_impl_list.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"
-#include "gpu/intel/ocl/ocl_gpu_engine_id.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "xpu/ocl/engine_impl.hpp"
 #include "xpu/utils.hpp"
@@ -44,8 +43,8 @@ public:
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override;
 
-    status_t create_stream(stream_t **stream, unsigned flags) override;
-    status_t create_stream(stream_t **stream, cl_command_queue queue);
+    status_t create_stream(
+            impl::stream_t **stream, impl::stream_impl_t *stream_impl) override;
 
     status_t create_binary_from_ocl_source(xpu::binary_t &binary,
             const char *code_string,
@@ -97,7 +96,9 @@ public:
     cl_context context() const { return impl()->context(); }
     cl_platform_id platform() const { return impl()->platform(); }
 
-    device_id_t device_id() const override { return impl()->device_id(); }
+    gpu_utils::device_id_t device_id() const override {
+        return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
+    }
 
     status_t serialize_device(serialization_stream_t &sstream) const override;
 
@@ -107,11 +108,6 @@ public:
 
     status_t get_cache_blob(size_t size, uint8_t *cache_blob) const {
         return device_info_->get_cache_blob(size, cache_blob);
-    }
-
-    engine_id_t engine_id() const override {
-        return engine_id_t(new ocl_gpu_engine_id_impl_t(
-                device(), context(), kind(), runtime_kind(), index()));
     }
 
 protected:

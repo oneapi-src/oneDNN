@@ -92,7 +92,7 @@ struct atomic_reduction_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:atomic", atomic_reduction_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using smask_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = smask_t::gpu_attr;
             VDISPATCH_REDUCTION_SC(
@@ -112,8 +112,8 @@ struct atomic_reduction_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
-        status_t init_finalization_pd(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
+        status_t init_finalization_pd(impl::engine_t *engine);
         void init_scratchpad();
 
         int div = 0;
@@ -123,7 +123,7 @@ struct atomic_reduction_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> eltwise_pd_;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         auto &phases = pd()->phases;
 
         for (auto &phase : phases) {
@@ -151,7 +151,7 @@ private:
     }
 
     std::vector<compute::kernel_t> kernels_;
-    std::shared_ptr<primitive_t> eltwise_p_;
+    std::shared_ptr<impl::primitive_t> eltwise_p_;
 };
 
 } // namespace ocl

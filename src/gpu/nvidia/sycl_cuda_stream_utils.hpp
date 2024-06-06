@@ -17,8 +17,8 @@
 #ifndef GPU_NVIDIA_SYCL_CUDA_STREAM_UTILS_HPP
 #define GPU_NVIDIA_SYCL_CUDA_STREAM_UTILS_HPP
 
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "xpu/sycl/buffer_memory_storage.hpp"
 #include "xpu/sycl/memory_storage_helper.hpp"
 
@@ -29,13 +29,13 @@ namespace nvidia {
 namespace stream_utils {
 
 inline status_t copy_input_arg_to_host(const exec_ctx_t &ctx,
-        sycl_cuda_stream_t *stream, float *host_ptr, int arg, size_t size) {
+        nvidia::stream_t *stream, float *host_ptr, int arg, size_t size) {
     return stream->interop_task([&](::sycl::handler &cgh) {
         auto dev_arg = CTX_IN_SYCL_MEMORY(arg);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
             auto &sycl_engine
-                    = *utils::downcast<sycl_cuda_engine_t *>(stream->engine());
+                    = *utils::downcast<nvidia::engine_t *>(stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
 
             uint8_t *dev_ptr

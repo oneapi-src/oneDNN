@@ -36,21 +36,21 @@ namespace usm {
 
 namespace {
 
-cl_device_id get_ocl_device(engine_t *engine) {
+cl_device_id get_ocl_device(impl::engine_t *engine) {
     return utils::downcast<ocl_gpu_engine_t *>(engine)->device();
 }
 
-cl_context get_ocl_context(engine_t *engine) {
+cl_context get_ocl_context(impl::engine_t *engine) {
     return utils::downcast<ocl_gpu_engine_t *>(engine)->context();
 }
 
-cl_command_queue get_ocl_queue(stream_t *stream) {
+cl_command_queue get_ocl_queue(impl::stream_t *stream) {
     return utils::downcast<ocl_stream_t *>(stream)->queue();
 }
 
 } // namespace
 
-bool is_usm_supported(engine_t *engine) {
+bool is_usm_supported(impl::engine_t *engine) {
     using clSharedMemAllocINTEL_func_t = void *(*)(cl_context, cl_device_id,
             cl_ulong *, size_t, cl_uint, cl_int *);
     static xpu::ocl::ext_func_t<clSharedMemAllocINTEL_func_t> ext_func(
@@ -58,7 +58,7 @@ bool is_usm_supported(engine_t *engine) {
     return (bool)ext_func.get_func(engine);
 }
 
-void *malloc_host(engine_t *engine, size_t size) {
+void *malloc_host(impl::engine_t *engine, size_t size) {
     using clHostMemAllocINTEL_func_t = void *(*)(cl_context, const cl_ulong *,
             size_t, cl_uint, cl_int *);
 
@@ -73,7 +73,7 @@ void *malloc_host(engine_t *engine, size_t size) {
     return p;
 }
 
-void *malloc_device(engine_t *engine, size_t size) {
+void *malloc_device(impl::engine_t *engine, size_t size) {
     using clDeviceMemAllocINTEL_func_t = void *(*)(cl_context, cl_device_id,
             cl_ulong *, size_t, cl_uint, cl_int *);
 
@@ -89,7 +89,7 @@ void *malloc_device(engine_t *engine, size_t size) {
     return p;
 }
 
-void *malloc_shared(engine_t *engine, size_t size) {
+void *malloc_shared(impl::engine_t *engine, size_t size) {
     using clSharedMemAllocINTEL_func_t = void *(*)(cl_context, cl_device_id,
             cl_ulong *, size_t, cl_uint, cl_int *);
 
@@ -105,7 +105,7 @@ void *malloc_shared(engine_t *engine, size_t size) {
     return p;
 }
 
-void free(engine_t *engine, void *ptr) {
+void free(impl::engine_t *engine, void *ptr) {
     using clMemFreeINTEL_func_t = cl_int (*)(cl_context, void *);
 
     if (!ptr) return;
@@ -116,8 +116,8 @@ void free(engine_t *engine, void *ptr) {
     MAYBE_UNUSED(err);
 }
 
-status_t set_kernel_arg_usm(engine_t *engine, cl_kernel kernel, int arg_index,
-        const void *arg_value) {
+status_t set_kernel_arg_usm(impl::engine_t *engine, cl_kernel kernel,
+        int arg_index, const void *arg_value) {
     using clSetKernelArgMemPointerINTEL_func_t
             = cl_int (*)(cl_kernel, cl_uint, const void *);
     static xpu::ocl::ext_func_t<clSetKernelArgMemPointerINTEL_func_t> ext_func(
@@ -126,7 +126,7 @@ status_t set_kernel_arg_usm(engine_t *engine, cl_kernel kernel, int arg_index,
             ext_func(engine, kernel, arg_index, arg_value));
 }
 
-status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size,
+status_t memcpy(impl::stream_t *stream, void *dst, const void *src, size_t size,
         cl_uint num_events, const cl_event *events, cl_event *out_event) {
     using clEnqueueMemcpyINTEL_func_t
             = cl_int (*)(cl_command_queue, cl_bool, void *, const void *,
@@ -139,11 +139,12 @@ status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size,
                     out_event));
 }
 
-status_t memcpy(stream_t *stream, void *dst, const void *src, size_t size) {
+status_t memcpy(
+        impl::stream_t *stream, void *dst, const void *src, size_t size) {
     return memcpy(stream, dst, src, size, 0, nullptr, nullptr);
 }
 
-status_t fill(stream_t *stream, void *ptr, const void *pattern,
+status_t fill(impl::stream_t *stream, void *ptr, const void *pattern,
         size_t pattern_size, size_t size, cl_uint num_events,
         const cl_event *events, cl_event *out_event) {
     using clEnqueueMemFillINTEL_func_t
@@ -156,13 +157,13 @@ status_t fill(stream_t *stream, void *ptr, const void *pattern,
                     pattern_size, size, num_events, events, out_event));
 }
 
-status_t memset(stream_t *stream, void *ptr, int value, size_t size) {
+status_t memset(impl::stream_t *stream, void *ptr, int value, size_t size) {
     uint8_t pattern = (uint8_t)value;
     return fill(
             stream, ptr, &pattern, sizeof(uint8_t), size, 0, nullptr, nullptr);
 }
 
-ocl_usm_kind_t get_pointer_type(engine_t *engine, const void *ptr) {
+ocl_usm_kind_t get_pointer_type(impl::engine_t *engine, const void *ptr) {
     using clGetMemAllocInfoINTEL_func_t = cl_int (*)(
             cl_context, const void *, cl_uint, size_t, void *, size_t *);
 

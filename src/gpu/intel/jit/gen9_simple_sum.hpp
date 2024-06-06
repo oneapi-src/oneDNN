@@ -33,7 +33,7 @@ struct gen9_simple_sum_t : public gpu_primitive_t {
 
         DECLARE_SUM_PD_T("ngen:simple:any", gen9_simple_sum_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
             VDISPATCH_SUM(compute_engine->mayiuse_ngen_kernels(),
@@ -63,7 +63,7 @@ struct gen9_simple_sum_t : public gpu_primitive_t {
 
     gen9_simple_sum_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    virtual status_t init(engine_t *engine);
+    virtual status_t init(impl::engine_t *engine);
 
     virtual status_t execute(const exec_ctx_t &ctx) const {
         status_t status = status::success;

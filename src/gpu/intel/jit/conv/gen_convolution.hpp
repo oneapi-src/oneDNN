@@ -43,21 +43,21 @@ public:
 
         DECLARE_COMMON_PD_T("jit:ir", gen_convolution_fwd_t);
 
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         std::shared_ptr<conv_pd_data_t> data;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override;
+            impl::engine_t *engine, gpu_resource_t *r) const override;
 
     std::shared_ptr<gen_convolution_t> impl_;
 };
@@ -73,21 +73,21 @@ public:
 
         DECLARE_COMMON_PD_T("jit:ir", gen_convolution_bwd_data_t);
 
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         std::shared_ptr<conv_pd_data_t> data;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override;
+            impl::engine_t *engine, gpu_resource_t *r) const override;
 
     std::shared_ptr<gen_convolution_t> impl_;
 };
@@ -104,21 +104,21 @@ public:
 
         DECLARE_COMMON_PD_T("jit:ir", gen_convolution_bwd_weights_t);
 
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         std::shared_ptr<conv_pd_data_t> data;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override;
+            impl::engine_t *engine, gpu_resource_t *r) const override;
 
     std::shared_ptr<gen_convolution_t> impl_;
 };

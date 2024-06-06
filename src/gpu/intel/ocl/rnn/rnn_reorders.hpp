@@ -22,8 +22,8 @@
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
@@ -40,8 +40,8 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("cross_engine::rnn", rnn_weights_reorder_t);
 
-        status_t init(
-                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+        status_t init(impl::engine_t *engine, impl::engine_t *src_engine,
+                impl::engine_t *dst_engine) {
             // Note: currently rnn_u8s8_compensation and rnn_s8s8_compensation
             // have common bit so we have to perform additional checks to
             // separate these two cases
@@ -81,7 +81,7 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         rnn_reorder_conf_t conf;
@@ -100,7 +100,7 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
@@ -115,7 +115,7 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
 
 protected:
     status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override {
+            impl::engine_t *engine, gpu_resource_t *r) const override {
         if (!pd()->conf.do_reorder) return status::success;
         memory_storage_t *tmp_mem_storage_ptr = nullptr;
         size_t size = pd()->conf.scales_count * sizeof(float);

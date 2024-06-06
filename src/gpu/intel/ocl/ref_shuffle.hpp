@@ -36,7 +36,7 @@ struct ref_shuffle_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_shuffle_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace format_tag;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -65,14 +65,14 @@ struct ref_shuffle_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         shuffle_conf_t conf;
         offsets_t off;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);

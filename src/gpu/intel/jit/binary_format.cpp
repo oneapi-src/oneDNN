@@ -200,13 +200,13 @@ public:
     }
 };
 
-status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
+status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
     *ok = false;
 
     auto gpu_engine = utils::downcast<compute::compute_engine_t *>(engine);
     if (!gpu_engine) return status::invalid_arguments;
 
-    stream_t *stream_generic;
+    impl::stream_t *stream_generic;
     auto status = gpu_engine->get_service_stream(stream_generic);
     if (status != status::success) return status::runtime_error;
 

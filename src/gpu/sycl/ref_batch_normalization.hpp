@@ -41,7 +41,7 @@ struct ref_batch_normalization_fwd_t : public sycl_gpu_primitive_t {
                 gpu_batch_normalization_fwd_pd_t;
         DECLARE_COMMON_PD_T("dpcpp:ref:any", ref_batch_normalization_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             const memory_desc_wrapper data_d(src_md(0));
@@ -74,7 +74,7 @@ struct ref_batch_normalization_fwd_t : public sycl_gpu_primitive_t {
         sycl_batch_normalization_conf_t conf_;
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
@@ -94,7 +94,7 @@ struct ref_batch_normalization_bwd_t : public sycl_gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("dpcpp:ref:any", ref_batch_normalization_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             const memory_desc_wrapper data_d(src_md(0));
@@ -135,7 +135,7 @@ struct ref_batch_normalization_bwd_t : public sycl_gpu_primitive_t {
         sycl_batch_normalization_conf_t conf_;
     };
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
     }

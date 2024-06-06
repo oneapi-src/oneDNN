@@ -14,31 +14,31 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_GPU_ENGINE_ID_HPP
-#define GPU_INTEL_OCL_OCL_GPU_ENGINE_ID_HPP
+#ifndef XPU_OCL_GPU_ENGINE_ID_HPP
+#define XPU_OCL_GPU_ENGINE_ID_HPP
 
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "xpu/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
-struct ocl_gpu_engine_id_impl_t : public engine_id_impl_t {
+struct engine_id_impl_t : public impl::engine_id_impl_t {
 
-    ocl_gpu_engine_id_impl_t(cl_device_id device, cl_context context,
+    engine_id_impl_t(cl_device_id device, cl_context context,
             engine_kind_t kind, runtime_kind_t runtime_kind, size_t index)
-        : engine_id_impl_t(kind, runtime_kind, index)
+        : impl::engine_id_impl_t(kind, runtime_kind, index)
         , device_(device, true)
         , context_(context, true) {}
 
-    ~ocl_gpu_engine_id_impl_t() override = default;
+    ~engine_id_impl_t() override = default;
 
 private:
-    bool compare_resource(const engine_id_impl_t *id_impl) const override {
+    bool compare_resource(
+            const impl::engine_id_impl_t *id_impl) const override {
         const auto *typed_id
-                = utils::downcast<const ocl_gpu_engine_id_impl_t *>(id_impl);
+                = utils::downcast<const engine_id_impl_t *>(id_impl);
         return device_ == typed_id->device_ && context_ == typed_id->context_;
     }
 
@@ -54,8 +54,7 @@ private:
 };
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

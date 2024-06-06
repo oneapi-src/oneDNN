@@ -46,7 +46,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T(
                 "ocl:gemm_post_ops_fwd", gemm_post_ops_inner_product_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace status;
             using namespace utils;
             using namespace data_type;
@@ -167,7 +167,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         CHECK(create_nested_primitive(gemm_, pd()->gemm_pd_, engine));
 
         const size_t mb = pd()->MB();
@@ -218,7 +218,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::shared_ptr<primitive_t> gemm_;
+    std::shared_ptr<impl::primitive_t> gemm_;
     compute::kernel_t post_process_kernel_;
 };
 

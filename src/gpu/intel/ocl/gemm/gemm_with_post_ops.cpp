@@ -22,7 +22,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-status_t gemm_with_post_ops_t::pd_t::init(engine_t *engine) {
+status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
     using namespace data_type;
 
     const auto &d = desc();

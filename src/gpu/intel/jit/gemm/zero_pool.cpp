@@ -17,6 +17,8 @@
 #include <mutex>
 #include <unordered_map>
 
+#include "xpu/context.hpp"
+
 #include "gpu/intel/jit/gemm/zero_pool.hpp"
 
 namespace dnnl {
@@ -172,7 +174,7 @@ status_t zero_pool_t::claim(compute::compute_stream_t *stream, size_t len,
     return status::success;
 }
 
-void zero_pool_t::async_release(int token, const compute::event_t &ev) {
+void zero_pool_t::async_release(int token, const xpu::event_t &ev) {
     if (token >= 0) {
         std::lock_guard<std::mutex> lock(mutex_);
         int slot = token;

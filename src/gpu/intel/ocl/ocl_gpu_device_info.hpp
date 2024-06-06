@@ -35,11 +35,11 @@ public:
     std::string get_cl_ext_options() const;
 
 protected:
-    status_t init_device_name(engine_t *engine);
-    status_t init_arch(engine_t *engine);
-    status_t init_runtime_version(engine_t *engine);
-    status_t init_extensions(engine_t *engine);
-    status_t init_attributes(engine_t *engine);
+    status_t init_device_name(impl::engine_t *engine);
+    status_t init_arch(impl::engine_t *engine);
+    status_t init_runtime_version(impl::engine_t *engine);
+    status_t init_extensions(impl::engine_t *engine);
+    status_t init_attributes(impl::engine_t *engine);
 };
 
 } // namespace ocl

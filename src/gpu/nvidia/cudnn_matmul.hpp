@@ -37,7 +37,7 @@ struct cudnn_matmul_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_matmul_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
@@ -133,7 +133,7 @@ struct cudnn_matmul_t : public primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         matmul_impl_.reset(new cudnn_matmul_impl_t());
         const auto status = matmul_impl_->init((matmul_pd_t *)pd());
         if (status != status::success) return status;

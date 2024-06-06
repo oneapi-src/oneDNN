@@ -116,21 +116,15 @@ public:
 
 class cpu_engine_t : public engine_t {
 public:
-    cpu_engine_t()
-        : engine_t(new impl::engine_impl_t(
-                engine_kind::cpu, get_cpu_native_runtime(), 0)) {}
+    cpu_engine_t(impl::engine_impl_t *engine_impl) : engine_t(engine_impl) {}
 
     /* implementation part */
 
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override;
 
-    status_t create_stream(stream_t **stream, unsigned flags) override;
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    status_t create_stream(stream_t **stream,
-            dnnl::threadpool_interop::threadpool_iface *threadpool) override;
-#endif
+    status_t create_stream(
+            stream_t **stream, impl::stream_impl_t *stream_impl) override;
 
     const impl_list_item_t *get_concat_implementation_list() const override {
         return cpu_engine_impl_list_t::get_concat_implementation_list();
@@ -150,13 +144,6 @@ public:
         return cpu_engine_impl_list_t::get_implementation_list(desc);
     }
 
-    device_id_t device_id() const override { return std::make_tuple(0, 0, 0); }
-
-    engine_id_t engine_id() const override {
-        // Non-sycl CPU engine doesn't have device and context.
-        return {};
-    }
-
 protected:
     ~cpu_engine_t() override = default;
 };
@@ -166,7 +153,8 @@ public:
     size_t count() const override { return 1; }
     status_t engine_create(engine_t **engine, size_t index) const override {
         assert(index == 0);
-        *engine = new cpu_engine_t();
+        *engine = new cpu_engine_t(new impl::engine_impl_t(
+                engine_kind::cpu, get_cpu_native_runtime(), 0));
 
 #if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
         dnnl::impl::cpu::aarch64::acl_thread_utils::set_acl_threading();

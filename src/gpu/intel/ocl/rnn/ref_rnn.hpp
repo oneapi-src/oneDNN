@@ -23,9 +23,9 @@
 #include "common/primitive.hpp"
 #include "common/primitive_desc_iterator.hpp"
 #include "common/utils.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_rnn_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/ocl/rnn/rnn_utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
@@ -78,7 +78,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
-        status_t init(engine_t *engine);
+        status_t init(impl::engine_t *engine);
 
         status_t set_default_params();
 
@@ -126,7 +126,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         }
     }; // struct pd_t : public base_pd_t
 
-    status_t init(engine_t *engine) override;
+    status_t init(impl::engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_(ctx);
@@ -134,7 +134,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
 protected:
     status_t init_res_storage(
-            engine_t *engine, gpu_resource_t *r) const override;
+            impl::engine_t *engine, gpu_resource_t *r) const override;
 
 private:
     status_t execute_(const exec_ctx_t &ctx) const;
@@ -225,17 +225,17 @@ private:
     std::vector<compute::kernel_t> kernels_;
 
     // ptrs to GEMM primitives
-    std::shared_ptr<primitive_t> gemm_layer_fwd_;
-    std::shared_ptr<primitive_t> gemm_layer_fwd_src_;
-    std::shared_ptr<primitive_t> gemm_iter_fwd_;
-    std::shared_ptr<primitive_t> gemm_iter_fwd_2_;
-    std::shared_ptr<primitive_t> gemm_layer_bwd_;
-    std::shared_ptr<primitive_t> gemm_iter_bwd_;
-    std::shared_ptr<primitive_t> gemm_iter_bwd_2_;
-    std::shared_ptr<primitive_t> gemm_diff_wei_layer_;
-    std::shared_ptr<primitive_t> gemm_diff_wei_layer_src_;
-    std::shared_ptr<primitive_t> gemm_diff_wei_iter_;
-    std::shared_ptr<primitive_t> gemm_diff_wei_iter_2_;
+    std::shared_ptr<impl::primitive_t> gemm_layer_fwd_;
+    std::shared_ptr<impl::primitive_t> gemm_layer_fwd_src_;
+    std::shared_ptr<impl::primitive_t> gemm_iter_fwd_;
+    std::shared_ptr<impl::primitive_t> gemm_iter_fwd_2_;
+    std::shared_ptr<impl::primitive_t> gemm_layer_bwd_;
+    std::shared_ptr<impl::primitive_t> gemm_iter_bwd_;
+    std::shared_ptr<impl::primitive_t> gemm_iter_bwd_2_;
+    std::shared_ptr<impl::primitive_t> gemm_diff_wei_layer_;
+    std::shared_ptr<impl::primitive_t> gemm_diff_wei_layer_src_;
+    std::shared_ptr<impl::primitive_t> gemm_diff_wei_iter_;
+    std::shared_ptr<impl::primitive_t> gemm_diff_wei_iter_2_;
 
     // offset variables set in workspace and used in offset calculations for
     // grid & cell execution and fwd & bwd kernel macros

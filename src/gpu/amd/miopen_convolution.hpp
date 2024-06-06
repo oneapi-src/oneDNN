@@ -45,7 +45,7 @@ struct miopen_convolution_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_convolution_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             using sm_t = primitive_attr_t::skip_mask_t;
@@ -228,7 +228,7 @@ struct miopen_convolution_fwd_t : public primitive_t {
         }
     };
 
-    status_t init_temp_dst(engine_t *engine) {
+    status_t init_temp_dst(impl::engine_t *engine) {
         auto sycl_engine = utils::downcast<sycl_hip_engine_t *>(engine);
         memory_storage_t *scratch_ptr = nullptr;
         auto wrap = memory_desc_wrapper(pd()->dst_md_temp_);
@@ -243,7 +243,7 @@ struct miopen_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    virtual status_t init(engine_t *engine) override {
+    virtual status_t init(impl::engine_t *engine) override {
         const auto impl = pd()->impl_.get();
         if (impl && impl->use_temp_dst()) { init_temp_dst(engine); }
         return status::success;
@@ -281,7 +281,7 @@ struct miopen_convolution_bwd_data_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_convolution_bwd_data_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             bool ok = desc()->prop_kind == prop_kind::backward_data;
@@ -394,7 +394,7 @@ struct miopen_convolution_bwd_weights_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_convolution_bwd_weights_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             bool ok = desc()->prop_kind == prop_kind::backward_weights;

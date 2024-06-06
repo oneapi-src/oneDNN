@@ -57,7 +57,7 @@ status_t ref_sycl_eltwise_fwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_sycl_eltwise_fwd_t::init(engine_t *engine) {
+status_t ref_sycl_eltwise_fwd_t::init(impl::engine_t *engine) {
     const auto kid = ::sycl::get_kernel_id<eltwise_fwd_kernel_vec_t>();
     return create_kernel(engine, kid, &kernel_);
 }
@@ -115,7 +115,7 @@ status_t ref_sycl_eltwise_bwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_sycl_eltwise_bwd_t::init(engine_t *engine) {
+status_t ref_sycl_eltwise_bwd_t::init(impl::engine_t *engine) {
     const auto kid = ::sycl::get_kernel_id<eltwise_bwd_kernel_vec_t>();
     return create_kernel(engine, kid, &kernel_);
 }

@@ -17,8 +17,9 @@
 #ifndef GPU_INTEL_COMPUTE_COMPUTE_STREAM_HPP
 #define GPU_INTEL_COMPUTE_COMPUTE_STREAM_HPP
 
-#include "common/stream.hpp"
-#include "gpu/intel/compute/context.hpp"
+#include "gpu/gpu_stream.hpp"
+#include "xpu/context.hpp"
+#include "xpu/stream_profiler.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -28,24 +29,11 @@ namespace compute {
 
 class nd_range_t;
 class kernel_arg_list_t;
-struct stream_profiler_t;
 
-class compute_stream_t : public stream_t {
+class compute_stream_t : public gpu::stream_t {
 public:
     using stream_t::stream_t;
 
-    virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size, const event_t &dep,
-            event_t &out_dep)
-            = 0;
-    virtual status_t fill(const memory_storage_t &dst, uint8_t pattern,
-            size_t size, const event_t &deps, event_t &out_dep)
-            = 0;
-
-    virtual context_t &ctx() = 0;
-    virtual const context_t &ctx() const = 0;
-    virtual const compute::stream_profiler_t &profiler() const = 0;
-    virtual compute::stream_profiler_t &profiler() = 0;
     status_t notify_profiling_complete() const override;
 
 protected:

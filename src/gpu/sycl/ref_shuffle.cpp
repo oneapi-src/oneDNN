@@ -90,7 +90,7 @@ status_t ref_shuffle_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t ref_shuffle_t::init(engine_t *engine) {
+status_t ref_shuffle_t::init(impl::engine_t *engine) {
     if (pd()->conf_.axis == 1 && one_of(pd()->conf_.tag, nchw, ncdhw)) {
         const auto kid = ::sycl::get_kernel_id<shuffle_kernel_vec1_t>();
         CHECK(create_kernel(engine, kid, &kernel_));

@@ -23,7 +23,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-int calculate_spatial_chunk(const pool_conf_t &conf, engine_t *engine) {
+int calculate_spatial_chunk(const pool_conf_t &conf, impl::engine_t *engine) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     const int hw_threads = compute_engine->device_info()->hw_threads();
     const bool is_xe_hp_plus = compute_engine->is_xe_hp()
@@ -46,7 +46,7 @@ int calculate_spatial_chunk(const pool_conf_t &conf, engine_t *engine) {
 }
 
 static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
-        const pooling_pd_t *pd, engine_t *engine) {
+        const pooling_pd_t *pd, impl::engine_t *engine) {
     using namespace dnnl::impl::format_tag;
 
     set_default_pool_conf(conf, *pd->desc(), *pd->invariant_src_md(),
@@ -150,7 +150,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-status_t gen9_global_pooling_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t gen9_global_pooling_fwd_t::pd_t::init_conf(impl::engine_t *engine) {
     return init_conf_common(conf, off, this, engine);
 }
 
@@ -202,7 +202,7 @@ status_t gen9_global_pooling_fwd_t::execute_forward(
     }
 }
 
-status_t gen9_global_pooling_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t gen9_global_pooling_bwd_t::pd_t::init_conf(impl::engine_t *engine) {
     return init_conf_common(conf, off, this, engine);
 }
 

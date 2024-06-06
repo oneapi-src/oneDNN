@@ -40,13 +40,14 @@ public:
     cl_kernel ocl_kernel() const { return ocl_kernel_; }
 
     status_t get_binary(
-            const engine_t *engine, xpu::binary_t &binary) const override;
+            const impl::engine_t *engine, xpu::binary_t &binary) const override;
     status_t get_binary_size(
-            const engine_t *engine, size_t *binary_size) const override;
+            const impl::engine_t *engine, size_t *binary_size) const override;
 
-    status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
+    status_t parallel_for(impl::stream_t &stream,
+            const compute::nd_range_t &range,
             const compute::kernel_arg_list_t &arg_list,
-            const compute::event_t &deps, compute::event_t &out_dep) override;
+            const xpu::event_t &deps, xpu::event_t &out_dep) override;
 
     const std::vector<gpu::intel::compute::scalar_type_t> &
     arg_types() const override {

@@ -197,7 +197,7 @@ private:
 };
 
 #define DECLARE_SUM_PD_t(impl_name, ...) \
-    static status_t create(sum_pd_t **sum_pd, engine_t *engine, \
+    static status_t create(sum_pd_t **sum_pd, dnnl::impl::engine_t *engine, \
             const primitive_attr_t *attr, const memory_desc_t *dst_md, int n, \
             const float *scales, const memory_desc_t *const *src_mds) { \
         using namespace status; \
@@ -208,8 +208,9 @@ private:
         return safe_ptr_assign(*sum_pd, _pd.release()); \
     } \
     status_t create_primitive( \
-            std::pair<std::shared_ptr<primitive_t>, bool> &primitive, \
-            engine_t *engine, const cache_blob_t &cache_blob) const override { \
+            std::pair<std::shared_ptr<impl::primitive_t>, bool> &primitive, \
+            dnnl::impl::engine_t *engine, const cache_blob_t &cache_blob) \
+            const override { \
         return primitive_t::create_primitive_common<__VA_ARGS__, pd_t>( \
                 primitive, this, engine, false, cache_blob); \
     } \

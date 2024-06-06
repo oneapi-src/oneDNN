@@ -17,14 +17,15 @@
 #ifndef SYCL_SYCL_CONTEXT_HPP
 #define SYCL_SYCL_CONTEXT_HPP
 
-#include "gpu/intel/compute/context.hpp"
 #include "oneapi/dnnl/dnnl_sycl.h"
+
+#include "xpu/context.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
-struct sycl_event_t : public gpu::intel::compute::event_t {
+struct sycl_event_t : public xpu::event_t {
     sycl_event_t() = default;
     sycl_event_t(const std::vector<::sycl::event> &event) : events(event) {}
     sycl_event_t(std::vector<::sycl::event> &&event)
@@ -35,22 +36,23 @@ struct sycl_event_t : public gpu::intel::compute::event_t {
         return *this;
     }
 
+    ~sycl_event_t() override = default;
+
     const ::sycl::event &operator[](size_t i) const { return events[i]; }
     ::sycl::event &operator[](size_t i) { return events[i]; }
     size_t size() const { return events.size(); }
 
-    static sycl_event_t &from(gpu::intel::compute::event_t &event) {
+    static sycl_event_t &from(xpu::event_t &event) {
         return *utils::downcast<sycl_event_t *>(&event);
     }
-    static const sycl_event_t &from(const gpu::intel::compute::event_t &event) {
+    static const sycl_event_t &from(const xpu::event_t &event) {
         return *utils::downcast<const sycl_event_t *>(&event);
     }
-    std::unique_ptr<gpu::intel::compute::event_t> clone() const {
-        return std::unique_ptr<gpu::intel::compute::event_t>(
-                new sycl_event_t(*this));
+    std::unique_ptr<xpu::event_t> clone() const override {
+        return std::unique_ptr<xpu::event_t>(new sycl_event_t(*this));
     }
 
-    void append(const gpu::intel::compute::event_t &event) {
+    void append(const xpu::event_t &event) {
         auto &other = *utils::downcast<const sycl_event_t *>(&event);
         events.insert(events.end(), other.events.begin(), other.events.end());
     }
@@ -58,12 +60,12 @@ struct sycl_event_t : public gpu::intel::compute::event_t {
     std::vector<::sycl::event> events;
 };
 
-struct sycl_context_t final : public gpu::intel::compute::context_t {
+struct sycl_context_t final : public xpu::context_t {
     sycl_context_t() = default;
     sycl_context_t(const std::vector<::sycl::event> &&events)
         : events_(std::move(events)) {};
     sycl_context_t(const sycl_context_t &) = default;
-    ~sycl_context_t() = default;
+    ~sycl_context_t() override = default;
 
     sycl_context_t &operator=(const sycl_context_t &other) {
         events_ = other.events_;
@@ -72,17 +74,15 @@ struct sycl_context_t final : public gpu::intel::compute::context_t {
 
     sycl_event_t &get_sycl_deps() { return events_; }
     const sycl_event_t &get_sycl_deps() const { return events_; }
-    gpu::intel::compute::event_t &get_deps() override { return events_; }
-    const gpu::intel::compute::event_t &get_deps() const override {
-        return events_;
-    }
+    xpu::event_t &get_deps() override { return events_; }
+    const xpu::event_t &get_deps() const override { return events_; }
 
     void set_deps(std::vector<::sycl::event> &&event) {
         events_ = sycl_event_t(std::move(event));
     }
     void set_deps(sycl_event_t &&events) { events_ = std::move(events); };
 
-    void append_deps(const gpu::intel::compute::event_t &event) override {
+    void append_deps(const xpu::event_t &event) override {
         events_.append(event);
     }
 

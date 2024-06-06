@@ -45,7 +45,7 @@ struct gen9_concat_t : public gpu_primitive_t {
 
         DECLARE_CONCAT_PD_T("gen9:any", gen9_concat_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
 
             using sm = primitive_attr_t::skip_mask_t;
 
@@ -61,7 +61,7 @@ struct gen9_concat_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         concat_conf_t conf;
@@ -75,7 +75,7 @@ struct gen9_concat_t : public gpu_primitive_t {
         std::pair<int, int> calculate_iter_dim_idx_chunk(int num_threads) const;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);

@@ -16,11 +16,11 @@
 
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/intel/ocl/ocl_engine.hpp"
-#include "gpu/intel/sycl/compat.hpp"
 #include "sycl/sycl_engine_base.hpp"
 
 #include "gpu/intel/sycl/l0/utils.hpp"
 #include "xpu/ocl/utils.hpp"
+#include "xpu/sycl/compat.hpp"
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
@@ -177,7 +177,7 @@ static status_t create_ocl_engine(
         }
         default: assert(!"not expected"); return status::invalid_arguments;
     }
-    engine_t *ocl_engine_ptr;
+    impl::engine_t *ocl_engine_ptr;
     size_t index;
     CHECK(xpu::ocl::get_device_index(&index, ocl_dev));
     CHECK(f.engine_create(&ocl_engine_ptr, ocl_dev, ocl_ctx, index));
@@ -240,6 +240,36 @@ status_t get_kernel_binary(
         }
         default: return status::runtime_error;
     }
+}
+
+gpu_utils::device_id_t device_id(const ::sycl::device &dev) {
+    if (xpu::sycl::is_host(dev))
+        return std::make_tuple(
+                static_cast<int>(xpu::sycl::backend_t::host), 0, 0);
+
+    gpu_utils::device_id_t device_id = gpu_utils::device_id_t {
+            static_cast<int>(xpu::sycl::backend_t::unknown), 0, 0};
+    switch (xpu::sycl::get_backend(dev)) {
+        case xpu::sycl::backend_t::opencl: {
+            auto ocl_device = xpu::ocl::make_wrapper(
+                    xpu::sycl::compat::get_native<cl_device_id>(dev));
+            device_id = std::make_tuple(
+                    static_cast<int>(xpu::sycl::backend_t::opencl),
+                    reinterpret_cast<uint64_t>(ocl_device.get()), 0);
+            break;
+        }
+        case xpu::sycl::backend_t::level0: {
+            device_id = std::tuple_cat(std::make_tuple(static_cast<int>(
+                                               xpu::sycl::backend_t::level0)),
+                    gpu::intel::sycl::get_device_uuid(dev));
+            break;
+        }
+        case xpu::sycl::backend_t::unknown: assert(!"unknown backend"); break;
+        default: assert(!"unreachable");
+    }
+    assert(std::get<0>(device_id)
+            != static_cast<int>(xpu::sycl::backend_t::unknown));
+    return device_id;
 }
 
 } // namespace sycl

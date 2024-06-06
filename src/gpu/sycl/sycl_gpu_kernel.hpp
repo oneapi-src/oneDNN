@@ -35,8 +35,8 @@ struct sycl_gpu_kernel_t : public gpu::intel::compute::kernel_impl_t {
         : kernel_bundle_(utils::make_unique<kernel_bundle_e_t>(kernel_bundle)) {
     }
 
-    status_t parallel_for(
-            stream_t &stream, const std::function<void(void *)> &cgf) override;
+    status_t parallel_for(impl::stream_t &stream,
+            const std::function<void(void *)> &cgf) override;
 
 private:
     std::unique_ptr<kernel_bundle_e_t> kernel_bundle_;

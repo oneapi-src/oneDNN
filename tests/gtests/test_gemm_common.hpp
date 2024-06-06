@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@
 #include "test_gemm_params.hpp"
 #include "test_gemm_validation.hpp"
 
+#include "common/dnnl_thread.hpp"
 #include "dnnl_test_common.hpp"
-#include "dnnl_thread.hpp"
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.h"

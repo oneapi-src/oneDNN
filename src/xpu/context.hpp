@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,16 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_COMPUTE_CONTEXT_HPP
-#define GPU_INTEL_COMPUTE_CONTEXT_HPP
+#ifndef XPU_CONTEXT_HPP
+#define XPU_CONTEXT_HPP
 
 #include <memory>
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
-namespace compute {
+namespace xpu {
 
 class event_t {
 public:
@@ -38,12 +36,11 @@ public:
     virtual event_t &get_deps() = 0;
     virtual const event_t &get_deps() const = 0;
 
-    virtual void append_deps(const compute::event_t &event) = 0;
+    virtual void append_deps(const event_t &event) = 0;
+    virtual ~context_t() = default;
 };
 
-} // namespace compute
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

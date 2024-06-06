@@ -47,7 +47,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T((gemm_pd_ ? gemm_pd_->name() : "ocl:gemm"),
                 gemm_inner_product_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
             using namespace data_type;
@@ -116,7 +116,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_nested_primitive(gemm_, pd()->gemm_pd_, engine);
     }
 
@@ -128,7 +128,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::shared_ptr<primitive_t> gemm_;
+    std::shared_ptr<impl::primitive_t> gemm_;
 };
 
 struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
@@ -148,7 +148,7 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
                     diff_src_md()->data_type, diff_dst_md()->data_type);
         }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
 
@@ -205,7 +205,7 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_nested_primitive(gemm_, pd()->gemm_pd_, engine);
     }
 
@@ -217,7 +217,7 @@ private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::shared_ptr<primitive_t> gemm_;
+    std::shared_ptr<impl::primitive_t> gemm_;
 };
 
 struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
@@ -239,7 +239,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                     src_md()->data_type, diff_dst_md()->data_type);
         }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
 
@@ -378,7 +378,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         CHECK(create_nested_primitive(gemm_, pd()->gemm_pd_, engine));
         if (pd()->with_bias() && pd()->reduction_pd_)
             CHECK(create_nested_primitive(
@@ -393,8 +393,8 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> gemm_;
-    std::shared_ptr<primitive_t> reduction_;
+    std::shared_ptr<impl::primitive_t> gemm_;
+    std::shared_ptr<impl::primitive_t> reduction_;
 };
 
 } // namespace ocl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ struct primitive_t : public c_compatible {
     primitive_t(const primitive_desc_t *pd) : pd_(pd->clone()) {}
     virtual ~primitive_t() = default;
 
-    virtual status_t init(engine_t *engine) { return status::success; }
+    virtual status_t init(impl::engine_t *engine) { return status::success; }
 
     status_t init(engine_t *engine, bool use_global_scratchpad,
             const cache_blob_t &cache_blob) {
@@ -73,7 +73,7 @@ struct primitive_t : public c_compatible {
     }
 
     virtual status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const {
+            impl::engine_t *engine, resource_mapper_t &mapper) const {
         return status::success;
     }
 

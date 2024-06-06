@@ -39,7 +39,7 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:reorder:any", shuffle_by_reorder_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             const auto &md_src = is_fwd() ? src_md() : diff_src_md();
             const auto &md_dst = is_fwd() ? dst_md() : diff_dst_md();
             const memory_desc_wrapper src_d(md_src);
@@ -109,7 +109,7 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> reorder_pd_;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         return create_nested_primitive(reorder_, pd()->reorder_pd_, engine);
     }
 
@@ -129,7 +129,7 @@ struct shuffle_by_reorder_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::shared_ptr<primitive_t> reorder_;
+    std::shared_ptr<impl::primitive_t> reorder_;
 };
 } // namespace ocl
 } // namespace intel

@@ -540,7 +540,7 @@ status_t brgemm_desc_set_attr(
     brg->is_blocked = (brg->LDA2 != brg->LDA || brg->LDB2 != brg->LDB
             || brg->LDC2_M != brg->LDC || brg->LDC2_N != brg->ld_block);
 
-    if (!IMPLICATION(brg->is_blocked, brg->layout = brgemm_row_major))
+    if (!IMPLICATION(brg->is_blocked, brg->layout == brgemm_row_major))
         return status::invalid_arguments;
 
     // virtual padding is not supported for "amx"

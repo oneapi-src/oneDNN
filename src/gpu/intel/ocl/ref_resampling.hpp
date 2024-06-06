@@ -37,7 +37,7 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
             using sm = primitive_attr_t::skip_mask_t;
@@ -61,10 +61,10 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
         resampling_conf_t conf;
 
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         using namespace alg_kind;
 
         compute::kernel_ctx_t kernel_ctx;
@@ -98,7 +98,7 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             assert(engine->kind() == engine_kind::gpu);
 
@@ -113,11 +113,11 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
         }
         resampling_conf_t conf;
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         using namespace alg_kind;
 
         compute::kernel_ctx_t kernel_ctx;

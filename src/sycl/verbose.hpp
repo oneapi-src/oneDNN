@@ -19,8 +19,13 @@
 
 #include <cstdio>
 
-#include "gpu/intel/compute/device_info.hpp"
+#include "xpu/sycl/engine_impl.hpp"
+
 #include "sycl/sycl_engine.hpp"
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+#include "gpu/intel/compute/compute_engine.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -31,24 +36,44 @@ void print_verbose_header(engine_kind_t kind) {
     auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
     for (size_t i = 0; i < factory.count(); ++i) {
         try {
-            engine_t *eng_ptr = nullptr;
+            impl::engine_t *eng_ptr = nullptr;
             factory.engine_create(&eng_ptr, i);
-            std::unique_ptr<sycl_engine_base_t, engine_deleter_t> eng;
-            eng.reset(utils::downcast<sycl_engine_base_t *>(eng_ptr));
-            auto *dev_info = eng ? eng->device_info() : nullptr;
+            std::unique_ptr<impl::engine_t, engine_deleter_t> eng;
+            eng.reset(eng_ptr);
 
-            auto s_backend = eng ? to_string(eng->backend()) : "unknown";
-            auto s_name = dev_info ? dev_info->name() : "unknown";
-            auto s_ver
-                    = dev_info ? dev_info->runtime_version().str() : "unknown";
-            auto s_binary_kernels = dev_info
-                    ? dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled"
-                    : "unknown";
+            const xpu::sycl::engine_impl_t *engine_impl = eng
+                    ? utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            eng->impl())
+                    : nullptr;
 
+            auto s_backend = engine_impl ? to_string(engine_impl->backend())
+                                         : "unknown";
+            auto s_name = engine_impl ? engine_impl->name() : "unknown";
+            auto s_ver = engine_impl ? engine_impl->runtime_version().str()
+                                     : "unknown";
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+            if (kind == engine_kind::gpu) {
+                auto *dev_info = eng
+                        ? utils::downcast<
+                                gpu::intel::compute::compute_engine_t *>(
+                                eng.get())
+                                  ->device_info()
+                        : nullptr;
+                auto s_binary_kernels = dev_info->mayiuse_ngen_kernels()
+                        ? "enabled"
+                        : "disabled";
+
+                printf("onednn_verbose,info,%s,engine,%zu,backend:%s,name:%s,"
+                       "driver_version:%s,binary_kernels:%s\n",
+                        s_engine_kind, i, s_backend.c_str(), s_name.c_str(),
+                        s_ver.c_str(), s_binary_kernels);
+                continue;
+            }
+#endif
             printf("onednn_verbose,info,%s,engine,%zu,backend:%s,name:%s,"
-                   "driver_version:%s,binary_kernels:%s\n",
+                   "driver_version:%s\n",
                     s_engine_kind, i, s_backend.c_str(), s_name.c_str(),
-                    s_ver.c_str(), s_binary_kernels);
+                    s_ver.c_str());
         } catch (...) {
             VERROR(common, dpcpp, VERBOSE_INVALID_DEVICE_ENV, s_engine_kind, i);
         }

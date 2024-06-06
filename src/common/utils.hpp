@@ -69,20 +69,20 @@ static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
 
 #define CHECK(f) \
     do { \
-        status_t _status_ = f; \
-        if (_status_ != status::success) return _status_; \
+        dnnl::impl::status_t _status_ = f; \
+        if (_status_ != dnnl::impl::status::success) return _status_; \
     } while (0)
 
 #define CHECK_BOOL(f) \
     do { \
-        status_t _status_ = f; \
-        if (_status_ != status::success) return false; \
+        dnnl::impl::status_t _status_ = f; \
+        if (_status_ != dnnl::impl::status::success) return false; \
     } while (0)
 
 #define UNUSED_STATUS(f) \
     do { \
-        status_t _status_ = f; \
-        assert(_status_ == status::success); \
+        dnnl::impl::status_t _status_ = f; \
+        assert(_status_ == dnnl::impl::status::success); \
         MAYBE_UNUSED(_status_); \
     } while (0)
 
@@ -703,32 +703,6 @@ inline int float2int(float x) {
 inline float int2float(int x) {
     return utils::bit_cast<float>(x);
 }
-
-// XXX: Currently SYCL doesn't provide an API to get device UUID but
-// we need to be able to distinguish OpenCL device from Level0 device.
-// As a temporary solution the compound ID will be used for that.
-// Below is a table explaning what the numbers are for different backends:
-//
-// -------------------------------------------------------------
-//  Backend      | Compound ID
-// -------------------------------------------------------------
-//  Host         | <backend_t::host, 0, 0>
-//  OpenCL       | <backend_t::opencl, cl_device, 0>
-//  NVIDIA       | <backend_t::nvidia, cuDevice, 0>
-//  Level0       | <backend_t::level0, uuid[0-63], uuid[64-127]>
-//  Pure CPU     | <0, 0, 0>
-//  Pure GPU     | <0, cl_device, 0>
-using device_id_t = std::tuple<int, uint64_t, uint64_t>;
-
-struct device_id_hash_t {
-    size_t operator()(const device_id_t &id) const {
-        size_t result = 0;
-        result = hash_combine(result, std::get<0>(id));
-        result = hash_combine(result, std::get<1>(id));
-        result = hash_combine(result, std::get<2>(id));
-        return result;
-    }
-};
 
 // A setting (basically a value) that can be set() multiple times until the
 // time first time the get() method is called. The set() method is expected to

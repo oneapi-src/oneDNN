@@ -38,8 +38,8 @@ status_t ocl_buffer_memory_storage_t::init_allocate(size_t size) {
 }
 
 namespace {
-status_t get_map_queue(
-        cl_command_queue &queue, engine_t *engine, stream_t *stream) {
+status_t get_map_queue(cl_command_queue &queue, impl::engine_t *engine,
+        impl::stream_t *stream) {
     ocl_stream_t *ocl_stream;
     if (stream == nullptr) {
         auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
@@ -53,7 +53,7 @@ status_t get_map_queue(
 } // namespace
 
 status_t ocl_buffer_memory_storage_t::map_data(
-        void **mapped_ptr, stream_t *stream, size_t) const {
+        void **mapped_ptr, impl::stream_t *stream, size_t) const {
     if (!mem_object()) {
         *mapped_ptr = nullptr;
         return status::success;
@@ -88,7 +88,7 @@ status_t ocl_buffer_memory_storage_t::map_data(
 }
 
 status_t ocl_buffer_memory_storage_t::unmap_data(
-        void *mapped_ptr, stream_t *stream) const {
+        void *mapped_ptr, impl::stream_t *stream) const {
     if (!mapped_ptr) return status::success;
     cl_command_queue queue;
     CHECK(get_map_queue(queue, engine(), stream));

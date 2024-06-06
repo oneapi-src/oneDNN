@@ -39,7 +39,7 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9_global:any", gen9_global_pooling_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
             using namespace alg_kind;
@@ -70,12 +70,12 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         void init_scratchpad();
 
-        status_t init_reduction(engine_t *engine) {
+        status_t init_reduction(impl::engine_t *engine) {
             using namespace alg_kind;
 
             reduction_desc_t rdesc;
@@ -104,7 +104,7 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
         offsets_t off;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
@@ -135,7 +135,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
-    std::shared_ptr<primitive_t> reduction_p_;
+    std::shared_ptr<impl::primitive_t> reduction_p_;
 };
 
 struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
@@ -147,7 +147,7 @@ struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:gen9_global:any", gen9_global_pooling_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace prop_kind;
             using namespace alg_kind;
             auto *compute_engine
@@ -198,14 +198,14 @@ struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         pool_conf_t conf;
         offsets_t off;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);

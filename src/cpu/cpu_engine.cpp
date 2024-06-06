@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include <assert.h>
 
 #include "common/memory.hpp"
+#include "common/stream_impl.hpp"
 #include "common/type_helpers.hpp"
 
 #include "cpu/cpu_engine.hpp"
@@ -40,17 +41,10 @@ status_t cpu_engine_t::create_memory_storage(
     return status::success;
 }
 
-status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
-    return safe_ptr_assign(*stream, new cpu_stream_t(this, flags));
+status_t cpu_engine_t::create_stream(
+        stream_t **stream, impl::stream_impl_t *stream_impl) {
+    return safe_ptr_assign(*stream, new cpu_stream_t(this, stream_impl));
 }
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-status_t cpu_engine_t::create_stream(stream_t **stream,
-        dnnl::threadpool_interop::threadpool_iface *threadpool) {
-    return safe_ptr_assign<stream_t>(
-            *stream, new cpu_stream_t(this, threadpool));
-}
-#endif
 
 engine_t *get_service_engine() {
     static std::unique_ptr<engine_t, engine_deleter_t> cpu_engine;

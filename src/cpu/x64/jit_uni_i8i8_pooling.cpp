@@ -1390,7 +1390,8 @@ bool jit_uni_i8i8_pooling_fwd_ker_t<isa>::post_ops_ok(jit_pool_conf_t &jpp,
     for (const auto &entry : entries) {
         if (entry.is_eltwise()) {
             const auto alg = entry.eltwise.alg;
-            jpp.with_eltwise = eltwise_injector::is_supported(isa, alg);
+            jpp.with_eltwise
+                    = eltwise_injector::is_supported(isa, alg, data_type::f32);
         } else if (entry.is_binary()) {
             if (isa != avx512_core
                     && entry.binary.src1_desc.data_type == data_type::bf16)

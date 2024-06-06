@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -199,8 +199,9 @@ struct miopen_gemm_inner_product_fwd_impl_t
         return need_reorder_;
     }
 
-    virtual status_t init(engine_t *, inner_product_pd_t *pd, bool with_relu,
-            bool with_eltwise, bool with_sum, bool need_reorder) override {
+    virtual status_t init(impl::engine_t *, inner_product_pd_t *pd,
+            bool with_relu, bool with_eltwise, bool with_sum,
+            bool need_reorder) override {
         need_reorder_ = need_reorder;
 
         int ic = pd->IC_total_padded();
@@ -381,7 +382,7 @@ struct miopen_gemm_inner_product_bwd_data_impl_t
         return need_reorder_;
     }
 
-    virtual status_t init(engine_t *, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool need_reorder) override {
         need_reorder_ = need_reorder;
@@ -493,7 +494,7 @@ struct miopen_gemm_inner_product_bwd_weights_impl_t
                 MIOPEN_32BIT_INDICES);
         return status::success;
     }
-    virtual status_t init(engine_t *engine, inner_product_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
             bool need_reorder) override {
         need_reorder_ = need_reorder;
@@ -567,7 +568,7 @@ struct miopen_gemm_inner_product_bwd_weights_impl_t
             CHECK(create_and_set_reduce_descriptor());
 
             auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
-            stream_t *service_stream;
+            impl::stream_t *service_stream;
             CHECK(sycl_engine.get_service_stream(service_stream));
 
             auto hip_stream

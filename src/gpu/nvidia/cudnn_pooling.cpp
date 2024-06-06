@@ -16,8 +16,8 @@
 *******************************************************************************/
 
 #include "gpu/nvidia/cudnn_pooling.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
 #include "xpu/sycl/buffer_memory_storage.hpp"
 
 #include "common/nstl.hpp"
@@ -34,8 +34,8 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
     memory_desc_wrapper dst_wrap(pd()->dst_md());
     if (dst_wrap.size() == 0) return status::success;
 
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     memory_desc_wrapper src_wrap(pd()->src_md());
     auto dst_offset_bytes = src_wrap.nelems() * src_wrap.data_type_size();
@@ -47,7 +47,7 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
             compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-                auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
+                auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(
                         cuda_stream->engine());
                 auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
 
@@ -87,7 +87,7 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_wkspace = CTX_OUT_SYCL_MEMORY(DNNL_ARG_WORKSPACE);
 
         compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();
@@ -118,8 +118,8 @@ status_t cudnn_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
     if (wrap.size() == 0) { return status::success; }
     const auto dst_offset_bytes = wrap.size();
 
-    nvidia::sycl_cuda_stream_t *cuda_stream
-            = utils::downcast<nvidia::sycl_cuda_stream_t *>(ctx.stream());
+    nvidia::stream_t *cuda_stream
+            = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
     return cuda_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
@@ -127,7 +127,7 @@ status_t cudnn_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_wkspace = CTX_IN_SYCL_MEMORY(DNNL_ARG_WORKSPACE);
 
         compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_cuda_engine_t *>(
+            auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(
                     cuda_stream->engine());
             auto sc = cuda_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = cuda_stream->get_cudnn_handle();

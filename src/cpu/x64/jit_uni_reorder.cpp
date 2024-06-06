@@ -1734,10 +1734,12 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             MAYBE_UNUSED(max_unroll);
             assert(zero_idx >= max_unroll);
             assert(saturation_ubound_idx >= max_unroll);
+            assert(simd_w > 0);
 
             io::io_conf_t io_conf;
-            io::io_tail_conf_t io_tail_conf(simd_w, len_unroll % simd_w,
-                    tail_opmask_idx, tail_vmm_idx, reg_tmp_);
+            io::io_tail_conf_t io_tail_conf(simd_w,
+                    simd_w > 0 ? len_unroll % simd_w : 0, tail_opmask_idx,
+                    tail_vmm_idx, reg_tmp_);
             io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx_,
                     bf16_emu_zmm_2_idx_, bf16_emu_zmm_3_idx_, reg_tmp_,
                     bf16_emu_zmm_4_idx_);

@@ -17,9 +17,9 @@
 #ifndef GPU_INTEL_OCL_REF_ZERO_PAD_HPP
 #define GPU_INTEL_OCL_REF_ZERO_PAD_HPP
 
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_zero_pad_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -39,7 +39,7 @@ struct ref_zero_pad_t : public gpu_primitive_t {
         using gpu_zero_pad_pd_t::gpu_zero_pad_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_zero_pad_t);
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
             VDISPATCH_ZERO_PAD(compute_engine->mayiuse_sub_group(16),
@@ -50,7 +50,7 @@ struct ref_zero_pad_t : public gpu_primitive_t {
 
     ;
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         std::vector<compute::kernel_t> kernels {};

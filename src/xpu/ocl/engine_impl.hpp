@@ -23,6 +23,8 @@
 #include "common/engine_impl.hpp"
 #include "common/utils.hpp"
 
+#include "xpu/ocl/engine_id.hpp"
+#include "xpu/ocl/stream_impl.hpp"
 #include "xpu/ocl/utils.hpp"
 
 namespace dnnl {
@@ -72,6 +74,32 @@ public:
 
         CHECK(check_device(engine_kind::gpu, device(), context()));
 
+        // TODO: Remove it as soon as device info is generalized.
+        size_t param_size = 0;
+        err = clGetDeviceInfo(device_, CL_DEVICE_NAME, 0, nullptr, &param_size);
+        OCL_CHECK(err);
+
+        name_ = std::string(param_size, '\0');
+        err = clGetDeviceInfo(
+                device_, CL_DEVICE_NAME, param_size, &name_[0], &param_size);
+        OCL_CHECK(err);
+
+        err = clGetDeviceInfo(
+                device_, CL_DRIVER_VERSION, 0, nullptr, &param_size);
+        OCL_CHECK(err);
+
+        std::string driver_version(param_size, '\0');
+        err = clGetDeviceInfo(device_, CL_DRIVER_VERSION, param_size,
+                &driver_version[0], nullptr);
+        OCL_CHECK(err);
+
+        if (runtime_version_.set_from_string(&driver_version[0])
+                != status::success) {
+            runtime_version_.major = 0;
+            runtime_version_.minor = 0;
+            runtime_version_.build = 0;
+        }
+
         return status::success;
     }
 
@@ -79,9 +107,32 @@ public:
     cl_context context() const { return context_; }
     cl_platform_id platform() const { return platform_; }
 
-    device_id_t device_id() const {
-        return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
+    engine_id_t engine_id() const override {
+        return engine_id_t(new xpu::ocl::engine_id_impl_t(
+                device(), context(), kind(), runtime_kind(), index()));
     }
+
+    status_t create_stream_impl(
+            impl::stream_impl_t **stream_impl, unsigned flags) const override {
+        auto *si = new xpu::ocl::stream_impl_t(flags);
+        if (!si) return status::out_of_memory;
+        *stream_impl = si;
+        return status::success;
+    }
+
+    // TODO: The device info class should be generalized to support multiple
+    // vendors. For now, put common device info parts in engine_impl_t
+    // directly.
+    const std::string &name() const { return name_; }
+    const runtime_version_t &runtime_version() const {
+        return runtime_version_;
+    }
+
+    int get_buffer_alignment() const override { return 128; }
+
+private:
+    std::string name_;
+    runtime_version_t runtime_version_;
 
 private:
     xpu::ocl::wrapper_t<cl_device_id> device_;

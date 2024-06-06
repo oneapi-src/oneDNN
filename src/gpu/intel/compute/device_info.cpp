@@ -232,7 +232,7 @@ size_t device_info_t::icache_size() const {
     return 0;
 }
 
-status_t device_info_t::init_attributes_common(engine_t *engine) {
+status_t device_info_t::init_attributes_common(impl::engine_t *engine) {
     bool ocl_backend = true;
 
 #ifdef DNNL_WITH_SYCL

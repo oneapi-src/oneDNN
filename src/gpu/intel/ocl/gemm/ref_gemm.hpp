@@ -18,8 +18,8 @@
 #define GPU_INTEL_OCL_GEMM_REF_GEMM_HPP
 
 #include "gpu/gpu_gemm_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gemm/gpu_gemm.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -35,7 +35,7 @@ struct ref_gemm_t : public gpu_gemm_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_gemm_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
@@ -158,7 +158,7 @@ struct ref_gemm_t : public gpu_gemm_t {
         attr_info_t attr_info = {};
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());

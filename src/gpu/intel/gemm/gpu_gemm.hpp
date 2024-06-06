@@ -53,7 +53,7 @@ struct gpu_gemm_t : public gpu_primitive_t {
     }
 };
 
-inline const gpu_gemm_t *gpu_gemm(const std::shared_ptr<primitive_t> &p) {
+inline const gpu_gemm_t *gpu_gemm(const std::shared_ptr<impl::primitive_t> &p) {
     return utils::downcast<gpu_gemm_t *>(p.get());
 }
 

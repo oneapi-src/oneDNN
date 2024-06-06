@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,8 +24,8 @@
 #include "common/primitive.hpp"
 #include "common/reduction_pd.hpp"
 #include "gpu/nvidia/cudnn_reduction_impl.hpp"
-#include "gpu/nvidia/sycl_cuda_engine.hpp"
-#include "gpu/nvidia/sycl_cuda_stream.hpp"
+#include "gpu/nvidia/engine.hpp"
+#include "gpu/nvidia/stream.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -40,7 +40,7 @@ struct cudnn_reduction_t : public primitive_t {
         using reduction_pd_t::reduction_pd_t;
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_reduction_t);
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
 
             const bool ok = (set_default_params() == status::success)

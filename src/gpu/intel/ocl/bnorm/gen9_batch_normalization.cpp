@@ -33,7 +33,7 @@ using namespace bn_utils;
 using namespace dnnl::impl::utils;
 
 static bool use_fused_atomics_reduction(bn_lookup_table::params_t &conf,
-        const batch_normalization_pd_t *pd, engine_t *engine) {
+        const batch_normalization_pd_t *pd, impl::engine_t *engine) {
     // Currently the fused atomics reduction is targeting to PVC only.
     // Heuristics experimentally selected, based on PVC perf data
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
@@ -59,7 +59,8 @@ static size_t get_slm_buff_size(
 
 // Local group size adjustment.
 static void adjust_lws_calc_kernel(bn_lookup_table::params_t &conf,
-        compute::dispatch_t &dispatch, engine_t *engine, bool large_grf_mode) {
+        compute::dispatch_t &dispatch, impl::engine_t *engine,
+        bool large_grf_mode) {
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto eu_count = compute_engine->device_info()->eu_count();
     auto max_lws = compute_engine->device_info()->max_wg_size(large_grf_mode);
@@ -137,7 +138,7 @@ static status_t init_conf_common(bn_lookup_table::params_t &conf,
         offsets_t &off, compute::dispatch_t &dispatch_calc_stat,
         compute::dispatch_t &dispatch_reduce_stat,
         compute::dispatch_t &dispatch, compute::dispatch_t &dispatch_reduce_aux,
-        const batch_normalization_pd_t *pd, engine_t *engine) {
+        const batch_normalization_pd_t *pd, impl::engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper data_mdw(
             pd->is_fwd() ? pd->src_md() : pd->diff_src_md());
@@ -389,7 +390,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-status_t gen9_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+status_t gen9_batch_normalization_fwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     return init_conf_common(conf, off, dispatch_calc_stat, dispatch_reduce_stat,
             dispatch, dispatch_reduce_aux, this, engine);
 }
@@ -592,7 +594,8 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
     return status;
 }
 
-status_t gen9_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+status_t gen9_batch_normalization_bwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
     return init_conf_common(conf, off, dispatch_calc_stat, dispatch_reduce_stat,
             dispatch, dispatch_reduce_aux, this, engine);
 }

@@ -39,7 +39,7 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_fwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -88,7 +88,7 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        void init_conf(engine_t *engine);
+        void init_conf(impl::engine_t *engine);
         void init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
@@ -99,7 +99,7 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
         compute::kernel_ctx_t kernel_ctx;
 
@@ -151,7 +151,7 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -190,7 +190,7 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        void init_conf(engine_t *engine);
+        void init_conf(impl::engine_t *engine);
         void init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
         void init_scratchpad();
 
@@ -201,7 +201,7 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
         compute::kernel_ctx_t kernel_ctx;
 

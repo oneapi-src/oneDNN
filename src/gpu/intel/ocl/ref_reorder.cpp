@@ -28,7 +28,7 @@ namespace ocl {
 
 using namespace dnnl::impl::memory_tracking::names;
 
-status_t ref_reorder_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
     using namespace format_tag;
 
     const memory_desc_wrapper src_mdw(src_md());

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -77,7 +77,8 @@ public:
             MIOPEN_EXECUTE_FUNC_V(miopenDestroyTensorDescriptor, descs[i]);
         }
     }
-    virtual status_t configure_alg_kind(engine_t *, convolution_pd_t *pd) = 0;
+    virtual status_t configure_alg_kind(impl::engine_t *, convolution_pd_t *pd)
+            = 0;
 
     virtual bool supported_filter_format(
             const memory_desc_t *md) const override {
@@ -93,7 +94,7 @@ public:
     bool using_transformed_filter() const { return filter_needs_transform; }
     bool with_scratchpad() const { return workspace_size > 0; }
 
-    virtual status_t init(engine_t *engine, convolution_pd_t *pd,
+    virtual status_t init(impl::engine_t *engine, convolution_pd_t *pd,
             bool use_scratch_dst = false) {
         CHECK(configure_parameters(pd));
         CHECK(create_miopen_descs(pd));
@@ -234,7 +235,8 @@ public:
 
         return status::success;
     }
-    virtual status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) {
+    virtual status_t init_scratchpad(
+            impl::engine_t *engine, convolution_pd_t *pd) {
         if (filter_needs_transform) {
             auto sz = memory_desc_wrapper(&dnnl_descs[weights]).size();
             auto data_size
@@ -464,7 +466,7 @@ public:
         return status::success;
     }
 
-    status_t init(engine_t *engine, convolution_pd_t *pd,
+    status_t init(impl::engine_t *engine, convolution_pd_t *pd,
             bool use_scratch_dst) override {
         use_temp_dst_ = use_scratch_dst;
         CHECK(configure_parameters(pd));
@@ -560,9 +562,10 @@ public:
             execute_reorder(handle, post_op_scratch, y, false);
         }
     }
-    status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
+    status_t init_scratchpad(
+            impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
         auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);
         auto handle = hip_stream->get_miopen_handle();
@@ -602,10 +605,10 @@ public:
     }
 
     status_t configure_alg_kind(
-            engine_t *engine, convolution_pd_t *pd) override {
+            impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
         hip_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         double activAlpha, activBeta, activGamma;
@@ -673,18 +676,19 @@ struct miopen_convolution_impl_bwd_data_t
     : public miopen_convolution_impl_base_t {
 protected:
     status_t configure_alg_kind(
-            engine_t *engine, convolution_pd_t *pd) override {
+            impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
         hip_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         return status::success;
     }
 
-    status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
+    status_t init_scratchpad(
+            impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);
@@ -809,18 +813,19 @@ public:
         return status::success;
     }
     virtual status_t configure_alg_kind(
-            engine_t *engine, convolution_pd_t *pd) override {
+            impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
         hip_sycl_scoped_context_handler_t sc(sycl_engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         return status::success;
     }
 
-    status_t init_scratchpad(engine_t *engine, convolution_pd_t *pd) override {
+    status_t init_scratchpad(
+            impl::engine_t *engine, convolution_pd_t *pd) override {
         auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
         auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);

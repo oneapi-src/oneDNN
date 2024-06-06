@@ -29,29 +29,12 @@ namespace sycl {
 
 status_t sycl_engine_base_t::create_memory_storage(
         memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    std::unique_ptr<memory_storage_t> _storage;
-
-    if (flags & memory_flags_t::prefer_device_usm) {
-        _storage.reset(new xpu::sycl::usm_memory_storage_t(
-                this, ::sycl::usm::alloc::device));
-    } else
-        _storage.reset(new xpu::sycl::buffer_memory_storage_t(this));
-
-    if (!_storage) return status::out_of_memory;
-
-    status_t status = _storage->init(flags, size, handle);
-    if (status != status::success) return status;
-
-    *storage = _storage.release();
-    return status::success;
+    return impl()->create_memory_storage(storage, this, flags, size, handle);
 }
 
-status_t sycl_engine_base_t::create_stream(stream_t **stream, unsigned flags) {
-    return sycl_stream_t::create_stream(stream, this, flags);
-}
 status_t sycl_engine_base_t::create_stream(
-        stream_t **stream, ::sycl::queue &queue) {
-    return sycl_stream_t::create_stream(stream, this, queue);
+        impl::stream_t **stream, impl::stream_impl_t *stream_impl) {
+    return sycl_stream_t::create_stream(stream, this, stream_impl);
 }
 
 status_t sycl_engine_base_t::init_device_info() {

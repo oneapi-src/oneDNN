@@ -22,10 +22,10 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "gpu/gpu_batch_normalization_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/compute/dispatch_reusable.hpp"
 #include "gpu/intel/compute/kernel.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/ocl/ocl_stream.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
@@ -125,7 +125,7 @@ struct nhwc_reusable_batch_normalization_fwd_t : public gpu_primitive_t {
                                               : "ocl:nhwc_reusable";
         }
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -175,7 +175,7 @@ struct nhwc_reusable_batch_normalization_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         void init_scratchpad();
 
         nhwc_reusable_bnorm_compile_params_t cmpl_conf;
@@ -188,7 +188,7 @@ struct nhwc_reusable_batch_normalization_fwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch_reduce_aux;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
         auto kernel_names = pd()->cmpl_conf.get_kernel_names();
         CHECK(create_kernels(engine, kernels_, kernel_names, pd()->cmpl_conf));
@@ -216,7 +216,7 @@ struct nhwc_reusable_batch_normalization_bwd_t : public gpu_primitive_t {
         DECLARE_COMMON_PD_T(
                 "ocl:nhwc_reusable", nhwc_reusable_batch_normalization_bwd_t);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -259,7 +259,7 @@ struct nhwc_reusable_batch_normalization_bwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_conf(engine_t *engine);
+        status_t init_conf(impl::engine_t *engine);
         void init_scratchpad();
 
         nhwc_reusable_bnorm_compile_params_t cmpl_conf;
@@ -272,7 +272,7 @@ struct nhwc_reusable_batch_normalization_bwd_t : public gpu_primitive_t {
         compute::dispatch_t dispatch_reduce_aux;
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
         auto kernel_names = pd()->cmpl_conf.get_kernel_names();
         CHECK(create_kernels(engine, kernels_, kernel_names, pd()->cmpl_conf));

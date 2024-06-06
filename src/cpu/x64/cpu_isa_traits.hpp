@@ -422,25 +422,35 @@ static inline bool isa_has_masks(cpu_isa_t isa) {
 }
 
 static inline int isa_max_vlen(cpu_isa_t isa) {
-    if (is_superset(isa, avx512_core))
+    const bool is_avx512 = is_superset(isa, avx512_core);
+    const bool is_avx = is_superset(isa, avx);
+    const bool is_sse41 = is_superset(isa, sse41);
+
+    assert(utils::one_of(true, is_avx512, is_avx, is_sse41));
+    MAYBE_UNUSED(is_sse41);
+
+    if (is_avx512)
         return cpu_isa_traits<avx512_core>::vlen;
-    else if (is_superset(isa, avx))
+    else if (is_avx)
         return cpu_isa_traits<avx>::vlen;
-    else if (is_superset(isa, sse41))
+    else
         return cpu_isa_traits<sse41>::vlen;
-    assert(!"ISA Error");
-    return 0;
 }
 
 static inline int isa_num_vregs(cpu_isa_t isa) {
-    if (is_superset(isa, avx512_core))
+    const bool is_avx512 = is_superset(isa, avx512_core);
+    const bool is_avx = is_superset(isa, avx);
+    const bool is_sse41 = is_superset(isa, sse41);
+
+    assert(utils::one_of(true, is_avx512, is_avx, is_sse41));
+    MAYBE_UNUSED(is_sse41);
+
+    if (is_avx512)
         return cpu_isa_traits<avx512_core>::n_vregs;
-    else if (is_superset(isa, avx))
+    else if (is_avx)
         return cpu_isa_traits<avx>::n_vregs;
-    else if (is_superset(isa, sse41))
+    else
         return cpu_isa_traits<sse41>::n_vregs;
-    assert(!"ISA Error");
-    return 0;
 }
 
 } // namespace
@@ -522,7 +532,9 @@ inline size_t data_type_vnni_simd_elems(data_type_t data_type, cpu_isa_t isa) {
     if (data_type == data_type::s8 && isa != avx512_core)
         return data_type_vnni_simd_elems(data_type, avx512_core);
 
-    return isa_max_vlen(isa) / dt_size;
+    size_t vlen = isa_max_vlen(isa);
+    assert(vlen >= dt_size);
+    return vlen / dt_size;
 }
 
 } // namespace x64

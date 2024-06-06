@@ -23,8 +23,8 @@
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 #include "gpu/gpu_binary_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -40,7 +40,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("multi_po_reorder_binary", multi_po_reorder_binary);
 
-        status_t init(engine_t *engine) {
+        status_t init(impl::engine_t *engine) {
             if (attr()->scales_.get(DNNL_ARG_SRC_0).is_set_
                     || attr()->scales_.get(DNNL_ARG_SRC_1).is_set_
                     || attr()->post_ops_.len() >= 1) {
@@ -133,7 +133,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
         }
     };
 
-    status_t init(engine_t *engine) override {
+    status_t init(impl::engine_t *engine) override {
         int size = pd()->need_input_reorder ? 2 : 1;
         reorder_primitive_list.resize(size);
         for (int i = 0; i < size; ++i) {
@@ -169,7 +169,7 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::vector<std::shared_ptr<primitive_t>> reorder_primitive_list;
+    std::vector<std::shared_ptr<impl::primitive_t>> reorder_primitive_list;
 };
 } // namespace ocl
 } // namespace intel

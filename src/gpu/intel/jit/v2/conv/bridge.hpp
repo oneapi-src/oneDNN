@@ -98,7 +98,7 @@ inline prb_tile_t to_shape(const convolution_pd_t *pd) {
 }
 
 inline problem_t to_problem(
-        const convolution_pd_t *pd, const engine_t *engine) {
+        const convolution_pd_t *pd, const impl::engine_t *engine) {
     auto prop = pd->desc()->prop_kind;
     auto src = make_conv_layout_tag(
             tensor_kind_t::src, pd->ndims(), *pd->invariant_src_md());

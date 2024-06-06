@@ -23,8 +23,8 @@
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/gpu_resource.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -40,8 +40,8 @@ struct direct_copy_t : public gpu_primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:direct_copy", direct_copy_t);
 
-        status_t init(engine_t *engine, engine_t * /*src_engine*/,
-                engine_t * /*dst_engine*/) {
+        status_t init(impl::engine_t *engine, impl::engine_t * /*src_engine*/,
+                impl::engine_t * /*dst_engine*/) {
             VDISPATCH_REORDER(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_REORDER(
@@ -98,7 +98,7 @@ struct direct_copy_t : public gpu_primitive_t {
         DECLARE_GPU_REORDER_CREATE();
     };
 
-    status_t init(engine_t *engine) override { return status::success; }
+    status_t init(impl::engine_t *engine) override { return status::success; }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         auto *compute_stream

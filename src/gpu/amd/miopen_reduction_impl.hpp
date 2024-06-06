@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -62,7 +62,8 @@ struct miopen_reduction_impl_base_t {
 
     virtual status_t init(reduction_pd_t *pd) = 0;
 
-    virtual void create_and_set_workspace(reduction_pd_t *pd, engine_t *engine)
+    virtual void create_and_set_workspace(
+            reduction_pd_t *pd, impl::engine_t *engine)
             = 0;
 
     void execute(miopenHandle_t handle, void *a, void *c, void *scratch) {
@@ -158,10 +159,10 @@ struct miopen_reduction_impl_t : public miopen_reduction_impl_base_t {
     }
 
     void create_and_set_workspace(
-            reduction_pd_t *pd, engine_t *engine) override {
+            reduction_pd_t *pd, impl::engine_t *engine) override {
         auto sycl_engine = utils::downcast<sycl_hip_engine_t *>(engine);
 
-        stream_t *service_stream;
+        impl::stream_t *service_stream;
         sycl_engine->get_service_stream(service_stream);
 
         auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);

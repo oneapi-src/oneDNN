@@ -24,7 +24,7 @@ namespace ocl {
 
 using namespace format_tag;
 
-status_t ref_shuffle_t::pd_t::init_conf(engine_t *engine) {
+status_t ref_shuffle_t::pd_t::init_conf(impl::engine_t *engine) {
     const memory_desc_wrapper input_mdw(is_fwd() ? src_md() : diff_dst_md());
     conf.data_type = input_mdw.data_type();
     const memory_desc_wrapper output_mdw(is_fwd() ? dst_md() : diff_src_md());

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,8 @@ namespace impl {
 namespace cpu {
 
 struct cpu_stream_t : public stream_t {
-    cpu_stream_t(engine_t *engine, unsigned flags) : stream_t(engine, flags) {}
+    cpu_stream_t(engine_t *engine, impl::stream_impl_t *stream_impl)
+        : stream_t(engine, stream_impl) {}
     virtual ~cpu_stream_t() = default;
 
     dnnl::impl::status_t wait() override {
@@ -43,7 +44,7 @@ struct cpu_stream_t : public stream_t {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     cpu_stream_t(engine_t *engine,
             dnnl::threadpool_interop::threadpool_iface *threadpool)
-        : stream_t(engine, threadpool) {}
+        : stream_t(engine, new impl::stream_impl_t(threadpool)) {}
 
     void before_exec_hook() override {
         dnnl::threadpool_interop::threadpool_iface *tp;

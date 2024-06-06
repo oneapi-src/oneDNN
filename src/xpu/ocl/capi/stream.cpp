@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <memory>
+
 #include <CL/cl.h>
 
 #include "oneapi/dnnl/dnnl_ocl.h"
@@ -22,11 +24,10 @@
 #include "common/engine.hpp"
 #include "common/stream.hpp"
 #include "common/utils.hpp"
-#include "gpu/intel/ocl/ocl_engine.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
+
+#include "xpu/ocl/stream_impl.hpp"
 
 using namespace dnnl::impl;
-using namespace dnnl::impl::gpu::intel::ocl;
 
 status_t dnnl_ocl_interop_stream_create(
         stream_t **stream, engine_t *engine, cl_command_queue queue) {
@@ -35,8 +36,16 @@ status_t dnnl_ocl_interop_stream_create(
 
     if (!args_ok) return status::invalid_arguments;
 
-    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
-    return ocl_engine->create_stream(stream, queue);
+    unsigned flags;
+    CHECK(dnnl::impl::xpu::ocl::stream_impl_t::init_flags(&flags, queue));
+
+    std::unique_ptr<dnnl::impl::stream_impl_t> stream_impl(
+            new dnnl::impl::xpu::ocl::stream_impl_t(queue, flags));
+    if (!stream_impl) return status::out_of_memory;
+
+    CHECK(engine->create_stream(stream, stream_impl.get()));
+    stream_impl.release();
+    return status::success;
 }
 
 status_t dnnl_ocl_interop_stream_get_command_queue(
@@ -46,7 +55,8 @@ status_t dnnl_ocl_interop_stream_get_command_queue(
 
     if (!args_ok) return status::invalid_arguments;
 
-    auto *ocl_stream = utils::downcast<ocl_stream_t *>(stream);
-    *queue = ocl_stream->queue();
+    const auto *ocl_stream_impl
+            = utils::downcast<const xpu::ocl::stream_impl_t *>(stream->impl());
+    *queue = const_cast<xpu::ocl::stream_impl_t *>(ocl_stream_impl)->queue();
     return status::success;
 }
