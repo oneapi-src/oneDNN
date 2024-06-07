@@ -39,6 +39,7 @@ struct acl_lowp_matmul_obj_t {
     arm_compute::Tensor bia_tensor;
     arm_compute::Tensor dst_tensor;
     arm_compute::Tensor dst_s8_tensor;
+    arm_compute::Tensor dst_cast_tensor;
     arm_compute::NEGEMMLowpMatrixMultiplyCore gemm;
     arm_compute::NEQuantizationLayer quant;
     arm_compute::NEDequantizationLayer dequant;
@@ -50,11 +51,13 @@ struct acl_lowp_matmul_conf_t {
     arm_compute::TensorInfo bia_tensor_info;
     arm_compute::TensorInfo dst_tensor_info;
     arm_compute::TensorInfo dst_s8_tensor_info;
+    arm_compute::TensorInfo dst_cast_tensor_info;
     arm_compute::GEMMInfo gemm_info;
-    bool with_bias;
-    bool use_dst_acc;
-    bool dst_is_s8;
-    bool sum_is_fused = false;
+    bool with_bias {false};
+    bool use_dst_acc {false};
+    bool dst_is_s8 {false};
+    bool use_cast_acc {false};
+    bool sum_is_fused {false};
 };
 
 struct acl_lowp_matmul_resource_t : public resource_t {

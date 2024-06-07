@@ -44,8 +44,15 @@ status_t acl_lowp_matmul_resource_t::configure(
             acl_obj_->dequant.configure(
                     &acl_obj_->dst_s8_tensor, &acl_obj_->dst_tensor);
         }
-        acl_obj_->quant.configure(
-                &acl_obj_->dst_tensor, &acl_obj_->dst_s8_tensor);
+        if (almc.use_cast_acc) {
+            acl_obj_->dequant.configure(
+                    &acl_obj_->dst_s8_tensor, &acl_obj_->dst_cast_tensor);
+            acl_obj_->quant.configure(
+                    &acl_obj_->dst_cast_tensor, &acl_obj_->dst_s8_tensor);
+        } else {
+            acl_obj_->quant.configure(
+                    &acl_obj_->dst_tensor, &acl_obj_->dst_s8_tensor);
+        }
     }
 
     return status::success;
@@ -76,12 +83,6 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
     const memory_desc_wrapper dst_d(dst_md_);
 
     using namespace data_type;
-
-    VDISPATCH_MATMUL(
-            !(dst_d.data_type() == s8
-                    && attr_.post_ops_.find(primitive_kind::sum, 0, -1) >= 0
-                    && !attr_.post_ops_.contain(primitive_kind::sum, 0)),
-            "sum must be the first post-op when dst is s8");
 
     // Note that has_default_values checks the argument for default zero
     // points but skips the argument for scales. Hence they are the
@@ -147,9 +148,15 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
         almc_.sum_is_fused = true;
         almc_.use_dst_acc = almc_.dst_is_s8;
     } else {
-        almc_.use_dst_acc
-                = attr_.post_ops_.find(primitive_kind::sum, 0, -1) >= 0
-                || almc_.dst_is_s8;
+        const bool contains_sum
+                = attr_.post_ops_.find(primitive_kind::sum, 0, -1) >= 0;
+        // When sum is not fused we need to use an intermediate accumulator
+        // tensor to store the result of the matmul. This is also the case for
+        // when dst is s8, since we perform s8:s8:f32 matmul. If both are true,
+        // we need to use another temporary tensor to cast existing s8 dst data
+        // to f32 so we can perform the unfused sum.
+        almc_.use_dst_acc = contains_sum || almc_.dst_is_s8;
+        almc_.use_cast_acc = contains_sum && almc_.dst_is_s8;
     }
 
     // Even if dst is s8, we do the post ops in f32
@@ -160,6 +167,8 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
 
     almc_.dst_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(N(), M()), arm_compute::Format::F32);
+
+    almc_.dst_cast_tensor_info = almc_.dst_tensor_info;
 
     almc_.dst_s8_tensor_info
             = arm_compute::TensorInfo(arm_compute::TensorShape(N(), M()), 1,
@@ -175,6 +184,9 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
         if (almc_.sum_is_fused) {
             ACL_CHECK_VALID(arm_compute::NEDequantizationLayer::validate(
                     &almc_.dst_s8_tensor_info, &almc_.dst_tensor_info));
+        } else if (almc_.use_cast_acc) {
+            ACL_CHECK_VALID(arm_compute::NEDequantizationLayer::validate(
+                    &almc_.dst_s8_tensor_info, &almc_.dst_cast_tensor_info));
         }
         ACL_CHECK_VALID(arm_compute::NEQuantizationLayer::validate(
                 &almc_.dst_tensor_info, &almc_.dst_s8_tensor_info));
@@ -188,9 +200,13 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
 
 status_t acl_lowp_matmul_t::pd_t::init_scratchpad(
         memory_tracking::registrar_t &scratchpad) {
+    const memory_desc_wrapper dst_d(&dst_md_);
     if (almc_.use_dst_acc) {
-        const memory_desc_wrapper dst_d(&dst_md_);
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
+                dst_d.nelems(), sizeof(float32_t));
+    }
+    if (almc_.use_cast_acc) {
+        scratchpad.book(memory_tracking::names::key_matmul_dst_cast_acc,
                 dst_d.nelems(), sizeof(float32_t));
     }
     return status::success;
@@ -248,7 +264,12 @@ status_t acl_lowp_matmul_t::execute(const exec_ctx_t &ctx) const {
                                        : CTX_OUT_MEM(float *, DNNL_ARG_DST);
     acl_obj.dst_tensor.allocator()->import_memory(dst);
 
-    if (pd()->almc_.dst_is_s8 && pd()->almc_.sum_is_fused) {
+    auto dst_cast = pd()->almc_.use_cast_acc ? scratchpad.get<void>(
+                            memory_tracking::names::key_matmul_dst_cast_acc)
+                                             : nullptr;
+    if (dst_cast) acl_obj.dst_cast_tensor.allocator()->import_memory(dst_cast);
+
+    if ((pd()->almc_.dst_is_s8 && pd()->almc_.sum_is_fused) || dst_cast) {
         auto dst_s8 = CTX_OUT_MEM(int8_t *, DNNL_ARG_DST);
         acl_obj.dst_s8_tensor.allocator()->import_memory(
                 const_cast<int8_t *>(dst_s8));
@@ -270,12 +291,20 @@ status_t acl_lowp_matmul_t::execute(const exec_ctx_t &ctx) const {
     acl_obj.gemm.run();
 
     auto src_post_ops = acl_obj.dst_tensor.buffer();
-    if (pd()->acl_post_ops.has_sum()) {
-        dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+    // Here we select the output destination for post-ops. By default,
+    // these are in-place so that dst=src. However, when there is a non-fused
+    // sum, we set dst to be the tensor where data to be summed is stored.
+    void *dst_post_ops;
+    if (pd()->acl_post_ops.has_sum() && !pd()->almc_.sum_is_fused) {
+        if (pd()->almc_.dst_is_s8) {
+            dst_post_ops = acl_obj.dst_cast_tensor.buffer();
+        } else {
+            dst_post_ops = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+        }
     } else {
-        dst = src_post_ops;
+        dst_post_ops = src_post_ops;
     }
-    pd()->acl_post_ops.execute(ctx, src_post_ops, dst);
+    pd()->acl_post_ops.execute(ctx, src_post_ops, dst_post_ops);
 
     // free() here tells ACL it can no longer use it, it does not deallocate
     acl_obj.src_tensor.allocator()->free();
