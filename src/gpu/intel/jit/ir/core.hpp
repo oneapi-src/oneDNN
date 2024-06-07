@@ -618,30 +618,27 @@ public:
 
     // Downcasts the object to the IR type, returns a reference. The IR type
     // must match the real IR type.
+    // N.B.: this can potentially be dangerous if applied to non-const objects,
+    //       since assigning a different value to the source object might make
+    //       the reference dangling due to the destruction of the former object;
+    //       please only call this method on non-const objects if absolutely
+    //       necessary, and please don't add a non-const variant of the method!
     template <typename T>
     const T &as() const {
-        ir_assert(this->is<T>());
-        return *(const T *)this;
-    }
-
-    template <typename T>
-    T &as() {
-        ir_assert(this->is<T>());
-        return *(T *)this;
+        ir_assert(is<T>());
+        return *as_ptr<T>(); // fails on incorrect casts even in Release
     }
 
     // Downcasts the object to the IR type, returns a pointer. If the IR type
     // doesn't match the real IR type, returns nullptr.
+    // N.B.: this can potentially be dangerous if applied to non-const objects,
+    //       since assigning a different value to the source object might make
+    //       the reference dangling due to the destruction of the former object;
+    //       please only call this method on non-const objects if absolutely
+    //       necessary, and please don't add a non-const variant of the method!
     template <typename T>
     const T *as_ptr() const {
-        if (!this->is<T>()) return nullptr;
-        return (const T *)this;
-    }
-
-    template <typename T>
-    T *as_ptr() {
-        if (!this->is<T>()) return nullptr;
-        return (T *)this;
+        return (is<T>()) ? (const T *)this : nullptr;
     }
 
     // Returns true if T matches the real IR type.
@@ -723,19 +720,7 @@ public:
     }
 
     template <typename T>
-    T &as() {
-        ir_assert(impl_);
-        return impl_->as<T>();
-    }
-
-    template <typename T>
     const T *as_ptr() const {
-        if (!impl_) return nullptr;
-        return impl_->as_ptr<T>();
-    }
-
-    template <typename T>
-    T *as_ptr() {
         if (!impl_) return nullptr;
         return impl_->as_ptr<T>();
     }
