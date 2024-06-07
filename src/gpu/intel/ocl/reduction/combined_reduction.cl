@@ -148,7 +148,7 @@ void write_padded_zeros(__global DST_DATA_T *dst) {
 #endif
 
 #define DUMP(str, ...) \
-    DEBUG_PRINT("%d->%d/%d/%d: " str, get_global_id(0), tgid, sgid, sglid, \
+    DEBUG_PRINT("%zu->%d/%d/%d: " str, get_global_id(0), tgid, sgid, sglid, \
             __VA_ARGS__)
 
 // Specifying wg size since larger work groups reduce performance.
@@ -273,7 +273,7 @@ combined_reduce(
             if (is_dst_zero_padded(dst_off)) res = 0.0f;
             dst[dst_off] = IS_FINAL ? TO_DST(res) : res;
             write_padded_zeros(dst + dst_off);
-            DUMP("dst[%d] <- %f\n", dst_off, TO_DST(res));
+            DUMP("dst[%ld] <- %f\n", dst_off, TO_DST(res));
         }
     }
 }
