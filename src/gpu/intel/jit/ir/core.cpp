@@ -310,9 +310,9 @@ void ptr_t::normalize(expr_t &base, expr_t &off, op_kind_t op_kind) {
         return;
     }
 
-    auto &base_off = base.as<ptr_t>().off;
+    off = const_fold_non_recursive(
+            binary_op_t::make(op_kind, base.as<ptr_t>().off, off));
     base = base.as<ptr_t>().base;
-    off = const_fold_non_recursive(binary_op_t::make(op_kind, base_off, off));
 }
 
 expr_t shift_ptr(op_kind_t op_kind, const expr_t &a, const expr_t &b) {
@@ -324,11 +324,8 @@ expr_t shift_ptr(op_kind_t op_kind, const expr_t &a, const expr_t &b) {
 
 void normalize_ptr(const type_t &type, expr_t &base_expr, expr_t &off) {
     if (base_expr.is<ptr_t>()) {
-        auto &base = base_expr.as<ptr_t>().base;
-        auto &base_off = base_expr.as<ptr_t>().off;
-
-        base_expr = base;
-        off = const_fold_non_recursive(base_off + off);
+        off = const_fold_non_recursive(base_expr.as<ptr_t>().off + off);
+        base_expr = base_expr.as<ptr_t>().base;
     }
     ir_assert(to_cpp<int64_t>(off) % type.scalar().size() == 0)
             << "Incompatible offset: " << off;
