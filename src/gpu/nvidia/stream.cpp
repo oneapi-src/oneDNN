@@ -70,7 +70,7 @@ status_t stream_t::init() {
     auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(engine());
     auto status = status::success;
 
-    if (impl()->queue()) {
+    if (!impl()->queue()) {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
         ::sycl::property_list prop_list;
