@@ -83,6 +83,7 @@ ReduceProd | ReduceSum]
 | BatchNormInference + ReLU\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks, for example DenseNet. |
 | Reciprocal + Multiply\f$_{>out}\f$ | N/A |
 | Reorder + Add\f$_{>out}\f$ | N/A |
+| Scaled Dot-Product Attention | Refer to @ref dev_guide_graph_sdpa for more details. |
 
 #### Quantized Patterns
 
