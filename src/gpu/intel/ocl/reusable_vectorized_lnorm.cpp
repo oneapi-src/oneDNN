@@ -148,6 +148,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
                 break;
             }
         }
+        if (found_compatible_sg_and_vector_size) break;
     }
 
     if (found_compatible_sg_and_vector_size == false) {
