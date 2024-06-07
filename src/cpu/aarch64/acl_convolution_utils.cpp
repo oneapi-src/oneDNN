@@ -314,15 +314,13 @@ status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         const primitive_attr_t &attr) {
     if (weights_md.ndims != 4) return status::unimplemented;
 
-    // Indirect is slower for small convolution kernels
-    if (weights_md.dims[2] == 1 && weights_md.dims[3] == 1)
+    // Indirect is slower for small convolution kernels, except when src, weight and dst are BF16
+    if (weights_md.dims[2] == 1 && weights_md.dims[3] == 1
+            && !everyone_is(data_type::bf16, src_md.data_type,
+                    weights_md.data_type, dst_md.data_type))
         return status::unimplemented;
 
     CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
-
-    // Indirect is slower than gemm for low thread counts, except for fast math
-    if (dnnl_get_max_threads() < 28 && !acp.fast_math)
-        return status::unimplemented;
 
     // If we do not need to pad input channels for fast math mode then it would
     // be faster to run convolution with im2row instead of using indirect kernel
