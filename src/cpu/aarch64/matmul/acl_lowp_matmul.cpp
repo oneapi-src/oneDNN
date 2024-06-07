@@ -40,6 +40,10 @@ status_t acl_lowp_matmul_resource_t::configure(
             &acl_obj_->dst_tensor, almc.gemm_info);
 
     if (almc.dst_is_s8) {
+        if (almc.sum_is_fused) {
+            acl_obj_->dequant.configure(
+                    &acl_obj_->dst_s8_tensor, &acl_obj_->dst_tensor);
+        }
         acl_obj_->quant.configure(
                 &acl_obj_->dst_tensor, &acl_obj_->dst_s8_tensor);
     }
@@ -75,8 +79,9 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
 
     VDISPATCH_MATMUL(
             !(dst_d.data_type() == s8
-                    && attr_.post_ops_.find(primitive_kind::sum, 0, -1) >= 0),
-            "s8 dst with sum post-op unsupported");
+                    && attr_.post_ops_.find(primitive_kind::sum, 0, -1) >= 0
+                    && !attr_.post_ops_.contain(primitive_kind::sum, 0)),
+            "sum must be the first post-op when dst is s8");
 
     // Note that has_default_values checks the argument for default zero
     // points but skips the argument for scales. Hence they are the
@@ -129,12 +134,29 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
                 arm_compute::TensorShape(bia_d.dims()[1], bia_d.dims()[0]));
     }
 
+    // We can fuse sum if it is the first post op
+    if (attr_.post_ops_.contain(primitive_kind::sum, 0)) {
+        // Check there isn't another sum after the first
+        VDISPATCH_MATMUL(attr_.post_ops_.find(primitive_kind::sum, 1, -1) < 0,
+                "cannot contain multiple sum post-ops");
+        VDISPATCH_MATMUL(attr_.post_ops_.entry_[0].sum.scale == 1.0f,
+                "sum post op scale must be 1 (no scale)");
+        VDISPATCH_MATMUL(attr_.post_ops_.entry_[0].sum.zero_point == 0,
+                "sum post op zero point must be 0 (no shift)");
+        almc_.gemm_info.set_accumulate(true);
+        almc_.sum_is_fused = true;
+        almc_.use_dst_acc = almc_.dst_is_s8;
+    } else {
+        almc_.use_dst_acc
+                = attr_.post_ops_.find(primitive_kind::sum, 0, -1) >= 0
+                || almc_.dst_is_s8;
+    }
+
     // Even if dst is s8, we do the post ops in f32
     memory_desc_t post_ops_default_md = dst_md_;
     post_ops_default_md.data_type = f32;
     CHECK(acl_post_ops.init(engine, attr_.post_ops_, post_ops_default_md,
             almc_.gemm_info.accumulate() ? 1 : 0));
-    almc_.use_dst_acc = acl_post_ops.has_sum() || almc_.dst_is_s8;
 
     almc_.dst_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(N(), M()), arm_compute::Format::F32);
@@ -143,12 +165,17 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
             = arm_compute::TensorInfo(arm_compute::TensorShape(N(), M()), 1,
                     arm_compute::DataType::QASYMM8_SIGNED,
                     arm_compute::QuantizationInfo(1.0, 0, true));
+
     ACL_CHECK_VALID(arm_compute::NEGEMMLowpMatrixMultiplyCore::validate(
             &almc_.src_tensor_info, &almc_.wei_tensor_info,
             almc_.with_bias ? &almc_.bia_tensor_info : nullptr,
             &almc_.dst_tensor_info, almc_.gemm_info));
 
     if (almc_.dst_is_s8) {
+        if (almc_.sum_is_fused) {
+            ACL_CHECK_VALID(arm_compute::NEDequantizationLayer::validate(
+                    &almc_.dst_s8_tensor_info, &almc_.dst_tensor_info));
+        }
         ACL_CHECK_VALID(arm_compute::NEQuantizationLayer::validate(
                 &almc_.dst_tensor_info, &almc_.dst_s8_tensor_info));
     }
@@ -197,10 +224,19 @@ status_t acl_lowp_matmul_t::execute(const exec_ctx_t &ctx) const {
                       ->get<acl_lowp_matmul_resource_t>(this)
                       ->get_acl_obj();
 
+    DEFINE_ARG_SCALES_BUFFER(src_scale, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ARG_SCALES_BUFFER(wei_scale, DNNL_ARG_WEIGHTS);
+    DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
+    DEFINE_ARG_SCALES_BUFFER(dst_scale, DNNL_ARG_DST);
+    DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
+
     auto src = CTX_IN_MEM(const int8_t *, DNNL_ARG_SRC);
     acl_obj.src_tensor.allocator()->import_memory(const_cast<int8_t *>(src));
+
     auto wei = CTX_IN_MEM(const int8_t *, DNNL_ARG_WEIGHTS);
     acl_obj.wei_tensor.allocator()->import_memory(const_cast<int8_t *>(wei));
+
     if (with_bias) {
         auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
         acl_obj.bia_tensor.allocator()->import_memory(
@@ -212,12 +248,16 @@ status_t acl_lowp_matmul_t::execute(const exec_ctx_t &ctx) const {
                                        : CTX_OUT_MEM(float *, DNNL_ARG_DST);
     acl_obj.dst_tensor.allocator()->import_memory(dst);
 
-    DEFINE_ARG_SCALES_BUFFER(src_scale, DNNL_ARG_SRC);
-    DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
-    DEFINE_ARG_SCALES_BUFFER(wei_scale, DNNL_ARG_WEIGHTS);
-    DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
-    DEFINE_ARG_SCALES_BUFFER(dst_scale, DNNL_ARG_DST);
-    DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
+    if (pd()->almc_.dst_is_s8 && pd()->almc_.sum_is_fused) {
+        auto dst_s8 = CTX_OUT_MEM(int8_t *, DNNL_ARG_DST);
+        acl_obj.dst_s8_tensor.allocator()->import_memory(
+                const_cast<int8_t *>(dst_s8));
+        // oneDNN expects all intermediate operations to be performed
+        // before taking dst scale and offset into account
+        acl_obj.dst_s8_tensor.info()->set_quantization_info(
+                arm_compute::QuantizationInfo(1, 0, true));
+        acl_obj.dequant.run();
+    }
 
     // Note that we set the offset to be -zero_point, this is a known
     // inconsistency with most other operators in the ACL API

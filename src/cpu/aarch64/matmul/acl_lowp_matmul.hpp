@@ -21,6 +21,7 @@
 #include "cpu/matmul/cpu_matmul_pd.hpp"
 #include "cpu/matmul/matmul_utils.hpp"
 
+#include "arm_compute/runtime/NEON/functions/NEDequantizationLayer.h"
 #include "arm_compute/runtime/NEON/functions/NEGEMMLowpMatrixMultiplyCore.h"
 #include "arm_compute/runtime/NEON/functions/NEQuantizationLayer.h"
 #include "cpu/aarch64/acl_post_ops.hpp"
@@ -40,6 +41,7 @@ struct acl_lowp_matmul_obj_t {
     arm_compute::Tensor dst_s8_tensor;
     arm_compute::NEGEMMLowpMatrixMultiplyCore gemm;
     arm_compute::NEQuantizationLayer quant;
+    arm_compute::NEDequantizationLayer dequant;
 };
 
 struct acl_lowp_matmul_conf_t {
@@ -52,6 +54,7 @@ struct acl_lowp_matmul_conf_t {
     bool with_bias;
     bool use_dst_acc;
     bool dst_is_s8;
+    bool sum_is_fused = false;
 };
 
 struct acl_lowp_matmul_resource_t : public resource_t {
