@@ -51,14 +51,6 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     auto problem = pd()->kernel_desc()->problem();
 
-    auto stride_a0 = int32_t(pd()->eff_stride_a(0));
-    auto stride_b0 = int32_t(pd()->eff_stride_b(0));
-    auto stride_c0 = int32_t(pd()->desc()->stride_c(0));
-
-    auto stride_a1 = int32_t(pd()->eff_stride_a(1));
-    auto stride_b1 = int32_t(pd()->eff_stride_b(1));
-    auto stride_c1 = int32_t(pd()->desc()->stride_c(1));
-
     if (!last_k_block) flags |= FlagNonfinalKBlock;
     if (cmask & 1) flags |= FlagCOColumn;
     if (cmask & 2) flags |= FlagCORow;
@@ -125,25 +117,27 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     }
 
     if (pd()->batch_dims() >= 1) {
-        arg_list.set(argn++, stride_a0);
-        arg_list.set(argn++, stride_b0);
-        arg_list.set(argn++, stride_c0);
-        for (int i = 0; i < po_count; i++)
-            if (problem->binaryBatch[i])
-                arg_list.set(argn++, int32_t(pd()->stride_binary(i, 0)));
-    }
-
-    if (pd()->batch_dims() >= 2) {
-        auto batchSize1 = uint32_t(pd()->desc()->c_desc.dims[1]);
-        uint32_t recipBatchSize1 = uint32_reciprocal(batchSize1);
-        arg_list.set(argn++, stride_a1);
-        arg_list.set(argn++, stride_b1);
-        arg_list.set(argn++, stride_c1);
-        for (int i = 0; i < po_count; i++)
-            if (problem->binaryBatch[i])
-                arg_list.set(argn++, int32_t(pd()->stride_binary(i, 1)));
-        arg_list.set(argn++, batchSize1);
-        arg_list.set(argn++, recipBatchSize1);
+        for (int i = pd()->batch_dims() - 1; i >= 0; i--) {
+            auto stride_a = int32_t(pd()->eff_stride_a(i));
+            auto stride_b = int32_t(pd()->eff_stride_b(i));
+            auto stride_c = int32_t(pd()->desc()->stride_c(i));
+            arg_list.set(argn++, stride_a);
+            arg_list.set(argn++, stride_b);
+            arg_list.set(argn++, stride_c);
+        }
+        for (int i = 0; i < po_count; i++) {
+            if (problem->binaryBatch[i]) {
+                for (int b = pd()->batch_dims() - 1; b >= 0; b--) {
+                    arg_list.set(argn++, int32_t(pd()->stride_binary(i, b)));
+                }
+            }
+        }
+        for (int i = 1; i < pd()->batch_dims(); i++) {
+            auto batchSize = uint32_t(pd()->desc()->c_desc.dims[i]);
+            uint32_t recipBatchSize = uint32_reciprocal(batchSize);
+            arg_list.set(argn++, batchSize);
+            arg_list.set(argn++, recipBatchSize);
+        }
     }
 
     auto lws_k = pd()->kernel_desc()->aux_params()->wgK;

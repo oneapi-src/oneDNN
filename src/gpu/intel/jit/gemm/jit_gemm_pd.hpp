@@ -106,7 +106,7 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
         const auto *c_scales = &attr()->scales_.get(DNNL_ARG_DST);
 
         bias_via_binary_ = (desc()->bias_type() != data_type::undef)
-                && (!wei_scales->has_default_values()
+                && (d->bias_desc.ndims >= 1 || !wei_scales->has_default_values()
                         || !src_scales->has_default_values()
                         || !attr()->zero_points_.has_default_values(
                                 DNNL_ARG_DST));
@@ -182,7 +182,8 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
 
     dim_t stride_binary(int idx, int stride = 0) const {
         switch (binary_srcs_[idx].type) {
-            case binary_src_t::binary: {
+            case binary_src_t::binary:
+            case binary_src_t::bias: {
                 const auto &entry = post_ops_.entry_[idx];
                 assert(entry.kind == primitive_kind::binary);
                 return gemm_desc_t::get_stride(entry.binary.src1_desc, stride);
