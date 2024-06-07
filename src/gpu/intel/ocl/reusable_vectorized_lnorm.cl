@@ -95,8 +95,8 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src, __global float *mean,
         if (USE_SCALE) res *= LOAD_VECT_WEI(scale);
         if (USE_SHIFT) res += LOAD_VECT_WEI(shift);
 
-        if (src_scale) res *= src_scale_val;
-        if (dst_scale) res *= dst_scale_val;
+        res *= src_scale_val;
+        res *= dst_scale_val;
 
         VECT_DST_BLOCK_WRITE(dst_vect, CONVERT_VECTOR_DST_DATA_T(res));
         dst_vect -= SG_STRIDE;
