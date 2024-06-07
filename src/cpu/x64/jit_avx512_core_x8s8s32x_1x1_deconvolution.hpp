@@ -46,6 +46,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
             : cpu_deconvolution_fwd_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
 
+        pd_t() = delete;
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(name_.c_str(),
