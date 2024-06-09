@@ -40,12 +40,13 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+            : cpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         pd_t(const pd_t &other)
             : cpu_deconvolution_fwd_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
 
+        pd_t() = delete;
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(name_.c_str(),
@@ -116,6 +117,8 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
             return status::success;
         }
 
+        jit_1x1_conv_conf_t jcp_;
+
     protected:
         status_t set_default_params() {
             auto conv_1x1_pd_ = static_cast<conv_pd_t *>(conv_pd_.get());
@@ -133,8 +136,8 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
-        std::string name_
-                = JIT_IMPL_NAME_HELPER("jit_deconvolution:", avx512_core, "");
+        std::string name_ = JIT_IMPL_NAME_HELPER("jit_1x1_deconvolution:",
+                (jcp_.has_vnni ? avx512_core_vnni : avx512_core), "");
 
         void init_name() {
             name_.append("+");
