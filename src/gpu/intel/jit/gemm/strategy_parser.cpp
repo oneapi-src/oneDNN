@@ -433,6 +433,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem,
                 strategy.splitBarrier = true;
             } else if (mod.substr(0, 2) == "pk")
                 strategy.kPadding = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "cr")
+                strategy.cRepackPanel = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "wx") {
                 strategy.wgPadFactor = stoi(mod.substr(2));
                 strategy.forceWGUpdate = WGFixed;
