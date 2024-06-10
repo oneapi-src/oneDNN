@@ -14,8 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/stream.hpp"
+
 #include "xpu/sycl/memory_storage_base.hpp"
-#include "sycl/sycl_stream.hpp"
+#include "xpu/sycl/stream_impl.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,8 +29,10 @@ template <::sycl::access_mode mode>
 memory_arg_t<mode> get_empty_memory_arg(
         stream_t *stream, ::sycl::handler &cgh) {
     using arg_type = memory_arg_t<mode>;
-    auto *sycl_stream = utils::downcast<impl::sycl::sycl_stream_t *>(stream);
-    return arg_type::create_empty(sycl_stream->get_dummy_accessor<mode>(cgh));
+    auto *sycl_stream_impl
+            = utils::downcast<xpu::sycl::stream_impl_t *>(stream->impl());
+    return arg_type::create_empty(
+            sycl_stream_impl->get_dummy_accessor<mode>(cgh));
 }
 } // namespace
 

@@ -32,8 +32,10 @@ namespace {
 template <::sycl::access_mode mode>
 memory_arg_t<mode> get_memory_arg(const usm_memory_storage_t *storage,
         stream_t *stream, ::sycl::handler &cgh) {
-    auto *sycl_stream = utils::downcast<impl::sycl::sycl_stream_t *>(stream);
-    return {storage->usm_ptr(), sycl_stream->get_dummy_accessor<mode>(cgh)};
+    auto *sycl_stream_impl
+            = utils::downcast<xpu::sycl::stream_impl_t *>(stream->impl());
+    return {storage->usm_ptr(),
+            sycl_stream_impl->get_dummy_accessor<mode>(cgh)};
 }
 
 } // namespace

@@ -86,10 +86,20 @@ public:
         return status::success;
     }
 
+    template <::sycl::access_mode mode>
+    ::sycl::accessor<uint8_t, 1, mode> get_dummy_accessor(
+            ::sycl::handler &cgh) {
+        return dummy_buffer_.get_access<mode>(cgh);
+    }
+
 private:
     std::unique_ptr<::sycl::queue> queue_;
 
     mutable utils::thread_local_storage_t<impl::sycl::sycl_context_t> ctx_;
+
+    // XXX: this is a temporary solution to make sycl_memory_arg_t
+    // default constructible.
+    xpu::sycl::buffer_u8_t dummy_buffer_ = xpu::sycl::buffer_u8_t(1);
 };
 
 } // namespace sycl
