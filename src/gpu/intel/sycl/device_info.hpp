@@ -21,9 +21,11 @@
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
+namespace intel {
 namespace sycl {
 
-class sycl_device_info_t : public gpu::intel::compute::device_info_t {
+class device_info_t : public gpu::intel::compute::device_info_t {
 protected:
     status_t init_device_name(impl::engine_t *engine) override;
     status_t init_arch(impl::engine_t *engine) override;
@@ -33,6 +35,8 @@ protected:
 };
 
 } // namespace sycl
+} // namespace intel
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "sycl/sycl_device_info.hpp"
+#include "gpu/intel/sycl/device_info.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 
 #include "gpu/intel/ocl/ocl_engine.hpp"
@@ -23,13 +23,13 @@
 #include "gpu/intel/sycl/compat.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 
-#include "cpu/platform.hpp"
-
 namespace dnnl {
 namespace impl {
+namespace gpu {
+namespace intel {
 namespace sycl {
 
-status_t sycl_device_info_t::init_arch(impl::engine_t *engine) {
+status_t device_info_t::init_arch(impl::engine_t *engine) {
     auto *sycl_engine
             = utils::downcast<const gpu::intel::sycl::engine_t *>(engine);
     auto &device = sycl_engine->device();
@@ -74,7 +74,7 @@ status_t sycl_device_info_t::init_arch(impl::engine_t *engine) {
     return status::success;
 }
 
-status_t sycl_device_info_t::init_device_name(engine_t *engine) {
+status_t device_info_t::init_device_name(impl::engine_t *engine) {
     auto &device
             = utils::downcast<const xpu::sycl::engine_impl_t *>(engine->impl())
                       ->device();
@@ -82,7 +82,7 @@ status_t sycl_device_info_t::init_device_name(engine_t *engine) {
     return status::success;
 }
 
-status_t sycl_device_info_t::init_runtime_version(engine_t *engine) {
+status_t device_info_t::init_runtime_version(impl::engine_t *engine) {
     auto &device
             = utils::downcast<const xpu::sycl::engine_impl_t *>(engine->impl())
                       ->device();
@@ -99,7 +99,7 @@ status_t sycl_device_info_t::init_runtime_version(engine_t *engine) {
     return status::success;
 }
 
-status_t sycl_device_info_t::init_extensions(engine_t *engine) {
+status_t device_info_t::init_extensions(impl::engine_t *engine) {
     using namespace gpu::intel::compute;
 
     auto &device
@@ -114,7 +114,7 @@ status_t sycl_device_info_t::init_extensions(engine_t *engine) {
     return status::success;
 }
 
-status_t sycl_device_info_t::init_attributes(engine_t *engine) {
+status_t device_info_t::init_attributes(impl::engine_t *engine) {
     auto &device
             = utils::downcast<const xpu::sycl::engine_impl_t *>(engine->impl())
                       ->device();
@@ -151,5 +151,7 @@ status_t sycl_device_info_t::init_attributes(engine_t *engine) {
 }
 
 } // namespace sycl
+} // namespace intel
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
