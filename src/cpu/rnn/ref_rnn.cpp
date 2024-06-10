@@ -228,7 +228,7 @@ status_t dnnl::impl::cpu::_ref_rnn_common_t<aprop, src_type, weights_type,
 
     if (rnn_.use_matmul) {
         { // init layer matmuls
-            const dim_t M = rnn_.n_gates * rnn_.dhc;
+            const dim_t M = static_cast<dim_t>(rnn_.n_gates) * rnn_.dhc;
             const dim_t N = rnn_.mb;
             const dim_t K = rnn_.slc;
             const dim_t LDA = rnn_.weights_layer_ld;
