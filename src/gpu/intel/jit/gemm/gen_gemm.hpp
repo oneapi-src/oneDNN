@@ -69,6 +69,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                                   && utils::one_of(d->a_type(), u8, s8, s4, u4)
                                   && utils::one_of(d->b_type(), f16, f32, bf16))
                     && attr()->mayiconvert(d->a_type(), f32);
+            wei_decomp_ |= (utils::one_of(d->c_type(), f32, f16, bf16)
+                    && utils::one_of(d->a_type(), u8, s8, s4, u4)
+                    && utils::one_of(d->b_type(), u8, s8));
             CHECK(set_default_formats(false));
 
             // If m = 1, swap A/B to use more efficient n = 1 kernels if possible.
