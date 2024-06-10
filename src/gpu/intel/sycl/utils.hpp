@@ -23,17 +23,11 @@
 
 namespace dnnl {
 namespace impl {
-namespace sycl {
-class sycl_engine_base_t;
-}
-} // namespace impl
-} // namespace dnnl
-
-namespace dnnl {
-namespace impl {
 namespace gpu {
 namespace intel {
 namespace sycl {
+
+class engine_t;
 
 ::sycl::nd_range<3> to_sycl_nd_range(
         const gpu::intel::compute::nd_range_t &range);
@@ -41,14 +35,14 @@ namespace sycl {
 status_t create_ocl_engine(
         std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
                 *ocl_engine,
-        const impl::sycl::sycl_engine_base_t *engine);
+        const gpu::intel::sycl::engine_t *engine);
 
 status_t get_kernel_binary(const ::sycl::kernel &kernel, xpu::binary_t &binary);
 
 status_t create_ocl_engine(
         std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
                 *ocl_engine,
-        const impl::sycl::sycl_engine_base_t *engine);
+        const gpu::intel::sycl::engine_t *engine);
 
 gpu_utils::device_id_t device_id(const ::sycl::device &dev);
 

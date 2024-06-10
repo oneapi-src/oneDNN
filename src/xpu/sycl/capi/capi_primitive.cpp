@@ -24,8 +24,6 @@
 
 #include "xpu/sycl/engine_factory.hpp"
 
-#include "sycl/sycl_stream.hpp"
-
 using dnnl::impl::status_t;
 using dnnl::impl::stream_t;
 

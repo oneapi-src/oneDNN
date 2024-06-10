@@ -22,9 +22,9 @@
 #include "gpu/intel/ocl/stream_profiler.hpp"
 #include "gpu/intel/ocl/types_interop.hpp"
 #include "gpu/intel/sycl/l0/utils.hpp"
+#include "gpu/intel/sycl/stream.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/intel/utils.hpp"
-#include "sycl/sycl_stream.hpp"
 #include "xpu/sycl/c_types_map.hpp"
 #include "xpu/utils.hpp"
 
@@ -33,7 +33,7 @@ namespace impl {
 namespace gpu {
 namespace sycl {
 
-using namespace impl::sycl;
+using namespace impl::gpu::intel::sycl;
 
 static void set_scalar_arg(::sycl::handler &cgh, int index,
         intel::compute::scalar_type_t type, const void *value) {
@@ -92,15 +92,18 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(impl::stream_t &stream,
         const gpu::intel::compute::kernel_arg_list_t &arg_list,
         const xpu::event_t &deps, xpu::event_t &out_dep) {
     if (range.is_zero()) return status::success;
-    auto *sycl_stream = utils::downcast<sycl_stream_t *>(&stream);
-    auto &queue = sycl_stream->queue();
-    sycl_gpu_engine_t *sycl_engine
-            = utils::downcast<sycl_gpu_engine_t *>(sycl_stream->engine());
+    auto *gpu_stream = utils::downcast<gpu::stream_t *>(&stream);
+    auto &queue
+            = *utils::downcast<xpu::sycl::stream_impl_t *>(gpu_stream->impl())
+                       ->queue();
+    const auto *sycl_engine_impl
+            = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                    stream.engine()->impl());
 
     // XXX: DPCPP/L0 does not support non-uniform work-groups and does not
     // provide any diagnostics. This is to catch potential issues on oneDNN
     // side.
-    if (sycl_engine->backend() == xpu::sycl::backend_t::level0
+    if (sycl_engine_impl->backend() == xpu::sycl::backend_t::level0
             && range.local_range()) {
         for (size_t i = 0; i < range.ndims(); i++) {
             size_t gws = range.global_range()[i];
@@ -173,7 +176,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(impl::stream_t &stream,
     if (stream.is_profiling_enabled()) {
         auto sycl_event = utils::make_unique<xpu::sycl::event_t>(
                 std::vector<::sycl::event> {event});
-        sycl_stream->profiler().register_event(std::move(sycl_event));
+        gpu_stream->profiler().register_event(std::move(sycl_event));
     }
 
     xpu::sycl::event_t::from(out_dep).events = {event};

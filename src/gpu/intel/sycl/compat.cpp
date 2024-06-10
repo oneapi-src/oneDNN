@@ -34,8 +34,8 @@
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/sycl/compat.hpp"
+#include "gpu/intel/sycl/engine.hpp"
 #include "gpu/intel/sycl/l0/utils.hpp"
-#include "sycl/sycl_engine_base.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -51,7 +51,7 @@ namespace compat {
 using namespace gpu::intel::compute;
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const impl::sycl::sycl_engine_base_t *sycl_engine,
+        const gpu::intel::sycl::engine_t *sycl_engine,
         const xpu::binary_t &binary, const char *kernel_name) {
     auto backend = xpu::sycl::get_backend(sycl_engine->device());
     if (backend == xpu::sycl::backend_t::opencl) {

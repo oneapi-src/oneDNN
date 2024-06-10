@@ -20,35 +20,35 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
+#include "gpu/intel/sycl/engine.hpp"
 #include "gpu/intel/sycl/utils.hpp"
-#include "sycl/sycl_engine_base.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace sycl {
 
-class sycl_gpu_engine_t : public impl::sycl::sycl_engine_base_t {
+class sycl_gpu_engine_t : public gpu::intel::sycl::engine_t {
 public:
-    using sycl_engine_base_t::context;
-    using sycl_engine_base_t::create_stream;
-    using sycl_engine_base_t::device;
+    using gpu::intel::sycl::engine_t::context;
+    using gpu::intel::sycl::engine_t::create_stream;
+    using gpu::intel::sycl::engine_t::device;
 
     sycl_gpu_engine_t(
             const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
-        : sycl_engine_base_t(engine_kind::gpu, dev, ctx, index) {
+        : gpu::intel::sycl::engine_t(dev, ctx, index) {
         assert(dev.is_gpu());
     }
 
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override {
-        return sycl_engine_base_t::create_memory_storage(
+        return gpu::intel::sycl::engine_t::create_memory_storage(
                 storage, flags, size, handle);
     }
 
     status_t create_stream(impl::stream_t **stream,
             impl::stream_impl_t *stream_impl) override {
-        return sycl_engine_base_t::create_stream(stream, stream_impl);
+        return gpu::intel::sycl::engine_t::create_stream(stream, stream_impl);
     }
 
     const impl_list_item_t *get_reorder_implementation_list(

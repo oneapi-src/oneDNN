@@ -14,33 +14,43 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_ENGINE_BASE_HPP
-#define SYCL_ENGINE_BASE_HPP
+#ifndef GPU_INTEL_SYCL_ENGINE_HPP
+#define GPU_INTEL_SYCL_ENGINE_HPP
 
 #include <memory>
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/memory_storage.hpp"
-#include "gpu/intel/compute/compute_engine.hpp"
-#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
-#include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
-#include "gpu/intel/sycl/compat.hpp"
-#include "gpu/intel/sycl/utils.hpp"
-#include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
+
 #include "xpu/ocl/utils.hpp"
 #include "xpu/sycl/engine_impl.hpp"
 
+#include "gpu/intel/compute/compute_engine.hpp"
+
+#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
+#include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
+
+#include "gpu/intel/sycl/compat.hpp"
+#include "gpu/intel/sycl/utils.hpp"
+
+#include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
+
 namespace dnnl {
 namespace impl {
+namespace gpu {
+namespace intel {
 namespace sycl {
 
-class sycl_engine_base_t : public gpu::intel::compute::compute_engine_t {
+status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
+        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index);
+
+class engine_t : public gpu::intel::compute::compute_engine_t {
 public:
-    sycl_engine_base_t(engine_kind_t kind, const ::sycl::device &dev,
-            const ::sycl::context &ctx, size_t index)
-        : gpu::intel::compute::compute_engine_t(
-                new xpu::sycl::engine_impl_t(kind, dev, ctx, index)) {}
+    engine_t(
+            const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
+        : gpu::intel::compute::compute_engine_t(new xpu::sycl::engine_impl_t(
+                engine_kind::gpu, dev, ctx, index)) {}
 
     status_t init() override {
         CHECK(init_impl());
@@ -53,7 +63,7 @@ public:
             size_t size, void *handle) override;
 
     status_t create_stream(
-            stream_t **stream, impl::stream_impl_t *stream_impl) override;
+            impl::stream_t **stream, impl::stream_impl_t *stream_impl) override;
 
     status_t convert_to_sycl(
             std::vector<gpu::intel::compute::kernel_t> &kernels,
@@ -185,14 +195,16 @@ public:
 
 protected:
     const xpu::sycl::engine_impl_t *impl() const {
-        return (const xpu::sycl::engine_impl_t *)engine_t::impl();
+        return (const xpu::sycl::engine_impl_t *)impl::engine_t::impl();
     }
 
-    ~sycl_engine_base_t() override = default;
+    ~engine_t() override = default;
     status_t init_device_info() override;
 };
 
 } // namespace sycl
+} // namespace intel
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

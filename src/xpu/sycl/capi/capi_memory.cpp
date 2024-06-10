@@ -25,7 +25,6 @@
 #include "xpu/sycl/engine_factory.hpp"
 #include "xpu/sycl/memory_storage.hpp"
 
-using namespace dnnl::impl::sycl;
 using namespace dnnl::impl::xpu::sycl;
 
 using dnnl::impl::engine_t;

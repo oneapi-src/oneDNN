@@ -93,14 +93,12 @@ status_t engine_factory_t::engine_create(engine_t **engine,
             VERBOSE_BAD_ENGINE_KIND);
 #endif
 
-    std::unique_ptr<impl::sycl::sycl_engine_base_t, engine_deleter_t>
-            sycl_engine(new gpu::sycl::sycl_gpu_engine_t(dev, ctx, index));
-    if (!sycl_engine) return status::out_of_memory;
-
-    CHECK(sycl_engine->init());
-    *engine = sycl_engine.release();
-
-    return status::success;
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+    if (xpu::sycl::is_intel_device(dev))
+        return gpu::intel::sycl::engine_create(
+                engine, engine_kind_, dev, ctx, index);
+#endif
+    return status::runtime_error;
 }
 
 } // namespace sycl

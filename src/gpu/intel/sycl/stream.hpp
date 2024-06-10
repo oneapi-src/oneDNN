@@ -14,22 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_STREAM_HPP
-#define SYCL_STREAM_HPP
-
-#include "common/c_types_map.hpp"
-#include "common/primitive_exec_types.hpp"
-#include "common/primitive_iface.hpp"
-#include "common/stream.hpp"
-#include "common/utils.hpp"
-#include "gpu/intel/compute/compute_stream.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
-#include "gpu/sycl/sycl_gpu_engine.hpp"
-
-#include "xpu/sycl/context.hpp"
-#include "xpu/sycl/memory_storage.hpp"
-#include "xpu/sycl/stream_impl.hpp"
-#include "xpu/sycl/stream_profiler.hpp"
+#ifndef GPU_INTEL_SYCL_STREAM_HPP
+#define GPU_INTEL_SYCL_STREAM_HPP
 
 #include <algorithm>
 #include <cstring>
@@ -38,15 +24,34 @@
 #include <utility>
 #include <CL/cl.h>
 
+#include "common/c_types_map.hpp"
+#include "common/primitive_exec_types.hpp"
+#include "common/primitive_iface.hpp"
+#include "common/stream.hpp"
+#include "common/utils.hpp"
+
+#include "xpu/sycl/context.hpp"
+#include "xpu/sycl/memory_storage.hpp"
+#include "xpu/sycl/stream_impl.hpp"
+#include "xpu/sycl/stream_profiler.hpp"
+
+#include "gpu/intel/compute/compute_stream.hpp"
+
+#include "gpu/intel/ocl/ocl_utils.hpp"
+
+#include "gpu/sycl/sycl_gpu_engine.hpp"
+
 namespace dnnl {
 namespace impl {
+namespace gpu {
+namespace intel {
 namespace sycl {
 
-struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
+struct stream_t : public gpu::intel::compute::compute_stream_t {
     static status_t create_stream(impl::stream_t **stream, engine_t *engine,
             impl::stream_impl_t *stream_impl) {
-        std::unique_ptr<sycl_stream_t> s(
-                new sycl_stream_t(engine, stream_impl));
+        std::unique_ptr<intel::sycl::stream_t> s(
+                new intel::sycl::stream_t(engine, stream_impl));
         if (!s) return status::out_of_memory;
 
         status_t status = s->init();
@@ -115,7 +120,7 @@ protected:
         return (xpu::sycl::stream_impl_t *)impl::stream_t::impl_.get();
     }
 
-    sycl_stream_t(engine_t *engine, impl::stream_impl_t *stream_impl)
+    stream_t(engine_t *engine, impl::stream_impl_t *stream_impl)
         : gpu::intel::compute::compute_stream_t(engine, stream_impl) {}
 
 private:
@@ -123,6 +128,8 @@ private:
 };
 
 } // namespace sycl
+} // namespace intel
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

@@ -23,7 +23,6 @@
 #include "gpu/sycl/sycl_post_ops.hpp"
 #include "gpu/sycl/sycl_primitive_conf.hpp"
 #include "gpu/sycl/sycl_q10n.hpp"
-#include "sycl/sycl_stream.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -30,7 +30,8 @@ namespace impl {
 namespace sycl {
 
 status_t sycl_device_info_t::init_arch(impl::engine_t *engine) {
-    auto *sycl_engine = utils::downcast<const sycl_engine_base_t *>(engine);
+    auto *sycl_engine
+            = utils::downcast<const gpu::intel::sycl::engine_t *>(engine);
     auto &device = sycl_engine->device();
 
     // skip cpu engines
@@ -75,14 +76,16 @@ status_t sycl_device_info_t::init_arch(impl::engine_t *engine) {
 
 status_t sycl_device_info_t::init_device_name(engine_t *engine) {
     auto &device
-            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
+            = utils::downcast<const xpu::sycl::engine_impl_t *>(engine->impl())
+                      ->device();
     name_ = device.get_info<::sycl::info::device::name>();
     return status::success;
 }
 
 status_t sycl_device_info_t::init_runtime_version(engine_t *engine) {
     auto &device
-            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
+            = utils::downcast<const xpu::sycl::engine_impl_t *>(engine->impl())
+                      ->device();
     auto driver_version
             = device.get_info<::sycl::info::device::driver_version>();
 
@@ -100,7 +103,8 @@ status_t sycl_device_info_t::init_extensions(engine_t *engine) {
     using namespace gpu::intel::compute;
 
     auto &device
-            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
+            = utils::downcast<const xpu::sycl::engine_impl_t *>(engine->impl())
+                      ->device();
     extensions_ = gpu::intel::sycl::compat::init_extensions(device);
 
     // Handle future extensions, not yet supported by the DPC++ API
@@ -112,7 +116,8 @@ status_t sycl_device_info_t::init_extensions(engine_t *engine) {
 
 status_t sycl_device_info_t::init_attributes(engine_t *engine) {
     auto &device
-            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
+            = utils::downcast<const xpu::sycl::engine_impl_t *>(engine->impl())
+                      ->device();
     if (device.is_gpu() && xpu::sycl::is_intel_device(device)) {
         xpu::sycl::backend_t be = xpu::sycl::get_backend(device);
         if (be == xpu::sycl::backend_t::opencl) {

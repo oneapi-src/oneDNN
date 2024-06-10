@@ -15,11 +15,12 @@
 *******************************************************************************/
 
 #include "xpu/sycl/buffer_memory_storage.hpp"
-#include "sycl/sycl_engine_base.hpp"
 
 #include "common/memory.hpp"
 #include "common/memory_map_manager.hpp"
 #include "common/utils.hpp"
+
+#include "xpu/sycl/engine_impl.hpp"
 
 namespace dnnl {
 namespace impl {
