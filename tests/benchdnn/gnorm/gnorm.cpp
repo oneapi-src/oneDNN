@@ -79,10 +79,12 @@ int fill_src(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
         // seeding with 0.
         std::minstd_rand b_seed(idx + 1);
         b_seed.discard(2);
-        std::bernoulli_distribution b_dist(0.5f);
+        std::bernoulli_distribution b_dist_big_val(0.5f);
+        std::bernoulli_distribution b_dist_nonzero_val(cfg.density_);
 
         float m_check = 0.f; // To verify that filled data mean will match.
         bool bigger_val = false; // Out of all loops.
+        bool is_nonzero = true; // Out of all loops, too.
 
         for (int64_t c = prb->get_c_start(g); c < prb->get_c_start(g + 1);
                 ++c) {
@@ -105,8 +107,13 @@ int fill_src(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
                     const bool is_even = index_order % 2 == 0;
                     const float sign = is_even ? 1.f : -1.f;
                     // Update the value for even cases.
-                    bigger_val = is_even ? b_dist(b_seed) : bigger_val;
-                    const float val_shift = sign * val_coeff;
+                    bigger_val = is_even ? b_dist_big_val(b_seed) : bigger_val;
+                    // Sparsifying a tensor if cfg instructed to do so.
+                    if (cfg.density_ < 1.f) {
+                        is_nonzero = is_even ? b_dist_nonzero_val(b_seed)
+                                             : is_nonzero;
+                    }
+                    const float val_shift = sign * is_nonzero * val_coeff;
                     // Shift left and right from mean val, shift bigger with
                     // probability.
                     val = m + val_shift + 3.f * bigger_val * val_shift;
@@ -487,8 +494,14 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         trh = trh_coeff * 5e-6;
     cmp.set_threshold(trh);
 
-    // u8 turns half of output into zeros.
-    if (prb->dt[1] == dnnl_u8) cmp.set_zero_trust_percent(60.f);
+    // Obtain number of non-zero elements for forward case from config.
+    if (kind == DST) {
+        cfg_t cfg(prb);
+        // u8 turns half of output into zeros.
+        const int neg_to_zero_coeff = 1 + (prb->dt[1] == dnnl_u8);
+        float n_zeros = 1.f - (cfg.density_ / neg_to_zero_coeff);
+        cmp.set_zero_trust_percent(MAX2(30.f, 100.f * n_zeros));
+    }
 
     // When the error is larger than `trh`, it could be due to a catastrophic
     // cancellation in final result which is computed as `Y = a * X + b`.
