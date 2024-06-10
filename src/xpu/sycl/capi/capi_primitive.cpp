@@ -45,7 +45,7 @@ status_t dnnl_sycl_interop_primitive_execute(
     stream->before_exec_hook();
 
     if (deps_ != nullptr) {
-        auto deps = dnnl::impl::sycl::sycl_event_t(
+        auto deps = dnnl::impl::xpu::sycl::event_t(
                 *(const std::vector<::sycl::event> *)deps_);
         sycl_stream_impl->sycl_ctx().set_deps(std::move(deps));
     }

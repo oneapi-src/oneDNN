@@ -73,10 +73,8 @@ public:
         return impl()->fill(dst, pattern, size, deps, out_dep);
     }
 
-    const impl::sycl::sycl_context_t &sycl_ctx() const {
-        return impl()->sycl_ctx();
-    }
-    impl::sycl::sycl_context_t &sycl_ctx() { return impl()->sycl_ctx(); }
+    const xpu::sycl::context_t &sycl_ctx() const { return impl()->sycl_ctx(); }
+    xpu::sycl::context_t &sycl_ctx() { return impl()->sycl_ctx(); }
 
     xpu::context_t &ctx() override { return impl()->sycl_ctx(); }
     const xpu::context_t &ctx() const override { return impl()->sycl_ctx(); }

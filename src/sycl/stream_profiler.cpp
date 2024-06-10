@@ -42,8 +42,8 @@ status_t sycl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
 
     std::unordered_map<uint64_t, stream_profiler_t::entry_t> stamp2entry;
     for (auto &ev : events_) {
-        const sycl_event_t &sycl_event
-                = *utils::downcast<sycl_event_t *>(ev.event.get());
+        const xpu::sycl::event_t &sycl_event
+                = *utils::downcast<xpu::sycl::event_t *>(ev.event.get());
         assert(sycl_event.size() == 1);
         auto beg
                 = sycl_event[0]

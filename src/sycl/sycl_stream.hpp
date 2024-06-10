@@ -26,7 +26,8 @@
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
 #include "sycl/stream_profiler.hpp"
-#include "sycl/sycl_context.hpp"
+
+#include "xpu/sycl/context.hpp"
 #include "xpu/sycl/memory_storage.hpp"
 #include "xpu/sycl/stream_impl.hpp"
 
@@ -95,8 +96,8 @@ struct sycl_stream_t : public gpu::intel::compute::compute_stream_t {
         return impl()->fill(dst, pattern, size, deps, out_dep, profiler_.get());
     }
 
-    const sycl_context_t &sycl_ctx() const { return impl()->sycl_ctx(); }
-    sycl_context_t &sycl_ctx() { return impl()->sycl_ctx(); }
+    const xpu::sycl::context_t &sycl_ctx() const { return impl()->sycl_ctx(); }
+    xpu::sycl::context_t &sycl_ctx() { return impl()->sycl_ctx(); }
 
     xpu::context_t &ctx() override { return impl()->sycl_ctx(); }
     const xpu::context_t &ctx() const override { return impl()->sycl_ctx(); }

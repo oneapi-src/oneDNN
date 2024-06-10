@@ -115,7 +115,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(impl::stream_t &stream,
     CHECK(check_scalar_arguments(arg_list));
 
     auto event = queue.submit([&](::sycl::handler &cgh) {
-        cgh.depends_on(sycl_event_t::from(deps).events);
+        cgh.depends_on(xpu::sycl::event_t::from(deps).events);
         for (int i = 0; i < arg_list.nargs(); ++i) {
             auto &arg = arg_list.get(i);
             if (arg.is_global()) {
@@ -171,12 +171,12 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(impl::stream_t &stream,
     });
 
     if (stream.is_profiling_enabled()) {
-        auto sycl_event = utils::make_unique<sycl_event_t>(
+        auto sycl_event = utils::make_unique<xpu::sycl::event_t>(
                 std::vector<::sycl::event> {event});
         sycl_stream->profiler().register_event(std::move(sycl_event));
     }
 
-    sycl_event_t::from(out_dep).events = {event};
+    xpu::sycl::event_t::from(out_dep).events = {event};
     return status::success;
 }
 

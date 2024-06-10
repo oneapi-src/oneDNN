@@ -88,7 +88,7 @@ void sycl_stream_t::before_exec_hook() {
 }
 
 void sycl_stream_t::after_exec_hook() {
-    sycl_ctx().set_deps(sycl_event_t());
+    sycl_ctx().set_deps(xpu::sycl::event_t());
     if (is_profiling_enabled()) profiler_->stop_profiling();
 }
 

@@ -53,7 +53,7 @@ status_t stream_t::init() {
 }
 
 void stream_t::after_exec_hook() {
-    sycl_ctx().set_deps(impl::sycl::sycl_event_t());
+    sycl_ctx().set_deps(xpu::sycl::event_t());
 }
 
 } // namespace sycl
