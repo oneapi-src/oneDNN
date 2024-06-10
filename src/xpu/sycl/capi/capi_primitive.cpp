@@ -22,7 +22,8 @@
 #include "common/primitive_iface.hpp"
 #include "common/utils.hpp"
 
-#include "sycl/sycl_engine.hpp"
+#include "xpu/sycl/engine_factory.hpp"
+
 #include "sycl/sycl_stream.hpp"
 
 using dnnl::impl::status_t;

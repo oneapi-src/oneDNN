@@ -14,13 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "sycl/sycl_engine.hpp"
+#include "xpu/sycl/engine_factory.hpp"
+
+#include "gpu/sycl/sycl_gpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace xpu {
 namespace sycl {
 
-status_t sycl_engine_factory_t::engine_create(
+status_t engine_factory_t::engine_create(
         engine_t **engine, size_t index) const {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
     VERROR_ENGINE(engine_kind_ != engine_kind::cpu, status::unimplemented,
@@ -57,7 +60,7 @@ status_t sycl_engine_factory_t::engine_create(
     return engine_create(engine, dev, ctx, index);
 }
 
-status_t sycl_engine_factory_t::engine_create(engine_t **engine,
+status_t engine_factory_t::engine_create(engine_t **engine,
         const ::sycl::device &dev, const ::sycl::context &ctx,
         size_t index) const {
     // Validate device and context.
@@ -91,8 +94,8 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
             VERBOSE_BAD_ENGINE_KIND);
 #endif
 
-    std::unique_ptr<sycl_engine_base_t, engine_deleter_t> sycl_engine(
-            new gpu::sycl::sycl_gpu_engine_t(dev, ctx, index));
+    std::unique_ptr<impl::sycl::sycl_engine_base_t, engine_deleter_t>
+            sycl_engine(new gpu::sycl::sycl_gpu_engine_t(dev, ctx, index));
     if (!sycl_engine) return status::out_of_memory;
 
     CHECK(sycl_engine->init());
@@ -102,5 +105,6 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
 }
 
 } // namespace sycl
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

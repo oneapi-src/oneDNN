@@ -32,7 +32,7 @@
 #endif
 
 #ifdef DNNL_WITH_SYCL
-#include "sycl/sycl_engine.hpp"
+#include "xpu/sycl/engine_factory.hpp"
 #endif
 
 #include "graph/interface/backend.hpp"
@@ -309,7 +309,7 @@ static std::unique_ptr<impl::engine_factory_t> get_engine_factory(
 
 #ifdef DNNL_WITH_SYCL
     if (runtime_kind == impl::runtime_kind::sycl)
-        return impl::sycl::get_engine_factory(kind);
+        return xpu::sycl::get_engine_factory(kind);
 #endif
     return nullptr;
 }

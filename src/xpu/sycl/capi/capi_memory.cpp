@@ -21,8 +21,8 @@
 #include "common/memory.hpp"
 #include "common/utils.hpp"
 
-#include "sycl/sycl_engine.hpp"
 #include "xpu/sycl/c_types_map.hpp"
+#include "xpu/sycl/engine_factory.hpp"
 #include "xpu/sycl/memory_storage.hpp"
 
 using namespace dnnl::impl::sycl;
