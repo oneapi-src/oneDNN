@@ -1322,11 +1322,11 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     dnnl_prop_kind_t prop = query_prop_kind(const_pd);
     if (is_fwd_prop_kind(prop) && kind == dnnl_resampling
             && alg == dnnl_resampling_nearest) {
-        auto src = query_md(const_pd, DNNL_ARG_SRC);
-        auto dst = query_md(const_pd, DNNL_ARG_DST);
-        auto ndims = query_md_ndims(src);
-        auto src_pdims = query_md_padded_dims(src);
-        auto dst_pdims = query_md_padded_dims(dst);
+        auto src_md = query_md(const_pd, DNNL_ARG_SRC);
+        auto dst_md = query_md(const_pd, DNNL_ARG_DST);
+        auto ndims = query_md_ndims(src_md);
+        auto src_pdims = query_md_padded_dims(src_md);
+        auto dst_pdims = query_md_padded_dims(dst_md);
         dnnl_dim_t total_elems = 1;
         dnnl_dim_t read_elems = 1;
         for (int i = 0; i < ndims; i++) {
@@ -1335,14 +1335,10 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
                 read_elems *= dst_pdims[i];
             }
         }
-        size_t in_size_no_scratchpad = check_mem_in_size_args.total_size_device
-                - check_mem_in_size_args.scratchpad_size;
-        // Assumes the input size is a multiple of total_elems
-        assert(in_size_no_scratchpad % total_elems == 0);
-        check_mem_in_size_args.total_size_device = in_size_no_scratchpad
-                        / static_cast<size_t>(total_elems)
-                        * static_cast<size_t>(read_elems)
-                + check_mem_in_size_args.scratchpad_size;
+        const auto src_size = dnnl_memory_desc_get_size(src_md);
+        const auto fixed_src_size = src_size / static_cast<size_t>(total_elems)
+                * static_cast<size_t>(read_elems);
+        check_mem_in_size_args.total_size_device += fixed_src_size - src_size;
     }
 
     res->ibytes = check_mem_in_size_args.total_size_device;
