@@ -166,8 +166,9 @@ struct cudnn_deconvolution_fwd_t : public primitive_t {
         }
 
         status_t init(impl::engine_t *engine) {
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine_impl
+                    = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            engine->impl());
             using namespace format_tag;
             bool ok = true && is_fwd();
             ok = ok
@@ -192,7 +193,7 @@ struct cudnn_deconvolution_fwd_t : public primitive_t {
                                            desc()->src_desc.data_type,
                                            desc()->weights_desc.data_type,
                                            desc()->dst_desc.data_type),
-                            has_bf16_support(sycl_engine->device()));
+                            has_bf16_support(sycl_engine_impl->device()));
 
             if (ok) {
                 CHECK(init_convolution(engine));
@@ -288,8 +289,9 @@ struct cudnn_deconvolution_bwd_data_t : public primitive_t {
         }
 
         status_t init(impl::engine_t *engine) {
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine_impl
+                    = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            engine->impl());
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && (utils::everyone_is(data_type::f32,
                                 desc()->diff_src_desc.data_type,
@@ -305,7 +307,7 @@ struct cudnn_deconvolution_bwd_data_t : public primitive_t {
                                            desc()->weights_desc.data_type,
                                            desc()->diff_dst_desc.data_type,
                                            desc()->diff_src_desc.data_type),
-                            has_bf16_support(sycl_engine->device()))
+                            has_bf16_support(sycl_engine_impl->device()))
                     && utils::one_of(desc()->diff_src_desc.data_type,
                             data_type::f16, data_type::f32, data_type::bf16)
                     && desc()->alg_kind == alg_kind::deconvolution_direct
@@ -399,8 +401,9 @@ struct cudnn_deconvolution_bwd_weights_t : public primitive_t {
         }
 
         status_t init(impl::engine_t *engine) {
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine_impl
+                    = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            engine->impl());
             using namespace format_tag;
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && (utils::everyone_is(data_type::f32,
@@ -417,7 +420,7 @@ struct cudnn_deconvolution_bwd_weights_t : public primitive_t {
                                            desc()->diff_dst_desc.data_type,
                                            desc()->src_desc.data_type,
                                            desc()->diff_weights_desc.data_type),
-                            has_bf16_support(sycl_engine->device())
+                            has_bf16_support(sycl_engine_impl->device())
                                     && !with_bias())
                     && utils::one_of(
                             desc()->alg_kind, alg_kind::deconvolution_direct)
