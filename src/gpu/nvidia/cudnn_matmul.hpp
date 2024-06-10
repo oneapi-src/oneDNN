@@ -53,15 +53,16 @@ struct cudnn_matmul_t : public primitive_t {
             bool s8_case = utils::everyone_is(s8, src_dt, wei_dt)
                     && utils::one_of(dst_dt, s8, f32);
 
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine_impl
+                    = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            engine->impl());
 
             bool ok = is_dense_format_kind() && blocking_ok()
                     && attr()->has_default_values(
                             smask_t::scales_runtime | smask_t::post_ops)
                     && scales_ok() && attr_post_ops_ok(attr())
-                    && IMPLICATION(
-                            bf16_case, has_bf16_support(sycl_engine->device()))
+                    && IMPLICATION(bf16_case,
+                            has_bf16_support(sycl_engine_impl->device()))
                     && set_default_formats()
                     && (f32_case || f16_case || bf16_case || s8_case)
                     && IMPLICATION(with_bias(),

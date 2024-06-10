@@ -14,13 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_SYCL_SYCL_GPU_PRIMITIVE_HPP
-#define GPU_SYCL_SYCL_GPU_PRIMITIVE_HPP
+#ifndef GPU_SYCL_PRIMITIVE_HPP
+#define GPU_SYCL_PRIMITIVE_HPP
 
-#include "gpu/sycl/sycl_gpu_engine.hpp"
-#include "sycl/sycl_stream.hpp"
+#include "common/engine.hpp"
+#include "common/primitive.hpp"
+#include "common/stream.hpp"
 
-#include "gpu/intel/compute/kernel.hpp"
+#include "xpu/sycl/engine_impl.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
+
 #include "gpu/sycl/sycl_gpu_kernel.hpp"
 
 namespace dnnl {
@@ -28,44 +31,27 @@ namespace impl {
 namespace gpu {
 namespace sycl {
 
-struct sycl_gpu_primitive_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct primitive_t : public impl::primitive_t {
+    using impl::primitive_t::primitive_t;
 
 protected:
-    status_t create_kernel(impl::engine_t *engine, ::sycl::kernel_id kid,
-            intel::compute::kernel_t *kernel) {
-        using namespace impl::sycl;
+    status_t create_kernel(
+            impl::engine_t *engine, ::sycl::kernel_id kid, kernel_t *kernel) {
         auto ctx = utils::downcast<const xpu::sycl::engine_impl_t *>(
                 engine->impl())
                            ->context();
-
         auto input_bundle
                 = ::sycl::get_kernel_bundle<::sycl::bundle_state::input>(
                         ctx, {kid});
         auto exe_bundle = ::sycl::build(input_bundle);
 
-        auto kernel_impl
-                = std::make_shared<gpu::sycl::sycl_gpu_kernel_t>(exe_bundle);
-        (*kernel) = intel::compute::kernel_t(std::move(kernel_impl));
+        (*kernel) = kernel_t(exe_bundle);
         return status::success;
     }
 
-    status_t parallel_for(const exec_ctx_t &ctx,
-            const intel::compute::kernel_t &kernel,
+    status_t parallel_for(const exec_ctx_t &ctx, const kernel_t &kernel,
             const std::function<void(::sycl::handler &)> &cgf) const {
-        using namespace impl::sycl;
-
-        const auto cvt_void2handler = [=](void *cgh) {
-            ::sycl::handler &handler
-                    = *(reinterpret_cast<::sycl::handler *>(cgh));
-            cgf(handler);
-        };
-
-        intel::compute::compute_stream_t *compute_stream
-                = utils::downcast<intel::compute::compute_stream_t *>(
-                        ctx.stream());
-        CHECK(kernel.parallel_for(*compute_stream, cvt_void2handler));
-        return status::success;
+        return kernel.parallel_for(*ctx.stream(), cgf);
     }
 };
 

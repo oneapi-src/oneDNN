@@ -230,8 +230,9 @@ struct cudnn_convolution_bwd_data_t : public primitive_t {
             using namespace data_type;
 
             bool ok = desc()->prop_kind == prop_kind::backward_data;
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine_impl
+                    = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            engine->impl());
             ok = ok && this->set_default_formats();
             ok = ok
                     && (utils::everyone_is(f32, diff_src_md_.data_type,
@@ -246,7 +247,7 @@ struct cudnn_convolution_bwd_data_t : public primitive_t {
                                            diff_src_md_.data_type,
                                            weights_md_.data_type,
                                            diff_dst_md_.data_type),
-                            has_bf16_support(sycl_engine->device()));
+                            has_bf16_support(sycl_engine_impl->device()));
 
             ok = ok
                     && IMPLICATION(
@@ -306,8 +307,9 @@ struct cudnn_convolution_bwd_weights_t : public primitive_t {
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
             bool ok = desc()->prop_kind == prop_kind::backward_weights;
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine_impl
+                    = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            engine->impl());
             ok = ok && this->set_default_formats();
             ok = ok
                     && (utils::everyone_is(f32, src_md_.data_type,
@@ -324,7 +326,7 @@ struct cudnn_convolution_bwd_weights_t : public primitive_t {
                             utils::one_of(data_type::bf16, src_md_.data_type,
                                     diff_weights_md_.data_type,
                                     diff_dst_md_.data_type),
-                            has_bf16_support(sycl_engine->device())
+                            has_bf16_support(sycl_engine_impl->device())
                                     && !with_bias());
 
             ok = ok

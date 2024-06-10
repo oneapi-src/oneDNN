@@ -32,8 +32,10 @@ namespace {
 template <::sycl::access_mode mode>
 memory_arg_t<mode> get_memory_arg(const usm_memory_storage_t *storage,
         stream_t *stream, ::sycl::handler &cgh) {
-    auto *sycl_stream = utils::downcast<impl::sycl::sycl_stream_t *>(stream);
-    return {storage->usm_ptr(), sycl_stream->get_dummy_accessor<mode>(cgh)};
+    auto *sycl_stream_impl
+            = utils::downcast<xpu::sycl::stream_impl_t *>(stream->impl());
+    return {storage->usm_ptr(),
+            sycl_stream_impl->get_dummy_accessor<mode>(cgh)};
 }
 
 } // namespace
@@ -57,7 +59,8 @@ status_t usm_memory_storage_t::map_data(
     if (!stream) CHECK(engine()->get_service_stream(stream));
 
     ::sycl::queue sycl_queue
-            = utils::downcast<impl::sycl::sycl_stream_t *>(stream)->queue();
+            = *utils::downcast<xpu::sycl::stream_impl_t *>(stream->impl())
+                       ->queue();
 
     void *host_ptr = ::sycl::malloc_host(size, sycl_queue.get_context());
     if (!host_ptr) return status::out_of_memory;
@@ -68,7 +71,8 @@ status_t usm_memory_storage_t::map_data(
     *mapped_ptr = host_ptr;
     auto unmap_callback = [usm_ptr, size](stream_t *stream, void *mapped_ptr) {
         ::sycl::queue sycl_queue
-                = utils::downcast<impl::sycl::sycl_stream_t *>(stream)->queue();
+                = *utils::downcast<xpu::sycl::stream_impl_t *>(stream->impl())
+                           ->queue();
         sycl_queue.wait_and_throw();
         sycl_queue.memcpy(usm_ptr, mapped_ptr, size).wait();
         ::sycl::free(mapped_ptr, sycl_queue.get_context());

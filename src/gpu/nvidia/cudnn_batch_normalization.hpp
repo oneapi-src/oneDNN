@@ -80,8 +80,9 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
                 return status::unimplemented;
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine_impl
+                    = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            engine->impl());
 
             bool ok = is_fwd()
                     && utils::one_of(src_md()->data_type, f16, f32, s8, bf16)
@@ -91,7 +92,7 @@ struct cudnn_batch_normalization_fwd_t : public primitive_t {
                     && IMPLICATION(
                             utils::one_of(data_type::bf16, src_md()->data_type,
                                     dst_md()->data_type),
-                            has_bf16_support(sycl_engine->device()))
+                            has_bf16_support(sycl_engine_impl->device()))
                     && IMPLICATION(!attr()->has_default_values(),
                             attr()->post_ops_.len() == 1 && with_relu_post_op())
                     && IMPLICATION(utils::one_of(src_md()->data_type, s8, f16),
@@ -149,8 +150,9 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
                     | normalization_flags::use_shift;
             if ((~norm_flags_supported & desc()->flags) != 0)
                 return status::unimplemented;
-            auto *sycl_engine
-                    = utils::downcast<impl::sycl::sycl_engine_base_t *>(engine);
+            auto *sycl_engine_impl
+                    = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                            engine->impl());
 
             bool ok = !is_fwd()
                     && (utils::everyone_is(f32, src_md()->data_type,
@@ -163,7 +165,7 @@ struct cudnn_batch_normalization_bwd_t : public primitive_t {
                             utils::one_of(data_type::bf16, src_md()->data_type,
                                     diff_src_md()->data_type,
                                     diff_dst_md()->data_type),
-                            has_bf16_support(sycl_engine->device()))
+                            has_bf16_support(sycl_engine_impl->device()))
                     && check_scale_shift_data_type()
                     && attr()->has_default_values()
                     && set_default_formats_common()

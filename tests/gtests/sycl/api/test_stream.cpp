@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -144,6 +144,12 @@ TEST_P(sycl_stream_test, TestProfilingAPIDisabledAndEnabled) {
     auto sycl_queue = sycl::queue(get_context(kind), get_device(kind),
             sycl::property_list {sycl::property::queue::in_order {},
                     sycl::property::queue::enable_profiling {}});
+
+#if defined(DNNL_EXPERIMENTAL_PROFILING) \
+        && (defined(DNNL_SYCL_CUDA) || defined(DNNL_SYCL_HIP))
+    EXPECT_ANY_THROW(sycl_interop::make_stream(get_engine(kind), sycl_queue));
+    return;
+#else
     stream strm = sycl_interop::make_stream(get_engine(kind), sycl_queue);
 
     memory::dims tz_dims = {2, 3, 4, 5};
@@ -172,6 +178,7 @@ TEST_P(sycl_stream_test, TestProfilingAPIDisabledAndEnabled) {
     EXPECT_EQ(st, dnnl_success);
 #else
     EXPECT_EQ(st, dnnl_invalid_arguments);
+#endif
 #endif
 }
 

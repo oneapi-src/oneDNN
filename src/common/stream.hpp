@@ -52,16 +52,22 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
     virtual void after_exec_hook() {}
 
     virtual dnnl::impl::status_t reset_profiling() {
+        if (!is_profiling_enabled())
+            return dnnl::impl::status::invalid_arguments;
         return dnnl::impl::status::unimplemented;
     }
 
     virtual dnnl::impl::status_t get_profiling_data(
             dnnl::impl::profiling_data_kind_t data_kind, int *num_entries,
             uint64_t *data) const {
+        if (!is_profiling_enabled())
+            return dnnl::impl::status::invalid_arguments;
         return dnnl::impl::status::unimplemented;
     }
 
     virtual dnnl::impl::status_t notify_profiling_complete() const {
+        if (!is_profiling_enabled())
+            return dnnl::impl::status::invalid_arguments;
         return dnnl::impl::status::unimplemented;
     }
 

@@ -14,29 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_SYCL_SYCL_GPU_KERNEL_HPP
-#define GPU_SYCL_SYCL_GPU_KERNEL_HPP
+#ifndef GPU_SYCL_KERNEL_HPP
+#define GPU_SYCL_KERNEL_HPP
 
-#include "common/utils.hpp"
 #include "xpu/sycl/utils.hpp"
-
-#include "gpu/intel/compute/kernel.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace sycl {
 
-struct sycl_gpu_kernel_t : public gpu::intel::compute::kernel_impl_t {
+struct kernel_t {
     using kernel_bundle_e_t
             = ::sycl::kernel_bundle<::sycl::bundle_state::executable>;
 
-    sycl_gpu_kernel_t(const kernel_bundle_e_t &kernel_bundle)
+    kernel_t() = default;
+    kernel_t(const kernel_bundle_e_t &kernel_bundle)
         : kernel_bundle_(utils::make_unique<kernel_bundle_e_t>(kernel_bundle)) {
     }
 
+    kernel_t(const kernel_t &other) = delete;
+    kernel_t &operator=(const kernel_t &other) = delete;
+
+    kernel_t(kernel_t &&other) = default;
+    kernel_t &operator=(kernel_t &&other) = default;
+
+    ~kernel_t() = default;
+
     status_t parallel_for(impl::stream_t &stream,
-            const std::function<void(void *)> &cgf) override;
+            const std::function<void(::sycl::handler &)> &cgf) const;
 
 private:
     std::unique_ptr<kernel_bundle_e_t> kernel_bundle_;

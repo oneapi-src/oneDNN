@@ -20,7 +20,6 @@
 #include "common/memory.hpp"
 #include "common/memory_map_manager.hpp"
 #include "common/utils.hpp"
-#include "sycl/sycl_stream.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,9 +33,9 @@ memory_arg_t<mode> get_memory_arg(const buffer_memory_storage_t *storage,
     void *handle = nullptr;
     storage->get_data_handle(&handle);
     if (!handle) {
-        auto *sycl_stream
-                = utils::downcast<impl::sycl::sycl_stream_t *>(stream);
-        return {sycl_stream->get_dummy_accessor<mode>(cgh)};
+        auto *sycl_stream_impl
+                = utils::downcast<xpu::sycl::stream_impl_t *>(stream->impl());
+        return {sycl_stream_impl->get_dummy_accessor<mode>(cgh)};
     }
     return {storage->buffer().get_access<mode>(cgh)};
 }
