@@ -66,7 +66,7 @@
 #endif
 
 #ifdef DNNL_WITH_SYCL
-#include "sycl/verbose.hpp"
+#include "xpu/sycl/verbose.hpp"
 #endif
 
 #ifdef DNNL_EXPERIMENTAL
@@ -101,7 +101,7 @@ void print_header(const filter_status_t &filter_status) noexcept {
             gpu::intel::ocl::print_verbose_header();
 #endif
 #ifdef DNNL_WITH_SYCL
-            sycl::print_verbose_header();
+            xpu::sycl::print_verbose_header();
 #endif
 #ifdef ONEDNN_BUILD_GRAPH
             graph::utils::print_verbose_header();

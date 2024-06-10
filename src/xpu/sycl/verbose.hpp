@@ -14,25 +14,28 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SYCL_VERBOSE_HPP
-#define SYCL_VERBOSE_HPP
+#ifndef XPU_SYCL_VERBOSE_HPP
+#define XPU_SYCL_VERBOSE_HPP
 
 #include <cstdio>
 
-#include "xpu/sycl/engine_impl.hpp"
+#include "common/engine.hpp"
 
-#include "sycl/sycl_engine.hpp"
+#include "xpu/sycl/engine_impl.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/compute/compute_engine.hpp"
 #endif
 
+#include "sycl/sycl_engine.hpp"
+
 namespace dnnl {
 namespace impl {
+namespace xpu {
 namespace sycl {
 
 void print_verbose_header(engine_kind_t kind) {
-    sycl_engine_factory_t factory(kind);
+    impl::sycl::sycl_engine_factory_t factory(kind);
     auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
     for (size_t i = 0; i < factory.count(); ++i) {
         try {
@@ -90,6 +93,7 @@ void print_verbose_header() {
 }
 
 } // namespace sycl
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 
