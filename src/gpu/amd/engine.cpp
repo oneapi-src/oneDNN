@@ -15,50 +15,46 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/impl_list_item.hpp"
-#include "common/utils.hpp"
-#include "hip/hip_runtime.h"
-
-#include "miopen/miopen.h"
 #include "xpu/sycl/utils.hpp"
 
+#include "gpu/amd/engine.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_compat.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace amd {
 
-status_t hip_engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
+status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index) {
     CHECK(amd::check_device(engine_kind));
-    std::unique_ptr<amd::sycl_hip_engine_t, engine_deleter_t> hip_engine(
-            (new amd::sycl_hip_engine_t(dev, ctx, index)));
-    if (!hip_engine) return status::out_of_memory;
+    std::unique_ptr<amd::engine_t, engine_deleter_t> e(
+            (new amd::engine_t(dev, ctx, index)));
+    if (!e) return status::out_of_memory;
 
-    CHECK(hip_engine->init());
-    *engine = hip_engine.release();
+    CHECK(e->init());
+    *engine = e.release();
 
     return status::success;
 }
 
-sycl_hip_engine_t::sycl_hip_engine_t(engine_kind_t kind,
+status_t engine_t::create_memory_storage(
+        memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
+    return impl()->create_memory_storage(storage, this, flags, size, handle);
+}
+
+engine_t::engine_t(
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
-    : base_t(kind, dev, ctx, index) {
+    : impl::gpu::engine_t(
+            new xpu::sycl::engine_impl_t(engine_kind::gpu, dev, ctx, index)) {
+    assert(xpu::sycl::is_amd_gpu(dev));
     set_miopen_handle();
     set_rocblas_handle();
 }
 
-sycl_hip_engine_t::sycl_hip_engine_t(
-        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
-    : sycl_hip_engine_t(engine_kind::gpu, dev, ctx, index) {
-    assert(xpu::sycl::is_amd_gpu(dev));
-}
-
-status_t sycl_hip_engine_t::set_rocblas_handle() {
+status_t engine_t::set_rocblas_handle() {
     // scoped context will make sure the top of the stack context is
     // the engine context while creating the rocblas handle.
     hip_sycl_scoped_context_handler_t sc(*this);
@@ -75,7 +71,7 @@ status_t sycl_hip_engine_t::set_rocblas_handle() {
     return status::success;
 }
 
-status_t sycl_hip_engine_t::set_miopen_handle() {
+status_t engine_t::set_miopen_handle() {
     // scoped context will make sure the top of the stack context is
     // the engine context while creating the miopen handle.
     hip_sycl_scoped_context_handler_t sc(*this);
@@ -91,30 +87,30 @@ status_t sycl_hip_engine_t::set_miopen_handle() {
     handle = nullptr;
     return status::success;
 }
-hipCtx_t sycl_hip_engine_t::get_underlying_context() const {
+hipCtx_t engine_t::get_underlying_context() const {
     return compat::get_native<hipCtx_t>(device());
 }
 
-hipDevice_t sycl_hip_engine_t::get_underlying_device() const {
+hipDevice_t engine_t::get_underlying_device() const {
     return compat::get_native<hipDevice_t>(device());
 }
 
-status_t sycl_hip_engine_t::create_stream(
+status_t engine_t::create_stream(
         impl::stream_t **stream, impl::stream_impl_t *stream_impl) {
-    return sycl_hip_stream_t::create_stream(stream, this, stream_impl);
+    return amd::stream_t::create_stream(stream, this, stream_impl);
 }
 
-miopenHandle_t *sycl_hip_engine_t::get_miopen_handle() {
+miopenHandle_t *engine_t::get_miopen_handle() {
     if (!miopen_handle_.is_set()) set_miopen_handle();
     return miopen_handle_.get().get();
 }
 
-rocblas_handle *sycl_hip_engine_t::get_rocblas_handle() {
+rocblas_handle *engine_t::get_rocblas_handle() {
     if (!rocblas_handle_.is_set()) set_rocblas_handle();
     return rocblas_handle_.get().get();
 }
 
-void sycl_hip_engine_t::activate_stream_rocblas(HIPstream hip_stream) {
+void engine_t::activate_stream_rocblas(HIPstream hip_stream) {
     hip_sycl_scoped_context_handler_t sc(*this);
     hipStream_t current_stream_id = nullptr;
     auto rocblas_handle = get_rocblas_handle();
@@ -125,7 +121,7 @@ void sycl_hip_engine_t::activate_stream_rocblas(HIPstream hip_stream) {
     }
 }
 
-void sycl_hip_engine_t::activate_stream_miopen(HIPstream hip_stream) {
+void engine_t::activate_stream_miopen(HIPstream hip_stream) {
     hip_sycl_scoped_context_handler_t sc(*this);
     hipStream_t current_stream_id = nullptr;
     auto miopen_handle = get_miopen_handle();

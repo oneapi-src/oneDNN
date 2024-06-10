@@ -23,10 +23,10 @@
 #include "common/c_types_map.hpp"
 #include "common/inner_product_pd.hpp"
 #include "common/primitive.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_gemm_inner_product_impl.hpp"
 #include "gpu/amd/miopen_inner_product.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 
 namespace dnnl {

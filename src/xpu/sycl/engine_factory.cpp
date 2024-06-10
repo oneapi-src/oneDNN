@@ -75,8 +75,7 @@ status_t engine_factory_t::engine_create(engine_t **engine,
 
 #ifdef DNNL_SYCL_HIP
     if (xpu::sycl::is_amd_gpu(dev))
-        return gpu::amd::hip_engine_create(
-                engine, engine_kind_, dev, ctx, index);
+        return gpu::amd::engine_create(engine, engine_kind_, dev, ctx, index);
 #endif
     VERROR_ENGINE(!(engine_kind_ == engine_kind::cpu && !dev.is_cpu()
                           && !xpu::sycl::is_host(dev)),

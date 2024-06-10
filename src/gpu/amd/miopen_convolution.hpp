@@ -21,10 +21,11 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_desc.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_convolution_impl.hpp"
 #include "gpu/amd/miopen_convolution_pd.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
+#include "xpu/sycl/memory_storage.hpp"
 
 #include <miopen/miopen.h>
 
@@ -229,7 +230,7 @@ struct miopen_convolution_fwd_t : public primitive_t {
     };
 
     status_t init_temp_dst(impl::engine_t *engine) {
-        auto sycl_engine = utils::downcast<sycl_hip_engine_t *>(engine);
+        auto sycl_engine = utils::downcast<amd::engine_t *>(engine);
         memory_storage_t *scratch_ptr = nullptr;
         auto wrap = memory_desc_wrapper(pd()->dst_md_temp_);
         CHECK(sycl_engine->create_memory_storage(

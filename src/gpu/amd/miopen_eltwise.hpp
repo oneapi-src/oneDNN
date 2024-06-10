@@ -20,8 +20,8 @@
 
 #include "common/eltwise_pd.hpp"
 #include "common/primitive.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_eltwise_impl.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
 
 namespace dnnl {
 namespace impl {

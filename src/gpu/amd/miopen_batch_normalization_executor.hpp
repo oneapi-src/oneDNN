@@ -22,10 +22,10 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_batch_normalization_impl.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 #include "sycl_hip_utils.hpp"
 #include "xpu/sycl/memory_storage_helper.hpp"
@@ -46,7 +46,7 @@ protected:
     void interop_task_fwd(
             std::shared_ptr<miopen_batch_normalization_impl_base_t> bnorm_impl,
             impl::engine_t *engine, ::sycl::handler &cgh,
-            amd::sycl_hip_stream_t *hip_stream,
+            amd::stream_t *hip_stream,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read> arg_src,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::write>
                     arg_dst,
@@ -65,7 +65,7 @@ protected:
             xpu::sycl::interop_memory_arg_t<mean_var_m> arg_var = {}) const {
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
+            auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine);
             auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = hip_stream->get_miopen_handle();
 
@@ -112,7 +112,7 @@ protected:
     void interop_task_bwd(
             std::shared_ptr<miopen_batch_normalization_impl_base_t> bnorm_impl,
             impl::engine_t *engine, ::sycl::handler &cgh,
-            amd::sycl_hip_stream_t *hip_stream,
+            amd::stream_t *hip_stream,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read> arg_src,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read>
                     arg_diff_dst,
@@ -136,7 +136,7 @@ protected:
                     arg_temp_relu,
             bool use_scale, bool use_shift) const {
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
+            auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine);
             auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = hip_stream->get_miopen_handle();
 
@@ -184,13 +184,12 @@ protected:
 
     template <typename T = float>
     void init_scaleshift(hip_sycl_scoped_context_handler_t &sc,
-            const compat::interop_handle &ih,
-            amd::sycl_hip_stream_t *hip_stream, T, float, size_t) const {}
+            const compat::interop_handle &ih, amd::stream_t *hip_stream, T,
+            float, size_t) const {}
 
     template <typename T = float>
     void init_scaleshift(hip_sycl_scoped_context_handler_t &sc,
-            const compat::interop_handle &ih,
-            amd::sycl_hip_stream_t *hip_stream,
+            const compat::interop_handle &ih, amd::stream_t *hip_stream,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::write>
                     arg_scale,
             float val, const size_t n) const {
@@ -208,13 +207,12 @@ protected:
     // Handle the cases when mean and var are read-only accessors or nullptr
     template <typename T, typename U>
     void init_mean_var(hip_sycl_scoped_context_handler_t &sc,
-            const compat::interop_handle &ih,
-            amd::sycl_hip_stream_t *hip_stream, T, U, const size_t) const {}
+            const compat::interop_handle &ih, amd::stream_t *hip_stream, T, U,
+            const size_t) const {}
 
     template <typename T = float>
     void init_mean_var(hip_sycl_scoped_context_handler_t &sc,
-            const compat::interop_handle &ih,
-            amd::sycl_hip_stream_t *hip_stream,
+            const compat::interop_handle &ih, amd::stream_t *hip_stream,
             xpu::sycl::interop_memory_arg_t<::sycl::access_mode::write>
                     arg_mean,
             xpu::sycl::interop_memory_arg_t<::sycl::access_mode::write> arg_var,
@@ -238,8 +236,8 @@ struct bnorm_exec_fwd_t : public bnorm_exec_base_t {
     status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             std::shared_ptr<miopen_batch_normalization_impl_base_t> bnorm_impl)
             const override {
-        amd::sycl_hip_stream_t *hip_stream
-                = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+        amd::stream_t *hip_stream
+                = utils::downcast<amd::stream_t *>(ctx.stream());
         const bool use_global_stats = bnorm_impl->use_global_stats();
         const bool use_scale = bnorm_impl->use_scale();
         const bool use_shift = bnorm_impl->use_shift();
@@ -286,8 +284,8 @@ struct bnorm_exec_bwd_t : public bnorm_exec_base_t {
     status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             std::shared_ptr<miopen_batch_normalization_impl_base_t> bnorm_impl)
             const override {
-        amd::sycl_hip_stream_t *hip_stream
-                = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+        amd::stream_t *hip_stream
+                = utils::downcast<amd::stream_t *>(ctx.stream());
         const bool use_scale = bnorm_impl->use_scale();
         const bool use_shift = bnorm_impl->use_shift();
         auto n_channels = bnorm_impl->C();

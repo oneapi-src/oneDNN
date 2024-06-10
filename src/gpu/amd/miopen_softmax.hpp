@@ -24,8 +24,8 @@
 
 #include "common/primitive.hpp"
 #include "common/softmax_pd.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_softmax_impl.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 
 namespace dnnl {

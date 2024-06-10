@@ -17,46 +17,46 @@
 
 #include "common/verbose.hpp"
 
+#include "gpu/amd/engine.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_compat.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace amd {
 
-rocblas_handle &sycl_hip_stream_t::get_rocblas_handle(HIPstream hip_stream) {
+rocblas_handle &stream_t::get_rocblas_handle(HIPstream hip_stream) {
     if (!hip_stream) hip_stream = get_underlying_stream();
-    auto e = utils::downcast<sycl_hip_engine_t *>(engine());
+    auto e = utils::downcast<amd::engine_t *>(engine());
     assert(e->context() == queue().get_context());
     e->activate_stream_rocblas(hip_stream);
     return *(e->get_rocblas_handle());
 }
-miopenHandle_t &sycl_hip_stream_t::get_miopen_handle(HIPstream hip_stream) {
-    auto e = utils::downcast<sycl_hip_engine_t *>(engine());
+miopenHandle_t &stream_t::get_miopen_handle(HIPstream hip_stream) {
+    auto e = utils::downcast<amd::engine_t *>(engine());
     assert(e->context() == queue().get_context());
     if (!hip_stream) hip_stream = get_underlying_stream();
     e->activate_stream_miopen(hip_stream);
     return *(e->get_miopen_handle());
 }
-// the sycl_hip_stream_t will not own this. it is an observer pointer
-HIPstream sycl_hip_stream_t::get_underlying_stream() {
+// the stream_t will not own this. it is an observer pointer
+HIPstream stream_t::get_underlying_stream() {
     return compat::get_native<HIPstream>(queue());
 }
 
-// the sycl_hip_stream_t will not own this. it is an observer pointer
-HIPcontext sycl_hip_stream_t::get_underlying_context() {
+// the stream_t will not own this. it is an observer pointer
+HIPcontext stream_t::get_underlying_context() {
     return compat::get_native<HIPcontext>(queue().get_device());
 }
 
-// the sycl_hip_stream_t will not own this. it is an observer pointer
-HIPdevice sycl_hip_stream_t::get_underlying_device() {
+// the stream_t will not own this. it is an observer pointer
+HIPdevice stream_t::get_underlying_device() {
     return compat::get_native<HIPdevice>(queue().get_device());
 }
 
-status_t sycl_hip_stream_t::init() {
+status_t stream_t::init() {
     if ((flags() & stream_flags::in_order) == 0
             && (flags() & stream_flags::out_of_order) == 0)
         return status::invalid_arguments;
@@ -66,7 +66,7 @@ status_t sycl_hip_stream_t::init() {
             VERBOSE_PROFILING_UNSUPPORTED);
 
     // If queue_ is not set then construct it
-    auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine());
+    auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine());
     auto status = status::success;
 
     if (!impl()->queue()) {
@@ -104,7 +104,7 @@ status_t sycl_hip_stream_t::init() {
     return status;
 }
 
-status_t sycl_hip_stream_t::interop_task(
+status_t stream_t::interop_task(
         std::function<void(::sycl::handler &)> sycl_hip_interop_) {
     try {
         auto event = queue().submit([&](::sycl::handler &cgh) {

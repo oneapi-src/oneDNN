@@ -22,10 +22,10 @@
 #include <rocblas/rocblas.h>
 
 #include "common/type_helpers.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_inner_product_impl.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 
 namespace dnnl {
@@ -567,12 +567,11 @@ struct miopen_gemm_inner_product_bwd_weights_impl_t
                     strides_[io::bia]));
             CHECK(create_and_set_reduce_descriptor());
 
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
+            auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine);
             impl::stream_t *service_stream;
             CHECK(sycl_engine.get_service_stream(service_stream));
 
-            auto hip_stream
-                    = utils::downcast<sycl_hip_stream_t *>(service_stream);
+            auto hip_stream = utils::downcast<stream_t *>(service_stream);
             auto handle = hip_stream->get_miopen_handle();
 
             // get the required workspace size

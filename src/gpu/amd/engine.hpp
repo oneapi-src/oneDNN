@@ -15,32 +15,42 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_AMD_SYCL_HIP_ENGINE_HPP
-#define GPU_AMD_SYCL_HIP_ENGINE_HPP
+#ifndef GPU_AMD_ENGINE_HPP
+#define GPU_AMD_ENGINE_HPP
 
 #include <stdexcept>
+
+#include <hip/hip_runtime.h>
+#include <miopen/miopen.h>
+#include <rocblas/rocblas.h>
+
 #include "common/stream.hpp"
 #include "common/thread_local_storage.hpp"
+
+#include "xpu/sycl/engine_impl.hpp"
+
+#include "gpu/gpu_engine.hpp"
+#include "gpu/gpu_impl_list.hpp"
+
 #include "gpu/amd/sycl_hip_utils.hpp"
-#include "miopen/miopen.h"
-#include "sycl/sycl_device_info.hpp"
-#include "sycl/sycl_engine_base.hpp"
-#include <hip/hip_runtime.h>
-#include <rocblas/rocblas.h>
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace amd {
 
-class sycl_hip_engine_t : public dnnl::impl::sycl::sycl_engine_base_t {
-public:
-    using base_t = dnnl::impl::sycl::sycl_engine_base_t;
+status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
+        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index);
 
-    sycl_hip_engine_t(engine_kind_t kind, const ::sycl::device &dev,
-            const ::sycl::context &ctx, size_t index);
-    sycl_hip_engine_t(const ::sycl::device &dev, const ::sycl::context &ctx,
+class engine_t : public gpu::engine_t {
+public:
+    engine_t(const ::sycl::device &dev, const ::sycl::context &ctx,
             size_t index);
+
+    status_t init() { return init_impl(); }
+
+    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
+            size_t size, void *handle) override;
 
     status_t create_stream(
             impl::stream_t **stream, impl::stream_impl_t *stream_impl) override;
@@ -48,25 +58,10 @@ public:
     void activate_stream_miopen(HIPstream hip_stream);
     void activate_stream_rocblas(HIPstream hip_stream);
 
-    const impl_list_item_t *get_reorder_implementation_list(
-            const memory_desc_t *src_md,
-            const memory_desc_t *dst_md) const override {
-        return gpu::gpu_impl_list_t::get_reorder_implementation_list(
-                src_md, dst_md);
-    }
+    const ::sycl::device &device() const { return impl()->device(); }
+    const ::sycl::context &context() const { return impl()->context(); }
 
-    const impl_list_item_t *get_concat_implementation_list() const override {
-        return gpu::gpu_impl_list_t::get_concat_implementation_list();
-    }
-
-    const impl_list_item_t *get_sum_implementation_list() const override {
-        return gpu::gpu_impl_list_t::get_sum_implementation_list();
-    }
-
-    const impl_list_item_t *get_implementation_list(
-            const op_desc_t *desc) const override {
-        return gpu::gpu_impl_list_t::get_implementation_list(desc);
-    }
+    xpu::sycl::backend_t backend() const { return impl()->backend(); }
 
     hipCtx_t get_underlying_context() const;
     hipDevice_t get_underlying_device() const;
@@ -75,7 +70,11 @@ public:
     const bool has_primary_context() const { return primary_context_; }
 
 protected:
-    ~sycl_hip_engine_t() override = default;
+    const xpu::sycl::engine_impl_t *impl() const {
+        return (const xpu::sycl::engine_impl_t *)impl::engine_t::impl();
+    }
+
+    ~engine_t() override = default;
 
 private:
     status_t set_miopen_handle();

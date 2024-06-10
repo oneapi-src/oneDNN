@@ -21,11 +21,11 @@
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
 #include "common/utils.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_conv_filter_adjustment_base.hpp"
 #include "gpu/amd/miopen_convolution_pd.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 
 #include <vector>
@@ -564,10 +564,10 @@ public:
     }
     status_t init_scratchpad(
             impl::engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
+        auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine);
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
-        auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);
+        auto hip_stream = utils::downcast<stream_t *>(service_stream);
         auto handle = hip_stream->get_miopen_handle();
 
         CHECK(MIOPEN_EXECUTE_FUNC_S(miopenConvolutionForwardGetSolutionCount,
@@ -606,7 +606,7 @@ public:
 
     status_t configure_alg_kind(
             impl::engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
+        auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine);
         hip_sycl_scoped_context_handler_t sc(sycl_engine);
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
@@ -677,7 +677,7 @@ struct miopen_convolution_impl_bwd_data_t
 protected:
     status_t configure_alg_kind(
             impl::engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
+        auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine);
         hip_sycl_scoped_context_handler_t sc(sycl_engine);
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
@@ -687,11 +687,11 @@ protected:
 
     status_t init_scratchpad(
             impl::engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
+        auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine);
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);
+        auto hip_stream = utils::downcast<stream_t *>(service_stream);
         auto handle = hip_stream->get_miopen_handle();
 
         CHECK(MIOPEN_EXECUTE_FUNC_S(
@@ -814,7 +814,7 @@ public:
     }
     virtual status_t configure_alg_kind(
             impl::engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
+        auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine);
         hip_sycl_scoped_context_handler_t sc(sycl_engine);
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
@@ -824,11 +824,11 @@ public:
 
     status_t init_scratchpad(
             impl::engine_t *engine, convolution_pd_t *pd) override {
-        auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(engine);
+        auto &sycl_engine = *utils::downcast<amd::engine_t *>(engine);
         impl::stream_t *service_stream;
         CHECK(sycl_engine.get_service_stream(service_stream));
 
-        auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);
+        auto hip_stream = utils::downcast<stream_t *>(service_stream);
         auto handle = hip_stream->get_miopen_handle();
 
         CHECK(MIOPEN_EXECUTE_FUNC_S(

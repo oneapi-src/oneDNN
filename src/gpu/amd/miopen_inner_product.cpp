@@ -17,8 +17,8 @@
 
 #include "gpu/amd/miopen_inner_product.hpp"
 #include "gpu/amd/miopen_gemm_inner_product.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
 #include "xpu/sycl/buffer_memory_storage.hpp"
 #include "xpu/sycl/memory_storage_helper.hpp"
 
@@ -30,8 +30,7 @@ namespace amd {
 status_t miopen_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return status::success;
 
-    amd::sycl_hip_stream_t *hip_stream
-            = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+    amd::stream_t *hip_stream = utils::downcast<amd::stream_t *>(ctx.stream());
 
     return hip_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -46,8 +45,8 @@ status_t miopen_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_scaled_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
                 memory_tracking::names::key_conv_adjusted_scales);
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(
-                    hip_stream->engine());
+            auto &sycl_engine
+                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
             auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
             auto native_stream = hip_stream->get_underlying_stream();
             auto miopen_handle = hip_stream->get_miopen_handle(native_stream);
@@ -72,8 +71,7 @@ status_t miopen_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
 
 status_t miopen_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return status::success;
-    amd::sycl_hip_stream_t *hip_stream
-            = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+    amd::stream_t *hip_stream = utils::downcast<amd::stream_t *>(ctx.stream());
 
     return hip_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
@@ -85,8 +83,8 @@ status_t miopen_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
                 = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(
-                    hip_stream->engine());
+            auto &sycl_engine
+                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
             auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
             auto native_stream = hip_stream->get_underlying_stream();
             auto miopen_handle = hip_stream->get_miopen_handle(native_stream);
@@ -109,8 +107,7 @@ status_t miopen_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
 status_t miopen_inner_product_bwd_weights_t::execute(
         const exec_ctx_t &ctx) const {
 
-    amd::sycl_hip_stream_t *hip_stream
-            = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+    amd::stream_t *hip_stream = utils::downcast<amd::stream_t *>(ctx.stream());
 
     if (pd()->has_zero_dim_memory()) {
         auto wei_sz = memory_desc_wrapper(pd()->diff_weights_md(0)).size();
@@ -144,8 +141,8 @@ status_t miopen_inner_product_bwd_weights_t::execute(
                 = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(
-                    hip_stream->engine());
+            auto &sycl_engine
+                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
             auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
             auto native_stream = hip_stream->get_underlying_stream();
             auto miopen_handle = hip_stream->get_miopen_handle(native_stream);

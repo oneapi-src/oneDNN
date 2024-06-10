@@ -38,19 +38,7 @@
 #endif
 
 #ifdef DNNL_SYCL_HIP
-// XXX: forward declarations to avoid cuda dependencies on sycl level.
-namespace dnnl {
-namespace impl {
-namespace gpu {
-namespace amd {
-
-status_t hip_engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
-        const ::sycl::device &dev, const ::sycl::context &ctx, size_t index);
-
-}
-} // namespace gpu
-} // namespace impl
-} // namespace dnnl
+#include "gpu/amd/engine.hpp"
 #endif
 
 namespace dnnl {
