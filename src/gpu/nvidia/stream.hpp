@@ -65,30 +65,12 @@ public:
     status_t copy(const memory_storage_t &src, const memory_storage_t &dst,
             size_t size, const xpu::event_t &deps,
             xpu::event_t &out_dep) override {
-        CHECK(impl()->copy(this, src, dst, size, deps, out_dep));
-
-        if (is_profiling_enabled()) {
-            assert(impl::sycl::sycl_event_t::from(out_dep).size() == 1);
-            auto sycl_event = utils::make_unique<impl::sycl::sycl_event_t>(
-                    std::vector<::sycl::event> {
-                            impl::sycl::sycl_event_t::from(out_dep)[0]});
-            profiler_->register_event(std::move(sycl_event));
-        }
-        return status::success;
+        return impl()->copy(this, src, dst, size, deps, out_dep);
     }
 
     status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
             const xpu::event_t &deps, xpu::event_t &out_dep) override {
-        CHECK(impl()->fill(dst, pattern, size, deps, out_dep));
-
-        if (is_profiling_enabled()) {
-            assert(impl::sycl::sycl_event_t::from(out_dep).size() == 1);
-            auto sycl_event = utils::make_unique<impl::sycl::sycl_event_t>(
-                    std::vector<::sycl::event> {
-                            impl::sycl::sycl_event_t::from(out_dep)[0]});
-            profiler_->register_event(std::move(sycl_event));
-        }
-        return status::success;
+        return impl()->fill(dst, pattern, size, deps, out_dep);
     }
 
     const impl::sycl::sycl_context_t &sycl_ctx() const {
