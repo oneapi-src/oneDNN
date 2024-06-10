@@ -16,7 +16,7 @@
 
 #include "xpu/sycl/engine_factory.hpp"
 
-#include "gpu/sycl/sycl_gpu_engine.hpp"
+#include "gpu/generic/sycl/sycl_gpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

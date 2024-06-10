@@ -34,7 +34,7 @@
 #include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 
-#include "gpu/sycl/sycl_interop_gpu_kernel.hpp"
+#include "gpu/generic/sycl/sycl_interop_gpu_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -94,7 +94,8 @@ public:
                 sycl_kernel, this, binary, kernel_name));
 
         std::shared_ptr<gpu::intel::compute::kernel_impl_t> kernel_impl
-                = std::make_shared<gpu::sycl::sycl_interop_gpu_kernel_t>(
+                = std::make_shared<
+                        gpu::generic::sycl::sycl_interop_gpu_kernel_t>(
                         *sycl_kernel, arg_types);
         kernel = std::move(kernel_impl);
         return status::success;

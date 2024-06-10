@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,38 +14,37 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/gpu_impl_list.hpp"
+#include "common/stream.hpp"
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
-#include "gpu/intel/ocl/ref_shuffle.hpp"
-#include "gpu/intel/ocl/shuffle_by_reorder.hpp"
-#endif
+#include "xpu/sycl/stream_impl.hpp"
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
-#include "gpu/generic/sycl/ref_shuffle.hpp"
-#endif
+#include "gpu/generic/sycl/sycl_gpu_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
+namespace generic {
+namespace sycl {
 
-namespace {
+status_t kernel_t::parallel_for(impl::stream_t &stream,
+        const std::function<void(::sycl::handler &)> &cgf) const {
+    auto *sycl_stream_impl
+            = utils::downcast<xpu::sycl::stream_impl_t *>(stream.impl());
+    auto &queue = *sycl_stream_impl->queue();
+    auto &deps = sycl_stream_impl->sycl_ctx().get_sycl_deps().events;
 
-// clang-format off
-constexpr impl_list_item_t impl_list[] = REG_SHUFFLE_P({
-        GPU_INSTANCE_INTEL(intel::ocl::shuffle_by_reorder_t)
-        GPU_INSTANCE_INTEL(intel::ocl::ref_shuffle_t)
-        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_shuffle_t)
-        nullptr,
-});
-// clang-format on
-} // namespace
+    auto event = queue.submit([&](::sycl::handler &cgh) {
+        cgh.depends_on(deps);
+        cgh.use_kernel_bundle(*kernel_bundle_);
+        cgf(cgh);
+    });
 
-const impl_list_item_t *get_shuffle_impl_list(const shuffle_desc_t *desc) {
-    UNUSED(desc);
-    return impl_list;
+    deps = {event};
+    return status::success;
 }
 
+} // namespace sycl
+} // namespace generic
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
