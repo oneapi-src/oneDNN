@@ -14,24 +14,29 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/stream.hpp"
+
+#include "xpu/sycl/stream_impl.hpp"
+#include "xpu/sycl/utils.hpp"
+
 #include "gpu/sycl/sycl_gpu_kernel.hpp"
-#include "sycl/sycl_stream.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace sycl {
 
-status_t sycl_gpu_kernel_t::parallel_for(
-        impl::stream_t &stream, const std::function<void(void *)> &cgf) {
-    auto *sycl_stream = utils::downcast<impl::sycl::sycl_stream_t *>(&stream);
-    auto &queue = sycl_stream->queue();
-    auto &deps = sycl_stream->sycl_ctx().get_sycl_deps().events;
+status_t kernel_t::parallel_for(impl::stream_t &stream,
+        const std::function<void(::sycl::handler &)> &cgf) const {
+    auto *sycl_stream_impl
+            = utils::downcast<xpu::sycl::stream_impl_t *>(stream.impl());
+    auto &queue = *sycl_stream_impl->queue();
+    auto &deps = sycl_stream_impl->sycl_ctx().get_sycl_deps().events;
 
     auto event = queue.submit([&](::sycl::handler &cgh) {
         cgh.depends_on(deps);
         cgh.use_kernel_bundle(*kernel_bundle_);
-        cgf(reinterpret_cast<void *>(&cgh));
+        cgf(cgh);
     });
 
     deps = {event};

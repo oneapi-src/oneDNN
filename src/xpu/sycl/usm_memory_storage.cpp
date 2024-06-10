@@ -59,7 +59,8 @@ status_t usm_memory_storage_t::map_data(
     if (!stream) CHECK(engine()->get_service_stream(stream));
 
     ::sycl::queue sycl_queue
-            = utils::downcast<impl::sycl::sycl_stream_t *>(stream)->queue();
+            = *utils::downcast<xpu::sycl::stream_impl_t *>(stream->impl())
+                       ->queue();
 
     void *host_ptr = ::sycl::malloc_host(size, sycl_queue.get_context());
     if (!host_ptr) return status::out_of_memory;
@@ -70,7 +71,8 @@ status_t usm_memory_storage_t::map_data(
     *mapped_ptr = host_ptr;
     auto unmap_callback = [usm_ptr, size](stream_t *stream, void *mapped_ptr) {
         ::sycl::queue sycl_queue
-                = utils::downcast<impl::sycl::sycl_stream_t *>(stream)->queue();
+                = *utils::downcast<xpu::sycl::stream_impl_t *>(stream->impl())
+                           ->queue();
         sycl_queue.wait_and_throw();
         sycl_queue.memcpy(usm_ptr, mapped_ptr, size).wait();
         ::sycl::free(mapped_ptr, sycl_queue.get_context());

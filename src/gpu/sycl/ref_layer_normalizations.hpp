@@ -32,8 +32,8 @@ namespace impl {
 namespace gpu {
 namespace sycl {
 
-struct ref_layer_normalization_fwd_t : public sycl_gpu_primitive_t {
-    using sycl_gpu_primitive_t::sycl_gpu_primitive_t;
+struct ref_layer_normalization_fwd_t : public gpu::sycl::primitive_t {
+    using gpu::sycl::primitive_t::primitive_t;
 
     struct pd_t : public gpu_layer_normalization_fwd_pd_t {
         using gpu_layer_normalization_fwd_pd_t::
@@ -77,11 +77,11 @@ struct ref_layer_normalization_fwd_t : public sycl_gpu_primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    intel::compute::kernel_t kernel_;
+    kernel_t kernel_;
 };
 
-struct ref_layer_normalization_bwd_t : public sycl_gpu_primitive_t {
-    using sycl_gpu_primitive_t::sycl_gpu_primitive_t;
+struct ref_layer_normalization_bwd_t : public gpu::sycl::primitive_t {
+    using gpu::sycl::primitive_t::primitive_t;
 
     struct pd_t : public gpu_layer_normalization_bwd_pd_t {
         using gpu_layer_normalization_bwd_pd_t::
@@ -127,8 +127,8 @@ struct ref_layer_normalization_bwd_t : public sycl_gpu_primitive_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    intel::compute::kernel_t kernel_;
-    intel::compute::kernel_t kernel2_;
+    kernel_t kernel_;
+    kernel_t kernel2_;
 };
 
 } // namespace sycl
