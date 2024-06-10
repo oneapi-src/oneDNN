@@ -17,18 +17,19 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "sycl/stream_profiler.hpp"
-
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
-#include "sycl/sycl_stream.hpp"
+
+#include "xpu/sycl/context.hpp"
+#include "xpu/sycl/stream_profiler.hpp"
 #include "xpu/sycl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace xpu {
 namespace sycl {
 
-status_t sycl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
+status_t stream_profiler_t::get_info(profiling_data_kind_t data_kind,
         int *num_entries, uint64_t *data) const {
     using namespace ::sycl::info;
     if (!num_entries) return status::invalid_arguments;
@@ -55,9 +56,10 @@ status_t sycl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
         entry.max_nsec = std::max(entry.max_nsec, end);
         entry.kernel_count++;
     }
-    return stream_profiler_t::get_info_impl(stamp2entry, data_kind, data);
+    return xpu::stream_profiler_t::get_info_impl(stamp2entry, data_kind, data);
 }
 
 } // namespace sycl
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

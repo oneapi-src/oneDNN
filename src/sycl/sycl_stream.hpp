@@ -25,11 +25,11 @@
 #include "gpu/intel/compute/compute_stream.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/sycl/sycl_gpu_engine.hpp"
-#include "sycl/stream_profiler.hpp"
 
 #include "xpu/sycl/context.hpp"
 #include "xpu/sycl/memory_storage.hpp"
 #include "xpu/sycl/stream_impl.hpp"
+#include "xpu/sycl/stream_profiler.hpp"
 
 #include <algorithm>
 #include <cstring>

@@ -17,8 +17,10 @@
 #include "sycl/sycl_stream.hpp"
 
 #include "common/verbose.hpp"
+
+#include "xpu/sycl/stream_profiler.hpp"
+
 #include "gpu/intel/ocl/ocl_utils.hpp"
-#include "sycl/stream_profiler.hpp"
 
 #include <map>
 #include <memory>
@@ -34,7 +36,7 @@ status_t sycl_stream_t::init() {
         return status::invalid_arguments;
 
     if (is_profiling_enabled())
-        profiler_ = utils::make_unique<sycl_stream_profiler_t>(this);
+        profiler_ = utils::make_unique<xpu::sycl::stream_profiler_t>(this);
 
     const auto &sycl_engine_impl
             = *utils::downcast<const xpu::sycl::engine_impl_t *>(
