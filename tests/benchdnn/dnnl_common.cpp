@@ -1297,7 +1297,8 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
             const_pd, /* want_input = */ false);
     get_memory_bytes(check_mem_out_size_args); // Get output bytes.
 
-    // Update read bytes with dst bytes in case of sum post-op.
+    // Sum post-ops include dst bytes as an input. Not included in get_memory_bytes
+    // since it would cause check_mem_size to double-count dst bytes.
     auto const_attr_po = query_post_ops(const_pd);
     auto po_len = dnnl_post_ops_len(const_attr_po);
     for (int idx = 0; idx < po_len; ++idx) {
@@ -1305,10 +1306,6 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
         if (kind == dnnl_sum) {
             const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
             add_md_size(dst_md, check_mem_in_size_args);
-        } else if (kind == dnnl_binary) {
-            int po_arg = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
-            const auto &po_md = query_md(const_pd, po_arg);
-            add_md_size(po_md, check_mem_in_size_args);
         }
     }
 
