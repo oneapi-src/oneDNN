@@ -53,10 +53,16 @@ struct ref_pooling_fwd_t : public sycl_gpu_primitive_t {
 
             const bool ok = is_fwd() && set_default_params() == status::success
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && (!utils::one_of(f64, src_md(0)->data_type)
-                            && !utils::one_of(f64, dst_md(0)->data_type))
                     && (IMPLICATION(utils::one_of(bf16, src_md(0)->data_type),
                             utils::one_of(bf16, dst_md(0)->data_type)))
+                    && f64 != src_md(0)->data_type
+                    && f64 != dst_md(0)->data_type
+                    && (IMPLICATION(bf16 == src_md(0)->data_type,
+                            bf16 == dst_md(0)->data_type))
+                    && (IMPLICATION(src_md(0)->data_type == s8,
+                            dst_md(0)->data_type != s8))
+                    && (IMPLICATION(src_md(0)->data_type == u8,
+                            dst_md(0)->data_type != u8))
                     && (IMPLICATION(
                             src_md(0)->data_type != dst_md(0)->data_type,
                             desc_.prop_kind == forward_inference))
