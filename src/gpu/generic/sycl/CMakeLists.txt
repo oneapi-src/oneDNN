@@ -14,30 +14,17 @@
 # limitations under the License.
 #===============================================================================
 
-if(DNNL_SYCL_CUDA OR DNNL_SYCL_HIP)
-    file(GLOB_RECURSE SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/*.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/*.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
-        )
-    # Interop kernel is not used for non-Intel GPU vendor.
-    list(REMOVE_ITEM SOURCES
-        "sycl_interop_gpu_kernel.hpp"
-        "sycl_interop_gpu_kernel.cpp"
-        )
-    if(DNNL_SYCL_CUDA)
-        append(CMAKE_CXX_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
-        # Suppress irrelevant warning about incompatible triplets.
-        append(CMAKE_CXX_FLAGS "-Wno-linker-warnings")
-    endif()
-else()
-    # GPU vendor Intel needs only the following files from this directory.
-    set(SOURCES
-       "sycl_interop_gpu_kernel.hpp"
-       "sycl_interop_gpu_kernel.cpp"
-       "sycl_gpu_engine.hpp"
-       )
+file(GLOB_RECURSE SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+    )
+
+if(DNNL_SYCL_CUDA)
+    append(CMAKE_CXX_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
+    # Suppress irrelevant warning about incompatible triplets.
+    append(CMAKE_CXX_FLAGS "-Wno-linker-warnings")
 endif()
 
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_generic_sycl)

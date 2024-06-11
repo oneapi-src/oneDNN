@@ -34,7 +34,7 @@
 #include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 
-#include "gpu/generic/sycl/sycl_interop_gpu_kernel.hpp"
+#include "gpu/intel/sycl/sycl_interop_gpu_kernel.hpp"
 
 namespace dnnl {
 namespace impl {

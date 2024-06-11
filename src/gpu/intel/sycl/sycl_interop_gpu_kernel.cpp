@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/generic/sycl/sycl_interop_gpu_kernel.hpp"
+#include "gpu/intel/sycl/sycl_interop_gpu_kernel.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/intel/compute/utils.hpp"
