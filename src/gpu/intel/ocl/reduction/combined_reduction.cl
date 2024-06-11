@@ -98,6 +98,7 @@ dim_t dst_off_w_zero_padding(dim_t outer, dim_t inner) {
             *DST_Z1_SIZE1
 #endif
 
+#if WITH_POST_OP
 void reverse_indexing(dim_t dst_off, int *res) {
     // Reconstruct dimension indices from dst_off
     res[0] = (DST_S0 == 0) ? 0
@@ -119,6 +120,7 @@ void reverse_indexing(dim_t dst_off, int *res) {
                            : dst_off / DST_S5 % div_up(DST_D5, DST_B5) * DST_B5
                     + dst_off / DST_SB5 % DST_B5;
 }
+#endif
 
 void write_padded_zeros(__global DST_DATA_T *dst) {
 #if DST_Z0_IS_REDUCED && DST_Z1_IS_REDUCED
@@ -146,7 +148,7 @@ void write_padded_zeros(__global DST_DATA_T *dst) {
 #endif
 
 #define DUMP(str, ...) \
-    DEBUG_PRINT("%d->%d/%d/%d: " str, get_global_id(0), tgid, sgid, sglid, \
+    DEBUG_PRINT("%zu->%d/%d/%d: " str, get_global_id(0), tgid, sgid, sglid, \
             __VA_ARGS__)
 
 // Specifying wg size since larger work groups reduce performance.
@@ -271,7 +273,7 @@ combined_reduce(
             if (is_dst_zero_padded(dst_off)) res = 0.0f;
             dst[dst_off] = IS_FINAL ? TO_DST(res) : res;
             write_padded_zeros(dst + dst_off);
-            DUMP("dst[%d] <- %f\n", dst_off, TO_DST(res));
+            DUMP("dst[%ld] <- %f\n", dst_off, TO_DST(res));
         }
     }
 }

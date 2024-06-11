@@ -639,12 +639,13 @@ private:
         subgraph_rewriter_t rewriter(sg);
 
         for (const auto &cur_op : sg->get_ops()) {
-            if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
+            if (!cur_op || cur_op->get_kind() != op_kind::dnnl_matmul) continue;
             auto post_op = get_post_op(cur_op);
-            if (post_op == nullptr
-                    || post_op->get_kind() != op_kind::dnnl_softmax)
+            if (!post_op || post_op->get_kind() != op_kind::dnnl_softmax)
                 continue;
             auto ppost_op = get_post_op(post_op);
+            if (!ppost_op) return status::invalid_graph;
+
             op_ptr reorder1;
             op_ptr reorder2;
             if (is_quantize) {
