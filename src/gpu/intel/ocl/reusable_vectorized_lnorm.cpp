@@ -26,6 +26,7 @@
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/ocl/lnorm_utils.hpp"
+#include "gpu/intel/ocl/ocl_engine.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/ocl/reusable_lnorm.hpp"
 #include "gpu/intel/primitive_conf.hpp"
@@ -162,9 +163,37 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     conf->unroll = std::min<int>(
             4, (int)pd->norm_axis() / (conf->sg_size * conf->vector_size));
 
+
+
+    size_t lnorm_bytes = pd->norm_axis()
+            * types::data_type_size(input_buf.data_type);
+    size_t tensor_size = src_mdw.nelems()
+      * types::data_type_size(input_buf.data_type);
+
+    auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(compute_engine);
+    const cl_device_id &ocl_dev = ocl_engine->device();
+    size_t cache_size;
+    cl_int err = clGetDeviceInfo(ocl_dev, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(size_t), &cache_size, nullptr);
+
+    //auto gpu_arch = compute_engine->device_info()->gpu_arch();
+
+
+    std::unique_ptr<lws_strategy_t> lws_strategy;
+    int userval = gpu_utils::dev_getenv("reuse", 0);
+    //printf("userval: %d\n", userval);
+    //if (!userval) {// && (lnorm_bytes <= 256 || (lnorm_bytes < 1024 && tensor_size < cache_size * 0.33))) {
+    if (lnorm_bytes > 768 || (lnorm_bytes > 512 && tensor_size > cache_size * 0.33)) {
+        conf->reuse = true;
+        conf->unroll = 1;
+        lws_strategy.reset(
+                new default_lws_strategy_t(compute_engine, gpu_attr));
+    } else {
+        lws_strategy.reset(new single_subgroup_lws_strategy_t(
+                compute_engine, gpu_attr, conf->sg_size));
+    }
+
+    //printf("lnorm_size: %zu tensor_size: %zu err: %d cache_size: %zu reuse: %d\n", lnorm_bytes, tensor_size, err, cache_size, conf->reuse);
     // Norm dispatch: all dimensions
-    auto lws_strategy = single_subgroup_lws_strategy_t(
-            compute_engine, gpu_attr, conf->sg_size);
 
     compute::reusable_dispatch_config_t dispatch_config(compute_engine, dims);
     CHECK(dispatch_config.register_buffer(input_buf));
@@ -173,7 +202,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     CHECK(dispatch_config.register_buffer(ss_buf));
 
     compute::reusable_dispatch_t dispatch;
-    CHECK(dispatch_config.generate(dispatch, lws_strategy));
+    CHECK(dispatch_config.generate(dispatch, *lws_strategy));
     conf->gws_params = dispatch.get_compile_params();
     rt_conf->gws_params = dispatch.get_runtime_params();
 
@@ -207,6 +236,7 @@ compute::kernel_ctx_t
 reusable_vectorized_lnorm_params_t::get_kernel_ctx() const {
     compute::kernel_ctx_t kernel_ctx;
     kernel_ctx.set_data_type(input_dt);
+    kernel_ctx.add_option("-cl-std=CL3.0");
     def_data_type(kernel_ctx, input_dt, "SRC");
     def_data_type(kernel_ctx, ss_dt, "WEI");
     def_data_type(kernel_ctx, output_dt, "DST");
@@ -219,8 +249,15 @@ reusable_vectorized_lnorm_params_t::get_kernel_ctx() const {
 
     kernel_ctx.define_int("SG_SIZE", sg_size);
     kernel_ctx.define_int("VECT_DT_N", vector_size);
-    kernel_ctx.define_int("SG_STRIDE", sg_size * vector_size);
     kernel_ctx.define_int("N_UNROLL", unroll);
+    kernel_ctx.define_int("REUSE", reuse);
+    if (reuse) {
+        kernel_ctx.add_option("-DGROUP_ADD=work_group_reduce_add");
+        kernel_ctx.define_int("GROUP_STRIDE", INT32_MAX);
+    } else {
+        kernel_ctx.add_option("-DGROUP_ADD=sub_group_reduce_add");
+        kernel_ctx.define_int("GROUP_STRIDE", sg_size * vector_size);
+    }
 
     gws_params.def_kernel_macros(kernel_ctx);
 
@@ -258,20 +295,40 @@ status_t reusable_vectorized_layer_normalization_fwd_t::execute_forward(
     lnorm_arg_list.append(pd()->desc()->layer_norm_epsilon);
     lnorm_arg_list.append(src_scale);
     lnorm_arg_list.append(dst_scale);
-    lnorm_arg_list.append((int)utils::div_up(
-            pd()->norm_axis(), conf.sg_size * conf.vector_size));
+    if (conf.reuse) {
+        lnorm_arg_list.append(1);
+    } else {
+        lnorm_arg_list.append((int)utils::div_up(
+                pd()->norm_axis(), conf.sg_size * conf.vector_size));
+    }
     lnorm_arg_list.append(1.f / (pd()->norm_axis()));
 
     lnorm_arg_list.append(rt_conf.gws_params.get());
 
-    compute::nd_range_t gws_nd_range_calc(
-            {static_cast<size_t>(conf.sg_size),
-                    rt_conf.gws_params.nd_range.global_range().data()[1],
-                    rt_conf.gws_params.nd_range.global_range().data()[2]},
-            {static_cast<size_t>(conf.sg_size), 1, 1});
+    //printf("reuse: %d|  ", conf.reuse);
+    if (conf.reuse) {
+        compute::nd_range_t gws_nd_range_calc(
+                {static_cast<size_t>(pd()->norm_axis() / conf.vector_size),
+                        rt_conf.gws_params.nd_range.global_range().data()[1],
+                        rt_conf.gws_params.nd_range.global_range().data()[2]},
+                {static_cast<size_t>(pd()->norm_axis() / conf.vector_size), 1, 1});
 
-    return parallel_for(
-            ctx, gws_nd_range_calc, calculate_lnorm_kernel_, lnorm_arg_list);
+        //std::cout << "rt_conf.gws_params.nd_range.str():  "
+        //<< rt_conf.gws_params.nd_range.str() << "\n";
+
+        //std::cout << "gws_nd_range_calc: " << gws_nd_range_calc.str() << " vector size: " << conf.vector_size <<  "\n";
+        return parallel_for(ctx, gws_nd_range_calc, calculate_lnorm_kernel_,
+                lnorm_arg_list);
+    } else {
+        compute::nd_range_t gws_nd_range_calc(
+                {static_cast<size_t>(conf.sg_size),
+                        rt_conf.gws_params.nd_range.global_range().data()[1],
+                        rt_conf.gws_params.nd_range.global_range().data()[2]},
+                {static_cast<size_t>(conf.sg_size), 1, 1});
+
+        return parallel_for(ctx, gws_nd_range_calc, calculate_lnorm_kernel_,
+                lnorm_arg_list);
+    }
 }
 
 } // namespace ocl

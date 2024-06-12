@@ -78,7 +78,9 @@ struct reusable_vectorized_lnorm_params_t
     /// Saves the mean and variance to memory
     bool save_stats = false;
 
-    uint8_t padding[4] = {false};
+    bool reuse = false;
+
+    uint8_t padding[3] = {false};
 };
 
 struct reusable_vectorized_lnorm_runtime_params_t {
