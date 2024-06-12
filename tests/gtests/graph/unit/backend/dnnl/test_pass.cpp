@@ -11836,7 +11836,7 @@ TEST(test_pass_pass_system, FuseLayernormTypecastQuantize_CPU) {
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs()[0].id, 5U);
 }
 
-TEST(test_pass_pass_system, NotFuseLayernormTypecast) {
+TEST(test_pass_pass_system, NotFuseLayernormTypecast_GPU) {
     /*
              | (bf16)
            layernorm
