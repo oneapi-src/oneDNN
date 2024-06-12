@@ -438,8 +438,11 @@ status_t combined_reduction_t::pd_t::init_kernel_ctx(
     if (status != status_t::dnnl_success) return status;
 
     // Set post-op macros
-    CHECK(def_attr_info(
-            kernel_ctx, conf.attr_info, attr()->post_ops_, *dst_md()));
+    auto empty_po = post_ops_t();
+    const auto &actual_po = &attr()->post_ops_;
+    const post_ops_t *po = phase.is_final ? actual_po : &empty_po;
+
+    CHECK(def_attr_info(kernel_ctx, conf.attr_info, *po, *dst_md()));
     if (attr()->post_ops_.len() > 0 && phase.is_final) {
         // Can only do this for the final phase, since it overwrites def_data_type for DST
         def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
@@ -474,8 +477,11 @@ status_t combined_reduction_t::execute_combined(const exec_ctx_t &ctx) const {
         reduction_arg_list.set(0, src_mem);
         reduction_arg_list.set(1, dst_mem);
 
-        append_post_ops_to_arg_list(
-                ctx, reduction_arg_list, 2, pd()->attr()->post_ops_);
+        // nullify post ops unless it's the final phase
+        auto empty_po = post_ops_t();
+        const auto &actual_po = &pd()->attr()->post_ops_;
+        const post_ops_t *po = phase.is_final ? actual_po : &empty_po;
+        append_post_ops_to_arg_list(ctx, reduction_arg_list, 2, *po);
 
         status = parallel_for(ctx, nd_range, kernel, reduction_arg_list);
         CHECK(status);
