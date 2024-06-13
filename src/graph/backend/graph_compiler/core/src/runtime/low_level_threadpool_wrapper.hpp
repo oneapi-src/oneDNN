@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #ifndef GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_LOW_LEVEL_THREADPOOL_WRAPPER_HPP
 #define GRAPH_BACKEND_GRAPH_COMPILER_CORE_SRC_RUNTIME_LOW_LEVEL_THREADPOOL_WRAPPER_HPP
 
-#include <exception>
+#include <stdexcept>
 #include "thread_locals.hpp"
 #include <runtime/config.hpp>
 #include <util/compiler_macros.hpp>
@@ -58,7 +58,10 @@ void call_threadpool(TSched *ths, main_func_t f, runtime::stream_t *stream,
     ths = T::all_thread_prepare(ths, stream, threads);
     if (threads > 1 || !T::can_optimize_single_thread) {
         typename T::TyState rtl_state {T::before_parallel(ths)};
-
+#if SC_CPU_THREADPOOL == SC_THREAD_POOL_SEQ
+        int64_t i = 0; // make compiler happy
+        throw std::runtime_error("Running SEQ in thread pool");
+#endif
 #if SC_CPU_THREADPOOL == SC_THREAD_POOL_OMP
         SC_NO_OP();
 #pragma omp parallel for
@@ -91,9 +94,6 @@ void call_threadpool(TSched *ths, main_func_t f, runtime::stream_t *stream,
         });
 #endif
         T::after_parallel(ths);
-#if SC_CPU_THREADPOOL == SC_THREAD_POOL_SEQ
-        throw std::runtime_error("Running SEQ in thread pool");
-#endif
     } else {
         T::single_thread(ths, f, stream, mod_data, args);
     }
