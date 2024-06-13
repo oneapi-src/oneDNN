@@ -53,6 +53,10 @@
 --dtag=AB48a16b
 512x1024
 
+# Test CI in Nightly
+--reset
+--batch=test_sum_ci
+
 # Test layers of some key and ext GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu

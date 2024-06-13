@@ -143,6 +143,10 @@ mb128ic3ih230oc64oh112kh7sh2ph0
 
 --batch=harness_conv_arbitrary_dst
 
+# Test CI in Nightly
+--reset
+--batch=test_conv_gpu_ci
+
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu

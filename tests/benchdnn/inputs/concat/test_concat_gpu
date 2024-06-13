@@ -45,6 +45,10 @@
 --dtag=axb
 --axis=1 2x16x3x4:2x16x3x4
 
+# Test CI in Nightly
+--reset
+--batch=test_concat_ci
+
 # Test layers of some key and ext GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
