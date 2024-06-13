@@ -1,0 +1,6 @@
+--reset --case=pattern/f8/f8_conv_add_add_fusion.json
+--reset --case=pattern/f8/f8_conv_fwd.json
+--reset --case=pattern/f8/f8_conv_post_ops_fusion.json
+--reset --case=pattern/f8/f8_conv_post_ops_int8_add_fusion.json
+--reset --case=pattern/f8/f8_conv_bias_relu_fusion.json
+--reset --case=pattern/f8/f8_matmul.json
