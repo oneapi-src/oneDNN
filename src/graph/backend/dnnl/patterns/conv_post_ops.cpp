@@ -27,6 +27,31 @@ namespace graph {
 namespace dnnl_impl {
 namespace pattern {
 
+namespace {
+
+bool check_s8_weight(op_t *op) {
+    const op_kind_t kind = op->get_kind();
+    if (kind != graph::op_kind::Dequantize) return true;
+    return (!is_int8_quantization(op)
+            || check_input_dtype<graph::data_type::s8>(op));
+}
+
+bool check_f8_conv_with_no_scale_and_zp(op_t *op) {
+    const op_kind_t kind = op->get_kind();
+    if (kind != graph::op_kind::Convolution) return true;
+
+    for (const size_t index : {0, 1}) {
+        auto &parent_op = op->get_input_value(index)->get_producer();
+        if (parent_op.get_kind() != graph::op_kind::Dequantize) return true;
+        if (is_f8_quantization(&parent_op)
+                && !check_quant_with_no_effect(&parent_op))
+            return false;
+    }
+    return true;
+}
+
+} // namespace
+
 namespace pm = graph::utils::pm;
 using in_edges_t = pm::in_edges_t;
 using pb_graph_t = pm::pb_graph_t;
@@ -129,7 +154,7 @@ features on GPU:
 1. Post-sum with zero points
 */
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_conv_add_post_ops_cpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::cpu)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
@@ -137,8 +162,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
-                    dequant_data->append_decision_function(
-                            is_int8_quantization);
 
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>();
@@ -153,13 +176,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
                     // Currently oneDNN convolution primitive only supports s8 weight
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<graph::data_type::s8>);
+                    dequant_weight->append_decision_function(check_s8_weight);
 
                     pm::pb_op_t *pconv
                             = pgraph->append_op(graph::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
+                    pconv->append_decision_function(
+                            check_f8_conv_with_no_scale_and_zp);
 
                     // Optional bias_add
                     auto popt_bias = optional_bias_add(pgraph, pconv, false);
@@ -168,10 +192,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
                     auto prep = post_quantized_add(pgraph, popt_bias);
 
                     // quantize
-                    auto pquant_out
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    in_edges_t {in_edge(0, prep, 0)});
-                    pquant_out->append_decision_function(is_int8_quantization);
+                    pgraph->append_op(graph::op_kind::Quantize,
+                            in_edges_t {in_edge(0, prep, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
@@ -179,7 +201,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_cpu)
 #endif
 
 #if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_conv_add_post_ops_gpu)
         .set_priority(10.6f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
@@ -187,14 +209,11 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
-                    dequant_data->append_decision_function(
-                            is_int8_quantization);
 
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant
                             = popt_graph->append_op(graph::op_kind::Quantize);
-                    pquant->append_decision_function(is_int8_quantization);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
                     auto popt = pgraph->append_optional(popt_graph);
@@ -203,13 +222,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
                     // Currently oneDNN convolution primitive only supports s8 weight
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<graph::data_type::s8>);
+                    dequant_weight->append_decision_function(check_s8_weight);
 
                     pm::pb_op_t *pconv
                             = pgraph->append_op(graph::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
+                    pconv->append_decision_function(
+                            check_f8_conv_with_no_scale_and_zp);
 
                     // Optional bias_add
                     auto popt_bias = optional_bias_add(pgraph, pconv, false);
@@ -219,15 +239,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
                             pgraph, popt_bias, /*check_zps*/ true);
 
                     // quantize
-                    auto pquant_out
-                            = pgraph->append_op(graph::op_kind::Quantize,
-                                    in_edges_t {in_edge(0, prep, 0)});
-                    pquant_out->append_decision_function(is_int8_quantization);
+                    pgraph->append_op(graph::op_kind::Quantize,
+                            in_edges_t {in_edge(0, prep, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<quantized_conv>();
         });
 #endif
+
 /*
                     [quant_weight]*
         |                  |
@@ -242,21 +261,18 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_conv_add_post_ops_gpu)
             [quant_out]*
                 |
 */
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_post_ops)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_conv_post_ops)
         .set_priority(10.5f)
         .set_kind(partition_kind_t::quantized_convolution_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
-                    dequant_data->append_decision_function(
-                            is_int8_quantization);
 
                     // Optional quant_weight
                     auto popt_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant
                             = popt_graph->append_op(graph::op_kind::Quantize);
-                    pquant->append_decision_function(is_int8_quantization);
                     popt_graph->create_input_port(0, pquant, 0);
                     popt_graph->create_output_port(0, pquant, 0);
                     auto popt = pgraph->append_optional(popt_graph);
@@ -265,13 +281,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_post_ops)
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
                     // Currently oneDNN convolution primitive only supports s8 weight
-                    dequant_weight->append_decision_function(
-                            check_input_dtype<graph::data_type::s8>);
+                    dequant_weight->append_decision_function(check_s8_weight);
 
                     pm::pb_op_t *pconv
                             = pgraph->append_op(graph::op_kind::Convolution,
                                     in_edges_t {in_edge(0, dequant_data, 0),
                                             in_edge(1, dequant_weight, 0)});
+                    pconv->append_decision_function(
+                            check_f8_conv_with_no_scale_and_zp);
 
                     // Optional bias_add
                     auto popt_bias = optional_bias_add(pgraph, pconv, false);
