@@ -7714,11 +7714,17 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
 
     if (Tc.size() != Tc_compute.size()) stub();
     if (state.C_buffers > 1) stub();
-    if (scaleA && scaleB) stub();
+    //if (scaleA && scaleB) stub();
 
     int ny = strategy.unroll[globalCM ? LoopN : LoopM];
     int nacc = AccumulatorRegister::count(hw, strategy.GRFs, Tc.real().ngen());
 
+    /*bool ARepackScale = !Ar_scaleLayout.empty();
+    bool BRepackScale = !Br_scaleLayout.empty();
+    auto bScaleLayout = BRepackScale ? Ar_scaleLayout : A_scaleLayout;
+    auto aScaleLayout = ARepackScale ? Br_scaleLayout : B_scaleLayout;
+    auto aScaleRegs = ARepackScale ? Br_scaleLayout : B_scaleLayout;
+    auto aScaleRegs = ARepackScale ? Br_scaleLayout : B_scaleLayout;*/
     struct WorkItem {
         Subregister C, Cr;
         int simd, iacc;
@@ -7766,13 +7772,13 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
             int scaleStride = 0;
             if (scaleA) {
                 int js = (j + ha) / problem.aqGroupK;
-                scale = findBlockReg(state.Ta_scaleInt, state.A_scaleLayout, i,
-                        js, state.A_scaleRegs, nes, sblock);
+                scale = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout, i,
+                        js, state.Ar_scaleRegs, nes, sblock);
                 scaleStride = globalCM ? 1 : 0;
             } else if (scaleB) {
                 int is = (i + hb) / problem.bqGroupK;
-                scale = findBlockReg(state.Tb_scaleInt, state.B_scaleLayout, is,
-                        j, state.B_scaleRegs, nes, sblock);
+                scale = findBlockReg(state.Tb_scaleInt, state.Br_scaleLayout,
+                        is, j, state.Br_scaleRegs, nes, sblock);
                 scaleStride = globalCM ? 0 : 1;
             }
 
@@ -7811,6 +7817,62 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
             if (iacc >= nacc) {
                 processItems();
                 iacc = 0;
+
+                /*Subregister scaleRegA, scaleRegB;
+            int scaleStrideA = 0, scaleStrideB = 0;
+            auto createItems = [&](int scaleStride, Subregister scale) {
+                ne = std::min(ne, ner);
+                if (scaleStride == 1) ne = std::min(ne, nes);
+
+                if (ne < xchunk) stub();
+                if (C_block->crosspack != 1 || Cr_block->crosspack != 1) stub();
+
+                WorkItem item = {C, Cr, ne, iacc, scale, scaleStride};
+                bool coalesce = false;
+
+                if (!items.empty()) {
+                    auto &last = items.back();
+                    coalesce = true;
+                    coalesce &= (ne == nec && last.simd == nec);
+                    coalesce &= (C.getBase() == last.C.getBase() + 1);
+                    coalesce &= (Cr.getBase() == last.Cr.getBase() + 1);
+                    if (scale.isValid()) {
+                        if (scaleStride == 0)
+                            coalesce &= (scale == last.scale);
+                        else {
+                            coalesce &= (scale.getBase()
+                                                == last.scale.getBase() + 1)
+                                    && (getBytes(scale.getType()) == Tc.size());
+                        }
+                    }
+                }
+
+                if (coalesce)
+                    items.back().simd += ne;
+                else
+                    items.push_back(item);
+
+                iacc += (ne > xchunk) ? 2 : 1;
+                if (iacc >= nacc) {
+                    processItems();
+                    iacc = 0;
+                }
+            };
+            if (scaleA) {
+                int js = (j + ha) / problem.aqGroupK;
+                scaleRegA
+                        = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout,
+                                i, js, state.Ar_scaleRegs, nes, sblock);
+                scaleStrideA = globalCM ? 1 : 0;
+                createItems(scaleStrideA, scaleRegA);
+            }
+            if (scaleB) {
+                int is = (i + hb) / problem.bqGroupK;
+                scaleRegB
+                        = findBlockReg(state.Tb_scaleInt, state.Br_scaleLayout,
+                                is, j, state.Br_scaleRegs, nes, sblock);
+                scaleStrideB = globalCM ? 0 : 1;
+                createItems(scaleStrideB, scaleRegB);*/
             }
         }
     }
@@ -13601,9 +13663,10 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
     Txo_int = Txo.isInteger() ? sintType(Tx) : Tx;
     Txs_int = Tx;
 
-    if (Txs.size() > Tx.size()) {
+    if (Txs.paddedSize() > Tx.paddedSize()) {
         lateScale = true;
         Txs_int = problem.Tc;
+        Tx_scaleOp = problem.Tc;
     }
 
     bool int4SpecialPath
@@ -13661,8 +13724,13 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
         return false;
 
     // Quantization parameters will be upconverted to the size of A/B and duplicated to match crosspack.
-    auto &lsrc = isA ? (strategy.slmA ? state.Ao_layout : state.Ar_layout)
-                     : (strategy.slmB ? state.Bo_layout : state.Br_layout);
+    auto &lsrc = isA
+            ? (strategy.slmA ? state.Ao_layout
+                             : (state.Ar_layout.empty() ? state.A_layout
+                                                        : state.Ar_layout))
+            : (strategy.slmB ? state.Bo_layout
+                             : (state.Br_layout.empty() ? state.B_layout
+                                                        : state.Br_layout));
     if (lsrc.empty()) stub();
     int crosspack = lsrc[0].crosspack;
 
@@ -14753,8 +14821,8 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     bool calcBSums = problem.needsBSums();
     bool ao2D = (problem.aoPtrDims == 2), as2D = problem.aScale2D;
     bool bo2D = (problem.boPtrDims == 2), bs2D = problem.bScale2D;
-    bool dequantize2DA = ao2D || as2D;
-    bool dequantize2DB = bo2D || bs2D;
+    bool dequantize2DA = (ao2D || as2D) && (Ta != Ta_ext);
+    bool dequantize2DB = (bo2D || bs2D) && (Tb != Tb_ext);
     bool slmDequantize2DA = dequantize2DA && slmA;
     bool slmDequantize2DB = dequantize2DB && slmB;
     dequantize2DA &= !slmDequantize2DA;
@@ -20933,8 +21001,8 @@ void gemm_kernel_generator_t<hw>::gemmAutoTypeConversions(
     auto &Ta = problem.Ta, &Tb = problem.Tb, &Tc = problem.Tc;
 
     // Weights decompression
-    if ((Ta.isInt8() || Ta.isInt4()) && Tb.isFP() && Tc.isFP()) Ta = Tb;
-    if ((Tb.isInt8() || Tb.isInt4()) && Ta.isFP() && Tc.isFP()) Tb = Ta;
+    if ((Ta.isInt8() || Ta.isInt4()) && Tc.isFP()) Ta = Tb;
+    if ((Tb.isInt8() || Tb.isInt4()) && Tc.isFP()) Tb = Ta;
 
     if (Ta.isF8()) Ta = Type::f16;
     if (Tb.isF8()) Tb = Type::f16;

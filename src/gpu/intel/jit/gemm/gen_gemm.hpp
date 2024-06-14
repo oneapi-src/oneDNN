@@ -119,7 +119,9 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             bool wei_zp = false, wei_zp_2d = false;
             auto wei_scales_type = data_type::undef;
+            auto src_scales_type = data_type::undef;
             int wei_q2d_group_k = 0;
+            int src_q2d_group_k = 0;
 
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
@@ -226,6 +228,10 @@ struct gen_gemm_t : public gpu_gemm_t {
                             == ((1 << 0) | (1 << 1)))
                 wei_scales_2d_ = true;
 
+            if (wei_decomp_
+                    && attr()->scales_.get(DNNL_ARG_SRC).mask_ == ((1 << 1)))
+                src_scales_2d_ = true;
+
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto mask = attr()->scales_.get(s).mask_;
                 VDISPATCH_GEMM(utils::one_of(mask, 0, 1 << 0, 1 << 1, 1 << 2)
@@ -246,6 +252,13 @@ struct gen_gemm_t : public gpu_gemm_t {
                     VDISPATCH_GEMM((wei_q2d_group_k == scales_group_k),
                             VERBOSE_UNSUPPORTED_SCALES_CFG);
                 }
+            }
+            if (src_scales_2d_) {
+                auto &src_scales = attr()->scales_.get(DNNL_ARG_SRC);
+                src_scales_type = src_scales.data_type_;
+                auto scales_group_k
+                        = src_scales.ndims_ > 0 ? src_scales.group_dims_[1] : 1;
+                src_q2d_group_k = scales_group_k;
             }
 
             VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
@@ -328,10 +341,11 @@ struct gen_gemm_t : public gpu_gemm_t {
             CHECK(kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
                     eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
-                    ao_dims_, bo_dims_, wei_scales_2d_, wei_q2d_group_k,
-                    with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
-                    beta(), eff_a_type(), eff_b_type(), desc()->c_type(),
-                    ao_type, bo_type, wei_scales_type, co_type, acc_type,
+                    ao_dims_, bo_dims_, wei_scales_2d_, src_scales_2d_,
+                    wei_q2d_group_k, src_q2d_group_k, with_c_zero_points(),
+                    with_bias(), eff_sum_ab(), alpha(), beta(), eff_a_type(),
+                    eff_b_type(), desc()->c_type(), ao_type, bo_type,
+                    wei_scales_type, src_scales_type, co_type, acc_type,
                     eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
                     d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch(),
                     std::move(gpu_post_ops)));
@@ -339,6 +353,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             // Global k-parallel kernels don't support post-ops or non-f32/s32
             //   accumulation unless fusion is enabled.
             if (kernel_desc_.driver_info()->kParallel()
+                    && !kernel_desc_.driver_info()->kParallelLocal()
                     && !kernel_desc_.driver_info()->fusedPostOps()) {
                 VDISPATCH_GEMM(!with_eltwise && !with_binary
                                 && utils::one_of(d->c_type(), f32, s32),
@@ -509,6 +524,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         }
 
         bool wei_scales_2d() const { return wei_scales_2d_; }
+        bool src_scales_2d() const { return src_scales_2d_; }
 
         bool swap_ab() const { return swap_ab_; }
 
@@ -587,6 +603,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool a_zp_ = false, b_zp_ = false;
         bool wei_decomp_ = false;
         bool wei_scales_2d_ = false;
+        bool src_scales_2d_ = false;
         dim_t eff_lda_ = 0, eff_ldb_ = 0;
         bool eff_transa_ = false, eff_transb_ = false;
 

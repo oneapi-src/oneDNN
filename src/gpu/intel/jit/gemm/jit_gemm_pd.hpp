@@ -136,16 +136,19 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
         }
         if (!src_scales->has_default_values()) {
             ok = ok && (src_scales->mask_ == 0);
+            if (ok) {
 
-            dim_t dims = {1};
-            CHECK(memory_desc_init_by_tag(
-                    src_scales_md, 1, &dims, f32, format_tag::a));
+                dim_t dims = {1};
+                CHECK(memory_desc_init_by_tag(
+                        src_scales_md, 1, &dims, f32, format_tag::a));
 
-            auto status = post_ops_.prepend_binary(binary_mul, &src_scales_md);
-            if (status != status::success) return status;
+                auto status
+                        = post_ops_.prepend_binary(binary_mul, &src_scales_md);
+                if (status != status::success) return status;
 
-            binary_srcs_.insert(binary_srcs_.begin(),
-                    binary_src_t {binary_src_t::scales, DNNL_ARG_SRC});
+                binary_srcs_.insert(binary_srcs_.begin(),
+                        binary_src_t {binary_src_t::scales, DNNL_ARG_SRC});
+            }
         }
         if (!c_scales->has_default_values()) {
             ok = ok && (c_scales->mask_ == 0);
