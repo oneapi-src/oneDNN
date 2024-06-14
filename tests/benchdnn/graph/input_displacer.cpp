@@ -36,6 +36,9 @@ partition_data_displacer_t::partition_data_displacer_t(
             "StaticTranspose", "StaticReshape", "TypeCast", "Quantize",
             "Dequantize"};
 
+    static const std::unordered_set<std::string> f8_main_op_kind {
+            "MatMul", "Convolution"};
+
     // The logic below relies on the assumption that deserialized_graph is
     // sorted in the chronological order.
     for (const auto &aop : dg_->ops_) {
@@ -90,6 +93,17 @@ partition_data_displacer_t::partition_data_displacer_t(
                     if (prev_parent_op.empty()
                             || op_ids_set_.find(prev_parent_op.id_)
                                     == op_ids_set_.end()) {
+
+                        // Skip input displacement for unusupported f8 ops.
+                        const auto &lt_dt = parent_op_in_lt.get_data_type();
+                        if ((lt_dt == logical_tensor::data_type::f8_e5m2
+                                    || lt_dt
+                                            == logical_tensor::data_type::
+                                                    f8_e4m3)
+                                && (f8_main_op_kind.find(aop.kind_)
+                                        == f8_main_op_kind.end()))
+                            break;
+
                         quantize_displace_.emplace(parent_op_in_lt.id_,
                                 std::make_tuple(aop, i, parent_op_in_lt,
                                         filling_type_t::quantization));
@@ -243,7 +257,14 @@ int partition_data_displacer_t::displace_input_data(
     bool mds_are_int8 = is_integral_dt(mem_replace.dt())
             && is_integral_dt(mem.dt()) && mem_replace.sizeof_dt() == 1
             && mem.sizeof_dt() == 1;
-    bool mds_ok = IMPLICATION(!mds_are_equal, mds_are_int8);
+    bool is_grouped_conv = false;
+    if (main_op.kind_ == "Convolution" || main_op.kind_ == "ConvTranspose") {
+        int64_t groups;
+        main_op.get_attr_s64(groups, "groups");
+        is_grouped_conv = groups > 1;
+    }
+
+    bool mds_ok = IMPLICATION(!mds_are_equal, mds_are_int8 || is_grouped_conv);
     SAFE(mds_ok ? OK : FAIL, WARN);
     dnnl_memory_desc_destroy(mem_replace.md_);
     dnnl_memory_desc_clone(&mem_replace.md_, mem.md_);
@@ -257,15 +278,21 @@ int partition_data_displacer_t::gen_quantize_filling(
     // clone a deserialized op object and modify to specified data type
     ::graph::deserialized_op op = main_op;
     auto driver = opkind2driver(opstr2kind(op.kind_));
+    bool is_f8_quantization = (dt == "f8_e5m2" || dt == "f8_e4m3");
+
     op.in_lts_[0].data_type_ = dt;
     if (op.in_lts_.size() > 1) {
-        // matmul/conv/deconv does not support u8u8, replace it with u8s8
-        op.in_lts_[1].data_type_
-                = ((op.kind_ == "MatMul" || op.kind_ == "Convolution"
-                           || op.kind_ == "ConvTranspose")
-                          && dt == "u8")
-                ? "s8"
-                : dt;
+        if (is_f8_quantization) { // handle fp8 case.
+            op.in_lts_[1].data_type_ = dt;
+        } else { // handle int8 case
+            // matmul/conv/deconv does not support u8u8, replace it with u8s8
+            op.in_lts_[1].data_type_
+                    = ((op.kind_ == "MatMul" || op.kind_ == "Convolution"
+                               || op.kind_ == "ConvTranspose")
+                              && dt == "u8")
+                    ? "s8"
+                    : dt;
+        }
     }
     if (driver == dnnl_driver_t::pool || driver == dnnl_driver_t::binary) {
         // pool does not support x8f32 on cpu
@@ -277,22 +304,27 @@ int partition_data_displacer_t::gen_quantize_filling(
             // Use u8 as output data type for two-input operations to avoid
             // data overflow due to the specific driver logic.
             op.out_lts_[0].data_type_ = "u8";
+        } else if (is_f8_quantization) {
+            op.out_lts_[0].data_type_ = "f8_e5m2";
         } else {
             // Use f32 as output data type since not all primitives support
             // different data types for input and output.
             op.out_lts_[0].data_type_ = "f32";
         }
     }
+
     ::std::unordered_set<size_t> empty_set;
+    // As f8 support status is limited now, use tset engine to ensure that
+    // primitive can be created and generate data
+    const auto &eng = is_f8_quantization ? get_test_engine() : get_cpu_engine();
 
     ref_primitive_t ref_prim(op);
     ref_prim.init_prb(res);
     if (res->state == INVALID_ARGUMENTS) return FAIL;
-    SAFE_V(ref_prim.init_prim(
-            get_cpu_engine(), res, /* force_override = */ true));
+    SAFE_V(ref_prim.init_prim(eng, res, /* force_override = */ true));
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-    ref_prim.init_memory_args(get_cpu_engine());
-    SAFE_V(ref_prim.init_ref_memory_args(get_cpu_engine(), res));
+    ref_prim.init_memory_args(eng);
+    SAFE_V(ref_prim.init_ref_memory_args(eng, res));
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     mem = ::std::move(const_cast<dnn_mem_t &>(ref_prim.get_arg(arg)));
