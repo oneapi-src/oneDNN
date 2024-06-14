@@ -88,9 +88,8 @@ public:
 
     // The fuction is used to check if enable the decompostion kernel based on
     // user's env and params. Currently, we restrict the library’s CPU runtime
-    // to openmp. We also only enable the decompose kernel in the machine with
-    // specific ISA support. There is also an internal env var to decide if use
-    // the kernel.
+    // to openmp and threadpool. There is also an internal env var to decide if
+    // use the kernel.
     // TODO: Remove CPU runtime check when we extend the support for others
     bool enable_decomp_kernel() {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP \
