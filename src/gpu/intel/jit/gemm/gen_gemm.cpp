@@ -350,8 +350,10 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     if (pd()->wei_scales_2d()) {
         a_scales = &GEMM_CTX_ARG_STORAGE(a_scales);
-        if (swapab) std::swap(a_scales, b_scales);
     }
+
+    if (pd()->src_scales_2d()) { b_scales = &GEMM_CTX_ARG_STORAGE(b_scales); }
+    if (swapab) std::swap(a_scales, b_scales);
 
     if (swapab) {
         uint8_t swap_table[4] = {0, 2, 1, 3};

@@ -1026,7 +1026,7 @@ struct GEMMProblem : public CommonProblem {
     }
 
     Type Tc_compute() const {
-        if (Ta.isInteger() && Tb.isInteger() && Tc == Type::f32)
+        if (Ta.isInteger() && Tb.isInteger() && Tc.isFP())
             return Type::s32;
         else
             return Tc;
