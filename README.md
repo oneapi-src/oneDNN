@@ -1,6 +1,6 @@
 [![UXL Foundation Logo](https://github.com/uxlfoundation/artwork/blob/main/foundation/uxl-foundation-logo-horizontal-color.png)][UXL Foundation]
 
-oneAPI Deep Neural Network Library (oneDNN)
+oneAPI Deep Neural Network Library (oneDNN) 
 ===========================================
 
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8762/badge)](https://www.bestpractices.dev/projects/8762)
