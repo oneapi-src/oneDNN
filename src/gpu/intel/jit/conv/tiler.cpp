@@ -955,8 +955,8 @@ conv_blocking_scheme_t bwd_d_T_o_I_nio("ls:[oc,kd,kh,kw],T:[oc],i:[mb,ic,oc]");
 conv_blocking_scheme_t bwd_d_T_w_I_on("ls:[oc,kd,kh,kw],T:[iw],i:[oc,mb]");
 conv_blocking_scheme_t bwd_d_T_wi_I_wio("ls:[oc,kd,kh,kw],T:[ic,iw],i:[iw,ic,oc]");
 conv_blocking_scheme_t bwd_d_T_o_I_wio("ls:[oc,kd,kh,kw],T:[oc],i:[iw,ic,oc]");
-conv_blocking_scheme_t bwd_d_dw_T_w_I_wgk("ls:[kd,kh,kw],T:[iw],i:[iw,g,kw]");
-conv_blocking_scheme_t bwd_d_dw_T_w_I_ngk("ls:[kd,kh,kw],T:[iw],i:[mb,g,kw]");
+conv_blocking_scheme_t bwd_d_dw_T_w_I_wg("ls:[kd,kh,kw],T:[iw],i:[iw,g]");
+conv_blocking_scheme_t bwd_d_dw_T_w_I_ng("ls:[kd,kh,kw],T:[iw],i:[mb,g]");
 conv_blocking_scheme_t bwd_w_T_io_I_ion("l:[oh,ow],li:[mb],T:[oc,ic],i:[ic,oc,mb]");
 conv_blocking_scheme_t bwd_w_T_io_I_ion_d("ls:[mb,od,oh,ow],T:[oc,ic],i:[ic,oc,mb]");
 conv_blocking_scheme_t bwd_w_T_io_I_kon("l:[oh,ow],li:[mb],T:[oc,ic],i:[kw,oc,mb]");
@@ -1041,8 +1041,8 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_d_dw(
     auto m_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::iw});
     bool m_is_mb = (m_iter_dim == prb_dims::mb);
     bool m_is_iw = (m_iter_dim == prb_dims::iw);
-    ret.add(m_is_mb, conv_schemes::bwd_d_dw_T_w_I_ngk);
-    ret.add(m_is_iw, conv_schemes::bwd_d_dw_T_w_I_wgk);
+    ret.add(m_is_mb, conv_schemes::bwd_d_dw_T_w_I_ng);
+    ret.add(m_is_iw, conv_schemes::bwd_d_dw_T_w_I_wg);
     return ret;
 }
 
