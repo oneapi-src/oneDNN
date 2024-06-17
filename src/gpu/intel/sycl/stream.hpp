@@ -35,11 +35,10 @@
 #include "xpu/sycl/stream_impl.hpp"
 #include "xpu/sycl/stream_profiler.hpp"
 
+#include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/compute_stream.hpp"
 
 #include "gpu/intel/ocl/ocl_utils.hpp"
-
-#include "gpu/generic/sycl/sycl_gpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -48,8 +47,8 @@ namespace intel {
 namespace sycl {
 
 struct stream_t : public gpu::intel::compute::compute_stream_t {
-    static status_t create_stream(impl::stream_t **stream, engine_t *engine,
-            impl::stream_impl_t *stream_impl) {
+    static status_t create_stream(impl::stream_t **stream,
+            impl::engine_t *engine, impl::stream_impl_t *stream_impl) {
         std::unique_ptr<intel::sycl::stream_t> s(
                 new intel::sycl::stream_t(engine, stream_impl));
         if (!s) return status::out_of_memory;
@@ -120,7 +119,7 @@ protected:
         return (xpu::sycl::stream_impl_t *)impl::stream_t::impl_.get();
     }
 
-    stream_t(engine_t *engine, impl::stream_impl_t *stream_impl)
+    stream_t(impl::engine_t *engine, impl::stream_impl_t *stream_impl)
         : gpu::intel::compute::compute_stream_t(engine, stream_impl) {}
 
 private:

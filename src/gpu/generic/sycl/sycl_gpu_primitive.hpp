@@ -19,7 +19,6 @@
 
 #include "xpu/sycl/memory_storage.hpp"
 
-#include "gpu/generic/sycl/sycl_gpu_engine.hpp"
 #include "gpu/generic/sycl/sycl_gpu_kernel.hpp"
 
 namespace dnnl {
