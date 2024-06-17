@@ -13677,17 +13677,19 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
     int tileR = 0, tileC = 0;
     bool remR = false, remC = false;
     if (isA) {
-        r = strategy.slmA ? state.ma_slm : strategy.unroll[LoopM];
-        c = strategy.slmA ? state.ka_slm : strategy.ka_load;
-        k = strategy.slmA ? strategy.unrollKSLM : strategy.ka_load;
+        bool slmA = strategy.slmA && !lateScale;
+        r = slmA ? state.ma_slm : strategy.unroll[LoopM];
+        c = slmA ? state.ka_slm : strategy.ka_load;
+        k = slmA ? strategy.unrollKSLM : strategy.ka_load;
         c = state.kaq = std::max(1, c / problem.aqGroupK);
         state.kaqStride = std::max(1, k / problem.aqGroupK);
         remR = (strategy.remHandling[LoopM] != RemainderHandling::Ignore);
         tileC = 1;
     } else {
-        c = strategy.slmB ? state.nb_slm : strategy.unroll[LoopN];
-        r = strategy.slmB ? state.ka_slm : strategy.kb_load;
-        k = strategy.slmB ? strategy.unrollKSLM : strategy.kb_load;
+        bool slmB = strategy.slmB && !lateScale;
+        c = slmB ? state.nb_slm : strategy.unroll[LoopN];
+        r = slmB ? state.ka_slm : strategy.kb_load;
+        k = slmB ? strategy.unrollKSLM : strategy.kb_load;
         r = state.kbq = std::max(1, r / problem.bqGroupK);
         state.kbqStride = std::max(1, k / problem.bqGroupK);
         remC = (strategy.remHandling[LoopN] != RemainderHandling::Ignore);
@@ -13732,7 +13734,7 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
                              : (state.Br_layout.empty() ? state.B_layout
                                                         : state.Br_layout));
     if (lsrc.empty()) stub();
-    int crosspack = lsrc[0].crosspack;
+    int crosspack = lateScale ? 1 : lsrc[0].crosspack;
 
     auto makeQRepack = [&](Type Txq, Type Txq_int,
                                vector<RegisterBlock> &repack,
@@ -14821,14 +14823,22 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     bool calcBSums = problem.needsBSums();
     bool ao2D = (problem.aoPtrDims == 2), as2D = problem.aScale2D;
     bool bo2D = (problem.boPtrDims == 2), bs2D = problem.bScale2D;
-    bool dequantize2DA = (ao2D || as2D) && (Ta != Ta_ext);
-    bool dequantize2DB = (bo2D || bs2D) && (Tb != Tb_ext);
+    bool dequantize2DA = (ao2D || as2D);
+    bool dequantize2DB = (bo2D || bs2D);
     bool slmDequantize2DA = dequantize2DA && slmA;
     bool slmDequantize2DB = dequantize2DB && slmB;
     dequantize2DA &= !slmDequantize2DA;
     dequantize2DB &= !slmDequantize2DB;
     bool dequantRepack2DA = dequantize2DA && !state.lateScale2DA;
     bool dequantRepack2DB = dequantize2DB && !state.lateScale2DB;
+    if (slmDequantize2DA && state.lateScale2DA) {
+        slmDequantize2DA = false;
+        dequantize2DA = true;
+    }
+    if (slmDequantize2DB && state.lateScale2DB) {
+        slmDequantize2DB = false;
+        dequantize2DB = true;
+    }
     int aqGroupK = problem.aqGroupK;
     int bqGroupK = problem.bqGroupK;
     int kaq_load = aqGroupK * state.kaq;
@@ -17397,7 +17407,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
         }
     }
 
-    if (slmA && (ao2D || as2D)) {
+    if (slmA && (ao2D || as2D) && !state.lateScale2DA) {
         if (state.ma_slm < unrollM) {
             if (state.ma_slm * strategy.wg[LoopN] != unrollM) stub();
             i0q = state.ra.alloc_sub<uint32_t>();
@@ -17413,7 +17423,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                     problem.aqGroupK, state, true);
         }
     }
-    if (slmB && (bo2D || bs2D)) {
+    if (slmB && (bo2D || bs2D) && !state.lateScale2DB) {
         if (state.nb_slm < unrollN) {
             if (state.nb_slm * strategy.wg[LoopM] != unrollN) stub();
             j0q = state.ra.alloc_sub<uint32_t>();
