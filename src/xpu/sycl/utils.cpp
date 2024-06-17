@@ -16,8 +16,8 @@
 
 #include "common/verbose_msg.hpp"
 
-#include "xpu/sycl/utils.hpp"
 #include "xpu/sycl/compat.hpp"
+#include "xpu/sycl/utils.hpp"
 
 // XXX: Include this header for VERROR_ENGINE.
 // TODO: Move VERROR_ENGINE and other similar macros to a separate file.

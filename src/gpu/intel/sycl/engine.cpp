@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-
 #include "common/memory.hpp"
 
 #include "xpu/sycl/memory_storage.hpp"
