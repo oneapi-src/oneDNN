@@ -20,11 +20,11 @@
 
 void get_strides(int mask, long dim0, long dim1, long dim2, long *str0,
         long *str1, long *str2) {
-    int is_3d = dim0 > 1;
+    int ndims = dim0 > 1 ? 3 : 2;
     long dims[3];
-    dims[0] = (is_3d && mask & (1 << 0)) ? dim0 : 1;
-    dims[1] = mask & (1 << 1) ? dim1 : 1;
-    dims[2] = mask & (1 << 2) ? dim2 : 1;
+    dims[0] = (ndims > 2 && mask & (1 << 0)) ? dim0 : 1;
+    dims[1] = mask & (1 << (ndims - 1)) ? dim1 : 1;
+    dims[2] = mask & (1 << (ndims - 2)) ? dim2 : 1;
 
     *str0 = dims[0] == 1 ? 0 : dims[1] * dims[2];
     *str1 = dims[1] == 1 ? 0 : 1;
