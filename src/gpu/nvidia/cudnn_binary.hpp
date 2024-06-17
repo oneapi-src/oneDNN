@@ -22,7 +22,7 @@
 
 #include "common/binary_pd.hpp"
 #include "common/c_types_map.hpp"
-#include "common/primitive.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_binary_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
@@ -32,8 +32,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_binary_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_binary_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public binary_pd_t {
         using binary_pd_t::binary_pd_t;

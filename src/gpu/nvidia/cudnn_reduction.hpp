@@ -21,8 +21,8 @@
 #include "cudnn.h"
 
 #include "common/c_types_map.hpp"
-#include "common/primitive.hpp"
 #include "common/reduction_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_reduction_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/stream.hpp"
@@ -33,8 +33,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_reduction_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_reduction_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public reduction_pd_t {
         using reduction_pd_t::reduction_pd_t;

@@ -20,8 +20,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/pooling_pd.hpp"
-#include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_pooling_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/stream.hpp"
@@ -47,8 +47,8 @@ struct cudnn_pooling_common_t {
     }
 };
 
-struct cudnn_pooling_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_pooling_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public pooling_fwd_pd_t, public cudnn_pooling_common_t {
         using pooling_fwd_pd_t::pooling_fwd_pd_t;
 
@@ -117,8 +117,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-struct cudnn_pooling_bwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_pooling_bwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public pooling_bwd_pd_t, public cudnn_pooling_common_t {
         using pooling_bwd_pd_t::pooling_bwd_pd_t;
 
