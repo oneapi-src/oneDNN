@@ -40,15 +40,17 @@ protected:
         return attr;
     }
 
-    static primitive_attr gen_attr_with_scales(int arg, int mask = 0) {
+    static primitive_attr gen_attr_with_scales(int arg, int mask = 0,
+            data_type dt = data_type::f32, const memory::dims &groups = {}) {
         primitive_attr attr;
-        attr.set_scales_mask(arg, mask);
+        attr.set_scales(arg, mask, groups, dt);
         return attr;
     }
 
-    static primitive_attr gen_attr_with_zp(int arg, int mask = 0) {
+    static primitive_attr gen_attr_with_zp(int arg, int mask = 0,
+            data_type dt = data_type::s32, const memory::dims &groups = {}) {
         primitive_attr attr;
-        attr.set_zero_points_mask(arg, mask);
+        attr.set_zero_points(arg, mask, groups, dt);
         return attr;
     }
 
@@ -434,17 +436,55 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
                 // zpoints: common mask
                 CHECK_OK(matmul::primitive_desc(
                         eng, a_md, b_md, c_md, gen_attr_with_zp(arg)));
+                // zpoints: per_oc mask
+                CHECK_OK(matmul::primitive_desc(
+                        eng, a_md, b_md, c_md, gen_attr_with_zp(arg, 1 << 1)));
+                // zpoints: per_ocic mask
+                if (arg == DNNL_ARG_WEIGHTS) {
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_zp(arg, (1 << 1) + (1 << 0))));
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_zp(
+                                    arg, (1 << 1) + (1 << 0), b_dt, {3, 1})));
+                } else {
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_zp(arg, (1 << 1) + (1 << 0))));
+                }
             }
             // scales: common mask
             CHECK_OK(matmul::primitive_desc(
                     eng, a_md, b_md, c_md, gen_attr_with_scales(arg)));
             // scales: per_oc mask
-            if (arg == DNNL_ARG_WEIGHTS)
+            if (arg == DNNL_ARG_WEIGHTS) {
                 CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                         gen_attr_with_scales(arg, 1 << 1)));
-            else
+                CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                        gen_attr_with_scales(arg, (1 << 1) + (1 << 0))));
+                if (b_dt == data_type::s8) {
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
+                                    data_type::f32, {3, 1})));
+                } else {
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
+                                    data_type::f32, {3, 1})));
+                }
+            } else if (arg == DNNL_ARG_SRC) {
                 CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                         gen_attr_with_scales(arg, 1 << 1)));
+                if (a_dt == data_type::u8) {
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(
+                                    arg, 1 << 1, data_type::f32, {1, 3})));
+                } else {
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(
+                                    arg, 1 << 1, data_type::f32, {1, 3})));
+                }
+            } else {
+                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                        gen_attr_with_scales(arg, 1 << 1)));
+            }
             //scales: unsupported mask
             CHECK_UNIMPL(matmul::primitive_desc(
                     eng, a_md, b_md, c_md, gen_attr_with_scales(arg, 1 << 2)));
