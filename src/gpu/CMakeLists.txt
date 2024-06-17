@@ -26,7 +26,7 @@ set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
 
 add_subdirectory(generic)
 
-if(DNNL_GPU_VENDOR MATCHES "^(INTEL|NVIDIA|AMD)$")
+if(DNNL_GPU_VENDOR STREQUAL "INTEL")
     add_definitions_with_host_compiler(-DNGEN_CPP11)
     add_definitions_with_host_compiler(-DNGEN_SAFE)
     add_definitions_with_host_compiler(-DNGEN_NEO_INTERFACE)
