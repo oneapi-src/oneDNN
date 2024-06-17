@@ -27890,11 +27890,11 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                             auto doByteAlign = [&]() {
                                 allocTemp();
                                 if (Ts_real.isInt4()) {
+                                    int scrosspack_byte = scrosspack;
                                     auto tmp0 = copyTemp[0].w(0);
                                     auto tmp1 = copyTemp[1].f(0);
                                     int n_bytes = nelems_real;
 
-                                    int scrosspack_byte = scrosspack;
                                     if (int4Zip) scrosspack_byte >>= 1;
 
                                     auto dreg1 = dreg;
