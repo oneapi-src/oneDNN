@@ -17,6 +17,8 @@
 #ifndef GPU_GENERIC_SYCL_SYCL_GPU_PRIMITIVE_HPP
 #define GPU_GENERIC_SYCL_SYCL_GPU_PRIMITIVE_HPP
 
+#include "common/primitive.hpp"
+
 #include "xpu/sycl/memory_storage.hpp"
 
 #include "gpu/generic/sycl/sycl_gpu_kernel.hpp"
