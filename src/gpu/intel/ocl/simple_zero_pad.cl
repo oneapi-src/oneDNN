@@ -18,7 +18,7 @@
 
 #define DEFAULT_NELEMS_BLOCK 8
 
-static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
+static inline void typed_simple_zero_pad(__global void *a, ulong type_size,
         ulong step_nelems, ulong nelems_block, ulong step_block, ulong nsteps,
         ulong step_size, zero_pad_mask_t step_bitmask, ulong mode) {
     const int i0 = get_global_id(0);
@@ -78,60 +78,60 @@ static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
     }
 }
 
-static inline void sized_ref_zero_pad(__global void *a, ulong type_size,
+static inline void sized_simple_zero_pad(__global void *a, ulong type_size,
         ulong step_nelems, ulong nelems_block, ulong step_block, ulong nsteps,
         ulong step_size, zero_pad_mask_t step_bitmask, ulong mode) {
     switch (type_size) {
         case 8:
-            typed_ref_zero_pad((__global float *)a, 8, step_nelems,
+            typed_simple_zero_pad((__global float *)a, 8, step_nelems,
                     nelems_block, step_block, nsteps, step_size, step_bitmask,
                     mode);
             break;
         case 4:
-            typed_ref_zero_pad((__global float *)a, 4, step_nelems,
+            typed_simple_zero_pad((__global float *)a, 4, step_nelems,
                     nelems_block, step_block, nsteps, step_size, step_bitmask,
                     mode);
             break;
         case 2:
-            typed_ref_zero_pad((__global float *)a, 2, step_nelems,
+            typed_simple_zero_pad((__global float *)a, 2, step_nelems,
                     nelems_block, step_block, nsteps, step_size, step_bitmask,
                     mode);
             break;
         case 1:
-            typed_ref_zero_pad((__global float *)a, 1, step_nelems,
+            typed_simple_zero_pad((__global float *)a, 1, step_nelems,
                     nelems_block, step_block, nsteps, step_size, step_bitmask,
                     mode);
             break;
     }
 }
 
-__kernel void ref_zero_pad(__global void *a, ulong type_size, ulong step_nelems,
-        ulong nelems_block, ulong step_block, ulong nsteps, ulong step_size,
-        zero_pad_mask_t step_bitmask, ulong mode) {
+__kernel void simple_zero_pad(__global void *a, ulong type_size,
+        ulong step_nelems, ulong nelems_block, ulong step_block, ulong nsteps,
+        ulong step_size, zero_pad_mask_t step_bitmask, ulong mode) {
     // Use a switch statement here to allow constant propagation optimizations to
-    // remove switch statement from loop in typed_ref_zero_pad.
+    // remove switch statement from loop in typed_simple_zero_pad.
     switch (step_nelems) {
         case 16:
-            sized_ref_zero_pad(a, type_size, 16, DEFAULT_NELEMS_BLOCK,
+            sized_simple_zero_pad(a, type_size, 16, DEFAULT_NELEMS_BLOCK,
                     step_block, nsteps, step_size, step_bitmask, mode);
             break;
         case 32:
-            sized_ref_zero_pad(a, type_size, 32, DEFAULT_NELEMS_BLOCK,
+            sized_simple_zero_pad(a, type_size, 32, DEFAULT_NELEMS_BLOCK,
                     step_block, nsteps, step_size, step_bitmask, mode);
             break;
         case 64:
-            sized_ref_zero_pad(a, type_size, 64, DEFAULT_NELEMS_BLOCK,
+            sized_simple_zero_pad(a, type_size, 64, DEFAULT_NELEMS_BLOCK,
                     step_block, nsteps, step_size, step_bitmask, mode);
             break;
         default:
-            sized_ref_zero_pad(a, type_size, step_nelems, nelems_block,
+            sized_simple_zero_pad(a, type_size, step_nelems, nelems_block,
                     step_block, nsteps, step_size, step_bitmask, mode);
             break;
     }
 }
 
 __attribute__((intel_reqd_sub_group_size(16))) __kernel void
-ref_zero_pad_subg_16(__global void *a, const uint type_size,
+simple_zero_pad_subg_16(__global void *a, const uint type_size,
         const ulong base_offset, const ulong b_block_size,
         const ulong b_block_offset, const ulong d0_stride,
         const ulong d1_stride, const ulong d2_stride, const ulong d3_stride,
@@ -177,7 +177,8 @@ ref_zero_pad_subg_16(__global void *a, const uint type_size,
 }
 
 __attribute__((intel_reqd_sub_group_size(16))) __kernel void
-ref_zero_pad_subg_16_mask_and_clear_dt_1b(__global void *a, const uint mask) {
+simple_zero_pad_subg_16_mask_and_clear_dt_1b(
+        __global void *a, const uint mask) {
     const uint block_size = 8;
     const uint data_stride = 32;
     const uint simd = 16;

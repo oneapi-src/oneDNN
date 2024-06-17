@@ -14,7 +14,7 @@
  * limitations under the License.
  *******************************************************************************/
 
-#include "gpu/intel/ocl/ref_zero_pad.hpp"
+#include "gpu/intel/ocl/simple_zero_pad.hpp"
 #include "gpu/intel/compute/utils.hpp"
 
 namespace dnnl {
@@ -23,7 +23,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-status_t ref_zero_pad_t::execute_ref(const exec_ctx_t &ctx) const {
+status_t simple_zero_pad_t::execute_simple(const exec_ctx_t &ctx) const {
     compute::kernel_arg_list_t arg_list;
 
     const memory_t *memory = ctx.input(DNNL_ARG_SRC);
@@ -54,11 +54,11 @@ status_t ref_zero_pad_t::execute_ref(const exec_ctx_t &ctx) const {
     }
 
     // This constant needs to be the same as DEFAULT_NELEMS_BLOCK in
-    // ref_zero_pad.cl
+    // simple_zero_pad.cl
     const int default_nelems_block = 8;
 
     // This divisibility condition cannot be changed without some modifications
-    // to use of DEFAULT_NELEMS_BLOCK in ref_zero_pad.cl
+    // to use of DEFAULT_NELEMS_BLOCK in simple_zero_pad.cl
     size_t nelems_block = 1;
     while (nelems_block < default_nelems_block
             && step_nelems % (nelems_block * 2) == 0)
@@ -154,7 +154,7 @@ status_t ref_zero_pad_t::execute_ref(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
-status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
+status_t simple_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
         const memory_desc_wrapper &mdw,
         const blocking_desc_t &blocking_desc) const {
 
@@ -289,7 +289,7 @@ status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
     return status;
 }
 
-status_t ref_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
+status_t simple_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
         const exec_ctx_t &ctx, const memory_desc_wrapper &mdw,
         const blocking_desc_t &blocking_desc) const {
 
@@ -326,7 +326,7 @@ status_t ref_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
             ctx, zp_nd_range, kernel_subg16_mask_and_clear_dt_1b_, arg_list);
 }
 
-status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
+status_t simple_zero_pad_t::execute(const exec_ctx_t &ctx) const {
     const memory_t *memory = ctx.input(DNNL_ARG_SRC);
     const memory_desc_wrapper mdw(memory->md());
     const blocking_desc_t &blocking_desc = mdw.blocking_desc();
@@ -342,7 +342,7 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
             && (mdw.nelems(true) % 4096) == 0 && mdw.data_type_size() == 1) {
         return execute_subg_16_mask_and_clear_dt_1B(ctx, mdw, blocking_desc);
     } else {
-        return execute_ref(ctx);
+        return execute_simple(ctx);
     }
 }
 

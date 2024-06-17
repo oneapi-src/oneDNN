@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_REF_ZERO_PAD_HPP
-#define GPU_INTEL_OCL_REF_ZERO_PAD_HPP
+#ifndef GPU_INTEL_OCL_SIMPLE_ZERO_PAD_HPP
+#define GPU_INTEL_OCL_SIMPLE_ZERO_PAD_HPP
 
 #include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_zero_pad_pd.hpp"
@@ -33,12 +33,12 @@ namespace ocl {
             status::unimplemented, "%s," msg, this->info(engine), \
             ##__VA_ARGS__)
 
-struct ref_zero_pad_t : public gpu_primitive_t {
+struct simple_zero_pad_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_zero_pad_pd_t {
         using gpu_zero_pad_pd_t::gpu_zero_pad_pd_t;
 
-        DECLARE_COMMON_PD_T("ocl:ref:any", ref_zero_pad_t);
+        DECLARE_COMMON_PD_T("ocl:simple:any", simple_zero_pad_t);
         status_t init(impl::engine_t *engine) {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
@@ -55,8 +55,8 @@ struct ref_zero_pad_t : public gpu_primitive_t {
 
         std::vector<compute::kernel_t> kernels {};
         CHECK(create_kernels(engine, &kernels,
-                {"ref_zero_pad", "ref_zero_pad_subg_16",
-                        "ref_zero_pad_subg_16_mask_and_clear_dt_1b"},
+                {"simple_zero_pad", "simple_zero_pad_subg_16",
+                        "simple_zero_pad_subg_16_mask_and_clear_dt_1b"},
                 kernel_ctx));
 
         kernel_ = kernels[0];
@@ -71,7 +71,7 @@ struct ref_zero_pad_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    status_t execute_ref(const exec_ctx_t &ctx) const;
+    status_t execute_simple(const exec_ctx_t &ctx) const;
     status_t execute_subg_16(const exec_ctx_t &ctx,
             const memory_desc_wrapper &mdw,
             const blocking_desc_t &blocking_desc) const;
