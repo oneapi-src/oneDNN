@@ -19,6 +19,7 @@
 
 #include "common/cache_blob.hpp"
 #include "common/primitive.hpp"
+#include "common/primitive_exec_types.hpp"
 
 #include "gpu/gpu_resource.hpp"
 

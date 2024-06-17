@@ -25,6 +25,7 @@
 #include "common/primitive_desc_iterator.hpp"
 #include "gpu/amd/miopen_convolution.hpp"
 #include "gpu/amd/miopen_deconvolution_impl.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -108,8 +109,8 @@ static status_t conv_descr_create(
 }
 } // namespace
 
-struct miopen_deconvolution_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_deconvolution_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public deconvolution_fwd_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
@@ -240,8 +241,8 @@ private:
     std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
-struct miopen_deconvolution_bwd_data_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_deconvolution_bwd_data_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public deconvolution_bwd_data_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
@@ -340,8 +341,8 @@ private:
     std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
-struct miopen_deconvolution_bwd_weights_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_deconvolution_bwd_weights_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public deconvolution_bwd_weights_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
