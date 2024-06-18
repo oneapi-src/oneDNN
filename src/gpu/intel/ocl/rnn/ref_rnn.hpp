@@ -54,10 +54,10 @@ enum gemm_kind_t {
 };
 
 template <prop_kind_t aprop>
-struct _ref_rnn_common_t : public gpu_primitive_t {
+struct _simple_rnn_common_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
 
-    using class_name = _ref_rnn_common_t<aprop>;
+    using class_name = _simple_rnn_common_t<aprop>;
 
     typedef elemwise_sig((class_name::*elemwise_f));
     typedef elemwise_sig_gru((class_name::*elemwise_gru_f));
@@ -76,7 +76,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
         pd_t(const pd_t &other) = default;
 
-        DECLARE_COMMON_PD_T("ref:any", class_name);
+        DECLARE_COMMON_PD_T("ocl:simple:any", class_name);
 
         status_t init(impl::engine_t *engine);
 
@@ -259,8 +259,8 @@ private:
 
     enum { SCALES_ = 0, TM_SCALES_ = 1 };
 };
-using ref_rnn_fwd_t = _ref_rnn_common_t<prop_kind::forward>;
-using ref_rnn_bwd_t = _ref_rnn_common_t<prop_kind::backward>;
+using simple_rnn_fwd_t = _simple_rnn_common_t<prop_kind::forward>;
+using simple_rnn_bwd_t = _simple_rnn_common_t<prop_kind::backward>;
 } // namespace ocl
 } // namespace intel
 } // namespace gpu

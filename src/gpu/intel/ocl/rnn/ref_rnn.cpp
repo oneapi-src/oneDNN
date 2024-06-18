@@ -497,7 +497,7 @@ inline status_t init_ocl_conf<prop_kind::backward>(
 }
 
 template <>
-status_t _ref_rnn_common_t<prop_kind::forward>::pd_t::set_default_params() {
+status_t _simple_rnn_common_t<prop_kind::forward>::pd_t::set_default_params() {
     using namespace format_tag;
     if (src_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
@@ -525,7 +525,7 @@ status_t _ref_rnn_common_t<prop_kind::forward>::pd_t::set_default_params() {
 }
 
 template <>
-status_t _ref_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
+status_t _simple_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
     using namespace format_tag;
     int arch_ld = is_xe_hpc ? 128 : 64;
     if (src_layer_md_.format_kind == format_kind::any)
@@ -600,7 +600,7 @@ status_t _ref_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
+status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
     using namespace prop_kind;
     using namespace utils;
     using namespace rnn_utils;
@@ -966,7 +966,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::init(impl::engine_t *engine) {
+status_t _simple_rnn_common_t<aprop>::init(impl::engine_t *engine) {
     using namespace rnn_utils;
 
     switch (pd()->cell_kind()) {
@@ -1055,7 +1055,7 @@ status_t _ref_rnn_common_t<aprop>::init(impl::engine_t *engine) {
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::init_res_storage(
+status_t _simple_rnn_common_t<aprop>::init_res_storage(
         impl::engine_t *engine, gpu_resource_t *r) const {
     if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
         dim_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc
@@ -1098,7 +1098,7 @@ status_t _ref_rnn_common_t<aprop>::init_res_storage(
 }
 
 template <prop_kind_t aprop>
-gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
+gemm_sig((_simple_rnn_common_t<aprop>::gemm_primitive)) {
     // We flip A and B here since the GEMM API is row major but the
     // RNN code describes GEMM in column major fashion
     gemm_exec_args_t gemm_args;
@@ -1178,7 +1178,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
 //*************** Grid computations strategy: linear ***************//
 template <prop_kind_t aprop>
-grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
+grid_execution_sig((_simple_rnn_common_t<aprop>::linear_execution)) {
     const conf_t &rnn = pd()->rnn_conf;
     dim_t n_layer = rnn.n_layer;
     dim_t n_dir = rnn.n_dir;
@@ -1264,7 +1264,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
 //********* GRID computations strategy: utility functions **********//
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
+status_t _simple_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, dim_t n_layer, dim_t n_dir,
         dim_t n_bias, dim_t n_gates, dim_t dhc, const memory_storage_t &ws_bias,
         const memory_storage_t &scales, const memory_storage_t &wei_layer,
@@ -1297,7 +1297,7 @@ status_t _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
+status_t _simple_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, bool lr, bool rl,
         dim_t batch, dim_t dhc, dim_t slc, dim_t n_iter, dim_t n_layer,
         dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
@@ -1356,7 +1356,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
+status_t _simple_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, dim_t batch, dim_t dhc,
         dim_t sic, dim_t n_iter, dim_t n_layer, dim_t n_dir, dim_t n_states,
         dim_t states_ws_ld, dim_t scratch_diff_states_ld,
@@ -1430,7 +1430,7 @@ status_t _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
+status_t _simple_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, bool lr, bool rl,
         dim_t batch, dim_t dhc, dim_t slc, dim_t n_iter, dim_t n_layer,
         dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
@@ -1492,7 +1492,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
+status_t _simple_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, dim_t batch, dim_t dhc,
         dim_t sic, dim_t n_iter, dim_t n_layer, dim_t n_dir, dim_t n_states,
         dim_t states_ws_ld, dim_t scratch_diff_states_ld,
@@ -1569,7 +1569,7 @@ status_t _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
 //********************* Execution function *********************//
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
+status_t _simple_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     impl::engine_t *engine = ctx.stream()->engine();
     auto *compute_stream
@@ -1736,40 +1736,40 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 };
 // Fix for MSVS warning C4661.
 template <>
-cell_execution_sig(ref_rnn_fwd_t::cell_execution);
+cell_execution_sig(simple_rnn_fwd_t::cell_execution);
 template <>
-cell_execution_sig(ref_rnn_bwd_t::cell_execution);
+cell_execution_sig(simple_rnn_bwd_t::cell_execution);
 template <>
-cell_execution_sig(ref_rnn_fwd_t::cell_execution_gru);
+cell_execution_sig(simple_rnn_fwd_t::cell_execution_gru);
 template <>
-cell_execution_sig(ref_rnn_bwd_t::cell_execution_gru);
+cell_execution_sig(simple_rnn_bwd_t::cell_execution_gru);
 template <>
-cell_execution_sig(ref_rnn_fwd_t::cell_execution_gru_lbr);
+cell_execution_sig(simple_rnn_fwd_t::cell_execution_gru_lbr);
 template <>
-cell_execution_sig(ref_rnn_bwd_t::cell_execution_gru_lbr);
+cell_execution_sig(simple_rnn_bwd_t::cell_execution_gru_lbr);
 template <>
-elemwise_sig(ref_rnn_fwd_t::rnn_elemwise);
+elemwise_sig(simple_rnn_fwd_t::rnn_elemwise);
 template <>
-elemwise_sig(ref_rnn_bwd_t::rnn_elemwise);
+elemwise_sig(simple_rnn_bwd_t::rnn_elemwise);
 template <>
-elemwise_sig(ref_rnn_fwd_t::lstm_elemwise);
+elemwise_sig(simple_rnn_fwd_t::lstm_elemwise);
 template <>
-elemwise_sig(ref_rnn_bwd_t::lstm_elemwise);
+elemwise_sig(simple_rnn_bwd_t::lstm_elemwise);
 template <>
-elemwise_sig(ref_rnn_fwd_t::lstm_elemwise_u8s8);
+elemwise_sig(simple_rnn_fwd_t::lstm_elemwise_u8s8);
 template <>
-elemwise_sig(ref_rnn_bwd_t::lstm_elemwise_u8s8);
+elemwise_sig(simple_rnn_bwd_t::lstm_elemwise_u8s8);
 template <>
-elemwise_sig_gru_lbr(ref_rnn_fwd_t::gru_lbr_elemwise);
+elemwise_sig_gru_lbr(simple_rnn_fwd_t::gru_lbr_elemwise);
 template <>
-elemwise_sig_gru_lbr(ref_rnn_bwd_t::gru_lbr_elemwise);
+elemwise_sig_gru_lbr(simple_rnn_bwd_t::gru_lbr_elemwise);
 template <>
-elemwise_sig_gru(ref_rnn_fwd_t::gru_elemwise);
+elemwise_sig_gru(simple_rnn_fwd_t::gru_elemwise);
 template <>
-elemwise_sig_gru(ref_rnn_bwd_t::gru_elemwise);
+elemwise_sig_gru(simple_rnn_bwd_t::gru_elemwise);
 
-template struct _ref_rnn_common_t<prop_kind::forward>;
-template struct _ref_rnn_common_t<prop_kind::backward>;
+template struct _simple_rnn_common_t<prop_kind::forward>;
+template struct _simple_rnn_common_t<prop_kind::backward>;
 
 } // namespace ocl
 } // namespace intel

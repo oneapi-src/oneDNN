@@ -29,11 +29,11 @@ namespace ocl {
 using namespace dnnl::impl::utils;
 using namespace rnn_utils;
 
-template cell_execution_sig(ref_rnn_fwd_t::cell_execution_gru_lbr);
-template cell_execution_sig(ref_rnn_bwd_t::cell_execution_gru_lbr);
+template cell_execution_sig(simple_rnn_fwd_t::cell_execution_gru_lbr);
+template cell_execution_sig(simple_rnn_bwd_t::cell_execution_gru_lbr);
 
 template <prop_kind_t aprop>
-cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
+cell_execution_sig((_simple_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
     const conf_t &rnn = this->pd()->rnn_conf;
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
     const rnn_offsets_t &offsets = this->pd()->off;
