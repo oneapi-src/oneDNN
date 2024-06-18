@@ -27680,8 +27680,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                 dreg.reinterpret(
                                                         0, ngen::DataType::uw)(
                                                         dcrosspack),
-                                                copyTemp[0].sub(
-                                                        sreg.getOffset(),
+                                                copyTemp[0].sub(0,
                                                         ngen::DataType::uw)(2),
                                                 strategy, state);
                                     } else {
@@ -27719,8 +27718,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                             dreg.reinterpret(
                                                     0, ngen::DataType::uw)(
                                                     dcrosspack),
-                                            copyTemp[0].sub(sreg.getOffset(),
-                                                    ngen::DataType::uw)(2),
+                                            copyTemp[0].sub(
+                                                    0, ngen::DataType::uw)(2),
                                             strategy, state);
                                 }
                             };
