@@ -68,16 +68,16 @@ public:
         f16 = 0x01000201,
         f32 = 0x01010402,
         f64 = 0x01020803,
-        u4 = 0x21840100,
-        s4 = 0x21850100,
-        u8 = 0x01840100,
-        s8 = 0x01850100,
-        u16 = 0x01860201,
-        s16 = 0x01870201,
-        u32 = 0x01880402,
-        s32 = 0x01890402,
-        u64 = 0x018A0803,
-        s64 = 0x018B0803,
+        u4 = 0x21120100,
+        s4 = 0x21130100,
+        u8 = 0x01140100,
+        s8 = 0x01150100,
+        u16 = 0x01160201,
+        s16 = 0x01170201,
+        u32 = 0x01180402,
+        s32 = 0x01190402,
+        u64 = 0x011A0803,
+        s64 = 0x011B0803,
         bf8 = 0x010E0100,
         hf8 = 0x010F0100,
         bf16 = 0x010C0201,
@@ -96,7 +96,7 @@ public:
     constexpr bool isComplex() const { return false; }
     constexpr int complexComponents() const { return 1; }
     constexpr int components() const { return 1; }
-    constexpr bool isInteger() const { return uint32_t(val) & 0x800000; }
+    constexpr bool isInteger() const { return uint32_t(val) & 0x100000; }
     constexpr bool isFP() const { return !isInteger(); }
     constexpr bool isInt4() const { return uint32_t(val) & 0x20000000; }
     constexpr bool isInt8() const {
@@ -106,7 +106,7 @@ public:
         return (val == Type::bf8) || (val == Type::hf8);
     }
     constexpr bool isSigned() const {
-        return (uint32_t(val) & 0x810000) != 0x800000;
+        return (uint32_t(val) & 0x110000) != 0x100000;
     }
     constexpr int bits() const { return isInt4() ? 4 : (paddedSize() * 8); }
     constexpr int paddedSize() const { return (uint32_t(val) >> 8) & 0xFF; }
@@ -159,13 +159,14 @@ public:
     }
 
     ngen::DataType ngen() const {
-        using namespace ngen;
-        static const DataType table[16] = {DataType::hf, DataType::f,
-                DataType::df, DataType::invalid, DataType::ub, DataType::b,
-                DataType::uw, DataType::w, DataType::ud, DataType::d,
-                DataType::uq, DataType::q, DataType::bf, DataType::tf32,
-                DataType::bf8, DataType::ub};
-        return table[(uint32_t(val) >> 16) & 0xF];
+        using DT = ngen::DataType;
+        auto none = DT::invalid;
+        auto hf8 = DT::ub;
+        static const DT table[32] = {DT::hf, DT::f, DT::df, none, none, none,
+                none, none, none, none, none, none, DT::bf, DT::tf32, DT::bf8,
+                hf8, none, none, DT::u4, DT::s4, DT::ub, DT::b, DT::uw, DT::w,
+                DT::ud, DT::d, DT::uq, DT::q, none, none, none, none};
+        return table[(uint32_t(val) >> 16) & 0x1F];
     }
 
     bool isSubsetOf(Type T) const;
@@ -2442,6 +2443,12 @@ protected:
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state, const Address2DParams *params = nullptr);
 
+    void outerProductFMA(int h, int ha, int hb, int opCount,
+            const std::vector<RegisterBlock> &A_layout,
+            const std::vector<RegisterBlock> &B_layout,
+            const GRFMultirange &A_regs, const GRFMultirange &B_regs,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
     void outerProductGen9IGEMM(int ha, int hb,
             const std::vector<RegisterBlock> &A_layout,
             const std::vector<RegisterBlock> &B_layout,
