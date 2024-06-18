@@ -79,7 +79,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, layernorm_post_ops_fusion_cpu)
                     auto q_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquantize
                             = q_graph->append_op(graph::op_kind::Quantize);
-                    pquantize->append_decision_function(check_zps_values<0>);
                     q_graph->create_input_port(0, pquantize, 0);
                     q_graph->create_output_port(0, pquantize, 0);
                     pgraph->append_optional(
