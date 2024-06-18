@@ -155,18 +155,6 @@ struct gpu_primitive_t : public gpu::primitive_t {
         return status::success;
     }
 
-    status_t create_nested_primitive(std::shared_ptr<primitive_t> &primitive,
-            const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine) {
-        std::pair<std::shared_ptr<primitive_t>, cache_state_t> p;
-        CHECK(pd->create_primitive_nested(p, engine, cache_blob()));
-        if (p.second == cache_state_t::kernel_hit) {
-            creation_cached_state_ = cache_state_t::nested_primitive_hit;
-        }
-        primitive = p.first;
-        register_primitive(primitive.get());
-        return status::success;
-    }
-
     // TODO: use inheritance for exec_ctx_t to get rid of such places...
     static status_t parallel_for(const gemm_exec_ctx_t &ctx,
             const compute::nd_range_t &range, const compute::kernel_t &kernel,
