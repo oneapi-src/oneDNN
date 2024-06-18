@@ -31,31 +31,17 @@ namespace jit {
 // Register Allocator Wrapper to allow for custom checks.
 class reg_allocator_t {
 public:
-    static const uint64_t warn_none = 0;
-    static const uint64_t warn_large_grf = 1;
-    static const uint64_t warn_all = warn_large_grf;
-    static const uint64_t warn_default = warn_none;
-
     // Based on nGEN limitation where subregisters are allocated in dword chunks.
     static const int granularity = 4;
 
-    reg_allocator_t(ngen::HW hw, const std::string &kernel_name_,
-            int warn_flags_ = warn_default)
-        : ra(hw) {
+    reg_allocator_t(ngen::HW hw, const std::string &kernel_name_) : ra(hw) {
 #ifdef DNNL_DEV_MODE
         kernel_name = kernel_name_;
-        warn_flags = warn_flags_;
 #endif
         MAYBE_UNUSED(kernel_name_);
-        MAYBE_UNUSED(warn_flags_);
     }
     ~reg_allocator_t() {
 #ifdef DNNL_DEV_MODE
-        if ((warn_flags & warn_large_grf) && (peak_regs <= 128)
-                && (ra.getRegisterCount() > 128))
-            ir_warning() << kernel_name
-                         << " uselessly enables large grf mode as " << peak_regs
-                         << " registers were used\n";
         ir_assert(!is_speculate) << "Speculative allocation never finished\n";
 #endif
     }
@@ -163,7 +149,6 @@ protected:
 
 #ifdef DNNL_DEV_MODE
     int peak_regs = 0;
-    int warn_flags;
     bool is_speculate = false;
     std::string kernel_name;
 #endif

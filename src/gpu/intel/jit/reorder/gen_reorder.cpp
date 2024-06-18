@@ -203,7 +203,7 @@ status_t gen_reorder_t::init(impl::engine_t *engine) {
     auto &info = *pd()->kernel_info;
 
     kernel_ = make_kernel<reorder_kernel_t>(this, engine, cfg, "gen_reorder",
-            info, /*require_dpas=*/false, grf_mode_t::any, pd());
+            info, /*require_dpas=*/false, pd());
     if (!kernel_) return status::runtime_error;
     return status::success;
 }
