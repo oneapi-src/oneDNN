@@ -95,32 +95,7 @@ struct ref_matmul_t : public primitive_t {
             return ok ? status::success : status::unimplemented;
         }
 
-        virtual bool attr_scales_ok(
-                const std::vector<int> &supported_args = {DNNL_ARG_SRC,
-                        DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const override {
-            if (attr()->scales_.has_default_values()) return true;
-
-            bool ok = attr()->scales_.has_default_values(supported_args);
-            for (int arg : supported_args) {
-                const auto &sc = attr()->scales_.get(arg);
-                const auto &mask = sc.mask_;
-                if (!sc.has_default_values()) {
-                    if (arg == DNNL_ARG_WEIGHTS) {
-                        ok = ok
-                                && utils::one_of(mask, 0, wei_qmask_N(),
-                                        wei_qmask_N() + wei_qmask_K());
-                        ok = ok && utils::one_of(sc.ndims_, 0, 2)
-                                && IMPLICATION(sc.ndims_ == 2,
-                                        sc.group_dims_[1] == 1
-                                                && K() % sc.group_dims_[0]
-                                                        == 0);
-                    } else
-                        ok = ok && (mask == 0);
-                }
-            }
-            return ok;
-        }
-
+    private:
         bool zero_points_ok() const {
             /* weights decompression requires zero points support */
             int mask_wei = 0;

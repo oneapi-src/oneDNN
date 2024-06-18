@@ -131,7 +131,15 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
-    // Overload PER_OC wei_mask definition for batched case
+    // Overload PER_OC src_mask definition for batched case
+    auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
+    if (src_scale.policy == policy_t::PER_OC) {
+        const auto &src_rt_dims = get_runtime_dims(
+                prb->src_dims(), prb->src_runtime_dim_mask());
+        int src_mask = 1 << (src_rt_dims.size() - 1);
+        attr_args.prepare_scales(prb->attr, DNNL_ARG_SRC, src_mask);
+    }
+    // Overload PER_OC/PER_OCIC wei_mask definition for batched case
     auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
     if (wei_scale.policy == policy_t::PER_OC
             || wei_scale.policy == policy_t::PER_OCIC) {
@@ -142,7 +150,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             wei_mask += 1 << (dst_rt_dims.size() - 2);
         attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
     }
-    // Overload PER_OC wei_mask definition for batched case
+    // Overload PER_OC/PER_OCIC zp_mask definition for batched case
     auto wei_zp = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS);
     if (wei_zp.policy == policy_t::PER_OC
             || wei_zp.policy == policy_t::PER_OCIC) {
@@ -459,8 +467,19 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     const auto wei_encoding
             = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
-    if ((is_gpu() && !prb->sparse_options.is_def())
-            || wei_encoding == dnnl_packed) {
+    if (is_gpu() && !prb->sparse_options.is_def()) {
+        BENCHDNN_PRINT(2,
+                "[SKIP][%s:%d]: GPU doesn't support sparse functionality.\n",
+                __FILE__, __LINE__);
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+    if (wei_encoding == dnnl_packed) {
+        BENCHDNN_PRINT(2,
+                "[SKIP][%s:%d]: Weights argument doesn't support packed "
+                "encoding.\n",
+                __FILE__, __LINE__);
         res->state = SKIPPED;
         res->reason = skip_reason::case_not_supported;
         return;
@@ -468,10 +487,11 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 #endif
 
     if (is_cpu()) {
-        // CPU doesn't support x8s8f16
         const bool is_x8s8f16
                 = prb->wei_dt() == dnnl_s8 && prb->dst_dt() == dnnl_f16;
         if (is_x8s8f16) {
+            BENCHDNN_PRINT(2, "[SKIP][%s:%d]: CPU doesn't support x8s8f16.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
@@ -479,35 +499,48 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 
     if (is_gpu()) {
-        // GPU supports only single zero-point per tensor.
         if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
                 || prb->attr.zero_points.get(DNNL_ARG_DST).policy
                         != policy_t::COMMON) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: GPU doesn't support multiple zero-points "
+                    "per tensor.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
         }
 
-        // GPU does not support grouped scales or zero-points.
         if (prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).policy
                         == policy_t::PER_OCIC
                 || prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
                         == policy_t::PER_OCIC) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: GPU doesn't support grouped scales or "
+                    "zero-points.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
         }
 
         const auto &po = prb->attr.post_ops;
-        // F64 post-ops unsupported.
         if (prb->dst_dt() == dnnl_f64 && !po.is_def()) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: Post-ops for f64 data type is not "
+                    "supported.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
         }
-        // GPU supports only default sum_dt argument.
+
         const int sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
         if (sum_idx != -1 && po.entry[sum_idx].sum.dt != dnnl_data_type_undef) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: GPU doesn't support non-default sum_dt "
+                    "argument.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
@@ -526,39 +559,52 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
                 prb->attr.zero_points.get(DNNL_ARG_DST).is_def()
                         && rt_dims_are_none && prb->ndims <= 2);
         if (!x8s8bf16_ok) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: x8s8bf16 configuration on GPU doesn't "
+                    "support certain features.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
         }
 
-        // GPU supports bf16 bias only for bf16 config, with a single batch dim.
         const bool is_bf16 = prb->src_dt() == dnnl_bf16
                 && prb->wei_dt() == dnnl_bf16
                 && (prb->dst_dt() == dnnl_bf16 || prb->dst_dt() == dnnl_f32);
         const bool bf16_bias_ok = IMPLICATION(
                 prb->bia_dt == dnnl_bf16, prb->ndims <= 2 + is_bf16);
         if (!bf16_bias_ok) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: bf16 bias support is limited to bf16 "
+                    "configuration and 2D-matmul.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
         }
 
-        // Weights decompression is supported through ref on pre-XeHPG
-        // platforms with limited post-ops support.
         if (prb->weights_decompression()
                 && (!prb->attr.zero_points.is_def()
                         || !prb->attr.scales.is_def())) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: Weights decompression is supported through "
+                    "ref on pre-XeHPG platforms with limited post-ops "
+                    "support.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
         }
 
-        // GPU supports fp8 through ref only for f8_e4m3 on all platformas and
-        // for f8_e5m2 pre-XeHPC with limited post-op support.
         if (((prb->src_dt() == dnnl_f8_e4m3 || prb->dst_dt() == dnnl_f8_e4m3)
                     || (prb->src_dt() == dnnl_f8_e5m2
                             || prb->dst_dt() == dnnl_f8_e5m2))
                 && (!po.is_def() || !prb->attr.scales.is_def())) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: GPU supports fp8 through ref only for "
+                    "f8_e4m3 on all platformas and for f8_e5m2 pre-XeHPC with "
+                    "limited post-op support.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
@@ -567,42 +613,86 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
-// oneDNN doesn't provide SYCL interoperability API for creating a sparse
-// memory therefore all SYCL cases must be skipped.
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     if (is_sycl_engine(get_test_engine()) && !prb->sparse_options.is_def()) {
+        BENCHDNN_PRINT(2,
+                "[INVALID][%s:%d]: oneDNN doesn't provide SYCL "
+                "interoperability API for creating a sparse memory therefore "
+                "all SYCL cases must be skipped.\n",
+                __FILE__, __LINE__);
         res->state = SKIPPED;
         res->reason = skip_reason::case_not_supported;
         return;
     }
 #endif
 
-    // Zero-points for non-integral data type does not make sense
     if (!prb->attr.zero_points.is_def()
             && (prb->wei_dt() != dnnl_s8 && prb->wei_dt() != dnnl_u8
                     && prb->wei_dt() != dnnl_s4 && prb->wei_dt() != dnnl_u4)) {
+        BENCHDNN_PRINT(2,
+                "[INVALID][%s:%d]: Zero-points applied to a non-integral data "
+                "type.\n",
+                __FILE__, __LINE__);
         res->state = SKIPPED;
         res->reason = skip_reason::invalid_case;
         return;
     }
 
-    // Weights decompression requires IC to be divisible by groups
-    // for both scales and zero points
     if (!prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def()) {
         const auto &groups = prb->attr.scales.get(DNNL_ARG_WEIGHTS).groups;
-        if (!groups.empty() && (prb->k % groups[0] || groups.size() > 2)) {
-            res->state = SKIPPED;
-            res->reason = skip_reason::invalid_case;
-            return;
+        if (!groups.empty()) {
+            if (prb->k % groups[0]) {
+                BENCHDNN_PRINT(2,
+                        "[INVALID][%s:%d]: Weights decompression scales "
+                        "require IC ('%d') to be divisible by groups ('%d')\n",
+                        __FILE__, __LINE__, (int)prb->k, (int)groups[0]);
+                res->state = SKIPPED;
+                res->reason = skip_reason::invalid_case;
+                return;
+            } else if (groups.size() > 2) {
+                BENCHDNN_PRINT(2,
+                        "[INVALID][%s:%d]: Weights decompression scales groups "
+                        "support only two dimensions\n",
+                        __FILE__, __LINE__);
+                res->state = SKIPPED;
+                res->reason = skip_reason::invalid_case;
+                return;
+            }
         }
     }
+
     if (!prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).is_def()) {
         const auto &groups = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).groups;
-        if (!groups.empty() && (prb->k % groups[0] || groups.size() > 2)) {
-            res->state = SKIPPED;
-            res->reason = skip_reason::invalid_case;
-            return;
+        if (!groups.empty()) {
+            if (groups[0] > 0 && (prb->k % groups[0])) {
+                BENCHDNN_PRINT(2,
+                        "[INVALID][%s:%d]: Weights decompression zero-points "
+                        "require IC ('%d') to be divisible by groups ('%d')\n",
+                        __FILE__, __LINE__, (int)prb->k, (int)groups[0]);
+                res->state = SKIPPED;
+                res->reason = skip_reason::invalid_case;
+                return;
+            } else if (groups.size() > 2) {
+                BENCHDNN_PRINT(2,
+                        "[INVALID][%s:%d]: Weights decompression zero-points "
+                        "groups support only two dimensions\n",
+                        __FILE__, __LINE__);
+                res->state = SKIPPED;
+                res->reason = skip_reason::invalid_case;
+                return;
+            }
         }
+    }
+
+    if ((prb->wei_dt() == dnnl_s4 || prb->wei_dt() == dnnl_u4)
+            && (prb->n % 2)) {
+        BENCHDNN_PRINT(2,
+                "[INVALID][%s:%d]: Int4 Weights decompression requires OC "
+                "('%d') to be even.\n",
+                __FILE__, __LINE__, (int)prb->n);
+        res->state = SKIPPED;
+        res->reason = skip_reason::invalid_case;
+        return;
     }
 
     auto src_rt_mask = prb->src_runtime_dim_mask();
@@ -614,16 +704,16 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     if ((src_rt_mask.any() && prb->stag == "any")
             || (wei_rt_mask.any() && prb->wtag == "any")
             || (dst_rt_mask.any() && prb->dtag == "any")) {
-        BENCHDNN_PRINT(1, "%s\n",
-                "WARNING: runtime dimensions require user to specify a memory "
-                "format for affected arguments. Consider specifying `--stag`, "
-                "`--wtag`, and/or `--dtag`.");
+        BENCHDNN_PRINT(1,
+                "[INVALID][%s:%d]: Runtime dimensions require user to specify "
+                "a memory format for affected arguments. Consider specifying "
+                "`--stag`, `--wtag`, and/or `--dtag`.\n",
+                __FILE__, __LINE__);
         res->state = SKIPPED;
         res->reason = skip_reason::invalid_case;
         return;
     }
 
-    // Runtime masks for `m`, `k`, and `n` dimensions must be consistent.
     const int m_idx = prb->ndims - 2;
     const int k_idx_src = prb->ndims - 1;
     const int k_idx_wei = prb->ndims - 2;
@@ -631,12 +721,15 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     if (src_rt_mask[m_idx] != dst_rt_mask[m_idx]
             || src_rt_mask[k_idx_src] != wei_rt_mask[k_idx_wei]
             || wei_rt_mask[n_idx] != dst_rt_mask[n_idx]) {
+        BENCHDNN_PRINT(2,
+                "[INVALID][%s:%d]: Runtime masks for `m`, `k`, and `n` "
+                "dimensions must be consistent.\n",
+                __FILE__, __LINE__);
         res->state = SKIPPED;
         res->reason = skip_reason::invalid_case;
         return;
     }
 
-    // Runtime masks for batch dimensions must be consistent.
     if (prb->ndims > 2) {
         dims_mask_t batch_rt_mask;
         for (int i = 0; i < prb->ndims - 2; ++i)
@@ -645,6 +738,10 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         wei_rt_mask &= batch_rt_mask;
         dst_rt_mask &= batch_rt_mask;
         if (src_rt_mask != wei_rt_mask || src_rt_mask != dst_rt_mask) {
+            BENCHDNN_PRINT(2,
+                    "[INVALID][%s:%d]: Runtime masks for batch dimensions must "
+                    "be consistent.\n",
+                    __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::invalid_case;
             return;

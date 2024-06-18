@@ -20,6 +20,7 @@
 #include <memory>
 #include <type_traits>
 
+#include "common/cache_hit_types.hpp"
 #include "common/engine_id.hpp"
 #include "common/kernel_cache.hpp"
 #include "common/utils.hpp"
@@ -172,17 +173,20 @@ using trivial_key_container_t = gpu_kernel_key_container_t<trivial_key_t<K>>;
 template <typename value_type>
 status_t get_cached_kernels(std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
         impl::engine_t *engine, std::vector<compute::kernel_t> &kernels,
-        const std::vector<const char *> &kernel_names);
+        const std::vector<const char *> &kernel_names,
+        cache_state_t &kernel_cache_hit);
 
 extern template status_t get_cached_kernels<compute::kernel_t>(
         std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
         impl::engine_t *engine, std::vector<compute::kernel_t> &kernels,
-        const std::vector<const char *> &kernel_names);
+        const std::vector<const char *> &kernel_names,
+        cache_state_t &kernel_cache_hit);
 
 extern template status_t get_cached_kernels<compute::kernel_bundle_t>(
         std::shared_ptr<gpu_kernel_key_impl_t> &&key_impl,
         impl::engine_t *engine, std::vector<compute::kernel_t> &kernels,
-        const std::vector<const char *> &kernel_names);
+        const std::vector<const char *> &kernel_names,
+        cache_state_t &kernel_cache_hit);
 
 } // namespace intel
 } // namespace gpu

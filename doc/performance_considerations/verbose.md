@@ -199,7 +199,7 @@ line from left to right:
   this number represents amount of milliseconds since Unix epoch. On Windows
   this number represents amount of milliseconds since the last system start.
 * API kind: `primitive|graph|common` for API information
-* operation: `exec|create:<cache_hit|cache_miss|from_cache_blob>` for
+* operation: `exec|create:<cache_hit|cache_miss|kernel_cache_hit|persistent_cache_hit|nested_cache_hit>` for
   profiling information, `error|check|dispatch` for other information.
 * engine kind: `cpu` or `gpu` (`cpu2gpu` or `gpu2cpu` for cross-engine reorder)
 * primitive name: `convolution`, `reorder`, `sum`, etc

@@ -61,6 +61,10 @@
 --alg=SOFTMAX,LOGSOFTMAX
 --axis=0 --batch=shapes_large
 
+# Test CI in Nightly
+--reset
+--batch=test_softmax_ci
+
 # Test layers of some key and ext GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu

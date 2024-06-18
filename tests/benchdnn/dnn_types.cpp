@@ -197,11 +197,13 @@ int attr_t::policy2mask(int arg, policy_t policy,
             default: SAFE(FAIL, CRIT); return -1;
         }
     } else if (prim_kind == dnnl_matmul) {
-        if (arg != DNNL_ARG_WEIGHTS || policy == policy_t::COMMON)
+        if ((arg != DNNL_ARG_SRC && arg != DNNL_ARG_WEIGHTS)
+                || policy == policy_t::COMMON)
             return attr_t::get_default_mask(policy);
 
         if (ndims <= 0) SAFE_V(FAIL);
         switch (policy) {
+            case PER_DIM_1:
             case PER_OC: return (1 << (ndims - 1));
             case PER_OCIC: return (1 << (ndims - 1)) + (1 << (ndims - 2));
             default: SAFE_V(FAIL); return -1;
@@ -232,13 +234,13 @@ int parse_value_and_runtime(float &value, const std::string &s) {
                 "Error: scale or zero point input value is expected to be a "
                 "real number. Given input:",
                 s.c_str());
-        SAFE_V(FAIL);
+        SAFE(FAIL, WARN);
     }
     if (scale_pos != s.size()) {
         BENCHDNN_PRINT(0, "%s \'%s\'. %s \'%g\'.\n",
                 "Error: not every input symbol was processed. Given input:",
                 s.c_str(), "Parsed value:", value);
-        SAFE_V(FAIL);
+        SAFE(FAIL, WARN);
     }
     return OK;
 }
@@ -296,6 +298,7 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
 
     if (!groups.empty()) {
         switch (this->policy) {
+            case PER_OC:
             case PER_OCIC:
                 if (this->groups.size() != 2) {
                     BENCHDNN_PRINT(0, "%s\n",
@@ -306,7 +309,8 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
                 break;
             default:
                 BENCHDNN_PRINT(0, "%s\n",
-                        "Error: groups are supported only for policy PER_OCIC");
+                        "Error: groups are supported only for PER_OC and "
+                        "PER_OCIC policies.");
                 SAFE_V(FAIL);
         }
     }
@@ -1039,13 +1043,11 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (as.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
-            // Weights mask differs from primitive to primitive, that's why it
-            // is stashed in `attr_args` at primitive creation time.
-            const bool is_wei_arg = arg_name == DNNL_ARG_WEIGHTS
-                    || arg_name
-                            == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-            int mask = (is_wei_arg && e.policy != policy_t::COMMON)
-                    ? attr_args.get_mask(arg_name)
+            // Check if there's a arg with pre-defined mask in `attr_args`...
+            int args_mask = attr_args.get_mask(DNNL_ARG_ATTR_SCALES | arg_name);
+            // If it's non-default, use it, otherwise, deduce it.
+            int mask = args_mask != attr_args_t::undefined_mask
+                    ? args_mask
                     : attr_t::policy2mask(arg_name, e.policy);
 
             DNN_SAFE_V(dnnl_primitive_attr_set_scales(dnnl_attr, arg_name, mask,
@@ -1060,13 +1062,12 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (zp.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
-            // Weights mask differs from primitive to primitive, that's why it
-            // is stashed in `attr_args` at primitive creation time.
-            const bool is_wei_arg = arg_name == DNNL_ARG_WEIGHTS
-                    || arg_name
-                            == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-            int mask = (is_wei_arg && e.policy != policy_t::COMMON)
-                    ? attr_args.get_mask(DNNL_ARG_ATTR_ZERO_POINTS | arg_name)
+            // Check if there's a arg with pre-defined mask in `attr_args`...
+            int args_mask
+                    = attr_args.get_mask(DNNL_ARG_ATTR_ZERO_POINTS | arg_name);
+            // If it's non-default, use it, otherwise, deduce it.
+            int mask = args_mask != attr_args_t::undefined_mask
+                    ? args_mask
                     : attr_t::policy2mask(arg_name, e.policy);
 
             int ndims = static_cast<int>(e.groups.size());

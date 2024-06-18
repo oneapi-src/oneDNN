@@ -80,6 +80,16 @@
 
 --alg=VANILLA_RNN --activation=RELU --batch=shapes_large
 
+# Test CI in Nightly
+--reset
+--batch=test_augru_ci
+--reset
+--batch=test_gru_ci
+--reset
+--batch=test_lstm_ci
+--reset
+--batch=test_rnn_ci
+
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu

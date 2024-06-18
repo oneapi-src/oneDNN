@@ -14910,10 +14910,11 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
 
     if (slmDequantize2DA && slmDequantize2DB && kaq_load != kbq_load) stub();
     int slmKQLoad = slmDequantize2DA ? kaq_load : kbq_load;
+    slmKQLoad = std::max(slmKQLoad, unrollKSLM);
     bool slmDequantize2D = (slmDequantize2DA || slmDequantize2DB);
 
     // SLM quantization parameter loads.
-    auto reqSLMLoadQ = every(std::max(slmKQLoad, unrollKSLM))
+    auto reqSLMLoadQ = every(slmKQLoad)
             | lookahead(
                     lookaheadSLMStore + lookaheadSLMReload + unrollKSLM - 1);
     if (slmDequantize2D)
@@ -27680,8 +27681,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                 dreg.reinterpret(
                                                         0, ngen::DataType::uw)(
                                                         dcrosspack),
-                                                copyTemp[0].sub(
-                                                        sreg.getOffset(),
+                                                copyTemp[0].sub(0,
                                                         ngen::DataType::uw)(2),
                                                 strategy, state);
                                     } else {
@@ -27719,8 +27719,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                             dreg.reinterpret(
                                                     0, ngen::DataType::uw)(
                                                     dcrosspack),
-                                            copyTemp[0].sub(sreg.getOffset(),
-                                                    ngen::DataType::uw)(2),
+                                            copyTemp[0].sub(
+                                                    0, ngen::DataType::uw)(2),
                                             strategy, state);
                                 }
                             };

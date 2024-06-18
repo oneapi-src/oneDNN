@@ -111,7 +111,6 @@ struct gpu_primitive_t : public gpu::primitive_t {
 
     status_t create_kernel(impl::engine_t *engine, compute::kernel_t *kernel,
             const char *kernel_name, const compute::kernel_ctx_t &kernel_ctx) {
-
         std::vector<compute::kernel_t> kernels(1);
         auto status
                 = create_kernels(engine, &kernels, {kernel_name}, kernel_ctx);
@@ -125,16 +124,22 @@ struct gpu_primitive_t : public gpu::primitive_t {
             const std::vector<const char *> &kernel_names, const T &params) {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
-        if (cache_blob())
+        if (cache_blob()) {
             return compute_engine->create_kernels_from_cache_blob(
                     cache_blob(), kernels, kernel_names);
+        }
 
         auto key = std::make_shared<trivial_key_container_t<T>>(
                 params, compute_engine->engine_id());
         gpu_assert(key->key.is_valid());
 
+        cache_state_t kernel_cache_status;
         CHECK(get_cached_kernels<typename trivial_key_t<T>::value_type>(
-                std::move(key), engine, kernels, kernel_names));
+                std::move(key), engine, kernels, kernel_names,
+                kernel_cache_status));
+        if (kernel_cache_status == cache_state_t::kernel_hit) {
+            creation_cached_state_ = cache_state_t::kernel_hit;
+        }
 
         CHECK(register_kernels(kernels));
 

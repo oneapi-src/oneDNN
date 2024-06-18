@@ -25,3 +25,7 @@
        ABx16a16b:aBx8b, \
        ABx16a16b:aBx16b
 --batch=shapes_all
+
+# Test CI in Nightly
+--reset
+--batch=test_prelu_ci

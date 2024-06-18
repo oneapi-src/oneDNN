@@ -139,6 +139,28 @@
 3x6x96:3x96x64
 3x6x96:1x96x64
 
+### int4 with grouped quantization
+--reset
+--stag=ab,ba
+--dt=s8:s8:f16
+--attr-scales=src:common:0.5:f32+wei:per_oc:f16
+4x256:256x64
+6x384:384x100
+
+--stag=ab,ba
+--dt=s8:s4:f16
+--attr-scales=src:per_oc:f16:1x32+wei:per_ocic:f16:128x1
+--attr-zero-points=wei:per_ocic:s4:128x1 # groups matches scales groups
+4x256:256x64
+6x384:384x100
+
+--stag=abc,acb
+--dt=s8:u4:f32
+--attr-scales=src:per_oc:f16:1x16+wei:per_ocic:f16:192x1
+--attr-zero-points=wei:per_ocic:u4:192x1 # groups matches scales groups
+12x4x576:12x576x192
+12x6x192:12x192x100
+
 # Test bf32, tf32 data type configuration
 --reset
 --skip-impl=ref,x64:gemm

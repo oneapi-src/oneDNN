@@ -195,13 +195,7 @@ struct runtime_scales_t : public c_compatible {
         return *this;
     }
 
-    status_t set(int mask) {
-        mask_ = mask;
-        is_set_ = true;
-        ndims_ = 0;
-        data_type_ = data_type::f32;
-        return status::success;
-    }
+    status_t set(int mask) { return set(0, mask, {}, data_type::f32); }
 
     status_t set(int ndims, int mask, const dims_t group_dims,
             data_type_t data_type = data_type::f32) {
@@ -281,8 +275,7 @@ struct arg_scales_t : public c_compatible {
     }
 
     status_t set(int arg, int mask) {
-        if (!check_arg(arg)) return status::invalid_arguments;
-        return scales_[arg].set(mask);
+        return set(arg, mask, 0, {}, data_type::f32);
     }
 
     status_t set(int arg, int mask, int ndims, const dims_t group_dims,
@@ -291,8 +284,10 @@ struct arg_scales_t : public c_compatible {
         return scales_[arg].set(ndims, mask, group_dims, data_type);
     }
 
+    // TODO: move to `private` and keep a single interface per entry.
     status_t get(int arg, int *mask, bool *is_set, int *ndims = nullptr,
-            dims_t group_dims = nullptr) const {
+            dims_t group_dims = nullptr,
+            data_type_t *data_type = nullptr) const {
         if (!check_arg(arg)) return status::invalid_arguments;
         const auto &s = get(arg);
         if (mask) *mask = s.mask_;
@@ -300,7 +295,15 @@ struct arg_scales_t : public c_compatible {
         if (ndims) *ndims = s.ndims_;
         if (group_dims && s.ndims_ > 0)
             utils::array_copy(group_dims, s.group_dims_, s.ndims_);
+        if (data_type) *data_type = s.data_type_;
         return status::success;
+    }
+
+    data_type_t get_data_type(int arg) const {
+        data_type_t data_type;
+        auto st = get(arg, nullptr, nullptr, nullptr, nullptr, &data_type);
+        if (st != status::success) return data_type::undef;
+        return data_type;
     }
 
     status_t reset(int arg) {

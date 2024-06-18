@@ -134,7 +134,13 @@ struct matmul_pd_t : public primitive_desc_t {
         return dims[n_dims - 1] == N();
     }
 
-    // Quantization mask frequently used for weights scales and zero points
+    // Quantization mask frequently used for scales and zero points
+    int src_qmask_K() const {
+        const int src_ndims = src_md(0)->ndims;
+        assert(src_ndims >= 2);
+        return 1 << (src_ndims - 1);
+    }
+
     int wei_qmask_N() const {
         const int wei_ndims = weights_md(0)->ndims;
         assert(wei_ndims >= 2);
@@ -149,11 +155,15 @@ struct matmul_pd_t : public primitive_desc_t {
 
     virtual bool attr_scales_ok(const std::vector<int> &supported_args
             = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
+        if (attr()->scales_.has_default_values()) return true;
+
         bool ok = attr()->scales_.has_default_values(supported_args);
         for (int arg : supported_args) {
-            const auto &mask = attr()->scales_.get(arg).mask_;
+            const auto &sc = attr()->scales_.get(arg);
+            const auto &mask = sc.mask_;
+            if (sc.has_default_values()) { continue; }
+
             if (arg == DNNL_ARG_WEIGHTS) {
-                const auto &sc = attr()->scales_.get(arg);
                 ok = ok
                         && utils::one_of(mask, 0, wei_qmask_N(),
                                 wei_qmask_K() + wei_qmask_N());
@@ -161,8 +171,17 @@ struct matmul_pd_t : public primitive_desc_t {
                         && IMPLICATION(sc.ndims_ == 2,
                                 sc.group_dims_[1] == 1
                                         && K() % sc.group_dims_[0] == 0);
-            } else
+            } else if (arg == DNNL_ARG_SRC) {
+                ok = ok && utils::one_of(mask, 0, src_qmask_K());
+                ok = ok && utils::one_of(sc.ndims_, 0, 2);
+                ok = ok && IMPLICATION(mask == src_qmask_K(), sc.ndims_ == 2);
+                ok = ok
+                        && IMPLICATION(sc.ndims_ == 2,
+                                sc.group_dims_[0] == 1
+                                        && K() % sc.group_dims_[1] == 0);
+            } else {
                 ok = ok && (mask == 0);
+            }
         }
         return ok;
     }

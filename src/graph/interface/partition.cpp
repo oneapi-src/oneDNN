@@ -27,6 +27,7 @@
 #include "oneapi/dnnl/dnnl_graph_ocl.h"
 #endif
 
+#include "common/cache_hit_types.hpp"
 #include "common/stream.hpp"
 #include "common/verbose.hpp"
 
@@ -47,6 +48,8 @@
 #include "graph/utils/ocl_check.hpp"
 #endif
 
+using dnnl::impl::cache_state2str;
+using dnnl::impl::cache_state_t;
 using namespace dnnl::impl::graph;
 
 /// This allows to create a partition directly with an op and an engine kind. In
@@ -194,11 +197,10 @@ status_t DNNL_API dnnl_graph_partition_compile(partition_t *partition,
     std::vector<const logical_tensor_t *> in {inputs, inputs + in_num};
     std::vector<const logical_tensor_t *> out {outputs, outputs + out_num};
 
-    // The boolean in the pair indicates whether the compiled partition is from
+    // The cache_state_t in the pair will track whether the compiled partition is from
     // global cache.
-    //   true - cache_hit, the compiled partition is in the cache
-    //   false - cache_miss, the compiled partition is not in the cache
-    std::pair<compiled_partition_t *, bool> cp {compiled_partition, false};
+    std::pair<compiled_partition_t *, cache_state_t> cp {
+            compiled_partition, cache_state_t::compiled_partition_hit};
 
     if (get_verbose(dnnl::impl::verbose_t::create_profile,
                 dnnl::impl::component_t::graph)) {
@@ -206,7 +208,7 @@ status_t DNNL_API dnnl_graph_partition_compile(partition_t *partition,
         CHECK(partition->compile(cp, in, out, engine));
         double duration_ms = dnnl::impl::get_msec() - start_ms;
 
-        const char *cache_status = cp.second ? ":cache_hit" : ":cache_miss";
+        const char *cache_status = cache_state2str(cp.second);
         VPROF(start_ms, graph, compile, cache_status,
                 compiled_partition->info(), duration_ms);
     } else {
@@ -709,7 +711,7 @@ status_t dnnl_graph_partition::compile(compiled_partition_t *cp,
 }
 
 status_t dnnl_graph_partition::compile(
-        std::pair<compiled_partition_t *, bool> &compiled_partition,
+        std::pair<compiled_partition_t *, cache_state_t> &compiled_partition,
         std::vector<const logical_tensor_t *> &inputs,
         std::vector<const logical_tensor_t *> &outputs,
         const engine_t *aengine) const {
@@ -722,13 +724,14 @@ status_t dnnl_graph_partition::compile(
         std::vector<const logical_tensor_t *> &inputs;
         std::vector<const logical_tensor_t *> &outputs;
         const engine_t *engine;
-        bool is_create_called;
+        cache_state_t cache_status;
     };
-    create_context_t context {this, inputs, outputs, aengine, false};
+    create_context_t context {this, inputs, outputs, aengine,
+            cache_state_t::compiled_partition_hit};
 
     compiled_partition_cache_t::create_func_ptr_t create = [](void *context) {
         auto &c = *static_cast<create_context_t *>(context);
-        c.is_create_called = true;
+        c.cache_status = cache_state_t::miss;
         std::shared_ptr<compiled_partition_t> cp
                 = std::make_shared<compiled_partition_t>(*c.partition);
         status_t status
@@ -742,8 +745,7 @@ status_t dnnl_graph_partition::compile(
     if (result.status != status::success) return result.status;
 
     compiled_partition.first->init(result.value->pimpl_);
-    // cp is from cache if the create func is not called
-    compiled_partition.second = !context.is_create_called;
+    compiled_partition.second = context.cache_status;
 
     return result.status;
 }

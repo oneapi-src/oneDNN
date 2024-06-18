@@ -53,13 +53,15 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     // Matmul supports scales for floating point data types
     attr_mask |= smask_t::scales_runtime;
 
-    const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8);
-    if (is_int8) attr_mask |= smask_t::zero_points_runtime;
+    const bool src_is_int8
+            = utils::one_of(src_dt, data_type::s8, data_type::u8);
+    if (src_is_int8) attr_mask |= smask_t::zero_points_runtime;
 
-    // Matmul supports zero points for floating point data types as part of weights decompression
+    // Matmul supports zero points for floating point data types as part of
+    // weights decompression.
     const bool wei_is_int = utils::one_of(
             wei_dt, data_type::s8, data_type::u8, data_type::s4, data_type::u4);
-    if (!is_int8 && wei_is_int) {
+    if (wei_is_int) {
         attr_mask |= smask_t::zero_points_runtime_data_type;
         attr_mask |= smask_t::zero_points_runtime_groups;
         attr_mask |= smask_t::scales_runtime_data_type;
@@ -71,8 +73,11 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     VCHECK_MATMUL_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);
 
+    int ndims_src = desc.src_desc.ndims;
     int ndims_wei = desc.weights_desc.ndims;
+    assert(ndims_src >= 2);
     assert(ndims_wei >= 2);
+    int src_qmask_K = 1 << (ndims_src - 1);
     int wei_qmask_N = 1 << (ndims_wei - 1);
     int wei_qmask_K = 1 << (ndims_wei - 2);
 
@@ -83,9 +88,27 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         const int mask_wei = sc.get(DNNL_ARG_WEIGHTS).mask_;
         const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
 
-        VCHECK_MATMUL_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
+        // Check allowed masks.
+        VCHECK_MATMUL_UNIMPL(utils::one_of(mask_src, 0, src_qmask_K)
                         && utils::one_of(mask_wei, 0, wei_qmask_N,
-                                wei_qmask_N + wei_qmask_K),
+                                wei_qmask_N + wei_qmask_K)
+                        && mask_dst == 0,
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+        // Check dependency between scales.
+        // Source scales groups are supported for int8 source and must divide
+        // or be divided by weights groups when both are greater than 1.
+        const auto src_scale_group_k = (mask_src & src_qmask_K)
+                ? sc.get(DNNL_ARG_SRC).group_dims_[1]
+                : 1;
+        const auto wei_scale_group_k = (mask_wei & wei_qmask_K)
+                ? sc.get(DNNL_ARG_WEIGHTS).group_dims_[0]
+                : 1;
+        const bool groups_are_divisible = IMPLICATION(
+                src_scale_group_k > 1 && wei_scale_group_k > 1,
+                (src_scale_group_k % wei_scale_group_k == 0)
+                        || (wei_scale_group_k % src_scale_group_k == 0));
+        VCHECK_MATMUL_UNIMPL(IMPLICATION(src_scale_group_k > 1,
+                                     src_is_int8 && groups_are_divisible),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
@@ -129,7 +152,8 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
                 VERBOSE_UNSUPPORTED_POSTOP);
 
         // Check sum
-        VCHECK_MATMUL_UNIMPL(po.check_sum_consistency(dst_dt, is_int8, true),
+        VCHECK_MATMUL_UNIMPL(
+                po.check_sum_consistency(dst_dt, src_is_int8, true),
                 VERBOSE_UNSUPPORTED_POSTOP);
     }
 
