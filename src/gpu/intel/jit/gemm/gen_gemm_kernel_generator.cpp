@@ -13664,7 +13664,7 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
     Txs_int = Tx;
 
     if (Txs.paddedSize() > Tx.paddedSize()) {
-        lateScale = true;
+        lateScale = xs2D;
         Txs_int = problem.Tc;
         Tx_scaleOp = problem.Tc;
     }

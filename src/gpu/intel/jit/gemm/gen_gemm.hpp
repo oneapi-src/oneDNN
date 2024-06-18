@@ -203,7 +203,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 CHECK(attr_zps.get(DNNL_ARG_C, &cmask_c));
 
                 wei_zp = a_zp;
-                wei_zp_2d = wei_decomp_ && (cmask_a == ((1 << 0) | (1 << 1)));
+                wei_zp_2d = attr_zps.get_groups_ndims(DNNL_ARG_A) > 1;
                 VDISPATCH_GEMM(
                         (utils::one_of(cmask_a, 0, 1 << 1, 1 << 2) || wei_zp_2d)
                                 && utils::one_of(cmask_b, 0, 1 << 0)
@@ -223,13 +223,10 @@ struct gen_gemm_t : public gpu_gemm_t {
                 }
             }
 
-            if (wei_decomp_
-                    && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_
-                            == ((1 << 0) | (1 << 1)))
+            if (wei_decomp_ && attr()->scales_.get(DNNL_ARG_WEIGHTS).ndims_ > 1)
                 wei_scales_2d_ = true;
 
-            if (wei_decomp_
-                    && attr()->scales_.get(DNNL_ARG_SRC).mask_ == ((1 << 1)))
+            if (wei_decomp_ && attr()->scales_.get(DNNL_ARG_SRC).ndims_ > 1)
                 src_scales_2d_ = true;
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
