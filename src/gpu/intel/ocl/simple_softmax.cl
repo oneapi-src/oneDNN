@@ -23,7 +23,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 #endif
 
 __kernel void
-ref_softmax_fwd_generic(__global SRC_DATA_T *src, __global DATA_T *dst,
+simple_softmax_fwd_generic(__global SRC_DATA_T *src, __global DATA_T *dst,
         __global float *src_scale, __global float *dst_scale POST_OP_ARGS) {
 
     const int dim[] = {
@@ -202,8 +202,8 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
 __kernel void
-ref_softmax_bwd_generic(__global DST_DATA_T *dst, __global SRC_DATA_T *diff_src,
-        __global DST_DATA_T *diff_dst) {
+simple_softmax_bwd_generic(__global DST_DATA_T *dst,
+        __global SRC_DATA_T *diff_src, __global DST_DATA_T *diff_dst) {
 
     const int dim[] = {
             (get_global_id(0) / GROUP_SIZE) % BLOCK_0,

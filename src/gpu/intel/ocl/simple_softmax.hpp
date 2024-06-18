@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_REF_SOFTMAX_HPP
-#define GPU_INTEL_OCL_REF_SOFTMAX_HPP
+#ifndef GPU_INTEL_OCL_SIMPLE_SOFTMAX_HPP
+#define GPU_INTEL_OCL_SIMPLE_SOFTMAX_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
@@ -30,12 +30,12 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-struct ref_softmax_fwd_t : public gpu_primitive_t {
+struct simple_softmax_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_softmax_fwd_pd_t {
         using gpu_softmax_fwd_pd_t::gpu_softmax_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
+        DECLARE_COMMON_PD_T("ocl:simple:any", simple_softmax_fwd_t);
 
         bool post_ops_ok() const {
             return attr()->post_ops_.has_default_values(
@@ -179,7 +179,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
         CHECK(create_kernel(
-                engine, &kernel_, "ref_softmax_fwd_generic", kernel_ctx));
+                engine, &kernel_, "simple_softmax_fwd_generic", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -195,12 +195,12 @@ protected:
     compute::kernel_t kernel_;
 };
 
-struct ref_softmax_bwd_t : public gpu_primitive_t {
+struct simple_softmax_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_softmax_bwd_pd_t {
         using gpu_softmax_bwd_pd_t::gpu_softmax_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
+        DECLARE_COMMON_PD_T("ocl:simple:any", simple_softmax_bwd_t);
 
         status_t init(impl::engine_t *engine) {
             auto *compute_engine
@@ -302,7 +302,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
         CHECK(create_kernel(
-                engine, &kernel_, "ref_softmax_bwd_generic", kernel_ctx));
+                engine, &kernel_, "simple_softmax_bwd_generic", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
