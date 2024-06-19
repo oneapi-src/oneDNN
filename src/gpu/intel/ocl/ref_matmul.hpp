@@ -57,51 +57,48 @@ struct ref_matmul_t : public gpu_primitive_t {
 
             VDISPATCH_MATMUL(
                     is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
-            VDISPATCH_MATMUL(IMPLICATION(desc()->accum_data_type == s32,
-                                     attr()->zero_points_.common()),
-                    VERBOSE_UNSUPPORTED_DT_CFG);
-            VDISPATCH_MATMUL(IMPLICATION(desc()->accum_data_type != s32,
-                                     attr()->zero_points_.has_default_values()),
-                    VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_MATMUL(
-                    attr()->has_default_values(smask_t::scales_runtime
-                            | smask_t::zero_points_runtime | smask_t::post_ops),
+                    attr()->has_default_values(smask_t::scales_runtime_data_type
+                            | smask_t::scales_runtime_groups
+                            | smask_t::zero_points_runtime_data_type
+                            | smask_t::zero_points_runtime_groups
+                            | smask_t::post_ops | smask_t::fpmath_mode),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_MATMUL(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_MATMUL(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
             VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_MATMUL(IMPLICATION(has_blocks(), dst_md()->ndims < 6),
                     VERBOSE_BAD_NDIMS, "dst", dst_md()->ndims);
+
+            const bool is_f64
+                    = utils::everyone_is(f64, src_dt_, wei_dt_, dst_dt_);
+            const bool is_f32
+                    = utils::everyone_is(f32, src_dt_, wei_dt_, dst_dt_);
+            const bool is_f16 = src_dt_ == f16
+                    && utils::one_of(wei_dt_, f16, s8, u8, s4, u4)
+                    && utils::one_of(dst_dt_, u8, s8, f16);
+            const bool is_f8
+                    = (utils::everyone_is(f8_e5m2, src_dt_, wei_dt_)
+                              || utils::everyone_is(f8_e4m3, src_dt_, wei_dt_))
+                    && utils::one_of(dst_dt_, f32, bf16, f16, src_dt_);
+            const bool is_bf16 = src_dt_ == bf16
+                    && utils::one_of(wei_dt_, bf16, s8, u8, s4, u4)
+                    && utils::one_of(dst_dt_, bf16, f32);
+            const bool is_int8 = utils::one_of(src_dt_, u8, s8)
+                    && utils::one_of(wei_dt_, u8, s8, u4, s4)
+                    && utils::one_of(dst_dt_, f32, s8, u8, s32, f16)
+                    && IMPLICATION(
+                            with_bias(), utils::one_of(bia_dt_, f32, dst_dt_));
             VDISPATCH_MATMUL(
-                    ((utils::one_of(src_dt_, u8, s8)
-                             && utils::one_of(wei_dt_, u8, s8)
-                             && utils::one_of(dst_dt_, f32, s8, u8, s32, f16)
-                             && IMPLICATION(with_bias(),
-                                     utils::one_of(bia_dt_, f32, u8, s8, s32)))
-                            || ((utils::everyone_is(
-                                         f32, src_dt_, wei_dt_, dst_dt_)
-                                        || utils::everyone_is(
-                                                f64, src_dt_, wei_dt_, dst_dt_)
-                                        || (utils::everyone_is(
-                                                    f16, src_dt_, wei_dt_)
-                                                && utils::one_of(
-                                                        dst_dt_, u8, s8, f16))
-                                        || ((utils::everyone_is(
-                                                     f8_e5m2, src_dt_, wei_dt_)
-                                                    || utils::everyone_is(
-                                                            f8_e4m3, src_dt_,
-                                                            wei_dt_))
-                                                && utils::one_of(dst_dt_, f32,
-                                                        bf16, f16, src_dt_))
-                                        || (utils::everyone_is(
-                                                    bf16, src_dt_, wei_dt_)
-                                                && utils::one_of(
-                                                        dst_dt_, bf16, f32)))
+                    (is_int8
+                            || ((is_f32 || is_f64 || is_f16 || is_f8 || is_bf16)
                                     && IMPLICATION(with_bias(),
-                                            utils::one_of(bia_dt_, f32)))),
+                                            utils::one_of(
+                                                    bia_dt_, f32, dst_dt_)))),
                     VERBOSE_UNSUPPORTED_DT_CFG);
-            VDISPATCH_MATMUL(post_ops_with_binary_ok(attr(), dst_dt_, 6),
-                    VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_MATMUL_SC(attr_.set_default_formats(dst_md(0)),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_MATMUL(post_ops_with_binary_ok(attr(), dst_dt_, 6),
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_MATMUL(
                     IMPLICATION(utils::one_of(f64, src_dt_, wei_dt_, dst_dt_),
@@ -121,6 +118,32 @@ struct ref_matmul_t : public gpu_primitive_t {
         data_type_t wei_dt_ = data_type::undef;
 
         attr_info_t attr_info_ = {};
+
+    private:
+        bool zero_points_ok() const {
+            int mask_src = 0, mask_wei = 0, mask_dst = 0;
+            CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src));
+            CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei));
+            CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst));
+
+            const auto wei_group_ndims
+                    = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
+            const auto wei_group_dims
+                    = attr()->zero_points_.get_groups(DNNL_ARG_WEIGHTS);
+
+            bool mask_src_ok = mask_src == 0;
+            bool mask_wei_ok = utils::one_of(
+                    mask_wei, 0, wei_qmask_N(), wei_qmask_K() + wei_qmask_N());
+            bool mask_dst_ok = mask_dst == 0;
+
+            return mask_src_ok && mask_wei_ok && mask_dst_ok;
+
+            return mask_src_ok && mask_dst_ok && mask_wei_ok
+                    && utils::one_of(wei_group_ndims, 0, 2)
+                    && IMPLICATION(wei_group_ndims == 2,
+                            wei_group_dims[1] == 1
+                                    && K() % wei_group_dims[0] == 0);
+        }
     };
 
     status_t init(impl::engine_t *engine) override {
@@ -156,6 +179,15 @@ struct ref_matmul_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, pd()->dst_dt_, "DST");
         def_data_type(kernel_ctx, pd()->bia_dt_, "BIA");
         def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "ACC");
+        def_data_type(kernel_ctx,
+                pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).data_type_,
+                "WEI_SCALES");
+        def_data_type(kernel_ctx,
+                pd()->attr()->zero_points_.get_data_type(DNNL_ARG_WEIGHTS),
+                "WEI_ZP");
+        def_data_type(kernel_ctx,
+                pd()->attr()->scales_.get(DNNL_ARG_SRC).data_type_,
+                "SRC_SCALES");
         CHECK(create_kernel(engine, &kernel_, "ref_matmul", kernel_ctx));
         if (!kernel_) return status::runtime_error;
         return status::success;
