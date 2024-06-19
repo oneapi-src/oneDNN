@@ -920,6 +920,18 @@
 #elif WEI_DT_HF8
 #define WEI_TO_REF(x) convert_float(cvt_f8_e4m3_to_hf(x))
 #define REF_TO_WEI(x) cvt_hf_to_f8_e4m3(convert_half(x))
+#elif WEI_DT_S8
+#define WEI_TO_REF(x) convert_int_sat_rte(x)
+#define REF_TO_WEI(x) convert_char_sat_rte(x)
+#elif WEI_DT_U8
+#define WEI_TO_REF(x) convert_int_sat_rte(x)
+#define REF_TO_WEI(x) convert_uchar_sat_rte(x)
+#elif WEI_DT_S4
+#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
+#define WEI_TO_REF(x) cvt_s4_to_s32(x)
+#elif WEI_DT_U4
+#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
+#define WEI_TO_REF(x) convert_int_sat_rte(x)
 #else
 #define WEI_TO_REF(x) (x)
 #define REF_TO_WEI(x) (x)
@@ -1412,12 +1424,16 @@
 #ifdef ACC_DATA_T
 #if ACC_DT_F16
 #define TO_ACC(x) convert_half(x)
+#define ACC_TO_REF(x) convert_float(x)
 #elif ACC_DT_F32
 #define TO_ACC(x) convert_float(x)
+#define ACC_TO_REF(x) convert_float(x)
 #elif ACC_DT_F64
 #define TO_ACC(x) convert_double(x)
+#define ACC_TO_REF(x) convert_double(x)
 #elif ACC_DT_S32
 #define TO_ACC(x) convert_int(x)
+#define ACC_TO_REF(x) convert_float(x)
 #else
 #error "Unexpected accumulation data type"
 #endif
@@ -1441,6 +1457,40 @@
 #define SUM_TO_REF(x) convert_float(cvt_f8_e4m3_to_hf(x))
 #else
 #define SUM_TO_REF
+#endif
+#endif
+
+#ifdef WEI_SCALES_DATA_T
+#if WEI_SCALES_DT_F16
+#define WEI_SCALES_TO_REF(x) convert_float(x)
+#elif WEI_SCALES_DT_BF16
+#define WEI_SCALES_TO_REF(x) cvt_bf16_to_f32(x)
+#else
+#define WEI_SCALES_TO_REF(x) (x)
+#endif
+#endif
+
+#ifdef SRC_SCALES_DATA_T
+#if SRC_SCALES_DT_F16
+#define SRC_SCALES_TO_REF(x) convert_float(x)
+#elif SRC_SCALES_DT_BF16
+#define SRC_SCALES_TO_REF(x) cvt_bf16_to_f32(x)
+#else
+#define SRC_SCALES_TO_REF(x) (x)
+#endif
+#endif
+
+#ifdef WEI_ZP_DATA_T
+#if WEI_ZP_DT_S8
+#define WEI_ZP_TO_REF(zp, off) convert_int_sat_rte(zp[off])
+#elif WEI_ZP_DT_U8
+#define WEI_ZP_TO_REF(zp, off) convert_int_sat_rte(zp[off])
+#elif WEI_ZP_DT_S4
+#define WEI_ZP_TO_REF(zp, off) cvt_s4_to_s32(GET_HALF_BYTE(zp, off))
+#elif WEI_ZP_DT_U4
+#define WEI_ZP_TO_REF(zp, off) convert_int_sat_rte(GET_HALF_BYTE(zp, off))
+#else
+#define WEI_ZP_TO_REF(zp, off) (zp[off])
 #endif
 #endif
 
