@@ -1577,6 +1577,7 @@ struct GEMMState : public CommonState {
     bool copyC = false;
     bool useTempC = false;
     bool broadcast;
+    bool dequantRepack2DA = false, dequantRepack2DB = false;
     bool repackA = false, repackB = false;
     bool repackARem = false, repackBRem = false;
     int ka_repackRem, kb_repackRem;
