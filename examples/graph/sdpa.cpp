@@ -88,7 +88,7 @@ void print_test_case(memory::data_type dt, const sdpa_dims_t &p) {
 void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
         const sdpa_dims_t &p, double time_limit = 0.) {
     const bool quick_test = (time_limit == 0.);
-    if (!quick_test) print_test_case(dt, p);
+    print_test_case(dt, p);
 
     // Create execution dnnl::engine.
     dnnl::engine eng(ekind, 0);
@@ -106,8 +106,8 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     // scaled_score = score / scale
     // masked_score = scaled_score + mask
     // All combined in a single matmul primitive.
-    auto query_md = memory::desc(qv_sz, dt, tag::acbd);
-    auto key_md = memory::desc(k_sz, dt, tag::acbd);
+    auto query_md = memory::desc(qv_sz, dt, tag::abcd);
+    auto key_md = memory::desc(k_sz, dt, tag::abcd);
     auto score_md = memory::desc(score_sz, dt, tag::abcd);
     auto scale_md = memory::desc(scale_sz, dt, tag::abcd);
     auto mask_md = memory::desc(mask_sz, dt, tag::abcd);
@@ -132,8 +132,8 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     auto softmax_prim = softmax_forward(softmax_pd);
 
     // attention_output = attention_probs x value
-    auto value_md = memory::desc(qv_sz, dt, tag::acbd);
-    auto output_md = memory::desc(qv_sz, dt, tag::acbd);
+    auto value_md = memory::desc(qv_sz, dt, tag::abcd);
+    auto output_md = memory::desc(qv_sz, dt, tag::abcd);
 
     primitive_attr bmm2_attr;
     bmm2_attr.set_scratchpad_mode(scratchpad_mode::user);
@@ -263,7 +263,7 @@ void print_test_case(logical_tensor::data_type dt, const sdpa_dims_t &p) {
 void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
         const sdpa_dims_t &p, double time_limit = 0.) {
     const bool quick_test = (time_limit == 0.);
-    if (!quick_test) print_test_case(dt, p);
+    print_test_case(dt, p);
 
     // Create execution dnnl::engine.
     dnnl::engine eng(ekind, 0);
@@ -407,13 +407,40 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
 void bad_args() {
     std::cerr << "Usage: graph-sdpa-cpp [cpu|gpu]\n"
                  "       graph-sdpa-cpp [cpu|gpu] <mb> <seq_len> <head_num> "
-                 "<head_size>\n";
+                 "<head_size>\n\n"
+                 "On CPU, it's recommended to test with numactl and memory "
+                 "allocation tools like jemalloc or tcmalloc.\n\n";
     throw std::invalid_argument("Incorrect input arguments.");
+}
+
+enum class api_kind {
+    primitive,
+    graph,
+};
+
+void bench(api_kind api, engine::kind ekind, dnnl_data_type_t dt,
+        const sdpa_dims_t &p, double time_limit = 0.) {
+    try {
+        if (api == api_kind::primitive) {
+            bench_sdpa_primitives(
+                    ekind, static_cast<memory::data_type>(dt), p, time_limit);
+        } else {
+            // api == api_kind::graph
+            bench_sdpa(ekind, static_cast<logical_tensor::data_type>(dt), p,
+                    time_limit);
+        }
+    } catch (dnnl::error &e) {
+        // Catch and report unimplemented cases.
+        if (e.status == dnnl_unimplemented) {
+            std::cout << "unsupported sdpa" << std::endl;
+        } else
+            throw;
+    }
 }
 
 void sdpa_perf(engine::kind ekind, int argc, char **argv) {
     // default testing parameters
-    sdpa_dims_t params = {1, 128, 16, 64};
+    sdpa_dims_t params = {32, 384, 16, 64};
 
     if (argc > 2) {
         if (argc == 6) {
@@ -431,14 +458,13 @@ void sdpa_perf(engine::kind ekind, int argc, char **argv) {
         }
     }
 
-    bench_sdpa(ekind, logical_tensor::data_type::f32, params, 4000.0 /*ms*/);
-    bench_sdpa(ekind, logical_tensor::data_type::bf16, params, 4000.0 /*ms*/);
-    bench_sdpa(ekind, logical_tensor::data_type::f16, params, 4000.0 /*ms*/);
+    bench(api_kind::graph, ekind, dnnl_f32, params, 2000.0 /*ms*/);
+    bench(api_kind::graph, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
+    bench(api_kind::graph, ekind, dnnl_f16, params, 2000.0 /*ms*/);
 
-    bench_sdpa_primitives(ekind, memory::data_type::f32, params, 4000.0 /*ms*/);
-    bench_sdpa_primitives(
-            ekind, memory::data_type::bf16, params, 4000.0 /*ms*/);
-    bench_sdpa_primitives(ekind, memory::data_type::f16, params, 4000.0 /*ms*/);
+    bench(api_kind::primitive, ekind, dnnl_f32, params, 2000.0 /*ms*/);
+    bench(api_kind::primitive, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
+    bench(api_kind::primitive, ekind, dnnl_f16, params, 2000.0 /*ms*/);
 }
 
 int main(int argc, char **argv) {
