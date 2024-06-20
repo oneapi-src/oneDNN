@@ -14,112 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/ocl_math_utils.h"
+#include "gpu/intel/ocl/rnn/cell_compute.h"
+#include "gpu/intel/ocl/rnn/cell_kind_utility.h"
 #include "gpu/intel/ocl/rnn/rnn_types.h"
-#include "gpu/intel/ocl/types_interop.h"
-
-float one_m_square(float a) {
-    return 1.0f - a * a;
-}
-float x_m_square(float a) {
-    return (1.0f - a) * a;
-}
-float relu_fwd(float s, float alpha) {
-    return s > 0 ? s : s * alpha;
-}
-float tanh_fwd(float s) {
-    return tanh(s);
-}
-float logistic_fwd(float s) {
-    return 1 / (1 + exp((float)-s));
-}
-float logistic_bwd(float s) {
-    return x_m_square(s);
-}
-float relu_bwd(float s, float alpha) {
-    return s > 0 ? 1.f : alpha;
-}
-float tanh_bwd(float s) {
-    return (1 - s) * (1 + s);
-}
-float linear(float s, float alpha) {
-    return alpha * s;
-}
-
-float relu_fwd_tm(float s, float alpha) {
-#if !IS_TESTMODE
-    return relu_fwd(s, alpha);
-#else
-    return linear(s, alpha);
-#endif
-}
-float tanh_fwd_tm(float s, float alpha) {
-#if !IS_TESTMODE
-    return tanh(s);
-#else
-    return linear(s, alpha);
-#endif
-}
-float logistic_fwd_tm(float s, float alpha) {
-#if !IS_TESTMODE
-    return logistic_fwd(s);
-#else
-    return linear(s, alpha);
-#endif
-}
-
-float relu_bwd_tm(float s, float alpha) {
-#if !IS_TESTMODE
-    return relu_bwd(s, alpha);
-#else
-    return linear(s, alpha);
-#endif
-}
-float tanh_bwd_tm(float s, float alpha) {
-#if !IS_TESTMODE
-    return tanh_bwd(s);
-#else
-    return linear(s, alpha);
-#endif
-}
-float logistic_bwd_tm(float s, float alpha) {
-#if !IS_TESTMODE
-    return logistic_bwd(s);
-#else
-    return linear(s, alpha);
-#endif
-}
-
-float activation_fwd(float s, float alpha, float cliping) {
-#if CELL_KIND == VANILLA_RNN
-#if ACTIVATION_KIND == ELTWISE_RELU
-    return relu_fwd_tm(s, alpha);
-#elif ACTIVATION_KIND == ELTWISE_TANH
-    return tanh_fwd_tm(s, alpha);
-#elif ACTIVATION_KIND == ELTWISE_LOGISTIC
-    return logistic_fwd_tm(s, alpha);
-#else
-#error "Unsupported activation_kind"
-#endif
-#else
-    return 0.0f;
-#endif
-}
-float activation_bwd(float s, float alpha, float cliping) {
-#if CELL_KIND == VANILLA_RNN
-#if ACTIVATION_KIND == ELTWISE_RELU
-    return relu_bwd_tm(s, alpha);
-#elif ACTIVATION_KIND == ELTWISE_TANH
-    return tanh_bwd_tm(s, alpha);
-#elif ACTIVATION_KIND == ELTWISE_LOGISTIC
-    return logistic_bwd_tm(s, alpha);
-#else
-#error "Unsupported activation_kind"
-#endif
-#else
-    return 0.0f;
-#endif
-}
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 simple_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,
@@ -463,120 +360,8 @@ __kernel void rnn_bias_prepare(__global float *ws_bias, __global float *scales,
 #endif
 }
 
-typedef struct vanilla_lstm_gates_t {
-    float G[vanilla_lstm_n_gates];
-} vanilla_lstm_gates_t;
-
-vanilla_lstm_gates_t vanilla_lstm_compute_gates(
-        const float G[vanilla_lstm_n_gates],
-        const float B[vanilla_lstm_n_gates],
-        const __global float *restrict tm_scales) {
-
-    vanilla_lstm_gates_t ret;
-    ret.G[0] = logistic_fwd_tm(G[0] + B[0], tm_scales[0]);
-    ret.G[1] = logistic_fwd_tm(G[1] + B[1], tm_scales[1]);
-    ret.G[2] = tanh_fwd_tm(G[2] + B[2], tm_scales[2]);
-    ret.G[3] = logistic_fwd_tm(G[3] + B[3], tm_scales[3]);
-    return ret;
-}
-
-void vanilla_lstm_store(__global AUX_DATA_T *ws_gates, int gates_ws_ld,
-        __global WS_STATE_DATA_T *h_states_t_l,
-        __global AUX_DATA_T *c_states_t_l,
-        const __global AUX_DATA_T *c_states_tm1_l, int states_ws_ld, int dhc,
-        int n, int c, float tm_cscale, vanilla_lstm_gates_t gates) {
-    float g_i = gates.G[0];
-    float g_f = gates.G[1];
-    float g_z = gates.G[2];
-    float g_o = gates.G[3];
-
-    if (!RECOMPUTE_GATES && IS_TRAINING) {
-        ws_gates[cell_ws_gates(gates_ws_ld, dhc, n, 0, c)] = g_i;
-        ws_gates[cell_ws_gates(gates_ws_ld, dhc, n, 1, c)] = g_f;
-        ws_gates[cell_ws_gates(gates_ws_ld, dhc, n, 2, c)] = g_z;
-        ws_gates[cell_ws_gates(gates_ws_ld, dhc, n, 3, c)] = g_o;
-    }
-
-    float Ct = g_f * c_states_tm1_l[cell_ws_state(states_ws_ld, n, c)]
-            + g_i * g_z;
-    float Ht = g_o * tanh_fwd_tm(Ct, tm_cscale);
-
-    h_states_t_l[cell_ws_state(states_ws_ld, n, c)] = TO_WS_STATE(Ht);
-    c_states_t_l[cell_ws_state(states_ws_ld, n, c)] = Ct;
-}
-
-float vanilla_rnn_compute_gates(float G0, float B0, float alpha,
-        const __global float *restrict tm_scales) {
-    float G = activation_fwd(G0 + B0,
-#if IS_TESTMODE
-            tm_scales[0], 0);
-#else
-            alpha, 0);
-#endif
-    return G;
-}
-
-void store_vanilla_rnn(__global AUX_DATA_T *ws_gates, int gates_ws_ld,
-        __global WS_STATE_DATA_T *h_states_t_l, int states_ws_ld, int dhc,
-        int n, int c, float g) {
-    if (!RECOMPUTE_GATES && IS_TRAINING) {
-        ws_gates[cell_ws_gates(gates_ws_ld, dhc, n, 0, c)] = g;
-    }
-    h_states_t_l[cell_ws_state(states_ws_ld, n, c)] = TO_WS_STATE(g);
-}
-
-#if CELL_KIND == LBR_GRU
-typedef struct lbr_gru_gates_t {
-    float Wh_b;
-    float G[3];
-} lbr_gru_gates_t;
-
-lbr_gru_gates_t compute_gates_lbr_gru(
-        const __global ACC_DATA_T *restrict scratch_gates,
-        const __global AUX_DATA_T *restrict scratch_cell,
-        const __global BIAS_DATA_T *restrict bias,
-        const __global float *restrict tm_scales, int scratch_gates_ld, int dhc,
-        int mb, int c) {
-    float G[n_gates];
-    float B[n_bias];
-    float C[n_gates];
-    for (int i = 0; i < n_gates; i++) {
-        G[i] = convert_float(scratch_gates[cell_scratch_mem(
-                scratch_gates_ld, dhc, mb, i, c)]);
-        C[i] = convert_float(scratch_cell[cell_scratch_mem(
-                scratch_gates_ld, dhc, mb, i, c)]);
-    }
-    for (int i = 0; i < n_bias; i++) {
-        B[i] = convert_float(bias[off_ker_bias(dhc, i, c)]);
-    }
-
-    lbr_gru_gates_t ret;
-    ret.Wh_b = C[2] + B[3];
-    ret.G[0] = logistic_fwd_tm(G[0] + C[0] + B[0], tm_scales[0]);
-    ret.G[1] = logistic_fwd_tm(G[1] + C[1] + B[1], tm_scales[1]);
-    ret.G[2] = tanh_fwd_tm(G[2] + ret.G[1] * ret.Wh_b + B[2], tm_scales[2]);
-    return ret;
-}
-#endif
-
-#if IS_INT8 && CELL_KIND == VANILLA_LSTM
-
-WS_STATE_DATA_T q_d(float f, float data_scale, float data_shift) {
-    float qf = f * data_scale + data_shift;
-    return TO_WS_STATE(qf);
-}
-
-float deq_w(ACC_DATA_T s, int gate, int j, __global float *scales,
-        float data_scale, int dhc) {
-#if WEI_QPARAM_MASK
-    float wei_scale = scales[gate * dhc + j];
-#else
-    float wei_scale = scales[0];
-#endif
-    return (float)(s) / (wei_scale * data_scale);
-}
-
 // for int8 LSTM
+#if IS_INT8 && CELL_KIND == VANILLA_LSTM
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 simple_rnn_elemwise_fwd(int dir, int lay, int iter,
         __global ACC_DATA_T *scratch_gates_, dim_t scratch_gates_off,
@@ -753,14 +538,6 @@ simple_rnn_elemwise_fwd(__global ACC_DATA_T *scratch_gates_,
 #error "Wrong Cell Kind"
 #endif
 }
-#endif
-
-#if NEED_BIAS_ATOMIC_REDUCE
-#define MAYBE_ATOMIC volatile __global
-#define DIFF_BIAS_DATA_T CONCAT2(atomic_, DIFF_DATA_T)
-#else
-#define MAYBE_ATOMIC __global
-#define DIFF_BIAS_DATA_T DIFF_DATA_T
 #endif
 
 #if !IS_FWD
@@ -1050,50 +827,6 @@ __kernel void simple_rnn_elemwise_bwd() {}
 #endif // !IS_FWD
 
 #if CELL_COMP_ENABLED
-#define DHC_TG get_local_size(0)
-#define DHC_LOCAL (CELL_DHC_THR * DHC_TG)
-
-#define BATCH_TG get_local_size(1)
-#define BATCH_LOCAL (CELL_BATCH_THR * BATCH_TG)
-
-#define M_THR_BLOCK CELL_BATCH_THR
-#define N_THR_BLOCK CELL_DHC_THR
-#define N_OUTER_BLOCK n_gates
-
-#define K_TG_BLOCK SUBGROUP_SIZE
-#define K_THR_BLOCK 1
-
-const int gemm_k_block = SUBGROUP_SIZE;
-typedef int64_t cell_offset_t;
-typedef int64_t grid_offset_t;
-typedef dim_t cell_dim_t;
-
-typedef struct {
-    cell_dim_t m;
-    cell_dim_t k;
-    cell_dim_t n_inner;
-    cell_dim_t n_outer;
-} gemm_dims_t;
-
-typedef struct {
-    bool m;
-    bool k;
-    bool n;
-} gemm_overflow_t;
-
-void load(float *s, const __global float *data, bool is_valid) {
-    *s = is_valid ? as_float(data[get_sub_group_local_id()]) : 0;
-}
-
-float __attribute__((overloadable)) sg_get(float s, int offset) {
-    return intel_sub_group_shuffle(s, offset);
-}
-
-bool __attribute__((overloadable))
-sg_get(bool s[gemm_k_block / SUBGROUP_SIZE], int offset) {
-    return intel_sub_group_shuffle(
-            s[offset / SUBGROUP_SIZE], offset % SUBGROUP_SIZE);
-}
 
 void gemm_sum_inner(float(C)[M_THR_BLOCK][N_THR_BLOCK],
         const __global float *restrict A, const int a_stride,
@@ -1195,77 +928,6 @@ void gemm_sum(float(C)[N_OUTER_BLOCK][M_THR_BLOCK][N_THR_BLOCK],
         }
     }
 }
-
-// Handles strides required in computation. A different structure is used
-// so that there is a consistent type used for data transfer. Because of this,
-// we can easily change the offset type used to improve performance when
-// overflow is not a concern. The only dimensions iterated over iter, mb, and
-// channel. The channel dimension is required to be dense, so is dropped from
-// these structures.
-typedef struct {
-    cell_offset_t mb;
-    cell_offset_t slc;
-    cell_offset_t sic;
-} cell_strides_t;
-
-typedef struct {
-    grid_offset_t iter;
-    cell_strides_t cell;
-} grid_strides_t;
-
-typedef struct {
-    __global const WEI_LAYER_DATA_T *ptr;
-    cell_strides_t strides;
-} const_wei_layer_cell_t;
-
-typedef struct {
-    __global const WEI_ITER_DATA_T *ptr;
-    cell_strides_t strides;
-} const_wei_iter_cell_t;
-
-typedef struct {
-    __global AUX_DATA_T *ptr;
-    cell_strides_t strides;
-} aux_cell_t;
-
-typedef struct {
-    __global const AUX_DATA_T *ptr;
-    cell_strides_t strides;
-} const_aux_cell_t;
-
-typedef struct {
-    cell_dim_t mb;
-    cell_dim_t dhc;
-    cell_dim_t slc;
-    cell_dim_t sic;
-} cell_dims_t;
-
-// Cell function data used in non-GEMM calculation
-typedef struct {
-    union {
-        struct {
-            float alpha;
-            __global BIAS_DATA_T *bias;
-            __global float *tm_scales;
-        } rnn;
-
-        struct {
-            __global AUX_DATA_T *c_states;
-            __global const AUX_DATA_T *c_states_iter;
-            __global BIAS_DATA_T *bias;
-            __global float *tm_scales;
-            float tm_cscale;
-        } lstm;
-    };
-} cell_ctx_t;
-
-typedef struct {
-    cell_dim_t mb;
-    cell_dim_t dhc;
-} cell_loops_t;
-
-#define NEED_SCRATCH_GATES \
-    (!(CELL_COMPUTE_GEMM_LAYER && CELL_COMPUTE_GEMM_ITER))
 
 void cell_common_inner(const_wei_layer_cell_t wei_layer,
         const_wei_iter_cell_t wei_iter, const_aux_cell_t cell_layer,
