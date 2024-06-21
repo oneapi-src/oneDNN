@@ -119,8 +119,10 @@ public:
     }
 
     static compute::nd_range_t nd_range(int simd, int size) {
-        return compute::nd_range_t(gpu_utils::into<size_t>(
-                utils::div_up(size, bytes_per_thr) * simd));
+        return compute::nd_range_t(
+                gpu_utils::into<size_t>(
+                        utils::div_up(size, bytes_per_thr) * simd),
+                simd);
     }
 
     static const int bytes_per_thr;
