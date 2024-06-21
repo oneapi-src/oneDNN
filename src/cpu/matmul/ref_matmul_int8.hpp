@@ -73,16 +73,25 @@ struct ref_matmul_int8_t : public primitive_t {
     private:
         bool attr_zero_points_ok() const {
             int mask_src = 0, mask_wei = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
-            attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
-            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
+            CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src));
+            CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei));
+            CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst));
+
+            const auto wei_group_ndims
+                    = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
+            const auto wei_group_dims
+                    = attr()->zero_points_.get_groups(DNNL_ARG_WEIGHTS);
 
             bool mask_src_ok = utils::one_of(mask_src, 0, wei_qmask_N());
             bool mask_wei_ok = utils::one_of(
                     mask_wei, 0, wei_qmask_N(), wei_qmask_K() + wei_qmask_N());
             bool mask_dst_ok = utils::one_of(mask_dst, 0, wei_qmask_N());
 
-            return mask_src_ok && mask_wei_ok && mask_dst_ok;
+            return mask_src_ok && mask_wei_ok && mask_dst_ok
+                    && utils::one_of(wei_group_ndims, 0, 2)
+                    && IMPLICATION(wei_group_ndims == 2,
+                            wei_group_dims[1] == 1
+                                    && K() % wei_group_dims[0] == 0);
         }
     };
 
