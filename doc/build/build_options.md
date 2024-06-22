@@ -103,8 +103,14 @@ example:
 This option supports several values: `ALL` (the default) which enables all
 ISA implementations or one of `SSE41`, `AVX2`, `AVX512`, and `AMX`. Values are
 linearly ordered as `SSE41` < `AVX2` < `AVX512` < `AMX`. When specified,
-selected ISA and all ISA that are "smaller" will be available. Example that
-enables SSE41 and AVX2 sets:
+selected ISA and all ISA that are "smaller" will be available. When specified,
+[CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control) are also
+affected in compliance with the option.
+
+Note that `AVX2` denotes whole AVX2-based family ISAs, `AVX512` denotes whole
+AVX512-based family ISAs, as well as `AMX` denotes any ISA containing AMX unit.
+
+Example that enables SSE41 and AVX2 sets:
 ```
 -DONEDNN_ENABLE_PRIMITIVE_CPU_ISA=AVX2
 ```
