@@ -85,9 +85,10 @@ if(DNNL_SYCL_CUDA)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version")
 
     find_package(cuBLAS REQUIRED)
+    find_package(cublasLt REQUIRED)
     find_package(cuDNN REQUIRED)
 
-    adjust_headers_priority("cuBLAS::cuBLAS;cuDNN::cuDNN")
+    adjust_headers_priority("cuBLAS::cuBLAS;cuDNN::cuDNN;cublasLt::cublasLt")
     add_definitions_with_host_compiler("-DCUDA_NO_HALF")
 
     list(APPEND EXTRA_SHARED_LIBS cuBLAS::cuBLAS cuDNN::cuDNN)

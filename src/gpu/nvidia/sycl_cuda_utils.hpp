@@ -58,7 +58,9 @@ namespace nvidia {
             .get_access<::sycl::access::mode::read_write>(cgh)
 
 bool compare_cuda_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
+cudaDeviceProp query_device_properties(const ::sycl::device &dev);
 bool has_bf16_support(const ::sycl::device &dev);
+bool has_imma_ampere_layout_support(const ::sycl::device &dev);
 
 // Check if the device type matches the passed engine kind
 inline status_t check_device(dnnl::impl::engine_kind_t eng_kind) {
@@ -187,6 +189,12 @@ static status_t convert_data_type(const memory_desc_t *mem_desc,
     return status::success;
 }
 
+inline bool is_md_col32(const memory_desc_wrapper &md) {
+    return ((md.blocking_desc().inner_nblks == 1
+            && md.blocking_desc().inner_idxs[md.ndims() - 2] == 0
+            && md.blocking_desc().inner_blks[md.ndims() - 2] == 32));
+}
+
 class cublas_error : virtual public std::runtime_error {
 
 protected:
@@ -230,7 +238,7 @@ protected:
 public:
     explicit cublas_error(const std::string &message, cublasStatus_t result)
         : std::runtime_error(
-                (message + std::string(cublas_error_map(result)))) {
+                  (message + std::string(cublas_error_map(result)))) {
         error_number_ = static_cast<int>(result);
     }
 
@@ -266,7 +274,7 @@ public:
 
     explicit cuda_error(const std::string &message, cudaError_t result)
         : std::runtime_error(
-                (message + std::to_string(static_cast<int>(result)))) {
+                  (message + std::to_string(static_cast<int>(result)))) {
         error_number_ = static_cast<int>(result);
     }
     virtual ~cuda_error() throw() {}
@@ -310,7 +318,7 @@ protected:
 public:
     explicit cudnn_error(const std::string &message, cudnnStatus_t result)
         : std::runtime_error(
-                (message + std::string(cudnn_get_error_string(result)))) {
+                  (message + std::string(cudnn_get_error_string(result)))) {
         error_number_ = static_cast<int>(result);
     }
 
