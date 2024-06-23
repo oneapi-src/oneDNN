@@ -21,8 +21,8 @@
 #include "cudnn.h"
 
 #include "common/c_types_map.hpp"
-#include "common/primitive.hpp"
 #include "common/primitive_desc.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_convolution_impl.hpp"
 #include "gpu/nvidia/cudnn_convolution_pd.hpp"
 #include "gpu/nvidia/engine.hpp"
@@ -34,8 +34,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_convolution_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_convolution_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public cudnn_convolution_fwd_pd_t {
         using cudnn_convolution_fwd_pd_t::cudnn_convolution_fwd_pd_t;
@@ -218,8 +218,8 @@ private:
     std::shared_ptr<memory_storage_t> scratch_storage_3;
 };
 
-struct cudnn_convolution_bwd_data_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_convolution_bwd_data_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public cudnn_convolution_bwd_data_pd_t {
         using cudnn_convolution_bwd_data_pd_t::cudnn_convolution_bwd_data_pd_t;
@@ -295,8 +295,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-struct cudnn_convolution_bwd_weights_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_convolution_bwd_weights_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public cudnn_convolution_bwd_weights_pd_t {
         using cudnn_convolution_bwd_weights_pd_t::

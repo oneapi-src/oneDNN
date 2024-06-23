@@ -23,24 +23,16 @@
 
 namespace dnnl {
 namespace impl {
-namespace sycl {
-
-class sycl_engine_base_t;
-
-}
-} // namespace impl
-} // namespace dnnl
-
-namespace dnnl {
-namespace impl {
 namespace gpu {
 namespace intel {
 namespace sycl {
 
+class engine_t;
+
 namespace compat {
 
 status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const impl::sycl::sycl_engine_base_t *sycl_engine,
+        const gpu::intel::sycl::engine_t *sycl_engine,
         const xpu::binary_t &binary, const char *kernel_name);
 
 uint64_t init_extensions(const ::sycl::device &dev);

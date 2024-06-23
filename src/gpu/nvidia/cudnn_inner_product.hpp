@@ -22,7 +22,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/inner_product_pd.hpp"
-#include "common/primitive.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_inner_product_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
@@ -32,9 +32,9 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_inner_product_fwd_t : public primitive_t {
+struct cudnn_inner_product_fwd_t : public gpu::primitive_t {
 public:
-    using primitive_t::primitive_t;
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public inner_product_fwd_pd_t {
         using inner_product_fwd_pd_t::inner_product_fwd_pd_t;
@@ -59,9 +59,9 @@ public:
     }
 };
 
-struct cudnn_inner_product_bwd_data_t : public primitive_t {
+struct cudnn_inner_product_bwd_data_t : public gpu::primitive_t {
 public:
-    using primitive_t::primitive_t;
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public inner_product_bwd_data_pd_t {
         using inner_product_bwd_data_pd_t::inner_product_bwd_data_pd_t;
@@ -75,9 +75,9 @@ public:
     }
 };
 
-struct cudnn_inner_product_bwd_weights_t : public primitive_t {
+struct cudnn_inner_product_bwd_weights_t : public gpu::primitive_t {
 public:
-    using primitive_t::primitive_t;
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public inner_product_bwd_weights_pd_t {
         using inner_product_bwd_weights_pd_t::inner_product_bwd_weights_pd_t;
 

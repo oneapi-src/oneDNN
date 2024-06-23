@@ -21,9 +21,9 @@
 #include <cudnn.h>
 
 #include "common/c_types_map.hpp"
-#include "common/primitive.hpp"
 #include "common/resampling_pd.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 #include "xpu/sycl/memory_storage.hpp"
 
@@ -48,9 +48,9 @@ protected:
     }
 };
 
-struct cudnn_resampling_base_t : public primitive_t {
+struct cudnn_resampling_base_t : public gpu::primitive_t {
 protected:
-    using primitive_t::primitive_t;
+    using gpu::primitive_t::primitive_t;
     template <typename data_t>
     struct theta_t {
         data_t s0_, i_, tx_;

@@ -19,7 +19,8 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
-#include "sycl/sycl_engine.hpp"
+
+#include "xpu/sycl/engine_factory.hpp"
 #include "xpu/sycl/utils.hpp"
 
 using dnnl::impl::engine_t;
@@ -48,7 +49,7 @@ status_t dnnl_sycl_interop_engine_create(
             VERBOSE_BAD_ENGINE_KIND);
 #endif
 
-    auto ef = dnnl::impl::sycl::get_engine_factory(kind);
+    auto ef = dnnl::impl::xpu::sycl::get_engine_factory(kind);
     VERROR_ENGINE(ef, status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
 
     size_t index;

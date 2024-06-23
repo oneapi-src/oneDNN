@@ -53,20 +53,6 @@ if(WIN32 AND CMAKE_BASE_NAME STREQUAL "clang++")
     endif()
 endif()
 
-find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
-if(OPENCL_LIBRARY)
-    message(STATUS "OpenCL runtime is found in the environment: ${OPENCL_LIBRARY}")
-    list(APPEND EXTRA_SHARED_LIBS ${OPENCL_LIBRARY})
-else()
-    message(STATUS "OpenCL runtime is not found in the environment. Trying to find it using find_package(...)")
-    # As a plan B we try to locate OpenCL runtime using our OpenCL CMake module.
-    find_package(OpenCL REQUIRED)
-    # Unset INTERFACE_INCLUDE_DIRECTORIES property because DPCPP
-    # compiler contains OpenCL headers
-    set_target_properties(OpenCL::OpenCL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-    list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
-endif()
-
 # CUDA and ROCm contain OpenCL headers that conflict with the OpenCL
 # headers located in the compiler's directory.
 # The workaround is to get interface include directories from all CUDA/ROCm
@@ -117,6 +103,20 @@ elseif(DNNL_SYCL_HIP)
     list(APPEND EXTRA_SHARED_LIBS HIP::HIP rocBLAS::rocBLAS MIOpen::MIOpen)
     message(STATUS "DPC++ support is enabled (HIP)")
 else()
+    find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
+    if(OPENCL_LIBRARY)
+        message(STATUS "OpenCL runtime is found in the environment: ${OPENCL_LIBRARY}")
+        list(APPEND EXTRA_SHARED_LIBS ${OPENCL_LIBRARY})
+    else()
+        message(STATUS "OpenCL runtime is not found in the environment. Trying to find it using find_package(...)")
+        # As a plan B we try to locate OpenCL runtime using our OpenCL CMake module.
+        find_package(OpenCL REQUIRED)
+        # Unset INTERFACE_INCLUDE_DIRECTORIES property because DPCPP
+        # compiler contains OpenCL headers
+        set_target_properties(OpenCL::OpenCL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+        list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
+    endif()
+
     # In order to support large shapes.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sycl-id-queries-fit-in-int")
     message(STATUS "DPC++ support is enabled (OpenCL and Level Zero)")

@@ -56,6 +56,11 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
     const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
 
+    const auto src_scales_d
+            = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    const auto wei_scales_d
+            = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+
     if (src_d.has_zero_dim() || weights_d.has_zero_dim()
             || dst_d.has_zero_dim())
         return status::success;
@@ -186,7 +191,7 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
                 // Single scale value was already converted into f32.
                 const auto src_scale_offset
                         = src_scale_stride_k * (src_k_dim / src_scale_group_k);
-                const float src_scale = src_scale_mask == 0
+                const float src_scale = src_scales_d.nelems() == 1
                         ? src_scales[0]
                         : io::load_float_value(
                                 src_scales_dt, src_scales, src_scale_offset);
@@ -196,7 +201,7 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
                 // Single scale value was already converted into f32.
                 const auto wei_scale_offset = wei_scale_stride_n * n
                         + wei_scale_stride_k * (wei_k_dim / wei_scale_group_k);
-                const float wei_scale = wei_scale_mask == 0
+                const float wei_scale = wei_scales_d.nelems() == 1
                         ? wei_scales[0]
                         : io::load_float_value(
                                 wei_scales_dt, wei_scales, wei_scale_offset);

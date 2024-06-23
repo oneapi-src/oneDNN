@@ -19,6 +19,11 @@ file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
+# The generic SYCL kernels are currently enabled for NVIDIA vendor only.
+if(DNNL_SYCL_CUDA)
+    add_subdirectory(sycl)
+endif()
+
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_generic)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS

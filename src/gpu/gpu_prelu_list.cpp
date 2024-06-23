@@ -23,7 +23,7 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
-#include "gpu/sycl/ref_prelu.hpp"
+#include "gpu/generic/sycl/ref_prelu.hpp"
 #endif
 
 namespace dnnl {
@@ -38,12 +38,12 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_PRELU_P({
     {{forward}, {
         GPU_INSTANCE_INTEL(intel::ocl::ref_prelu_fwd_t)
-        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_prelu_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_prelu_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
         GPU_INSTANCE_INTEL(intel::ocl::ref_prelu_bwd_t)
-        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_prelu_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_prelu_bwd_t)
         nullptr,
     })},
 });

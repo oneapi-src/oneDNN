@@ -23,13 +23,21 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
-#if defined(DNNL_X64) && DNNL_X64 == 1 \
-        && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
+#if (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+
+#if defined(DNNL_X64) && DNNL_X64 == 1
 #include "src/cpu/x64/brgemm/brgemm.hpp"
-#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1 \
-        && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
+#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
 #include "src/cpu/aarch64/brgemm/brgemm.hpp"
 #endif
+
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+
+#include "oneapi/dnnl/dnnl_ukernel.h"
+
+#endif // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+#endif // (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
 
 #include "common.hpp"
 #include "dnnl_common.hpp"
@@ -89,9 +97,7 @@ struct prb_t : public prb_vdims_t {
         , batch_kind(batch_kind)
         , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe)
-        , scales(NULL)
-        , dst_scales(NULL) {
+        , ctx_exe(ctx_exe) {
 
         // Broadcast data types if needed
         if (dt.size() == 1) {
@@ -111,18 +117,9 @@ struct prb_t : public prb_vdims_t {
                 (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
         ops = 2. * nelems * k * batch_size;
 
-        generate_oscales();
-        generate_dst_scales();
-        src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, k);
-        dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, n);
+        check_block_size();
 
         repro = set_repro_line(); // must be last in ctor to collect right info
-    }
-    ~prb_t() {
-        zfree(scales);
-        zfree(dst_scales);
-        zfree(src_zp);
-        zfree(dst_zp);
     }
 
     int64_t m, n, k;
@@ -142,8 +139,6 @@ struct prb_t : public prb_vdims_t {
     thr_ctx_t ctx_init, ctx_exe;
 
     double ops;
-    float *scales, *dst_scales;
-    int32_t *src_zp, *dst_zp;
 
     const dims_t &src_dims() const { return vdims[0]; }
     const dims_t &weights_dims() const { return vdims[1]; }
@@ -173,8 +168,8 @@ struct prb_t : public prb_vdims_t {
         const int64_t ldb = rnd_up(n, 16);
         return ldb;
     }
-    int64_t get_ldc(bool use_dst_as_acc) const {
-        if (use_dst_as_acc) return get_ldd();
+    int64_t get_ldc() const {
+        if (use_dst_as_acc()) return get_ldd();
         return n;
     }
     int64_t get_ldd() const {
@@ -185,10 +180,19 @@ struct prb_t : public prb_vdims_t {
         return n;
     }
 
-    void generate_oscales();
-    void generate_dst_scales();
-    int32_t *generate_zero_points(
-            int arg, const attr_t::zero_points_t &zero_points, int N);
+    int64_t get_src_batch_offset() const {
+        return k * dnnl_data_type_size(src_dt());
+    }
+    int64_t get_wei_batch_offset() const {
+        return get_ldb() * k * dnnl_data_type_size(wei_dt());
+    }
+
+    bool use_dst_as_acc() const {
+        if (bia_dt == dnnl_data_type_undef && acc_dt() == dst_dt()
+                && attr.is_def(/* skip_fmpath = */ true))
+            return true;
+        return false;
+    }
 
     // Used to construct memory desc when dimensions are runtime since such mds
     // can't be used directly from query and memory objects can't be constructed.
@@ -197,14 +201,14 @@ struct prb_t : public prb_vdims_t {
         return make_benchdnn_dnnl_wrapper<dnnl_memory_desc_t>(nullptr);
     }
 
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
-
     const char *str() const { return repro.c_str(); }
 
 private:
     std::string repro;
 
     std::string set_repro_line();
+
+    void check_block_size() const;
 };
 
 // TODO: not supported as of now.

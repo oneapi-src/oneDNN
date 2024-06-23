@@ -20,8 +20,8 @@
 
 #include "cudnn.h"
 
-#include "common/primitive.hpp"
 #include "common/softmax_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_softmax_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
@@ -31,8 +31,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_softmax_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_softmax_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public softmax_fwd_pd_t {
         using softmax_fwd_pd_t::softmax_fwd_pd_t;
@@ -94,8 +94,8 @@ private:
     float *host_scales_ = nullptr;
 };
 
-struct cudnn_softmax_bwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_softmax_bwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public softmax_bwd_pd_t {
         using softmax_bwd_pd_t::softmax_bwd_pd_t;

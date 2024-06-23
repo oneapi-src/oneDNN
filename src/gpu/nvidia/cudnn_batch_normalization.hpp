@@ -22,8 +22,8 @@
 
 #include "common/batch_normalization_pd.hpp"
 #include "common/c_types_map.hpp"
-#include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_batch_normalization_executor.hpp"
 #include "gpu/nvidia/cudnn_batch_normalization_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
@@ -60,8 +60,8 @@ struct cudnn_batch_normalization_common_t {
     }
 };
 
-struct cudnn_batch_normalization_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_batch_normalization_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public batch_normalization_fwd_pd_t {
         using batch_normalization_fwd_pd_t::batch_normalization_fwd_pd_t;
 
@@ -129,8 +129,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-struct cudnn_batch_normalization_bwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_batch_normalization_bwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public batch_normalization_bwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,

@@ -19,19 +19,19 @@
 #define GPU_AMD_MIOPEN_REORDER_HPP
 
 #include "common/memory_desc_wrapper.hpp"
-#include "common/primitive.hpp"
 #include "common/reorder_pd.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_reorder_impl.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace amd {
 
-struct miopen_reorder_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_reorder_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public reorder_pd_t {
         using reorder_pd_t::reorder_pd_t;

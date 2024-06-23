@@ -170,3 +170,12 @@ status_t DNNL_API dnnl_graph_tensor_get_engine(
 
     return status::success;
 }
+
+dnnl_status_t DNNL_API dnnl_graph_tensor_get_logical_tensor(
+        const tensor_t *tensor, logical_tensor_t *logical_tensor) {
+    if (utils::any_null(tensor, logical_tensor))
+        return status::invalid_arguments;
+
+    *logical_tensor = tensor->get_logical_tensor();
+    return status::success;
+}

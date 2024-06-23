@@ -25,10 +25,8 @@
 #include "xpu/stream_profiler.hpp"
 
 #include "xpu/sycl/compat.hpp"
+#include "xpu/sycl/context.hpp"
 #include "xpu/sycl/utils.hpp"
-
-// TODO: move sycl_context to xpu
-#include "sycl/sycl_context.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -65,8 +63,8 @@ public:
             const xpu::event_t &deps, xpu::event_t &out_dep,
             xpu::stream_profiler_t *stream_profiler = nullptr);
 
-    const impl::sycl::sycl_context_t &sycl_ctx() const;
-    impl::sycl::sycl_context_t &sycl_ctx();
+    const xpu::sycl::context_t &sycl_ctx() const;
+    xpu::sycl::context_t &sycl_ctx();
 
     xpu::context_t &ctx();
     const xpu::context_t &ctx() const;
@@ -95,7 +93,7 @@ public:
 private:
     std::unique_ptr<::sycl::queue> queue_;
 
-    mutable utils::thread_local_storage_t<impl::sycl::sycl_context_t> ctx_;
+    mutable utils::thread_local_storage_t<xpu::sycl::context_t> ctx_;
 
     // XXX: this is a temporary solution to make sycl_memory_arg_t
     // default constructible.

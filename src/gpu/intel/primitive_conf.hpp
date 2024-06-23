@@ -152,17 +152,13 @@ struct attr_info_t {
 
         attr_info.with_runtime_oscales = !attr->output_scales_.defined();
 
-        const auto &src0_scales = attr->scales_.get(DNNL_ARG_SRC_0);
-        attr_info.with_src0_scale = !src0_scales.has_default_values();
-        gpu_assert(src0_scales.mask_ == 0);
+        const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
+        attr_info.with_src_scales = !src_scales.has_default_values();
+        attr_info.src_scales_mask = src_scales.mask_;
 
         const auto &src1_scales = attr->scales_.get(DNNL_ARG_SRC_1);
         attr_info.with_src1_scale = !src1_scales.has_default_values();
         gpu_assert(src1_scales.mask_ == 0);
-
-        const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
-        attr_info.with_src_scales = !src_scales.has_default_values();
-        gpu_assert(src_scales.mask_ == 0);
 
         const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
         attr_info.with_wei_scales = !wei_scales.has_default_values();
@@ -214,6 +210,7 @@ struct attr_info_t {
     bool with_src_scales;
     bool with_wei_scales;
     bool with_dst_scales;
+    bool src_scales_mask;
     bool wei_scales_mask;
 
     bool with_src_zpoints;
@@ -1411,6 +1408,7 @@ inline status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_SRC_SCALES", attr_info.with_src_scales);
     kernel_ctx.define_int("WITH_WEI_SCALES", attr_info.with_wei_scales);
     kernel_ctx.define_int("WITH_DST_SCALES", attr_info.with_dst_scales);
+    kernel_ctx.define_int("SRC_SCALES_MASK", attr_info.src_scales_mask);
     kernel_ctx.define_int("WEI_SCALES_MASK", attr_info.wei_scales_mask);
 
     kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);

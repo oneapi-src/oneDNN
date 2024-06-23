@@ -36,38 +36,55 @@
 
 #include "brgemm/brgemm.hpp"
 
-#if defined(DNNL_X64) && DNNL_X64 == 1 && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-template <>
-struct dnnl_api_traits<dnnl::impl::cpu::x64::brgemm_kernel_t *> {
-    static void destroy(dnnl::impl::cpu::x64::brgemm_kernel_t *t) {
-        DNN_SAFE_V(dnnl::impl::cpu::x64::brgemm_kernel_destroy(t));
-    }
-};
-
-#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1 \
-        && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-template <>
-struct dnnl_api_traits<dnnl::impl::cpu::aarch64::brgemm_kernel_t *> {
-    static void destroy(dnnl::impl::cpu::aarch64::brgemm_kernel_t *t) {
-        DNN_SAFE_V(dnnl::impl::cpu::aarch64::brgemm_kernel_destroy(t));
-    }
-};
-#endif
-
-namespace brgemm {
-
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+// Need these macro independently of API.
 #if defined(DNNL_X64) && DNNL_X64 == 1
 #define brg_x64
-#define namespace_impl dnnl::impl::cpu::x64
 #elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
 #define brg_aarch64
-#define namespace_impl dnnl::impl::cpu::aarch64
 #endif
+
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+#if defined(DNNL_X64) && DNNL_X64 == 1
+#define namespace_impl dnnl::impl::cpu::x64
+#elif defined(DNNL_AARCH64) && DNNL_AARCH64 == 1
+#define namespace_impl dnnl::impl::cpu::aarch64
+// TODO: remove when `brgemm_t` type gets renamed.
+using brgemm_desc_t = namespace_impl::brgemm_t;
 #endif
 
 #if defined(brg_x64) || defined(brg_aarch64)
+template <>
+struct dnnl_api_traits<namespace_impl::brgemm_kernel_t *> {
+    static void destroy(namespace_impl::brgemm_kernel_t *t) {
+        DNN_SAFE_V(namespace_impl::brgemm_kernel_destroy(t));
+    }
+};
+#endif
 
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+
+template <>
+struct dnnl_api_traits<dnnl_brgemm_t> {
+    static void destroy(dnnl_brgemm_t t) { DNN_SAFE_V(dnnl_brgemm_destroy(t)); }
+};
+
+template <>
+struct dnnl_api_traits<dnnl_brgemm_pack_B_t> {
+    static void destroy(dnnl_brgemm_pack_B_t t) {
+        DNN_SAFE_V(dnnl_brgemm_pack_B_destroy(t));
+    }
+};
+
+#endif
+
+#endif // DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
+
+namespace brgemm {
+
+#if defined(brg_x64) || defined(brg_aarch64)
+
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
 /// Initializes BRGEMM attributes from an input string.
 ///
 /// @param brgattr Output BRGEMM attributes.
@@ -186,6 +203,7 @@ namespace_impl::brgemm_batch_kind_t str2batch_kind(const std::string &str) {
     assert(!"Unsupported batch kind value");
     return namespace_impl::brgemm_batch_kind_t::brgemm_batch_kind_undef;
 }
+#endif
 
 int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
@@ -243,6 +261,164 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     return OK;
 }
 
+// An object to pass information between different modules of the flow.
+struct kernel_args_t {
+    kernel_args_t(const prb_t *prb, res_t *res)
+        :
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+        brgemm_kernel_(nullptr)
+        , palette()
+        , is_b_data_layout_vnni_(false)
+        , need_tile_config_(false)
+        , original_wei_md_size_(0)
+#else
+        brgemm_(nullptr)
+        , brgemm_pack_B_(nullptr)
+#endif
+        , scratchpad_size_(0)
+        , generate_skip_accumulation_(false)
+        , prb_(prb)
+        , res_(res) {
+    }
+
+    // Output members
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    namespace_impl::brgemm_kernel_t *brgemm_kernel_;
+    char palette[/*dnnl::impl::cpu::x64::AMX_PALETTE_SIZE = */ 64];
+    bool is_b_data_layout_vnni_;
+    bool need_tile_config_;
+    size_t original_wei_md_size_;
+#else
+    dnnl_brgemm_t brgemm_;
+    dnnl_brgemm_pack_B_t brgemm_pack_B_;
+#endif
+    size_t scratchpad_size_;
+    bool generate_skip_accumulation_;
+
+    // Input members
+    const prb_t *prb_;
+    res_t *res_;
+};
+
+int init_kernel(kernel_args_t &kernel_args) {
+    const prb_t *prb = kernel_args.prb_;
+    res_t *res = kernel_args.res_;
+
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    using namespace namespace_impl;
+
+    // Supports only address model for now as only affects the way memory is
+    // passed to `brgemm_batch_element_t` object.
+    brgemm_batch_kind_t batch_kind = str2batch_kind(prb->batch_kind);
+    brgemm_layout_t layout = brgemm_layout_t::brgemm_row_major;
+
+    // Pass `isa_undef` for now since internal work with it or rather isa bits
+    // than isa values directly which causes misalignment between public enum
+    // and internal values.
+    // TODO: re-consider enabling isa values.
+    const auto isa_undef = cpu_isa_t::isa_undef;
+
+    brgemm_desc_t brgemm_desc;
+
+    // Create BRGeMM descriptor, analogous to primitive descriptor creation
+    const auto status_init = brgemm_desc_init(&brgemm_desc, isa_undef,
+            batch_kind, prb->src_dt(), prb->wei_dt(), false /* transA */,
+            false /* transB */, layout, prb->alpha, prb->beta, prb->get_lda(),
+            prb->get_ldb(), prb->get_ldc(), prb->m, prb->n, prb->k,
+            nullptr /* strides */);
+    SAFE(check_dnnl_status(status_init, prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
+    attr_args_t attr_args;
+    const auto &wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
+    if (wei_scale.policy == policy_t::PER_OC) {
+        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, 2);
+    }
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
+    dims_t dst_strides = {prb->get_ldd(), 1};
+    auto dst_md = dnn_mem_t::init_md(
+            prb->ndims, prb->dst_dims.data(), prb->dst_dt(), "", dst_strides);
+
+    SAFE(check_dnnl_status(brgemm_desc_set_postops(&brgemm_desc, dnnl_attr,
+                                   dst_md, prb->get_ldd(), prb->bia_dt),
+                 prb, res),
+            WARN);
+    if (res->state == SKIPPED) return OK;
+
+    brgemm_attr_t brgemm_attr;
+    DNN_SAFE(brgemm_attr_init(&brgemm_attr, prb), WARN);
+    SAFE(check_dnnl_status(
+                 brgemm_desc_set_attr(&brgemm_desc, brgemm_attr), prb, res),
+            WARN);
+    if (res->state == SKIPPED) return OK;
+
+    kernel_args.generate_skip_accumulation_
+            = brgemm_attr.generate_skip_accumulation;
+
+    // Create BRGeMM kernel, analogous to primitive creation.
+    // ctx_init can here be used to select core type on hetero ISA with TBB.
+    brgemm_kernel_t **brgemm_kernel_addr = &kernel_args.brgemm_kernel_;
+    DNN_SAFE(create_in_thr_ctx(prb->ctx_init, brgemm_kernel_create,
+                     brgemm_kernel_addr, brgemm_desc),
+            WARN);
+
+#if defined(brg_x64)
+    // Palette configuration is required here to have `kernel_args`
+    // initialization consoidated in a single place.
+    const auto init_tiles_st
+            = brgemm_init_tiles(brgemm_desc, kernel_args.palette);
+    if (init_tiles_st == dnnl_success) { kernel_args.need_tile_config_ = true; }
+#endif
+
+    kernel_args.is_b_data_layout_vnni_ = brgemm_desc.is_b_data_layout_vnni();
+    kernel_args.scratchpad_size_ = brgemm_desc.get_wsp_buffer_size();
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    attr_args_t attr_args;
+    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
+            create_dnnl_attr(prb->attr, attr_args));
+
+    dnnl_status_t st = dnnl_success;
+    auto &brgemm = kernel_args.brgemm_;
+    st = dnnl_brgemm_create(&brgemm, prb->m, prb->n, prb->k, prb->batch_size,
+            prb->get_lda(), prb->get_ldb(), prb->get_ldc(), prb->get_ldd(),
+            prb->src_dt(), prb->wei_dt(), prb->acc_dt(), prb->dst_dt(),
+            prb->alpha, prb->beta, dnnl_attr);
+    SAFE(check_dnnl_status(st, prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
+    // Unneeded from API perspective, needed for reference.
+    kernel_args.generate_skip_accumulation_ = false;
+
+    st = dnnl_brgemm_generate(brgemm);
+    SAFE(check_dnnl_status(st, prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
+    st = dnnl_brgemm_get_scratchpad_size(brgemm, &kernel_args.scratchpad_size_);
+    SAFE(check_dnnl_status(st, prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
+    auto &brgemm_pack_B = kernel_args.brgemm_pack_B_;
+    dnnl_dim_t in_ld = prb->n; // TODO: extend for more?
+    st = dnnl_brgemm_pack_B_create(&brgemm_pack_B, prb->k * prb->batch_size,
+            prb->n, in_ld, prb->get_ldb(), prb->wei_dt(), prb->wei_dt());
+    SAFE(check_dnnl_status(st, prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
+    int need_pack = 0;
+    st = dnnl_brgemm_pack_B_need_pack(brgemm_pack_B, &need_pack);
+    SAFE(check_dnnl_status(st, prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
+    if (need_pack) {
+        st = dnnl_brgemm_pack_B_generate(brgemm_pack_B);
+        SAFE(check_dnnl_status(st, prb, res), WARN);
+        if (res->state == SKIPPED) return OK;
+    }
+#endif
+    return OK;
+}
+
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     auto is_xf16 = [](dnnl_data_type_t dt) {
         return dt == dnnl_bf16 || dt == dnnl_f16;
@@ -262,11 +438,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 
     // Unconditionally skip remaining unimplemented cases.
     // TODO: stop doing it.
+    BENCHDNN_PRINT(
+            2, "%s\n", "The kernel return unimplemented by some reason.");
     res->state = SKIPPED;
     res->reason = skip_reason::case_not_supported;
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
     // Reorder does not support s8 and zp compensations for arbitrary shapes,
     // so skip unsupported cases.
     // Note: this check must be done here to avoid runtime error in benchdnn due
@@ -276,10 +455,91 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     const bool req_s8_comp = prb->src_dt() == dnnl_s8;
     const bool req_zp_comp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     if (is_bad_ldb && (req_s8_comp || req_zp_comp)) {
+        BENCHDNN_PRINT(2, "%s\n",
+                "Reorder with compensation is not supported for a given LDB");
         res->state = SKIPPED;
         res->reason = skip_reason::case_not_supported;
         return;
     }
+
+    if (!prb->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
+        // TODO: weights zero point is not supported yet.
+        // It requires enabling f32 -> u8 reorder with compensation on the
+        // library side. When enabled, it produces incorrect results for cases
+        // with K=1. Likely there's a bug inside. Postpone supporting it.
+        BENCHDNN_PRINT(2, "%s\n",
+                "Reorder with compensation is not supported for u8 destination "
+                "data type");
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+
+    if (prb->attr.post_ops.binary_index() >= 0) {
+        // TODO: binary post-op is not supported yet.
+        BENCHDNN_PRINT(2, "%s\n",
+                "Binary post-op is not supported in the driver yet.");
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+#else
+    if (!prb->attr.is_def()) {
+        bool non_def_scales = !prb->attr.scales.is_def();
+        bool non_def_zps = !prb->attr.zero_points.is_def();
+        bool non_def_po = !prb->attr.post_ops.is_def();
+        bool non_def_fpmath = !prb->attr.fpmath_mode.is_def();
+        if (non_def_scales || non_def_zps || non_def_fpmath) {
+            BENCHDNN_PRINT(2, "%s\n",
+                    "Non-default scales/zero-points/fpmath attributes are not "
+                    "supported");
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
+            return;
+        }
+        if (non_def_po) {
+            const auto &po = prb->attr.post_ops;
+            bool has_sum = po.find(attr_t::post_ops_t::kind_t::SUM) != -1;
+            bool has_binary = po.binary_index() != -1;
+            if (has_sum || has_binary) {
+                BENCHDNN_PRINT(
+                        2, "%s\n", "Sum or binary post-ops are not supported");
+                res->state = SKIPPED;
+                res->reason = skip_reason::case_not_supported;
+                return;
+            }
+        }
+    }
+
+    const bool ldb_ok = prb->get_ldb() == 16 || prb->get_ldb() == 32
+            || prb->get_ldb() == 48 || prb->get_ldb() == 64;
+    if (!ldb_ok) {
+        BENCHDNN_PRINT(2, "%s\n",
+                "Unsupported leading B dimension. Only 16, 32, 48, and 64 are "
+                "supported");
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+
+    if (prb->bia_dt != dnnl_data_type_undef) {
+        BENCHDNN_PRINT(2, "%s\n", "Bias is not supported");
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+
+    if (prb->src_dt() == dnnl_s8 && prb->wei_dt() == dnnl_s8) {
+        // Pre-AMX ISAs require s8s8 compensation buffer passed. The internals
+        // should check if it was supplied and don't blow up if it wasn't
+        // provided.
+        BENCHDNN_PRINT(2, "%s\n", "s8s8 support is temporary disabled");
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+
+#endif
 }
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
@@ -290,26 +550,404 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
 }
 
-// A special wrapper needed to match internal infrastructure.
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+// A special wrapper needed to match internal benchdnn infrastructure.
 dnnl_status_t brgemm_kernel_execute_postops_wrapper(
         const namespace_impl::brgemm_kernel_t *brgemm_kernel,
-        namespace_impl::brgemm_batch_kind_t batch_kind, int batch_size,
-        const void *src_ptr, const void *wei_ptr,
+        const std::string &batch_kind, int batch_size, const void *src_ptr,
+        const void *wei_ptr,
         const namespace_impl::brgemm_batch_element_t *batch_element,
         void *acc_ptr, void *dst_ptr,
         const namespace_impl::brgemm_post_ops_data_t &post_ops_data,
         void *scratchpad_ptr, const dnnl_stream_t &stream,
         const std::vector<dnnl_exec_arg_t> &dnnl_args) {
 
-    if (batch_kind == namespace_impl::brgemm_batch_kind_t::brgemm_addr) {
+    if (batch_kind == "addr") {
         brgemm_kernel_execute_postops(brgemm_kernel, batch_size, batch_element,
                 acc_ptr, dst_ptr, post_ops_data, scratchpad_ptr);
-    } else if (batch_kind == namespace_impl::brgemm_batch_kind_t::brgemm_offs) {
+    } else if (batch_kind == "offs") {
         brgemm_kernel_execute_postops(brgemm_kernel, batch_size, src_ptr,
                 wei_ptr, batch_element, acc_ptr, dst_ptr, post_ops_data,
                 scratchpad_ptr);
     }
     return dnnl_success;
+}
+#else
+// A special wrapper needed to match internal benchdnn infrastructure.
+dnnl_status_t brgemm_kernel_execute_postops_wrapper(const_dnnl_brgemm_t brgemm,
+        const bool use_dst_as_acc, const void *src_ptr,
+        const void *wei_packed_ptr, const std::vector<dnnl_dim_t> &offsets,
+        void *acc_ptr, void *dst_ptr, void *scratchpad_ptr,
+        const dnnl_stream_t &stream,
+        const std::vector<dnnl_exec_arg_t> &dnnl_args) {
+
+    dnnl_status_t st = dnnl_runtime_error;
+    if (use_dst_as_acc) {
+        st = dnnl_brgemm_execute(brgemm, src_ptr, wei_packed_ptr,
+                offsets.data(), dst_ptr, scratchpad_ptr);
+    } else {
+        st = dnnl_brgemm_execute_postops(brgemm, src_ptr, wei_packed_ptr,
+                offsets.data(), acc_ptr, dst_ptr, scratchpad_ptr, nullptr);
+    }
+    return st;
+}
+#endif
+
+// `init_memory_args` is responsible for:
+// * Constructing all necessary `dnn_mem_t` objects needed by the brgemm kernel
+//   for the main operation and attributes.
+// * Stashing them with a proper exec_arg ID in a `mem_map` object.
+// See a common version of `init_memory_args` comment for more details.
+void init_memory_args(
+        dnn_mem_map_t &mem_map, const prb_t *prb, kernel_args_t &kernel_args) {
+    // Fuse batch size into K dimension which follows the library usage of the
+    // kernel batch size setting.
+    const dnnl_dims_t src_dims = {prb->m, prb->k * prb->batch_size};
+    const dnnl_dims_t wei_dims = {prb->k * prb->batch_size, prb->n};
+
+    dims_t src_strides = {prb->get_lda(), 1};
+    dims_t dst_strides = {prb->get_ldd(), 1};
+    dims_t acc_strides = prb->use_dst_as_acc() ? dst_strides : dims_t();
+
+    auto src_md = dnn_mem_t::init_md(
+            prb->ndims, src_dims, prb->src_dt(), "", src_strides);
+
+    auto dst_md = dnn_mem_t::init_md(
+            prb->ndims, prb->dst_dims.data(), prb->dst_dt(), "", dst_strides);
+
+    // Same as dst_md but with a pre-defined data type according to doc.
+    auto acc_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
+            prb->acc_dt(), tag::abx, acc_strides);
+
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    // Create weights memory descriptor with VNNI-friendly format.
+    // Note: LDB is not passed here. This is because it's super difficult to
+    // incorporate stride on top of blocking - oneDNN API doesn't provide any
+    // calls to support both options together. Submemory descriptor, which is
+    // the only one who can create such memory desc, can't return the size of
+    // memory. Thus, it requires two memories and we need to pass a memory
+    // handle from bigger one (where LDB is an actual dim value) to smaller, but
+    // there's some reorder bug resulting in an error.
+    const auto wtag = prepare_wei_format_string(
+            prb->wei_dt(), prb->get_ldb(), kernel_args.is_b_data_layout_vnni_);
+    BENCHDNN_PRINT(6, "wtag: %s\n", wtag.c_str());
+
+    auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(), wtag);
+    kernel_args.original_wei_md_size_ = dnnl_memory_desc_get_size(wei_md);
+
+    // Prepare and assign extra for wei_md when s8s8 compensation, or source
+    // zero point reduction values are needed.
+    dnnl::impl::memory_extra_desc_t wei_md_extra {};
+    wei_md_extra.flags = dnnl::impl::memory_extra_flags::none;
+    if (prb->get_dt(SRC) == dnnl_s8 && prb->get_dt(WEI) == dnnl_s8) {
+        wei_md_extra.flags
+                |= dnnl::impl::memory_extra_flags::compensation_conv_s8s8;
+        wei_md_extra.compensation_mask = 2; // N dimension
+    }
+    static_cast<dnnl_memory_desc_t>(wei_md)->extra = wei_md_extra;
+
+    const bool need_src_comp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
+    if (need_src_comp) {
+        wei_md_extra.flags |= dnnl::impl::memory_extra_flags::
+                compensation_conv_asymmetric_src;
+        wei_md_extra.asymm_compensation_mask = 2; // N dimension
+    }
+    static_cast<dnnl_memory_desc_t>(wei_md)->extra = wei_md_extra;
+
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_md {};
+    if (prb->bia_dt != dnnl_data_type_undef) {
+        const dnnl_dims_t bia_dims = {1, prb->n};
+        bia_md = dnn_mem_t::init_md(
+                prb->ndims, bia_dims, prb->bia_dt, tag::abx);
+    }
+#else
+    dims_t wei_strides = {prb->get_ldb(), 1};
+
+    auto wei_md = dnn_mem_t::init_md(
+            prb->ndims, wei_dims, prb->wei_dt(), tag::abx); // TODO: add `ba`.
+
+    // Needed to have enough memory after packing routine.
+    // TODO: generalize special f16 case.
+    const int dt_multiplier = prb->wei_dt() == dnnl_f16
+            ? 1
+            : 4 / dnnl_data_type_size(prb->wei_dt());
+    const dnnl_dim_t k_rounded = dt_multiplier * div_up(prb->k, dt_multiplier);
+    const dnnl_dims_t wei_packed_dims = {k_rounded * prb->batch_size, prb->n};
+    auto wei_packed_md = dnn_mem_t::init_md(
+            prb->ndims, wei_packed_dims, prb->wei_dt(), "", wei_strides);
+#endif
+
+    dnnl_dim_t scratchpad_size
+            = static_cast<dnnl_dim_t>(kernel_args.scratchpad_size_);
+    int ndims = scratchpad_size ? 1 : 0;
+    dnnl_data_type_t dt = scratchpad_size ? dnnl_u8 : dnnl_data_type_undef;
+    dnnl_dims_t scratchpad_dims = {scratchpad_size};
+    auto scratchpad_md
+            = dnn_mem_t::init_md(ndims, scratchpad_dims, dt, tag::abx);
+
+    const auto &test_engine = get_test_engine();
+
+    mem_map.emplace(DNNL_ARG_SRC, dnn_mem_t(src_md, test_engine));
+    mem_map.emplace(DNNL_ARG_WEIGHTS, dnn_mem_t(wei_md, test_engine));
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    if (prb->bia_dt != dnnl_data_type_undef) {
+        // Need condition to extract bias pointer based on presence in map
+        // condition.
+        mem_map.emplace(DNNL_ARG_BIAS, dnn_mem_t(bia_md, test_engine));
+    }
+#else
+    mem_map.emplace(DNNL_ARG_WEIGHTS_1, dnn_mem_t(wei_packed_md, test_engine));
+#endif
+    mem_map.emplace(DNNL_ARG_DST_1, dnn_mem_t(acc_md, test_engine));
+    mem_map.emplace(DNNL_ARG_DST, dnn_mem_t(dst_md, test_engine));
+    if (scratchpad_size > 0) {
+        // Need condition to extract scratchpad pointer based on presence in map
+        // condition.
+        mem_map.emplace(
+                DNNL_ARG_SCRATCHPAD, dnn_mem_t(scratchpad_md, test_engine));
+    }
+
+    if (!prb->attr.scales.is_def()) {
+        const auto &sc = prb->attr.scales;
+        static const std::vector<int> supported_args {
+                DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+        for (const auto &exec_arg : supported_args) {
+            if (sc.is_def(exec_arg)) continue;
+
+            const int exec_sc_arg = DNNL_ARG_ATTR_SCALES | exec_arg;
+            dims_t dims = {};
+            int64_t ndims = 1;
+            const auto mask = sc.get_mask(
+                    exec_arg, dnnl_matmul, 2, /* has_groups = */ false);
+
+            if (mask > 0) {
+                const auto &md = mem_map.at(exec_arg).md_;
+                dims = md2dims(md, mask, false);
+                ndims = static_cast<int>(dims.size());
+            } else {
+                dims = {1};
+                ndims = 1;
+            }
+            const auto dt = sc.get(exec_arg).dt;
+            auto scales_md
+                    = dnn_mem_t::init_md(ndims, dims.data(), dt, tag::abx);
+            mem_map.emplace(exec_sc_arg, dnn_mem_t(scales_md, test_engine));
+        }
+    }
+
+    if (!prb->attr.zero_points.is_def()) {
+        const auto &zp = prb->attr.zero_points;
+        static const std::vector<int> supported_args {
+                DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+        for (const auto &exec_arg : supported_args) {
+            if (zp.is_def(exec_arg)) continue;
+
+            const int exec_zp_arg = DNNL_ARG_ATTR_ZERO_POINTS | exec_arg;
+            dims_t dims = {};
+            int64_t ndims = 1;
+            const auto mask
+                    = zp.get_mask(exec_arg, dnnl_matmul, /* ndims = */ 2);
+
+            if (mask > 0) {
+                const auto &md = mem_map.at(exec_arg).md_;
+                dims = md2dims(md, mask, false);
+                ndims = static_cast<int>(dims.size());
+            } else {
+                dims = {1};
+                ndims = 1;
+            }
+            const auto dt = zp.get(exec_arg).dt;
+            auto zp_md = dnn_mem_t::init_md(ndims, dims.data(), dt, tag::abx);
+            mem_map.emplace(exec_zp_arg, dnn_mem_t(zp_md, test_engine));
+        }
+    }
+}
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        const prb_t *prb, const kernel_args_t &kernel_args, res_t *res) {
+    const auto &ref_engine = get_cpu_engine();
+
+    // Move cfg out of filling since its creation is not free.
+    cfg_t cfg(prb, {SRC, WEI, BIA, DST});
+
+    const bool need_fill_acc
+            = (prb->beta != 0) || kernel_args.generate_skip_accumulation_;
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        // The function targets regular exec_args that are positive.
+        // Negative args are used by bitwise and are broken in the `default`
+        // branch due to `&` always returns `true`.
+        if (exec_arg <= 0) continue;
+
+        auto &mem = entry.second; // `mem` is modified by filler (reorder).
+
+        // Scratchpad memory relates to a primitive. If reference needs it,
+        // use switch below to define a memory desc for it.
+        if (exec_arg != DNNL_ARG_SCRATCHPAD) {
+            ref_mem_map.emplace(exec_arg,
+                    dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        }
+
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC:
+                SAFE(fill_data(SRC, prb, cfg, mem, ref_mem, res), WARN);
+                break;
+            case DNNL_ARG_WEIGHTS:
+                SAFE(fill_data(WEI, prb, cfg, mem, ref_mem, res), WARN);
+                break;
+            case DNNL_ARG_BIAS:
+                SAFE(fill_data(BIA, prb, cfg, mem, ref_mem, res), WARN);
+                break;
+            case DNNL_ARG_DST: {
+                const auto &po = prb->attr.post_ops;
+                const int sum_idx = po.find(attr_t::post_ops_t::SUM);
+                if (sum_idx >= 0) {
+                    SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
+                }
+            } break;
+            case DNNL_ARG_DST_1: {
+                if (need_fill_acc) {
+                    SAFE(fill_data(DST, prb, cfg, mem, ref_mem, res), WARN);
+                }
+            } break;
+            default:
+                SAFE(init_ref_memory_args_default_case(
+                             exec_arg, mem, ref_mem, prb->attr, res),
+                        WARN);
+                break;
+        }
+    }
+
+    if (need_fill_acc) {
+        // Beta requires same values for reference and the kernel.
+        if (prb->use_dst_as_acc()) {
+            auto &acc_fp = ref_mem_map.at(DNNL_ARG_DST_1);
+            auto &dst_fp = ref_mem_map.at(DNNL_ARG_DST);
+            auto &dst_dt = mem_map.at(DNNL_ARG_DST);
+
+            SAFE(dst_fp.reorder(acc_fp), WARN);
+            SAFE(dst_dt.reorder(dst_fp), WARN);
+        }
+    }
+
+    // A hack to pass brgemm attributes to reference execution since some
+    // members change the computation flow for correctness validation.
+    dnnl_dims_t dims = {1};
+    auto workspace_md = dnn_mem_t::init_md(1, dims, dnnl_u8, tag::abx);
+    ref_mem_map.emplace(DNNL_ARG_WORKSPACE,
+            dnn_mem_t(workspace_md, ref_engine,
+                    {false, (void *)&kernel_args.generate_skip_accumulation_}));
+    ref_mem_map.at(DNNL_ARG_WORKSPACE).map();
+
+    return OK;
+}
+
+int scales_post_processing(dnn_mem_map_t &mem_map) {
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    // Internal API has specific implementation details w.r.t. scales.
+    // If any of source or weights scales present in the descriptor, then the
+    // kernel expects to get a vector of 16 float values (v16) of "fused" scale
+    // values (src * wei) under the pointer passed in brgemm_post_ops_data_t
+    // struct.
+    // However, if weights scales is per channel, then the kernel expects just
+    // `N` values, even if `N < 16`.
+    // Same applies for a destination scale. Due to it's handled separately from
+    // source and weights, and must be a single value, it must be a v16 memory.
+    //
+    // To smoothly take care of this detail, the code below will **always**
+    // update WEIGHTS scale (even if they are not present) with a proper memory
+    // of 16 or N elements, depending on the case.
+    // It will update destination memory to contain 16 elements as well.
+
+    const bool has_src_scale
+            = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    const bool has_wei_scale
+            = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    const bool has_dst_scale
+            = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+
+    const auto replace_mem_to_v16 = [&](dnnl_data_type_t dt, int exec_arg,
+                                            float val) {
+        dims_t dims = {16};
+        auto new_md = dnn_mem_t::init_md(1, dims.data(), dt, tag::abx);
+        dnn_mem_t new_m(new_md, get_test_engine());
+        for (int64_t i = 0; i < new_m.nelems(); i++) {
+            new_m.set_elem(i, val);
+        }
+        mem_map[DNNL_ARG_ATTR_SCALES | exec_arg] = std::move(new_m);
+    };
+
+    if (has_wei_scale) {
+        const auto &wei_scales_m
+                = mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+        // First, update the values...
+        if (has_src_scale) {
+            const auto &src_scales_m
+                    = mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+            assert(src_scales_m.nelems() == 1);
+            const float src_val = src_scales_m.get_elem(0);
+            for (int64_t i = 0; i < wei_scales_m.nelems(); i++) {
+                float val = wei_scales_m.get_elem(i) * src_val;
+                wei_scales_m.set_elem(i, val);
+            }
+        }
+        // Second, update memory for a single scale.
+        if (wei_scales_m.nelems() == 1) {
+            replace_mem_to_v16(wei_scales_m.dt(), DNNL_ARG_WEIGHTS,
+                    wei_scales_m.get_elem(0));
+        }
+    } else if (has_src_scale) {
+        const auto &src_scales_m
+                = mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+        assert(src_scales_m.nelems() == 1);
+        // Create a v16 weights scales memory and put src value there.
+        replace_mem_to_v16(
+                src_scales_m.dt(), DNNL_ARG_WEIGHTS, src_scales_m.get_elem(0));
+    }
+
+    if (has_dst_scale) {
+        const auto &dst_scales_m
+                = mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
+        assert(dst_scales_m.nelems() == 1);
+        // Create a v16 dst scales memory and bcast inversed dst value there.
+        replace_mem_to_v16(dst_scales_m.dt(), DNNL_ARG_DST,
+                1.f / dst_scales_m.get_elem(0));
+    }
+
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    // ukernel API takes split pointers for scales, no need to update them on
+    // user level.
+#endif
+    return OK;
+}
+
+int init_hw_config(const kernel_args_t &kernel_args) {
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+#if defined(brg_x64)
+    if (kernel_args.need_tile_config_) {
+        DNN_SAFE(namespace_impl::amx_tile_configure(kernel_args.palette), WARN);
+    }
+#endif
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    DNN_SAFE(dnnl_brgemm_set_hw_context(kernel_args.brgemm_), WARN);
+#endif
+    return OK;
+}
+
+int release_hw_config(const kernel_args_t &kernel_args) {
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+#if defined(brg_x64)
+    if (kernel_args.need_tile_config_) {
+        DNN_SAFE(namespace_impl::amx_tile_release(), WARN);
+    }
+#endif
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    DNN_SAFE(dnnl_brgemm_release_hw_context(), WARN);
+#endif
+    return OK;
 }
 
 int doit(const prb_t *prb, res_t *res) {
@@ -322,291 +960,84 @@ int doit(const prb_t *prb, res_t *res) {
     skip_invalid_prb(prb, res);
     if (res->state == SKIPPED) return OK;
 
-    bool use_dst_as_acc = false;
-    if (prb->bia_dt == dnnl_data_type_undef && prb->acc_dt() == prb->dst_dt()
-            && prb->attr.is_def(/* skip_fmpath = */ true))
-        use_dst_as_acc = true;
-
-    // Fuse batch size into K dimension which follows the library usage of the
-    // kernel batch size setting.
-    const dnnl_dims_t src_dims = {prb->m, prb->k * prb->batch_size};
-    const dnnl_dims_t wei_dims = {prb->k * prb->batch_size, prb->n};
-
-    dims_t src_strides = {prb->get_lda(), 1};
-    dims_t dst_strides = {prb->get_ldd(), 1};
-    dims_t acc_strides = use_dst_as_acc ? dst_strides : dims_t();
-
-    auto dst_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
-            prb->dst_dt(), prb->dtag, dst_strides);
-
-    using namespace namespace_impl;
-#if defined(brg_x64)
-    brgemm_desc_t brgemm_desc;
-#elif defined(brg_aarch64)
-    brgemm_t brgemm_desc;
-#endif
-    // Supports only address model for now as only affects the way memory is
-    // passed to `brgemm_batch_element_t` object.
-    brgemm_batch_kind_t batch_kind = str2batch_kind(prb->batch_kind);
-    brgemm_layout_t layout = brgemm_layout_t::brgemm_row_major;
-
-    // Pass `isa_undef` for now since internal work with it or rather isa bits
-    // than isa values directly which causes misalignment between public enum
-    // and internal values.
-    // TODO: re-consider enabling isa values.
-    const auto isa_undef = cpu_isa_t::isa_undef;
-
-    // Create BRGeMM descriptor, analogous to primitive descriptor creation
-    const auto status_init = brgemm_desc_init(&brgemm_desc, isa_undef,
-            batch_kind, prb->src_dt(), prb->wei_dt(), false /* transA */,
-            false /* transB */, layout, prb->alpha, prb->beta, prb->get_lda(),
-            prb->get_ldb(), prb->get_ldc(use_dst_as_acc), prb->m, prb->n,
-            prb->k, nullptr /* strides */);
-    SAFE(check_dnnl_status(status_init, prb, res), WARN);
+    kernel_args_t kernel_args(prb, res);
+    SAFE(init_kernel(kernel_args), WARN);
     if (res->state == SKIPPED) return OK;
-
-    attr_args_t attr_args;
-    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    if (wei_scale.policy == policy_t::PER_OC) {
-        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, 2);
-    }
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args));
-
-    SAFE(check_dnnl_status(brgemm_desc_set_postops(&brgemm_desc, dnnl_attr,
-                                   dst_md, prb->get_ldd(), prb->bia_dt),
-                 prb, res),
-            WARN);
-    if (res->state == SKIPPED) return OK;
-
-    brgemm_attr_t brgemm_attr;
-    DNN_SAFE(brgemm_attr_init(&brgemm_attr, prb), WARN);
-    SAFE(check_dnnl_status(
-                 brgemm_desc_set_attr(&brgemm_desc, brgemm_attr), prb, res),
-            WARN);
-    if (res->state == SKIPPED) return OK;
-
-    // Create BRGeMM kernel, analogous to primitive creation.
-    // ctx_init can here be used to select core type on hetero ISA with
-    // tbb
-    brgemm_kernel_t *brgemm_kernel_;
-    {
-        auto brgemm_kernel_addr = &brgemm_kernel_;
-        DNN_SAFE(create_in_thr_ctx(prb->ctx_init, brgemm_kernel_create,
-                         brgemm_kernel_addr, brgemm_desc),
-                WARN);
-    }
-    auto brgemm_kernel = make_benchdnn_dnnl_wrapper(brgemm_kernel_);
-
-#if defined(brg_x64)
-    const auto is_tmm = brgemm_desc.is_tmm;
-    if (is_tmm) {
-        char palette[AMX_PALETTE_SIZE] = {};
-        DNN_SAFE(brgemm_init_tiles(brgemm_desc, palette), WARN);
-        DNN_SAFE(amx_tile_configure(palette), WARN);
-    }
-#endif
-
-    auto src_md = dnn_mem_t::init_md(
-            prb->ndims, src_dims, prb->src_dt(), prb->stag, src_strides);
-
-    // Create weights memory descriptor with VNNI-friendly format.
-    // Note: LDB is not passed here. This is because it's super difficult to
-    // incorporate stride on top of blocking - oneDNN API doesn't provide any
-    // calls to support both options together. Submemory descriptor, which is
-    // the only one who can create such memory desc, can't return the size of
-    // memory. Thus, it requires two memories and we need to pass a memory
-    // handle from bigger one (where LDB is an actual dim value) to smaller, but
-    // there's some reorder bug resulting in an error.
-    const auto wtag = prepare_wei_format_string(
-            prb->wei_dt(), prb->get_ldb(), brgemm_desc.is_b_data_layout_vnni());
-    BENCHDNN_PRINT(6, "wtag: %s\n", wtag.c_str());
-    auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(), wtag);
-
-    const size_t wei_offset_s8s8 = dnnl_memory_desc_get_size(wei_md);
-    // Prepare and assign extra for wei_md when s8s8 compensation, or source
-    // zero point reduction values are needed.
-    dnnl::impl::memory_extra_desc_t wei_md_extra {};
-    wei_md_extra.flags = dnnl::impl::memory_extra_flags::none;
-    if (prb->get_dt(SRC) == dnnl_s8 && prb->get_dt(WEI) == dnnl_s8) {
-        wei_md_extra.flags
-                |= dnnl::impl::memory_extra_flags::compensation_conv_s8s8;
-        wei_md_extra.compensation_mask = 2; // N dimension
-    }
-    static_cast<dnnl_memory_desc_t>(wei_md)->extra = wei_md_extra;
-
-    const size_t wei_offset_zp = wei_offset_s8s8
-            + (wei_md_extra.flags != dnnl::impl::memory_extra_flags::none
-                            ? prb->get_ldb() * sizeof(int32_t)
-                            : 0);
-
-    const bool need_src_comp = !prb->attr.zero_points.is_def(DNNL_ARG_SRC);
-    if (need_src_comp) {
-        wei_md_extra.flags |= dnnl::impl::memory_extra_flags::
-                compensation_conv_asymmetric_src;
-        wei_md_extra.asymm_compensation_mask = 2; // N dimension
-    }
-    static_cast<dnnl_memory_desc_t>(wei_md)->extra = wei_md_extra;
-
-    // Same as dst_md but with a pre-defined data type according to doc.
-    auto acc_md = dnn_mem_t::init_md(prb->ndims, prb->dst_dims.data(),
-            prb->acc_dt(), tag::abx, acc_strides);
-
-    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_md {};
-    if (prb->bia_dt != dnnl_data_type_undef) {
-        const dnnl_dims_t bia_dims = {1, prb->n};
-        bia_md = dnn_mem_t::init_md(
-                prb->ndims, bia_dims, prb->bia_dt, tag::abx);
-    }
-
     if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
-    const auto &test_engine = get_test_engine();
-    const auto &ref_engine = get_cpu_engine();
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    auto brgemm_kernel = make_benchdnn_dnnl_wrapper(kernel_args.brgemm_kernel_);
+#else
+    auto brgemm = make_benchdnn_dnnl_wrapper(kernel_args.brgemm_);
+    auto brgemm_pack_B = make_benchdnn_dnnl_wrapper(kernel_args.brgemm_pack_B_);
+#endif
 
-    dnn_mem_t src_dt(src_md, test_engine);
-    dnn_mem_t wei_dt(wei_md, test_engine);
-    dnn_mem_t acc_dt(acc_md, test_engine);
-    dnn_mem_t dst_dt(dst_md, test_engine);
-    dnn_mem_t bia_dt;
-    const char *bia_dt_ptr = nullptr;
-    if (prb->bia_dt != dnnl_data_type_undef) {
-        bia_dt = dnn_mem_t(bia_md, test_engine);
-        bia_dt_ptr = (const char *)bia_dt;
-    }
-
-    dnn_mem_t src_fp(src_md, dnnl_f32, tag::abx, ref_engine);
-    dnn_mem_t wei_fp(wei_md, dnnl_f32, tag::abx, ref_engine);
-    dnn_mem_t acc_fp(acc_md, dnnl_f32, tag::abx, ref_engine);
-    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, ref_engine);
-    dnn_mem_t bia_fp;
-    if (prb->bia_dt != dnnl_data_type_undef)
-        bia_fp = dnn_mem_t(bia_md, dnnl_f32, tag::abx, ref_engine);
-
-    // Move cfg out of filling since its creation is not free.
-    cfg_t cfg(prb, {SRC, WEI, BIA, DST});
-    TIME_FILL(SAFE(fill_data(SRC, prb, cfg, src_dt, src_fp, res), WARN));
-    TIME_FILL(SAFE(fill_data(WEI, prb, cfg, wei_dt, wei_fp, res), WARN));
-    const int sum_idx = prb->attr.post_ops.find(attr_t::post_ops_t::SUM);
-    if ((prb->beta != 0) || brgemm_attr.generate_skip_accumulation) {
-        TIME_FILL(SAFE(fill_data(DST, prb, cfg, acc_dt, acc_fp, res), WARN));
-        // Beta requires same values for reference and the kernel.
-        if (use_dst_as_acc) {
-            SAFE(dst_fp.reorder(acc_fp), WARN);
-            SAFE(dst_dt.reorder(dst_fp), WARN);
-        }
-    }
-    if (sum_idx >= 0)
-        TIME_FILL(SAFE(fill_data(DST, prb, cfg, dst_dt, dst_fp, res), WARN));
-    if (prb->bia_dt != dnnl_data_type_undef)
-        TIME_FILL(SAFE(fill_data(BIA, prb, cfg, bia_dt, bia_fp, res), WARN));
+    dnn_mem_map_t mem_map, ref_mem_map;
+    init_memory_args(mem_map, prb, kernel_args);
+    TIME_FILL(SAFE(
+            init_ref_memory_args(ref_mem_map, mem_map, prb, kernel_args, res),
+            WARN));
 
     // "Library" args are needed to get dst for comparison.
     // "Reference" are used as usual.
-    args_t args, ref_args;
-    args.set(DNNL_ARG_DST, dst_dt);
+    args_t args(mem_map), ref_args(ref_mem_map);
 
-    std::vector<brgemm_batch_element_t> v_batch_element(prb->batch_size);
-    const char *src_ptr = (const char *)src_dt;
-    const char *wei_ptr = (const char *)wei_dt;
-    // Note: batch_size is incorporated into K dimension.
-    // That's why each source batch has an offset of `k`.
-    // Weights have more complicated case. Weights are in double-blocked format,
-    // which becomes triple-blocked for bf16 and int8 to become VNNI-friendly.
-    // Because of this and batch_size incorporation, offsets below DO NOT work
-    // with K not divisible by K block size and batch_size > 1.
-    // The problem is it can't be handled properly when batch size is fused,
-    // but this allows enable s8s8 and zero-points compensation cases easier.
-    int block_size = 0;
-    switch (prb->wei_dt()) {
-        case dnnl_f32: block_size = 16; break;
-        case dnnl_f16: block_size = 16; break;
-        case dnnl_bf16: block_size = 32; break;
-        case dnnl_u8:
-        case dnnl_f8_e5m2:
-        case dnnl_f8_e4m3:
-        case dnnl_s8: block_size = 64; break;
-        default: break;
-    }
-    (void)block_size;
-    assert(block_size > 1);
-    assert(IMPLICATION(prb->batch_size > 1, prb->k % block_size == 0));
+    const char *src_ptr = (const char *)mem_map.at(DNNL_ARG_SRC);
+    const char *wei_ptr = (const char *)mem_map.at(DNNL_ARG_WEIGHTS);
+    char *acc_ptr = (char *)mem_map.at(DNNL_ARG_DST_1);
+    char *dst_ptr = (char *)mem_map.at(DNNL_ARG_DST);
+    if (prb->use_dst_as_acc()) acc_ptr = dst_ptr;
 
-    const int64_t src_batch_offset = prb->k;
-    const int64_t wei_batch_offset = prb->get_ldb() * prb->k;
-    BENCHDNN_PRINT(6, "src_batch_offset=%ld wei_batch_offset=%ld\n",
-            (long)src_batch_offset, (long)wei_batch_offset);
+    SAFE(scales_post_processing(mem_map), WARN);
 
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    std::vector<namespace_impl::brgemm_batch_element_t> v_batch_element(
+            prb->batch_size);
     for (size_t i = 0; i < v_batch_element.size(); i++) {
-        if (batch_kind == brgemm_batch_kind_t::brgemm_addr) {
+        if (prb->batch_kind == "addr") {
             v_batch_element[i].ptr.A
-                    = src_ptr + i * src_batch_offset * src_dt.sizeof_dt();
+                    = src_ptr + i * prb->get_src_batch_offset();
             v_batch_element[i].ptr.B
-                    = wei_ptr + i * wei_batch_offset * wei_dt.sizeof_dt();
-        } else if (batch_kind == brgemm_batch_kind_t::brgemm_offs) {
-            v_batch_element[i].offset.A
-                    = i * src_batch_offset * src_dt.sizeof_dt();
-            v_batch_element[i].offset.B
-                    = i * wei_batch_offset * wei_dt.sizeof_dt();
+                    = wei_ptr + i * prb->get_wei_batch_offset();
+        } else if (prb->batch_kind == "offs") {
+            v_batch_element[i].offset.A = i * prb->get_src_batch_offset();
+            v_batch_element[i].offset.B = i * prb->get_wei_batch_offset();
         }
     }
 
-    // Brgemm takes single pointer oscale, but relies on a combination of arg
-    // scales attributes. This helps to reuse attributes from primitives, but
-    // requires them to pre-compute oscale = src_scale * wei_scale[:]
-    auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
-    auto attr_scale = !wei_scale.is_def() ? wei_scale : src_scale;
+    const float *scales_ptr
+            = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
+            ? (const float *)mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
+            : nullptr;
+    const float *dst_scales_ptr
+            = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
+            ? (const float *)mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
+            : nullptr;
+    const int32_t *dst_zp_ptr
+            = mem_map.count(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
+            ? (const int32_t *)mem_map.at(
+                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
+            : nullptr;
+    int32_t zp_a_val = mem_map.count(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC)
+            ? *(const int32_t *)mem_map.at(
+                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC)
+            : 0;
+    const char *bia_dt_ptr = mem_map.count(DNNL_ARG_BIAS)
+            ? (const char *)mem_map.at(DNNL_ARG_BIAS)
+            : nullptr;
 
-    const int64_t count = attr_scale.policy == policy_t::COMMON ? 1 : prb->n;
-    dnn_mem_t scales(1, &count, dnnl_f32, tag::x, get_test_engine());
-    for (int64_t c = 0; c < count; ++c)
-        scales.set_elem(c, prb->scales[c]);
+    const auto &wei_md = mem_map.at(DNNL_ARG_WEIGHTS).md_;
+    const auto &wei_md_extra = static_cast<dnnl_memory_desc_t>(wei_md)->extra;
+    // This relies on an internal knowledge of how compensation is implemented.
+    const size_t wei_offset_s8s8 = kernel_args.original_wei_md_size_;
+    const size_t wei_offset_zp = wei_offset_s8s8
+            + ((wei_md_extra.flags
+                       & dnnl::impl::memory_extra_flags::compensation_conv_s8s8)
+                            ? prb->get_ldb() * sizeof(int32_t)
+                            : 0);
+    char *src_comp_ptr = const_cast<char *>(wei_ptr) + wei_offset_zp;
 
-    // Handle output scale common policy separately since the implementation
-    // always expects them to be of vector length in case of `common` policy.
-    std::vector<float> v16_scales(16, prb->scales[0]);
-    const float *scales_ptr = attr_scale.policy == policy_t::COMMON
-            ? v16_scales.data()
-            : (const float *)scales;
-
-    assert(prb->attr.scales.get(DNNL_ARG_DST).policy == policy_t::COMMON);
-    const int64_t dst_scales_count = 1;
-    dnn_mem_t dst_scales(
-            1, &dst_scales_count, dnnl_f32, tag::x, get_test_engine());
-    for (int64_t c = 0; c < dst_scales_count; ++c)
-        // precompute inverted dst scales as expected in brgemm implementation
-        dst_scales.set_elem(c, 1.f / prb->dst_scales[c]);
-
-    // Handle output scale common policy separately since the implementation
-    // always expects them to be of vector length in case of `common` policy.
-    std::vector<float> v16_dst_scales(16, 1.f / prb->dst_scales[0]);
-    const float *dst_scales_ptr = v16_dst_scales.data();
-
-    char *acc_ptr = (char *)acc_dt;
-
-    const int32_t *dst_zp_ptr = (const int32_t *)prb->dst_zp;
-    char *src_comp_ptr = (char *)wei_dt + wei_offset_zp;
-    int32_t zp_a_val
-            = !prb->attr.zero_points.is_def(DNNL_ARG_SRC) ? prb->src_zp[0] : 0;
-
-    if (!prb->attr.zero_points.is_def(DNNL_ARG_WEIGHTS)) {
-        // TODO: weights zero point is not supported yet.
-        // It requires enabling f32 -> u8 reorder with compensation on the
-        // library side. When enabled, it produces incorrect results for cases
-        // with K=1. Likely there's a bug inside. Postpone supporting it.
-        res->state = SKIPPED;
-        res->reason = skip_reason::case_not_supported;
-        return OK;
-    }
-
-    if (prb->attr.post_ops.binary_index() >= 0) {
-        // TODO: binary post-op is not supported yet.
-        res->state = SKIPPED;
-        res->reason = skip_reason::case_not_supported;
-        return OK;
-    }
-
-    brgemm_post_ops_data_t post_ops_data(
+    namespace_impl::brgemm_post_ops_data_t post_ops_data(
             /* bias */ bia_dt_ptr,
             /* scales */ scales_ptr, /* binary_post_ops_rhs */ nullptr,
             /* oc_logical_off */ 0, /* dst_row_logical_off */ 0,
@@ -614,63 +1045,98 @@ int doit(const prb_t *prb, res_t *res) {
             /* a_zp_compensations */ src_comp_ptr,
             /* b_zp_compensations */ nullptr,
             /* c_zp_values */ dst_zp_ptr,
-            /* skip_accumulation */ brgemm_attr.generate_skip_accumulation,
+            /* skip_accumulation */
+            kernel_args.generate_skip_accumulation_,
             /* zp_a_val */ zp_a_val,
             /* do_only_comp */ false,
             /* do_only_zp_a_val */ false,
             /* dst_scales */ dst_scales_ptr);
 
-    auto scratchpad_size = brgemm_desc.get_wsp_buffer_size();
-    std::vector<char> scratchpad(scratchpad_size);
     // Note: hardware lacking native s8s8 support expects compensation buffer
     // passed through a scratchpad argument in postops execution call.
-    const bool need_hidden_compensation = scratchpad_size == 0
+    const bool has_scratchpad = mem_map.count(DNNL_ARG_SCRATCHPAD);
+    const bool need_hidden_compensation = !has_scratchpad
             && prb->get_dt(SRC) == dnnl_s8 && prb->get_dt(WEI) == dnnl_s8;
     char *scratchpad_ptr = need_hidden_compensation
-            ? ((char *)wei_dt + wei_offset_s8s8)
-            : scratchpad.data();
+            ? (const_cast<char *>(wei_ptr) + wei_offset_s8s8)
+            : has_scratchpad ? (char *)mem_map.at(DNNL_ARG_SCRATCHPAD)
+                             : nullptr;
 
-    char *dst_ptr = (char *)dst_dt;
-    if (use_dst_as_acc) acc_ptr = dst_ptr;
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    char *wei_packed_ptr = (char *)mem_map.at(DNNL_ARG_WEIGHTS_1);
 
-    if (batch_kind == brgemm_batch_kind_t::brgemm_addr) {
+    char *scratchpad_ptr = mem_map.count(DNNL_ARG_SCRATCHPAD)
+            ? (char *)mem_map.at(DNNL_ARG_SCRATCHPAD)
+            : nullptr;
+
+    int need_pack = 0;
+    DNN_SAFE(dnnl_brgemm_pack_B_need_pack(brgemm_pack_B, &need_pack), WARN);
+
+    if (need_pack) {
+        auto st = dnnl_brgemm_pack_B_execute(
+                brgemm_pack_B, wei_ptr, wei_packed_ptr);
+        SAFE(check_dnnl_status(st, prb, res), WARN);
+        if (res->state == SKIPPED) return OK;
+    } else {
+        const auto &wei_dt = mem_map.at(DNNL_ARG_WEIGHTS);
+        auto &wei_packed_dt = mem_map.at(DNNL_ARG_WEIGHTS_1);
+        SAFE(wei_packed_dt.reorder(wei_dt), WARN);
+    }
+
+    std::vector<dnnl_dim_t> offsets(2 * prb->batch_size);
+    for (dnnl_dim_t i = 0; i < prb->batch_size; i++) {
+        offsets[2 * i + 0] = i * prb->get_src_batch_offset();
+        offsets[2 * i + 1] = i * prb->get_wei_batch_offset();
+    }
+#endif
+
+    SAFE(init_hw_config(kernel_args), WARN);
+
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    if (prb->batch_kind == "addr") {
         brgemm_kernel_execute_postops(brgemm_kernel, prb->batch_size,
                 v_batch_element.data(), acc_ptr, dst_ptr, post_ops_data,
                 scratchpad_ptr);
-    } else if (batch_kind == brgemm_batch_kind_t::brgemm_offs) {
+    } else if (prb->batch_kind == "offs") {
         brgemm_kernel_execute_postops(brgemm_kernel, prb->batch_size, src_ptr,
                 wei_ptr, v_batch_element.data(), acc_ptr, dst_ptr,
                 post_ops_data, scratchpad_ptr);
     }
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    if (prb->use_dst_as_acc()) {
+        DNN_SAFE(dnnl_brgemm_execute(brgemm, src_ptr, wei_packed_ptr,
+                         offsets.data(), dst_ptr, scratchpad_ptr),
+                WARN);
+    } else {
+        DNN_SAFE(dnnl_brgemm_execute_postops(brgemm, src_ptr, wei_packed_ptr,
+                         offsets.data(), acc_ptr, dst_ptr, scratchpad_ptr,
+                         nullptr),
+                WARN);
+    }
+#endif
     res->state = EXECUTED;
 
     if (has_bench_mode_bit(mode_bit_t::corr)) {
-        ref_args.set(DNNL_ARG_SRC, src_fp);
-        ref_args.set(DNNL_ARG_WEIGHTS, wei_fp);
-        if (prb->bia_dt != dnnl_data_type_undef)
-            ref_args.set(DNNL_ARG_BIAS, bia_fp);
-        ref_args.set(DNNL_ARG_DST, dst_fp);
-        // Passing accumulator values for `generate_skip_accumulation` check.
-        ref_args.set(DNNL_ARG_SRC_1, acc_fp);
-        // A hack to pass brgemm attributes to reference since some members
-        // change the computation flow for correctness validation.
-        dnn_mem_t workspace(src_md, ref_engine, {false, (void *)&brgemm_attr});
-        workspace.map();
-        ref_args.set(DNNL_ARG_WORKSPACE, workspace);
-
         check_correctness(prb, {DST}, args, ref_args, setup_cmp, res);
     }
 
     // Create a bind to match internals to run performance measurements.
+#if !defined(DNNL_EXPERIMENTAL_UKERNEL)
     perf_function_t perf_func = std::bind(brgemm_kernel_execute_postops_wrapper,
-            brgemm_kernel_, batch_kind, prb->batch_size, src_ptr, wei_ptr,
-            v_batch_element.data(), acc_ptr, dst_ptr, post_ops_data,
-            scratchpad_ptr, std::placeholders::_1, std::placeholders::_2);
+            kernel_args.brgemm_kernel_, prb->batch_kind, prb->batch_size,
+            src_ptr, wei_ptr, v_batch_element.data(), acc_ptr, dst_ptr,
+            post_ops_data, scratchpad_ptr, std::placeholders::_1,
+            std::placeholders::_2);
+#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+    perf_function_t perf_func = std::bind(brgemm_kernel_execute_postops_wrapper,
+            kernel_args.brgemm_, prb->use_dst_as_acc(), src_ptr, wei_packed_ptr,
+            offsets, acc_ptr, dst_ptr, scratchpad_ptr, std::placeholders::_1,
+            std::placeholders::_2);
+#endif
+
     measure_perf(prb->ctx_exe, res, perf_func, args);
 
-#if defined(brg_x64)
-    if (is_tmm) DNN_SAFE(amx_tile_release(), WARN);
-#endif
+    SAFE(release_hw_config(kernel_args), WARN);
 
     return OK;
 }

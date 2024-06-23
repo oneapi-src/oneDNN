@@ -37,7 +37,7 @@
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "gpu/intel/ocl/ocl_stream.hpp"
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-#include "sycl/sycl_stream.hpp"
+#include "gpu/intel/sycl/stream.hpp"
 #endif
 
 #include "graph/interface/backend.hpp"
@@ -410,8 +410,11 @@ public:
         CHECK(get_prim_exec_args(args, mem_storage, res));
         exec_ctx_t ctx(p_stream.get(), std::move(args));
 
+        // Relying on the library's internals here. Since graph API is currently
+        // enabled only for the Intel vendor it is fine to cast stream to
+        // gpu::intel::sycl::stream_t unconditionally.
         auto *sycl_stream = dnnl::impl::utils::downcast<
-                dnnl::impl::sycl::sycl_stream_t *>(p_stream.get());
+                dnnl::impl::gpu::intel::sycl::stream_t *>(p_stream.get());
 
         sycl_stream->before_exec_hook();
 

@@ -19,9 +19,11 @@
 
 #include "oneapi/dnnl/dnnl_config.h"
 
+#include "common/engine.hpp"
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
-#include "sycl/sycl_engine_base.hpp"
+
+#include "xpu/sycl/engine_impl.hpp"
 #include "xpu/sycl/memory_storage_base.hpp"
 
 #include <memory>

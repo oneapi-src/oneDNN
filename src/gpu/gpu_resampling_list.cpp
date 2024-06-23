@@ -22,8 +22,8 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/generic/sycl/ref_resampling.hpp"
 #include "gpu/nvidia/cudnn_resampling.hpp"
-#include "gpu/sycl/ref_resampling.hpp"
 #endif
 
 namespace dnnl {
@@ -39,14 +39,14 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{forward}, {
         GPU_INSTANCE_INTEL(intel::ocl::ref_resampling_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_resampling_fwd_t)
-        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_resampling_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_resampling_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
         GPU_INSTANCE_INTEL(intel::ocl::vectorized_resampling_bwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_resampling_bwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_resampling_bwd_t)
-        GPU_INSTANCE_GENERIC_SYCL(sycl::ref_resampling_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_resampling_bwd_t)
         nullptr,
     })},
 });

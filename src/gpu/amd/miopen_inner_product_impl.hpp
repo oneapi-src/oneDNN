@@ -22,7 +22,7 @@
 #include <miopen/miopen.h>
 
 #include "common/type_helpers.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 
 namespace dnnl {

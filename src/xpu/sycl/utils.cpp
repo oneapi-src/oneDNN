@@ -14,11 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "xpu/sycl/utils.hpp"
-#include "xpu/sycl/compat.hpp"
+#include "common/verbose_msg.hpp"
 
-// TODO: Include only for GPU vendor intel.
+#include "xpu/sycl/compat.hpp"
+#include "xpu/sycl/utils.hpp"
+
+// XXX: Include this header for VERROR_ENGINE.
+// TODO: Move VERROR_ENGINE and other similar macros to a separate file.
+#include "common/engine.hpp"
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/sycl/l0/utils.hpp"
+#endif
 
 // TODO: Refactor build system for NVIDIA and AMD parts to enable them properly
 // to be able to include their utility headers here.

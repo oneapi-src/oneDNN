@@ -20,8 +20,8 @@
 
 #include <miopen/miopen.h>
 
-#include "gpu/amd/sycl_hip_engine.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
+#include "gpu/amd/engine.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 
 namespace dnnl {
@@ -160,12 +160,12 @@ struct miopen_reduction_impl_t : public miopen_reduction_impl_base_t {
 
     void create_and_set_workspace(
             reduction_pd_t *pd, impl::engine_t *engine) override {
-        auto sycl_engine = utils::downcast<sycl_hip_engine_t *>(engine);
+        auto sycl_engine = utils::downcast<amd::engine_t *>(engine);
 
         impl::stream_t *service_stream;
         sycl_engine->get_service_stream(service_stream);
 
-        auto hip_stream = utils::downcast<sycl_hip_stream_t *>(service_stream);
+        auto hip_stream = utils::downcast<stream_t *>(service_stream);
         auto hip_handle = hip_stream->get_miopen_handle();
 
         MIOPEN_EXECUTE_FUNC_S(miopenGetReductionWorkspaceSize, hip_handle,

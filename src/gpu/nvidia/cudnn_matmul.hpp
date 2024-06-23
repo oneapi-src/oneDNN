@@ -18,6 +18,8 @@
 #ifndef GPU_NVIDIA_CUDNN_MATMUL_HPP
 #define GPU_NVIDIA_CUDNN_MATMUL_HPP
 
+#include "gpu/gpu_primitive.hpp"
+
 #include "gpu/gpu_matmul_pd.hpp"
 
 #include "gpu/nvidia/cudnn_matmul_executor.hpp"
@@ -29,8 +31,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_matmul_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_matmul_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public gpu_matmul_pd_t {
         using gpu_matmul_pd_t::gpu_matmul_pd_t;
