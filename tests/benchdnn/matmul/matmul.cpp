@@ -133,10 +133,13 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     // Overload PER_OC src_mask definition for batched case
     auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
-    if (src_scale.policy == policy_t::PER_OC) {
+    if (src_scale.policy == policy_t::PER_OC
+            || src_scale.policy == policy_t::PER_OCIC) {
         const auto &src_rt_dims = get_runtime_dims(
                 prb->src_dims(), prb->src_runtime_dim_mask());
         int src_mask = 1 << (src_rt_dims.size() - 1);
+        if (src_scale.policy == policy_t::PER_OCIC)
+            src_mask += 1 << (src_rt_dims.size() - 2);
         attr_args.prepare_scales(prb->attr, DNNL_ARG_SRC, src_mask);
     }
     // Overload PER_OC/PER_OCIC wei_mask definition for batched case

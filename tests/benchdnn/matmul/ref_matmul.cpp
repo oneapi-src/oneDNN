@@ -67,20 +67,23 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const int batch_ndims = dst_m.ndims() - 2;
 
     const bool src_scale_per_k = src_scale_mask & (1 << (src_m.ndims() - 1));
-    const int64_t src_scale_stride_k = src_scale_per_k ? 1 : 0;
+    const bool src_scale_per_m = src_scale_mask & (1 << (src_m.ndims() - 2));
     const auto src_scale_groups = prb->attr.scales.get(DNNL_ARG_SRC).groups;
     const int64_t src_scale_group_k
             = !src_scale_groups.empty() ? src_scale_groups[1] : 1;
+    const int64_t src_scale_stride_k = src_scale_per_k ? 1 : 0;
+    const int64_t src_scale_stride_m = src_scale_per_m
+            ? src_scale_per_k ? (K / src_scale_group_k) : 1
+            : 0;
 
-    const bool wei_decompression = prb->weights_decompression();
     const bool wei_scale_per_n = wei_scale_mask & (1 << (wei_m.ndims() - 1));
     const bool wei_scale_per_k = wei_scale_mask & (1 << (wei_m.ndims() - 2));
-    const int64_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
-    const int64_t wei_scale_stride_k
-            = wei_scale_per_k ? wei_scale_per_n ? N : 1 : 0;
     const auto wei_scale_groups = prb->attr.scales.get(DNNL_ARG_WEIGHTS).groups;
     const int64_t wei_scale_group_k
             = !wei_scale_groups.empty() ? wei_scale_groups[0] : 1;
+    const int64_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
+    const int64_t wei_scale_stride_k
+            = wei_scale_per_k ? wei_scale_per_n ? N : 1 : 0;
 
     const bool wei_zp_per_n = wei_zp_mask & (1 << (wei_m.ndims() - 1));
     const bool wei_zp_per_k = wei_zp_mask & (1 << (wei_m.ndims() - 2));
@@ -91,6 +94,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const int64_t wei_zp_group_k
             = !wei_zp_groups.empty() ? wei_zp_groups[0] : 1;
 
+    const bool wei_decompression = prb->weights_decompression();
     const bool apply_scales_in_ker
             = wei_decompression || wei_scale_per_k || src_scale_per_k;
 
@@ -131,7 +135,8 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
             if (apply_scales_in_ker) {
                 if (has_src_scale) {
                     float src_scale = src_scales.get_elem(
-                            src_scale_stride_k * (k / src_scale_group_k));
+                            src_scale_stride_k * (k / src_scale_group_k)
+                            + src_scale_stride_m * m);
                     s *= src_scale;
                 }
                 if (has_wei_scale) {

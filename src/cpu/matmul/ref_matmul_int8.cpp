@@ -120,6 +120,7 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto &src_scales_dt = attr_scales.get_data_type(DNNL_ARG_SRC);
     const auto &wei_scales_dt = attr_scales.get_data_type(DNNL_ARG_WEIGHTS);
     const bool src_scale_per_k = src_scale_mask & pd()->src_qmask_K();
+    const bool src_scale_per_m = src_scale_mask & pd()->src_qmask_M();
     const bool wei_scale_per_n = wei_scale_mask & pd()->wei_qmask_N();
     const bool wei_scale_per_k = wei_scale_mask & pd()->wei_qmask_K();
     const auto src_scale_group_ndim = attr_scales.get(DNNL_ARG_SRC).ndims_;
@@ -130,12 +131,15 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto wei_scale_group_k = wei_scale_group_ndim > 0
             ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
             : (wei_scale_per_k ? 1 : K);
+    const auto src_scale_ngroups_k = K / src_scale_group_k;
+    const auto wei_scale_ngroups_k = K / wei_scale_group_k;
     const dim_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
     const dim_t src_scale_stride_k = src_scale_group_k < K ? 1 : 0;
     const dim_t wei_scale_stride_k
             = wei_scale_group_k < K ? wei_scale_per_n ? N : 1 : 0;
-    const auto src_scale_ngroups_k = K / src_scale_group_k;
-    const auto wei_scale_ngroups_k = K / wei_scale_group_k;
+    const dim_t src_scale_stride_m = src_scale_per_m
+            ? src_scale_group_k < K ? src_scale_ngroups_k : 1
+            : 0;
     const auto scale_ngroups_k
             = std::max(src_scale_ngroups_k, wei_scale_ngroups_k);
 
@@ -190,7 +194,8 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
             if (with_src_scales) {
                 // Single scale value was already converted into f32.
                 const auto src_scale_offset
-                        = src_scale_stride_k * (src_k_dim / src_scale_group_k);
+                        = src_scale_stride_k * (src_k_dim / src_scale_group_k)
+                        + src_scale_stride_m * m;
                 const float src_scale = src_scales_d.nelems() == 1
                         ? src_scales[0]
                         : io::load_float_value(

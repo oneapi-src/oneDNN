@@ -98,12 +98,16 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const int src_scale_mask = attr_scales.get(DNNL_ARG_SRC).mask_;
     const bool src_scale_per_k = src_scale_mask & pd()->src_qmask_K();
+    const bool src_scale_per_m = src_scale_mask & pd()->src_qmask_M();
     const auto src_scale_group_ndim = attr_scales.get(DNNL_ARG_SRC).ndims_;
     const auto src_scale_group_k = src_scale_group_ndim > 0
             ? attr_scales.get(DNNL_ARG_SRC).group_dims_[1]
             : (src_scale_per_k ? 1 : K);
-    const dim_t src_scale_stride_k = src_scale_group_k < K ? 1 : 0;
     const auto src_scale_ngroups_k = K / src_scale_group_k;
+    const dim_t src_scale_stride_k = src_scale_group_k < K ? 1 : 0;
+    const dim_t src_scale_stride_m = src_scale_per_m
+            ? src_scale_group_k < K ? src_scale_ngroups_k : 1
+            : 0;
 
     const auto &attr_zps = pd()->attr()->zero_points_;
     int wei_zp_mask = 0;
@@ -137,45 +141,46 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(9, c0);
     arg_list.set(10, src_scales);
     arg_list.set(11, src_scale_stride_k);
-    arg_list.set(12, src_scale_group_k);
-    arg_list.set(13, wei_scales);
-    arg_list.set(14, wei_scale_stride_n);
-    arg_list.set(15, wei_scale_stride_k);
-    arg_list.set(16, wei_scale_group_k);
-    arg_list.set(17, dst_scales);
-    arg_list.set(18, group_K);
-    arg_list.set(19, K);
-    arg_list.set(20, N);
-    arg_list.set(21, M);
-    arg_list.set(22, D0);
-    arg_list.set(23, D1);
-    arg_list.set(24, D2);
-    arg_list.set(25, bia_stride[5]);
-    arg_list.set(26, bia_stride[4]);
-    arg_list.set(27, bia_stride[3]);
-    arg_list.set(28, bia_stride[2]);
-    arg_list.set(29, bia_stride[1]);
-    arg_list.set(30, bia_stride[0]);
-    arg_list.set(31, a_stride[5]);
-    arg_list.set(32, a_stride[4]);
-    arg_list.set(33, a_stride[3]);
-    arg_list.set(34, a_stride[2]);
-    arg_list.set(35, a_stride[1]);
-    arg_list.set(36, a_stride[0]);
-    arg_list.set(37, b_stride[5]);
-    arg_list.set(38, b_stride[4]);
-    arg_list.set(39, b_stride[3]);
-    arg_list.set(40, b_stride[2]);
-    arg_list.set(41, b_stride[1]);
-    arg_list.set(42, b_stride[0]);
-    arg_list.set(43, c_stride[5]);
-    arg_list.set(44, c_stride[4]);
-    arg_list.set(45, c_stride[3]);
-    arg_list.set(46, c_stride[2]);
-    arg_list.set(47, c_stride[1]);
-    arg_list.set(48, c_stride[0]);
+    arg_list.set(12, src_scale_stride_m);
+    arg_list.set(13, src_scale_group_k);
+    arg_list.set(14, wei_scales);
+    arg_list.set(15, wei_scale_stride_n);
+    arg_list.set(16, wei_scale_stride_k);
+    arg_list.set(17, wei_scale_group_k);
+    arg_list.set(18, dst_scales);
+    arg_list.set(19, group_K);
+    arg_list.set(20, K);
+    arg_list.set(21, N);
+    arg_list.set(22, M);
+    arg_list.set(23, D0);
+    arg_list.set(24, D1);
+    arg_list.set(25, D2);
+    arg_list.set(26, bia_stride[5]);
+    arg_list.set(27, bia_stride[4]);
+    arg_list.set(28, bia_stride[3]);
+    arg_list.set(29, bia_stride[2]);
+    arg_list.set(30, bia_stride[1]);
+    arg_list.set(31, bia_stride[0]);
+    arg_list.set(32, a_stride[5]);
+    arg_list.set(33, a_stride[4]);
+    arg_list.set(34, a_stride[3]);
+    arg_list.set(35, a_stride[2]);
+    arg_list.set(36, a_stride[1]);
+    arg_list.set(37, a_stride[0]);
+    arg_list.set(38, b_stride[5]);
+    arg_list.set(39, b_stride[4]);
+    arg_list.set(40, b_stride[3]);
+    arg_list.set(41, b_stride[2]);
+    arg_list.set(42, b_stride[1]);
+    arg_list.set(43, b_stride[0]);
+    arg_list.set(44, c_stride[5]);
+    arg_list.set(45, c_stride[4]);
+    arg_list.set(46, c_stride[3]);
+    arg_list.set(47, c_stride[2]);
+    arg_list.set(48, c_stride[1]);
+    arg_list.set(49, c_stride[0]);
 
-    append_post_ops_to_arg_list(ctx, arg_list, 49, pd()->attr()->post_ops_);
+    append_post_ops_to_arg_list(ctx, arg_list, 50, pd()->attr()->post_ops_);
 
     compute::range_t gws = {1, (size_t)N, (size_t)(D0 * D1 * D2 * D3)};
     auto nd_range = compute::nd_range_t(gws);
