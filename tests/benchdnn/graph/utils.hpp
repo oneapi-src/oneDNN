@@ -36,7 +36,12 @@
 #endif
 
 #ifdef DNNL_WITH_SYCL
+#include "dnnl_sycl.hpp"
 #include "oneapi/dnnl/dnnl_graph_sycl.hpp"
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "oneapi/dnnl/dnnl_graph_ocl.hpp"
 #endif
 
 #include "common.hpp"
@@ -99,7 +104,7 @@ private:
     std::unordered_multimap<size_t, std::shared_ptr<void>> map_size_ptr_;
     std::unordered_set<void *> free_ptr_;
 };
-bool is_sycl_engine();
+
 sycl::queue &get_queue();
 #endif // DNNL_WITH_SYCL
 
@@ -159,14 +164,6 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind);
 
 // permute md based on permutation
 void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation);
-
-void reshape_md(dnn_mem_t &mem, const dnnl::memory::dims &reshaped_dims);
-
-void reshape_md(dnn_mem_t &mem, const dnnl::memory::dims &reshaped_dims,
-        const dnnl::memory::dims &reshaped_strides);
-
-// check whether the logical tensor is in NXC format
-bool is_nxc_lt_arg(const std::string &kind, const int exec_arg);
 
 // get primitive's arg name according to graph op's output offset
 // i.e. If BatchNormForwardTraining's 2-nd output is ReLU's 1-st input
