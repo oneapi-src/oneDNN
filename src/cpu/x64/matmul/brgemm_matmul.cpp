@@ -57,8 +57,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             = everyone_is(bf16, src_dt, wei_dt) && one_of(dst_dt, bf16, f32);
     const bool is_f16
             = everyone_is(f16, src_dt, wei_dt) && one_of(dst_dt, f16, f32);
-    const bool is_bf16_with_int_wei = src_dt == bf16 && one_of(wei_dt, s8, u8)
-            && one_of(dst_dt, bf16, f32);
+    const bool is_bf16_with_int_wei = src_dt == bf16
+            && one_of(wei_dt, s8, u8, s4, u4) && one_of(dst_dt, bf16, f32);
 
     auto check_bias = [&]() -> bool {
         const auto bia_dt = weights_md(1)->data_type;
@@ -1126,7 +1126,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         }
 
         int cur_b = get_bb_idx(b, bgmmc_.bcast_B_desc);
-        return data_B_ptr_ + get_data_B_off(cur_b, k, n);
+        const dim_t B_off = get_data_B_off(cur_b, k, n);
+        assert(IMPLICATION(bgmmc_.is_int4_weights, B_off % 2 == 0));
+        return data_B_ptr_ + (bgmmc_.is_int4_weights ? B_off / 2 : B_off);
     }
 
     const char *get_data_B_bitmask_ptr(int b, int k, int n) const {

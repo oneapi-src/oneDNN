@@ -193,12 +193,11 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
     , bf32_dt(f32_dt
               && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
               && isa == avx512_core_amx)
-    , bf16_with_int_wei_dt(bgmmc.src_dt == bf16
-              && utils::one_of(bgmmc.wei_dt, u8, s8)
-              && one_of(bgmmc.dst_dt, bf16, f32))
-    , weights_decompression_support(one_of(bgmmc.wei_dt, u8, s8)
+    , weights_decompression_support(one_of(bgmmc.wei_dt, u8, s8, u4, s4)
               && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
               && attr.fpmath_.apply_to_int_)
+    , bf16_with_int_wei_dt(weights_decompression_support && bgmmc.src_dt == bf16
+              && one_of(bgmmc.dst_dt, bf16, f32))
     , A_any_layout(A_any_layout)
     , B_any_layout(B_any_layout)
     , C_any_layout(C_any_layout)
@@ -1190,6 +1189,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.is_bf32 = bm_conf_utils.is_bf32();
     bgmmc.is_bf16_with_int_wei = bm_conf_utils.is_bf16_with_int_wei();
     bgmmc.with_wei_decompression = bm_conf_utils.with_weights_decompression();
+    bgmmc.is_int4_weights = one_of(bgmmc.wei_dt, data_type::s4, data_type::u4);
 
     // Make BRGeMM compute MatMul as if it were in bfloat16, while down-convert
     // happens during copy-buffer computations
@@ -1324,6 +1324,12 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.req_transpose_scales = bgmmc.apply_scales_in_buffer_b
             && bgmmc.is_oscale_per_k && bgmmc.is_oscale_per_n
             && bgmmc.transposed_B;
+
+    // int4 weights decompression only supports plain layout for now
+    // TODO: enable int4 reorder and extend support to other weight layouts
+    if (bgmmc.with_wei_decompression && bgmmc.is_int4_weights)
+        VCONDCHECK_BG(bm_conf_utils.check_is_plain(bgmmc.wei_tag),
+                VERBOSE_UNSUPPORTED_TAG);
 
     const bool transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
     // if M == 1 we can still treat formally transposed A as plain
@@ -1679,10 +1685,14 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
             && wei_d.matches_one_of_tag(abcd) == format_tag::undef) {
         bgmmc.copy_B_wei_stride = bgmmc.K * bgmmc.b_dt_sz;
     } else {
+        const dim_t factor = bgmmc.is_int4_weights ? 2 : 1;
         const auto b_stride_elems
                 = bgmmc.req_wei_vnni_downconvert ? bgmmc.LDB : bgmmc.N;
+        assert(IMPLICATION(bgmmc.is_int4_weights, b_stride_elems % 2 == 0));
         bgmmc.copy_B_wei_stride
-                = bgmmc.is_runtime_N ? bgmmc.N : b_stride_elems * bgmmc.b_dt_sz;
+                = (bgmmc.is_runtime_N ? bgmmc.N
+                                      : b_stride_elems * bgmmc.b_dt_sz)
+                / factor;
     }
 
     bgmmc.C_ptr_shift_b = dst_d.matches_one_of_tag(acbd)

@@ -2831,6 +2831,7 @@ struct jit_brgemm_matmul_copy_b_bf16_t : public jit_brgemm_matmul_copy_b_t,
         , src_stride(conf->copy_B_wei_stride)
         , tr_src_stride(conf_->LDB * k_blk_step * tr_typesize)
         , scales_N_stride(conf_->N * scales_typesize)
+        , is_src_int4(one_of(conf->orig_wei_dt, data_type::s4, data_type::u4))
         , is_dynamic_stride(is_runtime_value(src_stride))
         , is_dynamic_N(conf->is_runtime_N)
         , req_cvtps2bf16(conf->is_bf32 || conf->is_bf16_with_int_wei)
@@ -2846,10 +2847,12 @@ private:
     using opmask_t = const Xbyak::Opmask;
     using zmm = const Xbyak::Zmm;
     using ymm = const Xbyak::Ymm;
+    using Vmm_lower_t = typename vreg_traits<Vmm>::Vmm_lower_t;
 
     enum { k_blk_step = 2, n_blk_step = 16 };
     const int typesize, tr_typesize, scales_typesize;
     const dim_t src_stride, tr_src_stride, scales_N_stride;
+    const bool is_src_int4;
     const bool is_dynamic_stride;
     const bool is_dynamic_N;
     const bool req_cvtps2bf16;
@@ -2863,6 +2866,9 @@ private:
 
     opmask_t kTail = k7;
     opmask_t kFFFF = k6;
+    opmask_t kTail_int4 = k5;
+    opmask_t kAAAA = k4;
+    opmask_t kSign = k3;
 
     reg64_t reg_src = rax;
     reg64_t reg_tr_src = rbx;
@@ -2886,6 +2892,10 @@ private:
     Vmm vmm_permw = Vmm(1);
     Vmm vmm_tmp = Vmm(1); // used only for avx2_vnni_2
     Vmm vmm_zp_b_shift = Vmm(2);
+    Vmm vmm_permd = Vmm(3);
+    Vmm vmm_int4_mask = Vmm(4);
+    Vmm vmm_sign_bit = Vmm(5);
+    Vmm vmm_sign_mask = Vmm(6);
 
     void kmovx(Opmask k, unsigned w) {
         if (!isa_has_masks(conf_->isa)) return;
@@ -2901,6 +2911,21 @@ private:
         else
             jit_generator::kmovd(k, regw_tmp);
     }
+    void copy_half_int4(const Zmm &zmm, const Ymm &ymm_half) {
+        vinserti64x4(zmm, zmm, ymm_half, 1);
+    }
+    void copy_half_int4(const Ymm &ymm, const Xmm &xmm_half) {
+        vinserti128(ymm, ymm, xmm_half, 1);
+    }
+    Vmm_lower_t maybe_mask(Vmm_lower_t vmm_lower, bool is_tail) {
+        assert(is_src_int4);
+        if (isa_has_masks(conf_->isa)) {
+            return is_tail ? vmm_lower | kTail_int4 | T_z
+                           : vmm_lower | kFFFF | T_z;
+        } else {
+            return vmm_lower;
+        }
+    }
     Vmm maybe_mask(Vmm vmm, bool is_tail) {
         if (isa_has_masks(conf_->isa)) {
             return is_tail ? vmm | kTail | T_z : vmm | kFFFF | T_z;
@@ -2908,11 +2933,46 @@ private:
             return vmm;
         }
     }
+    void load_int(
+            const Vmm vmm_in, const Xbyak::Operand &op, bool is_tail = false);
     void copy_block(int nrows, int ncolumns, bool n_tail);
     void copy_2x32(int nrows, int ncolumns);
     void init_masks();
     void generate() override;
 };
+
+template <typename Vmm>
+void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::load_int(
+        const Vmm vmm_in, const Xbyak::Operand &op, bool is_tail) {
+    const auto vmm = maybe_mask(vmm_in, is_tail);
+    const auto vmm_lower = Vmm_lower_t(vmm.getIdx());
+    const auto is_s4 = conf_->orig_wei_dt == data_type::s4;
+    MAYBE_UNUSED(vmm_lower);
+    MAYBE_UNUSED(is_s4);
+
+    switch (conf_->orig_wei_dt) {
+        case data_type::s8: uni_vpmovsxbd(vmm, op); break;
+        case data_type::u8: uni_vpmovzxbd(vmm, op); break;
+        // For int4, we see two int4 as one int8 and extend them int32
+        // low half stores in lower bytes of vmm and high half in higher
+        // bytes of vmm, then permute them into correct order
+        // Finally, we process the extend bytes for s4/u4 accordingly
+        case data_type::s4:
+        case data_type::u4:
+            if (is_s4)
+                uni_vpmovsxbd(maybe_mask(vmm_lower, is_tail), op);
+            else
+                uni_vpmovzxbd(maybe_mask(vmm_lower, is_tail), op);
+            copy_half_int4(vmm_in, vmm_lower);
+            vpermd(vmm_in, vmm_permd, vmm_in);
+            vpsrld(vmm_in | kAAAA, vmm_in, 4);
+            if (is_s4) vptestmd(kSign, vmm_in, vmm_sign_bit);
+            vpandd(vmm_in, vmm_in, vmm_int4_mask);
+            if (is_s4) vpord(vmm_in | kSign, vmm_in, vmm_sign_mask);
+            break;
+        default: assert(!"unsupported data type");
+    }
+}
 
 template <typename Vmm>
 void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
@@ -2921,10 +2981,16 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
     if (columns_tail > 0 && columns_tail < n_blk_step) {
         const auto tail_mask = (1 << columns_tail) - 1;
         kmovx(kTail, tail_mask);
+        if (is_src_int4) {
+            const auto int4_tail_mask = (1 << (columns_tail / 2)) - 1;
+            kmovx(kTail_int4, int4_tail_mask);
+        }
     }
 
     static constexpr int blk_sz = k_blk_step;
-    const int reserved_regs = req_zp_b_shift ? 3 : 2;
+    const int reserved_regs = !is_src_int4
+            ? (req_zp_b_shift ? 3 : 2)
+            : (conf_->orig_wei_dt == data_type::s4 ? 7 : 5);
     const int max_isa_regs = isa_num_vregs(conf_->isa);
     const int max_regs_available = max_isa_regs - reserved_regs;
     const int max_unroll = max_regs_available / blk_sz;
@@ -2941,8 +3007,9 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
         auto src_reg = get_vmm(blk, k % k_blk_step);
         const bool is_tail = ncolumns - n < n_blk_step;
         auto src_load = maybe_mask(src_reg, is_tail);
-        const auto offset
-                = (is_dynamic_stride ? 0 : k * src_stride) + n * typesize;
+        const auto factor = is_src_int4 ? 2 : 1;
+        const auto offset = (is_dynamic_stride ? 0 : k * src_stride)
+                + ((n * typesize) / factor);
         const auto reg_src_load
                 = is_dynamic_stride && k % 2 != 0 ? reg_src_load_1 : reg_src;
         auto load_addr = maybe_EVEX_compress_addr(reg_src_load, offset);
@@ -2955,10 +3022,7 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
             if (conf_->is_bf32)
                 uni_vmovups(src_load, load_addr);
             else if (conf_->is_bf16_with_int_wei) {
-                if (conf_->orig_wei_dt == data_type::s8)
-                    uni_vpmovsxbd(src_load, load_addr);
-                else
-                    uni_vpmovzxbd(src_load, load_addr);
+                load_int(src_reg, load_addr, is_tail);
                 if (req_zp_b_shift)
                     uni_vpsubd(src_load, src_load, vmm_zp_b_shift);
                 uni_vcvtdq2ps(src_load, src_load);
@@ -3054,6 +3118,27 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::init_masks() {
 
         mov(reg_tmp, reinterpret_cast<size_t>(bf16_vnni_permute));
         vmovdqa64(vmm_permw, ptr[reg_tmp]);
+
+        if (is_src_int4) {
+            alignas(64) static constexpr const uint32_t int4_permute[16]
+                    = {0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15};
+            mov(reg_tmp, reinterpret_cast<size_t>(int4_permute));
+            vmovdqa32(vmm_permd, ptr[reg_tmp]);
+
+            kmovx(kAAAA, 0xaaaa);
+
+            const auto reg32_scratch = reg_tmp.cvt32();
+            mov(reg32_scratch, 0xf);
+            vpbroadcastd(vmm_int4_mask, reg32_scratch);
+
+            if (conf_->orig_wei_dt == data_type::s4) {
+                mov(reg32_scratch, 0x8);
+                vpbroadcastd(vmm_sign_bit, reg32_scratch);
+
+                mov(reg32_scratch, 0xfffffff8);
+                vpbroadcastd(vmm_sign_mask, reg32_scratch);
+            }
+        }
     }
 }
 

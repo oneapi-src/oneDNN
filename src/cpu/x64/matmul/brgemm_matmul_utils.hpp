@@ -188,6 +188,7 @@ struct brgemm_matmul_conf_t {
     int required_k_granularity;
     bool is_bf32 = false;
     bool is_bf16_with_int_wei = false;
+    bool is_int4_weights = false;
     bool req_wei_vnni_downconvert = false;
     bool is_runtime_M = false;
     bool is_runtime_N = false;
@@ -288,7 +289,8 @@ struct brgemm_matmul_conf_utils_t {
     inline bool is_bf16_with_int_wei() const { return bf16_with_int_wei_dt; }
 
     inline bool with_weights_decompression() const {
-        return !utils::one_of(bgmmc.src_dt, data_type::s8, data_type::u8)
+        return !utils::one_of(bgmmc.src_dt, data_type::s8, data_type::u8,
+                       data_type::s4, data_type::u4)
                 && weights_decompression_support;
     }
 
@@ -316,8 +318,8 @@ struct brgemm_matmul_conf_utils_t {
 private:
     brgemm_matmul_conf_t &bgmmc;
 
-    const bool f32_dt, bf16_dt, f16_dt, int8_dt, bf32_dt, bf16_with_int_wei_dt;
-    const bool weights_decompression_support;
+    const bool f32_dt, bf16_dt, f16_dt, int8_dt, bf32_dt;
+    const bool weights_decompression_support, bf16_with_int_wei_dt;
     const bool A_any_layout;
     const bool B_any_layout;
     const bool C_any_layout;
