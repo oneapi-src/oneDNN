@@ -1519,7 +1519,7 @@ struct GEMMState : public CommonState {
     CoopSplit effCoopB = CoopSplit::K;
     ngen::Subregister kSLMA, kSLMB, kSLMStorage; // w/w/ud
     bool kSLMCountUp = false;
-    int kaq, kbq, kaqStride, kbqStride;
+    int kaq, kbq, kaqStride, kbqStride, kaqLate, kbqLate;
     bool lateScale2DA = false, lateScale2DB = false;
     std::vector<RegisterBlock> A_layout, B_layout, C_layout;
     std::vector<RegisterBlock> A_layoutRem, B_layoutRem;
