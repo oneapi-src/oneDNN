@@ -1,0 +1,5 @@
+<map id="mkldnn_memory_desc_t" name="mkldnn_memory_desc_t">
+<area shape="rect" id="node2" href="$structmkldnn__rnn__packed__desc__t.html" title="Description of tensor of packed weights for rnn. " alt="" coords="5,5,208,32"/>
+<area shape="rect" id="node3" href="$structmkldnn__blocking__desc__t.html" title="Generic description of blocked data layout for most memory formats. " alt="" coords="233,5,415,32"/>
+<area shape="rect" id="node4" href="$structmkldnn__wino__desc__t.html" title="Description of tensor of weights for winograd 2x3 convolution. " alt="" coords="439,5,598,32"/>
+</map>

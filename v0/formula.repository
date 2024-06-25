@@ -1,0 +1,50 @@
+\form#0:\[count = \prod\limits_{d \in mask} output.dims[d]\]
+\form#1:\[dst[n][oc][oh][ow] = \sum_{kw=0}^{KW}\sum_{kh=0}^{KH}\sum_{ic=0}^{IC} src[n][ic][oh \cdot s_h - p_l[0] + kh][ow \cdot s_w - p_r[1] + kw] \cdot weights[g][oc][ic][kh][kw] + bias[g][oc],\]
+\form#2:$ OH = \left\lfloor{\frac{IH - KH + p_l[0] + p_r[0]}{s_h}} \right\rfloor + 1$
+\form#3:$ OW = \left\lfloor{\frac{IW - KW + p_l[1] + p_r[1]}{s_w}} \right\rfloor + 1$
+\form#4:$ic$
+\form#5:$g$
+\form#6:$s_h, s_w$
+\form#7:$p_l, p_r$
+\form#8:\[dst[u][c][in] = \frac{\exp(src[ou][c][in]) - \max\limits_{c}(src[ou][c][in])} {\sum\limits_{c}\{\exp(src[ou][c][in]) - \max\limits_{c}(src[ou][c][in])\}},\]
+\form#9:$ou, iu$
+\form#10:\[dst[n][oc][oh][ow] = \max\limits_{kw,kh} (src[n][ic][oh \cdot s_h - p_l[0] + kh][ow \cdot s_w - p_r[1] + kw]),\]
+\form#11:\[dst[n][oc][oh][ow] = \frac{1}{KW \cdot KH}\sum\limits_{kw,kh} src[n][ic][oh \cdot s_h - p_l[0] + kh][ow \cdot s_w - p_r[1] + kw],\]
+\form#12:\[dst[n][c][h][w] = \left\{k + \frac{\alpha}{n_{l}} \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2} (src[n][c+i][h][w])^2\right\}^{-\beta} src[n][c][h][w],\]
+\form#13:\[dst[n][c][h][w] = \left\{k + \frac{\alpha}{n_{l}} \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2} (src[n][c][h+i][w+i])^2\right\}^{-\beta} src[n][c][h][w],\]
+\form#14:$n_{l}$
+\form#15:\[dst[n][c][h][w] = \gamma[c] \frac{src[n][c][h][w] - \mu[c]} {\sqrt{\sigma[c] + eps}} + \beta[c],\]
+\form#16:$\gamma[c], \beta[c]$
+\form#17:$\mu[c] = \frac{1}{NHW} \sum\limits_{whn} src[n][c][h][w]$
+\form#18:$\sigma[c] = \frac{1}{NHW} \sum\limits_{whn} (src[n][c][h][w] - \mu[c])^2$
+\form#19:\[dst[n][oc] = \sum\limits_{ic, kh, kw} src[n][ic][kh][kw] \cdot weights[oc][ic][kh][kw] + bias[oc]\]
+\form#20:\[ c_t = tanh(W_c*x_t + b_{c_x} + r_t*(U_c*h_{t-1}+b_{c_h})) \]
+\form#21:$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]$
+\form#22:$\dagger$
+\form#23:$ R_{\{\alpha,w\}} = max(abs(T_{\{\alpha,w\}}))$
+\form#24:$ T_{\{\alpha,w\}}$
+\form#25:$w$
+\form#26:$\alpha$
+\form#27:$ Q_{\alpha} = \frac{255}{R_{\alpha}}$
+\form#28:$ Q_{w} = \frac{127}{R_{w}}$
+\form#29:$\alpha_{u8} = \lceil Q_{\alpha} \alpha_{f32} \rceil \in [0,255]$
+\form#30:$W_{s8} = \lceil Q_{w} W_{f32} \rceil \in [-127,127]$
+\form#31:$b_{s32} = \lceil Q_{\alpha} Q_{w} b_{f32} \rceil \in [-2^{31},2^{31}-1]$
+\form#32:$ \lceil \rceil $
+\form#33:$ X_{s32} = W_{s8} \times \alpha{u8} + b_{s32} \approx Q_{\alpha} Q_{\omega} X_{f32}$
+\form#34:$X_{f32} = W_{f32} \times \alpha_{f32} + b_{f32}$
+\form#35:$ X_{f32} \approx \frac{1}{Q_{\alpha} Q_{\omega}} X_{s32} $
+\form#36:$ T_{\alpha} = [15, 14, 15 ... 8, 11 ]$
+\form#37:$ max(abs(T_{\alpha})) = 15$
+\form#38:$ T_{\omega} = [-5.1 , 6.8, ... -1.2, 9.8 ]$
+\form#39:$ max(abs(T_{\omega})) = 9.8$
+\form#40:$ T_{\alpha} = [ 2.4, -5.2 ... -8 ]$
+\form#41:$ max(abs(T_{\alpha})) = 8$
+\form#42:$ Q_{\alpha} = \frac{255}{R_{\alpha}} = \frac{255}{15} = 17 $
+\form#43:$ Q_{w} = \frac{127}{R_{w}} = \frac{127}{9.8} = 12.96$
+\form#44:$\alpha_{u8} = \lceil Q_{\alpha} \alpha_{f32} \rceil$
+\form#45:$ = \lceil 17 \times [15, 14, ... 11 ] \rceil = [255, 238, ... 187] $
+\form#46:$W_{s8} = \lceil Q_{w} W_{f32} \rceil = \lceil 12.96 \times [-5.1 , 6.8, ... -1.2, 9.8 ] \rceil = [-66, 88, ... -15, 127] $
+\form#47:$b_{s32} = \lceil Q_{\alpha} Q_{w} b_{f32} \rceil = \lceil 17 \times 12.96 \times [ 2.4, -5.2 ... -8 ] \rceil = [528, -1145, ... -1762] $
+\form#48:$ dst[ ] \leftarrow scale * dst[] + op(...); instead of dst[ ] \leftarrow op(...) $
+\form#49:$ dst[ ] \leftarrow scale * eltwise_op ( op(...) ); instead of dst[ ] \leftarrow op(...)$

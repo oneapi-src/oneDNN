@@ -1,0 +1,140 @@
+.. index:: pair: struct; dnnl_lrn_desc_t
+.. _doxid-structdnnl__lrn__desc__t:
+
+struct dnnl_lrn_desc_t
+======================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of a Local Response Normalization (LRN) operation. :ref:`More...<details-structdnnl__lrn__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_lrn_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__lrn__desc__t_1ad46119218356921c61823ab5213825f7>`;
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` :ref:`prop_kind<doxid-structdnnl__lrn__desc__t_1a95d6f623b7874d24aaa89aabbf54adcf>`;
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` :ref:`alg_kind<doxid-structdnnl__lrn__desc__t_1ac85e412ee28f0318187b361c9bb8785c>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`data_desc<doxid-structdnnl__lrn__desc__t_1a9c1ed9b76189957ec269ae6ff2101b7b>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_data_desc<doxid-structdnnl__lrn__desc__t_1a42b485e303aa768f8a3508d7b6395e97>`;
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` :ref:`local_size<doxid-structdnnl__lrn__desc__t_1a1ef655bc7a8757fe45d70d468dcbe68b>`;
+		float :ref:`lrn_alpha<doxid-structdnnl__lrn__desc__t_1a5818f4c2d734f46a4a6fd2f97aef257b>`;
+		float :ref:`lrn_beta<doxid-structdnnl__lrn__desc__t_1a237d66a9cfc9f46a607cbf0d4c4e3bf8>`;
+		float :ref:`lrn_k<doxid-structdnnl__lrn__desc__t_1a11fefcbec2d926a1315ec7660e6ae6c1>`;
+	};
+.. _details-structdnnl__lrn__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of a Local Response Normalization (LRN) operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__lrn__desc__t_1ad46119218356921c61823ab5213825f7:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_lrn <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aafa8035256ece12602e5f25330699b548>`.
+
+.. index:: pair: variable; prop_kind
+.. _doxid-structdnnl__lrn__desc__t_1a95d6f623b7874d24aaa89aabbf54adcf:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind
+
+The kind of propagation.
+
+Possible values: :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>`, :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`, :ref:`dnnl_backward <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a326a5e31769302972e7bded555e1cc10>`, and :ref:`dnnl_backward_data <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a524dd6cb2ed9680bbd170ba15261d218>`.
+
+.. index:: pair: variable; alg_kind
+.. _doxid-structdnnl__lrn__desc__t_1ac85e412ee28f0318187b361c9bb8785c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind
+
+LRN algorithm.
+
+Possible values: :ref:`dnnl_lrn_within_channel <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a922fdd348b6a3e6bbe589025691d7171>` and :ref:`dnnl_lrn_across_channels <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a540b116253bf1290b9536929198d18fd>`.
+
+.. index:: pair: variable; data_desc
+.. _doxid-structdnnl__lrn__desc__t_1a9c1ed9b76189957ec269ae6ff2101b7b:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` data_desc
+
+Source and destination memory descriptor.
+
+.. index:: pair: variable; diff_data_desc
+.. _doxid-structdnnl__lrn__desc__t_1a42b485e303aa768f8a3508d7b6395e97:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_data_desc
+
+Source and destination gradient memory descriptor.
+
+.. index:: pair: variable; local_size
+.. _doxid-structdnnl__lrn__desc__t_1a1ef655bc7a8757fe45d70d468dcbe68b:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` local_size
+
+The number of channels to sum over (for cross-channel LRN) or the side length of the square region to sum over (for within-channel LRN).
+
+.. index:: pair: variable; lrn_alpha
+.. _doxid-structdnnl__lrn__desc__t_1a5818f4c2d734f46a4a6fd2f97aef257b:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	float lrn_alpha
+
+LRN alpha parameter.
+
+.. index:: pair: variable; lrn_beta
+.. _doxid-structdnnl__lrn__desc__t_1a237d66a9cfc9f46a607cbf0d4c4e3bf8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	float lrn_beta
+
+LRN beta parameter.
+
+.. index:: pair: variable; lrn_k
+.. _doxid-structdnnl__lrn__desc__t_1a11fefcbec2d926a1315ec7660e6ae6c1:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	float lrn_k
+
+LRN k parameter.
+

@@ -1,0 +1,112 @@
+.. index:: pair: struct; dnnl::binary::desc
+.. _doxid-structdnnl_1_1binary_1_1desc:
+
+struct dnnl::binary::desc
+=========================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for an elementwise binary operator primitive. :ref:`More...<details-structdnnl_1_1binary_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_binary_desc_t<doxid-structdnnl__binary__desc__t>` :ref:`data<doxid-structdnnl_1_1binary_1_1desc_1abb30194cd43cbccee928ea14e55e05b1>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1binary_1_1desc_1aaa49d142cfe22a95e994992452a01ef4>`();
+	
+		:ref:`desc<doxid-structdnnl_1_1binary_1_1desc_1abd0389268eaf3594dbaf5a27dd99e1f6>`(
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src0,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src1,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst
+			);
+	};
+.. _details-structdnnl_1_1binary_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for an elementwise binary operator primitive.
+
+Fields
+------
+
+.. index:: pair: variable; data
+.. _doxid-structdnnl_1_1binary_1_1desc_1abb30194cd43cbccee928ea14e55e05b1:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_binary_desc_t<doxid-structdnnl__binary__desc__t>` data
+
+Underlying C operation descriptor.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1binary_1_1desc_1aaa49d142cfe22a95e994992452a01ef4:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc()
+
+Default constructor. Produces an empty object.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1binary_1_1desc_1abd0389268eaf3594dbaf5a27dd99e1f6:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src0,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src1,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst
+		)
+
+Constructs a descriptor for an elementwise binary operator primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aalgorithm
+
+		- Elementwise binary algorithm.
+
+	*
+		- src0
+
+		- Memory descriptor for source tensor #0.
+
+	*
+		- src1
+
+		- Memory descriptor for source tensor #1.
+
+	*
+		- dst
+
+		- Memory descriptor for destination tensor.
+

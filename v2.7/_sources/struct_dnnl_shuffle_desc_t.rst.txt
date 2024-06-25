@@ -1,0 +1,94 @@
+.. index:: pair: struct; dnnl_shuffle_desc_t
+.. _doxid-structdnnl__shuffle__desc__t:
+
+struct dnnl_shuffle_desc_t
+==========================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of a shuffle operation. :ref:`More...<details-structdnnl__shuffle__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_shuffle_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__shuffle__desc__t_1ac7f1c0d9457322140f71af650b40cc24>`;
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` :ref:`prop_kind<doxid-structdnnl__shuffle__desc__t_1ad63715e635c96f9c97952ab5db3dbc89>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`data_desc<doxid-structdnnl__shuffle__desc__t_1aa08eeab619127a42ac431a3a2227dd05>`;
+		int :ref:`axis<doxid-structdnnl__shuffle__desc__t_1a1bb136f69743fc7381990f4406bf7fe2>`;
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` :ref:`group_size<doxid-structdnnl__shuffle__desc__t_1ade974f8027fee2319a64477110bd0619>`;
+	};
+.. _details-structdnnl__shuffle__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of a shuffle operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__shuffle__desc__t_1ac7f1c0d9457322140f71af650b40cc24:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_shuffle <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aaaa09b9e85c78e425237c1d8c67a4cfac>`.
+
+.. index:: pair: variable; prop_kind
+.. _doxid-structdnnl__shuffle__desc__t_1ad63715e635c96f9c97952ab5db3dbc89:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind
+
+The kind of propagation.
+
+Possible values: :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>`, :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`, and :ref:`dnnl_backward_data <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a524dd6cb2ed9680bbd170ba15261d218>`.
+
+.. index:: pair: variable; data_desc
+.. _doxid-structdnnl__shuffle__desc__t_1aa08eeab619127a42ac431a3a2227dd05:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` data_desc
+
+Source and destination memory descriptor, and source and destination gradient memory descriptor.
+
+.. index:: pair: variable; axis
+.. _doxid-structdnnl__shuffle__desc__t_1a1bb136f69743fc7381990f4406bf7fe2:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	int axis
+
+Axis for shuffling.
+
+.. index:: pair: variable; group_size
+.. _doxid-structdnnl__shuffle__desc__t_1ade974f8027fee2319a64477110bd0619:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` group_size
+
+Number of groups.
+

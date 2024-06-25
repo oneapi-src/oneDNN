@@ -1,0 +1,110 @@
+.. index:: pair: struct; dnnl::reduction::desc
+.. _doxid-structdnnl_1_1reduction_1_1desc:
+
+struct dnnl::reduction::desc
+============================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for reduction. :ref:`More...<details-structdnnl_1_1reduction_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_reduction_desc_t<doxid-structdnnl__reduction__desc__t>` :target:`data<doxid-structdnnl_1_1reduction_1_1desc_1adbbbd82370e48f3e38929200e36d1a3f>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1reduction_1_1desc_1a9ffaf6df9bdc6bd928570abe311c64ab>`();
+	
+		:ref:`desc<doxid-structdnnl_1_1reduction_1_1desc_1ab7b9e28e493eccb2b53a3982abfcab6d>`(
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc,
+			float p,
+			float eps
+			);
+	};
+.. _details-structdnnl_1_1reduction_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for reduction.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1reduction_1_1desc_1a9ffaf6df9bdc6bd928570abe311c64ab:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc()
+
+Default constructor. Produces an empty object.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1reduction_1_1desc_1ab7b9e28e493eccb2b53a3982abfcab6d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc,
+		float p,
+		float eps
+		)
+
+Constructs a descriptor for a reduction primitive using algorithm specific parameters, source and destination memory descriptors.
+
+.. note:: 
+
+   Destination memory descriptor may be initialized with :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aalgorithm
+
+		- reduction algorithm kind. Possible values: :ref:`dnnl_reduction_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aae4722e394206cf9774ae45db959854e>`, :ref:`dnnl_reduction_min <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a3edeac87290d164cfd3e79adcb6ed91a>`, :ref:`dnnl_reduction_sum <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ae74491a0b7bfe0720be69e3732894818>`, :ref:`dnnl_reduction_mul <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9ff432e67749e211f5f0f64d5f707359>`, :ref:`dnnl_reduction_mean <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ac88d2b9bc130483c177868888c705694>`, :ref:`dnnl_reduction_norm_lp_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ad6459b4162ab312f59fa48bf9dcf35c3>`, :ref:`dnnl_reduction_norm_lp_sum <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a21c93597a1be438219bbbd832830f096>`, :ref:`dnnl_reduction_norm_lp_power_p_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a3838df4d5d37de3237359043ccebfba1>`, :ref:`dnnl_reduction_norm_lp_power_p_sum <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23adcb83e9f76b3beaeb831a59cd257d7dd>`.
+
+	*
+		- p
+
+		- algorithm specific parameter.
+
+	*
+		- eps
+
+		- algorithm specific parameter.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor.
+

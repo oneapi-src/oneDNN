@@ -1,0 +1,191 @@
+.. index:: pair: group; Eltwise
+.. _doxid-group__dnnl__api__eltwise:
+
+Eltwise
+=======
+
+.. toctree::
+	:hidden:
+
+	struct_dnnl_eltwise_desc_t.rst
+	struct_dnnl_eltwise_backward.rst
+	struct_dnnl_eltwise_forward.rst
+
+Overview
+~~~~~~~~
+
+A primitive to perform elementwise operations such as the rectifier linear unit (ReLU). :ref:`More...<details-group__dnnl__api__eltwise>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	// structs
+
+	struct :ref:`dnnl_eltwise_desc_t<doxid-structdnnl__eltwise__desc__t>`;
+	struct :ref:`dnnl::eltwise_backward<doxid-structdnnl_1_1eltwise__backward>`;
+	struct :ref:`dnnl::eltwise_forward<doxid-structdnnl_1_1eltwise__forward>`;
+
+	// global functions
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_eltwise_forward_desc_init<doxid-group__dnnl__api__eltwise_1ga5606fd4c9291f7caca8b015460d2f037>`(
+		:ref:`dnnl_eltwise_desc_t<doxid-structdnnl__eltwise__desc__t>`* eltwise_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		float alpha,
+		float beta
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_eltwise_backward_desc_init<doxid-group__dnnl__api__eltwise_1gac4fdea101041cbd8b7f99ea07a1312b7>`(
+		:ref:`dnnl_eltwise_desc_t<doxid-structdnnl__eltwise__desc__t>`* eltwise_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		float alpha,
+		float beta
+		);
+
+.. _details-group__dnnl__api__eltwise:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A primitive to perform elementwise operations such as the rectifier linear unit (ReLU).
+
+Both forward and backward propagation primitives support in-place operation; that is, src and dst can refer to the same memory for forward propagation, and diff_dst and diff_src can refer to the same memory for backward propagation.
+
+.. warning:: 
+
+   Because the original source data is required for backward propagation, in-place forward propagation is not generally supported in the training mode. However, for algorithms supporting destination as input memory, dst can be used for the backward propagation, which makes it possible to get performance benefit even in the training mode.
+
+
+
+.. rubric:: See also:
+
+:ref:`Eltwise <doxid-dev_guide_eltwise>` in developer guide
+
+Global Functions
+----------------
+
+.. index:: pair: function; dnnl_eltwise_forward_desc_init
+.. _doxid-group__dnnl__api__eltwise_1ga5606fd4c9291f7caca8b015460d2f037:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_eltwise_forward_desc_init(
+		:ref:`dnnl_eltwise_desc_t<doxid-structdnnl__eltwise__desc__t>`* eltwise_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		float alpha,
+		float beta
+		)
+
+Initializes a descriptor for eltwise forward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- eltwise_desc
+
+		- Output descriptor for an eltwise primitive.
+
+	*
+		- prop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>` and :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`.
+
+	*
+		- alg_kind
+
+		- Elementwise algorithm kind.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptor.
+
+	*
+		- alpha
+
+		- The alpha parameter for the elementwise operation. Specific meaning depends on the algorithm.
+
+	*
+		- beta
+
+		- The beta parameter for the elementwise operation. Specific meaning depends on the algorithm.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_eltwise_backward_desc_init
+.. _doxid-group__dnnl__api__eltwise_1gac4fdea101041cbd8b7f99ea07a1312b7:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_eltwise_backward_desc_init(
+		:ref:`dnnl_eltwise_desc_t<doxid-structdnnl__eltwise__desc__t>`* eltwise_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		float alpha,
+		float beta
+		)
+
+Initializes a descriptor for eltwise backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- eltwise_desc
+
+		- Output descriptor for an eltwise primitive.
+
+	*
+		- alg_kind
+
+		- Elementwise algorithm kind.
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptors.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptor.
+
+	*
+		- alpha
+
+		- The alpha parameter for the elementwise operation. Specific meaning depends on the algorithm.
+
+	*
+		- beta
+
+		- The beta parameter for the elementwise operation. Specific meaning depends on the algorithm.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+

@@ -1,0 +1,4 @@
+<map id="dnnl::softmax_backward" name="dnnl::softmax_backward">
+<area shape="rect" id="node2" href="$classdnnl_1_1primitive.html" title="Base class for all computational primitives. " alt="" coords="38,95,155,121"/>
+<area shape="rect" id="node3" href="$classdnnl_1_1handle.html" title="dnnl::handle\&lt; dnnl\l_primitive_t \&gt;" alt="" coords="24,5,169,47"/>
+</map>
