@@ -76,31 +76,32 @@ struct params_t {
     }
 };
 
+inline bool check_gemm_input_format(const memory_desc_t &md) {
+    memory_desc_wrapper mdw(md);
+
+    if (!mdw.is_plain()) return false;
+
+    const int ndims = mdw.ndims();
+    const dims_t &strides = mdw.blocking_desc().strides;
+
+    // disable md with zero stride for a particular dimension
+    for (int dim = 0; dim < ndims; ++dim)
+        if (strides[dim] == 0) return false;
+
+    // for GeMM atleast one of the two innermost axes must be contiguous
+    return utils::one_of(1, strides[ndims - 1], strides[ndims - 2]);
+}
+
+inline bool check_gemm_output_format(const memory_desc_t &md) {
+    const memory_desc_wrapper mdw(md);
+    const int ndims = mdw.ndims();
+    return mdw.is_plain() && mdw.blocking_desc().strides[ndims - 1] == 1;
+}
+
 inline bool check_gemm_compatible_formats(const matmul_pd_t &pd) {
-
-    const memory_desc_wrapper dst_d(pd.dst_md());
-    const int ndims = dst_d.ndims();
-
-    auto check_input_format = [=](const memory_desc_t *md) {
-        memory_desc_wrapper mdw(md);
-
-        if (!mdw.is_plain()) return false;
-
-        const dims_t &strides = mdw.blocking_desc().strides;
-
-        // disable md with zero stride for a particular dimension
-        for (int dim = 0; dim < ndims; ++dim)
-            if (strides[dim] == 0) return false;
-
-        // for GeMM atleast one of the two innermost axes must be contiguous
-        return utils::one_of(1, strides[ndims - 1], strides[ndims - 2]);
-    };
-
-    bool ok = check_input_format(pd.src_md())
-            && check_input_format(pd.weights_md()) && dst_d.is_plain()
-            && dst_d.blocking_desc().strides[ndims - 1] == 1;
-
-    return ok;
+    return check_gemm_input_format(*(pd.src_md()))
+            && check_gemm_input_format(*(pd.weights_md()))
+            && check_gemm_output_format(*(pd.dst_md()));
 }
 
 inline bool check_gemm_binary_per_oc_compatible_formats(const matmul_pd_t &pd) {
