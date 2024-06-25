@@ -47,12 +47,12 @@ struct ref_shuffle_t : public gpu::generic::sycl::primitive_t {
 
             const bool ok = src_md()->data_type == dst_md()->data_type
                     && (src_md()->data_type == bf16 || src_md()->data_type == s8
+                            || src_md()->data_type == u8
                             || src_md()->data_type == f16
                             || src_md()->data_type == f32)
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && attr()->has_default_values()
                     && set_default_formats_common()
-
                     && IMPLICATION(!is_fwd(), set_default_formats_common());
             if (!ok) return status::unimplemented;
             return init_conf();
