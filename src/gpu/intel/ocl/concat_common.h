@@ -86,6 +86,7 @@
 #define REDUCE(n, cat, f) REDUCE2(n, cat, f)
 
 #define JOIN_COMMA(x, y) x, y
-#define CS_PARAM(p0, p1, p2, p3, p4) JOIN_COMMA(p0, JOIN_COMMA(p1, JOIN_COMMA(p2, JOIN_COMMA(p3, p4))))
+#define CS_PARAM(p0, p1, p2, p3, p4) \
+    JOIN_COMMA(p0, JOIN_COMMA(p1, JOIN_COMMA(p2, JOIN_COMMA(p3, p4))))
 
 #endif
