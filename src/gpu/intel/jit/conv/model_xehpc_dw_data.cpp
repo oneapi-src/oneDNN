@@ -24,8 +24,7 @@ namespace intel {
 namespace jit {
 
 // clang-format off
-const std::vector<uint64_t> &get_conv_model_xehpc_dw_data() {
-    static std::vector<uint64_t> data = {
+static const uint64_t _data[] = {
         0x000000133e4ccccd, 0x4000000000000001, 0x3ca8000000000051, 0x3d0500003ce00000, 0x3d2800003d1a0000, 0x3d6000003d500000, 0x3d8000003d7c0000, 0x3d9000003d8c0000,
         0x3da800003da00000, 0x3dd000003dc00000, 0x3de000003dd80000, 0x3dfc00003df00000, 0x3e0c00003e000000, 0x3e1800003e100000, 0x3e2800003e200000, 0x3e4000003e340000,
         0x3e5000003e460000, 0x3e6000003e580000, 0x3e7000003e6a0000, 0x3e8000003e7c0000, 0x3e8a00003e850000, 0x3e9000003e8c0000, 0x3e9c00003e960000, 0x3ea800003ea00000,
@@ -523,9 +522,13 @@ const std::vector<uint64_t> &get_conv_model_xehpc_dw_data() {
         0x04a80aff018b0002, 0xad043b98b5b3ffbc, 0x70ff019dab0401a2, 0xbbc34ad5ffbb0afb, 0x94f768ff01ab0111, 0x030b3da8ebacffbb, 0x011201d8930501f8, 0x8cff01c5000a01ca,
         0x397ffe28ffb9e03d, 0x862492ff01d30002, 0xb404390df4d9ff3b, 0x2eff01e5020d01ea, 0x3c394cb7ffba0a90, 0x2cdefcff01f30112, 0x040bbbcd4967ffb9, 0x8905020e0112021c,
         0xffbcb07e3eff0209, 0x0217b004bbeeb1ea, 0x1b21ff3b918733ff, 0x0112022e000dbacd, 0xff37d1dd9eff0229, 0x02378f05bb20b18c, 0x9854ffb91bfcf9ff, 0x000000000000399f
-    };
-    return data;
 };
+
+const std::vector<uint64_t> &get_conv_model_xehpc_dw_data() {
+    static std::vector<uint64_t> data(
+            _data, _data + sizeof(_data) / sizeof(_data[0]));
+    return data;
+}
 // clang-format on
 
 } // namespace jit
