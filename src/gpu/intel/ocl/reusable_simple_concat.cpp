@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include <algorithm>
+#include <limits>
 #include <numeric>
 
 #include "gpu/intel/compute/dispatch.hpp"
@@ -383,25 +384,38 @@ struct prb_info_t {
     }
 };
 
+// returns the total number of bytes kernel parameters will demand for n inputs
+size_t kernel_parameter_bytes(
+        const size_t n, const size_t n_blocks, const size_t idx_type_size) {
+    // offset##N, padded_offset##N, inner_offset, read_overlap, gws0_block
+    const size_t additional_param_bytes = 5 * idx_type_size;
+
+    // dst, dst_offset0, dst_ext_offset,
+    const size_t dst_param_bytes = sizeof(void *) + 2 * idx_type_size;
+
+    // *src##n, src_ext_offset##n, offset##n, padded_offset##n, src_concat_axis##n
+    const size_t src_param_bytes = n * (sizeof(void *) + (4 * idx_type_size));
+
+    // block_b##n, block_s##n
+    const size_t block_param_bytes = n_blocks * 2 * idx_type_size;
+
+    return dst_param_bytes + src_param_bytes + additional_param_bytes
+            + block_param_bytes;
+}
+
 static status_t init_conf_common(
         impl::engine_t *engine, concat_conf_t &conf, const concat_pd_t *pd) {
     using namespace utils;
     const memory_desc_t &ref_dst_md = *pd->dst_md();
     if (ref_dst_md.format_kind != format_kind::blocked) {
-        printf("noblock norm()\n");
         return status::unimplemented;
     }
     const auto concat_dim = pd->concat_dim();
 
-    // TODO: return status::unimplemented; if ninputs * paramsz > total kernel argument space 2kb pvc
-
     normalization_t normalize(ref_dst_md, concat_dim);
     for (int i = 0; i < pd->n_inputs(); ++i) {
         const memory_desc_t &src_md = *pd->src_md(i);
-        if (!normalize.add_source(src_md)) {
-            printf("cnae norm()\n");
-            return status::unimplemented;
-        }
+        if (!normalize.add_source(src_md)) { return status::unimplemented; }
     }
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -438,10 +452,7 @@ static status_t init_conf_common(
                     max_write_size, device_info->gpu_arch());
         }
     }
-    if (infos.empty() || !infos[0].block) {
-        printf("no infos\n");
-        return status::unimplemented;
-    }
+    if (infos.empty() || !infos[0].block) { return status::unimplemented; }
     std::sort(infos.begin(), infos.end());
     const auto &info = infos[0];
 
@@ -513,16 +524,13 @@ static status_t init_conf_common(
     size_t extern_axis_bound = 256 * 512 * std::min(coalesced_writes, 8);
     if (conf.simd == 1 && conf.gws_d[2] > 64) return status::unimplemented;
     if (conf.simd == 1 && conf.gws_d[1] > extern_axis_bound) {
-        printf("simd1 > extern\n");
         return status::unimplemented;
     }
     if (conf.inner_axis == 1 && 16 * conf.simd <= conf.read_block
             && (size_t)conf.read_block < conf.gws_d[2]) {
-        printf("readblock\n");
         return status::unimplemented;
     }
     if (conf.n_blocks && conf.write_block * conf.data_type_size == 1) {
-        printf("dtsize1\n");
         return status::unimplemented;
     }
     // In this band, this implementation underperforms against either
@@ -531,43 +539,36 @@ static status_t init_conf_common(
             && dst_md.dims[axis::inner] <= (1l << 24) // (2)
             && dst_md.dims[axis::concat] != dst_md.padded_dims[axis::concat]
             && dst_md.dims[axis::concat] < 8) {
-        printf("ref,gen9\n");
         return status::unimplemented;
     }
 
     conf.lws_d
             = compute::get_optimal_lws(conf.gws_d, 0, device_info->gpu_arch());
 
-    //TODO: make this calculated
-    if(conf.n > 16) {
-        printf("n>16\n");
+    conf.use_large_index
+            = (total_bytes > std::numeric_limits<unsigned int>::max());
+    size_t param_bytes = (conf.use_large_index)
+            ? kernel_parameter_bytes(conf.n, conf.n_blocks, sizeof(dim_t))
+            : kernel_parameter_bytes(
+                    conf.n, conf.n_blocks, sizeof(unsigned int));
+    if (param_bytes > device_info->max_kernel_param_size()) {
         return status::unimplemented;
     }
-    printf("gws[%d %d %d]\n", conf.gws_d[0], conf.gws_d[1], conf.gws_d[2]);
     return status::success;
 }
 
 static status_t init_kernel_ctx_common(
         compute::kernel_ctx_t &kernel_ctx, const concat_conf_t &conf) {
     kernel_ctx.add_option("-cl-intel-256-GRF-per-thread");
-    for (int i = 0; i < conf.n; ++i) {
-        // temporarily enabled for performance debugging
-        // defining this var causes >2x speedup and ~600lines .asm vs ~4000+ lines of asm
-        kernel_ctx.define_int(utils::format("SRC%d_EXT_OFFSET", i),
-                conf.src_extern_dim_sizes[i] / conf.data_type_size);
-    }
-    //kernel_ctx.define_int("DST_EXT_OFFSET", conf.dst_offset0);
-    //kernel_ctx.define_int("WRITE_BLOCK", conf.write_block);
-    //kernel_ctx.define_int("GWS0_BLOCK", conf.gws0_block);
-    //kernel_ctx.define_int("READ_OVERLAP", conf.read_overlap);
-    //kernel_ctx.define_int("INNER_OFFSET", conf.inner_axis);
-    //kernel_ctx.define_int("WRITE_BLOCK", conf.write_block);
 
+    kernel_ctx.define_int("WRITE_BLOCK", conf.write_block);
     kernel_ctx.define_int("READ_BLOCK", conf.read_block);
     kernel_ctx.define_int("N_INPUTS", conf.n);
     kernel_ctx.define_int("BLOCK_DEPTH", conf.n_blocks);
     kernel_ctx.define_int("SIMD", conf.simd);
     kernel_ctx.define_int("DATA_TYPE_SIZE", conf.data_type_size);
+
+    kernel_ctx.define_int("LARGE_INDEX_T", conf.use_large_index);
     return status::success;
 }
 
@@ -580,39 +581,54 @@ status_t reusable_simple_concat_t::pd_t::init_kernel_ctx(
     return init_kernel_ctx_common(kernel_ctx, conf);
 }
 
+template <typename IDX_T>
+void push_idx_kernel_args(compute::kernel_arg_list_t &partial_list,
+        const exec_ctx_t &ctx, const concat_conf_t &conf,
+        const concat_pd_t *pd) {
+    const auto concat_dim = pd->concat_dim();
+    for (int idx = 0, valid_idx = 0; idx < pd->n_inputs(); ++idx) {
+        // skip invalid inputs
+        if (pd->src_md(idx)->padded_dims[concat_dim] == 0) continue;
+
+        auto &src = CTX_IN_STORAGE(DNNL_ARG_MULTIPLE_SRC + idx);
+        partial_list.append(src);
+
+        partial_list.append(static_cast<IDX_T>(
+                conf.src_extern_dim_sizes[valid_idx] / conf.data_type_size));
+        partial_list.append(static_cast<IDX_T>(conf.offset[valid_idx]));
+        partial_list.append(static_cast<IDX_T>(conf.padded_offset[valid_idx]));
+        dim_t src_concat_axis = valid_idx + 1 < conf.n
+                ? conf.offset[valid_idx + 1]
+                : conf.dst_concat_axis;
+        partial_list.append(static_cast<IDX_T>(src_concat_axis));
+        valid_idx++;
+    }
+    partial_list.append(static_cast<IDX_T>(conf.dst_concat_axis));
+    partial_list.append(static_cast<IDX_T>(conf.dst_padded_concat_axis));
+    partial_list.append(static_cast<IDX_T>(conf.inner_axis));
+    partial_list.append(static_cast<IDX_T>(conf.read_overlap));
+    partial_list.append(static_cast<IDX_T>(conf.gws0_block));
+
+    for (int b = 0; b < conf.n_blocks; ++b) {
+        partial_list.append(static_cast<IDX_T>(conf.blocks[b]));
+        partial_list.append(static_cast<IDX_T>(conf.strides[b]));
+    }
+}
+
 status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
     const auto &conf = pd()->conf;
     if (conf.n == 0) return status::success;
-    const auto concat_dim = pd()->concat_dim();
 
     compute::kernel_arg_list_t arg_list;
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
-    arg_list.set(0, dst);
-    arg_list.set(1, conf.dst_offset0);
-    arg_list.set(2, conf.dst_extern_dim_size / conf.data_type_size);
-    int next_arg = 3;
-    for (int i = 0; i < pd()->n_inputs(); ++i) {
-        if (pd()->src_md(i)->padded_dims[concat_dim] == 0) continue;
-        auto &src = CTX_IN_STORAGE(DNNL_ARG_MULTIPLE_SRC + i);
-        arg_list.set(next_arg++, src);
+    arg_list.append(dst);
+    arg_list.append(conf.dst_offset0);
+    arg_list.append(conf.dst_extern_dim_size / conf.data_type_size);
 
-        arg_list.set(next_arg++, (conf.src_extern_dim_sizes[i] / conf.data_type_size));
-        arg_list.set(next_arg++, conf.offset[i]);
-        arg_list.set(next_arg++, conf.padded_offset[i]);
-        dim_t src_concat_axis
-                = i + 1 < conf.n ? conf.offset[i + 1] : conf.dst_concat_axis;
-        arg_list.set(next_arg++, src_concat_axis);
-    }
-    arg_list.set(next_arg++, conf.dst_concat_axis);
-    arg_list.set(next_arg++, conf.dst_padded_concat_axis);
-    arg_list.set(next_arg++, conf.inner_axis);
-    arg_list.set(next_arg++, conf.write_block);
-    arg_list.set(next_arg++, conf.read_overlap);
-    arg_list.set(next_arg++, conf.gws0_block);
-
-    for (int i = 0; i < conf.n_blocks; ++i) {
-        arg_list.set(next_arg++, conf.blocks[i]);
-        arg_list.set(next_arg++, conf.strides[i]);
+    if (conf.use_large_index) {
+        push_idx_kernel_args<dim_t>(arg_list, ctx, conf, pd());
+    } else {
+        push_idx_kernel_args<unsigned int>(arg_list, ctx, conf, pd());
     }
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
@@ -620,6 +636,7 @@ status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
+
 } // namespace ocl
 } // namespace intel
 } // namespace gpu

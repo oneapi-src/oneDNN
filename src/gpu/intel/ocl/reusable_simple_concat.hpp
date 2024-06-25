@@ -23,7 +23,6 @@
 #include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
 #include "gpu/intel/primitive_conf.hpp"
-//TODO: reusable dispatcher?
 
 namespace dnnl {
 namespace impl {
@@ -49,14 +48,15 @@ struct reusable_simple_concat_t : public gpu_primitive_t {
             VDISPATCH_CONCAT_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
 
             VDISPATCH_CONCAT_SC(init_conf(engine),
-                    VERBOSE_PRIMITIVE_CREATION_FAIL, "reusable_concat init_conf");
+                    VERBOSE_PRIMITIVE_CREATION_FAIL,
+                    "reusable_concat init_conf");
 
             return status::success;
         }
 
         status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
-        concat_conf_t conf; //TODO: make reusable variant?
+        concat_conf_t conf;
     };
 
     status_t init(impl::engine_t *engine) override {
@@ -65,7 +65,8 @@ struct reusable_simple_concat_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        CHECK(create_kernel(engine, &kernel_, "reusable_simple_concat", kernel_ctx));
+        CHECK(create_kernel(
+                engine, &kernel_, "reusable_simple_concat", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
