@@ -39,6 +39,10 @@ Examples
      - CPU/GPU
      - :ref:`doxid-bnorm_u8_via_binary_postops_cpp`
      -
+   * -
+     - CPU/GPU
+     - :ref:`doxid-cache_primitive_desc_cpp`
+     -
    * - f32 inference
      - CPU/GPU
      - :ref:`doxid-cnn_inference_f32_cpp`

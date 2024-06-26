@@ -15,6 +15,7 @@ Orphans
     page_sycl_interop_buffer_cpp
     page_gpu_opencl_interop_cpp
     page_bnorm_u8_via_binary_postops_cpp
+    page_cache_primitive_desc_cpp
     page_cnn_inference_f32_cpp
     page_cnn_inference_f32_c
     page_cpu_rnn_inference_f32_cpp
@@ -74,6 +75,7 @@ Orphans
     page_binary_example_cpp.rst
     page_binary_example_cpp_short.rst
     page_bnorm_u8_via_binary_postops_cpp_short.rst
+    page_cache_primitive_desc_cpp_short.rst
     page_concat_example_cpp.rst
     page_concat_example_cpp_short.rst
     page_convolution_example_cpp.rst
