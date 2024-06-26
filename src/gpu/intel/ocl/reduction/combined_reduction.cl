@@ -122,21 +122,30 @@ void reverse_indexing(dim_t dst_off, int *res) {
 }
 #endif
 
+__attribute__((overloadable)) void write(
+        __global DST_DATA_T *dst, DST_DATA_T val) {
+    *dst = val;
+}
+
+__attribute__((overloadable)) DST_DATA_T load(__global DST_DATA_T *dst) {
+    return *dst;
+}
+
 void write_padded_zeros(__global DST_DATA_T *dst) {
 #if DST_Z0_IS_REDUCED && DST_Z1_IS_REDUCED
     for (int i = 0; i < DST_Z0_SIZE0; i++) {
         for (int j = 0; j < DST_Z1_SIZE0; j++) {
             if (i == 0 && j == 0) continue;
-            *(dst + i * DST_Z0_STRIDE0 + j * DST_Z1_STRIDE0) = TO_DST(0.0f);
+            write(dst + i * DST_Z0_STRIDE0 + j * DST_Z1_STRIDE0, TO_DST(0.0f));
         }
     }
 #elif DST_Z0_IS_REDUCED
     for (int i = 1; i < DST_Z0_SIZE0; i++) {
-        *(dst + i * DST_Z0_STRIDE0) = TO_DST(0.0f);
+        write(dst + i * DST_Z0_STRIDE0, TO_DST(0.0f));
     }
 #elif DST_Z1_IS_REDUCED
     for (int j = 1; j < DST_Z1_SIZE0; j++) {
-        *(dst + j * DST_Z1_STRIDE0) = TO_DST(0.0f);
+        write(dst + j * DST_Z1_STRIDE0, TO_DST(0.0f));
     }
 #endif
 }
@@ -253,7 +262,7 @@ combined_reduce(
 #if WITH_POST_OP
                 float dst_val;
 #if WITH_SUM
-                dst_val = DST_TO_REF(dst[dst_off]);
+            dst_val = DST_TO_REF(load(dst + dst_off));
 #endif // WITH_SUM
                 int idxs[6];
                 reverse_indexing(dst_off, idxs);
@@ -271,7 +280,7 @@ combined_reduce(
 
             // Write to dst
             if (is_dst_zero_padded(dst_off)) res = 0.0f;
-            dst[dst_off] = IS_FINAL ? TO_DST(res) : res;
+            write(dst + dst_off, IS_FINAL ? TO_DST(res) : res);
             write_padded_zeros(dst + dst_off);
             DUMP("dst[%ld] <- %f\n", dst_off, TO_DST(res));
         }
