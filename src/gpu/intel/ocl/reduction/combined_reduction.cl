@@ -187,8 +187,8 @@ combined_reduce(
     const int sglid = get_sub_group_local_id();
     ASSUME(sglid < SUBGROUP_SIZE);
     ASSUME(sglid >= 0);
-    const int inner_idx = inner_idx_start + (sglid % INNER_DIM_SIZE);
-    const int red_off = sglid / INNER_DIM_SIZE;
+    const int inner_idx = (inner_idx_start + sglid) % INNER_DIM_SIZE;
+    const int red_off = (inner_idx_start + sglid) / INNER_DIM_SIZE;
     const int red_off_tg = red_off + sgid * red_per_sg;
 
     const int active_channels = min(SUBGROUP_SIZE, red_per_sg * INNER_DIM_SIZE);
