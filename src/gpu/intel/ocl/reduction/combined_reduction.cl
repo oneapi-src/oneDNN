@@ -207,8 +207,8 @@ combined_reduce(
     ASSUME(sglid < SUBGROUP_SIZE);
     ASSUME(sglid >= 0);
     const int inner_idx = (inner_idx_start + sglid) % INNER_DIM_SIZE;
-    const int red_off = (inner_idx_start + sglid) / INNER_DIM_SIZE;
-    const int red_off_tg = red_off + sgid * red_per_sg;
+    const int red_off_sg = (inner_idx_start + sglid) / INNER_DIM_SIZE;
+    const int red_off_tg = red_off_sg + sgid * red_per_sg;
 
     const int active_channels = min(SUBGROUP_SIZE, red_per_sg * INNER_DIM_SIZE);
     ASSUME(active_channels == SUBGROUP_SIZE || !WITH_BLOCK_READ);
@@ -222,12 +222,11 @@ combined_reduce(
 
         DEF_ACC_DATA_T acc;
         init_acc(REDUCTION_ALG, &acc);
-
         // Each thread reduces in a loop
         if (sglid < active_channels) {
-            // red_off_tg - red_off to get the starting point for the subgroup
+            // red_off_tg - red_off_sg to get the starting point for the subgroup
             int src_off = _SRC_OFF(
-                    outer_idx, red_off_tg - red_off, inner_idx_start);
+                    outer_idx, red_off_tg - red_off_sg, inner_idx_start);
             if (!WITH_BLOCK_READ) src_off += sglid;
             for (int iters = num_horiz_reductions; iters > 0; --iters) {
                 const DATA_T src_val = READ_DATA(src[src_off]);
@@ -265,15 +264,13 @@ combined_reduce(
 
         if (wg_reductions > 1) {
             const int local_idx = sgid * SLM_PER_SG + sglid;
-            if (red_off == 0 && inner_idx < INNER_DIM_SIZE) {
+            if (red_off_sg == 0 && inner_idx < INNER_DIM_SIZE) {
                 slm_acc[local_idx] = acc;
             }
             init_acc(SECONDARY_REDUCTION_ALG, &acc);
             barrier(CLK_LOCAL_MEM_FENCE);
-        }
 
-        if (red_off_tg == 0 && inner_idx < INNER_DIM_SIZE) {
-            if (wg_reductions > 1) {
+            if (red_off_tg == 0) {
                 unroll_for(int i = 0; i < wg_reductions; i++) {
                     const int idx = i * SLM_PER_SG + sglid;
                     acc = reduce(
@@ -282,34 +279,32 @@ combined_reduce(
                             convert_float(slm_acc[idx]));
                 }
             }
-            const dim_t dst_off = _DST_OFF(outer_idx, inner_idx);
+        }
 
-            // ---- Finalize results and clean up ----
+        const dim_t dst_off = _DST_OFF(outer_idx, inner_idx);
 
-            float res = acc;
-            if (IS_FINAL) {
-                res = finalize(
-                        REDUCTION_ALG, convert_float(acc), DIV, POWER, EPS);
+        // ---- Finalize results and clean up ----
+
+        if (red_off_tg == 0) {
+            float res = IS_FINAL ? finalize(REDUCTION_ALG, acc, DIV, POWER, EPS)
+                                 : acc;
 #if WITH_POST_OP
-                float dst_val;
+            float dst_val;
 #if WITH_SUM
             dst_val = DST_TO_REF(load(dst + dst_off));
 #endif // WITH_SUM
-                int idxs[6];
-                reverse_indexing(dst_off, idxs);
+            int idxs[6];
+            reverse_indexing(dst_off, idxs);
 
-                // Only use post-ops on non-zero-padded elements
-                if (idxs[0] < DST_D0 && idxs[1] < DST_D1 && idxs[2] < DST_D2
-                        && idxs[3] < DST_D3 && idxs[4] < DST_D4
-                        && idxs[5] < DST_D5) {
-                    APPLY_POST_OPS_SERIAL(res, float, dst_val, float, idxs[0],
-                            1, idxs[1], 1, idxs[2], 1, idxs[3], 1, idxs[4], 1,
-                            idxs[5], 1);
-                }
-#endif // WITH_POST_OP
+            // Only use post-ops on non-zero-padded elements
+            if (idxs[0] < DST_D0 && idxs[1] < DST_D1 && idxs[2] < DST_D2
+                    && idxs[3] < DST_D3 && idxs[4] < DST_D4
+                    && idxs[5] < DST_D5) {
+                APPLY_POST_OPS_SERIAL(res, float, dst_val, float, idxs[0], 1,
+                        idxs[1], 1, idxs[2], 1, idxs[3], 1, idxs[4], 1, idxs[5],
+                        1);
             }
-
-            // Write to dst
+#endif
             if (is_dst_zero_padded(dst_off)) res = 0.0f;
             write(dst + dst_off, IS_FINAL ? TO_DST(res) : res);
             DUMP("Wrote dst[%ld] = %f\n", dst_off, res);
