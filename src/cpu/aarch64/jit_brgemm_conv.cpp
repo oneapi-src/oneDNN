@@ -778,7 +778,6 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
 
     // ---- Initialize arrays ---------------------
     brgemm_kernels_.resize(_pd->brgs_sz_);
-    brgemm_palettes_.resize(_pd->brgs_sz_);
 
     // #TODO: this needed only if we have d/h padding more then kd/kh
     int M_begin = 0;
@@ -1674,7 +1673,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_base(
                                      bool do_only_comp) {
         if (k_l <= 0) return;
         const auto brg_ker = brgemm_kernels_[brg_idx];
-        brgemm_palettes_.maybe_tile_configure(btc.cur_brg_idx, brg_idx);
 
         assert(jcp.brg_type != brgemm_static_offs);
         _pd->init_batch(btc.icc, src_base, wei_base, n_ic_blocks, ic_block_s,
@@ -1850,7 +1848,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_trans(
                                      bool do_postops) {
         if (k_l <= 0) return;
         const auto brg_ker = brgemm_kernels_[brg_idx];
-        brgemm_palettes_.maybe_tile_configure(btc.cur_brg_idx, brg_idx);
 
         const auto kh_ee = jcp.kh_sets > 1 ? kh_b + 1 : kh_e;
         const auto pbuf_base = inp_buffer
@@ -1963,8 +1960,6 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      int comp_ker_offs, bool do_postops) {
         const auto brg_ker = brgemm_kernels_[brg_idx];
-
-        brgemm_palettes_.maybe_tile_configure(btc.cur_brg_idx, brg_idx);
 
         assert(jcp.brg_type != brgemm_static_offs);
         _pd->init_batch(btc.icc, src_base, wei_base, n_ic_blocks, ic_block_s,

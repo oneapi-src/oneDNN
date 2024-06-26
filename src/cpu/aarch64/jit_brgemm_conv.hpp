@@ -251,7 +251,6 @@ private:
     }
 
     brgemm_containers::brgemm_kernel_container_t brgemm_kernels_;
-    brgemm_containers::brgemm_palette_container_t brgemm_palettes_;
 
     std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops>> kernels_po_;
     std::unique_ptr<jit_sve_core_brgemm_conv_trans_kernel::

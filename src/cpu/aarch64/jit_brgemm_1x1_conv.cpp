@@ -340,8 +340,6 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
 
     const auto call_brgemm = [=](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      bool do_postops) {
-        brgemm_palettes_.maybe_tile_configure(*last_brg_idx, brg_idx);
-
         for (int k = 0; k < n_ic_blocks; k++) {
             const auto ic_off = (ic_block_s + k) * jcp.ic_block;
             const auto src_ic = ic_off;
