@@ -7716,17 +7716,10 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
 
     if (Tc.size() != Tc_compute.size()) stub();
     if (state.C_buffers > 1) stub();
-    //if (scaleA && scaleB) stub();
 
     int ny = strategy.unroll[globalCM ? LoopN : LoopM];
     int nacc = AccumulatorRegister::count(hw, strategy.GRFs, Tc.real().ngen());
 
-    /*bool ARepackScale = !Ar_scaleLayout.empty();
-    bool BRepackScale = !Br_scaleLayout.empty();
-    auto bScaleLayout = BRepackScale ? Ar_scaleLayout : A_scaleLayout;
-    auto aScaleLayout = ARepackScale ? Br_scaleLayout : B_scaleLayout;
-    auto aScaleRegs = ARepackScale ? Br_scaleLayout : B_scaleLayout;
-    auto aScaleRegs = ARepackScale ? Br_scaleLayout : B_scaleLayout;*/
     struct WorkItem {
         Subregister C, Cr;
         int simd, iacc;
@@ -7773,12 +7766,12 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
             Subregister scale;
             int scaleStride = 0;
             if (scaleA) {
-                int js = (j + ha) / problem.aqGroupK;
+                int js = (jr + ha) / problem.aqGroupK;
                 scale = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout, i,
                         js, state.Ar_scaleRegs, nes, sblock);
                 scaleStride = globalCM ? 1 : 0;
             } else if (scaleB) {
-                int is = (i + hb) / problem.bqGroupK;
+                int is = (ir + hb) / problem.bqGroupK;
                 scale = findBlockReg(state.Tb_scaleInt, state.Br_scaleLayout,
                         is, j, state.Br_scaleRegs, nes, sblock);
                 scaleStride = globalCM ? 0 : 1;
