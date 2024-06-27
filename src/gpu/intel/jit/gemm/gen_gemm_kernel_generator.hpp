@@ -984,10 +984,12 @@ struct GEMMProblem : public CommonProblem {
     bool backward() const { return false; }
 
     bool needsASums() const {
-        return (bOffset == ABOffset::Calc && boPtrDims < 2) || sumA;
+        return (bOffset == ABOffset::Calc && boPtrDims < 2 && !quantized2DB())
+                || sumA;
     }
     bool needsBSums() const {
-        return (aOffset == ABOffset::Calc && aoPtrDims < 2) || sumB;
+        return (aOffset == ABOffset::Calc && aoPtrDims < 2 && !quantized2DA())
+                || sumB;
     }
     bool usesCO() const { return (cOffset != COffset::None) || sumA || sumB; }
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
