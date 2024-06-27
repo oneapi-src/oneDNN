@@ -14,62 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#if DATA_TYPE_SIZE == 8
-#define DATA_T ulong
-#define BLOCK_READ intel_sub_group_block_read_ul
-#define BLOCK_WRITE intel_sub_group_block_write_ul
-#elif DATA_TYPE_SIZE == 4
-#define DATA_T uint
-#define BLOCK_READ intel_sub_group_block_read
-#define BLOCK_WRITE intel_sub_group_block_write
-#elif DATA_TYPE_SIZE == 2
-#define DATA_T ushort
-#define BLOCK_READ intel_sub_group_block_read_us
-#define BLOCK_WRITE intel_sub_group_block_write_us
-#elif DATA_TYPE_SIZE == 1
-#define DATA_T uchar
-#define BLOCK_READ intel_sub_group_block_read_uc
-#define BLOCK_WRITE intel_sub_group_block_write_uc
-#endif
-
 #if LARGE_INDEX_T == 1
 #define IDX_T long
 #else
 #define IDX_T uint
-#endif
-
-#define INTERNAL_CAT(a, b) a##b
-#define CAT(a, b) INTERNAL_CAT(a, b)
-#define DIV_UP(a, b) (((a) + ((b)-1)) / (b))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-
-#define DATA2_T CAT(DATA_T, 2)
-#define BLOCK_READ2 CAT(BLOCK_READ, 2)
-#define BLOCK_WRITE2 CAT(BLOCK_WRITE, 2)
-
-#define DATA4_T CAT(DATA_T, 4)
-#define BLOCK_READ4 CAT(BLOCK_READ, 4)
-#define BLOCK_WRITE4 CAT(BLOCK_WRITE, 4)
-
-#define DATA8_T CAT(DATA_T, 8)
-#define BLOCK_READ8 CAT(BLOCK_READ, 8)
-#define BLOCK_WRITE8 CAT(BLOCK_WRITE, 8)
-
-#define DATA16_T CAT(DATA_T, 16)
-#if DATA_TYPE_SIZE == 1
-#define BLOCK_READ16 CAT(BLOCK_READ, 16)
-#define BLOCK_WRITE16 CAT(BLOCK_WRITE, 16)
-#else
-#define BLOCK_READ16(ptr) \
-    (DATA16_T)((DATA8_T)(BLOCK_READ8(ptr)), \
-            (DATA8_T)(BLOCK_READ8((ptr) + 8 * SIMD)))
-#define BLOCK_WRITE16(ptr, v) \
-    do { \
-        DATA16_T tmp = v; \
-        BLOCK_WRITE8((ptr), tmp.s01234567); \
-        BLOCK_WRITE8((ptr) + 8 * SIMD, tmp.s89abcdef); \
-    } while (0)
 #endif
 
 #define ZERO_PAD_OFFSET CAT(offset, N_INPUTS)
@@ -96,55 +44,6 @@
 #define RIGHT(x, y) y
 
 #endif
-
-#define JOIN_ELSE(x, y) y else x
-#define JOIN_SEMICOLON(x, y) \
-    x; \
-    y
-
-#define DATA1_T DATA_T
-#define VECTOR(n) DATA##n##_T v##n[DIV_UP(READ_BLOCK, n)]
-typedef union {
-    VECTOR(16);
-    VECTOR(8);
-    VECTOR(4);
-    VECTOR(2);
-    VECTOR(1);
-} buffer_t;
-#undef VECTOR
-#undef DATA1_T
-
-DATA_T load_vec1(const buffer_t *buf, uint offset) {
-    return buf->v1[offset];
-}
-
-DATA2_T load_vec2(const buffer_t *buf, uint offset) {
-    return offset & 0x1
-            ? (DATA2_T)(load_vec1(buf, offset), load_vec1(buf, offset + 1))
-            : buf->v2[offset / 2];
-}
-
-// XXX: Consider handling the special cases
-//   offset & 0x1 -> (DATA4_T)(load_vec1(buf, offset),
-//          load_vec2(buf, offset + 1), load_vec1(buf, offset + 3))
-// (and similar for vec8/16)
-DATA4_T load_vec4(const buffer_t *buf, uint offset) {
-    return offset & 0x3
-            ? (DATA4_T)(load_vec2(buf, offset), load_vec2(buf, offset + 2))
-            : buf->v4[offset / 4];
-}
-
-DATA8_T load_vec8(const buffer_t *buf, uint offset) {
-    return offset & 0x7
-            ? (DATA8_T)(load_vec4(buf, offset), load_vec4(buf, offset + 4))
-            : buf->v8[offset / 8];
-}
-
-DATA16_T load_vec16(const buffer_t *buf, uint offset) {
-    return offset & 0xf
-            ? (DATA16_T)(load_vec8(buf, offset), load_vec8(buf, offset + 8))
-            : buf->v16[offset / 16];
-}
 
 IDX_T get_concat_idx(IDX_T inner_idx, IDX_T inner_offset
 #if BLOCK_DEPTH > 0
@@ -180,11 +79,6 @@ IDX_T get_concat_offset(IDX_T concat_idx, IDX_T inner_offset
     return idx + inner_offset * (concat_idx / block);
 }
 
-struct write_info_t {
-    IDX_T idx;
-    bool write;
-};
-
 #define PARAM_OFFSET_INPUT_N(n) const IDX_T offset##n
 #define ARG_OFFSET_INPUT_N(n) offset##n
 
@@ -193,6 +87,11 @@ struct write_info_t {
 
 #define EXPANDED_OFFSET_PARAMS EXPAND_N_ARGS(PARAM_OFFSET_INPUT_N, N_INPUTS)
 #define EXPANDED_OFFSET_ARGS EXPAND_N_ARGS(ARG_OFFSET_INPUT_N, N_INPUTS)
+
+struct write_info_t {
+    IDX_T idx;
+    bool write;
+};
 
 struct write_info_t get_write_info(
         const IDX_T src_idx, const IDX_T src_ext_offset,
