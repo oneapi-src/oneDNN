@@ -128,7 +128,7 @@
 
 --reset
 --dt=f32:s8:f32
---attr-fpmath=bf16:true,tf32:true
+--attr-fpmath=f16:true,bf16:true,tf32:true
 --attr-scales=wei:common:2,wei:per_oc,wei:per_ocic:f16
 --attr-zero-points=,wei:common:2,wei:per_oc,wei:per_ocic:s8
 77x133:133x117
