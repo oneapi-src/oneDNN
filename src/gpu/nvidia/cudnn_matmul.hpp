@@ -51,8 +51,14 @@ struct cudnn_matmul_t : public primitive_t {
             bool f32_case = utils::everyone_is(f32, src_dt, wei_dt, dst_dt);
             bool f16_case = utils::everyone_is(f16, src_dt, wei_dt, dst_dt);
             bool bf16_case = utils::everyone_is(bf16, src_dt, wei_dt, dst_dt);
+
+#ifdef DNNL_NO_IMMA_INT8
+            bool s8_case = utils::everyone_is(s8, src_dt, wei_dt)
+                    && utils::one_of(dst_dt, f32, s32);
+#else
             bool s8_case = utils::everyone_is(s8, src_dt, wei_dt)
                     && utils::one_of(dst_dt, s8, f32, s32);
+#endif
 
             auto *sycl_engine_impl
                     = utils::downcast<const xpu::sycl::engine_impl_t *>(
@@ -166,20 +172,9 @@ struct cudnn_matmul_t : public primitive_t {
         bool imma_case = matmul_impl_->is_imma_case();
         if (status == status::success) {
             if (has_runtime_args) {
-                if (algo_scratch_size > 0 && !bias_dt_mismatch) {
-                    executor_.reset(
-                            new cudnn_matmul_lt_runtime_args_algo_scratch_exec_t);
-                } else if (!(algo_scratch_size > 0) && !bias_dt_mismatch) {
-                    executor_.reset(new cudnn_matmul_lt_runtime_args_exec_t);
-                }
+                executor_.reset(new cudnn_matmul_lt_runtime_args_exec_t);
             } else if (!has_runtime_args) {
-                if (imma_case) {
-                    executor_.reset(new cudnn_matmul_lt_imma_scratch_exec_t);
-                } else if (algo_scratch_size > 0 && !bias_dt_mismatch) {
-                    executor_.reset(new cudnn_matmul_lt_algo_scratch_exec_t);
-                } else if (!(algo_scratch_size > 0) && !bias_dt_mismatch) {
-                    executor_.reset(new cudnn_matmul_lt_exec_t);
-                }
+                executor_.reset(new cudnn_matmul_lt_exec_t);
             }
         } else if (status != status::success && imma_case) {
             // s8:s8:s8 & s8:s8:s32 is not supported with regular cublas
@@ -193,26 +188,10 @@ struct cudnn_matmul_t : public primitive_t {
             with_bias = matmul_impl_->with_bias();
             has_runtime_args = matmul_impl_->has_runtime_params();
             with_scratchpad = pd()->reorder_required();
-
-            if (with_scratchpad && has_runtime_args && with_bias) {
-                executor_.reset(
-                        new cudnn_matmul_scratch_runtime_args_bias_exec_t);
-            } else if (with_scratchpad && has_runtime_args) {
-                executor_.reset(new cudnn_matmul_runtime_args_scratch_exec_t);
-            } else if (has_runtime_args && with_bias) {
-                executor_.reset(new cudnn_matmul_runtime_args_bias_exec_t);
-            } else if (has_runtime_args) {
+            if (has_runtime_args) {
                 executor_.reset(new cudnn_matmul_runtime_args_exec_t);
-            } else if (with_bias && with_scratchpad) {
-                executor_.reset(new cudnn_matmul_bias_scratch_exec_t);
-            } else if (with_scratchpad) {
-                executor_.reset(new cudnn_matmul_scratch_exec_t);
-            } else if (with_bias) {
-                executor_.reset(new cudnn_matmul_bias_exec_t);
-            } else if (!with_scratchpad && !has_runtime_args && !with_bias) {
-                executor_.reset(new cudnn_matmul_exec_t);
             } else {
-                return status::unimplemented;
+                executor_.reset(new cudnn_matmul_exec_t);
             }
         }
         return status;
@@ -224,7 +203,9 @@ struct cudnn_matmul_t : public primitive_t {
     std::shared_ptr<cudnn_matmul_exec_base_t> executor_;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const pd_t *pd() const {
+        return (const pd_t *)primitive_t::pd().get();
+    }
 };
 
 } // namespace nvidia

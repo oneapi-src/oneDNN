@@ -95,343 +95,33 @@ protected:
                     dst_scale);
         });
     }
-
-    template <typename T, ::sycl::access::mode md, typename sc_t>
-    void *maybe_cast_to_ptr(::sycl::accessor<T, 1, md> acc, sc_t &sc,
-            const compat::interop_handle &ih) const {
-        return sc.template memory<void *>(ih, acc);
-    }
-
-    template <typename sc_t>
-    std::nullptr_t maybe_cast_to_ptr(std::nullptr_t acc, sc_t &,
-            const compat::interop_handle &ih) const {
-        return acc;
-    }
 };
 
-struct cudnn_matmul_scratch_runtime_args_base_exec_t
-    : public cudnn_matmul_exec_base_t {
+struct cudnn_matmul_runtime_args_base_exec_t : public cudnn_matmul_exec_base_t {
     virtual status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
             std::size_t algo_scratch_size, std::size_t bias_scratch_size)
             = 0;
-    virtual ~cudnn_matmul_scratch_runtime_args_base_exec_t() = default;
+    virtual ~cudnn_matmul_runtime_args_base_exec_t() = default;
 
 protected:
     void init_scratch_buffers(
-            std::size_t reorder_scratch_size_, std::size_t algo_scratch_size_) {
-        if (reorder_scratch_size_ > 0) {
+            std::size_t reorder_scratch_size, std::size_t algo_scratch_size) {
+        if (reorder_scratch_size > 0) {
             bias_scratch_buff_.reset(
-                    new ::sycl::buffer<uint8_t, 1>(reorder_scratch_size_));
+                    new ::sycl::buffer<uint8_t, 1>(reorder_scratch_size));
         }
-        if (algo_scratch_size_ > 0) {
+        if (algo_scratch_size > 0) {
             algo_scratch_buff_.reset(
-                    new ::sycl::buffer<uint8_t, 1>(algo_scratch_size_));
+                    new ::sycl::buffer<uint8_t, 1>(algo_scratch_size));
         }
-        cudaDeviceSynchronize();
+        if (reorder_scratch_size > 0 || algo_scratch_size > 0) {
+            cudaDeviceSynchronize();
+        }
     }
 
     std::shared_ptr<::sycl::buffer<uint8_t, 1>> algo_scratch_buff_ {nullptr};
     std::shared_ptr<::sycl::buffer<uint8_t, 1>> bias_scratch_buff_ {nullptr};
-};
-
-struct cudnn_matmul_scratch_runtime_args_bias_exec_t
-    : public cudnn_matmul_scratch_runtime_args_base_exec_t {
-    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
-            const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
-            std::size_t algo_scratch_size,
-            std::size_t bias_scratch_size) override {
-
-        nvidia::stream_t *cuda_stream
-                = utils::downcast<nvidia::stream_t *>(ctx.stream());
-
-        init_scratch_buffers(bias_scratch_size, algo_scratch_size);
-
-        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
-            auto arg_algo_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_bias_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>(*bias_scratch_buff_, cgh);
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-            auto arg_dst_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, arg_bias, arg_algo_scratch,
-                    arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, arg_src_scale, arg_wei_scale,
-                    arg_dst_scale);
-        });
-    }
-};
-
-struct cudnn_matmul_runtime_args_scratch_exec_t
-    : public cudnn_matmul_scratch_runtime_args_base_exec_t {
-    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
-            const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
-            std::size_t algo_scratch_size,
-            std::size_t bias_scratch_size) override {
-
-        nvidia::stream_t *cuda_stream
-                = utils::downcast<nvidia::stream_t *>(ctx.stream());
-
-        init_scratch_buffers(bias_scratch_size, algo_scratch_size);
-
-        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
-
-            auto arg_algo_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_bias_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>(*bias_scratch_buff_, cgh);
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-            auto arg_dst_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, /*nullptr*/ arg_bias, arg_algo_scratch,
-                    arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, arg_src_scale, arg_wei_scale,
-                    arg_dst_scale);
-        });
-    }
-};
-
-struct cudnn_matmul_runtime_args_bias_exec_t : public cudnn_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
-            const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
-            std::size_t algo_scratch_size,
-            std::size_t bias_scratch_size) override {
-
-        nvidia::stream_t *cuda_stream
-                = utils::downcast<nvidia::stream_t *>(ctx.stream());
-
-        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
-
-            auto arg_algo_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_bias_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-            auto arg_dst_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, arg_bias, /*nullptr*/ arg_algo_scratch,
-                    arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, arg_src_scale, arg_wei_scale,
-                    arg_dst_scale);
-        });
-    }
-};
-
-struct cudnn_matmul_runtime_args_exec_t : public cudnn_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
-            const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
-            std::size_t algo_scratch_size,
-            std::size_t bias_scratch_size) override {
-
-        nvidia::stream_t *cuda_stream
-                = utils::downcast<nvidia::stream_t *>(ctx.stream());
-
-        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
-
-            auto arg_algo_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_bias_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-            auto arg_dst_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, /*nullptr*/ arg_bias,
-                    /*nullptr*/ arg_algo_scratch, arg_block_a_scratch,
-                    arg_block_b_scratch, arg_block_c_scratch, arg_bias_scratch,
-                    arg_src_scale, arg_wei_scale, arg_dst_scale);
-        });
-    }
-};
-
-struct cudnn_matmul_bias_scratch_exec_t : public cudnn_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
-            const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
-            std::size_t algo_scratch_size,
-            std::size_t bias_scratch_size) override {
-
-        nvidia::stream_t *cuda_stream
-                = utils::downcast<nvidia::stream_t *>(ctx.stream());
-
-        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
-            auto arg_algo_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_lt_algo_scratch);
-            auto arg_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_dst_in_acc_dt);
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-            auto arg_dst_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, arg_bias, arg_algo_scratch,
-                    arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, arg_src_scale, arg_wei_scale,
-                    arg_dst_scale);
-        });
-    }
-};
-
-struct cudnn_matmul_scratch_exec_t : public cudnn_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
-            const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
-            std::size_t algo_scratch_size,
-            std::size_t bias_scratch_size) override {
-
-        nvidia::stream_t *cuda_stream
-                = utils::downcast<nvidia::stream_t *>(ctx.stream());
-
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-            auto arg_algo_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_lt_algo_scratch);
-            auto arg_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_dst_in_acc_dt);
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-
-            auto arg_bias = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read>();
-
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-            auto arg_dst_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, /*nullptr*/ arg_bias, arg_algo_scratch,
-                    arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, arg_src_scale, arg_wei_scale,
-                    arg_dst_scale);
-        });
-    }
-};
-
-struct cudnn_matmul_bias_exec_t : public cudnn_matmul_exec_base_t {
-    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
-            const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
-            std::size_t algo_scratch_size,
-            std::size_t bias_scratch_size) override {
-
-        nvidia::stream_t *cuda_stream
-                = utils::downcast<nvidia::stream_t *>(ctx.stream());
-
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
-
-            auto arg_algo_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_lt_algo_scratch);
-            auto arg_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_dst_in_acc_dt);
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-            auto arg_dst_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, arg_bias, /*nullptr*/ arg_algo_scratch,
-                    arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, arg_src_scale, arg_wei_scale,
-                    arg_dst_scale);
-        });
-    }
 };
 
 struct cudnn_matmul_exec_t : public cudnn_matmul_exec_base_t {
@@ -447,19 +137,18 @@ struct cudnn_matmul_exec_t : public cudnn_matmul_exec_base_t {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
 
-            auto arg_bias = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
             auto arg_algo_scratch = CTX_SCRATCH_SYCL_MEMORY(
                     memory_tracking::names::key_matmul_lt_algo_scratch);
             auto arg_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
                     memory_tracking::names::key_matmul_dst_in_acc_dt);
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
+            auto arg_block_a_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                    memory_tracking::names::key_matmul_lt_block_a);
+            auto arg_block_b_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                    memory_tracking::names::key_matmul_lt_block_b);
+            auto arg_block_c_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                    memory_tracking::names::key_matmul_lt_block_c);
 
             auto arg_src_scale
                     = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
@@ -469,102 +158,17 @@ struct cudnn_matmul_exec_t : public cudnn_matmul_exec_base_t {
                     = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
             interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, /*nullptr*/ arg_bias,
-                    /*nullptr*/ arg_algo_scratch, /*nullptr*/ arg_bias_scratch,
-                    arg_block_a_scratch, arg_block_b_scratch,
+                    arg_src, arg_dst, arg_bias, arg_algo_scratch,
+                    arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
                     arg_block_c_scratch, arg_src_scale, arg_wei_scale,
                     arg_dst_scale);
         });
     }
 };
 
-// ANTON Adding an LT matmul exec
+// Adding an LT matmul exec
 
 struct cudnn_matmul_lt_exec_t : public cudnn_matmul_exec_base_t {
-
-    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
-            const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
-            std::size_t algo_scratch_size,
-            std::size_t bias_scratch_size) override {
-
-        nvidia::stream_t *cuda_stream
-                = utils::downcast<nvidia::stream_t *>(ctx.stream());
-
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-            auto arg_dst_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-            auto arg_algo_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_lt_algo_scratch);
-            auto arg_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_dst_in_acc_dt);
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, arg_bias, arg_algo_scratch,
-                    arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, arg_src_scale, arg_wei_scale,
-                    arg_dst_scale);
-        });
-    }
-};
-
-struct cudnn_matmul_lt_algo_scratch_exec_t : public cudnn_matmul_exec_base_t {
-
-    status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
-            const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
-            std::size_t algo_scratch_size,
-            std::size_t bias_scratch_size) override {
-
-        nvidia::stream_t *cuda_stream
-                = utils::downcast<nvidia::stream_t *>(ctx.stream());
-
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-            auto arg_dst_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-            auto arg_algo_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_lt_algo_scratch);
-            auto arg_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_dst_in_acc_dt);
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-
-            interop_task(matmul_impl_, engine, cgh, cuda_stream, arg_wt,
-                    arg_src, arg_dst, arg_bias, arg_algo_scratch,
-                    arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, arg_src_scale, arg_wei_scale,
-                    arg_dst_scale);
-        });
-    }
-};
-
-struct cudnn_matmul_lt_imma_scratch_exec_t : public cudnn_matmul_exec_base_t {
 
     status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
@@ -606,8 +210,8 @@ struct cudnn_matmul_lt_imma_scratch_exec_t : public cudnn_matmul_exec_base_t {
     }
 };
 
-struct cudnn_matmul_lt_runtime_args_exec_t
-    : public cudnn_matmul_scratch_runtime_args_base_exec_t {
+struct cudnn_matmul_runtime_args_exec_t
+    : public cudnn_matmul_runtime_args_base_exec_t {
     status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
             std::size_t algo_scratch_size,
@@ -618,21 +222,32 @@ struct cudnn_matmul_lt_runtime_args_exec_t
 
         init_scratch_buffers(bias_scratch_size, algo_scratch_size);
 
-        return cuda_stream->interop_task([=](::sycl::handler &cgh) {
+        return cuda_stream->interop_task([=, this](::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
             auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
             auto arg_algo_scratch = xpu::sycl::interop_memory_arg_t<
                     ::sycl::access::mode::read_write>();
+            if (algo_scratch_size > 0) {
+                arg_algo_scratch = xpu::sycl::interop_memory_arg_t<
+                        ::sycl::access::mode::read_write>(
+                        *algo_scratch_buff_, cgh);
+            }
             auto arg_bias_scratch = xpu::sycl::interop_memory_arg_t<
                     ::sycl::access::mode::read_write>();
-            auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
-            auto arg_block_c_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
+            if (bias_scratch_size > 0) {
+                arg_bias_scratch = xpu::sycl::interop_memory_arg_t<
+                        ::sycl::access::mode::read_write>(
+                        *bias_scratch_buff_, cgh);
+            }
+
+            auto arg_block_a_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                    memory_tracking::names::key_matmul_lt_block_a);
+            auto arg_block_b_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                    memory_tracking::names::key_matmul_lt_block_b);
+            auto arg_block_c_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                    memory_tracking::names::key_matmul_lt_block_c);
 
             auto arg_src_scale
                     = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
@@ -649,8 +264,9 @@ struct cudnn_matmul_lt_runtime_args_exec_t
         });
     }
 };
-struct cudnn_matmul_lt_runtime_args_algo_scratch_exec_t
-    : public cudnn_matmul_scratch_runtime_args_base_exec_t {
+
+struct cudnn_matmul_lt_runtime_args_exec_t
+    : public cudnn_matmul_runtime_args_base_exec_t {
     status_t execute(const exec_ctx_t &ctx, impl::engine_t *engine,
             const std::shared_ptr<cudnn_matmul_base_impl_t> matmul_impl_,
             std::size_t algo_scratch_size,
@@ -666,10 +282,22 @@ struct cudnn_matmul_lt_runtime_args_algo_scratch_exec_t
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
             auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
+
             auto arg_algo_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>(*algo_scratch_buff_, cgh);
+                    ::sycl::access::mode::read_write>();
+            if (algo_scratch_size > 0) {
+                arg_algo_scratch = xpu::sycl::interop_memory_arg_t<
+                        ::sycl::access::mode::read_write>(
+                        *algo_scratch_buff_, cgh);
+            }
             auto arg_bias_scratch = xpu::sycl::interop_memory_arg_t<
                     ::sycl::access::mode::read_write>();
+            if (bias_scratch_size > 0) {
+                arg_bias_scratch = xpu::sycl::interop_memory_arg_t<
+                        ::sycl::access::mode::read_write>(
+                        *bias_scratch_buff_, cgh);
+            }
+
             auto arg_block_a_scratch = xpu::sycl::interop_memory_arg_t<
                     ::sycl::access::mode::read_write>();
             auto arg_block_b_scratch = xpu::sycl::interop_memory_arg_t<

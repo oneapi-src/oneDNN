@@ -15,6 +15,13 @@
 # ===============================================================================
 
 find_package(CUDA 10.0 REQUIRED)
+
+# CUDA 12 adds support for int8 outputs for IMMA kernels
+if(CUDA_VERSION_MAJOR LESS 12)
+    # CUDA 12 required for int8 output 
+  add_definitions(-DDNNL_NO_IMMA_INT8)
+endif()
+
 find_package(Threads REQUIRED)
 
 find_path(
