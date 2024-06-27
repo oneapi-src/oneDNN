@@ -33,6 +33,18 @@
 #define IF_HALF_SUPPORTED(x)
 #endif
 
+#if __OPENCL_C_VERSION__ >= CL_VERSION_2_0
+#define ATOMICS_SUPPORTED 1
+#else
+#define ATOMICS_SUPPORTED 0
+#endif
+
+#if defined(cl_ext_float_atomics) && ATOMICS_SUPPORTED
+#define ATOMIC_FLOAT_SUPPORTED 1
+#else
+#define ATOMIC_FLOAT_SUPPORTED 0
+#endif
+
 #ifdef OCL_DEBUG
 #define DEBUG_PRINT(...) printf(__VA_ARGS__);
 #else
