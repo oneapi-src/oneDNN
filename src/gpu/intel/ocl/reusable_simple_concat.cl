@@ -37,42 +37,29 @@
 #define BLOCK_LAYOUT_PARAM(n) \
     JOIN_COMMA(const IDX_T block_b##n, const IDX_T block_s##n)
 
-#define BLOCK_LAYOUT_PARAMS REDUCE(BLOCK_DEPTH, JOIN_COMMA, BLOCK_LAYOUT_PARAM)
-#define BLOCK_LAYOUT_ARGS REDUCE(BLOCK_DEPTH, JOIN_COMMA, BLOCK_LAYOUT_ARG)
-
 #define CONCAT_AXIS(n) src_concat_axis##n
 #define RIGHT(x, y) y
 
 #endif
 
-IDX_T get_concat_idx(IDX_T inner_idx, IDX_T inner_offset
-#if BLOCK_DEPTH > 0
-        ,
-        BLOCK_LAYOUT_PARAMS
-#endif
-) {
+IDX_T get_concat_idx(IDX_T inner_idx, IDX_T inner_offset) {
     uint block = 1;
     uint idx = 0;
 #define HANDLE(n) \
-    idx += block * ((inner_idx / (block_s##n)) % (block_b##n)); \
-    block *= block_b##n
+    idx += block * ((inner_idx / (BLOCK_S##n)) % (BLOCK_B##n)); \
+    block *= BLOCK_B##n
 
     REDUCE(BLOCK_DEPTH, JOIN_SEMICOLON, HANDLE);
 #undef HANDLE
     return idx + block * (inner_idx / inner_offset);
 }
 
-IDX_T get_concat_offset(IDX_T concat_idx, IDX_T inner_offset
-#if BLOCK_DEPTH > 0
-        ,
-        BLOCK_LAYOUT_PARAMS
-#endif
-) {
+IDX_T get_concat_offset(IDX_T concat_idx, IDX_T inner_offset) {
     int block = 1;
     int idx = 0;
 #define HANDLE(n) \
-    idx += (block_s##n) * ((concat_idx / block) % (block_b##n)); \
-    block *= block_b##n
+    idx += (BLOCK_S##n) * ((concat_idx / block) % (BLOCK_B##n)); \
+    block *= BLOCK_B##n
 
     REDUCE(BLOCK_DEPTH, JOIN_SEMICOLON, HANDLE);
 #undef HANDLE
@@ -102,7 +89,7 @@ struct write_info_t get_write_info(
         ,
         const IDX_T REDUCE(N_INPUTS, RIGHT, CONCAT_AXIS),
         const IDX_T ZERO_PAD_CONCAT_DIM, const IDX_T thread_offset,
-        const IDX_T concat_axis, BLOCK_LAYOUT_PARAMS
+        const IDX_T concat_axis
 #endif
 ) {
 #define LOGICAL_OR(x, y) (x) || (y)
@@ -127,8 +114,7 @@ struct write_info_t get_write_info(
     struct write_info_t info;
 
 #if BLOCK_DEPTH > 0
-    IDX_T concat_idx
-            = get_concat_idx(inner_idx, inner_offset, BLOCK_LAYOUT_ARGS);
+    IDX_T concat_idx = get_concat_idx(inner_idx, inner_offset);
     bool write_value = concat_offset + concat_idx < concat_axis;
 
     IDX_T write_offset;
@@ -143,9 +129,8 @@ struct write_info_t get_write_info(
         info.write = write_value;
     }
     info.idx = ext_idx * dst_ext_offset + inner_idx
-            + get_concat_offset(
-                    concat_idx + write_offset, inner_offset, BLOCK_LAYOUT_ARGS)
-            - get_concat_offset(concat_idx, inner_offset, BLOCK_LAYOUT_ARGS);
+            + get_concat_offset(concat_idx + write_offset, inner_offset)
+            - get_concat_offset(concat_idx, inner_offset);
 #else
 
     info.write = true;
@@ -160,16 +145,11 @@ struct write_info_t get_write_info(
 __attribute__((intel_reqd_sub_group_size(SIMD)))
 #endif
 __kernel void
-reusable_simple_concat(
-        __global DATA_T *dst, const long dst_offset0, const long dst_ext_offset,
-        SRC_PARAMS, const IDX_T CAT(offset, N_INPUTS),
+reusable_simple_concat(__global DATA_T *dst, const long dst_offset0,
+        const long dst_ext_offset, SRC_PARAMS,
+        const IDX_T CAT(offset, N_INPUTS),
         const IDX_T CAT(padded_offset, N_INPUTS), const IDX_T inner_offset,
-        const IDX_T read_overlap, const IDX_T gws0_block
-#if BLOCK_DEPTH > 0
-        ,
-        BLOCK_LAYOUT_PARAMS
-#endif
-) {
+        const IDX_T read_overlap, const IDX_T gws0_block) {
     __global const DATA_T *src;
     IDX_T src_ext_offset, input_offset;
     IDX_T input_padded_offset, concat_axis_size;
@@ -196,8 +176,7 @@ reusable_simple_concat(
     get_write_info(block_offset + (idx), src_ext_offset, input_offset, \
             inner_offset, read_overlap, gws0_block, dst_ext_offset, \
             EXPANDED_OFFSET_ARGS, REDUCE(N_INPUTS, RIGHT, CONCAT_AXIS), \
-            ZERO_PAD_CONCAT_DIM, input_padded_offset, concat_axis_size, \
-            BLOCK_LAYOUT_ARGS)
+            ZERO_PAD_CONCAT_DIM, input_padded_offset, concat_axis_size)
 #else
 #define WRITE_INFO(idx) \
     get_write_info(block_offset + (idx), src_ext_offset, input_offset, \

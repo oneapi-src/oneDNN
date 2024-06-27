@@ -39,11 +39,7 @@ size_t kernel_parameter_bytes(
     // *src##n, src_ext_offset##n, offset##n, padded_offset##n, src_concat_axis##n
     const size_t src_param_bytes = n * (sizeof(void *) + (4 * idx_type_size));
 
-    // block_b##n, block_s##n
-    const size_t block_param_bytes = n_blocks * 2 * idx_type_size;
-
-    return dst_param_bytes + src_param_bytes + additional_param_bytes
-            + block_param_bytes;
+    return dst_param_bytes + src_param_bytes + additional_param_bytes;
 }
 
 static status_t init_conf_common(
@@ -208,6 +204,10 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("READ_BLOCK", conf.read_block);
     kernel_ctx.define_int("N_INPUTS", conf.n);
     kernel_ctx.define_int("BLOCK_DEPTH", conf.n_blocks);
+    for (int i = 0; i < conf.n_blocks; ++i) {
+        kernel_ctx.define_int(utils::format("BLOCK_B%d", i), conf.blocks[i]);
+        kernel_ctx.define_int(utils::format("BLOCK_S%d", i), conf.strides[i]);
+    }
     kernel_ctx.define_int("SIMD", conf.simd);
     kernel_ctx.define_int("DATA_TYPE_SIZE", conf.data_type_size);
 
@@ -251,11 +251,6 @@ void push_idx_kernel_args(compute::kernel_arg_list_t &partial_list,
     partial_list.append(static_cast<IDX_T>(conf.inner_axis));
     partial_list.append(static_cast<IDX_T>(conf.read_overlap));
     partial_list.append(static_cast<IDX_T>(conf.gws0_block));
-
-    for (int b = 0; b < conf.n_blocks; ++b) {
-        partial_list.append(static_cast<IDX_T>(conf.blocks[b]));
-        partial_list.append(static_cast<IDX_T>(conf.strides[b]));
-    }
 }
 
 status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
