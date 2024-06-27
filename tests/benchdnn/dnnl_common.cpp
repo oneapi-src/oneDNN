@@ -1515,6 +1515,7 @@ dnnl_data_type_t deduce_cfg_data_type(
         switch (attr.fpmath_mode.mode) {
             case dnnl_fpmath_mode_strict: break;
             case dnnl_fpmath_mode_bf16: dt_ = dnnl_bf16; break;
+            case dnnl_fpmath_mode_f16: dt_ = dnnl_f16; break;
             case dnnl_fpmath_mode_tf32: dt_ = dnnl_bf16; break;
             default: assert(!"unsupported_fpmath_mode"); SAFE_V(CRIT);
         }
