@@ -586,19 +586,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             return;
         }
 
-        if (prb->weights_decompression()
-                && (!prb->attr.zero_points.is_def()
-                        || !prb->attr.scales.is_def())) {
-            BENCHDNN_PRINT(2,
-                    "[SKIP][%s:%d]: Weights decompression is supported through "
-                    "ref on pre-XeHPG platforms with limited post-ops "
-                    "support.\n",
-                    __FILE__, __LINE__);
-            res->state = SKIPPED;
-            res->reason = skip_reason::case_not_supported;
-            return;
-        }
-
         if (((prb->src_dt() == dnnl_f8_e4m3 || prb->dst_dt() == dnnl_f8_e4m3)
                     || (prb->src_dt() == dnnl_f8_e5m2
                             || prb->dst_dt() == dnnl_f8_e5m2))
