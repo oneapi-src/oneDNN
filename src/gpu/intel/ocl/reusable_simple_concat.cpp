@@ -66,6 +66,12 @@ static status_t init_conf_common(
     // TODO: add proper scales support
     const bool has_scales = false;
     const compute::gpu_arch_t hw = device_info->gpu_arch();
+    // TODO: improve performance on xe2
+    if (hw != compute::gpu_arch_t::xe_hpc
+            && hw != compute::gpu_arch_t::xe_hpg) {
+        return status::unimplemented;
+    }
+
     const int register_bytes = prb_info_t::register_bytes(hw);
     const int hw_threads = device_info->hw_threads();
     const int max_sg_size = device_info->max_subgroup_size();
