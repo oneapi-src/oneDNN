@@ -89,6 +89,8 @@ public:
             }
             expr_binding_.bind(obj.buf, rbd);
         }
+        ir_trace() << "codegen:bind " << obj.buf << " -> "
+                   << expr_binding_.get(obj.buf) << std::endl;
         visit(obj.body);
         if (do_alloc) expr_binding_.unbind(obj.buf);
         if (use_bc_alloc) release_bank_conflict_allocation(obj);
@@ -104,7 +106,8 @@ public:
 
         host_->emov(1, var_op, init_op);
         expr_binding_.bind(obj.var, var_op);
-
+        ir_trace() << "codegen:bind " << obj.var << " -> "
+                   << expr_binding_.get(obj.var) << std::endl;
         // For dynamic loops use standard format otherwise
         // use do-while format.
         if (dynamic_loop) {
@@ -210,6 +213,9 @@ public:
 
     void _visit(const let_t &obj) override {
         if (obj.value.is_empty()) {
+            auto var_op = expr_binding_.get(obj.var);
+            ir_trace() << "codegen:bind " << obj.var << " -> " << var_op
+                       << std::endl;
             // External variable, must be already bound.
             ir_assert(expr_binding_.is_bound(obj.var))
                     << "Variable is not defined: " << obj.var;
@@ -232,6 +238,8 @@ public:
         }
 
         auto var_op = expr_binding_.get(obj.var);
+        ir_trace() << "codegen:bind " << obj.var << " -> " << var_op
+                   << std::endl;
 
         // At this point the scope contains allocations for temporary
         // expressions. We need to 1) query and later re-claim the allocation
