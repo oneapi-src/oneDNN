@@ -28023,7 +28023,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                                 scrosspack_byte),
                                                         4);
                                                 mov(nelems_real | modMov,
-                                                        dreg(effDCP),
+                                                        dreg(effDCP / 2),
                                                         tmp0.ub()(2));
                                             } else {
                                                 and_(n_bytes | modMov,
