@@ -87,11 +87,13 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     if (problem->aScale2D) arg_list.set(argn++, *a_scales);
     if (problem->bScale2D) arg_list.set(argn++, *b_scales);
     if (problem->aoPtrDims == 2 || problem->aScale2D) {
-        int32_t ldaq = pd()->eff_m();
+        auto layout = problem->aScale2D ? problem->A_scale.layout : problem->AO.layout;
+        int32_t ldaq = isColMajor(layout) ? pd()->eff_m() : utils::div_up(pd()->desc()->k(), problem->aqGroupK);
         arg_list.set(argn++, ldaq);
     }
     if (problem->boPtrDims == 2 || problem->bScale2D) {
-        int32_t ldbq = pd()->eff_m();
+        auto layout = problem->bScale2D ? problem->B_scale.layout : problem->BO.layout;
+        int32_t ldbq = !isColMajor(layout) ? pd()->eff_n() : utils::div_up(pd()->desc()->k(), problem->bqGroupK);
         arg_list.set(argn++, ldbq);
     }
     if (pd()->with_c_zero_points() || pd()->with_bias()

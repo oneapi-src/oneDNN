@@ -233,7 +233,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto mask = attr()->scales_.get(s).mask_;
                 VDISPATCH_GEMM(utils::one_of(mask, 0, 1 << 0, 1 << 1, 1 << 2)
-                                || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_),
+                                || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_)
+                                || (s == DNNL_ARG_SRC && src_scales_2d_),
                         VERBOSE_UNSUPPORTED_SCALES_CFG);
             }
 
