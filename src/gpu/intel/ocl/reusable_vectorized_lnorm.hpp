@@ -80,7 +80,8 @@ struct reusable_vectorized_lnorm_params_t
 
     bool reuse = false;
 
-    uint8_t padding[3] = {false};
+    uint8_t private_mem_size = 0;
+    uint8_t padding[2] = {false};
 };
 
 struct reusable_vectorized_lnorm_runtime_params_t {
