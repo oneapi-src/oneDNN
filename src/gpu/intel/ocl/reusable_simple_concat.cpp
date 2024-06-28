@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include <algorithm>
+#include <cstdint>
 #include <limits>
 #include <numeric>
 
@@ -184,12 +185,10 @@ static status_t init_conf_common(
     conf.lws_d
             = compute::get_optimal_lws(conf.gws_d, 0, device_info->gpu_arch());
 
-    conf.use_large_index
-            = (total_bytes > std::numeric_limits<unsigned int>::max());
+    conf.use_large_index = (total_bytes > std::numeric_limits<int>::max());
     size_t param_bytes = (conf.use_large_index)
             ? kernel_parameter_bytes(conf.n, conf.n_blocks, sizeof(dim_t))
-            : kernel_parameter_bytes(
-                    conf.n, conf.n_blocks, sizeof(unsigned int));
+            : kernel_parameter_bytes(conf.n, conf.n_blocks, sizeof(int));
     if (param_bytes > device_info->max_kernel_param_size()) {
         return status::unimplemented;
     }
@@ -211,7 +210,7 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("SIMD", conf.simd);
     kernel_ctx.define_int("DATA_TYPE_SIZE", conf.data_type_size);
 
-    kernel_ctx.define_int("LARGE_INDEX_T", conf.use_large_index);
+    kernel_ctx.define_int("USE_LARGE_INDEX", conf.use_large_index);
     return status::success;
 }
 
@@ -266,7 +265,7 @@ status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
     if (conf.use_large_index) {
         push_idx_kernel_args<dim_t>(arg_list, ctx, conf, pd());
     } else {
-        push_idx_kernel_args<unsigned int>(arg_list, ctx, conf, pd());
+        push_idx_kernel_args<int>(arg_list, ctx, conf, pd());
     }
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);

@@ -89,6 +89,19 @@
 #define CS_PARAM(p0, p1, p2, p3, p4) \
     JOIN_COMMA(p0, JOIN_COMMA(p1, JOIN_COMMA(p2, JOIN_COMMA(p3, p4))))
 
+#define INTERNAL_CAT(a, b) a##b
+#define CAT(a, b) INTERNAL_CAT(a, b)
+#define DIV_UP(a, b) (((a) + ((b)-1)) / (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+#define JOIN_ELSE(x, y) y else x
+#define JOIN_SEMICOLON(x, y) \
+    x; \
+    y
+
+#ifndef DATA_T
+
 #if DATA_TYPE_SIZE == 8
 #define DATA_T ulong
 #define BLOCK_READ intel_sub_group_block_read_ul
@@ -106,12 +119,6 @@
 #define BLOCK_READ intel_sub_group_block_read_uc
 #define BLOCK_WRITE intel_sub_group_block_write_uc
 #endif
-
-#define INTERNAL_CAT(a, b) a##b
-#define CAT(a, b) INTERNAL_CAT(a, b)
-#define DIV_UP(a, b) (((a) + ((b)-1)) / (b))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define DATA2_T CAT(DATA_T, 2)
 #define BLOCK_READ2 CAT(BLOCK_READ, 2)
@@ -140,11 +147,6 @@
         BLOCK_WRITE8((ptr) + 8 * SIMD, tmp.s89abcdef); \
     } while (0)
 #endif
-
-#define JOIN_ELSE(x, y) y else x
-#define JOIN_SEMICOLON(x, y) \
-    x; \
-    y
 
 #define DATA1_T DATA_T
 #define VECTOR(n) DATA##n##_T v##n[DIV_UP(READ_BLOCK, n)]
@@ -189,5 +191,6 @@ DATA16_T load_vec16(const buffer_t *buf, size_t offset) {
             ? (DATA16_T)(load_vec8(buf, offset), load_vec8(buf, offset + 8))
             : buf->v16[offset / 16];
 }
+#endif
 
 #endif
