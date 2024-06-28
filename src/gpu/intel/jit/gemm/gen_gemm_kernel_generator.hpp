@@ -2438,7 +2438,7 @@ protected:
             const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             const CommonStrategy &strategy, CommonState &state, bool decrement);
-    void incAddrStrided(const std::vector<ngen::GRFRange> &addr, bool column,
+    void incAddr2D(Type T, const std::vector<ngen::GRFRange> &addr, bool column,
             int k, const SubregisterPair &ld, const LDIncrements &incs,
             const std::vector<RegisterBlock> &layout,
             const MatrixAddressing &atype,

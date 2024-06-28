@@ -340,6 +340,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         }
         if (src_scales_type != data_type::undef) {
             problem_.Tb_scale = convert_dnnl_to_kernel_type(src_scales_type);
+            problem_.B_scale.layout = MatrixLayout::N;
             problem_.B_scale.setAlignment(
                     int(types::data_type_size(src_scales_type)));
         }
@@ -355,6 +356,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         }
         if (src_scales_type != data_type::undef) {
             problem_.Ta_scale = convert_dnnl_to_kernel_type(src_scales_type);
+            problem_.A_scale.layout = MatrixLayout::T;
             problem_.A_scale.setAlignment(
                     int(types::data_type_size(src_scales_type)));
         }
