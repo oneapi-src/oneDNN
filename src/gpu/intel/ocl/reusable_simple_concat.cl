@@ -20,9 +20,6 @@ typedef long idx_t;
 typedef int idx_t;
 #endif
 
-#define ZERO_PAD_OFFSET CAT(offset, N_INPUTS)
-#define ZERO_PAD_CONCAT_DIM CAT(padded_offset, N_INPUTS)
-
 #include "gpu/intel/ocl/concat_common.h"
 
 #define SRC_PARAM(n) \
@@ -36,9 +33,6 @@ typedef int idx_t;
 #define BLOCK_LAYOUT_ARG(n) JOIN_COMMA(block_b##n, block_s##n)
 #define BLOCK_LAYOUT_PARAM(n) \
     JOIN_COMMA(const idx_t block_b##n, const idx_t block_s##n)
-
-#define CONCAT_AXIS(n) src_concat_axis##n
-#define RIGHT(x, y) y
 
 #endif
 
@@ -72,32 +66,20 @@ idx_t get_concat_offset(idx_t concat_idx, idx_t inner_offset) {
 #define EXPAND_N_ARGS(EXPAND_MACRO, n) \
     JOIN_COMMA(REDUCE(n, JOIN_COMMA, EXPAND_MACRO), EXPAND_MACRO(n))
 
-#define EXPANDED_OFFSET_PARAMS EXPAND_N_ARGS(PARAM_OFFSET_INPUT_N, N_INPUTS)
-#define EXPANDED_OFFSET_ARGS EXPAND_N_ARGS(ARG_OFFSET_INPUT_N, N_INPUTS)
-
 struct write_info_t {
     idx_t idx;
     bool write;
 };
 
-struct write_info_t get_write_info(
-        const idx_t src_idx, const idx_t src_ext_offset,
-        const idx_t concat_offset, const idx_t inner_offset,
-        const idx_t read_overlap, const idx_t gws0_block,
-        const idx_t dst_ext_offset, EXPANDED_OFFSET_PARAMS
-#if BLOCK_DEPTH > 0
-        ,
-        const idx_t REDUCE(N_INPUTS, RIGHT, CONCAT_AXIS),
-        const idx_t ZERO_PAD_CONCAT_DIM, const idx_t thread_offset,
-        const idx_t concat_axis
-#endif
-) {
-#define LOGICAL_OR(x, y) (x) || (y)
-#define HANDLE(n) CAT(offset, n) % read_overlap != 0
-#define CUTOFF REDUCE(N_INPUTS, LOGICAL_OR, HANDLE) || HANDLE(N_INPUTS)
+struct write_info_t get_write_info(const idx_t src_idx,
+        const idx_t src_ext_offset, const idx_t concat_offset,
+        const idx_t dst_ext_offset, const idx_t thread_offset,
+        const idx_t concat_axis, const idx_t last_concat_axis,
+        const idx_t zero_pad_offset, const idx_t zero_pad_concat_axis,
+        const idx_t inner_offset, bool inner_offset_cond) {
 
     idx_t inner_idx, ext_idx;
-    if (read_overlap * gws0_block > inner_offset || CUTOFF) {
+    if (inner_offset_cond) {
         // short circuit logic avoids significant assembly bloat
         // in the special case
         ext_idx = (src_ext_offset == 1) ? src_idx : src_idx / src_ext_offset;
@@ -107,10 +89,6 @@ struct write_info_t get_write_info(
         inner_idx = src_idx;
     }
 
-#undef CUTOFF
-#undef HANDLE
-#undef LOGICAL_OR
-
     struct write_info_t info;
 
 #if BLOCK_DEPTH > 0
@@ -118,9 +96,9 @@ struct write_info_t get_write_info(
     bool write_value = concat_offset + concat_idx < concat_axis;
 
     idx_t write_offset;
-    if (REDUCE(N_INPUTS, RIGHT, CONCAT_AXIS) < ZERO_PAD_CONCAT_DIM) {
-        idx_t zero_pad_offset = ZERO_PAD_OFFSET - concat_axis + thread_offset;
-        bool write_zeropad = zero_pad_offset + concat_idx < ZERO_PAD_CONCAT_DIM;
+    if (last_concat_axis < zero_pad_concat_axis) {
+        idx_t zero_pad_start = zero_pad_offset - concat_axis + thread_offset;
+        bool write_zeropad = zero_pad_start + concat_idx < zero_pad_concat_axis;
 
         write_offset = write_value ? concat_offset : zero_pad_offset;
         info.write = write_value || write_zeropad;
@@ -145,11 +123,11 @@ struct write_info_t get_write_info(
 __attribute__((intel_reqd_sub_group_size(SIMD)))
 #endif
 __kernel void
-reusable_simple_concat(__global DATA_T *dst, const long dst_offset0,
-        const long dst_ext_offset, SRC_PARAMS,
-        const idx_t CAT(offset, N_INPUTS),
-        const idx_t CAT(padded_offset, N_INPUTS), const idx_t inner_offset,
-        const idx_t read_overlap, const idx_t gws0_block) {
+reusable_simple_concat(__global DATA_T *dst, const ulong dst_offset0,
+        const ulong dst_ext_offset, SRC_PARAMS, const idx_t zero_pad_offset,
+        const idx_t zero_pad_concat_axis, const idx_t read_overlap,
+        const idx_t gws0_block, const idx_t inner_offset,
+        const uchar inner_offset_cond) {
     __global const DATA_T *src;
     idx_t src_ext_offset, input_offset;
     idx_t input_padded_offset, concat_axis_size;
@@ -171,18 +149,13 @@ reusable_simple_concat(__global DATA_T *dst, const long dst_offset0,
     const idx_t thr_elems = READ_BLOCK / SIMD;
     src += read_overlap * get_global_id(1) * src_ext_offset + block_offset;
 
-#if BLOCK_DEPTH > 0
+#define CONCAT_AXIS(n) src_concat_axis##n
+#define RIGHT(x, y) y
 #define WRITE_INFO(idx) \
     get_write_info(block_offset + (idx), src_ext_offset, input_offset, \
-            inner_offset, read_overlap, gws0_block, dst_ext_offset, \
-            EXPANDED_OFFSET_ARGS, REDUCE(N_INPUTS, RIGHT, CONCAT_AXIS), \
-            ZERO_PAD_CONCAT_DIM, input_padded_offset, concat_axis_size)
-#else
-#define WRITE_INFO(idx) \
-    get_write_info(block_offset + (idx), src_ext_offset, input_offset, \
-            inner_offset, read_overlap, gws0_block, dst_ext_offset, \
-            EXPANDED_OFFSET_ARGS)
-#endif
+            dst_ext_offset, input_padded_offset, concat_axis_size, \
+            REDUCE(N_INPUTS, RIGHT, CONCAT_AXIS), zero_pad_concat_axis, \
+            zero_pad_offset, inner_offset, inner_offset_cond)
 
 #if SIMD == 1
     dst += dst_offset0 + read_overlap * get_global_id(1) * dst_ext_offset;
@@ -273,6 +246,5 @@ reusable_simple_concat(__global DATA_T *dst, const long dst_offset0,
             }
         }
     }
-
 #endif // SIMD == 1
 }

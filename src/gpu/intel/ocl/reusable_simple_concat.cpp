@@ -234,6 +234,8 @@ void push_idx_kernel_args(compute::kernel_arg_list_t &partial_list,
         const exec_ctx_t &ctx, const concat_conf_t &conf,
         const concat_pd_t *pd) {
     const auto concat_dim = pd->concat_dim();
+
+    bool cutoff = (conf.dst_concat_axis % conf.read_overlap != 0);
     for (int idx = 0, valid_idx = 0; idx < pd->n_inputs(); ++idx) {
         // skip invalid inputs
         if (pd->src_md(idx)->padded_dims[concat_dim] == 0) continue;
@@ -249,13 +251,19 @@ void push_idx_kernel_args(compute::kernel_arg_list_t &partial_list,
                 ? conf.offset[valid_idx + 1]
                 : conf.dst_concat_axis;
         partial_list.append(static_cast<IDX_T>(src_concat_axis));
+
+        cutoff |= (conf.offset[valid_idx] % conf.read_overlap != 0);
         valid_idx++;
     }
     partial_list.append(static_cast<IDX_T>(conf.dst_concat_axis));
     partial_list.append(static_cast<IDX_T>(conf.dst_padded_concat_axis));
-    partial_list.append(static_cast<IDX_T>(conf.inner_axis));
+
     partial_list.append(static_cast<IDX_T>(conf.read_overlap));
     partial_list.append(static_cast<IDX_T>(conf.gws0_block));
+    partial_list.append(static_cast<IDX_T>(conf.inner_axis));
+    bool inner_offset_cond
+            = (conf.read_overlap * conf.gws0_block > conf.inner_axis) || cutoff;
+    partial_list.append(static_cast<std::uint8_t>(inner_offset_cond));
 }
 
 status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
@@ -265,11 +273,12 @@ status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
     compute::kernel_arg_list_t arg_list;
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
     arg_list.append(dst);
-    arg_list.append(conf.dst_offset0);
-    arg_list.append(conf.dst_extern_dim_size / conf.data_type_size);
+    arg_list.append(static_cast<std::uint64_t>(conf.dst_offset0));
+    arg_list.append(static_cast<std::uint64_t>(
+            conf.dst_extern_dim_size / conf.data_type_size));
 
     if (conf.use_large_index) {
-        push_idx_kernel_args<dim_t>(arg_list, ctx, conf, pd());
+        push_idx_kernel_args<std::uint64_t>(arg_list, ctx, conf, pd());
     } else {
         push_idx_kernel_args<int>(arg_list, ctx, conf, pd());
     }
