@@ -119,7 +119,8 @@ struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
         mode_default = 0,
         mode_tf32 = 0x1,
         mode_bf16x1 = 0x2,
-        mode_w_decomp = 0x4,
+        mode_f16x1 = 0x4,
+        mode_w_decomp = 0x8,
         mode_deterministic = 0x8000
     };
 
