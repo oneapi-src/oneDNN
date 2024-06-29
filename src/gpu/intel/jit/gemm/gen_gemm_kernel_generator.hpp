@@ -102,6 +102,7 @@ public:
     constexpr bool isInt8() const {
         return (val == Type::u8) || (val == Type::s8);
     }
+    constexpr bool isInt16()          const { return (val == Type::u16) || (val == Type::s16); }
     constexpr bool isF8() const {
         return (val == Type::bf8) || (val == Type::hf8);
     }
