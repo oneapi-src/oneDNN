@@ -27984,7 +27984,13 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
 
                                     if (Td.isInteger()) {
                                         if (Ts_real.isSigned()) {
-                                            if (Td_real != Type::s8) stub();
+                                            if (Td_real.isInt16()) {
+                                                shl(n_bytes | modMov,  dreg(effDCP), sreg.ub()(scrosspack_byte), 12);
+                                                shl(n_bytes | modMov, dreg1(effDCP), sreg.ub()(scrosspack_byte), 8);
+                                                asr(n_bytes | modMov,  dreg.w()(effDCP), dreg.w()(effDCP), 12);
+                                                asr(n_bytes | modMov,  dreg1.w()(effDCP), dreg1.w()(effDCP), 12);
+                                            } else if (!Td_real.isInt8())
+                                                stub();
                                             if (effDCP > 1 && !int4Zip) {
                                                 shl(n_bytes | modMov,
                                                         tmp0.w(0)(2),
