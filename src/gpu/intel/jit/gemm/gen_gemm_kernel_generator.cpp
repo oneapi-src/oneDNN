@@ -7726,8 +7726,8 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
     struct WorkItem {
         Subregister C, Cr;
         int simd, iacc;
-        Subregister scale;
-        int scaleStride;
+        std::array<Subregister, 2> scale;
+        std::array<int, 2> scaleStride;
 
         RegData acc(Type T) const {
             return AccumulatorRegister(iacc).retype(T.ngen());
@@ -7740,9 +7740,12 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
     auto processItems = [&] {
         for (const auto &i : items)
             mov(i.simd, i.acc(Tc), i.Cr(1));
+        for (const auto &i : items)
+            if (i.scale[1].isValid())
+                mul(i.simd, i.acc(Tc), i.acc(Tc), i.scale[1](i.scaleStride[1]));
         for (const auto &i : items) {
-            if (i.scale.isValid())
-                mad(i.simd, i.C(1), i.C(1), i.acc(Tc), i.scale(i.scaleStride));
+            if (i.scale[0].isValid())
+                mad(i.simd, i.C(1), i.C(1), i.acc(Tc), i.scale[0](i.scaleStride[0]));
             else
                 add(i.simd, i.C(1), i.C(1), i.acc(Tc));
         }
@@ -7760,28 +7763,33 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
             auto ir = globalCM ? xr : y;
             auto jr = globalCM ? y : xr;
 
-            int ne, ner, nes;
+            int ne, ner, nes[2];
             const RegisterBlock *C_block, *Cr_block, *sblock;
             auto C = findBlockReg(Tc, C_layout, i, j, C_regs, ne, C_block);
             auto Cr = findBlockReg(
                     Tc_compute, Cr_layout, ir, jr, Cr_regs, ner, Cr_block);
 
-            Subregister scale;
-            int scaleStride = 0;
+            std::array<Subregister, 2> scale;
+            std::array<int, 2> scaleStride = {0, 0};
+            int nscale = 0;
             if (scaleA) {
                 int js = (jr + ha) / problem.aqGroupK;
-                scale = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout, i,
-                        js, state.Ar_scaleRegs, nes, sblock);
-                scaleStride = globalCM ? 1 : 0;
-            } else if (scaleB) {
+                scale[nscale] = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout, i,
+                        js, state.Ar_scaleRegs, nes[0], sblock);
+                scaleStride[nscale] = globalCM ? 1 : 0;
+                nscale++;
+            }
+            if (scaleB) {
                 int is = (ir + hb) / problem.bqGroupK;
-                scale = findBlockReg(state.Tb_scaleInt, state.Br_scaleLayout,
-                        is, j, state.Br_scaleRegs, nes, sblock);
-                scaleStride = globalCM ? 0 : 1;
+                scale[nscale] = findBlockReg(state.Tb_scaleInt, state.Br_scaleLayout,
+                        is, j, state.Br_scaleRegs, nes[1], sblock);
+                scaleStride[nscale] = globalCM ? 0 : 1;
+                nscale++;
             }
 
             ne = std::min(ne, ner);
-            if (scaleStride == 1) ne = std::min(ne, nes);
+            if (scaleStride[0] == 1) ne = std::min(ne, nes[0]);
+            if (scaleStride[1] == 1) ne = std::min(ne, nes[1]);
 
             if (ne < xchunk) stub();
             if (C_block->crosspack != 1 || Cr_block->crosspack != 1) stub();
@@ -7795,14 +7803,16 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
                 coalesce &= (ne == nec && last.simd == nec);
                 coalesce &= (C.getBase() == last.C.getBase() + 1);
                 coalesce &= (Cr.getBase() == last.Cr.getBase() + 1);
-                if (scale.isValid()) {
-                    if (scaleStride == 0)
-                        coalesce &= (scale == last.scale);
+                for (int i = 0; i < 2; i++) {
+                if (scale[i].isValid()) {
+                    if (scaleStride[i] == 0)
+                        coalesce &= (scale[i] == last.scale[i]);
                     else {
                         coalesce
-                                &= (scale.getBase() == last.scale.getBase() + 1)
-                                && (getBytes(scale.getType()) == Tc.size());
+                                &= (scale[i].getBase() == last.scale[i].getBase() + 1)
+                                && (getBytes(scale[i].getType()) == Tc.size());
                     }
+                }
                 }
             }
 
@@ -7815,62 +7825,6 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
             if (iacc >= nacc) {
                 processItems();
                 iacc = 0;
-
-                /*Subregister scaleRegA, scaleRegB;
-            int scaleStrideA = 0, scaleStrideB = 0;
-            auto createItems = [&](int scaleStride, Subregister scale) {
-                ne = std::min(ne, ner);
-                if (scaleStride == 1) ne = std::min(ne, nes);
-
-                if (ne < xchunk) stub();
-                if (C_block->crosspack != 1 || Cr_block->crosspack != 1) stub();
-
-                WorkItem item = {C, Cr, ne, iacc, scale, scaleStride};
-                bool coalesce = false;
-
-                if (!items.empty()) {
-                    auto &last = items.back();
-                    coalesce = true;
-                    coalesce &= (ne == nec && last.simd == nec);
-                    coalesce &= (C.getBase() == last.C.getBase() + 1);
-                    coalesce &= (Cr.getBase() == last.Cr.getBase() + 1);
-                    if (scale.isValid()) {
-                        if (scaleStride == 0)
-                            coalesce &= (scale == last.scale);
-                        else {
-                            coalesce &= (scale.getBase()
-                                                == last.scale.getBase() + 1)
-                                    && (getBytes(scale.getType()) == Tc.size());
-                        }
-                    }
-                }
-
-                if (coalesce)
-                    items.back().simd += ne;
-                else
-                    items.push_back(item);
-
-                iacc += (ne > xchunk) ? 2 : 1;
-                if (iacc >= nacc) {
-                    processItems();
-                    iacc = 0;
-                }
-            };
-            if (scaleA) {
-                int js = (j + ha) / problem.aqGroupK;
-                scaleRegA
-                        = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout,
-                                i, js, state.Ar_scaleRegs, nes, sblock);
-                scaleStrideA = globalCM ? 1 : 0;
-                createItems(scaleStrideA, scaleRegA);
-            }
-            if (scaleB) {
-                int is = (i + hb) / problem.bqGroupK;
-                scaleRegB
-                        = findBlockReg(state.Tb_scaleInt, state.Br_scaleLayout,
-                                is, j, state.Br_scaleRegs, nes, sblock);
-                scaleStrideB = globalCM ? 0 : 1;
-                createItems(scaleStrideB, scaleRegB);*/
             }
         }
     }
