@@ -337,6 +337,27 @@ public:
         }
     }
 
+    void stringify(std::ostream &out) const {
+        if (size_ == 0) {
+            out << "x";
+            return;
+        }
+        for (auto &d : *this) {
+            auto &value = operator[](d);
+            out << d << value;
+        }
+    }
+
+    void parse(std::istream &in) {
+        is_set_.fill(false);
+        values_.fill(ValueT());
+        auto s = stream_parse<std::string>(in);
+        if (s == "x") return;
+        for (auto &kv : ir_utils::to_string_int_pairs(s)) {
+            operator[](KeyT::from_name(kv.first)) = ValueT(kv.second);
+        }
+    }
+
     std::string str_impl(bool multiline) const {
         if (size_ == 0) return "x";
         std::ostringstream oss;

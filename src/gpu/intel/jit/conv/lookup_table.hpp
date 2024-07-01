@@ -29,30 +29,30 @@ namespace jit {
 
 class conv_lookup_table_t {
 public:
-    void set(const conv_key_t &key, const blocking_params_t &params) {
-        auto it = data_.find(key);
-        if (it == data_.end()) {
-            data_.emplace(key, params);
-            return;
+    struct entry_t {
+        conv_key_t key;
+        blocking_params_t params;
+
+        void stringify(std::ostream &out) const;
+        void parse(std::istream &in);
+
+        bool operator==(const entry_t &other) const {
+            return key == other.key && params == other.params;
         }
-        for (; it != data_.end(); it++) {
-            if (it->first == key) {
-                it->second = params;
-                return;
-            }
-        }
-        data_.emplace(key, params);
-    }
+    };
+
+    conv_lookup_table_t() = default;
+    conv_lookup_table_t(const char **entries);
+
+    void set(const conv_key_t &key, const blocking_params_t &params);
     void merge(const conv_lookup_table_t &other);
     blocking_params_t find(const conv_key_t &key) const;
     bool is_empty() const { return data_.empty(); }
-    void serialize(std::ostream &out) const;
-    void deserialize(std::istream &in);
+    void stringify(std::ostream &out) const;
+    void parse(std::istream &in);
 
 private:
-    std::unordered_multimap<conv_key_t, blocking_params_t, conv_key_hash_t,
-            conv_key_lookup_table_equal_t>
-            data_;
+    std::unordered_map<std::string, std::vector<entry_t>> data_;
 };
 
 const conv_lookup_table_t &const_conv_lookup_table();
