@@ -14451,7 +14451,7 @@ bool gemm_kernel_generator_t<hw>::kLoopSetup(const GEMMProblem &problem,
 
     repackARem = repackA;
     repackBRem = repackB;
-    ka_repackRem = repackA ? ka_loadRem : 0;
+    ka_repackRem = repackA ? std::min(ka_loadRem, state.ka_repack) : 0;
     kb_repackRem = repackB ? kb_loadRem : 0;
     if (minOPCount > 1) {
         if (ka_loadRem < minOPCount) {
@@ -14837,6 +14837,8 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     auto slmBuffers = strategy.slmBuffers;
     auto ka_loadMain = strategy.ka_load, ka_loadRem = state.ka_loadRem;
     auto kb_loadMain = strategy.kb_load, kb_loadRem = state.kb_loadRem;
+    auto ka_repackMain = state.ka_repack;
+    auto ka_repackRem = state.ka_repackRem;
     auto ka_pfStride = strategy.ka_pfStride;
     auto kb_pfStride = strategy.kb_pfStride;
     auto kInterleaveChunk = strategy.kInterleaveChunk(problem);
@@ -15107,6 +15109,10 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     };
     auto kb_load = [&](Iteration h) {
         return B_remActive(h) ? kb_loadRem : kb_loadMain;
+    };
+    auto ka_repack = [&](Iteration h) {
+        if (!state.repackA) return ka_load(h);
+        return A_remActive(h) ? ka_repackRem : ka_repackMain;
     };
     auto A_copy = [&](Iteration h) { return (h / ka_load(h)) % A_copies; };
     auto B_copy = [&](Iteration h) { return (h / kb_load(h)) % B_copies; };
@@ -15838,8 +15844,9 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         });
 
     // A/B repacking.
-    auto reqRepackA = every(ka_loadMain) | variants(A_copies);
-    auto reqRepackARem = every(ka_loadRem) | variants(A_copies);
+    auto reqRepackA = every(ka_repackMain) | variants(A_copies);
+    auto reqRepackARem
+            = every(std::min(ka_loadRem, ka_repackRem)) | variants(A_copies);
     bool convertA = (Ta != Ta_load) && (Ta.bits() == Ta_load.bits());
     bool scheduleRepackA
             = state.repackA || state.repackARem || convertA || dequantizeA;
@@ -15852,6 +15859,29 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         vector<RegisterBlock> sublayout = layout;
         auto Ar_sublayout = state.Ar_layout;
         bool do_shift = true;
+        if (repackA) {
+            auto layout_copy = layout;
+            unlinkFromMemory(layout_copy);
+
+            if (!getSubblocks(Ta_load, sublayout, layout_copy, true, ha,
+                        ha + k_repack, false, {}, {}))
+                stub();
+            for (auto &l : Ar_sublayout) {
+                l.offsetC += ha;
+            }
+
+            // Int4 data is commonly expanded from partial registers as a 64
+            // byte register expands to 128 elements. To avoid emitting extra
+            // instructions, perform element-wise operations here.
+            bool can_dequantize = canDequantizeInt4(
+                    Ta_load, Ta, layout, state.Ar_layout, {}, {});
+            if (can_dequantize) {
+                if (ha == 0) { dequantizeInt4Shift(Ta_load, regs, strategy); }
+                do_shift = false;
+            }
+        } else if (dequantize2DA) {
+            stub("dequantize2DA is assumed to imply repackA");
+        }
 
         if (dequantizeA)
             gemmDequantizeAB(true, Ta_load, Ta, sublayout, Ar_sublayout, regs,
@@ -15869,11 +15899,11 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
                              [&](Iteration h) {
                                  doRepackA(state.A_layout, A_regs(h),
                                          state.repackA, h, ka_loadMain,
-                                         ka_loadMain);
+                                         ka_repackMain);
                              }},
                 {reqRepackARem, [&](Iteration h) {
                      doRepackA(state.A_layoutRem, A_regs(h), state.repackARem,
-                             h, ka_loadRem, state.ka_repackRem);
+                             h, ka_loadRem, ka_repackRem);
                  }}});
 
     auto reqRepackB = every(kb_loadMain) | variants(B_copies);
@@ -15965,11 +15995,12 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         auto hNext = h + minOPCount;
         if (hNext % oc != 0) return;
 
-        int ka = ka_load(h), kb = kb_load(h);
-        int ha = h % ka;
+        int kar = ka_repack(h);
+        int kb = kb_load(h);
+        int ha = h % kar;
         int hb = h % kb;
         if (problem.backward()) {
-            ha = ka - 1 - ha;
+            ha = kar - 1 - ha;
             hb = kb - 1 - hb;
         }
 
@@ -17300,10 +17331,20 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
 
     bool splitA = false, splitB = false;
 
-    if (state.repackA)
-        makeUnbackedRegLayout(Ta, state.Ar_layout, unrollM, strategy.ka_load,
+    state.ka_repack = strategy.ka_load;
+    if (state.repackA) {
+        // Repacked data can use significantly more registers than the loaded
+        // data. Lazy repacking can reduce register utilization and improve load
+        // pipelining at (in some cases) the expense of more work.
+        bool lazy_repack = state.Ta_load.isInt4()
+                && Ta == Type::f16; // Other cases are unimplemented
+        state.ka_repack = lazy_repack
+                ? std::min(strategy.ka_load, strategy.kb_load)
+                : strategy.ka_load;
+        makeUnbackedRegLayout(Ta, state.Ar_layout, unrollM, state.ka_repack,
                 isLayoutColMajor(state.A_layout), crosspackA, tileM_A, tileK_A,
                 true, splitA);
+    }
     if (state.repackB)
         makeUnbackedRegLayout(Tb, state.Br_layout, strategy.kb_load, unrollN,
                 isLayoutColMajor(state.B_layout), crosspackB, tileK_B, tileN_B,
@@ -27578,7 +27619,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
         bool do_shift) {
     return copyRegisters(Ts, Td, layoutSrc, layoutDst, src, dst, dOffR, dOffC,
             Scalar {1}, SubregisterPair(), SubregisterPair(), conjugate,
-            strategy, state, preserveSrc);
+            strategy, state, preserveSrc, do_shift);
 }
 
 // Register-to-register copy, with scaling.

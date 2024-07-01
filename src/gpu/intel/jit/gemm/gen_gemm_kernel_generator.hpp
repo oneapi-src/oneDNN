@@ -1597,7 +1597,7 @@ struct GEMMState : public CommonState {
     bool broadcast;
     bool repackA = false, repackB = false;
     bool repackARem = false, repackBRem = false;
-    int ka_repackRem, kb_repackRem;
+    int ka_repack, ka_repackRem, kb_repackRem;
     bool remActiveA, remActiveB, remActiveSLM;
     std::vector<MaskAssignment> kMasksA, kMasksB, kMasksAi, kMasksBi;
     int initSLMKOffset = 0;
