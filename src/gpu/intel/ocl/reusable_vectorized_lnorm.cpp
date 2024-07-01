@@ -94,7 +94,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     select_work_group_kernel
             = select_work_group_kernel != -1 && select_work_group_kernel;
     int max_unroll = gpu_utils::dev_getenv("unroll", -1);
-    if (max_unroll == -1) { max_unroll = 8; }
+    if (max_unroll == -1) { max_unroll = 12; }
     int reuse = gpu_utils::dev_getenv("reuse", -1);
     int reuse_private_mem = gpu_utils::dev_getenv("reuse_private_mem", 999);
 
@@ -175,74 +175,65 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         return status::unimplemented;
     }
 
-
-    float threads_launched_for_wg_kernel = (float)pd->norm_axis() / conf->vector_size * (src_mdw.nelems()/ pd->norm_axis()) / conf->sg_size;
-    float threads_launched_for_sg_kernel = (src_mdw.nelems()/ pd->norm_axis());
+    float threads_launched_for_wg_kernel = (float)pd->norm_axis()
+            / conf->vector_size * (src_mdw.nelems() / pd->norm_axis())
+            / conf->sg_size;
+    float threads_launched_for_sg_kernel = (src_mdw.nelems() / pd->norm_axis());
     auto di = compute_engine->device_info();
 
-  //printf("sg: %f wg: %f ", threads_launched_for_sg_kernel, threads_launched_for_wg_kernel);
+    //printf("sg: %f wg: %f ", threads_launched_for_sg_kernel, threads_launched_for_wg_kernel);
     //printf("sg waves: %f wg waves:%f \n", di->eu_count()*8/threads_launched_for_sg_kernel, di->eu_count()*8/threads_launched_for_wg_kernel);
 
-    float sg_waves = threads_launched_for_sg_kernel/di->hw_threads();
-    float wg_waves = threads_launched_for_wg_kernel/di->hw_threads();
+    int large_grf = gpu_utils::dev_getenv("large_grf", 0);
+    float sg_waves = threads_launched_for_sg_kernel / di->hw_threads(large_grf);
+    float wg_waves = threads_launched_for_wg_kernel / di->hw_threads(large_grf);
     float sg_full_waves, wg_full_waves;
-    float sg_partial_waves = modf(sg_waves,&sg_full_waves);
-    float wg_partial_waves = modf(wg_waves,&wg_full_waves);
+    float sg_partial_waves = modf(sg_waves, &sg_full_waves);
+    float wg_partial_waves = modf(wg_waves, &wg_full_waves);
 
     //printf("hw_threads(): %d\n", di->hw_threads());
     //printf("sg full: %f partial: %f wg full:%f partial: %f| ", sg_full_waves, sg_partial_waves, wg_full_waves, wg_partial_waves);
-    if(sg_waves < 1 && wg_waves < 1) {
-        select_work_group_kernel = wg_waves >= sg_waves;
-    } else if ( sg_waves == 1 || wg_waves == 1) {
-        select_work_group_kernel = wg_waves == 1;
-    } else if ( sg_waves < 1 ^ wg_waves < 1) {
-      // prefer 1 wave over multiple if the utilization is high
-      select_work_group_kernel = (wg_waves > 1 && sg_waves < 0.8);
+    int num_sg_per_wg
+            = (int)pd->norm_axis() / (conf->sg_size * conf->vector_size);
+    if (sg_waves < 0.8) {
+        select_work_group_kernel = wg_waves > sg_waves && num_sg_per_wg > 4;
     } else {
-        select_work_group_kernel = wg_full_waves > sg_full_waves;
+        select_work_group_kernel = false;
     }
 
-    int num_sg_per_wg = (int)pd->norm_axis() / (conf->sg_size * conf->vector_size);
-    
-    if (( (select_work_group_kernel || (tensor_size / cache_size >= 0.75)) || num_sg_per_wg > 4 ) && !(num_sg_per_wg == 1)) { // || !(lnorm_bytes <= 256)) {
-      //printf("wg: ");
-      conf->unroll = 1;
-      conf->private_mem_size = 0;
-      lws_strategy.reset(
-                         new default_lws_strategy_t(compute_engine, gpu_attr));
+    //printf("wg_waves(%f) > sg_waves(%f) && num_sg_per_wg(%d) > 4 || ((tensor_size(%zu) / cache_size(%zu) >= 0.75) && lnorm_bytes(%zu) > 1024)", wg_waves, sg_waves , num_sg_per_wg, tensor_size , cache_size , lnorm_bytes);
+    if ((select_work_group_kernel || (tensor_size / cache_size >= 0.75))
+            && lnorm_bytes > 1280 && !(num_sg_per_wg == 1)) {
+        //printf("WG: ");
+        conf->unroll = 1;
+        conf->private_mem_size = 0;
+        conf->large_grf = false;
+        conf->wg_size = pd->norm_axis() / conf->vector_size;
+        lws_strategy.reset(
+                new default_lws_strategy_t(compute_engine, gpu_attr));
 
-      if ((pd->norm_axis() / conf->sg_size * conf->vector_size)
-          > compute_engine->device_info()->max_wg_size(false)) {
-        VDEBUGINFO(15, primitive, lnorm,
-                   "Reusable Vectorized LNorm not used because launch "
+        if ((pd->norm_axis() / conf->sg_size * conf->vector_size)
+                > compute_engine->device_info()->max_wg_size(false)) {
+            VDEBUGINFO(15, primitive, lnorm,
+                    "Reusable Vectorized LNorm not used because launch "
                     "configuration exceeds device limits");
             return status::unimplemented;
         }
         conf->reuse = true;
     } else {
-
-      //printf("sg: ");
+        //printf("SG: ");
         conf->unroll = std::min<int>(max_unroll,
                 (int)pd->norm_axis() / (conf->sg_size * conf->vector_size));
 
-        conf->private_mem_size = std::min<uint8_t>((uint8_t)reuse_private_mem,
-                pd->norm_axis() / (conf->sg_size * conf->vector_size));
+        conf->wg_size = conf->sg_size;
+        conf->large_grf = sg_waves < 0.8 || conf->unroll > 2;
+
+        //printf("GRF: %d ", conf->large_grf);
+        conf->private_mem_size
+                = pd->norm_axis() / (conf->sg_size * conf->vector_size);
         lws_strategy.reset(new single_subgroup_lws_strategy_t(
                 compute_engine, gpu_attr, conf->sg_size));
     }
-
-    //if(reuse != -1) {
-    //  conf->reuse = reuse;
-    //  if (reuse) {
-    //    conf->private_mem_size
-    //      = std::min<uint8_t>(reuse_private_mem, pd->norm_axis() / (conf->sg_size * conf->vector_size));
-    //  } else {
-    //      conf->private_mem_size = 0;
-    //  }
-    //}
-
-    //printf("lnorm_size: %zu tensor_size: %zu cache_size: %zu reuse: %d\n", lnorm_bytes, tensor_size, cache_size, conf->reuse);
-    // Norm dispatch: all dimensions
 
     compute::reusable_dispatch_config_t dispatch_config(compute_engine, dims);
     CHECK(dispatch_config.register_buffer(input_buf));
@@ -286,7 +277,8 @@ reusable_vectorized_lnorm_params_t::get_kernel_ctx() const {
     compute::kernel_ctx_t kernel_ctx;
     kernel_ctx.set_data_type(input_dt);
     kernel_ctx.add_option("-cl-std=CL3.0");
-    //kernel_ctx.add_option("-cl-intel-256-GRF-per-thread");
+
+    if (large_grf) { kernel_ctx.add_option("-cl-intel-256-GRF-per-thread"); }
 
     def_data_type(kernel_ctx, input_dt, "SRC");
     def_data_type(kernel_ctx, ss_dt, "WEI");
@@ -304,6 +296,7 @@ reusable_vectorized_lnorm_params_t::get_kernel_ctx() const {
     kernel_ctx.define_int("REUSE", reuse);
     kernel_ctx.define_int("PVT_MEM_SIZE", private_mem_size);
 
+    kernel_ctx.define_int("WG_SIZE", wg_size);
     if (reuse) {
         kernel_ctx.add_option("-DGROUP_ADD=work_group_reduce_add");
         kernel_ctx.define_int("GROUP_STRIDE", INT32_MAX);

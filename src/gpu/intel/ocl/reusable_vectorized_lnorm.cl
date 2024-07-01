@@ -32,6 +32,7 @@ VEC_SUM_DEFINE(float2)
 VEC_SUM_DEFINE(float4)
 VEC_SUM_DEFINE(float8)
 
+__attribute__((reqd_work_group_size(WG_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SG_SIZE))) __kernel void
 lnorm_reusable_vectorized(__global SRC_DATA_T *src, __global float *mean,
         __global float *variance, dim_t reduce_size, __global DST_DATA_T *dst,
@@ -53,16 +54,18 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src, __global float *mean,
         /// Read global memory and mean and variance
         VECT_FLOAT_T sum = 0;
 #if PVT_MEM_SIZE > 0
-        unroll_for_by(N_UNROLL)(int sg_idx = 0, i = 0; sg_idx < reduce_size;
-                                sg_idx += GROUP_STRIDE, i++) {
+        //unroll_for_by(N_UNROLL)(int sg_idx = 0, i = 0; i < greads; sg_idx += GROUP_STRIDE, i++) {
+        unroll_for_by(N_UNROLL)(int sg_idx = 0, i = 0; i < PVT_MEM_SIZE; sg_idx += GROUP_STRIDE, i++) {
           val[i] = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
                                                                        (const __global BLOCK_DATA_T *)(&src[sg_idx]))));
+        }
+        unroll_for_by(N_UNROLL)(int i = 0; i < PVT_MEM_SIZE; i++) {
           sum += val[i];
         }
 #else
-          val = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
-                                                                    (const __global BLOCK_DATA_T *)(src))));
-          sum = val;
+        val = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+                                                                  (const __global BLOCK_DATA_T *)(src))));
+        sum = val;
 #endif
 
         local_mean = GROUP_ADD(vec_sum(sum)) * rrs;
@@ -70,7 +73,8 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src, __global float *mean,
 
 #if PVT_MEM_SIZE > 0
         sum = 0;
-        unroll_for_by(N_UNROLL)(int i = greads - 1; i >= 0; i--) {
+        //unroll_for_by(N_UNROLL)(int i = 0; i < greads; i++) {
+        unroll_for_by(N_UNROLL)(int i = 0; i < PVT_MEM_SIZE; i++) {
           VECT_FLOAT_T var_val;
           var_val = val[i] - local_mean;
           var_val *= var_val;
@@ -83,9 +87,9 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src, __global float *mean,
 #endif
         local_variance = GROUP_ADD(vec_sum(sum)) * rrs;
     } else {
-        mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
-        variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
-        local_mean = *mean;
+      mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
+      variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
+      local_mean = *mean;
         local_variance = *variance;
     }
 
@@ -104,23 +108,27 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src, __global float *mean,
     float src_scale_val = src_scale ? *src_scale : 1.f;
     float dst_scale_val = dst_scale ? native_recip(*dst_scale) : 1.f;
 
-    unroll_for_by(N_UNROLL)(int i = 0; i < greads; i++) {
-        VECT_FLOAT_T res;
+    //unroll_for_by(N_UNROLL)(int i = 0; i < greads; i++) {
 #if PVT_MEM_SIZE > 0
-        res = val[i] - local_mean;
-#else
-        res = val - local_mean;
+    unroll_for_by(N_UNROLL)(int i = 0; i < PVT_MEM_SIZE; i++) {
 #endif
-        VECT_FLOAT_T sc = (USE_SCALE) ? LOAD_VECT_WEI(scale) : 1.f;
-        VECT_FLOAT_T sh = (USE_SHIFT) ? LOAD_VECT_WEI(shift) : 0.f;
-        VECT_FLOAT_T out = (sc * res * sqrt_variance + sh) * src_scale_val
-                * dst_scale_val;
+      VECT_FLOAT_T res;
+#if PVT_MEM_SIZE > 0
+      res = val[i] - local_mean;
+#else
+      res = val - local_mean;
+#endif
+      VECT_FLOAT_T sc = (USE_SCALE) ? LOAD_VECT_WEI(scale) : 1.f;
+      VECT_FLOAT_T sh = (USE_SHIFT) ? LOAD_VECT_WEI(shift) : 0.f;
+      VECT_FLOAT_T out = (sc * res * sqrt_variance + sh) * src_scale_val * dst_scale_val;
 
-        VECT_DST_BLOCK_WRITE(dst_vect, CONVERT_VECTOR_DST_DATA_T(out));
+      VECT_DST_BLOCK_WRITE(dst_vect, CONVERT_VECTOR_DST_DATA_T(out));
+#if PVT_MEM_SIZE > 0
         dst_vect += GROUP_STRIDE;
         if (USE_SCALE) scale += GROUP_STRIDE;
         if (USE_SHIFT) shift += GROUP_STRIDE;
     }
+#endif
     if (SAVE_STATS && get_local_id(0) == 0) {
         mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
         variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
