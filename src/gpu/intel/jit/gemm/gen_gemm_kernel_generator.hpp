@@ -2489,7 +2489,7 @@ protected:
     void setupTeardownAccumulateSumSystolic(bool setup, Type Tother,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
-    void outerProductRepackC(int x0, int xr0, int nx, int ha, int hb,
+    void outerProductRepackC(int x0, int xr0, int nx, int h,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
 

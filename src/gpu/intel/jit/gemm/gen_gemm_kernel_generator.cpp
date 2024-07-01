@@ -7693,23 +7693,23 @@ void gemm_kernel_generator_t<hw>::outerProductSystolic(int h, int ha, int hb,
         if (repackC) {
             int xr = x - Cr_unrollM + xinc;
             if (xr >= 0)
-                outerProductRepackC(xr, xr % Cr_unrollM, xinc, ha, hb, problem,
-                        strategy, state);
+                outerProductRepackC(
+                        xr, xr % Cr_unrollM, xinc, h, problem, strategy, state);
         }
     } /* x loop */
 
     if (repackC)
         for (int xr = nx - Cr_unrollM + xinc; xr < nx; xr += xinc)
-            outerProductRepackC(xr, xr % Cr_unrollM, xinc, ha, hb, problem,
-                    strategy, state);
+            outerProductRepackC(
+                    xr, xr % Cr_unrollM, xinc, h, problem, strategy, state);
 }
 
 // Repack (part of) a C tile, converting types and scaling as needed.
 //  x0 (resp. xr0) are the offsets into the C tile (resp. repacked C tile) in the vectorized dimension.
 template <HW hw>
 void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
-        int ha, int hb, const GEMMProblem &problem,
-        const GEMMStrategy &strategy, GEMMState &state) {
+        int h, const GEMMProblem &problem, const GEMMStrategy &strategy,
+        GEMMState &state) {
     auto Tc = problem.Tc, Tc_compute = problem.Tc_compute();
     const auto &C_layout = state.C_layout, &Cr_layout = state.Cr_layout;
     const auto &C_regs = state.C_regs[0], &Cr_regs = state.Cr_regs;
@@ -7773,16 +7773,18 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
             std::array<int, 2> scaleStride = {0, 0};
             int nscale = 0;
             if (scaleA) {
-                int js = (jr + ha) / problem.aqGroupK;
-                scale[nscale] = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout, i,
-                        js, state.Ar_scaleRegs, nes[0], sblock);
+                int js = ((jr + h) / problem.aqGroupK) % state.kaqLate;
+                scale[nscale]
+                        = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout,
+                                i, js, state.Ar_scaleRegs, nes[0], sblock);
                 scaleStride[nscale] = globalCM ? 1 : 0;
                 nscale++;
             }
             if (scaleB) {
-                int is = (ir + hb) / problem.bqGroupK;
-                scale[nscale] = findBlockReg(state.Tb_scaleInt, state.Br_scaleLayout,
-                        is, j, state.Br_scaleRegs, nes[1], sblock);
+                int is = ((ir + h) / problem.bqGroupK) % state.kbqLate;
+                scale[nscale]
+                        = findBlockReg(state.Tb_scaleInt, state.Br_scaleLayout,
+                                is, j, state.Br_scaleRegs, nes[1], sblock);
                 scaleStride[nscale] = globalCM ? 0 : 1;
                 nscale++;
             }
