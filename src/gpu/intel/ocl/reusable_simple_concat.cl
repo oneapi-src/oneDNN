@@ -28,14 +28,6 @@ typedef int idx_t;
             const idx_t src_concat_axis##n)
 #define SRC_PARAMS REDUCE(N_INPUTS, JOIN_COMMA, SRC_PARAM)
 
-#if BLOCK_DEPTH > 0
-
-#define BLOCK_LAYOUT_ARG(n) JOIN_COMMA(block_b##n, block_s##n)
-#define BLOCK_LAYOUT_PARAM(n) \
-    JOIN_COMMA(const idx_t block_b##n, const idx_t block_s##n)
-
-#endif
-
 idx_t get_concat_idx(idx_t inner_idx, idx_t inner_offset) {
     idx_t block = 1;
     idx_t idx = 0;
@@ -59,12 +51,6 @@ idx_t get_concat_offset(idx_t concat_idx, idx_t inner_offset) {
 #undef HANDLE
     return idx + inner_offset * (concat_idx / block);
 }
-
-#define PARAM_OFFSET_INPUT_N(n) const idx_t offset##n
-#define ARG_OFFSET_INPUT_N(n) offset##n
-
-#define EXPAND_N_ARGS(EXPAND_MACRO, n) \
-    JOIN_COMMA(REDUCE(n, JOIN_COMMA, EXPAND_MACRO), EXPAND_MACRO(n))
 
 struct write_info_t {
     idx_t idx;
@@ -167,10 +153,10 @@ reusable_simple_concat(__global DATA_T *dst, const ulong dst_offset0,
     const uint lane = get_sub_group_local_id() % SIMD;
     buffer_t buf;
 
-#if (READ_BLOCK * DATA_TYPE_SIZE % 4 != 0)
-    for (int i = 0; i < thr_elems; ++i)
-        buf.v1[i] = src[i * SIMD + lane];
-#else
+    if (READ_BLOCK * DATA_TYPE_SIZE % 4 != 0) {
+        for (int i = 0; i < thr_elems; ++i)
+            buf.v1[i] = src[i * SIMD + lane];
+    } else {
 #define MAYBE_BLOCK_READ(n, read, elems) \
     do { \
         if ((elems) & (n)) { \
@@ -179,14 +165,14 @@ reusable_simple_concat(__global DATA_T *dst, const ulong dst_offset0,
         } \
     } while (0)
 
-    for (int i = 0; i < thr_elems / 16; ++i)
-        buf.v16[i] = BLOCK_READ16(&src[16 * i * SIMD]);
-    MAYBE_BLOCK_READ(8, BLOCK_READ8, thr_elems);
-    MAYBE_BLOCK_READ(4, BLOCK_READ4, thr_elems);
-    MAYBE_BLOCK_READ(2, BLOCK_READ2, thr_elems);
-    MAYBE_BLOCK_READ(1, BLOCK_READ, thr_elems);
+        for (int i = 0; i < thr_elems / 16; ++i)
+            buf.v16[i] = BLOCK_READ16(&src[16 * i * SIMD]);
+        MAYBE_BLOCK_READ(8, BLOCK_READ8, thr_elems);
+        MAYBE_BLOCK_READ(4, BLOCK_READ4, thr_elems);
+        MAYBE_BLOCK_READ(2, BLOCK_READ2, thr_elems);
+        MAYBE_BLOCK_READ(1, BLOCK_READ, thr_elems);
 #undef MAYBE_BLOCK_READ
-#endif // aligned for block reads
+    }
     if (lane < READ_BLOCK % SIMD)
         buf.v1[thr_elems] = src[thr_elems * SIMD + lane];
 

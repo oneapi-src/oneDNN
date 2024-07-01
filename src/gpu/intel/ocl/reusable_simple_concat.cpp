@@ -203,8 +203,6 @@ static status_t init_conf_common(
 
 static status_t init_kernel_ctx_common(
         compute::kernel_ctx_t &kernel_ctx, const concat_conf_t &conf) {
-    kernel_ctx.add_option("-cl-intel-256-GRF-per-thread");
-
     kernel_ctx.define_int("WRITE_BLOCK", conf.write_block);
     kernel_ctx.define_int("READ_BLOCK", conf.read_block);
     kernel_ctx.define_int("N_INPUTS", conf.n);
