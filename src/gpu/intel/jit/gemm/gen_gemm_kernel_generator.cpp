@@ -15845,13 +15845,21 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
             = state.repackA || state.repackARem || convertA || dequantizeA;
 
     auto doRepackA = [&](vector<RegisterBlock> &layout, GRFMultirange &regs,
-                             bool repackA, int ha) {
+                             bool repackA, int h, int k_load, int k_repack) {
+        if (k_repack <= 0) k_repack = 1;
+        int ha = h % k_load, har = (h % k_repack);
+
+        vector<RegisterBlock> sublayout = layout;
+        auto Ar_sublayout = state.Ar_layout;
+        bool do_shift = true;
+
         if (dequantizeA)
-            gemmDequantizeAB(true, Ta_load, Ta, layout, state.Ar_layout, regs,
-                    state.Ar_regs, ha, problem, strategy, state);
+            gemmDequantizeAB(true, Ta_load, Ta, sublayout, Ar_sublayout, regs,
+                    state.Ar_regs, har, problem, strategy, state, do_shift);
         else if (repackA)
-            copyRegisters(Ta_load, Ta, layout, state.Ar_layout, regs,
-                    state.Ar_regs, 0, ha, false, strategy, state);
+            copyRegisters(Ta_load, Ta, sublayout, Ar_sublayout, regs,
+                    state.Ar_regs, 0, har, false, strategy, state, false,
+                    do_shift);
         else if (convertA)
             convert(regs, Ta_load, Ta, strategy, state);
     };
@@ -15860,11 +15868,12 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         ls.schedule({{reqRepackA,
                              [&](Iteration h) {
                                  doRepackA(state.A_layout, A_regs(h),
-                                         state.repackA, 0);
+                                         state.repackA, h, ka_loadMain,
+                                         ka_loadMain);
                              }},
                 {reqRepackARem, [&](Iteration h) {
                      doRepackA(state.A_layoutRem, A_regs(h), state.repackARem,
-                             h % std::max(state.ka_repackRem, 1));
+                             h, ka_loadRem, state.ka_repackRem);
                  }}});
 
     auto reqRepackB = every(kb_loadMain) | variants(B_copies);
