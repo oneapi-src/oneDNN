@@ -31,8 +31,9 @@ namespace ocl {
 // returns the total number of bytes kernel parameters will demand for n inputs
 size_t kernel_parameter_bytes(
         const size_t n, const size_t n_blocks, const size_t idx_type_size) {
-    // offset##N, padded_offset##N, inner_offset, read_overlap, gws0_block
-    const size_t additional_param_bytes = 5 * idx_type_size;
+    // zero_pad_offset, zero_pad_concat_axis, read_overlap, gws0_block, inner_offset, must_compute_ext_idx
+    const size_t additional_param_bytes
+            = 5 * idx_type_size + sizeof(unsigned char);
 
     // dst, dst_offset0, dst_ext_offset,
     const size_t dst_param_bytes = sizeof(void *) + 2 * idx_type_size;
@@ -259,9 +260,11 @@ void push_idx_kernel_args(compute::kernel_arg_list_t &partial_list,
     partial_list.append(static_cast<IDX_T>(conf.read_overlap));
     partial_list.append(static_cast<IDX_T>(conf.gws0_block));
     partial_list.append(static_cast<IDX_T>(conf.inner_axis));
-    bool inner_offset_cond
+    // Workgroup reads may extend past the concat dimension, so we must also
+    // consider the external axis when computing write indices
+    bool must_compute_ext_idx
             = (conf.read_overlap * conf.gws0_block > conf.inner_axis) || cutoff;
-    partial_list.append(static_cast<std::uint8_t>(inner_offset_cond));
+    partial_list.append(static_cast<std::uint8_t>(must_compute_ext_idx));
 }
 
 status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
