@@ -21029,10 +21029,14 @@ template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmAutoTypeConversions(
         GEMMProblem &problem, const GEMMStrategy &strategy) {
     auto &Ta = problem.Ta, &Tb = problem.Tb, &Tc = problem.Tc;
+    auto &Ta_ext = problem.Ta_ext, &Tb_ext = problem.Tb_ext;
 
     // Weights decompression
-    if ((Ta.isInt8() || Ta.isInt4()) && Tc.isFP()) Ta = Tb;
-    if ((Tb.isInt8() || Tb.isInt4()) && Tc.isFP()) Tb = Ta;
+    if ((Ta.isInt8() || Ta.isInt4()) && Tc.isFP()) Ta = Tb.asSigned();
+    if ((Tb.isInt8() || Tb.isInt4()) && Tc.isFP()) Tb = Ta.asSigned();
+
+    if (Ta == Ta_ext.asSigned()) Ta = Ta_ext;
+    if (Tb == Tb_ext.asSigned()) Tb = Tb_ext;
 
     if (Ta.isF8()) Ta = Type::f16;
     if (Tb.isF8()) Tb = Type::f16;
