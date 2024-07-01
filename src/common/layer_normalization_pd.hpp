@@ -214,9 +214,21 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
         return 1 + 2 * stats_are_src() + use_scale() + use_shift()
                 + n_binary_po_inputs();
     }
+
+// Work around for MSVC 19.40.33811 which over-optimizes the expression and
+// would make `n_training_outs` return `0` even when both functions return `1`.
+#if defined(_MSC_VER)
+#pragma optimize("", off)
+#endif
     int n_outputs() const override {
-        return 1 + 2 * (!stats_are_src()) * is_training();
+        int compute_stats = !stats_are_src();
+        UNUSED(compute_stats);
+        int n_training_outs = 2 * compute_stats * is_training();
+        return 1 + n_training_outs;
     }
+#if defined(_MSC_VER)
+#pragma optimize("", on)
+#endif
 
 protected:
     memory_desc_t dst_md_;
