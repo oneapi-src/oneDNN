@@ -27981,7 +27981,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                             }
                                         } else {
                                             if (Td_real.size() == 1
-                                                    && effDCP >= 4) {
+                                                    && effDCP > 4) {
                                                 and_(n_bytes | modMov,
                                                         tmp0.uw(0)(2),
                                                         sreg.ub()(
