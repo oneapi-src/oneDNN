@@ -302,8 +302,12 @@ static status_t get_ocl_device_eu_count_intel(cl_device_id device,
     OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_NUM_EUS_PER_SUB_SLICE_INTEL,
             sizeof(num_eus_per_sub_slice), &num_eus_per_sub_slice, nullptr));
 
-    if (arch == gpu::intel::compute::gpu_arch_t::xe2)
+    if (arch == gpu::intel::compute::gpu_arch_t::xe2) {
+#ifdef _WIN32
+        return status::unimplemented; /* cannot rely on these queries */
+#endif
         num_eus_per_sub_slice = 8; /* runtime reports incorrect value */
+    }
 
     *eu_count = (int32_t)(
             num_slices * num_sub_slices_per_slice * num_eus_per_sub_slice);
