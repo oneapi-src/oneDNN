@@ -46,6 +46,7 @@ enable or disable parts of code. There the following macros defined:
 - `DNNL_PPC64` is 1 on OpenPOWER / IBM Power architecture;
 - `DNNL_S390X` is 1 on IBMz / s390x architecture;
 - `DNNL_RV64` is 1 on RISC-V architecture;
+- `DNNL_LOONGARCH64` is 1 on Loongson LOONGARCH64 architecture;
 - `DNNL_ARCH_GENERIC` is 1 on other platforms.
 Only one of the macros above is defined to 1. All others are defined to 0.
 
