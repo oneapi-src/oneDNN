@@ -201,6 +201,12 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         select_work_group_kernel = false;
     }
 
+    if ((pd->norm_axis() / conf->vector_size)
+            > compute_engine->device_info()->max_wg_size(false)) {
+        select_work_group_kernel = false;
+    }
+
+
     //printf("wg_waves(%f) > sg_waves(%f) && num_sg_per_wg(%d) > 4 || ((tensor_size(%zu) / cache_size(%zu) >= 0.75) && lnorm_bytes(%zu) > 1024)", wg_waves, sg_waves , num_sg_per_wg, tensor_size , cache_size , lnorm_bytes);
     if ((select_work_group_kernel || (tensor_size / cache_size >= 0.75))
             && lnorm_bytes > 1280 && !(num_sg_per_wg == 1)) {
@@ -212,13 +218,6 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         lws_strategy.reset(
                 new default_lws_strategy_t(compute_engine, gpu_attr));
 
-        if ((pd->norm_axis() / conf->sg_size * conf->vector_size)
-                > compute_engine->device_info()->max_wg_size(false)) {
-            VDEBUGINFO(15, primitive, lnorm,
-                    "Reusable Vectorized LNorm not used because launch "
-                    "configuration exceeds device limits");
-            return status::unimplemented;
-        }
         conf->reuse = true;
     } else {
         //printf("SG: ");
