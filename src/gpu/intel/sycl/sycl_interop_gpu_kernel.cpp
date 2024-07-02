@@ -31,7 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace generic {
+namespace intel {
 namespace sycl {
 
 using namespace impl::gpu::intel::sycl;
@@ -191,7 +191,7 @@ status_t sycl_interop_gpu_kernel_t::dump() const {
 }
 
 } // namespace sycl
-} // namespace generic
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
