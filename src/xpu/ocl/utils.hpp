@@ -200,9 +200,9 @@ cl_platform_id get_platform(engine_t *engine);
 template <typename F>
 struct ext_func_t {
     ext_func_t(const char *ext_func_name, const char *vendor_name = "Intel")
-        : ext_func_ptrs_(vendor_platforms().size()) {
-        for (size_t i = 0; i < vendor_platforms().size(); ++i) {
-            auto p = vendor_platforms()[i];
+        : ext_func_ptrs_(vendor_platforms(vendor_name).size()) {
+        for (size_t i = 0; i < vendor_platforms(vendor_name).size(); ++i) {
+            auto p = vendor_platforms(vendor_name)[i];
             auto it = ext_func_ptrs_.insert(
                     {p, load_ext_func(p, ext_func_name)});
             assert(it.second);
@@ -233,12 +233,14 @@ private:
                 platform, ext_func_name));
     }
 
-    static const std::vector<cl_platform_id> &vendor_platforms() {
-        static auto vendor_platforms = get_vendor_platforms();
+    static const std::vector<cl_platform_id> &vendor_platforms(
+            const char *vendor_name) {
+        static auto vendor_platforms = get_vendor_platforms(vendor_name);
         return vendor_platforms;
     }
 
-    static std::vector<cl_platform_id> get_vendor_platforms() {
+    static std::vector<cl_platform_id> get_vendor_platforms(
+            const char *vendor_name) {
         cl_uint num_platforms = 0;
         cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
         if (err != CL_SUCCESS) return {};
@@ -248,12 +250,14 @@ private:
         if (err != CL_SUCCESS) return {};
 
         std::vector<cl_platform_id> vendor_platforms;
-        char vendor_name[128] = {};
+        char platform_vendor_name[128] = {};
         for (cl_platform_id p : platforms) {
-            err = clGetPlatformInfo(p, CL_PLATFORM_VENDOR, sizeof(vendor_name),
-                    vendor_name, nullptr);
+            err = clGetPlatformInfo(p, CL_PLATFORM_VENDOR,
+                    sizeof(platform_vendor_name), platform_vendor_name,
+                    nullptr);
             if (err != CL_SUCCESS) continue;
-            if (std::string(vendor_name).find(vendor_name) != std::string::npos)
+            if (std::string(platform_vendor_name).find(vendor_name)
+                    != std::string::npos)
                 vendor_platforms.push_back(p);
         }
 
