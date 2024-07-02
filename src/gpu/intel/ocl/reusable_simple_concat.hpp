@@ -30,8 +30,56 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-struct reusable_concat_sizes_t {
-    int src_ext_offset;
+struct reusable_simple_concat_params_t
+    : trivially_serializable_t<reusable_simple_concat_params_t> {
+#if __cplusplus >= 202001l
+    bool operator==(const reusable_simple_concat_params_t &) const = default;
+#endif
+
+    const std::vector<const char *> &get_kernel_names() const {
+        static const std::vector<const char *> kernel_names
+                = {"reusable_simple_concat"};
+        return kernel_names;
+    }
+
+    status_t create_generator(const compute::compute_engine_t &engine,
+            compute::kernel_bundle_t &bundle) const {
+        auto status = engine.create_kernel_bundle(
+                bundle, get_kernel_names(), get_kernel_ctx());
+        return status;
+    }
+
+    compute::kernel_ctx_t get_kernel_ctx() const;
+
+    dim_t n_blocks;
+    dim_t blocks[6];
+    dim_t strides[6];
+
+    dim_t read_block;
+    dim_t write_block;
+    int n;
+    int simd;
+    int data_type_size;
+    bool use_large_index = true;
+    uint8_t padding[3] = {0};
+};
+
+struct reusable_simple_concat_runtime_params_t {
+    dim_t dst_extern_dim_size;
+    dim_t dst_offset0;
+    dim_t dst_ext_offset;
+    dim_t src_extern_dim_sizes[64];
+    dim_t offset[64];
+    dim_t padded_offset[64];
+
+    dim_t dst_concat_axis;
+    dim_t dst_padded_concat_axis;
+    dim_t read_overlap;
+    dim_t gws0_block;
+    dim_t inner_axis;
+
+    compute::range_t gws_d = compute::range_t::one();
+    compute::range_t lws_d;
 };
 
 struct reusable_simple_concat_t : public gpu_primitive_t {
@@ -55,18 +103,14 @@ struct reusable_simple_concat_t : public gpu_primitive_t {
         }
 
         status_t init_conf(impl::engine_t *engine);
-        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
-        concat_conf_t conf;
+
+        reusable_simple_concat_params_t conf;
+        reusable_simple_concat_runtime_params_t rt_conf;
     };
 
     status_t init(impl::engine_t *engine) override {
-        compute::kernel_ctx_t kernel_ctx;
-
-        status_t status = pd()->init_kernel_ctx(kernel_ctx);
-        CHECK(status);
-
         CHECK(create_kernel(
-                engine, &kernel_, "reusable_simple_concat", kernel_ctx));
+                engine, kernel_, pd()->conf.get_kernel_names()[0], pd()->conf));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
