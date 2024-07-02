@@ -264,6 +264,7 @@ status_t device_info_t::init_serialized_device_info(
     }
 
     serialized_device_info_.write(&gpu_arch_);
+    serialized_device_info_.write(&gpu_product_family_);
     serialized_device_info_.write(&stepping_id_);
     serialized_device_info_.write(&ip_version_);
     serialized_device_info_.write(&runtime_version_.major);
@@ -302,6 +303,7 @@ status_t device_info_t::init_from_cache_blob(
     pos += sizeof(expected_type);
 
     DESERIALIZE(gpu_arch_, compute::gpu_arch_t);
+    DESERIALIZE(gpu_product_family_, int);
     DESERIALIZE(stepping_id_, int);
     DESERIALIZE(ip_version_, uint32_t);
     DESERIALIZE(runtime_version_.major, int);

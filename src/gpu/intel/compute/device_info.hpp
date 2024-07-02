@@ -194,6 +194,7 @@ public:
     bool has(device_ext_t ext) const { return extensions_ & (uint64_t)ext; }
     bool has_native(native_ext_t ext) const { return native_extensions_ & (uint64_t)ext; }
     gpu_arch_t gpu_arch() const { return gpu_arch_; }
+    int gpu_product_family() const { return gpu_product_family_; }
     int stepping_id() const { return stepping_id_; }
     uint32_t ip_version() const { return ip_version_; }
     int max_eus_per_wg() const { return max_eus_per_wg_; }
@@ -269,6 +270,7 @@ protected:
     virtual status_t init_attributes(impl::engine_t *engine) = 0;
 
     compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
+    int gpu_product_family_ = 0;
     int stepping_id_ = 0;
     uint32_t ip_version_ = 0;
     bool mayiuse_systolic_ = false;
