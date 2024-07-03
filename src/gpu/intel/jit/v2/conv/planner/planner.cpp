@@ -122,6 +122,9 @@ void init_params(
         iface.parse(cmd_args, &params.desc);
         params.desc.set_defaults();
         params.desc.hw = hw_t(bench_mger.get_engine().get());
+        problem_t prb;
+        prb_tile_t s = problem_t::default_shape();
+        prb.set_shape(s);
     }
 }
 

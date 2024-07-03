@@ -2,8 +2,21 @@
 
 --dt=bf16,bf16:bf16:f32
 --bia_dt=undef,f32,bf16
---alpha=1,2
---beta=0
+--beta=0,1
 --attr-post-ops=,sum:2,relu
 --brgemm-attr=,use_uker:1
+--batch=option_set_bf16
+
+# Separate cases for non-default alpha
+--reset
+--dt=bf16
+--alpha=2
+--batch=shapes_2d_no_tail_bf16
+
+# Skip-acc feature
+--reset
+--brgemm-attr=generate_skip_accumulation:1,generate_skip_accumulation:1+use_uker:1
+--beta=0,1
+--bia_dt=f32
+--dt=bf16
 --batch=option_set_bf16

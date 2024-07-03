@@ -37,14 +37,15 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
             = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
     const dnn_mem_t &dst_zps
             = args.find(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
+    const dnn_mem_t &dropout = args.find(DNNL_ARG_ATTR_DROPOUT_MASK);
 
     const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
     const bool has_wei_scale = !prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def();
     const bool has_dst_scale = !prb->attr.scales.get(DNNL_ARG_DST).is_def();
-    assert(IMPLICATION(has_src_scale, src_scales.nelems() == 1));
     assert(IMPLICATION(has_dst_scale, dst_scales.nelems() == 1));
-    float src_scale = has_src_scale ? src_scales.get_elem(0) : 1.f;
     float dst_scale = has_dst_scale ? 1.f / dst_scales.get_elem(0) : 1.f;
+    const int src_scale_mask = prb->attr.scales.get_mask(
+            DNNL_ARG_SRC, dnnl_matmul, src_m.ndims());
     const int wei_scale_mask = prb->attr.scales.get_mask(
             DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.ndims());
 
@@ -66,15 +67,24 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const int64_t MB = prb->mb;
     const int batch_ndims = dst_m.ndims() - 2;
 
-    const bool wei_decompression = prb->weights_decompression();
+    const bool src_scale_per_k = src_scale_mask & (1 << (src_m.ndims() - 1));
+    const bool src_scale_per_m = src_scale_mask & (1 << (src_m.ndims() - 2));
+    const auto src_scale_groups = prb->attr.scales.get(DNNL_ARG_SRC).groups;
+    const int64_t src_scale_group_k
+            = !src_scale_groups.empty() ? src_scale_groups[1] : 1;
+    const int64_t src_scale_stride_k = src_scale_per_k ? 1 : 0;
+    const int64_t src_scale_stride_m = src_scale_per_m
+            ? src_scale_per_k ? (K / src_scale_group_k) : 1
+            : 0;
+
     const bool wei_scale_per_n = wei_scale_mask & (1 << (wei_m.ndims() - 1));
     const bool wei_scale_per_k = wei_scale_mask & (1 << (wei_m.ndims() - 2));
-    const int64_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
-    const int64_t wei_scale_stride_k
-            = wei_scale_per_k ? wei_scale_per_n ? N : 1 : 0;
     const auto wei_scale_groups = prb->attr.scales.get(DNNL_ARG_WEIGHTS).groups;
     const int64_t wei_scale_group_k
             = !wei_scale_groups.empty() ? wei_scale_groups[0] : 1;
+    const int64_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
+    const int64_t wei_scale_stride_k
+            = wei_scale_per_k ? wei_scale_per_n ? N : 1 : 0;
 
     const bool wei_zp_per_n = wei_zp_mask & (1 << (wei_m.ndims() - 1));
     const bool wei_zp_per_k = wei_zp_mask & (1 << (wei_m.ndims() - 2));
@@ -84,6 +94,10 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
             = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).groups;
     const int64_t wei_zp_group_k
             = !wei_zp_groups.empty() ? wei_zp_groups[0] : 1;
+
+    const bool wei_decompression = prb->weights_decompression();
+    const bool apply_scales_in_ker
+            = wei_decompression || wei_scale_per_k || src_scale_per_k;
 
     // Fast return if any dim is zero. Common logic doesn't apply because of
     // broadcast semantics.
@@ -117,11 +131,21 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
             auto w = wei[wei_off_f(prb, wei_mb, k, n)] - wei_zp;
             // Compression scaling happens before the matmul, unlike regular
             // quantization, to preserve the accuracy.
-            if (has_wei_scale && wei_decompression) {
-                float wei_scale = wei_scales.get_elem(
-                        wei_scale_stride_k * (k / wei_scale_group_k)
-                        + wei_scale_stride_n * n);
-                w *= wei_scale;
+            // Also, regular quantized matmul can have per group K-dim scales
+            // which require handling inside the kernel.
+            if (apply_scales_in_ker) {
+                if (has_src_scale) {
+                    float src_scale = src_scales.get_elem(
+                            src_scale_stride_k * (k / src_scale_group_k)
+                            + src_scale_stride_m * m);
+                    s *= src_scale;
+                }
+                if (has_wei_scale) {
+                    float wei_scale = wei_scales.get_elem(
+                            wei_scale_stride_k * (k / wei_scale_group_k)
+                            + wei_scale_stride_n * n);
+                    w *= wei_scale;
+                }
             }
             dst += s * w;
         }
@@ -135,8 +159,15 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         float &dst = ((float *)dst_m)[dst_off];
 
         float wei_scale = 1.f;
-        if (has_wei_scale && !wei_decompression)
-            wei_scale = wei_scales.get_elem(wei_scale_mask > 0 ? n : 0);
+        float src_scale = 1.f;
+        if (!apply_scales_in_ker) {
+            assert(IMPLICATION(has_src_scale, src_scales.nelems() == 1));
+            if (has_src_scale) { src_scale = src_scales.get_elem(0); }
+            if (has_wei_scale) {
+                wei_scale = wei_scales.get_elem(wei_scale_mask > 0 ? n : 0);
+            }
+        }
+
         float tmp = ((float *)dst_tmp)[dst_off] * src_scale * wei_scale;
 
         if (prb->bia_dt != dnnl_data_type_undef) {
@@ -148,6 +179,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         const auto v_po_vals
                 = prepare_po_vals(dst_m, args, v_po_masks, dst_off);
 
+        maybe_dropout(prb->attr, tmp, dst_off, dropout);
         maybe_post_ops(prb->attr, tmp, dst, v_po_vals);
 
         int dst_zp = has_dst_zp ? dst_zps.get_elem(dst_zp_mask > 0 ? n : 0) : 0;

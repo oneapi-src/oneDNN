@@ -627,6 +627,16 @@ public:
                 "could not get an engine from a tensor object");
         return engine(c_engine, true);
     }
+
+    /// Returns the logical tensor of a tensor object.
+    ///
+    /// @returns A logical_tensor object.
+    logical_tensor get_logical_tensor() const {
+        dnnl_graph_logical_tensor_t lt;
+        error::wrap_c_api(dnnl_graph_tensor_get_logical_tensor(get(), &lt),
+                "could not get logical tensor from a tensor object");
+        return logical_tensor(lt);
+    }
 };
 
 /// @} dnnl_graph_api_tensor

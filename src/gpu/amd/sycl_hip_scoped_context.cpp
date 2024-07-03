@@ -29,7 +29,7 @@ namespace amd {
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 hip_sycl_scoped_context_handler_t::hip_sycl_scoped_context_handler_t(
-        const sycl_hip_engine_t &engine)
+        const amd::engine_t &engine)
     : need_to_recover_(false) {
     HIP_EXECUTE_FUNC(hipCtxGetCurrent, &original_);
     auto desired = engine.get_underlying_context();

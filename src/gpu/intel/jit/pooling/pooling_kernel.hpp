@@ -39,10 +39,9 @@ public:
     IR_KERNEL_FORWARD(hw)
 
     pooling_kernel_t(pooling_config_t &cfg, const std::string &kernel_name,
-            const kernel_info_t &kernel_info, grf_mode_t grf_mode,
-            const primitive_desc_t &pd)
+            const kernel_info_t &kernel_info, const primitive_desc_t &pd)
         : ir_kernel_t<hw>(kernel_name, cfg.exec_cfg(), kernel_info,
-                kernel_info.nd_range(), /* require_dpas = */ false, grf_mode) {
+                kernel_info.nd_range(), /*require_dpas=*/false) {
         pooling_ir_builder_t builder(cfg, kernel_info, pd);
         stmt_t body = builder.stmt();
         setup_interface(body);

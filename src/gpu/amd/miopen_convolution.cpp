@@ -16,8 +16,8 @@
 *******************************************************************************/
 
 #include "gpu/amd/miopen_convolution.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 #include "xpu/sycl/memory_storage_helper.hpp"
 
@@ -28,8 +28,7 @@ namespace amd {
 
 status_t miopen_convolution_fwd_t::execute_convolution(
         const exec_ctx_t &ctx, bool with_bias, bool with_scratchpad) const {
-    amd::sycl_hip_stream_t *hip_stream
-            = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+    amd::stream_t *hip_stream = utils::downcast<amd::stream_t *>(ctx.stream());
 
     return hip_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -57,8 +56,8 @@ status_t miopen_convolution_fwd_t::execute_convolution(
         }
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(
-                    hip_stream->engine());
+            auto &sycl_engine
+                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
             auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = hip_stream->get_miopen_handle();
 
@@ -80,8 +79,7 @@ status_t miopen_convolution_fwd_t::execute_convolution(
 
 status_t miopen_convolution_bwd_data_t::execute_convolution(
         const exec_ctx_t &ctx, bool with_bias, bool with_scratchpad) const {
-    amd::sycl_hip_stream_t *hip_stream
-            = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+    amd::stream_t *hip_stream = utils::downcast<amd::stream_t *>(ctx.stream());
 
     return hip_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_diff_src = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_SRC);
@@ -94,8 +92,8 @@ status_t miopen_convolution_bwd_data_t::execute_convolution(
                 memory_tracking::names::key_conv_miopen_filter);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(
-                    hip_stream->engine());
+            auto &sycl_engine
+                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
             auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = hip_stream->get_miopen_handle();
 
@@ -114,16 +112,15 @@ status_t miopen_convolution_bwd_data_t::execute_convolution(
 
 status_t miopen_convolution_bwd_weights_t::execute_zero_dims(
         const exec_ctx_t &ctx) const {
-    amd::sycl_hip_stream_t *hip_stream
-            = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+    amd::stream_t *hip_stream = utils::downcast<amd::stream_t *>(ctx.stream());
 
     return hip_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_diff_weights = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
         auto arg_diff_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(
-                    hip_stream->engine());
+            auto &sycl_engine
+                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
             auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = hip_stream->get_miopen_handle();
 
@@ -137,8 +134,7 @@ status_t miopen_convolution_bwd_weights_t::execute_zero_dims(
 
 status_t miopen_convolution_bwd_weights_t::execute_convolution(
         const exec_ctx_t &ctx, bool with_bias, bool with_scratchpad) const {
-    amd::sycl_hip_stream_t *hip_stream
-            = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+    amd::stream_t *hip_stream = utils::downcast<amd::stream_t *>(ctx.stream());
 
     return hip_stream->interop_task([&](::sycl::handler &cgh) {
         auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -157,8 +153,8 @@ status_t miopen_convolution_bwd_weights_t::execute_convolution(
         }
 
         compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine = *utils::downcast<sycl_hip_engine_t *>(
-                    hip_stream->engine());
+            auto &sycl_engine
+                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
             auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
             auto handle = hip_stream->get_miopen_handle();
 

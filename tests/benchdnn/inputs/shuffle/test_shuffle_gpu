@@ -23,3 +23,7 @@
 --group=6 
 --axis=0,1
 48x48
+
+# Test CI in Nightly
+--reset
+--batch=test_shuffle_ci

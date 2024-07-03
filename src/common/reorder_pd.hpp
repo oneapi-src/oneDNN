@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "cache_hit_types.hpp"
 #include "engine.hpp"
 #include "primitive.hpp"
 #include "primitive_attr.hpp"
@@ -75,10 +76,10 @@ struct reorder_primitive_desc_iface_t : public dnnl_primitive_desc {
     }
 
     status_t create_primitive_iface(
-            std::pair<primitive_iface_t *, bool> &primitive_iface,
+            std::pair<primitive_iface_t *, cache_state_t> &primitive_iface,
             const cache_blob_t &cache_blob) const override {
         // Step 1: create impl::primitive_t or get it from primitive cache
-        std::pair<std::shared_ptr<primitive_t>, bool> p;
+        std::pair<std::shared_ptr<primitive_t>, cache_state_t> p;
         auto status = pd_->create_primitive(p, engine(), cache_blob);
         if (status != status::success) return status;
         // Step 2: create primitive_iface_t, init and return it to user

@@ -1185,6 +1185,11 @@ void add_md_size(const_dnnl_memory_desc_t md,
     }
 }
 
+bool is_fwd_training(dnnl_prop_kind_t prop_kind) {
+    return prop_kind == dnnl_forward_training
+            || prop_kind == dnnl_prop_kind_undef;
+}
+
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind) {
     return prop_kind == dnnl_forward_training
             || prop_kind == dnnl_forward_inference
@@ -1297,7 +1302,8 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
             const_pd, /* want_input = */ false);
     get_memory_bytes(check_mem_out_size_args); // Get output bytes.
 
-    // Update read bytes with dst bytes in case of sum post-op.
+    // Sum post-ops include dst bytes as an input. Not included in get_memory_bytes
+    // since it would cause check_mem_size to double-count dst bytes.
     auto const_attr_po = query_post_ops(const_pd);
     auto po_len = dnnl_post_ops_len(const_attr_po);
     for (int idx = 0; idx < po_len; ++idx) {
@@ -1305,10 +1311,6 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
         if (kind == dnnl_sum) {
             const auto &dst_md = query_md(const_pd, DNNL_ARG_DST);
             add_md_size(dst_md, check_mem_in_size_args);
-        } else if (kind == dnnl_binary) {
-            int po_arg = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
-            const auto &po_md = query_md(const_pd, po_arg);
-            add_md_size(po_md, check_mem_in_size_args);
         }
     }
 
@@ -1322,11 +1324,11 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     dnnl_prop_kind_t prop = query_prop_kind(const_pd);
     if (is_fwd_prop_kind(prop) && kind == dnnl_resampling
             && alg == dnnl_resampling_nearest) {
-        auto src = query_md(const_pd, DNNL_ARG_SRC);
-        auto dst = query_md(const_pd, DNNL_ARG_DST);
-        auto ndims = query_md_ndims(src);
-        auto src_pdims = query_md_padded_dims(src);
-        auto dst_pdims = query_md_padded_dims(dst);
+        auto src_md = query_md(const_pd, DNNL_ARG_SRC);
+        auto dst_md = query_md(const_pd, DNNL_ARG_DST);
+        auto ndims = query_md_ndims(src_md);
+        auto src_pdims = query_md_padded_dims(src_md);
+        auto dst_pdims = query_md_padded_dims(dst_md);
         dnnl_dim_t total_elems = 1;
         dnnl_dim_t read_elems = 1;
         for (int i = 0; i < ndims; i++) {
@@ -1335,14 +1337,10 @@ int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
                 read_elems *= dst_pdims[i];
             }
         }
-        size_t in_size_no_scratchpad = check_mem_in_size_args.total_size_device
-                - check_mem_in_size_args.scratchpad_size;
-        // Assumes the input size is a multiple of total_elems
-        assert(in_size_no_scratchpad % total_elems == 0);
-        check_mem_in_size_args.total_size_device = in_size_no_scratchpad
-                        / static_cast<size_t>(total_elems)
-                        * static_cast<size_t>(read_elems)
-                + check_mem_in_size_args.scratchpad_size;
+        const auto src_size = dnnl_memory_desc_get_size(src_md);
+        const auto fixed_src_size = src_size / static_cast<size_t>(total_elems)
+                * static_cast<size_t>(read_elems);
+        check_mem_in_size_args.total_size_device += fixed_src_size - src_size;
     }
 
     res->ibytes = check_mem_in_size_args.total_size_device;
@@ -1487,16 +1485,30 @@ float reorder_rescale_factor() {
     return factor;
 }
 
-dims_t md2dims(const_dnnl_memory_desc_t md, int mask, bool extend_by_ones) {
+dims_t md2dims(const_dnnl_memory_desc_t md, int mask, bool extend_by_ones,
+        const std::vector<int64_t> &groups) {
     auto ndims = query_md_ndims(md);
     dims_t dims;
     for (int d = 0; d < ndims; ++d) {
-        if (mask & (1 << d))
+        if (mask & (1 << d)) {
             dims.push_back(query_md_dims(md)[d]);
-        else if (extend_by_ones)
+            // Note: groups are done for matmul's last two dimensions.
+            const auto group_dim = d - (ndims - 2);
+            if (!groups.empty() && group_dim >= 0) {
+                // If groups are passed, divide dims on the correspondent group
+                // size. It's needed to pass proper memory objects.
+                assert(dims.back() % groups[group_dim] == 0);
+                dims.back() /= groups[group_dim];
+            }
+        } else if (extend_by_ones) {
             dims.push_back(1);
+        }
     }
     return dims;
+}
+
+dims_t md2dims(const_dnnl_memory_desc_t md, int mask, bool extend_by_ones) {
+    return md2dims(md, mask, extend_by_ones, {});
 }
 
 dnnl_data_type_t deduce_cfg_data_type(
@@ -1620,6 +1632,8 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
     const bool is_post_ops_arg = (exec_arg & post_ops_range);
     const bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
     const bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
+    const bool is_dropout_p = (exec_arg == DNNL_ARG_ATTR_DROPOUT_PROBABILITY);
+    const bool is_dropout_seed = (exec_arg == DNNL_ARG_ATTR_DROPOUT_SEED);
 
     if (is_post_ops_arg) {
         if (exec_arg & DNNL_ARG_SRC_1) {
@@ -1654,6 +1668,12 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
         int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
         TIME_FILL(SAFE(
                 fill_zero_points(attr, local_exec_arg, mem, ref_mem), WARN));
+    } else if (is_dropout_p) {
+        ref_mem.set_elem(0, attr.dropout.p);
+        TIME_FILL(SAFE(mem.reorder(ref_mem), WARN));
+    } else if (is_dropout_seed) {
+        ref_mem.set_elem(0, attr.dropout.seed);
+        TIME_FILL(SAFE(mem.reorder(ref_mem), WARN));
     }
 
     return OK;

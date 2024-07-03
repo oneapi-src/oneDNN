@@ -166,7 +166,12 @@ bool parse_subattr(std::vector<T> &vec, const char *str,
     std::vector<T> def {T()};
     auto parse_subattr_func = [](const std::string &s) {
         T v;
-        SAFE_V(v.from_str(s));
+        auto st = v.from_str(s);
+        if (st != OK) {
+            BENCHDNN_PRINT(
+                    0, "Error: failed to parse input: \'%s\'\n", s.c_str());
+            SAFE_V(FAIL);
+        }
         return v;
     };
     return parse_vector_option(

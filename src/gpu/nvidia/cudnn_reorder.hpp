@@ -19,7 +19,7 @@
 #define GPU_NVIDIA_CUDNN_REORDER_HPP
 
 #include "common/memory_desc_wrapper.hpp"
-#include "common/primitive.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/nvidia/cudnn_reorder_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
@@ -30,8 +30,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_reorder_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_reorder_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public gpu_reorder_pd_t {
         using gpu_reorder_pd_t::gpu_reorder_pd_t;

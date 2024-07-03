@@ -174,10 +174,26 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
 }
 
 status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
-        acl_matmul_conf_t &amp, memory_desc_t &dst_md) {
+        const acl_matmul_conf_t &amp, const memory_desc_t &src_md,
+        const memory_desc_t &weights_md, const memory_desc_t &dst_md) {
     if (amp.use_dst_acc_for_sum) {
         const memory_desc_wrapper dst_d(&dst_md);
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
+                dst_d.nelems(), dst_d.data_type_size());
+    }
+    if (amp.is_transA) {
+        const memory_desc_wrapper src_d(&src_md);
+        scratchpad.book(memory_tracking::names::key_matmul_src_trans,
+                src_d.nelems(), src_d.data_type_size());
+    }
+    if (amp.is_transB) {
+        const memory_desc_wrapper wei_d(&weights_md);
+        scratchpad.book(memory_tracking::names::key_matmul_wei_trans,
+                wei_d.nelems(), wei_d.data_type_size());
+    }
+    if (amp.do_transC) {
+        const memory_desc_wrapper dst_d(&dst_md);
+        scratchpad.book(memory_tracking::names::key_matmul_dst_trans,
                 dst_d.nelems(), dst_d.data_type_size());
     }
     return status::success;

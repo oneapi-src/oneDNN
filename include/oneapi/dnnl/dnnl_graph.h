@@ -227,6 +227,16 @@ dnnl_status_t DNNL_API dnnl_graph_tensor_set_data_handle(
 dnnl_status_t DNNL_API dnnl_graph_tensor_get_engine(
         const_dnnl_graph_tensor_t tensor, dnnl_engine_t *engine);
 
+/// Returns the logical tensor of a tensor object.
+///
+/// @param tensor The input tensor.
+/// @param logical_tensor Output logical tensor of the tensor object.
+/// @returns #dnnl_success on success or a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_graph_tensor_get_logical_tensor(
+        const_dnnl_graph_tensor_t tensor,
+        dnnl_graph_logical_tensor_t *logical_tensor);
+
 /// @} dnnl_graph_api_tensor
 
 /// @addtogroup dnnl_graph_api_op

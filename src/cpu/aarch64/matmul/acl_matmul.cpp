@@ -44,24 +44,32 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
 
     // Run transpose kernel
     if (is_transA && !is_transB) {
-        acl_obj.src_tensor.allocator()->allocate();
+        auto transA_scratch = scratchpad.get<void>(
+                memory_tracking::names::key_matmul_src_trans);
+        acl_obj.src_tensor.allocator()->import_memory(transA_scratch);
         acl_obj.src_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
         acl_obj.transA.run();
         acl_obj.wei_tensor.allocator()->import_memory(
                 const_cast<data_t *>(wei_base));
     } else if (is_transB && !is_transA) {
-        acl_obj.wei_tensor.allocator()->allocate();
+        auto transB_scratch = scratchpad.get<void>(
+                memory_tracking::names::key_matmul_wei_trans);
+        acl_obj.wei_tensor.allocator()->import_memory(transB_scratch);
         acl_obj.wei_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(wei_base));
         acl_obj.transB.run();
         acl_obj.src_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
     } else if (is_transA && is_transB && !do_transC) {
-        acl_obj.src_tensor.allocator()->allocate();
+        auto transA_scratch = scratchpad.get<void>(
+                memory_tracking::names::key_matmul_src_trans);
+        auto transB_scratch = scratchpad.get<void>(
+                memory_tracking::names::key_matmul_wei_trans);
+        acl_obj.src_tensor.allocator()->import_memory(transA_scratch);
         acl_obj.src_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(src_base));
-        acl_obj.wei_tensor.allocator()->allocate();
+        acl_obj.wei_tensor.allocator()->import_memory(transB_scratch);
         acl_obj.wei_acc_tensor.allocator()->import_memory(
                 const_cast<data_t *>(wei_base));
         acl_obj.transA.run();
@@ -71,7 +79,11 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
                 const_cast<data_t *>(src_base));
         acl_obj.wei_tensor.allocator()->import_memory(
                 const_cast<data_t *>(wei_base));
-        if (do_transC) { acl_obj.dst_acc_tensor.allocator()->allocate(); }
+        if (do_transC) {
+            auto transC_scratch = scratchpad.get<void>(
+                    memory_tracking::names::key_matmul_dst_trans);
+            acl_obj.dst_acc_tensor.allocator()->import_memory(transC_scratch);
+        }
     }
 
     // If we have an unfused sum post op, put the result in a scratchpad tensor.
@@ -94,6 +106,7 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     pd()->acl_post_ops.execute(ctx, dst);
 
     acl_obj.dst_tensor.allocator()->free();
+    if (do_transC) acl_obj.dst_acc_tensor.allocator()->free();
 
     return status;
 }

@@ -17,6 +17,7 @@
 #ifndef GPU_INTEL_OCL_OCL_MATH_UTILS_H
 #define GPU_INTEL_OCL_OCL_MATH_UTILS_H
 
+#include "gpu/intel/ocl/dispatch.h"
 #include "gpu/intel/ocl/ocl_utils.h"
 
 // Due to JIT compilation and a lack of bitwise operations in implementations,
@@ -715,6 +716,12 @@ float __attribute__((overloadable)) cvt_s4_to_f32(char a) {
     char sign = (a & 0x08) ? 0xf0 : 0x0;
     char val = a | sign;
     return convert_float(val);
+}
+
+float __attribute__((overloadable)) cvt_s4_to_s32(char a) {
+    char sign = (a & 0x08) ? 0xf0 : 0x0;
+    char val = a | sign;
+    return convert_int_sat_rte(val);
 }
 
 uchar __attribute__((overloadable)) get_half_byte(__global uchar *x, off_t y) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,19 +22,19 @@
 
 #include "common/c_types_map.hpp"
 #include "common/inner_product_pd.hpp"
-#include "common/primitive.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_inner_product_impl.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace amd {
 
-struct miopen_inner_product_fwd_t : public primitive_t {
+struct miopen_inner_product_fwd_t : public gpu::primitive_t {
 public:
-    using primitive_t::primitive_t;
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public inner_product_fwd_pd_t {
         using inner_product_fwd_pd_t::inner_product_fwd_pd_t;
@@ -48,9 +48,9 @@ public:
     }
 };
 
-struct miopen_inner_product_bwd_data_t : public primitive_t {
+struct miopen_inner_product_bwd_data_t : public gpu::primitive_t {
 public:
-    using primitive_t::primitive_t;
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public inner_product_bwd_data_pd_t {
         using inner_product_bwd_data_pd_t::inner_product_bwd_data_pd_t;
@@ -64,9 +64,9 @@ public:
     }
 };
 
-struct miopen_inner_product_bwd_weights_t : public primitive_t {
+struct miopen_inner_product_bwd_weights_t : public gpu::primitive_t {
 public:
-    using primitive_t::primitive_t;
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public inner_product_bwd_weights_pd_t {
         using inner_product_bwd_weights_pd_t::inner_product_bwd_weights_pd_t;
 

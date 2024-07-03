@@ -365,6 +365,13 @@ struct attr_t {
         bool apply_to_int = false;
     };
 
+    struct dropout_t {
+        float p = 0.f;
+        uint32_t seed = 0;
+        std::string tag = tag::any;
+        bool is_def() const { return p == 0.f; }
+    };
+
     attr_t()
         : scratchpad_mode(get_default_scratchpad_mode())
         , acc_mode(dnnl_accumulation_mode_strict) {}
@@ -382,6 +389,7 @@ struct attr_t {
     void insert(const fpmath_mode_t &fpm) { this->fpmath_mode = fpm; }
     void insert(dnnl_accumulation_mode_t am) { this->acc_mode = am; }
     void insert(const deterministic_t &d) { this->deterministic = d; }
+    void insert(const dropout_t &d) { this->dropout = d; }
 
     // When parallel creation modifier is enabled, the library scratchpad mode
     // can't be used unless "-DDNNL_ENABLE_CONCURRENT_EXEC=ON" is enabled at the
@@ -401,6 +409,7 @@ struct attr_t {
     fpmath_mode_t fpmath_mode;
     dnnl_accumulation_mode_t acc_mode;
     deterministic_t deterministic;
+    dropout_t dropout;
 
     bool is_def(bool skip_fpmath = false) const;
 };
@@ -515,6 +524,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm);
 std::ostream &operator<<(std::ostream &s, const attr_t::fpmath_mode_t &fm);
 std::ostream &operator<<(std::ostream &s, dnnl_accumulation_mode_t am);
+std::ostream &operator<<(std::ostream &s, const attr_t::dropout_t &drop);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
 // A container for additional data and info, not available from user's input at
@@ -528,7 +538,7 @@ struct attr_args_t {
     attr_args_t() = default;
 
     void prepare_scales(const attr_t &attr, int arg, int mask = -1) {
-        entries.insert(std::make_pair(arg, mask));
+        entries.insert(std::make_pair(DNNL_ARG_ATTR_SCALES | arg, mask));
     };
 
     void prepare_zero_points(const attr_t &attr, int arg, int mask = -1) {
@@ -545,7 +555,7 @@ struct attr_args_t {
     // Returns mask set for correspondent `arg`. The default value is `-1`.
     int get_mask(int arg) const {
         const auto it = entries.find(arg);
-        return it == entries.end() ? -1 : it->second;
+        return it == entries.end() ? undefined_mask : it->second;
     }
 
     dnnl_memory_desc_t get_md(int arg) const {
@@ -563,6 +573,8 @@ struct attr_args_t {
             return dnnl_data_type_undef;
         }
     }
+
+    static constexpr int undefined_mask = -1;
 
 private:
     std::map<int, int /* mask*/> entries;
@@ -596,6 +608,8 @@ dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 dnnl_fpmath_mode_t str2fpmath_mode(const char *str);
 dnnl_accumulation_mode_t str2accumulation_mode(const char *str);
 
+struct dnn_mem_t;
+
 void maybe_scale(const attr_t &attr, float &d, const float *scales, int64_t c,
         int arg, bool opposite_scale = false);
 void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
@@ -605,6 +619,8 @@ float compute_eltwise_fwd(
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
 float compute_binary(attr_t::post_ops_t::kind_t kind, float src0, float src1);
+void maybe_dropout(const attr_t &attr, float &val, int64_t offset,
+        const dnn_mem_t &dropout);
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
         const std::vector<float> &v_po_vals);
 inline void maybe_post_ops(

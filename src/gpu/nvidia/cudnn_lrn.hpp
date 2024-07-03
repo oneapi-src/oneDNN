@@ -22,7 +22,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/lrn_pd.hpp"
-#include "common/primitive.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_lrn_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
@@ -32,8 +32,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_lrn_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_lrn_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public lrn_fwd_pd_t {
         using lrn_fwd_pd_t::lrn_fwd_pd_t;
@@ -83,8 +83,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-struct cudnn_lrn_bwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_lrn_bwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public lrn_bwd_pd_t {
         using lrn_bwd_pd_t::lrn_bwd_pd_t;

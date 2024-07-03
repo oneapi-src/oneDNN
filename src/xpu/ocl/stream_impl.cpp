@@ -165,6 +165,12 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
         return status::success;
     }
 
+    if (is_profiling_enabled()) {
+        auto ocl_event = utils::make_unique<gpu::intel::ocl::ocl_event_t>(
+                std::vector<xpu::ocl::wrapper_t<cl_event>> {out_event});
+        stream_profiler->register_event(std::move(ocl_event));
+    }
+
     if (flags() & stream_flags::out_of_order)
         gpu::intel::ocl::ocl_event_t::from(out_dep).events
                 = {std::move(out_event)};

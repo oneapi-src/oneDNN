@@ -21,7 +21,8 @@
 #include <assert.h>
 
 #include "common/matmul_pd.hpp"
-#include "common/primitive.hpp"
+
+#include "gpu/gpu_primitive.hpp"
 
 #include "gpu/amd/miopen_matmul_executor.hpp"
 #include "gpu/amd/miopen_matmul_impl.hpp"
@@ -32,8 +33,8 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
-struct miopen_matmul_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_matmul_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public matmul_pd_t {
         using matmul_pd_t::matmul_pd_t;
 

@@ -22,8 +22,7 @@
 #include "common/primitive_iface.hpp"
 #include "common/utils.hpp"
 
-#include "sycl/sycl_engine.hpp"
-#include "sycl/sycl_stream.hpp"
+#include "xpu/sycl/engine_factory.hpp"
 
 using dnnl::impl::status_t;
 using dnnl::impl::stream_t;
@@ -45,7 +44,7 @@ status_t dnnl_sycl_interop_primitive_execute(
     stream->before_exec_hook();
 
     if (deps_ != nullptr) {
-        auto deps = dnnl::impl::sycl::sycl_event_t(
+        auto deps = dnnl::impl::xpu::sycl::event_t(
                 *(const std::vector<::sycl::event> *)deps_);
         sycl_stream_impl->sycl_ctx().set_deps(std::move(deps));
     }

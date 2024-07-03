@@ -2,7 +2,20 @@
 
 --dt=f16,f16:f16:f32,f16:f32:f32,f32:f16:f32
 --bia_dt=undef,f32,f16
---alpha=1,2
---beta=0
+--beta=0,1
 --attr-post-ops=,sum:2,relu
 --batch=option_set_f32 # f16 uses f32 blocking for avx512_core_fp16
+
+# Separate cases for non-default alpha
+--reset
+--dt=f16
+--alpha=2
+--batch=shapes_2d_no_tail_f32
+
+# Skip-acc feature
+--reset
+--brgemm-attr=generate_skip_accumulation:1
+--beta=0,1
+--bia_dt=f32
+--dt=f16
+--batch=option_set_f32

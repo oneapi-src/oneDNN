@@ -39,6 +39,13 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     const auto weights = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
     const auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
+
+    const auto p = CTX_IN_MEM(const float *, DNNL_ARG_ATTR_DROPOUT_PROBABILITY);
+    const auto seed = CTX_IN_MEM(const uint32_t *, DNNL_ARG_ATTR_DROPOUT_SEED);
+    auto dropout_mask = CTX_OUT_CLEAN_MEM(
+            unsigned char *, DNNL_ARG_ATTR_DROPOUT_MASK, status);
+    CHECK(status);
+
     auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
     CHECK(status);
 
@@ -46,10 +53,15 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
+    DEFINE_ZERO_POINTS_BUFFER(wei_zero_points, DNNL_ARG_WEIGHTS);
+
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
     const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
+
+    const memory_desc_wrapper dropout_mask_d(
+            pd()->attr()->dropout_.dropout_desc_);
 
     if (src_d.has_zero_dim() || weights_d.has_zero_dim()
             || dst_d.has_zero_dim())
@@ -66,7 +78,6 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t batch = helper.batch();
 
     // Weights decompression
-    DEFINE_ZERO_POINTS_BUFFER(wei_zero_points, DNNL_ARG_WEIGHTS);
     const bool with_wei_decompression
             = utils::one_of(weights_d.data_type(), data_type::s8, data_type::u8,
                       data_type::s4, data_type::u4)
@@ -165,6 +176,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     };
 
     auto sum_dt = pd()->attr()->post_ops_.get_sum_dt(dst_d.data_type());
+    bool with_dropout = !pd()->attr()->dropout_.has_default_values();
 
     // computations
     parallel_nd(batch, M, N, [&](dim_t mb, dim_t m, dim_t n) {
@@ -180,6 +192,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
         const auto dst_off = dst_d.off_v(dst_dims_idx);
         if (non_default_attrs) {
+            if (with_dropout)
+                d = ref_dropout(d, dropout_mask, dst_off, *p, *seed);
             ref_post_ops_t::args_t args;
             args.dst_val = io::load_float_value(sum_dt, dst, dst_off);
             args.ctx = &ctx;

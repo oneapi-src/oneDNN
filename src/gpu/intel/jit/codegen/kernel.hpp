@@ -172,13 +172,6 @@ class expr_evaluator_t;
 template <ngen::HW hw>
 class ir_to_ngen_t;
 
-enum class grf_mode_t {
-    any, // Kernel sets optimal grf mode
-    matches, // Propogate grf mode to avoid context switch
-    small, // Force small grf_mode
-    large, // Force large grf_mode
-};
-
 template <ngen::HW hw>
 class ir_kernel_t : public jit_generator<hw> {
 public:
@@ -196,7 +189,7 @@ public:
         , with_nd_range_(false)
         , require_dpas_(desc.with_dpas())
         , regs_(exec_cfg_.regs())
-        , ra_(hw, desc.kernel_name(), reg_allocator_t::warn_default)
+        , ra_(hw, desc.kernel_name())
         , emu_strategy(hw, exec_cfg_.hw().stepping_id()) {
         setStepping(exec_cfg_.hw().stepping_id());
         ra_.setRegisterCount(regs_);
@@ -204,20 +197,15 @@ public:
 
     ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info,
-            const compute::nd_range_t &nd_range, bool require_dpas,
-            grf_mode_t grf_mode = grf_mode_t::any)
+            const compute::nd_range_t &nd_range, bool require_dpas)
         : kernel_name_(kernel_name)
         , exec_cfg_(exec_cfg)
         , kernel_info_(kernel_info)
         , nd_range_(nd_range)
         , with_nd_range_(true)
         , require_dpas_(require_dpas)
-        , regs_((grf_mode == grf_mode_t::large)             ? 256
-                          : (grf_mode == grf_mode_t::small) ? 128
-                                                            : exec_cfg.regs())
-        , ra_(hw, kernel_name,
-                  grf_mode == grf_mode_t::any ? reg_allocator_t::warn_all
-                                              : reg_allocator_t::warn_default)
+        , regs_(exec_cfg.regs())
+        , ra_(hw, kernel_name)
         , emu_strategy(hw, exec_cfg.hw().stepping_id()) {
         setStepping(exec_cfg.hw().stepping_id());
         ra_.setRegisterCount(regs_);

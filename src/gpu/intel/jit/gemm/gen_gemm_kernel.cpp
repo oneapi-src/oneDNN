@@ -732,7 +732,9 @@ xpu::binary_t gen_gemm_kernel_t::get_binary(
             REG_XE2_ISA(ARCH_DISPATCH(Xe2))
             default: assert(!"Unsupported architecture"); break;
         }
-    } catch (...) {}
+    } catch (const std::runtime_error &err) {
+        VERROR(primitive, gpu, "%s,%s", "jit::gemm", err.what());
+    }
 
     return {};
 

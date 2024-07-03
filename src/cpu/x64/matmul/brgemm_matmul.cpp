@@ -57,8 +57,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             = everyone_is(bf16, src_dt, wei_dt) && one_of(dst_dt, bf16, f32);
     const bool is_f16
             = everyone_is(f16, src_dt, wei_dt) && one_of(dst_dt, f16, f32);
-    const bool is_bf16_with_int_wei = src_dt == bf16 && one_of(wei_dt, s8, u8)
-            && one_of(dst_dt, bf16, f32);
+    const bool is_bf16_with_int_wei = src_dt == bf16
+            && one_of(wei_dt, s8, u8, s4, u4) && one_of(dst_dt, bf16, f32);
 
     auto check_bias = [&]() -> bool {
         const auto bia_dt = weights_md(1)->data_type;
@@ -330,6 +330,8 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
         int mc_prev = -1;
         int nb_prev = -1;
         int b_prev = -1;
+        const char *a_batch_ptr = nullptr;
+        const char *b_batch_ptr = nullptr;
         while (start < end) {
             auto m_start = mc * M_chunk_size;
             const bool m_chunk_tail = mc == M_chunks - 1 && M_chunk_tail > 0;
@@ -339,6 +341,10 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             auto n_end = n_start
                     + (n_chunk_tail ? N_chunk_tail : bgmmc.N_chunk_size);
             int kc_prev = -1;
+            if (b != b_prev) {
+                a_batch_ptr = brgmm_ctx.get_data_A_batch_ptr(b);
+                b_batch_ptr = brgmm_ctx.get_data_B_batch_ptr(b);
+            }
             for_(int kc = kc_start; kc < kc_end; kc++)
             for (int nb = n_start; nb < n_end; nb++) {
                 const bool bcast_across_all_batch_dims
@@ -349,16 +355,18 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
                                           || bcast_across_all_batch_dims))
                         && !bgmmc.packed_sparse_weights;
                 if (bgmmc.use_buffer_b && !skip_copy_b)
-                    copy_b_chunk_in_buffer(brgmm_ctx, ithr, b, nb, kc);
+                    copy_b_chunk_in_buffer(
+                            brgmm_ctx, b_batch_ptr, ithr, b, nb, kc);
                 for (int mb = m_start; mb < m_end; mb++) {
                     const bool skip_copy_a = mc_prev == mc && kc_prev == kc
                             && (b_prev == b
                                     || bgmmc.bcast_A_desc
                                                .bcast_across_all_batch_dims);
                     if (use_buffer_a && nb == n_start && !skip_copy_a)
-                        copy_a_chunk_in_buffer(brgmm_ctx, ithr, b, mb, kc);
-                    compute_kernel(brgmm_ctx, ithr, b, mb, nb, kc,
-                            kc == kc_start, prev_ker_idx);
+                        copy_a_chunk_in_buffer(
+                                brgmm_ctx, a_batch_ptr, ithr, mb, kc);
+                    compute_kernel(brgmm_ctx, a_batch_ptr, b_batch_ptr, ithr, b,
+                            mb, nb, kc, kc == kc_start, prev_ker_idx);
                 }
                 kc_prev = kc;
                 nb_prev = nb;
@@ -378,9 +386,9 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
 
 template <cpu_isa_t isa>
 void brgemm_matmul_t<isa>::compute_kernel(
-        const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
-        int m_blk_idx, int n_blk_idx, int k_chunk_idx, bool do_init,
-        int &prev_ker_idx) const {
+        const brg_matmul_exec_ctx_t &brgmm_ctx, const char *A_data_batch_ptr,
+        const char *B_data_batch_ptr, int ithr, int b_idx, int m_blk_idx,
+        int n_blk_idx, int k_chunk_idx, bool do_init, int &prev_ker_idx) const {
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
     const auto addr_batch = brgmm_ctx.get_batch_elem_ptr(ithr);
 
@@ -436,8 +444,9 @@ void brgemm_matmul_t<isa>::compute_kernel(
         brgemm_palettes_.maybe_tile_configure(
                 is_amx, prev_ker_idx, brg_ker_idx);
 
-        brgmm_ctx.init_brgemm_batch_elements_values(
-                ithr, 0, gemm_batch, b_idx, m_blk_idx, k_blk_idx, n_blk_idx);
+        brgmm_ctx.init_brgemm_batch_elements_values(ithr, 0, gemm_batch,
+                A_data_batch_ptr, B_data_batch_ptr, b_idx, m_blk_idx, k_blk_idx,
+                n_blk_idx);
 
         if (post_ops_applicable && is_last_K_chunk && !is_K_tail) {
             void *scratch = is_amx
@@ -474,8 +483,9 @@ void brgemm_matmul_t<isa>::compute_kernel(
         }
     }
     if (is_K_tail) {
-        brgmm_ctx.init_brgemm_batch_elements_values(
-                ithr, gemm_batch, 1, b_idx, m_blk_idx, k_blk_idx, n_blk_idx);
+        brgmm_ctx.init_brgemm_batch_elements_values(ithr, gemm_batch, 1,
+                A_data_batch_ptr, B_data_batch_ptr, b_idx, m_blk_idx, k_blk_idx,
+                n_blk_idx);
 
         const bool use_init_ker = (do_init && gemm_batch == 0);
         const int brg_ker_idx = pd()->get_brg_kernel_idx(
@@ -672,8 +682,8 @@ void brgemm_matmul_t<isa>::maybe_reduce_partial_results_and_apply_postops(
 
 template <cpu_isa_t isa>
 void brgemm_matmul_t<isa>::copy_a_chunk_in_buffer(
-        const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
-        int m_blk_idx, int k_chunk_idx) const {
+        const brg_matmul_exec_ctx_t &brgmm_ctx, const char *A_data_batch_ptr,
+        int ithr, int m_blk_idx, int k_chunk_idx) const {
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
 
     auto ctx = jit_brgemm_matmul_copy_a_t::ctx_t();
@@ -698,7 +708,7 @@ void brgemm_matmul_t<isa>::copy_a_chunk_in_buffer(
 
     for (int gb = 0; gb < gemm_batch_iters; gb++) {
         const int k = k_start + gb * bgmmc.K_blk;
-        ctx.src = (void *)brgmm_ctx.get_data_A_ptr(b_idx, m, k);
+        ctx.src = (void *)brgmm_ctx.get_data_A_mk_ptr(A_data_batch_ptr, m, k);
         ctx.tr_src = (void *)brgmm_ctx.get_buf_A_ptr(ithr, m_blk_idx, gb);
         ctx.current_K_blk = nstl::min(bgmmc.K_blk, bgmmc.K);
         ctx.current_K_start = k;
@@ -708,7 +718,7 @@ void brgemm_matmul_t<isa>::copy_a_chunk_in_buffer(
     if (is_K_tail) {
         const auto K_tail = bgmmc.K % bgmmc.K_blk;
         const int k = k_start + gemm_batch * bgmmc.K_blk;
-        ctx.src = (void *)brgmm_ctx.get_data_A_ptr(b_idx, m, k);
+        ctx.src = (void *)brgmm_ctx.get_data_A_mk_ptr(A_data_batch_ptr, m, k);
         ctx.tr_src = (void *)brgmm_ctx.get_buf_A_ptr(
                 ithr, m_blk_idx, gemm_batch_iters);
         ctx.current_K_blk = K_tail;
@@ -720,8 +730,8 @@ void brgemm_matmul_t<isa>::copy_a_chunk_in_buffer(
 
 template <cpu_isa_t isa>
 void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
-        const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr, int b_idx,
-        int n_blk_idx, int k_chunk_idx) const {
+        const brg_matmul_exec_ctx_t &brgmm_ctx, const char *B_data_batch_ptr,
+        int ithr, int b_idx, int n_blk_idx, int k_chunk_idx) const {
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
 
     const int k_start = k_chunk_idx * bgmmc.K_chunk_elems;
@@ -735,9 +745,11 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
         for (int gb = 0; gb < gemm_batch + is_K_tail; gb++) {
             const int k = k_start + gb * bgmmc.K_blk;
             auto p = jit_avx512_sparse_decompress_kernel_t::call_params_t();
-            p.src_ptr = (void *)brgmm_ctx.get_data_B_ptr(b_idx, k, n);
+            const char *B_data_ptr
+                    = brgmm_ctx.get_data_B_kn_ptr(B_data_batch_ptr, k, n);
+            p.src_ptr = (void *)B_data_ptr;
             p.bitmask_ptr
-                    = (void *)brgmm_ctx.get_data_B_bitmask_ptr(b_idx, k, n);
+                    = (void *)brgmm_ctx.get_data_B_bitmask_ptr(B_data_ptr);
             p.dst_ptr = (void *)brgmm_ctx.get_buf_B_ptr(ithr, gb, n_blk_idx);
             (*sparse_decompress_kernel_)(&p);
         }
@@ -756,7 +768,7 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
     int gb = 0;
     for (; gb < gemm_batch; gb++) {
         const int k = k_start + gb * bgmmc.K_blk;
-        ctx.src = (void *)brgmm_ctx.get_data_B_ptr(b_idx, k, n);
+        ctx.src = (void *)brgmm_ctx.get_data_B_kn_ptr(B_data_batch_ptr, k, n);
         ctx.tr_src = (void *)brgmm_ctx.get_buf_B_ptr(ithr, gb, n_blk_idx);
         ctx.compensation_ptr
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
@@ -773,7 +785,7 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
 
     if (is_K_tail) {
         const int k = k_start + gb * bgmmc.K_blk;
-        ctx.src = (void *)brgmm_ctx.get_data_B_ptr(b_idx, k, n);
+        ctx.src = (void *)brgmm_ctx.get_data_B_kn_ptr(B_data_batch_ptr, k, n);
         ctx.tr_src = (void *)brgmm_ctx.get_buf_B_ptr(ithr, gb, n_blk_idx);
         ctx.compensation_ptr
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
@@ -808,6 +820,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             const float *oscales, int32_t src_zp, int32_t wei_zp,
             int32_t dst_zp, const float *dst_scales, matmul_helper_t &helper)
         : bgmmc_(pd->get_brgemm_matmul_conf())
+        , src_d_(pd->src_md())
+        , wei_d_(pd->weights_md())
+        , dst_d_(pd->dst_md())
         , data_A_ptr_(CTX_IN_MEM(const char *, DNNL_ARG_SRC))
         , data_B_ptr_(CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS))
         , data_C_ptr_(CTX_OUT_MEM(char *, DNNL_ARG_DST)) {
@@ -917,6 +932,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         LDD_ = is_runtime_value(bgmmc_.LDD) ? helper.ldc() : bgmmc_.LDD;
         LDC_ = is_runtime_value(bgmmc_.LDC) ? LDD_ : bgmmc_.LDC;
         copy_A_src_stride_ = bgmmc.copy_A_src_stride;
+        is_A_batch_layout_trivial_ = bgmmc_.is_src_batch_layout_trivial;
+        is_B_batch_layout_trivial_ = bgmmc_.is_wei_batch_layout_trivial;
+        is_C_batch_layout_trivial_ = bgmmc_.is_dst_batch_layout_trivial;
         if (bgmmc.is_runtime_M) {
             M_ = helper.M();
             M_chunks_ = M_ / bgmmc.M_chunk_elems;
@@ -961,6 +979,11 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             if (bgmmc.transposed_A)
                 copy_A_src_stride_
                         = helper.get_a_stride(bgmmc.ndims - 1) * bgmmc.a_dt_sz;
+
+            is_A_batch_layout_trivial_
+                    = is_batch_layout_trivial(src_d_, bgmmc.batch);
+            is_C_batch_layout_trivial_
+                    = is_batch_layout_trivial(dst_d_, bgmmc.batch);
         } else {
             M_ = bgmmc.M;
             M_chunks_ = bgmmc.M_chunks;
@@ -1013,6 +1036,11 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             for (int dim_idx = 0; dim_idx < 3; dim_idx++)
                 B_strides_[dim_idx] = bgmmc.b_dt_sz
                         * helper.get_b_stride(bgmmc.ndims - 1 - dim_idx);
+
+            is_B_batch_layout_trivial_
+                    = is_batch_layout_trivial(wei_d_, bgmmc.batch);
+            is_C_batch_layout_trivial_
+                    = is_batch_layout_trivial(dst_d_, bgmmc.batch);
         } else {
             N_ = bgmmc.N;
             N_chunks_ = bgmmc.N_chunks;
@@ -1112,26 +1140,85 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         return bb_idx;
     }
 
-    const char *get_data_A_ptr(int b, int m, int k) const {
-        int cur_b = get_bb_idx(b, bgmmc_.bcast_A_desc);
-        return data_A_ptr_ + get_data_A_off(cur_b, m, k);
+    // Note: Minimize the calls to `X_batch_ptr` to reduce overhead.
+    // Call it once the batch changes, later use get_data_mk_off
+    const char *get_data_A_batch_ptr(int b_idx) const {
+        using namespace format_tag;
+        const int b = get_bb_idx(b_idx, bgmmc_.bcast_A_desc);
+        dim_t b_off = 0;
+        if (one_of(bgmmc_.src_tag, acbd, adbc)
+                /* this is a special case when src can be represented
+                   by plain and transposed tags due to a batch dim equal to 1 */
+                || (one_of(bgmmc_.src_tag, abcd, abdc)
+                        && bgmmc_.A_ptr_shift_b != 0)) {
+            if (!bgmmc_.bcast_A_desc.bcast_mask) { // no broadcast
+                const dim_t batch_dim1 = bgmmc_.bcast_A_desc.batch_dims[1];
+                b_off = A_strides_[2] * (b % batch_dim1)
+                        + (b / batch_dim1) * A_ptr_shift_b_;
+            } else {
+                b_off = b * A_ptr_shift_b_;
+            }
+        } else if (is_A_batch_layout_trivial_) {
+            b_off = A_strides_[2] * b;
+        } else {
+            // slow code path
+            b_off = src_d_.off_l(b * bgmmc_.M * bgmmc_.K) * bgmmc_.a_dt_sz;
+        }
+        return data_A_ptr_ + b_off;
     }
 
-    const char *get_data_B_ptr(int b, int k, int n) const {
+    const char *get_data_A_mk_ptr(const char *batch_ptr, int m, int k) const {
+        return batch_ptr + A_strides_[1] * m + A_strides_[0] * k;
+    }
+
+    const char *get_data_B_kn_ptr(const char *batch_ptr, int k, int n) const {
+        int dt_b_k_blk = bgmmc_.is_bf32
+                ? data_type_vnni_simd_elems(f32, bgmmc_.isa)
+                : bgmmc_.wei_k_blk;
+        int k_idx = bgmmc_.blocked_B ? k / dt_b_k_blk : k;
+        int n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
+        const int int4_fac = bgmmc_.is_int4_weights ? 2 : 1;
+        const char *b_ptr = batch_ptr
+                + (B_strides_[1] * k_idx + B_strides_[0] * n_idx
+                          + get_data_B_off_within_block(k, n))
+                        / int4_fac;
         if (bgmmc_.packed_sparse_weights) {
-            const auto blk_num
-                    = get_data_B_off(b, k, n) / B_packed_sparse_block_size_;
+            const dim_t blk_num
+                    = (b_ptr - data_B_ptr_) / B_packed_sparse_block_size_;
             const auto blk_off = data_B_offsets_ptr_[blk_num];
             return data_B_ptr_ + blk_off;
         }
-
-        int cur_b = get_bb_idx(b, bgmmc_.bcast_B_desc);
-        return data_B_ptr_ + get_data_B_off(cur_b, k, n);
+        return b_ptr;
     }
 
-    const char *get_data_B_bitmask_ptr(int b, int k, int n) const {
+    const char *get_data_B_batch_ptr(int b_idx) const {
+        using namespace format_tag;
+        dim_t b_off = 0;
+        const int b = get_bb_idx(b_idx, bgmmc_.bcast_B_desc);
+        if (one_of(bgmmc_.wei_tag, acbd, adbc)
+                /* this is a special case when weights can be represented
+                   by plain and transposed tags due to a batch dim equal to 1 */
+                || (one_of(bgmmc_.wei_tag, abcd, abdc)
+                        && bgmmc_.B_ptr_shift_b != 0)) {
+            if (!bgmmc_.bcast_B_desc.bcast_mask) { // no broadcast
+                const dim_t batch_dim1 = bgmmc_.bcast_B_desc.batch_dims[1];
+                b_off = B_strides_[2] * (b % batch_dim1)
+                        + (b / batch_dim1) * B_ptr_shift_b_;
+            } else {
+                b_off = b * B_ptr_shift_b_;
+            }
+        } else if (is_B_batch_layout_trivial_) {
+            b_off = B_strides_[2] * b;
+        } else {
+            b_off = wei_d_.off_l(b * bgmmc_.K * bgmmc_.N) * bgmmc_.b_dt_sz;
+        }
+        if (bgmmc_.is_int4_weights) b_off = b_off / 2;
+        return data_B_ptr_ + b_off;
+    }
+
+    const char *get_data_B_bitmask_ptr(const char *cur_data_B_ptr) const {
         assert(bgmmc_.packed_sparse_weights);
-        const auto bitmask_off = get_data_B_off(b, k, n) / CHAR_BIT;
+        const auto bitmask_off = (cur_data_B_ptr - data_B_ptr_) / CHAR_BIT;
         return data_B_bitmask_ptr_ + bitmask_off;
     }
 
@@ -1145,8 +1232,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     }
 
     void init_brgemm_batch_elements_values(int ithr, int brg_batch_start,
-            int brg_batch_iters, int b_idx, int m_blk_idx, int k_blk_idx,
-            int n_blk_idx) const {
+            int brg_batch_iters, const char *A_data_batch_ptr,
+            const char *B_data_batch_ptr, int b_idx, int m_blk_idx,
+            int k_blk_idx, int n_blk_idx) const {
         auto addr_batch = get_batch_elem_ptr(ithr);
 
         const dim_t m = get_M_idx(m_blk_idx, true);
@@ -1157,10 +1245,10 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             const int k = (k_blk_idx + brg_batch_idx) * bgmmc_.K_blk;
             addr_batch[b_iter].ptr.A = bgmmc_.use_buffer_a
                     ? get_buf_A_ptr(ithr, m_blk_idx, brg_batch_idx)
-                    : get_data_A_ptr(b_idx, m, k);
+                    : get_data_A_mk_ptr(A_data_batch_ptr, m, k);
             addr_batch[b_iter].ptr.B = (bgmmc_.use_buffer_b)
                     ? get_buf_B_ptr(ithr, brg_batch_idx, n_blk_idx)
-                    : get_data_B_ptr(b_idx, k, n);
+                    : get_data_B_kn_ptr(B_data_batch_ptr, k, n);
         }
     }
 
@@ -1255,57 +1343,6 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 + get_data_C_off(0, m, n) * bgmmc_.acc_dt_sz / bgmmc_.c_dt_sz;
     }
 
-    // Auxiliary functions for getting offsets with pre-calculated memory
-    // strides for each tensor to get general solution for all possible
-    // dimension without significant overhead
-    dim_t get_data_A_off(int b, int m, int k) const {
-        using namespace format_tag;
-        if (one_of(bgmmc_.src_tag, acbd, adbc)
-                /* this is a special case when src can be represented
-                   by plain and transposed tags due to a batch dim equal to 1 */
-                || (one_of(bgmmc_.src_tag, abcd, abdc)
-                        && bgmmc_.A_ptr_shift_b != 0)) {
-            dim_t b_off = 0;
-            if (!bgmmc_.bcast_A_desc.bcast_mask) { // no broadcast
-                const dim_t batch_dim1 = bgmmc_.bcast_A_desc.batch_dims[1];
-                b_off = A_strides_[2] * (b % batch_dim1)
-                        + (b / batch_dim1) * A_ptr_shift_b_;
-            } else {
-                b_off = b * A_ptr_shift_b_;
-            }
-            return b_off + A_strides_[1] * m + A_strides_[0] * k;
-        } else {
-            return A_strides_[2] * b + A_strides_[1] * m + A_strides_[0] * k;
-        }
-    }
-
-    dim_t get_data_B_off(int b, int k, int n) const {
-        using namespace format_tag;
-        if (one_of(bgmmc_.wei_tag, acbd, adbc)
-                /* this is a special case when weights can be represented
-                   by plain and transposed tags due to a batch dim equal to 1 */
-                || (one_of(bgmmc_.wei_tag, abcd, abdc)
-                        && bgmmc_.B_ptr_shift_b != 0)) {
-            dim_t b_off = 0;
-            if (!bgmmc_.bcast_B_desc.bcast_mask) { // no broadcast
-                const dim_t batch_dim1 = bgmmc_.bcast_B_desc.batch_dims[1];
-                b_off = B_strides_[2] * (b % batch_dim1)
-                        + (b / batch_dim1) * B_ptr_shift_b_;
-            } else {
-                b_off = b * B_ptr_shift_b_;
-            }
-            return b_off + B_strides_[1] * k + B_strides_[0] * n;
-        } else {
-            int dt_b_k_blk = bgmmc_.is_bf32
-                    ? data_type_vnni_simd_elems(f32, bgmmc_.isa)
-                    : bgmmc_.wei_k_blk;
-            int k_idx = bgmmc_.blocked_B ? k / dt_b_k_blk : k;
-            int n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
-            return B_strides_[2] * b + B_strides_[1] * k_idx
-                    + B_strides_[0] * n_idx + get_data_B_off_within_block(k, n);
-        }
-    }
-
     dim_t get_data_B_off_within_block(int k, int n) const {
         using namespace format_tag;
 
@@ -1322,16 +1359,22 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     dim_t get_data_C_off(int b, int m, int n) const {
         using namespace format_tag;
         assert(bgmmc_.dst_tag != adbc);
+        dim_t off = 0;
         if (bgmmc_.dst_tag == acbd
                 || (one_of(bgmmc_.dst_tag, abcd, abdc)
                         && bgmmc_.C_ptr_shift_b != 0)) {
             const dim_t batch_dim1 = bgmmc_.bcast_A_desc.batch_dims[1];
             dim_t b_off = C_strides_[2] * (b % batch_dim1)
                     + (b / batch_dim1) * C_ptr_shift_b_;
-            return b_off + C_strides_[1] * m + C_strides_[0] * n;
+            off = b_off + C_strides_[1] * m + C_strides_[0] * n;
+        } else if (is_C_batch_layout_trivial_) {
+            off = C_strides_[2] * b + C_strides_[1] * m + C_strides_[0] * n;
         } else {
-            return C_strides_[2] * b + C_strides_[1] * m + C_strides_[0] * n;
+            // slow code
+            off = dst_d_.off_l(b * bgmmc_.M * bgmmc_.N) * bgmmc_.c_dt_sz
+                    + C_strides_[1] * m + C_strides_[0] * n;
         }
+        return off;
     }
 
     const char *get_bias_ptr(int n) const {
@@ -1656,7 +1699,13 @@ private:
     };
 
     bool is_amx_;
+    bool is_A_batch_layout_trivial_;
+    bool is_B_batch_layout_trivial_;
+    bool is_C_batch_layout_trivial_;
     const brgemm_matmul_conf_t &bgmmc_;
+    const memory_desc_wrapper src_d_;
+    const memory_desc_wrapper wei_d_;
+    const memory_desc_wrapper dst_d_;
     const char *data_A_ptr_;
     const char *data_B_ptr_;
     // The offsets and bitmask pointers are only available when the weights

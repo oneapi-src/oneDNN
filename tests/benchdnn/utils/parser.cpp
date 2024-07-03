@@ -316,6 +316,54 @@ attr_t::fpmath_mode_t parse_attr_fpmath_mode_func(const std::string &s) {
     return v;
 }
 
+attr_t::dropout_t parse_attr_dropout_func(const std::string &s) {
+    const char *err = "Error: dangling symbol at the end of input";
+    attr_t::dropout_t v;
+    if (s.empty()) return v;
+
+    size_t start_pos = 0;
+    auto subs = get_substr(s, start_pos, ':');
+    v.p = stof_safe(subs);
+    if ((v.p < 0.f) || (v.p > 1.f)) {
+        BENCHDNN_PRINT(0, "Error: bad dropout probability value: %f\n", v.p);
+        SAFE_V(FAIL);
+    }
+    if (start_pos == std::string::npos) return v;
+    if (start_pos >= s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n", err, s.c_str());
+        SAFE_V(FAIL);
+    }
+
+    if (start_pos != std::string::npos) {
+        subs = get_substr(s, start_pos, ':');
+        v.seed = stoll_safe(subs);
+
+        if (start_pos == std::string::npos) return v;
+        if (start_pos >= s.size()) {
+            BENCHDNN_PRINT(0, "%s \'%s\'\n", err, s.c_str());
+            SAFE_V(FAIL);
+        }
+
+        if (start_pos != std::string::npos) {
+            subs = get_substr(s, start_pos, '\0');
+            v.tag = subs;
+
+            if (check_tag(v.tag) != OK) {
+                BENCHDNN_PRINT(0, "%s \'%s\' %s\n", "Error: dropout mask tag",
+                        v.tag.c_str(), "is not recognized.");
+                SAFE_V(FAIL);
+            }
+
+            if (start_pos != std::string::npos) {
+                BENCHDNN_PRINT(0, "%s \'%s\'\n", err, s.c_str());
+                SAFE_V(FAIL);
+            }
+        }
+    }
+
+    return v;
+}
+
 } // namespace parser_utils
 
 // vector types
@@ -494,6 +542,17 @@ bool parse_attr_fpmath_mode(std::vector<attr_t::fpmath_mode_t> &fpmath_mode,
             parser_utils::parse_attr_fpmath_mode_func, str, option_name, help);
 }
 
+bool parse_attr_dropout(std::vector<attr_t::dropout_t> &dropout,
+        const std::vector<attr_t::dropout_t> &def_dropout, const char *str,
+        const std::string &option_name = "attr-dropout") {
+    static const std::string help
+            = "PROBABILITY[:SEED[:TAG]]\n    Specifies dropout attribute.\n    "
+              "More details at "
+            + doc_url + "knobs_attr.md\n";
+    return parse_vector_option(dropout, def_dropout,
+            parser_utils::parse_attr_dropout_func, str, option_name, help);
+}
+
 bool parse_attr_acc_mode(std::vector<dnnl_accumulation_mode_t> &acc_mode,
         const std::vector<dnnl_accumulation_mode_t> &def_acc_mode,
         const char *str, const std::string &option_name = "attr-acc-mode") {
@@ -523,6 +582,7 @@ bool parse_attributes(
     const bool parsed_attrs = parse_attr_scales(s.scales, str)
             || parse_attr_zero_points(s.zero_points, str)
             || parse_attr_post_ops(s.post_ops, str)
+            || parse_attr_dropout(s.dropout, def.dropout, str)
             || parse_attr_scratchpad_mode(
                     s.scratchpad_mode, def.scratchpad_mode, str)
             || parse_attr_fpmath_mode(s.fpmath_mode, def.fpmath_mode, str)

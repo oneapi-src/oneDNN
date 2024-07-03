@@ -132,13 +132,16 @@ private:
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_body(const exec_ctx_t &ctx) const;
-    void compute_kernel(const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr,
-            int b_idx, int m_blk_idx, int n_blk_idx, int k_blk_idx,
+    void compute_kernel(const brg_matmul_exec_ctx_t &brgmm_ctx,
+            const char *A_data_batch_ptr, const char *B_data_batch_ptr,
+            int ithr, int b_idx, int m_blk_idx, int n_blk_idx, int k_blk_idx,
             bool do_init, int &prev_ker_idx) const;
     void copy_a_chunk_in_buffer(const brg_matmul_exec_ctx_t &brgmm_ctx,
-            int ithr, int b_idx, int m_blk_idx, int k_blk_idx) const;
+            const char *A_data_batch_ptr, int ithr, int m_blk_idx,
+            int k_blk_idx) const;
     void copy_b_chunk_in_buffer(const brg_matmul_exec_ctx_t &brgmm_ctx,
-            int ithr, int b_idx, int n_blk_idx, int k_blk_idx) const;
+            const char *B_data_batch_ptr, int ithr, int b_idx, int n_blk_idx,
+            int k_blk_idx) const;
     void maybe_reduce_partial_results_and_apply_postops(
             const brg_matmul_exec_ctx_t &brgmm_ctx) const;
     void accumulate(

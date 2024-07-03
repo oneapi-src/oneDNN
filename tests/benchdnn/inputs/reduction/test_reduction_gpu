@@ -36,6 +36,10 @@
 14745600:1
 10000000x15:1x15
 
+# Test CI in Nightly
+--reset
+--batch=test_reduction_ci
+
 # Test layers of some key and ext GPU DL Frameworks
 --reset --batch=option_set_fwks_key_gpu
 --reset --batch=option_set_fwks_ext_gpu

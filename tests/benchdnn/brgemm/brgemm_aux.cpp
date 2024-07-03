@@ -41,79 +41,29 @@ dnnl_data_type_t prb_t::get_dt(data_kind_t data_kind) const {
     }
 }
 
-void prb_t::generate_oscales() {
-    // Brgemm takes single pointer oscale, but relies on a combination of arg
-    // scales attributes. This helps to reuse attributes from primitives, but
-    // requires them to pre-compute oscale = src_scale * wei_scale[:]
-    const auto &attr_scales = attr.scales;
-
-    const auto &src_sc = attr_scales.get(DNNL_ARG_SRC);
-    float src_scale_val = 1.0f;
-    if (!src_sc.is_def()) {
-        assert(src_sc.policy == policy_t::COMMON);
-        src_scale_val = src_sc.scale;
+void prb_t::check_block_size() const {
+    // Note: batch_size is incorporated into K dimension.
+    // That's why each source batch has an offset of `k`.
+    // Weights have more complicated case. Weights are in double-blocked format,
+    // which becomes triple-blocked for bf16 and int8 to become VNNI-friendly.
+    // Because of this and batch_size incorporation, offsets below DO NOT work
+    // with K not divisible by K block size and batch_size > 1.
+    // The problem is it can't be handled properly when batch size is fused,
+    // but this allows enable s8s8 and zero-points compensation cases easier.
+    int block_size = 0;
+    switch (wei_dt()) {
+        case dnnl_f32: block_size = 16; break;
+        case dnnl_f16: block_size = 16; break;
+        case dnnl_bf16: block_size = 32; break;
+        case dnnl_u8:
+        case dnnl_f8_e5m2:
+        case dnnl_f8_e4m3:
+        case dnnl_s8: block_size = 64; break;
+        default: break;
     }
-
-    const auto &wei_sc = attr_scales.get(DNNL_ARG_WEIGHTS);
-
-    if (wei_sc.policy == policy_t::COMMON) {
-        scales = (float *)zmalloc(sizeof(float), 4);
-        SAFE_V(scales != nullptr ? OK : FAIL);
-        scales[0] = wei_sc.scale;
-        if (!src_sc.is_def()) { scales[0] *= src_scale_val; }
-        return;
-    }
-
-    assert(wei_sc.policy == policy_t::PER_OC);
-
-    scales = (float *)zmalloc(sizeof(float) * n, 64);
-    SAFE_V(scales != nullptr ? OK : FAIL);
-
-    const float K = 32;
-    /* scale in [1/K .. K], with starting point at wei_sc.scale */
-    float s[2] = {wei_sc.scale, wei_sc.scale / 2};
-    for (int64_t i = 0; i < n; ++i) {
-        int64_t si = i % 2; // 0 -> left, 1 -> right
-        scales[i] = s[si] * src_scale_val;
-        if (si == 0) {
-            s[si] /= 2.;
-            if (s[si] < 1. / K) s[si] *= K * K; // turn around to become ~K
-        } else {
-            s[si] *= 2.;
-            if (s[si] > K) s[si] /= K * K; // turn around to become ~K
-        }
-    }
-}
-
-void prb_t::generate_dst_scales() {
-    const auto &dst_sc = attr.scales.get(DNNL_ARG_DST);
-
-    assert(dst_sc.policy == policy_t::COMMON);
-    dst_scales = (float *)zmalloc(sizeof(float), 4);
-    SAFE_V(dst_scales != nullptr ? OK : FAIL);
-    dst_scales[0] = dst_sc.scale;
-}
-
-int32_t *prb_t::generate_zero_points(
-        int arg, const attr_t::zero_points_t &zero_points, int N) {
-    if (zero_points.is_def(arg)) return nullptr;
-
-    const auto &e = zero_points.get(arg);
-    if (e.policy == policy_t::COMMON) {
-        int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
-        SAFE_V(zp != nullptr ? OK : FAIL);
-        zp[0] = e.value;
-        return zp;
-    }
-
-    assert(e.policy == policy_t::PER_DIM_1);
-
-    int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t) * N, 64);
-    SAFE_V(zp != nullptr ? OK : FAIL);
-
-    for (int i = 0; i < N; ++i)
-        zp[i] = e.value + i % 3;
-    return zp;
+    (void)block_size;
+    assert(block_size > 1);
+    assert(IMPLICATION(batch_size > 1, k % block_size == 0));
 }
 
 std::string prb_t::set_repro_line() {

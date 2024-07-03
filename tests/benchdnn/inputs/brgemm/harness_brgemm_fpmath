@@ -5,6 +5,10 @@
 # f32
 --dt=f32
 --bia_dt=undef,f32
---alpha=1,2
 --beta=0,1
 --batch=option_set_f32
+
+# Separate cases for non-default alpha
+--reset
+--alpha=2
+--batch=shapes_2d_no_tail_f32

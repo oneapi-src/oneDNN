@@ -1,0 +1,21 @@
+--reset
+
+--dt=f8_e5m2,\
+     f8_e4m3,\
+     f8_e4m3:f8_e4m3:f32,\
+     f8_e5m2:f8_e5m2:f32,\
+     f8_e4m3:f8_e5m2:f8_e4m3,\
+     f8_e4m3:f8_e5m2:f8_e5m2,\
+     f8_e5m2:f8_e4m3:f8_e5m2,\
+     f8_e5m2:f8_e4m3:f8_e4m3
+--bia_dt=undef,f32,bf16
+--beta=0,1
+--attr-post-ops=,sum:2,relu
+--brgemm-attr=,use_uker:1+use_interleave_stores:1,use_uker:0+use_interleave_stores:1
+--batch=option_set_int8 # fp8 uses int8 blocking for AMX
+
+# FP8 Emulation: using no interleaved stores changes the size of the temporary data buffer
+--brgemm-attr=use_uker:1+use_interleave_stores:0,use_uker:0+use_interleave_stores:0
+--bs=1
+--batch=shapes_2d_no_tail_int8
+--batch=shapes_2d_tail_n_int8

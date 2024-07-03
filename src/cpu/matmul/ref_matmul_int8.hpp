@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ struct ref_matmul_int8_t : public primitive_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any", ref_matmul_int8_t);
+        DECLARE_COMMON_PD_T("ref_int8:any", ref_matmul_int8_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -49,12 +49,16 @@ struct ref_matmul_int8_t : public primitive_t {
             const auto dst_type = dst_md(0)->data_type;
 
             bool ok = is_dense_format_kind() && utils::one_of(src_type, s8, u8)
-                    && wei_type == s8
+                    && utils::one_of(wei_type, s8, u8, s4, u4)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16, s32, s8, u8))
-                    && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
-                    && attr()->has_default_values(smask_t::scales_runtime
-                                    | smask_t::zero_points_runtime
+                            utils::one_of(
+                                    bia_type, f32, bf16, f16, s32, s8, u8))
+                    && utils::one_of(dst_type, f32, bf16, f16, s32, s8, u8)
+                    && attr()->has_default_values(
+                            smask_t::scales_runtime_data_type
+                                    | smask_t::scales_runtime_groups
+                                    | smask_t::zero_points_runtime_data_type
+                                    | smask_t::zero_points_runtime_groups
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_type)
                     && attr_.post_ops_.check_sum_consistency(dst_type,
@@ -69,13 +73,25 @@ struct ref_matmul_int8_t : public primitive_t {
     private:
         bool attr_zero_points_ok() const {
             int mask_src = 0, mask_wei = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
-            attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
-            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
+            CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src));
+            CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei));
+            CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst));
 
-            return (mask_src == 0 || (ndims() == 2 && mask_src == 1 << 1))
-                    && (mask_wei == 0)
-                    && (mask_dst == 0 || (ndims() == 2 && mask_dst == 1 << 1));
+            const auto wei_group_ndims
+                    = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
+            const auto wei_group_dims
+                    = attr()->zero_points_.get_groups(DNNL_ARG_WEIGHTS);
+
+            bool mask_src_ok = utils::one_of(mask_src, 0, wei_qmask_N());
+            bool mask_wei_ok = utils::one_of(
+                    mask_wei, 0, wei_qmask_N(), wei_qmask_K() + wei_qmask_N());
+            bool mask_dst_ok = utils::one_of(mask_dst, 0, wei_qmask_N());
+
+            return mask_src_ok && mask_wei_ok && mask_dst_ok
+                    && utils::one_of(wei_group_ndims, 0, 2)
+                    && IMPLICATION(wei_group_ndims == 2,
+                            wei_group_dims[1] == 1
+                                    && K() % wei_group_dims[0] == 0);
         }
     };
 

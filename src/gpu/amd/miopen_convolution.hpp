@@ -19,12 +19,13 @@
 #define GPU_AMD_MIOPEN_CONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
-#include "common/primitive.hpp"
 #include "common/primitive_desc.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_convolution_impl.hpp"
 #include "gpu/amd/miopen_convolution_pd.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "xpu/sycl/memory_storage.hpp"
 
 #include <miopen/miopen.h>
 
@@ -33,8 +34,8 @@ namespace impl {
 namespace gpu {
 namespace amd {
 
-struct miopen_convolution_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_convolution_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public miopen_convolution_fwd_pd_t {
         using miopen_convolution_fwd_pd_t::miopen_convolution_fwd_pd_t;
@@ -229,7 +230,7 @@ struct miopen_convolution_fwd_t : public primitive_t {
     };
 
     status_t init_temp_dst(impl::engine_t *engine) {
-        auto sycl_engine = utils::downcast<sycl_hip_engine_t *>(engine);
+        auto sycl_engine = utils::downcast<amd::engine_t *>(engine);
         memory_storage_t *scratch_ptr = nullptr;
         auto wrap = memory_desc_wrapper(pd()->dst_md_temp_);
         CHECK(sycl_engine->create_memory_storage(
@@ -272,8 +273,8 @@ private:
     std::shared_ptr<memory_storage_t> scratch_storage_2;
 };
 
-struct miopen_convolution_bwd_data_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_convolution_bwd_data_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public miopen_convolution_bwd_data_pd_t {
         using miopen_convolution_bwd_data_pd_t::
@@ -385,8 +386,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-struct miopen_convolution_bwd_weights_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_convolution_bwd_weights_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public miopen_convolution_bwd_weights_pd_t {
         using miopen_convolution_bwd_weights_pd_t::

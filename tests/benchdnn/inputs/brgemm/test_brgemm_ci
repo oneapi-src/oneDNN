@@ -1,60 +1,69 @@
+# f32
 --reset
-
---alpha=1,2
 --beta=0,1
 --attr-post-ops=,sum:2,relu
 --bs=1,16
-
 --dt=f32
 --bia_dt=undef,f32
---brgemm-attr=
 --attr-fpmath=,bf16
 --ld=,:96:96
 --batch=shapes_2d_no_tail_f32
---ld=
---attr-fpmath=
 
+# f16
+--reset
+--beta=0,1
+--attr-post-ops=,sum:2,relu
+--bs=1,16
 --dt=f16,f16:f32:f32,f32:f16:f32
 --bia_dt=undef,f32,f16
---brgemm-attr=
---attr-fpmath=
---batch=shapes_2d_no_tail_f32
+--batch=shapes_2d_no_tail_f32 # f16 uses f32 blocking for avx512_core_fp16
 
+# bf16
+--reset
+--beta=0,1
+--attr-post-ops=,sum:2,relu
+--bs=1,16
 --dt=bf16,bf16:bf16:f32
 --bia_dt=undef,f32,bf16
 --brgemm-attr=,use_uker:1
---beta=0 # add beta=1 once failures are fixed
 --batch=shapes_2d_no_tail_bf16
---beta=0,1
 
+# f8
+--reset
+--beta=0,1
+--attr-post-ops=,sum:2,relu
+--bs=1,16
 --dt=f8_e5m2,f8_e5m2:f8_e5m2:f32
 --bia_dt=undef,f32,f8_e5m2
 --batch=shapes_2d_no_tail_int8
 
---attr-post-ops=
+# int8
+--reset
+--bs=1,16
 --dt=u8:s8:f32,s8:s8:bf16,u8:s8:u8,s8:s8:s8
 --brgemm-attr=,use_uker:1
 
---alpha=1
+## int8:bias
 --beta=0
 --bia_dt=f32,bf16,f16,s8
 --batch=shapes_2d_no_tail_int8
 --bia_dt=undef
 
---alpha=1,2
+## int8:beta
 --beta=0,1
 --batch=shapes_2d_no_tail_int8
---alpha=1
 --beta=0
 
+## int8:attributes
 --attr-post-ops=,sum:2,relu
 --attr-scales=,src:common:0.5,wei:per_oc,src:common:0.5+wei:per_oc
 --attr-zero-points=,src:common:-2,src:common:128+dst:common:-1
 --batch=shapes_2d_no_tail_int8
 
+# f8
 --reset
+--beta=0,1
+--bs=1,16
 --dt=f8_e4m3:f8_e5m2:f8_e4m3,f8_e5m2:f8_e4m3:f8_e5m2
---attr-post-ops=
---bs=1
 --brgemm-attr=use_uker:1+use_interleave_stores:1,use_uker:0+use_interleave_stores:1
 --batch=shapes_2d_no_tail_int8

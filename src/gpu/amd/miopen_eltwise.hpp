@@ -19,17 +19,17 @@
 #define GPU_AMD_SYCL_HIP_ELTWISE_HPP
 
 #include "common/eltwise_pd.hpp"
-#include "common/primitive.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_eltwise_impl.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace amd {
 
-struct miopen_eltwise_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_eltwise_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public eltwise_fwd_pd_t {
         using eltwise_fwd_pd_t::eltwise_fwd_pd_t;
@@ -69,8 +69,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-struct miopen_eltwise_bwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_eltwise_bwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public eltwise_bwd_pd_t {
         using eltwise_bwd_pd_t::eltwise_bwd_pd_t;

@@ -24,7 +24,7 @@
 #include "gpu/intel/utils.hpp"
 
 #ifdef DNNL_WITH_SYCL
-#include "sycl/sycl_engine_base.hpp"
+#include "gpu/intel/sycl/engine.hpp"
 #endif
 
 namespace dnnl {
@@ -236,10 +236,12 @@ status_t device_info_t::init_attributes_common(impl::engine_t *engine) {
     bool ocl_backend = true;
 
 #ifdef DNNL_WITH_SYCL
-    using namespace impl::sycl;
     if (engine->runtime_kind() == runtime_kind::sycl) {
-        auto *sycl_engine = utils::downcast<const sycl_engine_base_t *>(engine);
-        ocl_backend = (sycl_engine->backend() == xpu::sycl::backend_t::opencl);
+        const auto *sycl_engine_impl
+                = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                        engine->impl());
+        ocl_backend
+                = (sycl_engine_impl->backend() == xpu::sycl::backend_t::opencl);
     }
 #endif
 

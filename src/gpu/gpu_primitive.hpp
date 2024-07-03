@@ -19,6 +19,7 @@
 
 #include "common/cache_blob.hpp"
 #include "common/primitive.hpp"
+#include "common/primitive_exec_types.hpp"
 
 #include "gpu/gpu_resource.hpp"
 
@@ -73,7 +74,13 @@ struct primitive_t : public impl::primitive_t {
             std::shared_ptr<impl::primitive_t> &primitive,
             const std::shared_ptr<primitive_desc_t> &pd,
             impl::engine_t *engine) {
-        CHECK(pd->create_primitive(primitive, engine, cache_blob()));
+        std::pair<std::shared_ptr<impl::primitive_t>, cache_state_t> p;
+        CHECK(pd->create_primitive_nested(p, engine, cache_blob()));
+
+        if (p.second == cache_state_t::kernel_hit) {
+            creation_cached_state_ = cache_state_t::nested_primitive_hit;
+        }
+        primitive = p.first;
         register_compute_block(new compute_block_t(primitive.get()));
         return status::success;
     }

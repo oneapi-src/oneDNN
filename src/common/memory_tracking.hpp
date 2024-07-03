@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -242,6 +243,10 @@ enum {
     key_lnorm_tmp_diff_ss,
     key_lnorm_reduction,
     key_matmul_dst_in_acc_dt,
+    key_matmul_src_trans,
+    key_matmul_wei_trans,
+    key_matmul_dst_trans,
+    key_matmul_dst_cast_acc,
     key_pool_dst_bf16cvt,
     key_pool_dst_plain2blocked_cvt,
     key_pool_ind_plain2blocked_cvt,

@@ -26,10 +26,9 @@
 
 #include "cpu/cpu_stream.hpp"
 
+#include "xpu/sycl/context.hpp"
 #include "xpu/sycl/memory_storage.hpp"
 #include "xpu/sycl/stream_impl.hpp"
-
-#include "sycl/sycl_context.hpp"
 
 #include "cpu/sycl/stream_cpu_thunk.hpp"
 #include "cpu/sycl/stream_submit_cpu_primitive.hpp"
@@ -73,10 +72,8 @@ struct stream_t : public cpu::cpu_stream_t {
         return status::success;
     }
 
-    const impl::sycl::sycl_context_t &sycl_ctx() const {
-        return impl()->sycl_ctx();
-    }
-    impl::sycl::sycl_context_t &sycl_ctx() { return impl()->sycl_ctx(); }
+    const xpu::sycl::context_t &sycl_ctx() const { return impl()->sycl_ctx(); }
+    xpu::sycl::context_t &sycl_ctx() { return impl()->sycl_ctx(); }
 
     ::sycl::event get_output_event() const {
         return impl()->get_output_event();

@@ -231,6 +231,7 @@ struct cpu_cache_args_t {
 int get_cpu_cache_size(cpu_cache_args_t &cache_args);
 int get_gpu_cache_size(size_t &cache_size);
 
+bool is_fwd_training(dnnl_prop_kind_t prop_kind);
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
@@ -603,7 +604,9 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
 
         // Replace engine kind for repro line from GPU to CPU.
         const auto eng_pos = res->prim_ref_repro.find("engine=gpu");
-        res->prim_ref_repro[eng_pos + 7] = 'c'; // Replace `g` in `gpu` with `c`
+        if (eng_pos != std::string::npos)
+            // Replace `g` in `gpu` with `c`
+            res->prim_ref_repro[eng_pos + 7] = 'c';
 
         BENCHDNN_PRINT(
                 0, "[PRIM_REF][REPRO]: %s\n", res->prim_ref_repro.c_str());
@@ -650,8 +653,10 @@ float reorder_rescale_factor();
 //     for a not matched dimension. Thus, `ndims` of a new object will remain
 //     the same as for original md. When set to `false`, a dim is skipped and
 //     the final object could end up with smaller `ndims` (or `size()`) value.
-dims_t md2dims(
-        const_dnnl_memory_desc_t md, int mask = -1, bool extend_by_ones = true);
+// `groups` specify a vector of group values which decrease the final dimension
+//     values by dividing on the group size.
+dims_t md2dims(const_dnnl_memory_desc_t md, int mask = -1,
+        bool extend_by_ones = true, const std::vector<int64_t> &groups = {});
 
 // Function adjusts data type if fpmath mode is present or sum_dt is different
 // from destination_dt. It is used in `cfg` objects that regulate filling.
@@ -845,30 +850,45 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 dnn_mem_t(ndims, dims.data(), dnnl_f32, tag::axb, test_engine));
     }
 
+    if (is_fwd_training(prop_kind) && !prb->attr.dropout.is_def()) {
+        const auto &dropout_md = query_md(const_pd, DNNL_ARG_ATTR_DROPOUT_MASK);
+        mem_map.emplace(
+                DNNL_ARG_ATTR_DROPOUT_MASK, dnn_mem_t(dropout_md, test_engine));
+        int64_t count = 1;
+        auto prob_md = dnn_mem_t::init_md(1, &count, dnnl_f32, tag::abx);
+        mem_map.emplace(DNNL_ARG_ATTR_DROPOUT_PROBABILITY,
+                dnn_mem_t(prob_md, test_engine));
+
+        auto seed_md = dnn_mem_t::init_md(1, &count, dnnl_s32, tag::abx);
+        mem_map.emplace(
+                DNNL_ARG_ATTR_DROPOUT_SEED, dnn_mem_t(seed_md, test_engine));
+    }
+
     // Scales.
     if (!prb->attr.scales.is_def()) {
         const auto &sc = prb->attr.scales;
 
         const auto &src_md = query_md(const_pd, DNNL_ARG_SRC);
         const auto &wei_md = query_md(const_pd, DNNL_ARG_WEIGHTS);
-        const bool has_groups
+        const bool has_channel_groups
                 = (query_md_ndims(src_md) + 1) == query_md_ndims(wei_md);
 
         const auto append_scales = [&](int exec_arg) {
             const int exec_sc_arg = DNNL_ARG_ATTR_SCALES | exec_arg;
             dims_t dims = {};
             int64_t ndims = 1;
-            const auto mask = sc.get_mask(
-                    exec_arg, prim_kind, query_md_ndims(wei_md), has_groups);
+            const auto mask = sc.get_mask(exec_arg, prim_kind,
+                    query_md_ndims(wei_md), has_channel_groups);
+            const auto &groups = sc.get(exec_arg).groups;
 
             if (mask > 0) {
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    dims = md2dims(prb_md, mask, false);
+                    dims = md2dims(prb_md, mask, false, groups);
                     ndims = static_cast<int>(dims.size());
                 } else {
-                    dims = md2dims(md, mask, false);
+                    dims = md2dims(md, mask, false, groups);
                     ndims = static_cast<int>(dims.size());
                 }
             } else {
@@ -908,15 +928,16 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
             dims_t dims = {};
             const auto mask
                     = zp.get_mask(exec_arg, prim_kind, query_md_ndims(wei_md));
+            const auto &groups = e.groups;
 
             if (mask > 0) {
                 const auto &md = query_md(const_pd, exec_arg);
                 if (has_runtime_dims(md)) {
                     const auto prb_md = prb->get_md(exec_arg);
-                    dims = md2dims(prb_md, mask, false);
+                    dims = md2dims(prb_md, mask, false, groups);
                     ndims = static_cast<int>(dims.size());
                 } else {
-                    dims = md2dims(md, mask, false);
+                    dims = md2dims(md, mask, false, groups);
                     ndims = static_cast<int>(dims.size());
                 }
             } else {

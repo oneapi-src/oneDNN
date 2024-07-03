@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 #ifndef GPU_AMD_MIOPEN_ELTWISE_IMPL_HPP
 #define GPU_AMD_MIOPEN_ELTWISE_IMPL_HPP
 
-#include <gpu/amd/sycl_hip_engine.hpp>
+#include <gpu/amd/engine.hpp>
 #include <gpu/amd/sycl_hip_utils.hpp>
 #include <miopen/miopen.h>
 

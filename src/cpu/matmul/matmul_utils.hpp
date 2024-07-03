@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -104,6 +104,44 @@ struct matmul_helper_t {
         return can_use_po_with_fused_batch && can_fuse_src_batch_dims();
     }
 
+    // Read note (3-4) in the "can_fuse_src_batch_dims()" method below.
+    bool is_src_dst_layout_batch_fusable() const {
+        // determine batch dims layout
+        dims_t src_strides;
+        const int batch_ndims = ndims() - 2;
+        utils::array_copy(
+                src_strides, src_md_.blocking_desc().strides, batch_ndims);
+
+        // compute ou_dims. It is required to get correct perm
+        dims_t blocks = {0};
+        src_md_.compute_blocks(blocks);
+        dims_t ou_dims;
+        for (int i = 0; i < batch_ndims; ++i)
+            ou_dims[i] = src_md_.padded_dims()[i] / blocks[i];
+
+        dims_t perm;
+        for (int i = 0; i < batch_ndims; ++i)
+            perm[i] = i;
+
+        // permute batch dim idx by sorting based on strides.
+        utils::simultaneous_sort(src_strides, ou_dims, perm, batch_ndims,
+                [](stride_t a, stride_t b) { return a - b; });
+
+        dim_t src_stride = M() * lda();
+        dim_t dst_stride = M() * ldc();
+
+        for (int i = 0; i < batch_ndims; ++i) {
+            const dim_t dim_idx = perm[i];
+            if (src_md_.blocking_desc().strides[dim_idx] != src_stride
+                    || dst_md_.blocking_desc().strides[dim_idx] != dst_stride)
+                return false;
+            src_stride = src_stride * src_md_.dims()[dim_idx];
+            dst_stride = dst_stride * dst_md_.dims()[dim_idx];
+        }
+
+        return true;
+    }
+
 private:
     mdw_t src_md_;
     mdw_t weights_md_;
@@ -137,41 +175,8 @@ private:
         // Note 2:
         if (wei_batch() != 1) return false;
 
-        // determine batch dims layout
-        dims_t src_strides;
-        const int batch_ndims = ndims() - 2;
-        utils::array_copy(
-                src_strides, src_md_.blocking_desc().strides, batch_ndims);
-
-        // compute ou_dims. It is required to get correct perm
-        dims_t blocks = {0};
-        src_md_.compute_blocks(blocks);
-        dims_t ou_dims;
-        for (int i = 0; i < batch_ndims; ++i)
-            ou_dims[i] = src_md_.padded_dims()[i] / blocks[i];
-
-        dims_t perm;
-        for (int i = 0; i < batch_ndims; ++i)
-            perm[i] = i;
-
-        // permute batch dim idx by sorting based on strides.
-        utils::simultaneous_sort(src_strides, ou_dims, perm, batch_ndims,
-                [](stride_t a, stride_t b) { return a - b; });
-
-        dim_t src_stride = M() * lda();
-        dim_t dst_stride = M() * ldc();
-
         // Note 3-4:
-        for (int i = 0; i < batch_ndims; ++i) {
-            const dim_t dim_idx = perm[i];
-            if (src_md_.blocking_desc().strides[dim_idx] != src_stride
-                    || dst_md_.blocking_desc().strides[dim_idx] != dst_stride)
-                return false;
-            src_stride = src_stride * src_md_.dims()[dim_idx];
-            dst_stride = dst_stride * dst_md_.dims()[dim_idx];
-        }
-
-        return true;
+        return is_src_dst_layout_batch_fusable();
     }
     dim_t get_batch_size(const mdw_t &tensor_md) const {
         int batch_dims = ndims() - 2;

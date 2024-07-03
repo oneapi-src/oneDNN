@@ -22,13 +22,13 @@
 
 #include "common/batch_normalization_pd.hpp"
 #include "common/c_types_map.hpp"
-#include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_batch_normalization_executor.hpp"
 #include "gpu/amd/miopen_batch_normalization_impl.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -62,8 +62,8 @@ struct miopen_batch_normalization_common_t {
     }
 };
 
-struct miopen_batch_normalization_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_batch_normalization_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
     struct pd_t : public batch_normalization_fwd_pd_t {
         using batch_normalization_fwd_pd_t::batch_normalization_fwd_pd_t;
 
@@ -135,8 +135,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-struct miopen_batch_normalization_bwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct miopen_batch_normalization_bwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public batch_normalization_bwd_pd_t {
         pd_t(const batch_normalization_desc_t *adesc,

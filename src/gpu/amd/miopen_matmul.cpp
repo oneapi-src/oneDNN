@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,10 +21,10 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_matmul_executor.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
+#include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
-#include "gpu/amd/sycl_hip_stream.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -50,8 +50,7 @@ status_t miopen_matmul_t::execute(const exec_ctx_t &ctx) const {
         if (status != status::success) return status;
     }
 
-    amd::sycl_hip_stream_t *hip_stream
-            = utils::downcast<amd::sycl_hip_stream_t *>(ctx.stream());
+    amd::stream_t *hip_stream = utils::downcast<amd::stream_t *>(ctx.stream());
 
     const auto scratchpad_type = matmul_impl_->get_scratchpad_type();
     const auto scratchpad_size = matmul_impl_->with_scratchpad()

@@ -332,6 +332,10 @@ void kernel_desc_t::set_defaults() {
             default: ir_error_not_expected(); break;
         }
     }
+    if (is_dw) {
+        spec_reqs.set(prb_dims::ic, 1);
+        spec_reqs.set(prb_dims::oc, 1);
+    }
 }
 
 void kernel_desc_t::finalize(const plan_t &plan) {

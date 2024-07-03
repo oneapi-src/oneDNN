@@ -641,10 +641,6 @@ private:
     // Hint values.
     static const int max_mad_reduce_bytes_ = 64;
     static const int max_tg_dim_ = 8;
-    static const int max_dpas_m_iter_ = 32;
-    static const int max_dpas_n_iter_ = 64;
-    static const int max_mad_m_iter_ = 16;
-    static const int max_mad_n_iter_ = 32;
     static const int min_m_iter_ = 16;
     static const int min_mad_x8_non_dw_m_iter_ = 2;
 
@@ -870,14 +866,24 @@ private:
         return std::min(hint_min_m_iter(), max_blk);
     }
 
+    int max_m_iter() const {
+        const int max_dpas_m_iter = 32;
+        const int max_mad_m_iter = 16;
+        if (cfg_.is_dp_fma()) return max_dpas_m_iter;
+        return max_mad_m_iter;
+    }
+
+    int max_n_iter() const {
+        const int max_dpas_n_iter = 64;
+        const int max_mad_n_iter = 32;
+        if (cfg_.is_dp_fma()) return max_dpas_n_iter;
+        return max_mad_n_iter;
+    }
+
     bool limit_m_iter_ok(const context_t &ctx) const {
         if (!is_enabled(check_kind_t::limit_m_iter)) return true;
 
-        if (cfg_.is_dp_fma()) {
-            if (ctx.m_iter > max_dpas_m_iter_) return false;
-        } else {
-            if (ctx.m_iter > max_mad_m_iter_) return false;
-        }
+        if (ctx.m_iter > max_m_iter()) return false;
         if (ctx.m_iter < min_m_iter(ctx)) return false;
         return true;
     }
@@ -885,11 +891,7 @@ private:
     bool limit_n_iter_ok(const context_t &ctx) const {
         if (!is_enabled(check_kind_t::limit_n_iter)) return true;
 
-        if (cfg_.is_dp_fma()) {
-            if (ctx.n_iter > max_dpas_n_iter_) return false;
-        } else {
-            if (ctx.n_iter > max_mad_n_iter_) return false;
-        }
+        if (ctx.n_iter > max_n_iter()) return false;
         return true;
     }
 
@@ -955,8 +957,8 @@ conv_blocking_scheme_t bwd_d_T_o_I_nio("ls:[oc,kd,kh,kw],T:[oc],i:[mb,ic,oc]");
 conv_blocking_scheme_t bwd_d_T_w_I_on("ls:[oc,kd,kh,kw],T:[iw],i:[oc,mb]");
 conv_blocking_scheme_t bwd_d_T_wi_I_wio("ls:[oc,kd,kh,kw],T:[ic,iw],i:[iw,ic,oc]");
 conv_blocking_scheme_t bwd_d_T_o_I_wio("ls:[oc,kd,kh,kw],T:[oc],i:[iw,ic,oc]");
-conv_blocking_scheme_t bwd_d_dw_T_w_I_wgk("ls:[kd,kh,kw],T:[iw],i:[iw,g,kw]");
-conv_blocking_scheme_t bwd_d_dw_T_w_I_ngk("ls:[kd,kh,kw],T:[iw],i:[mb,g,kw]");
+conv_blocking_scheme_t bwd_d_dw_T_w_I_wg("ls:[kd,kh,kw],T:[iw],i:[iw,g]");
+conv_blocking_scheme_t bwd_d_dw_T_w_I_ng("ls:[kd,kh,kw],T:[iw],i:[mb,g]");
 conv_blocking_scheme_t bwd_w_T_io_I_ion("l:[oh,ow],li:[mb],T:[oc,ic],i:[ic,oc,mb]");
 conv_blocking_scheme_t bwd_w_T_io_I_ion_d("ls:[mb,od,oh,ow],T:[oc,ic],i:[ic,oc,mb]");
 conv_blocking_scheme_t bwd_w_T_io_I_kon("l:[oh,ow],li:[mb],T:[oc,ic],i:[kw,oc,mb]");
@@ -1041,8 +1043,8 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_d_dw(
     auto m_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::iw});
     bool m_is_mb = (m_iter_dim == prb_dims::mb);
     bool m_is_iw = (m_iter_dim == prb_dims::iw);
-    ret.add(m_is_mb, conv_schemes::bwd_d_dw_T_w_I_ngk);
-    ret.add(m_is_iw, conv_schemes::bwd_d_dw_T_w_I_wgk);
+    ret.add(m_is_mb, conv_schemes::bwd_d_dw_T_w_I_ng);
+    ret.add(m_is_iw, conv_schemes::bwd_d_dw_T_w_I_wg);
     return ret;
 }
 

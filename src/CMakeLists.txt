@@ -139,7 +139,6 @@ if(DNNL_WITH_SYCL)
         append(CMAKE_SHARED_LINKER_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
         append(CMAKE_STATIC_LINKER_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
     endif()
-    add_subdirectory(sycl)
 endif()
 
 if(ONEDNN_BUILD_GRAPH)

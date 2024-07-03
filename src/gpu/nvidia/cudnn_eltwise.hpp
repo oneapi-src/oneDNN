@@ -19,7 +19,7 @@
 #define GPU_NVIDIA_SYCL_CUDA_ELTWISE_HPP
 
 #include "common/eltwise_pd.hpp"
-#include "common/primitive.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_eltwise_impl.hpp"
 #include "gpu/nvidia/engine.hpp"
 
@@ -28,8 +28,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_eltwise_fwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_eltwise_fwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public eltwise_fwd_pd_t {
         using eltwise_fwd_pd_t::eltwise_fwd_pd_t;
@@ -74,8 +74,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-struct cudnn_eltwise_bwd_t : public primitive_t {
-    using primitive_t::primitive_t;
+struct cudnn_eltwise_bwd_t : public gpu::primitive_t {
+    using gpu::primitive_t::primitive_t;
 
     struct pd_t : public eltwise_bwd_pd_t {
         using eltwise_bwd_pd_t::eltwise_bwd_pd_t;

@@ -16,6 +16,8 @@
 --reset --case=pattern/int8/int8_avgpool_transpose_fusion.json
 --reset --case=pattern/int8/int8_bf16_conv_add_relu_mul.json
 --reset --case=pattern/int8/int8_bf16_matmul_tc_add_quant_fusion.json
+--reset --case=pattern/int8/int8_bf16_conv_binary_add_fusion_2.json
+
 # conv
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_bias_relu_fusion.json
 --reset --in-shapes=0:1x2048x14x14+1:2048x64x3x3+2:2048 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/int8/int8_conv_bias_mish_fusion.json
@@ -114,6 +116,8 @@
 --reset --in-shapes=0:1x128x150x150*acdb+1:1x128x150x150*acdb+2:1x128x150x150*acdb --op-attrs=3:axis:0 --case=pattern/int8/int8_concat_fusion_3.json
 #layernorm
 --reset --case=pattern/int8/int8_lnorm_gelu_quantize.json
+# layernorm with zp != 0
+--reset --op-attrs=2:zps:1 --case=pattern/int8/int8_lnorm_gelu_quantize.json
 --reset --case=pattern/int8/int8_lnorm_multiply_quantize.json
 --reset --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
 #softmax

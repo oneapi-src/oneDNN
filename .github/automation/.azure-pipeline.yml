@@ -82,10 +82,10 @@ jobs:
           .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
-  - job: 'macOS11'
+  - job: 'macOS12'
     timeoutInMinutes: 120
     pool:
-      vmImage: 'macOS-11'
+      vmImage: 'macOS-12'
     steps:
       - script: |
           .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
@@ -94,10 +94,10 @@ jobs:
           .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
-  - job: 'macOS12'
+  - job: 'macOS13'
     timeoutInMinutes: 120
     pool:
-      vmImage: 'macOS-12'
+      vmImage: 'macOS-13'
     steps:
       - script: |
           .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build

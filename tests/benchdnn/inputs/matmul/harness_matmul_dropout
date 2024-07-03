@@ -1,0 +1,11 @@
+--reset
+--dt=f32,bf16
+--attr-fpmath=,bf16
+--check-ref-impl=false
+--attr-dropout=0.5:12345678
+
+--stag=ab --dtag=ab
+--batch=shapes_2d
+
+--stag=abc --dtag=abc
+--batch=shapes_3d

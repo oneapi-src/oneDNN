@@ -43,6 +43,20 @@ inline int load_int_value(data_type_t dt, const void *ptr, dim_t idx) {
         CASE(s32);
         CASE(s8);
         CASE(u8);
+        case s4: {
+            const auto shift = idx % 2 ? int4_extract_t::high_half
+                                       : int4_extract_t::low_half;
+            auto val = int4_t::extract(
+                    reinterpret_cast<const uint8_t *>(ptr)[idx / 2], shift);
+            return static_cast<int>(val);
+        }
+        case u4: {
+            const auto shift = idx % 2 ? int4_extract_t::high_half
+                                       : int4_extract_t::low_half;
+            auto val = uint4_t::extract(
+                    reinterpret_cast<const uint8_t *>(ptr)[idx / 2], shift);
+            return static_cast<int>(val);
+        }
         default: assert(!"bad data_type");
     }
 

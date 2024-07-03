@@ -197,11 +197,13 @@ int attr_t::policy2mask(int arg, policy_t policy,
             default: SAFE(FAIL, CRIT); return -1;
         }
     } else if (prim_kind == dnnl_matmul) {
-        if (arg != DNNL_ARG_WEIGHTS || policy == policy_t::COMMON)
+        if ((arg != DNNL_ARG_SRC && arg != DNNL_ARG_WEIGHTS)
+                || policy == policy_t::COMMON)
             return attr_t::get_default_mask(policy);
 
         if (ndims <= 0) SAFE_V(FAIL);
         switch (policy) {
+            case PER_DIM_1:
             case PER_OC: return (1 << (ndims - 1));
             case PER_OCIC: return (1 << (ndims - 1)) + (1 << (ndims - 2));
             default: SAFE_V(FAIL); return -1;
@@ -232,13 +234,13 @@ int parse_value_and_runtime(float &value, const std::string &s) {
                 "Error: scale or zero point input value is expected to be a "
                 "real number. Given input:",
                 s.c_str());
-        SAFE_V(FAIL);
+        SAFE(FAIL, WARN);
     }
     if (scale_pos != s.size()) {
         BENCHDNN_PRINT(0, "%s \'%s\'. %s \'%g\'.\n",
                 "Error: not every input symbol was processed. Given input:",
                 s.c_str(), "Parsed value:", value);
-        SAFE_V(FAIL);
+        SAFE(FAIL, WARN);
     }
     return OK;
 }
@@ -296,6 +298,7 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
 
     if (!groups.empty()) {
         switch (this->policy) {
+            case PER_OC:
             case PER_OCIC:
                 if (this->groups.size() != 2) {
                     BENCHDNN_PRINT(0, "%s\n",
@@ -306,7 +309,8 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
                 break;
             default:
                 BENCHDNN_PRINT(0, "%s\n",
-                        "Error: groups are supported only for policy PER_OCIC");
+                        "Error: groups are supported only for PER_OC and "
+                        "PER_OCIC policies.");
                 SAFE_V(FAIL);
         }
     }
@@ -585,7 +589,7 @@ bool attr_t::is_def(bool skip_fpmath) const {
             && scratchpad_mode == get_default_scratchpad_mode()
             && IMPLICATION(!skip_fpmath, fpmath_mode.is_def())
             && acc_mode == dnnl_accumulation_mode_strict
-            && deterministic.is_def();
+            && deterministic.is_def() && dropout.is_def();
 }
 
 int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
@@ -764,6 +768,13 @@ std::ostream &operator<<(std::ostream &s, const attr_t::deterministic_t &d) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, const attr_t::dropout_t &drop) {
+    s << drop.p;
+    if ((drop.seed != 0) || (drop.tag != tag::any)) s << ":" << drop.seed;
+    if (drop.tag != tag::any) s << ":" << drop.tag;
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     if (!attr.is_def()) {
         if (!attr.scales.is_def()) s << "--attr-scales=" << attr.scales << " ";
@@ -779,6 +790,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
             s << "--attr-acc-mode=" << attr.acc_mode << " ";
         if (!attr.deterministic.is_def())
             s << "--attr-deterministic=" << attr.deterministic << " ";
+        if (!attr.dropout.is_def())
+            s << "--attr-dropout=" << attr.dropout << " ";
     }
     return s;
 }
@@ -1015,6 +1028,13 @@ int attr_args_t::prepare_post_ops_mds(const attr_t &attr, int ndims,
         }
     }
 
+    // dropout
+    if (!attr.dropout.is_def()) {
+        auto drop_tensor_desc
+                = dnn_mem_t::init_md(ndims, dims, dnnl_u8, attr.dropout.tag);
+        mds.emplace(DNNL_ARG_ATTR_DROPOUT_MASK, std::move(drop_tensor_desc));
+    }
+
     return OK;
 }
 
@@ -1039,13 +1059,11 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (as.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
-            // Weights mask differs from primitive to primitive, that's why it
-            // is stashed in `attr_args` at primitive creation time.
-            const bool is_wei_arg = arg_name == DNNL_ARG_WEIGHTS
-                    || arg_name
-                            == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-            int mask = (is_wei_arg && e.policy != policy_t::COMMON)
-                    ? attr_args.get_mask(arg_name)
+            // Check if there's a arg with pre-defined mask in `attr_args`...
+            int args_mask = attr_args.get_mask(DNNL_ARG_ATTR_SCALES | arg_name);
+            // If it's non-default, use it, otherwise, deduce it.
+            int mask = args_mask != attr_args_t::undefined_mask
+                    ? args_mask
                     : attr_t::policy2mask(arg_name, e.policy);
 
             DNN_SAFE_V(dnnl_primitive_attr_set_scales(dnnl_attr, arg_name, mask,
@@ -1060,13 +1078,12 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (zp.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
-            // Weights mask differs from primitive to primitive, that's why it
-            // is stashed in `attr_args` at primitive creation time.
-            const bool is_wei_arg = arg_name == DNNL_ARG_WEIGHTS
-                    || arg_name
-                            == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-            int mask = (is_wei_arg && e.policy != policy_t::COMMON)
-                    ? attr_args.get_mask(DNNL_ARG_ATTR_ZERO_POINTS | arg_name)
+            // Check if there's a arg with pre-defined mask in `attr_args`...
+            int args_mask
+                    = attr_args.get_mask(DNNL_ARG_ATTR_ZERO_POINTS | arg_name);
+            // If it's non-default, use it, otherwise, deduce it.
+            int mask = args_mask != attr_args_t::undefined_mask
+                    ? args_mask
                     : attr_t::policy2mask(arg_name, e.policy);
 
             int ndims = static_cast<int>(e.groups.size());
@@ -1131,6 +1148,10 @@ dnnl_primitive_attr_t create_dnnl_attr(
     DNN_SAFE_V(dnnl_primitive_attr_set_deterministic(
             dnnl_attr, attr.deterministic.enabled));
 
+    if (!attr.dropout.is_def()) {
+        const auto &drop_mask_md = attr_args.get_md(DNNL_ARG_ATTR_DROPOUT_MASK);
+        DNN_SAFE_V(dnnl_primitive_attr_set_dropout(dnnl_attr, drop_mask_md));
+    }
     return dnnl_attr;
 }
 
@@ -1550,6 +1571,73 @@ float compute_binary(pk_t kind, float src0, float src1) {
         assert(!"operation not supported!");
     }
     return NAN;
+}
+
+// This function is a full copy of ref_dropout(...) from the library.
+void maybe_dropout(const attr_t &attr, float &val, int64_t offset,
+        const dnn_mem_t &dropout_m) {
+
+    auto philox_bernoulli = [](float p, int seed, int64_t d) {
+        auto philox4x32round = [](uint32_t *ctr, uint32_t *key) {
+            auto mulhilo32
+                    = [](uint32_t a, uint32_t b, uint32_t &hi, uint32_t &lo) {
+                          const uint64_t product = static_cast<uint64_t>(a) * b;
+                          lo = static_cast<uint32_t>(product);
+                          hi = static_cast<uint32_t>(product >> 32);
+                      };
+            constexpr static uint32_t PHILOX_M4x32_0 = 0xD2511F53;
+            constexpr static uint32_t PHILOX_M4x32_1 = 0xCD9E8D57;
+            uint32_t hi0, lo0;
+            uint32_t hi1, lo1;
+            mulhilo32(PHILOX_M4x32_0, ctr[0], hi0, lo0);
+            mulhilo32(PHILOX_M4x32_1, ctr[2], hi1, lo1);
+            ctr[0] = hi1 ^ ctr[1] ^ key[0];
+            ctr[1] = lo1;
+            ctr[2] = hi0 ^ ctr[3] ^ key[1];
+            ctr[3] = lo0;
+        };
+
+        auto philox4x32bumpkey = [](uint32_t *key) {
+            constexpr static uint32_t PHILOX_W4x32_0 = 0x9E3779B9;
+            constexpr static uint32_t PHILOX_W4x32_1 = 0xBB67AE85;
+            key[0] += PHILOX_W4x32_0;
+            key[1] += PHILOX_W4x32_1;
+        };
+
+        uint32_t x = (d & ~3L);
+        uint32_t ctr[4] = {x + 0, x + 1, x + 2, x + 3};
+        uint32_t key[2] = {uint32_t(seed), uint32_t(seed)};
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        p = std::max(std::min(p, 1.f), 0.f);
+        return (ctr[d & 3L] > double(std::numeric_limits<uint32_t>::max()) * p);
+    };
+
+    if (!attr.dropout.is_def()) {
+        float p = attr.dropout.p;
+        int seed = attr.dropout.seed;
+        float inv_q = (p != 1.f) ? 1.f / (1.f - p) : 0.f;
+        uint8_t m = philox_bernoulli(p, seed, offset);
+        dropout_m.set_elem(offset, m);
+        val = (m) ? val * inv_q : 0;
+    }
 }
 
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val,

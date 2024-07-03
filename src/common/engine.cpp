@@ -34,7 +34,7 @@
 #endif
 
 #ifdef DNNL_WITH_SYCL
-#include "sycl/sycl_engine.hpp"
+#include "xpu/sycl/engine_factory.hpp"
 #endif
 
 namespace dnnl {
@@ -58,7 +58,7 @@ static inline std::unique_ptr<engine_factory_t> get_engine_factory(
 #endif
 #ifdef DNNL_WITH_SYCL
     if (runtime_kind == runtime_kind::sycl)
-        return sycl::get_engine_factory(kind);
+        return xpu::sycl::get_engine_factory(kind);
 #endif
     return nullptr;
 }

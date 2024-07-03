@@ -16,7 +16,7 @@
 
 #include "gpu/intel/sycl/utils.hpp"
 #include "gpu/intel/ocl/ocl_engine.hpp"
-#include "sycl/sycl_engine_base.hpp"
+#include "gpu/intel/sycl/engine.hpp"
 
 #include "gpu/intel/sycl/l0/utils.hpp"
 #include "xpu/ocl/utils.hpp"
@@ -189,7 +189,7 @@ static status_t create_ocl_engine(
 status_t create_ocl_engine(
         std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
                 *ocl_engine,
-        const impl::sycl::sycl_engine_base_t *engine) {
+        const gpu::intel::sycl::engine_t *engine) {
     const auto sycl_ctx = engine->context();
     return create_ocl_engine(ocl_engine, engine->device(), &sycl_ctx);
 }

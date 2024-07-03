@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@
 #include <memory>
 #include <thread>
 
-#include "gpu/amd/sycl_hip_engine.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 
 namespace dnnl {
@@ -35,7 +35,7 @@ class hip_sycl_scoped_context_handler_t {
     bool need_to_recover_;
 
 public:
-    hip_sycl_scoped_context_handler_t(const sycl_hip_engine_t &);
+    hip_sycl_scoped_context_handler_t(const amd::engine_t &);
     // Destruct the scope p_context placed_context_.
     ~hip_sycl_scoped_context_handler_t() noexcept(false);
 

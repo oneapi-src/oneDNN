@@ -170,7 +170,8 @@ struct acl_matmul_t : public primitive_t {
             }
 
             auto scratchpad = scratchpad_registry().registrar();
-            CHECK(acl_matmul_utils::init_scratchpad(scratchpad, amp_, dst_md_));
+            CHECK(acl_matmul_utils::init_scratchpad(
+                    scratchpad, amp_, src_md_, weights_md_, dst_md_));
 
             return status::success;
         }

@@ -78,8 +78,8 @@
 #endif
 __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst POST_OP_ARGS, __global SPAD_DATA_T *scratchpad,
-        global float *a_scales, global float *b_scales, global float *c_scales,
-        int scale_stride, global int *dst_zp) {
+        global float *a_scales, global WEI_SCALES_DATA_T *b_scales,
+        global float *c_scales, int scale_stride, global int *dst_zp) {
     const uint d0 = GWS_GET_D0();
     const uint d1 = GWS_GET_D1();
     const uint d2 = GWS_GET_D2();
@@ -106,11 +106,14 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
 #if A_SCALES || B_SCALES
 #define A_SCALE (A_SCALES ? a_scales[0] : 1)
 #if NDIMS == 2
-        const float b_scale = B_SCALES ? b_scales[scale_stride * d1] : 1;
+        const float b_scale
+                = B_SCALES ? WEI_SCALES_TO_REF(b_scales[scale_stride * d1]) : 1;
 #elif NDIMS == 3
-        const float b_scale = B_SCALES ? b_scales[scale_stride * d2] : 1;
+        const float b_scale
+                = B_SCALES ? WEI_SCALES_TO_REF(b_scales[scale_stride * d2]) : 1;
 #elif NDIMS == 4
-        const float b_scale = B_SCALES ? b_scales[scale_stride * d3] : 1;
+        const float b_scale
+                = B_SCALES ? WEI_SCALES_TO_REF(b_scales[scale_stride * d3]) : 1;
 #endif
         acc *= A_SCALE * b_scale;
 #endif

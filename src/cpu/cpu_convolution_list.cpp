@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2024 Intel Corporation
-* Copyright 2020-2023 Arm Ltd. and affiliates
+* Copyright 2020-2024 Arm Ltd. and affiliates
 * Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -183,6 +183,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AVX512(gemm_bf16_convolution_fwd_t<bf16>)
             CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx2_vnni_2>)
             CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx2_vnni_2>)
+            CPU_INSTANCE_AARCH64_ACL(acl_indirect_gemm_convolution_fwd_t)
             CPU_INSTANCE(ref_convolution_fwd_t)
             CPU_INSTANCE(ref_fused_convolution_fwd_t)
             nullptr,

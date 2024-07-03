@@ -151,8 +151,8 @@ status_t gen_pooling_fwd_t::init(impl::engine_t *engine) {
 
     while (!kernel_) {
         try {
-            kernel_ = make_kernel<pooling_kernel_t>(this, engine, cfg_,
-                    "gen_pooling_fwd", kernel_info_, grf_mode_t::any, *pd());
+            kernel_ = make_kernel<pooling_kernel_t>(
+                    this, engine, cfg_, "gen_pooling_fwd", kernel_info_, *pd());
             break;
         } catch (const ngen::out_of_registers_exception &exc) {
             UNUSED(exc);

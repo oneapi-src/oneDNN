@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,8 +22,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/deconvolution_pd.hpp"
+#include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_convolution_pd.hpp"
-#include "gpu/amd/sycl_hip_engine.hpp"
 #include "gpu/amd/sycl_hip_utils.hpp"
 
 namespace dnnl {

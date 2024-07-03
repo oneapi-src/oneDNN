@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Arm Ltd. and affiliates
+* Copyright 2021-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,12 +84,15 @@ struct acl_indirect_gemm_convolution_fwd_t : public primitive_t {
 
             const bool is_fp16_ok = expect_data_types(f16, f16, f16, f16, undef)
                     && attr()->has_default_values(smask_t::post_ops, f16);
+            const bool is_bf16_ok
+                    = expect_data_types(bf16, bf16, bf16, bf16, undef)
+                    && attr_.post_ops_.len() == 0;
             const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
                     && attr()->has_default_values(
                             smask_t::post_ops | smask_t::fpmath_mode, f32);
             bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(true, is_fp16_ok, is_fp32_ok)
+                    && utils::one_of(true, is_fp16_ok, is_bf16_ok, is_fp32_ok)
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
