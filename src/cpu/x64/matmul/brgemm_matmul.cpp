@@ -749,7 +749,7 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                     = brgmm_ctx.get_data_B_kn_ptr(B_data_batch_ptr, k, n);
             p.src_ptr = (void *)B_data_ptr;
             p.bitmask_ptr
-                    = (void *)brgmm_ctx.get_data_B_bitmask_ptr(B_data_ptr);
+                    = (void *)brgmm_ctx.get_data_B_bitmask_ptr(b_idx, k, n);
             p.dst_ptr = (void *)brgmm_ctx.get_buf_B_ptr(ithr, gb, n_blk_idx);
             (*sparse_decompress_kernel_)(&p);
         }
@@ -1171,17 +1171,20 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         return batch_ptr + A_strides_[1] * m + A_strides_[0] * k;
     }
 
-    const char *get_data_B_kn_ptr(const char *batch_ptr, int k, int n) const {
+    dim_t get_data_B_kn_off(int k, int n) const {
         int dt_b_k_blk = bgmmc_.is_bf32
                 ? data_type_vnni_simd_elems(f32, bgmmc_.isa)
                 : bgmmc_.wei_k_blk;
         int k_idx = bgmmc_.blocked_B ? k / dt_b_k_blk : k;
         int n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
         const int int4_fac = bgmmc_.is_int4_weights ? 2 : 1;
-        const char *b_ptr = batch_ptr
-                + (B_strides_[1] * k_idx + B_strides_[0] * n_idx
-                          + get_data_B_off_within_block(k, n))
-                        / int4_fac;
+        return (B_strides_[1] * k_idx + B_strides_[0] * n_idx
+                       + get_data_B_off_within_block(k, n))
+                / int4_fac;
+    }
+
+    const char *get_data_B_kn_ptr(const char *batch_ptr, int k, int n) const {
+        const char *b_ptr = batch_ptr + get_data_B_kn_off(k, n);
         if (bgmmc_.packed_sparse_weights) {
             const dim_t blk_num
                     = (b_ptr - data_B_ptr_) / B_packed_sparse_block_size_;
@@ -1191,10 +1194,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         return b_ptr;
     }
 
-    const char *get_data_B_batch_ptr(int b_idx) const {
+    dim_t get_data_B_batch_off(int b) const {
         using namespace format_tag;
         dim_t b_off = 0;
-        const int b = get_bb_idx(b_idx, bgmmc_.bcast_B_desc);
         if (one_of(bgmmc_.wei_tag, acbd, adbc)
                 /* this is a special case when weights can be represented
                    by plain and transposed tags due to a batch dim equal to 1 */
@@ -1213,12 +1215,19 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             b_off = wei_d_.off_l(b * bgmmc_.K * bgmmc_.N) * bgmmc_.b_dt_sz;
         }
         if (bgmmc_.is_int4_weights) b_off = b_off / 2;
-        return data_B_ptr_ + b_off;
+        return b_off;
     }
 
-    const char *get_data_B_bitmask_ptr(const char *cur_data_B_ptr) const {
+    const char *get_data_B_batch_ptr(int b_idx) const {
+        const int b = get_bb_idx(b_idx, bgmmc_.bcast_B_desc);
+        return data_B_ptr_ + get_data_B_batch_off(b);
+    }
+
+    const char *get_data_B_bitmask_ptr(int b, int k, int n) const {
         assert(bgmmc_.packed_sparse_weights);
-        const auto bitmask_off = (cur_data_B_ptr - data_B_ptr_) / CHAR_BIT;
+        const dim_t cur_data_B_off
+                = get_data_B_batch_off(b) + get_data_B_kn_off(k, n);
+        const auto bitmask_off = cur_data_B_off / CHAR_BIT;
         return data_B_bitmask_ptr_ + bitmask_off;
     }
 
