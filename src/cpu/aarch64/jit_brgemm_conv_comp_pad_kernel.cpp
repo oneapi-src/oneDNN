@@ -32,8 +32,10 @@ namespace jit_uni_brgemm_conv_comp_pad_kernel {
 
 #define GET_OFF(field) offsetof(jit_brgemm_conv_comp_pad_call_s, field)
 
-jit_uni_brgemm_conv_comp_pad_kernel_t::jit_uni_brgemm_conv_comp_pad_kernel_t(
-        const jit_brgemm_conv_conf_t &ajcp)
+template <cpu_isa_t isa>
+jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::
+        jit_uni_brgemm_conv_comp_pad_kernel_t(
+                const jit_brgemm_conv_conf_t &ajcp)
     : jcp_(ajcp)
     , inp_dsz_(jcp_.wei_dsz)
     , out_dsz_(jcp_.acc_dsz)
@@ -44,20 +46,27 @@ jit_uni_brgemm_conv_comp_pad_kernel_t::jit_uni_brgemm_conv_comp_pad_kernel_t(
     , inp_kd_sz_(static_cast<size_t>(jcp_.kh) * inp_kh_sz_)
     , isa_max_regs(isa_num_vregs(jcp_.isa)) {}
 
-size_t jit_uni_brgemm_conv_comp_pad_kernel_t::out_oc_offset(const int n) const {
+template <cpu_isa_t isa>
+size_t jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::out_oc_offset(
+        const int n) const {
     return static_cast<size_t>(out_dsz_) * n * m_block2_;
 }
-size_t jit_uni_brgemm_conv_comp_pad_kernel_t::inp_ic_offset(
+
+template <cpu_isa_t isa>
+size_t jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::inp_ic_offset(
         const int m_block, const int icb, const int m, const int n) const {
     return static_cast<size_t>(inp_dsz_) * n * m_block2_ * last_ic_block_
             + ((icb * m_block) + m) * inp_ic_sz_;
 }
-Xbyak_aarch64::ZReg jit_uni_brgemm_conv_comp_pad_kernel_t::accum(
+
+template <cpu_isa_t isa>
+Xbyak_aarch64::ZReg jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::accum(
         const int n_block, const int m, const int n) const {
     return Xbyak_aarch64::ZReg(m * n_block + n);
 }
 
-void jit_uni_brgemm_conv_comp_pad_kernel_t::store_accumulators(
+template <cpu_isa_t isa>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::store_accumulators(
         const int m_block, const int n_block) {
     if (jcp_.src_zero_point) {
         for_(int m = 0; m < m_block; m++)
@@ -100,7 +109,8 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t::store_accumulators(
     }
 }
 
-void jit_uni_brgemm_conv_comp_pad_kernel_t::zero_accumulators(
+template <cpu_isa_t isa>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::zero_accumulators(
         const int m_block, const int n_block) {
     for_(int m = 0; m < m_block; m++)
     for (int n = 0; n < n_block; n++) {
@@ -109,7 +119,8 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t::zero_accumulators(
     }
 }
 
-void jit_uni_brgemm_conv_comp_pad_kernel_t::compute(const int ic_step,
+template <cpu_isa_t isa>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::compute(const int ic_step,
         const int m_block, const int n_block, const int m_tail,
         const bool is_mb_tail) {
 
@@ -126,7 +137,8 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t::compute(const int ic_step,
     }
 }
 
-void jit_uni_brgemm_conv_comp_pad_kernel_t::icb_loop(const int icb,
+template <cpu_isa_t isa>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::icb_loop(const int icb,
         const int icb_tail, const int ic_step, const int m_block,
         const int mb_tail, const int n_block) {
     Xbyak_aarch64::Label label_icb_loop, label_loop_end;
@@ -149,7 +161,8 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t::icb_loop(const int icb,
     if (icb_tail) compute(ic_step, mb_tail, n_block, icb_tail, true);
 }
 
-void jit_uni_brgemm_conv_comp_pad_kernel_t::khw_loop(const int icb,
+template <cpu_isa_t isa>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::khw_loop(const int icb,
         const int icb_tail, const int ic_step, const int m_block,
         const int mb_tail, const int n_block) {
     Xbyak_aarch64::Label label_kw_loop, label_kw_end, label_kh_loop,
@@ -181,13 +194,15 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t::khw_loop(const int icb,
     L_aligned(label_kh_end);
 }
 
-void jit_uni_brgemm_conv_comp_pad_kernel_t::load_params() {
+template <cpu_isa_t isa>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::load_params() {
     add_imm(reg_in, param1, GET_OFF(ptr_in), X_TMP_0);
     add_imm(reg_zp_comp_out, param1, GET_OFF(ptr_zp_out), X_TMP_1);
     add_imm(reg_comp_out, param1, GET_OFF(ptr_cp_out), X_TMP_2);
 }
 
-int jit_uni_brgemm_conv_comp_pad_kernel_t::compute_ic_step(
+template <cpu_isa_t isa>
+int jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::compute_ic_step(
         const int m_max_regs, const int m_block, const int n_block) const {
     int best_ic_step = 1;
     float best_block_eff = 0.f;
@@ -217,7 +232,8 @@ int jit_uni_brgemm_conv_comp_pad_kernel_t::compute_ic_step(
     return best_ic_step;
 }
 
-void jit_uni_brgemm_conv_comp_pad_kernel_t::generate() {
+template <cpu_isa_t isa>
+void jit_uni_brgemm_conv_comp_pad_kernel_t<isa>::generate() {
     preamble();
 
     load_params();
@@ -280,6 +296,8 @@ void jit_uni_brgemm_conv_comp_pad_kernel_t::generate() {
     postamble();
 }
 
+template struct jit_uni_brgemm_conv_comp_pad_kernel_t<sve_512>;
+template struct jit_uni_brgemm_conv_comp_pad_kernel_t<sve_256>;
 } // namespace jit_uni_brgemm_conv_comp_pad_kernel
 
 } // namespace aarch64

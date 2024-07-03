@@ -1876,7 +1876,16 @@ void jit_brgemm_kernel_t::bdb_loop() {
 }
 
 void jit_brgemm_kernel_t::generate() {
+    size_t simd_w_ = (brg.isa_impl == sve_512)
+
+            ? (cpu_isa_traits<sve_512>::vlen / sizeof(float))
+            : (cpu_isa_traits<sve_256>::vlen / sizeof(float));
     preamble();
+    if (simd_w_ != cpu_sveLen / sizeof(float)) {
+        set_preg(P_ALL_ONE.b, simd_w_ * 4, X_TMP_0, X_TMP_1);
+        set_preg(ld_full_mask.b, simd_w_ * 4, X_TMP_0, X_TMP_1);
+    } else
+        ptrue(ld_full_mask.b);
 
     mov(x7, x0);
     mov(x6, x1);
@@ -1896,7 +1905,6 @@ void jit_brgemm_kernel_t::generate() {
                              brg.req_s8s8_compensation)
             && IMPLICATION(!vpad_exist, brg.req_cal_comp_pads);
 
-    ptrue(ld_full_mask.b);
     set_preg(ld_tail_mask.s, brg.ldb_tail, X_TMP_0, X_TMP_1);
     if (brg.is_int8 && !brg.has_int8_vnni) { assert(!"unsupported\n"); }
 
