@@ -90,13 +90,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         const compute::named_buffer_t &stat_buf,
         const compute::named_buffer_t &ss_buf) {
 
-    int select_work_group_kernel = gpu_utils::dev_getenv("work_group", -1);
-    select_work_group_kernel
-            = select_work_group_kernel != -1 && select_work_group_kernel;
-    int max_unroll = gpu_utils::dev_getenv("unroll", -1);
-    if (max_unroll == -1) { max_unroll = 12; }
-    int reuse = gpu_utils::dev_getenv("reuse", -1);
-    int reuse_private_mem = gpu_utils::dev_getenv("reuse_private_mem", 999);
+    int max_unroll = gpu_utils::dev_getenv("lnorm_max_unroll", 12);
 
     conf->use_scale = pd->use_scale();
     conf->use_shift = pd->use_shift();
@@ -139,15 +133,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     const auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
             pd->attr()->gpu_attr_.get());
 
-    size_t lnorm_bytes
-            = pd->norm_axis() * types::data_type_size(input_buf.data_type);
-    size_t tensor_size
-            = src_mdw.nelems() * types::data_type_size(input_buf.data_type);
-    size_t cache_size = compute_engine->device_info()->l3_cache_size();
-
     std::unique_ptr<lws_strategy_t> lws_strategy;
-    conf->sg_size = 0;
-    conf->vector_size = 0;
     bool found_compatible_sg_and_vector_size = false;
 
     for (int sg_size : {32, 16}) {
@@ -175,64 +161,78 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         return status::unimplemented;
     }
 
-    float threads_launched_for_wg_kernel = (float)pd->norm_axis()
-            / conf->vector_size * (src_mdw.nelems() / pd->norm_axis())
-            / conf->sg_size;
-    float threads_launched_for_sg_kernel = (src_mdw.nelems() / pd->norm_axis());
     auto di = compute_engine->device_info();
 
-    //printf("sg: %f wg: %f ", threads_launched_for_sg_kernel, threads_launched_for_wg_kernel);
-    //printf("sg waves: %f wg waves:%f \n", di->eu_count()*8/threads_launched_for_sg_kernel, di->eu_count()*8/threads_launched_for_wg_kernel);
-
-    int large_grf = gpu_utils::dev_getenv("large_grf", 0);
-    float sg_waves = threads_launched_for_sg_kernel / di->hw_threads(large_grf);
-    float wg_waves = threads_launched_for_wg_kernel / di->hw_threads(large_grf);
-    float sg_full_waves, wg_full_waves;
-    float sg_partial_waves = modf(sg_waves, &sg_full_waves);
-    float wg_partial_waves = modf(wg_waves, &wg_full_waves);
-
-    //printf("hw_threads(): %d\n", di->hw_threads());
-    //printf("sg full: %f partial: %f wg full:%f partial: %f| ", sg_full_waves, sg_partial_waves, wg_full_waves, wg_partial_waves);
     int num_sg_per_wg
             = (int)pd->norm_axis() / (conf->sg_size * conf->vector_size);
-    if (sg_waves < 0.8) {
-        select_work_group_kernel = wg_waves > sg_waves && num_sg_per_wg > 4;
-    } else {
-        select_work_group_kernel = false;
-    }
 
-    if ((pd->norm_axis() / conf->vector_size)
-            > compute_engine->device_info()->max_wg_size(false)) {
-        select_work_group_kernel = false;
-    }
+    float threads_launched_for_wg_kernel = num_sg_per_wg * pd->across_axis();
+    float threads_launched_for_sg_kernel = pd->across_axis();
 
+    float sg_waves_small_grf
+            = threads_launched_for_sg_kernel / di->hw_threads(false);
+    float wg_waves = threads_launched_for_wg_kernel / di->hw_threads(false);
 
-    //printf("wg_waves(%f) > sg_waves(%f) && num_sg_per_wg(%d) > 4 || ((tensor_size(%zu) / cache_size(%zu) >= 0.75) && lnorm_bytes(%zu) > 1024)", wg_waves, sg_waves , num_sg_per_wg, tensor_size , cache_size , lnorm_bytes);
-    if ((select_work_group_kernel || (tensor_size / cache_size >= 0.75))
-            && lnorm_bytes > 1280 && !(num_sg_per_wg == 1)) {
-        //printf("WG: ");
+    size_t lnorm_bytes
+            = pd->norm_axis() * types::data_type_size(input_buf.data_type);
+    size_t tensor_size
+            = src_mdw.nelems() * types::data_type_size(input_buf.data_type);
+    size_t cache_size = compute_engine->device_info()->l3_cache_size();
+
+    bool sg_kernel_utilization_low = sg_waves_small_grf < 0.50f;
+    bool wg_has_higher_eu_utilization = wg_waves > sg_waves_small_grf;
+    bool wg_barrier_overhead_overcomes_unroll
+            = num_sg_per_wg > 3 || num_sg_per_wg > max_unroll;
+    bool wg_kernel_launch_configuration_within_device_bounds
+            = static_cast<size_t>(pd->norm_axis() / conf->vector_size)
+            < compute_engine->device_info()->max_wg_size(false);
+    bool src_tensor_doesnt_fit_in_cache
+            = (static_cast<float>(tensor_size) / cache_size) >= 0.75;
+    bool lnorm_axis_is_large = lnorm_bytes > 1280;
+
+    conf->select_work_group_kernel
+            = wg_kernel_launch_configuration_within_device_bounds
+            && ((sg_kernel_utilization_low && wg_has_higher_eu_utilization
+                        && wg_barrier_overhead_overcomes_unroll)
+                    || (src_tensor_doesnt_fit_in_cache && lnorm_axis_is_large));
+
+    conf->select_work_group_kernel = gpu_utils::dev_getenv(
+            "lnorm_select_wg_kernel", conf->select_work_group_kernel);
+    if (conf->select_work_group_kernel) {
         conf->unroll = 1;
         conf->private_mem_size = 0;
         conf->large_grf = false;
         conf->wg_size = pd->norm_axis() / conf->vector_size;
         lws_strategy.reset(
                 new default_lws_strategy_t(compute_engine, gpu_attr));
-
-        conf->reuse = true;
     } else {
-        //printf("SG: ");
         conf->unroll = std::min<int>(max_unroll,
                 (int)pd->norm_axis() / (conf->sg_size * conf->vector_size));
 
         conf->wg_size = conf->sg_size;
-        conf->large_grf = sg_waves < 0.8 || conf->unroll > 2;
+        conf->large_grf = conf->unroll > 5;
 
-        //printf("GRF: %d ", conf->large_grf);
         conf->private_mem_size
                 = pd->norm_axis() / (conf->sg_size * conf->vector_size);
         lws_strategy.reset(new single_subgroup_lws_strategy_t(
                 compute_engine, gpu_attr, conf->sg_size));
     }
+    conf->unroll = gpu_utils::dev_getenv("lnorm_unroll", conf->unroll);
+    conf->large_grf = gpu_utils::dev_getenv("lnorm_large_grf", conf->large_grf);
+
+    VDEBUGINFO(15, primitive, lnorm,
+            "%s: wg_kernel_launch_configuration_within_device_bounds(%d) && "
+            "((sg_kernel_utilization_low(%d) && "
+            "wg_has_higher_eu_utilization(%d) && "
+            "wg_barrier_overhead_overcomes_unroll(%d)) || "
+            "(src_tensor_doesnt_fit_in_cache(%d) && lnorm_axis_is_large(%d)) "
+            "):",
+            conf->select_work_group_kernel ? "work_group kernel"
+                                           : "sub_group_kernel",
+            wg_kernel_launch_configuration_within_device_bounds,
+            sg_kernel_utilization_low, wg_has_higher_eu_utilization,
+            wg_barrier_overhead_overcomes_unroll,
+            src_tensor_doesnt_fit_in_cache, lnorm_axis_is_large);
 
     compute::reusable_dispatch_config_t dispatch_config(compute_engine, dims);
     CHECK(dispatch_config.register_buffer(input_buf));
@@ -292,11 +292,10 @@ reusable_vectorized_lnorm_params_t::get_kernel_ctx() const {
     kernel_ctx.define_int("SG_SIZE", sg_size);
     kernel_ctx.define_int("VECT_DT_N", vector_size);
     kernel_ctx.define_int("N_UNROLL", unroll);
-    kernel_ctx.define_int("REUSE", reuse);
     kernel_ctx.define_int("PVT_MEM_SIZE", private_mem_size);
 
     kernel_ctx.define_int("WG_SIZE", wg_size);
-    if (reuse) {
+    if (select_work_group_kernel) {
         kernel_ctx.add_option("-DGROUP_ADD=work_group_reduce_add");
         kernel_ctx.define_int("GROUP_STRIDE", INT32_MAX);
     } else {
@@ -340,43 +339,18 @@ status_t reusable_vectorized_layer_normalization_fwd_t::execute_forward(
     lnorm_arg_list.append(pd()->desc()->layer_norm_epsilon);
     lnorm_arg_list.append(src_scale);
     lnorm_arg_list.append(dst_scale);
-    if (conf.reuse) {
-        lnorm_arg_list.append(1);
-    } else {
-        lnorm_arg_list.append((int)utils::div_up(
-                pd()->norm_axis(), conf.sg_size * conf.vector_size));
-    }
     lnorm_arg_list.append(1.f / (pd()->norm_axis()));
 
     lnorm_arg_list.append(rt_conf.gws_params.get());
 
-    //printf("reuse: %d|  ", conf.reuse);
-    if (conf.reuse) {
-        compute::nd_range_t gws_nd_range_calc(
-                {static_cast<size_t>(pd()->norm_axis() / conf.vector_size),
-                        rt_conf.gws_params.nd_range.global_range().data()[1],
-                        rt_conf.gws_params.nd_range.global_range().data()[2]},
-                {static_cast<size_t>(pd()->norm_axis() / conf.vector_size), 1,
-                        1});
+    compute::nd_range_t gws_nd_range_calc(
+            {static_cast<size_t>(conf.wg_size),
+                    rt_conf.gws_params.nd_range.global_range().data()[1],
+                    rt_conf.gws_params.nd_range.global_range().data()[2]},
+            {static_cast<size_t>(conf.wg_size), 1, 1});
 
-        //std::cout << "rt_conf.gws_params.nd_range.str():  "
-        //<< rt_conf.gws_params.nd_range.str() << "\n";
-
-        //std::cout << "gws_nd_range_calc: " << gws_nd_range_calc.str() << " vector size: " << conf.vector_size <<  "\n";
-        return parallel_for(ctx, gws_nd_range_calc, calculate_lnorm_kernel_,
-                lnorm_arg_list);
-    } else {
-        compute::nd_range_t gws_nd_range_calc(
-                {static_cast<size_t>(conf.sg_size),
-                        //std::max<size_t>((size_t)3587, rt_conf.gws_params.nd_range.global_range().data()[1]),
-                        rt_conf.gws_params.nd_range.global_range().data()[1],
-                        rt_conf.gws_params.nd_range.global_range().data()[2]},
-                {static_cast<size_t>(conf.sg_size), 1, 1});
-
-        //std::cout << "gws_nd_range_calc: " << gws_nd_range_calc.str() << " vector size: " << conf.vector_size <<  "\n";
-        return parallel_for(ctx, gws_nd_range_calc, calculate_lnorm_kernel_,
-                lnorm_arg_list);
-    }
+    return parallel_for(
+            ctx, gws_nd_range_calc, calculate_lnorm_kernel_, lnorm_arg_list);
 }
 
 } // namespace ocl

@@ -56,11 +56,15 @@ struct reusable_vectorized_lnorm_params_t
     compute::kernel_ctx_t get_kernel_ctx() const;
 
     compute::dispatch_compile_params_t gws_params;
+
     /// Number of work items in a sub-group
-    int sg_size;
+    uint32_t sg_size;
+
+    /// The number of work-items in the work group
+    uint32_t wg_size = 0;
 
     /// Number of elements to process in each work-item
-    int vector_size;
+    uint32_t vector_size;
 
     /// The number of times the loops need to unroll
     int unroll;
@@ -78,13 +82,16 @@ struct reusable_vectorized_lnorm_params_t
     /// Saves the mean and variance to memory
     bool save_stats = false;
 
-    bool reuse = false;
+    /// Select the work_group based reduction kernel
+    bool select_work_group_kernel = false;
 
-    uint8_t private_mem_size = 0;
+    /// Use the cl-intel-256-GRF-per-thread flag
     bool large_grf = false;
-    uint32_t wg_size = 0;
 
-    //uint8_t padding[1] = {false};
+    /// The number of elements to allocate in the val array in the kernel
+    uint8_t private_mem_size = 0;
+
+    uint8_t padding[5] = {false};
 };
 
 struct reusable_vectorized_lnorm_runtime_params_t {
