@@ -21028,8 +21028,8 @@ void gemm_kernel_generator_t<hw>::gemmAutoTypeConversions(
     auto &Ta_ext = problem.Ta_ext, &Tb_ext = problem.Tb_ext;
 
     // Weights decompression
-    if ((Ta.isInt8() || Ta.isInt4()) && Tc.isFP()) Ta = Tb.asSigned();
-    if ((Tb.isInt8() || Tb.isInt4()) && Tc.isFP()) Tb = Ta.asSigned();
+    if ((Ta.isInt8() || Ta.isInt4()) && Tb.isFP() && Tc.isFP()) Ta = Tb.asSigned();
+    if ((Tb.isInt8() || Tb.isInt4()) && Ta.isFP() && Tc.isFP()) Tb = Ta.asSigned();
 
     if (Ta == Ta_ext.asSigned()) Ta = Ta_ext;
     if (Tb == Tb_ext.asSigned()) Tb = Tb_ext;
