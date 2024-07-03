@@ -109,7 +109,7 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
     gemm_pd_ = *(++it_gemm_without_po);
     VDISPATCH_GEMM(
             !(!gemm_pd_ || strstr(gemm_pd_->name(), skip_impl) != nullptr),
-            VERBOSE_PRIMITIVE_CREATION_FAIL, gemm_pd_->name());
+            VERBOSE_PRIMITIVE_CREATION_FAIL, gemm_pd_ ? gemm_pd_->name() : "");
 
     //set tags for end user
     desc_.a_desc = *gemm_pd_->arg_md(DNNL_ARG_SRC_0);
