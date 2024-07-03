@@ -562,11 +562,11 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy,
     // No need to use split remainder handling for 2D block accesses as there's no penalty for masking.
     if (isBlock2D(strategy.A.accessType)
             && (!strategy.prefetchA
-                    || isBlock2D(strategy.A_prefetch.accessType)))
+                    || isBlock2D(strategy.A_prefetch.accessType)) && !problem.quantized2DA())
         strategy.remHandling[LoopM] = RemainderHandling::General;
     if (isBlock2D(strategy.B.accessType)
             && (!strategy.prefetchB
-                    || isBlock2D(strategy.B_prefetch.accessType)))
+                    || isBlock2D(strategy.B_prefetch.accessType)) && !problem.quantized2DB())
         strategy.remHandling[LoopN] = RemainderHandling::General;
 
     // Also don't split remainder handling if padded.
