@@ -80,16 +80,14 @@ struct acl_eltwise_fwd_t : public primitive_t {
                     && src_d == memory_desc_wrapper(dst_md());
             if (!ok) return status::unimplemented;
 
-            // Workaround for the nan-value caused by tanh of ACL for fp16
-            // ARM-software/ComputeLibrary#998. Workaround for the inaccuracies
-            // caused by logistic/soft_relu/elu of ACL for fp16.
+            // Workaround for the inaccuracies caused by
+            // logistic/soft_relu/elu/gelu_erf of ACL for fp16.
             // TODO: Relax the error bounds in eltwise checks, or rework these
             // fp16 operations in ACL for better accuracy.
             using namespace dnnl::impl::alg_kind;
             if (src_d.data_type() == f16
-                    && utils::one_of(desc_.alg_kind, eltwise_tanh,
-                            eltwise_logistic, eltwise_soft_relu, eltwise_elu,
-                            eltwise_gelu_erf)) {
+                    && utils::one_of(desc_.alg_kind, eltwise_logistic,
+                            eltwise_soft_relu, eltwise_elu, eltwise_gelu_erf)) {
                 return status::unimplemented;
             }
 
