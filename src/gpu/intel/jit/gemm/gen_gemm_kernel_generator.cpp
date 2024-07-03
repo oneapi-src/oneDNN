@@ -27923,6 +27923,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
 
                                     auto dreg1 = dreg;
                                     int effDCP = dcrosspack;
+                                    InstructionModifier writeCombine;
                                     if (int4Zip) {
                                         int delems1;
                                         const RegisterBlock *dblockPtr1;
@@ -27935,6 +27936,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                 dj1, dst, delems1, dblockPtr1,
                                                 qCX);
                                         nelems_real *= 2;
+                                        if (elementDiff(hw, dreg1, dreg) == 1)
+                                            writeCombine |= Atomic;
                                     } else {
                                         dreg1.setOffset(
                                                 dreg1.getOffset() + dcrosspack);
@@ -27970,7 +27973,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                         sreg.ub()(
                                                                 scrosspack_byte),
                                                         4);
-                                                asr(n_bytes | modMov,
+                                                asr(n_bytes | modMov
+                                                                | writeCombine,
                                                         dreg1(effDCP),
                                                         sreg.b()(
                                                                 scrosspack_byte),
@@ -27996,7 +28000,8 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                         dreg(effDCP / 2),
                                                         tmp0.ub()(2));
                                             } else {
-                                                and_(n_bytes | modMov,
+                                                and_(n_bytes | modMov
+                                                                | writeCombine,
                                                         dreg(effDCP),
                                                         sreg.ub()(
                                                                 scrosspack_byte),
