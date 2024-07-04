@@ -117,5 +117,8 @@
 # layernorm with zp != 0
 --reset --op-attrs=2:zps:1 --case=pattern/int8/int8_lnorm_gelu_quantize.json
 --reset --case=pattern/int8/int8_lnorm_multiply_quantize.json
+--reset --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
+# layernorm with zp != 0 and broadcast binary
+--reset --op-attrs=3:zps:1  --in-shapes=5:512 --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
 #softmax
 --reset --case=pattern/int8/int8_softmax_add.json
