@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include "common/verbose.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
-#include "cpu/x64/jit_ncsp_conv.hpp"
+#include "cpu/x64/jit_uni_ncsp_convolution.hpp"
 
 #define VCHECK_CONV(cond, msg, ...) \
     VCONDCHECK(primitive, create, dispatch, convolution, (cond), \
@@ -66,7 +66,8 @@ format_tag_t get_nspc_tag(int ndims) {
 }
 } // namespace
 
-status_t ncsp_convolution_fwd_t::pd_t::init_convolution(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_convolution(
+        engine_t *engine) {
     // create a convolution descriptor with activations in nspc format
     convolution_desc_t nspc_conv_d = convolution_desc_t();
     format_tag_t nspc_tag = get_nspc_tag(ndims());
@@ -101,11 +102,10 @@ status_t ncsp_convolution_fwd_t::pd_t::init_convolution(engine_t *engine) {
                 dst_pre_reorder_pd_, engine, dst_md(), &nspc_dst_md_));
     CHECK(reorder_primitive_desc_create(
             dst_post_reorder_pd_, engine, &nspc_dst_md_, dst_md()));
-    // VINFO_CONV("embedded primitive implementation is %s", nspc_conv_pd_->name());
     return status::success;
 }
 
-status_t ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
     const bool to_matmul = true;
     CHECK(reduce.reshape_activations(
             &matmul_dst_md_, dst_md(0), to_matmul, true));
@@ -125,14 +125,13 @@ status_t ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
     primitive_desc_iface_t *matmul_pdi;
     primitive_attr_t _attr;
     post_ops_t _po;
-    if (bias_po_ && with_bias()) {
+    if (with_bias()) {
         CHECK(_po.append_binary(alg_kind::binary_add, &matmul_bia_md_));
         CHECK(_attr.set_post_ops(_po));
     }
     CHECK(dnnl_matmul_primitive_desc_create(&matmul_pdi, engine,
-            &matmul_src_md_, &matmul_wei_md_,
-            !bias_po_ && with_bias() ? &matmul_bia_md_ : nullptr,
-            &matmul_dst_md_, &_attr));
+            &matmul_src_md_, &matmul_wei_md_, nullptr, &matmul_dst_md_,
+            &_attr));
     matmul_pd_ = matmul_pdi->impl();
 
     if (weights_md_.format_kind == format_kind::any)
@@ -142,7 +141,7 @@ status_t ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
     return status::success;
 }
 
-status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
     using namespace data_type;
     using namespace utils;
 
@@ -161,10 +160,6 @@ status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
     VCHECK_CONV(memory_desc_matches_tag(*dst_md(), get_ncsp_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
 
-    // TODO: support bias and attributes in matmul-based convolution
-    // (bias can be supported via binary postop, attr might need translation)
-    is_matmul_ = reduce.is_gemm() && attr()->has_default_values();
-
     if (is_matmul_)
         CHECK(init_matmul(engine));
     else
@@ -175,7 +170,7 @@ status_t ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
-void ncsp_convolution_fwd_t::pd_t::init_scratchpad() {
+void jit_uni_ncsp_convolution_fwd_t::pd_t::init_scratchpad() {
     using namespace memory_tracking::names;
     auto scratchpad = scratchpad_registry().registrar();
     if (is_matmul_) {
@@ -201,7 +196,7 @@ void ncsp_convolution_fwd_t::pd_t::init_scratchpad() {
     }
 }
 
-status_t ncsp_convolution_fwd_t::init(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_fwd_t::init(engine_t *engine) {
     if (pd()->matmul_pd_)
         CHECK(pd()->matmul_pd_->create_primitive(matmul_p_, engine));
     if (pd()->nspc_conv_pd_)
@@ -217,9 +212,10 @@ status_t ncsp_convolution_fwd_t::init(engine_t *engine) {
     return status::success;
 }
 
-status_t ncsp_convolution_fwd_t::reorder_activations(const exec_ctx_t &ctx,
-        const std::shared_ptr<primitive_t> prim, engine_t *engine,
-        const memory_arg_t &in, const memory_arg_t &out) const {
+status_t jit_uni_ncsp_convolution_fwd_t::reorder_activations(
+        const exec_ctx_t &ctx, const std::shared_ptr<primitive_t> &prim,
+        engine_t *engine, const memory_arg_t &in,
+        const memory_arg_t &out) const {
     using namespace memory_tracking::names;
     exec_args_t r_args;
     r_args[DNNL_ARG_SRC] = in;
@@ -233,7 +229,7 @@ status_t ncsp_convolution_fwd_t::reorder_activations(const exec_ctx_t &ctx,
     return status::success;
 }
 
-status_t ncsp_convolution_fwd_t::execute_convolution(
+status_t jit_uni_ncsp_convolution_fwd_t::execute_convolution(
         const exec_ctx_t &ctx) const {
 
     using namespace memory_tracking::names;
@@ -279,7 +275,8 @@ status_t ncsp_convolution_fwd_t::execute_convolution(
     return status::success;
 }
 
-status_t ncsp_convolution_fwd_t::execute_matmul(const exec_ctx_t &ctx) const {
+status_t jit_uni_ncsp_convolution_fwd_t::execute_matmul(
+        const exec_ctx_t &ctx) const {
     engine_t *engine = ctx.stream()->engine();
 
     // must cast away const-ness to use as handles for new memory objects
@@ -301,18 +298,13 @@ status_t ncsp_convolution_fwd_t::execute_matmul(const exec_ctx_t &ctx) const {
             memory_flags_t::use_runtime_ptr, conv_dst);
 
     // execute matmul
-    const auto &args = ctx.args();
     exec_args_t matmul_args;
-    matmul_args[DNNL_ARG_SRC] = {&matmul_src, true};
-    matmul_args[DNNL_ARG_WEIGHTS] = {&matmul_wei, true};
-    matmul_args[DNNL_ARG_DST] = {&matmul_dst, false};
-    if (pd()->with_bias()) {
-        if (pd()->bias_po_)
-            matmul_args[DNNL_ARG_SRC_1 | DNNL_ARG_ATTR_MULTIPLE_POST_OP(0)]
-                    = {&matmul_bia, true};
-        else
-            matmul_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
-    }
+    matmul_args[DNNL_ARG_SRC] = {matmul_src, true};
+    matmul_args[DNNL_ARG_WEIGHTS] = {matmul_wei, true};
+    matmul_args[DNNL_ARG_DST] = {matmul_dst, false};
+    if (pd()->with_bias())
+        matmul_args[DNNL_ARG_SRC_1 | DNNL_ARG_ATTR_MULTIPLE_POST_OP(0)]
+                = {matmul_bia, true};
 
     exec_ctx_t matmul_ctx(ctx, std::move(matmul_args));
 
@@ -323,13 +315,13 @@ status_t ncsp_convolution_fwd_t::execute_matmul(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
-status_t ncsp_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_ncsp_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     if (matmul_p_) return execute_matmul(ctx);
     if (nspc_conv_p_) return execute_convolution(ctx);
     return status::runtime_error;
 }
 
-status_t ncsp_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
     VCHECK_CONV(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
     VCHECK_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VCHECK_CONV(set_default_alg_kind(alg_kind::convolution_direct),
@@ -351,7 +343,7 @@ status_t ncsp_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_weights_t::pd_t::init_convolution(
+status_t jit_uni_ncsp_convolution_bwd_weights_t::pd_t::init_convolution(
         engine_t *engine) {
     format_tag_t nspc_tag = get_nspc_tag(ndims());
     nspc_src_md_ = *src_md();
@@ -375,7 +367,7 @@ status_t ncsp_convolution_bwd_weights_t::pd_t::init_convolution(
     return status::success;
 }
 
-void ncsp_convolution_bwd_weights_t::pd_t::init_scratchpad() {
+void jit_uni_ncsp_convolution_bwd_weights_t::pd_t::init_scratchpad() {
     using namespace memory_tracking::names;
     auto scratchpad = scratchpad_registry().registrar();
     const memory_desc_wrapper diff_dst_mdw(diff_dst_md());
@@ -392,7 +384,7 @@ void ncsp_convolution_bwd_weights_t::pd_t::init_scratchpad() {
         scratchpad.book(key_nested, dst_reorder_pd_->scratchpad_registry());
 }
 
-status_t ncsp_convolution_bwd_weights_t::init(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_bwd_weights_t::init(engine_t *engine) {
     if (pd()->nspc_conv_pd_)
         CHECK(pd()->nspc_conv_pd_->create_primitive(nspc_conv_p_, engine));
     if (pd()->src_reorder_pd_)
@@ -403,8 +395,8 @@ status_t ncsp_convolution_bwd_weights_t::init(engine_t *engine) {
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_weights_t::reorder_activations(
-        const exec_ctx_t &ctx, const std::shared_ptr<primitive_t> prim,
+status_t jit_uni_ncsp_convolution_bwd_weights_t::reorder_activations(
+        const exec_ctx_t &ctx, const std::shared_ptr<primitive_t> &prim,
         engine_t *engine, const memory_arg_t &in,
         const memory_arg_t &out) const {
     using namespace memory_tracking::names;
@@ -420,7 +412,7 @@ status_t ncsp_convolution_bwd_weights_t::reorder_activations(
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_weights_t::execute_convolution(
+status_t jit_uni_ncsp_convolution_bwd_weights_t::execute_convolution(
         const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
     engine_t *engine = ctx.stream()->engine();
@@ -460,11 +452,12 @@ status_t ncsp_convolution_bwd_weights_t::execute_convolution(
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_ncsp_convolution_bwd_weights_t::execute(
+        const exec_ctx_t &ctx) const {
     return execute_convolution(ctx);
 }
 
-status_t ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
     VCHECK_CONV(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
     VCHECK_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VCHECK_CONV(set_default_alg_kind(alg_kind::convolution_direct),
@@ -479,8 +472,6 @@ status_t ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
             && !mayiuse(avx512_core_bf16))
         return status::unimplemented;
 
-    is_matmul_ = reduce.is_gemm() && attr()->has_default_values();
-
     if (is_matmul_)
         CHECK(init_matmul(engine));
     else
@@ -491,7 +482,8 @@ status_t ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_data_t::pd_t::init_convolution(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init_convolution(
+        engine_t *engine) {
     format_tag_t nspc_tag = get_nspc_tag(ndims());
     nspc_diff_src_md_ = *diff_src_md();
     nspc_diff_dst_md_ = *diff_dst_md();
@@ -513,7 +505,8 @@ status_t ncsp_convolution_bwd_data_t::pd_t::init_convolution(engine_t *engine) {
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_data_t::pd_t::init_matmul(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init_matmul(
+        engine_t *engine) {
     CHECK(reduce.reshape_activations(
             &matmul_wei_md_, diff_dst_md(0), true, true));
     // initialize diff weights to plain format.
@@ -534,7 +527,7 @@ status_t ncsp_convolution_bwd_data_t::pd_t::init_matmul(engine_t *engine) {
     return status::success;
 }
 
-void ncsp_convolution_bwd_data_t::pd_t::init_scratchpad() {
+void jit_uni_ncsp_convolution_bwd_data_t::pd_t::init_scratchpad() {
     using namespace memory_tracking::names;
     auto scratchpad = scratchpad_registry().registrar();
     if (is_matmul_) {
@@ -557,7 +550,7 @@ void ncsp_convolution_bwd_data_t::pd_t::init_scratchpad() {
     }
 }
 
-status_t ncsp_convolution_bwd_data_t::init(engine_t *engine) {
+status_t jit_uni_ncsp_convolution_bwd_data_t::init(engine_t *engine) {
     if (pd()->nspc_conv_pd_)
         CHECK(pd()->nspc_conv_pd_->create_primitive(nspc_conv_p_, engine));
     if (pd()->src_reorder_pd_)
@@ -570,9 +563,10 @@ status_t ncsp_convolution_bwd_data_t::init(engine_t *engine) {
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_data_t::reorder_activations(const exec_ctx_t &ctx,
-        const std::shared_ptr<primitive_t> prim, engine_t *engine,
-        const memory_arg_t &in, const memory_arg_t &out) const {
+status_t jit_uni_ncsp_convolution_bwd_data_t::reorder_activations(
+        const exec_ctx_t &ctx, const std::shared_ptr<primitive_t> &prim,
+        engine_t *engine, const memory_arg_t &in,
+        const memory_arg_t &out) const {
     using namespace memory_tracking::names;
     exec_args_t r_args;
     r_args[DNNL_ARG_SRC] = in;
@@ -586,7 +580,7 @@ status_t ncsp_convolution_bwd_data_t::reorder_activations(const exec_ctx_t &ctx,
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_data_t::execute_convolution(
+status_t jit_uni_ncsp_convolution_bwd_data_t::execute_convolution(
         const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
     engine_t *engine = ctx.stream()->engine();
@@ -627,7 +621,7 @@ status_t ncsp_convolution_bwd_data_t::execute_convolution(
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_data_t::execute_matmul(
+status_t jit_uni_ncsp_convolution_bwd_data_t::execute_matmul(
         const exec_ctx_t &ctx) const {
     engine_t *engine = ctx.stream()->engine();
     using namespace memory_tracking::names;
@@ -659,7 +653,8 @@ status_t ncsp_convolution_bwd_data_t::execute_matmul(
     return status::success;
 }
 
-status_t ncsp_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_ncsp_convolution_bwd_data_t::execute(
+        const exec_ctx_t &ctx) const {
     if (matmul_diff_src_p_)
         return execute_matmul(ctx);
     else
