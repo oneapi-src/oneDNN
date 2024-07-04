@@ -519,11 +519,19 @@ struct grantor_t {
         if (e.size == 0) return nullptr;
 
         if (is_cpu_engine(base_mem_storage_)) {
+            // For SYCL CPU this interface must be used when returned
+            // memory_storage will be wrapped into memory objects which will be
+            // passed to nested primitives. It's required to keep host mapping
+            // working. It's working because handles in memory storages are keys
+            // in mapping.
             char *host_storage_ptr = get_host_storage_ptr(base_mem_storage_);
             char *base_ptr
                     = host_storage_ptr + base_mem_storage_->base_offset();
             char *aligned_ptr = (char *)e.compute_ptr(base_ptr);
             size_t aligned_offset = size_t(aligned_ptr - host_storage_ptr);
+            // Note: this interface is broken for SYCL buffer storages as
+            // returning sub_storage is basically a base storage itself by
+            // design.
             return base_mem_storage_->get_sub_storage(aligned_offset, e.size);
         }
 
