@@ -74,6 +74,7 @@ layout_tag_t append_groups(
         if (e.letter == xc_letter) {
             if (is_dw) {
                 new_raw_tag.add_entry(new_g_letter, e.block, e.is_blocked);
+                new_raw_tag.add_entry(new_xc_letter, 1, false);
             } else if (e.is_outer()) {
                 new_raw_tag.add_entry(new_g_letter, 0, false);
                 new_raw_tag.add_entry(new_xc_letter, e.block, e.is_blocked);
@@ -90,14 +91,16 @@ layout_tag_t append_groups(
     return layout_tag_t(desc, layout_tag.type(), new_raw_tag);
 }
 
-layout_t make_conv_layout(
-        tensor_kind_t tensor_kind, const layout_tag_t &_tag, bool is_dw) {
+layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
+        bool is_dw, const spec_reqs_t &spec_reqs) {
     auto tag = append_groups(tensor_kind, _tag, is_dw);
     layout_t ret(tag.desc(), tag.type());
     dim_map_t<prb_dim_t, int> blocks;
-    auto rem_size = [](const prb_dim_t &dim,
+    auto rem_size = [&](const prb_dim_t &dim,
                             const dim_map_t<prb_dim_t, int> &blocks) {
         auto dim_size = size_var(dim);
+        bool is_dim_1 = spec_reqs.is_equal(dim, 1);
+        if (is_dim_1) return expr_t(1);
         if (!blocks.has(dim)) return dim_size;
         return binary_op_t::make(op_kind_t::_div_up, dim_size, blocks[dim]);
     };
@@ -347,6 +350,7 @@ public:
     }
 
     bool is_compatible(tensor_kind_t abc, const layout_t &layout) const {
+        if (!fma_type_supported(layout.type())) return false;
         switch (abc) {
             case tensor_kind_t::a: return layout.is_blocked_by(a_inner_);
             case tensor_kind_t::b: return layout.is_blocked_by(b_inner_);
@@ -363,6 +367,7 @@ public:
             case tensor_kind_t::b: ret.block_by(b_inner_.blocks()); break;
             default: ir_error_not_expected();
         }
+        ret = get_fma_type_layout(ret);
         return ret;
     }
 
@@ -376,7 +381,7 @@ public:
             acc.add_block(b.dim, b.size);
         }
         for (auto &b : b_layout.blocks()) {
-            if (is_k(b.dim)) continue;
+            if (is_k(b.dim) || is_b(b.dim)) continue;
             acc.add_block(b.dim, b.size);
         }
         acc.block_by(c_inner_.blocks());
@@ -387,12 +392,47 @@ private:
     void init_acc_type() {
         ir_assert(a_type_.size() == b_type_.size());
         switch (fma_) {
-            case fma_kind_t::mad: acc_type_ = a_type_; break;
+            case fma_kind_t::mad:
+                acc_type_ = a_type_.is_fp() ? type_t::f32() : type_t::s32();
+                break;
             case fma_kind_t::dpas:
                 acc_type_ = a_type_.is_fp() ? type_t::f32() : type_t::s32();
                 break;
             default: ir_error_not_expected();
         }
+    }
+
+    bool fma_type_supported(const type_t &type) const {
+        switch (fma_) {
+            case fma_kind_t::mad:
+                return utils::one_of(type, type_t::f32(), type_t::s16());
+                break;
+            case fma_kind_t::dpas:
+                return utils::one_of(type, type_t::u8(), type_t::s8(),
+                        type_t::f16(), type_t::bf16());
+                break;
+            default: ir_error_not_expected();
+        }
+        return false;
+    }
+
+    layout_t get_fma_type_layout(const layout_t &layout) const {
+        if (fma_ == fma_kind_t::mad) {
+            auto blocks = layout.blocks();
+            if (utils::one_of(layout.type(), type_t::s8(), type_t::u8())) {
+
+                for (auto &b : blocks) {
+                    b.stride *= 2;
+                }
+                return layout_t(
+                        layout.desc(), type_t::s16(), layout.base(), blocks);
+            }
+            if (utils::one_of(layout.type(), type_t::f16(), type_t::bf16(),
+                        type_t::f32()))
+                return layout_t(
+                        layout.desc(), type_t::f32(), layout.base(), blocks);
+        }
+        return layout;
     }
 
     bool init(const layout_desc_t &a_desc, const layout_desc_t &b_desc,
@@ -410,7 +450,7 @@ private:
         bool found = false;
         for (auto &d : iter_tile_) {
             if (iter_tile_[d] % simd_ != 0) continue;
-            if (is_n(d)) {
+            if (is_n(d) || is_b(d)) {
                 found = true;
                 block_t block;
                 block.dim = d;
@@ -531,12 +571,12 @@ private:
     }
 
     void init_layouts() {
-        auto src_layout = make_conv_layout(
-                tensor_kind_t::src, desc_.src_tag, desc_.is_dw);
-        auto wei_layout = make_conv_layout(
-                tensor_kind_t::wei, desc_.wei_tag, desc_.is_dw);
-        auto dst_layout = make_conv_layout(
-                tensor_kind_t::dst, desc_.dst_tag, desc_.is_dw);
+        auto src_layout = make_conv_layout(tensor_kind_t::src, desc_.src_tag,
+                desc_.is_dw, desc_.spec_reqs);
+        auto wei_layout = make_conv_layout(tensor_kind_t::wei, desc_.wei_tag,
+                desc_.is_dw, desc_.spec_reqs);
+        auto dst_layout = make_conv_layout(tensor_kind_t::dst, desc_.dst_tag,
+                desc_.is_dw, desc_.spec_reqs);
         auto &a_mapper = dim_mapper_manager_.mapper(tensor_kind_t::a);
         auto &b_mapper = dim_mapper_manager_.mapper(tensor_kind_t::b);
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);

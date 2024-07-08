@@ -49,7 +49,7 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     const data_type_t wei_dt = desc.weights_desc.data_type;
     const data_type_t dst_dt = desc.dst_desc.data_type;
 
-    auto attr_mask = smask_t::post_ops | smask_t::sum_dt;
+    auto attr_mask = smask_t::post_ops | smask_t::sum_dt | smask_t::dropout;
     // Matmul supports scales for floating point data types
     attr_mask |= smask_t::scales_runtime;
 
@@ -77,9 +77,11 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     int ndims_wei = desc.weights_desc.ndims;
     assert(ndims_src >= 2);
     assert(ndims_wei >= 2);
+    int src_qmask_M = 1 << (ndims_src - 2);
     int src_qmask_K = 1 << (ndims_src - 1);
-    int wei_qmask_N = 1 << (ndims_wei - 1);
+
     int wei_qmask_K = 1 << (ndims_wei - 2);
+    int wei_qmask_N = 1 << (ndims_wei - 1);
 
     // Check scales
     if (!attr->scales_.has_default_values()) {
@@ -89,7 +91,8 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
 
         // Check allowed masks.
-        VCHECK_MATMUL_UNIMPL(utils::one_of(mask_src, 0, src_qmask_K)
+        VCHECK_MATMUL_UNIMPL(utils::one_of(mask_src, 0, src_qmask_K,
+                                     src_qmask_M + src_qmask_K)
                         && utils::one_of(mask_wei, 0, wei_qmask_N,
                                 wei_qmask_N + wei_qmask_K)
                         && mask_dst == 0,

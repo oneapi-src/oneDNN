@@ -135,6 +135,12 @@ struct matmul_pd_t : public primitive_desc_t {
     }
 
     // Quantization mask frequently used for scales and zero points
+    int src_qmask_M() const {
+        const int src_ndims = src_md(0)->ndims;
+        assert(src_ndims >= 2);
+        return 1 << (src_ndims - 2);
+    }
+
     int src_qmask_K() const {
         const int src_ndims = src_md(0)->ndims;
         assert(src_ndims >= 2);
@@ -172,9 +178,11 @@ struct matmul_pd_t : public primitive_desc_t {
                                 sc.group_dims_[1] == 1
                                         && K() % sc.group_dims_[0] == 0);
             } else if (arg == DNNL_ARG_SRC) {
-                ok = ok && utils::one_of(mask, 0, src_qmask_K());
+                ok = ok
+                        && utils::one_of(mask, 0, src_qmask_K(),
+                                src_qmask_M() + src_qmask_K());
                 ok = ok && utils::one_of(sc.ndims_, 0, 2);
-                ok = ok && IMPLICATION(mask == src_qmask_K(), sc.ndims_ == 2);
+                ok = ok && IMPLICATION((mask & src_qmask_K()), sc.ndims_ == 2);
                 ok = ok
                         && IMPLICATION(sc.ndims_ == 2,
                                 sc.group_dims_[0] == 1

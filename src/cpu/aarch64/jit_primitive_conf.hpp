@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2022 Intel Corporation
-* Copyright 2020-2022 FUJITSU LIMITED
+* Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include "common/primitive_attr.hpp"
+#include "cpu/aarch64/brgemm/brgemm_types.hpp"
 #include "cpu/aarch64/cpu_isa_traits.hpp"
 
 namespace dnnl {
@@ -524,6 +525,173 @@ struct jit_shuffle_call_s {
     dim_t cb_loop_size
             = 0; // number of loop iterations over corresponding C batches
     bool is_padded_block = false;
+};
+
+struct jit_brdgmm_conv_conf_t {
+
+    int nthr;
+    int mb, ngroups, ic, oc;
+    int ih, iw, oh, ow;
+    int l_pad, r_pad, t_pad, b_pad;
+    int kh, kw;
+    int stride_h, stride_w;
+    int nb_ch, ch_block, chb_tail;
+    int nb_ch_blocking;
+    int ow_block, ow_tail, nb_ow;
+    // idx of jit kernel when mutiple jit kernels are used in a primitive.
+    int chb_tail_idx, ow_tail_idx, nb_ch_blocking_idx;
+    int adjusted_batch_size;
+
+    bool with_bias;
+    bool with_post_ops;
+    bool with_scale;
+    bool is_oc_scale;
+
+    data_type_t src_dt;
+    data_type_t wei_dt;
+    data_type_t bia_dt;
+    data_type_t dst_dt;
+
+    brgemm_batch_kind_t batch_kind;
+
+    size_t src_dsz;
+    size_t wei_dsz;
+    size_t bia_dsz;
+    size_t dst_dsz;
+
+    cpu_isa_t isa;
+};
+
+enum conv_brgemm_loop_order_t {
+    loop_ndhwgc,
+    loop_ngcdhw,
+};
+
+enum conv_brgemm_exec_type_t {
+    exec_undefined = 0,
+    exec_base,
+    exec_trans,
+    exec_vpad,
+};
+
+struct jit_brgemm_conv_conf_t {
+    cpu_isa_t isa;
+    prop_kind_t prop_kind;
+    conv_version_t ver;
+    conv_brgemm_loop_order_t loop_order;
+    conv_harness_t harness;
+    int simd_w, acc_simd_w;
+    int ndims;
+    int mb;
+    int ngroups, ic, oc, oc_without_padding, ic_without_padding;
+
+    int od_block, oh_block, nb_od,
+            nb_oh; // blocking  - included in parallelization
+    int id_block, ih_block, nb_id, nb_ih;
+    dim_t inp_buffer_size, inp_buffer_mask_size;
+    conv_brgemm_exec_type_t exec_type;
+
+    int id, ih, iw, od, oh, ow, os, is, idp, ihp, iwp, icp, odp, ohp, owp, ocp;
+    int f_pad, l_pad, t_pad;
+    int back_pad, r_pad, b_pad;
+    int l_ovf, r_ovf, t_ovf, b_ovf, f_ovf, back_ovf;
+    int kd, kh, kw;
+    int ext_kd, ext_kh, ext_kw;
+    int kd_block, kh_block, kw_block, kd_block_pad, kh_block_pad, kw_block_pad;
+    int stride_d, stride_h, stride_w;
+    int dilate_d, dilate_h, dilate_w;
+    format_tag_t src_tag, wei_tag, dst_tag; // temporary workaround
+    bool with_bias;
+    bool with_sum;
+    bool with_eltwise;
+    bool with_binary;
+
+    bool is_fused_conv;
+    bool is_is_blocking;
+    bool is_os_blocking;
+    bool is_rtus;
+    bool ununroll_bd_loop {false};
+    int nb_ic, ic_block;
+    int nb_oc, oc_block;
+    int nb_iw, iw_block, iw_tail;
+    int nb_ow, ow_block, ow_tail;
+    int nb_is, is_block;
+    int nb_os, os_block;
+    int nb_oc_blocking;
+    int nb_ic_blocking;
+    int nb_is_blocking;
+    int nb_os_blocking;
+
+    data_type_t src_dt;
+    data_type_t dst_dt;
+    data_type_t wei_dt;
+    data_type_t acc_dt;
+    data_type_t bia_dt;
+    size_t src_dsz;
+    size_t wei_dsz;
+    size_t dst_dsz;
+    size_t acc_dsz;
+    size_t bia_dsz;
+
+    bool use_buffer;
+    dim_t buffer_size;
+    dim_t ker_ranges_size;
+    dim_t comp_a_buffer_size;
+    dim_t s8s8_comp_buffer_size;
+
+    bool with_scales;
+    int is_ic_scale, is_oc_scale;
+
+    int LDA, LDB, LDC, LDD;
+    int M, N, K, M_tail, N_tail, K_tail;
+    // M for brgemm kernel. For use_store_mask it is usually greater than M (M_tail). Otherwise it is equal to M (M_tail)
+    int brgM, brgM_tail;
+    int gemm_batch_size, adjusted_batch_size;
+    brgemm_batch_kind_t brg_type;
+    // strides for brg_type == brgemm_strd
+    dim_t brg_stride_a, brg_stride_b;
+    int nthr;
+
+    int max_batch;
+    int max_vpad;
+
+    bool wei_plain;
+    bool is_ic_padded, is_oc_padded;
+    int kw_sets, kh_sets;
+    bool copy_block_only;
+    int use_M_mask;
+    int oskip, iskip;
+    bool brgemm_bd_loop_innermost;
+
+    bool use_uker;
+    bool var_bs {false};
+    bool use_interleave_stores;
+    brgemm_kernel_prefetching_t hint_prefetching;
+    bool is_1x1;
+    bool s8s8_compensation_required;
+    bool src_zero_point;
+    bool dst_zero_point;
+    bool req_brg_comp_pad;
+    bool req_cal_comp_pad;
+    bool is_bf32;
+    bool comp_with_vpads;
+
+    int nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b, nthr_oh;
+    bool transform_to_vnni;
+    bool has_int8_vnni;
+    float scale_adjust_factor;
+    int ic_tail, oc_tail;
+    size_t tr_src_buf_size, tr_src_buf_count;
+    size_t tr_diff_dst_buf_size, tr_diff_dst_buf_count;
+    int tr_src_num_guard_elems;
+    bool global_transpose; // diff_dst & src tensors are transposed in one go
+    int nthr_mb_work;
+    int tr_iw, tr_ow;
+    int spatial_blk_size; // Height/depth block size inside the driver
+    int typesize_in;
+    int typesize_out;
+    bool tr_ocb_chunk = false;
+    bool tr_icb_chunk = false;
 };
 
 enum class binary_op_t : unsigned { none, c_blocked, n_spatial_c, n_c_spatial };

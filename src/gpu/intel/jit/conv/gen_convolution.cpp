@@ -200,13 +200,9 @@ public:
                     auto &info = kernel_infos[i];
                     switch (info.id()) {
                         case kernel_id_t::convolution: {
-                            grf_mode_t grf_mode = (cfg.regs() == 256)
-                                    ? grf_mode_t::large
-                                    : grf_mode_t::small;
                             tmp_kernels.push_back(make_kernel<conv_kernel_t>(
                                     primitive, /*register_kernel=*/false,
-                                    engine, cfg, info, nd_ranges_[i], zp_dst,
-                                    grf_mode));
+                                    engine, cfg, info, nd_ranges_[i], zp_dst));
                             break;
                         }
                         case kernel_id_t::pre_reorder: {
@@ -218,8 +214,7 @@ public:
                                     make_kernel<reorder_kernel_t>(primitive,
                                             /*register_kernel=*/false, engine,
                                             reorder_cfg, "conv_reorder", info,
-                                            cfg.is_dpas_or_dpasw_fma(),
-                                            grf_mode_t::matches));
+                                            cfg.is_dpas_or_dpasw_fma()));
                             break;
                         }
                         case kernel_id_t::post_reorder: {
@@ -230,8 +225,7 @@ public:
                                     make_kernel<reorder_kernel_t>(primitive,
                                             /*register_kernel=*/false, engine,
                                             reorder_cfg, "conv_reorder", info,
-                                            cfg.is_dpas_or_dpasw_fma(),
-                                            grf_mode_t::matches));
+                                            cfg.is_dpas_or_dpasw_fma()));
                             break;
                         }
                         case kernel_id_t::zero_out:
@@ -243,8 +237,7 @@ public:
                                     make_kernel<zero_out_kernel_t>(primitive,
                                             /*register_kernel=*/false, engine,
                                             cfg.exec_cfg(), info,
-                                            cfg.is_dpas_or_dpasw_fma(),
-                                            grf_mode_t::matches));
+                                            cfg.is_dpas_or_dpasw_fma()));
                             break;
 
                         case kernel_id_t::zp_precalc:

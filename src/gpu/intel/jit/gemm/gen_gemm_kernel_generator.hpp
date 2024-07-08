@@ -984,10 +984,12 @@ struct GEMMProblem : public CommonProblem {
     bool backward() const { return false; }
 
     bool needsASums() const {
-        return (bOffset == ABOffset::Calc && boPtrDims < 2) || sumA;
+        return (bOffset == ABOffset::Calc && boPtrDims < 2 && !quantized2DB())
+                || sumA;
     }
     bool needsBSums() const {
-        return (aOffset == ABOffset::Calc && aoPtrDims < 2) || sumB;
+        return (aOffset == ABOffset::Calc && aoPtrDims < 2 && !quantized2DA())
+                || sumB;
     }
     bool usesCO() const { return (cOffset != COffset::None) || sumA || sumB; }
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
@@ -1400,10 +1402,12 @@ struct GEMMState : public CommonState {
         ngen::Subregister statusBuffer; // q
         uint8_t surfaceA, surfaceAO, surfaceAScale; // BTS indices
         uint8_t surfaceB, surfaceBO, surfaceBScale; // BTS indices
-        uint8_t surfaceC[2], surfaceCO, surfaceTempC; // BTS indices
-        ngen::Subregister strideA[2], strideB[2],
-                strideC[2]; // ud, used for strided batch.
-        ngen::Subregister batchSize1, recipBatchSize1; // ud, 2D strided batch
+        uint8_t surfaceC[2], surfaceCO, surfaceTempC; // BTS
+        std::vector<ngen::Subregister> strideA; // ud, used for strided batch.
+        std::vector<ngen::Subregister> strideB; // ud
+        std::vector<ngen::Subregister> strideC; // ud
+        std::vector<ngen::Subregister> batchSize; // ud
+        std::vector<ngen::Subregister> recipBatchSize; // ud
         ngen::Subregister offsetBatch; // ud, used for non-strided batch.
         ngen::Subregister incr_a_array,
                 incr_b_array; // ud, used for non-strided variable batch.
@@ -1415,13 +1419,13 @@ struct GEMMState : public CommonState {
         std::vector<ngen::Subregister> binarySrcs; // q
         std::vector<ngen::Subregister> binaryOffsets; // q/d
         std::vector<ngen::Subregister> binaryLDs; // d
-        std::vector<std::array<ngen::Subregister, 2>> binaryStrides; // d
+        std::vector<std::vector<ngen::Subregister>> binaryStrides; // d
         std::vector<uint8_t> binarySurfaces;
     } inputs;
     Type Ta_load, Tb_load; // Current type to be loaded into A/B_regs.
     Type Tacc; // Current type in accumulator registers.
     ngen::Subregister persistentGroupID; // ud
-    ngen::Subregister batchID[2]; // ud
+    ngen::Subregister batchID[4]; // ud
     ngen::Subregister offsetA, offsetB, offsetC[2];
     ngen::Subregister offsetAp, offsetBp, offsetCp;
     ngen::Subregister offsetCO;

@@ -21,6 +21,7 @@
 #include <unordered_set>
 
 #include "gpu/intel/jit/codegen/register_allocator.hpp"
+#include "gpu/intel/jit/ir/core.hpp"
 #include "gpu/intel/jit/ir/grf_permutation.hpp"
 #include "gpu/intel/jit/ngen/ngen.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
@@ -104,6 +105,22 @@ public:
         }
     }
 
+    std::string str() const {
+        if (is_empty()) return "(empty)";
+        std::ostringstream oss;
+        bool is_first = true;
+        if (with_permute()) oss << "[permuted] ";
+        for (int base : block_bases_) {
+            if (!is_first) oss << "; ";
+            oss << "r" << base;
+            if (block_regs_ > 1) oss << " - r" << base + block_regs_ - 1;
+            is_first = false;
+        }
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
+
 private:
     ngen::HW hw_ = ngen::HW::Unknown;
     int block_regs_ = 0;
@@ -127,6 +144,8 @@ public:
         : reg_buf_(std::make_shared<reg_buf_t>(
                 hw, ngen::GRFRange(sub.getBase(), 1)))
         , rd_(sub) {}
+
+    const reg_buf_t &reg_buf() const { return *reg_buf_; }
 
     bool is_empty() const { return !reg_buf_; }
 

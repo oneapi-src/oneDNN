@@ -21,23 +21,46 @@
     ((d0) * (s0) + (d1) * (s1) + (d2) * (s2) + (d3) * (s3) + (d4) * (s4) \
             + (d5) * (s5))
 
+#if WITH_DROPOUT
+// No need to enable fp64 extensions just to compute (double)p * 0xFFFFFFFFu
+uint get_dropout_threshold(float p) {
+    if (p >= 1.f) return 0xFFFFFFFFu;
+    char exponent = 126 - ((as_uint(p) >> 23) & 0x7F);
+    if ((p <= 0.f) || (exponent > 31)) return 0u;
+    uint mantissa = (as_uint(p) << 8) | 0x80000000u;
+    if (!exponent) return (convert_ulong(mantissa) * 0xFFFFFFFFuL) >> 32;
+    return ((convert_ulong(mantissa >> exponent) * 0xFFFFFFFFuL) >> 32)
+            + !!(mantissa & ((1u << exponent) - 1u));
+}
+#endif
+
 __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
         __global DST_DATA_T *C, __global BIA_DATA_T *bia, __global int *a0,
         __global WEI_ZP_DATA_T *b0, long wei_zp_stride_n, long wei_zp_stride_k,
         long wei_zp_group_k, __global int *c0,
         __global SRC_SCALES_DATA_T *src_scales, long src_scale_stride_k,
-        long src_scale_group_k, __global WEI_SCALES_DATA_T *wei_scales,
-        long wei_scale_stride_n, long wei_scale_stride_k,
-        long wei_scale_group_k, __global float *dst_scales, long group_K,
-        long K, long N, long M, long D0, long D1, long D2, long bia_stride_d3,
-        long bia_stride_d2, long bia_stride_d1, long bia_stride_d0,
-        long bia_stride_m, long bia_stride_n, long a_stride_d3,
-        long a_stride_d2, long a_stride_d1, long a_stride_d0, long a_stride_m,
-        long a_stride_k, long b_stride_d3, long b_stride_d2, long b_stride_d1,
-        long b_stride_d0, long b_stride_k, long b_stride_n, long c_stride_d3,
-        long c_stride_d2, long c_stride_d1, long c_stride_d0, long c_stride_m,
-        long c_stride_n POST_OP_ARGS) {
-
+        long src_scale_stride_m, long src_scale_group_k,
+        __global WEI_SCALES_DATA_T *wei_scales, long wei_scale_stride_n,
+        long wei_scale_stride_k, long wei_scale_group_k,
+        __global float *dst_scales, long group_K, long K, long N, long M,
+        long D0, long D1, long D2, long bia_stride_d3, long bia_stride_d2,
+        long bia_stride_d1, long bia_stride_d0, long bia_stride_m,
+        long bia_stride_n, long a_stride_d3, long a_stride_d2, long a_stride_d1,
+        long a_stride_d0, long a_stride_m, long a_stride_k, long b_stride_d3,
+        long b_stride_d2, long b_stride_d1, long b_stride_d0, long b_stride_k,
+        long b_stride_n, long c_stride_d3, long c_stride_d2, long c_stride_d1,
+        long c_stride_d0, long c_stride_m, long c_stride_n
+#if WITH_DROPOUT
+        ,
+        __global uchar *dropout_mask_buf, __global uint *dropout_seed_buf,
+        __global float *dropout_p_buf POST_OP_ARGS) {
+    uint dropout_seed = dropout_seed_buf[0];
+    uint dropout_threshold = get_dropout_threshold(dropout_p_buf[0]);
+    float dropout_inv_q
+            = (dropout_p_buf[0] != 1.f) ? 1.f / (1.f - dropout_p_buf[0]) : 0.f;
+#else
+                POST_OP_ARGS) {
+#endif
     long n = get_global_id(1);
     int mb = get_global_id(2);
 
@@ -117,7 +140,8 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
             FLT_ACC_DATA_T wei_scale = 1.f;
 #if WITH_SRC_SCALES
             src_scale = SRC_SCALES_TO_REF(src_scales[src_scale_stride_k
-                    * (g * group_K / src_scale_group_k)]);
+                            * (g * group_K / src_scale_group_k)
+                    + src_scale_stride_m * m]);
 #endif
 #if WITH_WEI_SCALES
             wei_scale = WEI_SCALES_TO_REF(wei_scales[wei_scale_stride_n * n
@@ -143,7 +167,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
 #endif
 #endif
 
-#if WITH_BIAS || NON_DEFAULT_ATTRS
+#if WITH_BIAS || WITH_DROPOUT || NON_DEFAULT_ATTRS
         POST_OP_DATA_T temp = (POST_OP_DATA_T)acc;
 #if WITH_BIAS
         long bia_off = offset6D(m, n, d0, d1, d2, d3, bia_stride_m,
@@ -158,6 +182,34 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
 #endif // WITH_SUM
 
         float po_acc = convert_float(temp);
+
+#if WITH_DROPOUT
+        const ulong2 ctr_mul = (ulong2)(0xD2511F53uL, 0xCD9E8D57uL);
+        const ulong key_add = as_ulong((uint2)(0x9E3779B9u, 0xBB67AE85u));
+        const uint16 key0 = (uint16)(dropout_seed)
+                + as_uint16((ulong8)(key_add))
+                        * (uint16)(
+                                0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7);
+        const uint4 key1 = (uint4)(dropout_seed)
+                + as_uint4((ulong2)(key_add)) * (uint4)(8, 8, 9, 9);
+        uint4 ctr = (uint4)(dst_off & ~3L) + (uint4)(3, 2, 1, 0);
+#define PHILOX_4UINT_ROUND(mul, ctr, key) \
+    as_uint4(convert_ulong2(ctr.s31) * mul) ^ (uint4)(ctr.s20 ^ key, 0, 0).s3120
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s01);
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s23);
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s45);
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s67);
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s89);
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.sAB);
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.sCD);
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.sEF);
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key1.s01);
+        ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key1.s23);
+#undef PHILOX_4UINT_ROUND
+        uchar dropout = ctr[~dst_off & 3L] > dropout_threshold;
+        po_acc = (dropout) ? po_acc * dropout_inv_q : 0;
+        dropout_mask_buf[dst_off] = dropout;
+#endif
 
         if (DST_NDIMS == 2)
             APPLY_POST_OPS_SERIAL(po_acc, float, dst_data, float, m, 1, n, 1, 0,

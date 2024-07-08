@@ -18,17 +18,7 @@
 #include <set>
 #include <vector>
 
-#include "oneapi/dnnl/dnnl_graph.h"
-
 #include "cpu/platform.hpp"
-#ifdef DNNL_WITH_SYCL
-#include "dnnl_sycl.hpp"
-#endif
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "oneapi/dnnl/dnnl_graph_ocl.hpp"
-#endif
-
 #include "utils.hpp"
 #include "utils/timer.hpp"
 
@@ -342,17 +332,6 @@ sycl::queue &get_queue() {
     return q;
 }
 #endif // DNNL_WITH_SYCL
-
-bool is_sycl_engine() {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (is_cpu()) return true;
-#endif
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (!is_cpu()) return true;
-#endif
-    return false;
-}
 
 dnnl::graph::op::kind opstr2kind(const std::string &kind) {
     const std::unordered_map<std::string, dnnl::graph::op::kind> op_map = {
@@ -672,46 +651,6 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
     return dnnl_driver_t::others;
 }
 
-bool is_nxc_lt_arg(const std::string &kind, const int exec_arg) {
-    // Mapping from the op kind to a set that indicates which input arg needs
-    // reorder
-    static const std::unordered_map<std::string, std::unordered_set<int>>
-            input_arg_for_reorder = {
-                    {"AvgPool", {DNNL_ARG_SRC}},
-                    {"AvgPoolBackward", {DNNL_ARG_DIFF_DST}},
-                    {"BatchNormInference", {DNNL_ARG_SRC}},
-                    {"BatchNormForwardTraining", {DNNL_ARG_SRC}},
-                    {"BiasAddBackward", {DNNL_ARG_SRC}},
-                    {"Interpolate", {DNNL_ARG_SRC}},
-                    {"MaxPool", {DNNL_ARG_SRC}},
-                    {"Convolution", {DNNL_ARG_SRC}},
-                    {"ConvolutionBackwardData", {DNNL_ARG_DIFF_DST}},
-                    {"ConvTranspose", {DNNL_ARG_SRC}},
-                    {"ConvTransposeBackwardData", {DNNL_ARG_DIFF_DST}},
-                    {"BatchNormTrainingBackward",
-                            {DNNL_ARG_SRC, DNNL_ARG_DIFF_DST}},
-                    {"BiasAdd", {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1}},
-                    {"InterpolateBackward", {DNNL_ARG_DIFF_DST}},
-                    {"MaxPoolBackward", {DNNL_ARG_SRC, DNNL_ARG_DIFF_DST}},
-                    {"ConvolutionBackwardWeights",
-                            {DNNL_ARG_SRC, DNNL_ARG_DIFF_DST}},
-                    {"ConvTransposeBackwardWeights",
-                            {DNNL_ARG_SRC, DNNL_ARG_DIFF_DST}},
-                    {"PReLU", {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}},
-                    {"PReLUBackward",
-                            {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS,
-                                    DNNL_ARG_DIFF_DST}},
-            };
-
-    const auto iter = input_arg_for_reorder.find(kind);
-    if (iter != input_arg_for_reorder.end()) {
-        const auto &args_to_reorder = iter->second;
-        return args_to_reorder.find(exec_arg) != args_to_reorder.end();
-    } else {
-        return false;
-    }
-}
-
 // when length is 3, return "abc", when length is 5, return "abcde"
 std::string get_default_tag(size_t length) {
     std::string mtag;
@@ -845,29 +784,6 @@ void permute_md(dnn_mem_t &mem, std::vector<int64_t> permutation) {
     (void)st;
     assert(st == dnnl_success);
     mem.md_ = clone_md(permuted_md.get());
-}
-void reshape_md(dnn_mem_t &mem, const dnnl::memory::dims &reshaped_dims,
-        const dnnl::memory::dims &reshaped_strides) {
-
-    const auto data_type = static_cast<dnnl::memory::data_type>(mem.dt());
-    dnnl::memory::desc md(reshaped_dims, data_type, reshaped_strides);
-    // Dirty hack to replace md with another one.
-    // TODO: replace it with a better solution.
-    auto st = dnnl_memory_desc_destroy(mem.md_);
-    (void)st;
-    assert(st == dnnl_success);
-    mem.md_ = clone_md(md.get());
-}
-
-void reshape_md(dnn_mem_t &mem, const dnnl::memory::dims &reshaped_dims) {
-    dnnl::memory::desc md(clone_md(mem.md_));
-    dnnl::memory::desc reshaped_md = md.reshape(reshaped_dims);
-    // Dirty hack to replace md with another one.
-    // TODO: replace it with a better solution.
-    auto st = dnnl_memory_desc_destroy(mem.md_);
-    (void)st;
-    assert(st == dnnl_success);
-    mem.md_ = clone_md(reshaped_md.get());
 }
 
 int get_prim_arg_name_from_graph_op_output_offset(

@@ -171,6 +171,13 @@ struct primitive_desc_t : public c_compatible {
             return arg_usage_t::input;
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;
+        if (arg == DNNL_ARG_ATTR_DROPOUT_MASK
+                && !attr()->dropout_.has_default_values())
+            return arg_usage_t::output;
+        if ((arg == DNNL_ARG_ATTR_DROPOUT_PROBABILITY
+                    || arg == DNNL_ARG_ATTR_DROPOUT_SEED)
+                && !attr()->dropout_.has_default_values())
+            return arg_usage_t::input;
         for (int idx = 0; idx < attr()->post_ops_.len(); ++idx) {
             using namespace primitive_kind;
             if (post_op_has_proper_input(
@@ -204,6 +211,8 @@ struct primitive_desc_t : public c_compatible {
         switch (arg) {
             case DNNL_ARG_WORKSPACE: return workspace_md(0);
             case DNNL_ARG_SCRATCHPAD: return scratchpad_md(0);
+            case DNNL_ARG_ATTR_DROPOUT_MASK:
+                return &attr()->dropout_.dropout_desc_;
             default: return &glob_zero_md;
         }
     }

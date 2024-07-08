@@ -840,12 +840,28 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
     }
 
     if (pd()->with_batch()) {
-        arg_list.set(argn++, stride_a);
-        arg_list.set(argn++, stride_b);
-        arg_list.set(argn++, stride_c);
-        for (int i = 0; i < po_count; i++)
-            if (problem_.binaryBatch[i])
-                arg_list.set(argn++, int32_t(pd()->stride_binary(i, 0)));
+        for (int i = pd()->batch_dims() - 1; i >= 0; i--) {
+            auto stride_a = int32_t(pd()->desc()->stride_a(i));
+            auto stride_b = int32_t(pd()->desc()->stride_b(i));
+            auto stride_c = int32_t(pd()->desc()->stride_c(i));
+            arg_list.set(argn++, stride_a);
+            arg_list.set(argn++, stride_b);
+            arg_list.set(argn++, stride_c);
+        }
+        for (int i = 0; i < po_count; i++) {
+            if (problem_.binaryBatch[i]) {
+                for (int b = 0; b < pd()->batch_dims(); b++) {
+                    auto top = pd()->batch_dims() - b - 1;
+                    arg_list.set(argn++, int32_t(pd()->stride_binary(i, top)));
+                }
+            }
+        }
+        for (int i = 1; i < pd()->batch_dims(); i++) {
+            auto batchSize = uint32_t(pd()->desc()->c_desc.dims[i]);
+            uint32_t recipBatchSize = uint32_reciprocal(batchSize);
+            arg_list.set(argn++, batchSize);
+            arg_list.set(argn++, recipBatchSize);
+        }
     }
 
     auto thread_m = utils::div_up(m, pd()->unroll_m() * tg_m) * tg_m;

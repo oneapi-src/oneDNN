@@ -489,6 +489,7 @@ struct memory_desc_wrapper : public c_compatible {
      * a scalar \param l_offset. if \param is_pos_padded is true, \param
      * l_offset represents logical offset in already padded area */
     dim_t off_l(dim_t l_offset, bool is_pos_padded = false) const {
+        if (l_offset == 0) return offset0();
         dims_t dims_pos;
         const auto &cur_dims = is_pos_padded ? padded_dims() : dims();
         utils::l_dims_by_l_offset(dims_pos, l_offset, cur_dims, ndims());

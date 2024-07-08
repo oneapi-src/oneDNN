@@ -34,10 +34,9 @@ public:
     IR_KERNEL_FORWARD(hw)
 
     zero_out_kernel_t(const exec_config_t &exec_cfg,
-            const kernel_info_t &kernel_info, bool require_dpas,
-            grf_mode_t grf_mode)
+            const kernel_info_t &kernel_info, bool require_dpas)
         : ir_kernel_t<hw>("zero_out", exec_cfg, kernel_info,
-                kernel_info.nd_range(), require_dpas, grf_mode) {
+                kernel_info.nd_range(), require_dpas) {
 
         setup_interface();
         generate_prologue();
@@ -119,8 +118,10 @@ public:
     }
 
     static compute::nd_range_t nd_range(int simd, int size) {
-        return compute::nd_range_t(gpu_utils::into<size_t>(
-                utils::div_up(size, bytes_per_thr) * simd));
+        return compute::nd_range_t(
+                gpu_utils::into<size_t>(
+                        utils::div_up(size, bytes_per_thr) * simd),
+                simd);
     }
 
     static const int bytes_per_thr;

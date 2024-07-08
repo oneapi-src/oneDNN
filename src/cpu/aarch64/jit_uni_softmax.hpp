@@ -74,8 +74,10 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
             const auto src_dt = src_md()->data_type;
             const auto dst_dt = dst_md()->data_type;
             bool ok = mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(src_dt, f32, s8, u8)
-                    && utils::one_of(dst_dt, f32, s8, u8)
+                    && utils::one_of(src_dt, f32, bf16, s8, u8)
+                    && utils::one_of(dst_dt, f32, bf16, s8, u8)
+                    && IMPLICATION(
+                            utils::one_of(bf16, src_dt, dst_dt), mayiuse_bf16())
                     && (mayiuse(sve_512) || mayiuse(sve_256)
                             || mayiuse(sve_128))
                     && attr()->has_default_values(skip_mask_t::scales_runtime)
@@ -152,13 +154,19 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
             };
 
             using namespace data_type;
+
             bool ok = mayiuse(isa) && !is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(dst_md()->data_type, f32)
-                    && utils::one_of(diff_dst_md()->data_type, f32)
-                    && utils::one_of(diff_src_md()->data_type, f32)
+                    && utils::one_of(dst_md()->data_type, f32, bf16)
+                    && utils::one_of(diff_dst_md()->data_type, f32, bf16)
+                    && utils::one_of(diff_src_md()->data_type, f32, bf16)
+                    && IMPLICATION(utils::one_of(bf16, dst_md()->data_type,
+                                           diff_dst_md()->data_type,
+                                           diff_src_md()->data_type),
+                            mayiuse_bf16())
                     && (mayiuse(sve_512) || mayiuse(sve_256))
                     && attr()->has_default_values()
                     && set_default_formats() == status::success;
+
             if (!ok) return status::unimplemented;
 
             ok = memory_desc_wrapper(diff_src_md())

@@ -158,17 +158,16 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             VDISPATCH_GEMM(!has_blocks(), VERBOSE_BLOCKING_FAIL, "");
             VDISPATCH_GEMM(
-                    batch_dims() <= 2, VERBOSE_BAD_DIM, "batch", batch_dims());
+                    batch_dims() <= 4, VERBOSE_BAD_DIM, "batch", batch_dims());
             VDISPATCH_GEMM(
                     !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k(),
                             d->lda(), d->ldb(), d->ldc(), d->batch()),
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
-            VDISPATCH_GEMM(
-                    IMPLICATION(with_bias(),
-                            utils::one_of(d->bias_type(), f64, f32, bf16, f16,
-                                    f8_e5m2, f8_e4m3)
-                                    && (d->bias_desc.ndims <= 3)
-                                    && utils::one_of(bias_cmask(), 0, 1, 2, 3)),
+            VDISPATCH_GEMM(IMPLICATION(with_bias(),
+                                   utils::one_of(d->bias_type(), f64, f32, bf16,
+                                           f16, f8_e5m2, f8_e4m3)
+                                           && (d->bias_desc.ndims <= 6)
+                                           && bias_cmask() < 8),
                     VERBOSE_UNSUPPORTED_BIAS_CFG);
             VDISPATCH_GEMM(
                     IMPLICATION(with_bias(),

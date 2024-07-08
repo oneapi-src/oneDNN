@@ -24,7 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace generic {
+namespace intel {
 namespace sycl {
 
 class sycl_interop_gpu_kernel_t : public gpu::intel::compute::kernel_impl_t {
@@ -57,7 +57,7 @@ private:
 };
 
 } // namespace sycl
-} // namespace generic
+} // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

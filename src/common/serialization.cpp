@@ -217,6 +217,11 @@ void serialize_attr(
             sstream.write(&dt);
         }
 
+    if (!attr.dropout_.has_default_values()) {
+        sstream.write("dropout:");
+        serialize_md(sstream, attr.dropout_.user_dropout_desc_);
+    }
+
     serialize_post_ops(sstream, attr.post_ops_);
 
     // rnn_data_qparams: scale, shift

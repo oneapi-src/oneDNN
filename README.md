@@ -12,7 +12,7 @@ oneDNN project is part of the [UXL Foundation] and is an implementation
 of the [oneAPI specification] for oneDNN component.
 
 The library is optimized for Intel(R) Architecture Processors, Intel Graphics,
-and Arm&reg; 64-bit Architecture (AArch64)-based processors. oneDNN has
+and Arm(R) 64-bit Architecture (AArch64)-based processors. oneDNN has
 experimental support for the following architectures: NVIDIA\* GPU,
 AMD\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
 
@@ -81,7 +81,7 @@ oneDNN supports platforms based on the following architectures:
 > **experimental** with limited testing validation.
 
 The library is optimized for the following CPUs:
-* Intel 64/AMD64
+* Intel 64/AMD64 architecture
   * Intel Atom(R) processor (at least Intel SSE4.1 support is required)
   * Intel Core(TM) processor (at least Intel SSE4.1 support is required)
   * Intel Core Ultra processors (formerly Meteor Lake)
@@ -92,8 +92,8 @@ The library is optimized for the following CPUs:
   * Intel Xeon CPU Max Series (formerly Sapphire Rapids HBM)
   * future Intel Xeon Scalable processors (code name Sierra Forest
 and Granite Rapids)
-* AArch64
-  * Arm Neoverse&trade; N1 and V1 processors
+* AArch64 architecture
+  * Arm Neoverse(TM) N1 and V1 processors
 
 On a CPU based on Intel 64 or on AMD64 architecture, oneDNN detects
 the instruction set architecture (ISA) at runtime and uses just-in-time (JIT)
@@ -167,10 +167,11 @@ Intel C++ Compiler.
 [Intel oneAPI DPC++/C++ Compiler]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html
 
 On a CPU based on Arm AArch64 architecture, oneDNN CPU engine can be built with
-[Arm Compute Library (ACL)] integration. ACL is an open-source library for machine
-learning applications and provides AArch64 optimized implementations of core functions.
-This functionality currently requires that ACL is downloaded and built separately;
-see [Build from Source]. oneDNN only supports Compute Library versions 24.04 or later.
+[Arm Compute Library (ACL)] integration. ACL is an open-source library for
+machine learning applications and provides AArch64 optimized implementations
+of core functions. This functionality currently requires that ACL is downloaded
+and built separately. See [Build from Source] section of the Developer Guide for
+details. oneDNN only supports Compute Library versions 24.04 or later.
 
 [Arm Compute Library (ACL)]: https://github.com/arm-software/ComputeLibrary
 
@@ -303,11 +304,11 @@ on macOS 11 (Big Sur) with
 * [Intel oneAPI DPC++/C++ Compiler] 2024.0
 
 on Ubuntu 20.04 AArch64 with
-* GNU Compiler Collection 7.0 8.0 9.0 10.0
-* Clang\* 9.0 17.0
+* GNU Compiler Collection 7.0, 8.0, 9.0, 10.0
+* Clang\* 9.0, 17.0
 * [Arm Compiler for Linux] 24.04
-* [Arm Compute Library (ACL)] built for armv8-a arch, latest stable version available at the
-time of release
+* [Arm Compute Library (ACL)] built for armv8-a arch, latest stable version
+available at the time of release
 
 GPU engine was validated on Ubuntu\* 22.04 with
 * GNU Compiler Collection 7.2, 8.1, and 9.1

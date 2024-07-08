@@ -160,6 +160,10 @@ public:
         return false;
     }
 
+    std::string str() const;
+
+    IR_DEFINE_DUMP()
+
 private:
     template <ngen_operand_kind_t kind>
     static void destroy(void *ptr) {

@@ -133,10 +133,13 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     // Overload PER_OC src_mask definition for batched case
     auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
-    if (src_scale.policy == policy_t::PER_OC) {
+    if (src_scale.policy == policy_t::PER_OC
+            || src_scale.policy == policy_t::PER_OCIC) {
         const auto &src_rt_dims = get_runtime_dims(
                 prb->src_dims(), prb->src_runtime_dim_mask());
         int src_mask = 1 << (src_rt_dims.size() - 1);
+        if (src_scale.policy == policy_t::PER_OCIC)
+            src_mask += 1 << (src_rt_dims.size() - 2);
         attr_args.prepare_scales(prb->attr, DNNL_ARG_SRC, src_mask);
     }
     // Overload PER_OC/PER_OCIC wei_mask definition for batched case
@@ -876,6 +879,14 @@ int check_cacheit(
     return OK;
 }
 
+std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
+    // TODO: move the regular buffer kinds like SRC or DST to a common function,
+    //       e.g. get_kinds_to_check_default_case
+    std::vector<data_kind_t> check_kinds = {DST};
+    if (!prb->attr.dropout.is_def()) check_kinds.push_back(DROPOUT_MASK);
+    return check_kinds;
+}
+
 int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
     const auto &prim = v_prim[0];
@@ -891,8 +902,11 @@ int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
     SAFE(execute_and_wait(prim, args, res), WARN);
 
-    check_correctness(prb, {DST}, args, ref_args, setup_cmp, res, prim_ref);
-    SAFE(check_bitwise(prim, {DST}, args, prb->attr, prb->inplace, res), WARN);
+    check_correctness(prb, get_kinds_to_check(prb), args, ref_args, setup_cmp,
+            res, prim_ref);
+    SAFE(check_bitwise(prim, get_kinds_to_check(prb), args, prb->attr,
+                 prb->inplace, res),
+            WARN);
 
     return measure_perf(prb->ctx_exe, res, prim, args);
 }

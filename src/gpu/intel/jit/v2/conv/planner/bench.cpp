@@ -179,6 +179,7 @@ namespace prb_dims = dnnl::impl::gpu::intel::jit::prb_dims;
 class bench_task_t : public bench_task_base_t {
 public:
     bench_task_t(const problem_t &prb) : prb_(prb) {
+        g = prb.shape()[prb_dims::g];
         mb = prb.shape()[prb_dims::mb];
         oc = prb.shape()[prb_dims::oc];
         ic = prb.shape()[prb_dims::ic];
@@ -196,9 +197,9 @@ public:
 
     bool init_primitive(engine &eng) {
         try {
-            memory::dims src_dims = {mb, ic, ih, iw};
-            memory::dims wei_dims = {1, oc, ic, kh, kw};
-            memory::dims dst_dims = {mb, oc, oh, ow};
+            memory::dims src_dims = {mb, g * ic, ih, iw};
+            memory::dims wei_dims = {g, oc, ic, kh, kw};
+            memory::dims dst_dims = {mb, g * oc, oh, ow};
 
             memory::dims strides = {sh, sw};
             memory::dims padding_l = {ph, pw};
@@ -293,6 +294,7 @@ public:
 
     std::string str() const {
         std::ostringstream oss;
+        oss << "g" << g;
         oss << "mb" << mb;
         oss << "ic" << ic;
         oss << "ih" << ih;
@@ -314,7 +316,7 @@ private:
     }
 
     problem_t prb_;
-    memory::dim mb;
+    memory::dim mb, g;
     memory::dim oc, ic;
     memory::dim ih, iw;
     memory::dim oh, ow;
@@ -327,19 +329,27 @@ int random(int a, int b) {
     return a + rand() % (b - a + 1);
 }
 
-prb_tile_t random_shape() {
+prb_tile_t random_shape(bool is_dw = false) {
     prb_tile_t s = problem_t::default_shape();
-    s[prb_dims::g] = 1;
-    s[prb_dims::mb] = random(1, 16);
-    s[prb_dims::ic] = random(1, 512);
-    s[prb_dims::oc] = random(1, 512);
-    s[prb_dims::iw] = s[prb_dims::ow] = random(1, 512);
+    if (is_dw) {
+        auto c = random(2, 512);
+        s[prb_dims::g] = c;
+        s[prb_dims::mb] = random(1, 16);
+        s[prb_dims::ic] = 1;
+        s[prb_dims::oc] = 1;
+        s[prb_dims::iw] = s[prb_dims::ow] = random(1, 512);
+    } else {
+        s[prb_dims::g] = 1;
+        s[prb_dims::mb] = random(1, 16);
+        s[prb_dims::ic] = random(1, 512);
+        s[prb_dims::oc] = random(1, 512);
+        s[prb_dims::iw] = s[prb_dims::ow] = random(1, 512);
+    }
     return s;
 }
 
 std::vector<problem_t> generate_problems(const kernel_desc_t &kd) {
     srand(kd.get_hash());
-    ir_assert(!kd.is_dw);
     std::vector<problem_t> ret;
     const int nprbs = 100;
     const int max_iters = (1 << 20);
@@ -347,7 +357,7 @@ std::vector<problem_t> generate_problems(const kernel_desc_t &kd) {
         problem_t prb;
         prb.set_hw(kd.hw);
         prb.set_prop(kd.prop);
-        prb.set_shape(random_shape());
+        prb.set_shape(random_shape(kd.is_dw));
         prb.set_src_tag(kd.src_tag);
         prb.set_wei_tag(kd.wei_tag);
         prb.set_dst_tag(kd.dst_tag);

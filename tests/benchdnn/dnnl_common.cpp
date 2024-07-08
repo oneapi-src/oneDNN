@@ -1185,6 +1185,11 @@ void add_md_size(const_dnnl_memory_desc_t md,
     }
 }
 
+bool is_fwd_training(dnnl_prop_kind_t prop_kind) {
+    return prop_kind == dnnl_forward_training
+            || prop_kind == dnnl_prop_kind_undef;
+}
+
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind) {
     return prop_kind == dnnl_forward_training
             || prop_kind == dnnl_forward_inference
@@ -1627,6 +1632,8 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
     const bool is_post_ops_arg = (exec_arg & post_ops_range);
     const bool is_scales_arg = (exec_arg & DNNL_ARG_ATTR_SCALES);
     const bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
+    const bool is_dropout_p = (exec_arg == DNNL_ARG_ATTR_DROPOUT_PROBABILITY);
+    const bool is_dropout_seed = (exec_arg == DNNL_ARG_ATTR_DROPOUT_SEED);
 
     if (is_post_ops_arg) {
         if (exec_arg & DNNL_ARG_SRC_1) {
@@ -1661,6 +1668,12 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
         int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_ZERO_POINTS;
         TIME_FILL(SAFE(
                 fill_zero_points(attr, local_exec_arg, mem, ref_mem), WARN));
+    } else if (is_dropout_p) {
+        ref_mem.set_elem(0, attr.dropout.p);
+        TIME_FILL(SAFE(mem.reorder(ref_mem), WARN));
+    } else if (is_dropout_seed) {
+        ref_mem.set_elem(0, attr.dropout.seed);
+        TIME_FILL(SAFE(mem.reorder(ref_mem), WARN));
     }
 
     return OK;

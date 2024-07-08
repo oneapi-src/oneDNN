@@ -11144,7 +11144,7 @@ void gemm_kernel_generator_t<hw>::gemmApplyPostOps(size_t poMin, size_t poMax,
                 }
         }
 
-        for (int b = 0; b < 2; b++) {
+        for (int b = 0; b < problem.batchDims; b++) {
             FOR_EACH_BINARY {
                 const auto &stride = state.inputs.binaryStrides[i][b];
                 if (stride.isValid())
@@ -11152,7 +11152,7 @@ void gemm_kernel_generator_t<hw>::gemmApplyPostOps(size_t poMin, size_t poMax,
             }
         }
 
-        for (int b = 0; b < 2; b++) {
+        for (int b = 0; b < problem.batchDims; b++) {
             FOR_EACH_BINARY {
                 auto &offsetStride = state.inputs.binaryStrides[i][b];
                 if (offsetStride.isValid())
@@ -17207,7 +17207,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                 GRFRange(aoLoad.getBase(), 1), state.Ar_offsetRegs, problem,
                 strategy, state);
         state.ra.safeRelease(aoLoad);
-        state.ra.safeRelease(state.inputs.aoPtr);
+        if (!strategy.persistent) state.ra.safeRelease(state.inputs.aoPtr);
     }
     if (boTo2D) {
         if (problem.boPtrDims == 1) stub();
@@ -17220,7 +17220,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                 GRFRange(boLoad.getBase(), 1), state.Br_offsetRegs, problem,
                 strategy, state);
         state.ra.safeRelease(boLoad);
-        state.ra.safeRelease(state.inputs.boPtr);
+        if (!strategy.persistent) state.ra.safeRelease(state.inputs.boPtr);
     }
 
     // Free unneeded registers after address setup.
@@ -18925,20 +18925,19 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
     state.inputs.offsetAq = interface.getArgumentIfExists("offset_Aq");
     state.inputs.offsetBq = interface.getArgumentIfExists("offset_Bq");
     if (problem.batch == BatchMode::Strided) {
-        state.inputs.strideA[0] = interface.getArgumentIfExists("stride_A");
-        state.inputs.strideB[0] = interface.getArgumentIfExists("stride_B");
-        state.inputs.strideC[0] = interface.getArgumentIfExists("stride_C");
-        if (problem.batchDims > 1) {
-            state.inputs.strideA[1]
-                    = interface.getArgumentIfExists("stride_A1");
-            state.inputs.strideB[1]
-                    = interface.getArgumentIfExists("stride_B1");
-            state.inputs.strideC[1]
-                    = interface.getArgumentIfExists("stride_C1");
-            state.inputs.batchSize1
-                    = interface.getArgumentIfExists("batch_size1");
-            state.inputs.recipBatchSize1
-                    = interface.getArgumentIfExists("recip_batch_size1");
+        for (int i = 0; i < problem.batchDims; i++) {
+            state.inputs.strideA.push_back(interface.getArgumentIfExists(
+                    "stride_A" + std::to_string(i)));
+            state.inputs.strideB.push_back(interface.getArgumentIfExists(
+                    "stride_B" + std::to_string(i)));
+            state.inputs.strideC.push_back(interface.getArgumentIfExists(
+                    "stride_C" + std::to_string(i)));
+        }
+        for (int i = 0; i < problem.batchDims - 1; i++) {
+            state.inputs.batchSize.push_back(interface.getArgumentIfExists(
+                    "batch_size" + std::to_string(i)));
+            state.inputs.recipBatchSize.push_back(interface.getArgumentIfExists(
+                    "recip_batch_size" + std::to_string(i)));
         }
     } else if (problem.batch == BatchMode::Nonstrided)
         state.inputs.offsetBatch
@@ -19027,11 +19026,11 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
         state.inputs.binaryLDs[i]
                 = interface.getArgumentIfExists("ld" + srcName);
         if (problem.batch == BatchMode::Strided) {
-            state.inputs.binaryStrides[i][0]
-                    = interface.getArgumentIfExists("stride_" + srcName);
-            if (problem.batchDims > 1)
-                state.inputs.binaryStrides[i][1]
-                        = interface.getArgumentIfExists("stride1_" + srcName);
+            for (int b = 0; b < problem.batchDims; b++) {
+                state.inputs.binaryStrides[i].push_back(
+                        interface.getArgumentIfExists(
+                                "stride" + std::to_string(b) + srcName));
+            }
         }
     }
 
@@ -19199,9 +19198,9 @@ void gemm_kernel_generator_t<hw>::gemmInitInterface(GEMMProblem &problem,
             state.ra.claim(state.inputs.strideB[i]);
             state.ra.claim(state.inputs.strideC[i]);
         }
-        if (problem.batchDims > 1) {
-            state.ra.claim(state.inputs.batchSize1);
-            state.ra.claim(state.inputs.recipBatchSize1);
+        for (int i = 0; i < problem.batchDims - 1; i++) {
+            state.ra.claim(state.inputs.batchSize[i]);
+            state.ra.claim(state.inputs.recipBatchSize[i]);
         }
         state.ra.claim(state.inputs.groupIDK);
     } else if (problem.batch == BatchMode::Nonstrided) {
@@ -19765,7 +19764,7 @@ void gemm_kernel_generator_t<hw>::gemmOffsetBatchABC(const GEMMProblem &problem,
 
     // Strided batch support.
     if (problem.batch == BatchMode::Strided) {
-        Subregister bOffsetA[2], bOffsetB[2], bOffsetC[2];
+        Subregister bOffsetA[4], bOffsetB[4], bOffsetC[4];
 
         for (int b = 0; b < problem.batchDims; b++) {
             bOffsetA[b] = state.inputs.strideA[b];
@@ -19979,26 +19978,31 @@ void gemm_kernel_generator_t<hw>::gemmSetupABC(const GEMMProblem &problem,
 template <HW hw>
 void gemm_kernel_generator_t<hw>::gemmGetBatchIDs(const GEMMProblem &problem,
         const GEMMStrategy &strategy, GEMMState &state) {
-    switch (problem.batchDims) {
-        case 0: break;
-        case 1: state.batchID[0] = state.inputs.groupIDK; break;
-        case 2: {
-            state.batchID[0] = state.ra.alloc_sub<uint32_t>();
-            state.batchID[1] = state.ra.alloc_sub<uint32_t>();
-            divDown(state.batchID[1], state.inputs.groupIDK,
-                    state.inputs.batchSize1, state.inputs.recipBatchSize1,
-                    state.flagAP, strategy, state);
-            emul(1, state.batchID[0], state.batchID[1], state.inputs.batchSize1,
-                    strategy, state);
-            add(1, state.batchID[0], -state.batchID[0], state.inputs.groupIDK);
-            if (!strategy.persistent) {
-                state.ra.safeRelease(state.inputs.batchSize1);
-                state.ra.safeRelease(state.inputs.recipBatchSize1);
-            }
-            break;
-        }
-        default: stub();
+    if (problem.batchDims == 0) return;
+    if (problem.batchDims == 1) {
+        state.batchID[0] = state.inputs.groupIDK;
+        return;
     }
+    for (int i = 0; i < problem.batchDims; i++)
+        state.batchID[i] = state.ra.alloc_sub<uint32_t>();
+    auto div = state.ra.alloc_sub<uint32_t>();
+    emov(1, div, state.inputs.groupIDK, strategy, state);
+    for (int i = problem.batchDims - 1; i >= 0; i--) {
+        auto idx = problem.batchDims - 1 - i;
+        emov(1, state.batchID[idx], div, strategy, state);
+        if (i > 0) {
+            divDown(div, div, state.inputs.batchSize[i - 1],
+                    state.inputs.recipBatchSize[i - 1], state.flagAP, strategy,
+                    state);
+            emad(1, state.batchID[idx], state.batchID[idx], -div,
+                    state.inputs.batchSize[i - 1], strategy, state);
+            if (!strategy.persistent) {
+                state.ra.safeRelease(state.inputs.batchSize[i - 1]);
+                state.ra.safeRelease(state.inputs.recipBatchSize[i - 1]);
+            }
+        }
+    }
+    state.ra.safeRelease(div);
 }
 
 template <HW hw>

@@ -780,6 +780,17 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
            << rnn_qp.shift_ << ";";
     }
 
+    if (!attr->dropout_.has_default_values()) {
+        const memory_desc_wrapper mdw(attr->dropout_.dropout_desc_);
+        switch (mdw.format_kind()) {
+            case format_kind::blocked:
+                if (!mdw.count_non_unit_dims(1))
+                    ss << ":" << md2fmt_tag_str(&attr->dropout_.dropout_desc_);
+                break;
+            case format_kind::any: ss << ":any"; break;
+            default: assert(!"unsupported format_kind");
+        }
+    }
     return ss;
 }
 

@@ -231,6 +231,7 @@ struct cpu_cache_args_t {
 int get_cpu_cache_size(cpu_cache_args_t &cache_args);
 int get_gpu_cache_size(size_t &cache_size);
 
+bool is_fwd_training(dnnl_prop_kind_t prop_kind);
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
@@ -847,6 +848,20 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
         int po_arg = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS;
         mem_map.emplace(po_arg,
                 dnn_mem_t(ndims, dims.data(), dnnl_f32, tag::axb, test_engine));
+    }
+
+    if (is_fwd_training(prop_kind) && !prb->attr.dropout.is_def()) {
+        const auto &dropout_md = query_md(const_pd, DNNL_ARG_ATTR_DROPOUT_MASK);
+        mem_map.emplace(
+                DNNL_ARG_ATTR_DROPOUT_MASK, dnn_mem_t(dropout_md, test_engine));
+        int64_t count = 1;
+        auto prob_md = dnn_mem_t::init_md(1, &count, dnnl_f32, tag::abx);
+        mem_map.emplace(DNNL_ARG_ATTR_DROPOUT_PROBABILITY,
+                dnn_mem_t(prob_md, test_engine));
+
+        auto seed_md = dnn_mem_t::init_md(1, &count, dnnl_s32, tag::abx);
+        mem_map.emplace(
+                DNNL_ARG_ATTR_DROPOUT_SEED, dnn_mem_t(seed_md, test_engine));
     }
 
     // Scales.

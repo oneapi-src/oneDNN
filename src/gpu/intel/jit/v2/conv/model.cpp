@@ -67,16 +67,16 @@ struct hw_config_t {
         bool is_dpas = utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw);
         switch (type.size()) {
             case 1: {
-                ir_assert(is_dpas);
-                return int8_dpas_ops_per_clock();
+                return is_dpas ? int8_dpas_ops_per_clock()
+                               : f32_mad_ops_per_clock() * 4;
             }
             case 2: {
-                ir_assert(is_dpas);
-                return int8_dpas_ops_per_clock() / 2;
+                return is_dpas ? int8_dpas_ops_per_clock() / 2
+                               : f32_mad_ops_per_clock() * 2;
             }
             case 4: {
                 return is_dpas ? int8_dpas_ops_per_clock() / 4
-                               : f32_mad_ops_per_clock();
+                               : f32_mad_ops_per_clock() * 1;
             }
             case 8: {
                 ir_assert(is_mad);

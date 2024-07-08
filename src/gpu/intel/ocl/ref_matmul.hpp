@@ -59,7 +59,7 @@ struct ref_matmul_t : public gpu_primitive_t {
                     is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
             VDISPATCH_MATMUL(
                     attr()->has_default_values(smask_t::scales_runtime_data_type
-                            | smask_t::scales_runtime_groups
+                            | smask_t::scales_runtime_groups | smask_t::dropout
                             | smask_t::zero_points_runtime_data_type
                             | smask_t::zero_points_runtime_groups
                             | smask_t::post_ops | smask_t::fpmath_mode),
@@ -86,9 +86,7 @@ struct ref_matmul_t : public gpu_primitive_t {
                     && utils::one_of(dst_dt_, bf16, f32);
             const bool is_int8 = utils::one_of(src_dt_, u8, s8)
                     && utils::one_of(wei_dt_, u8, s8, u4, s4)
-                    && utils::one_of(dst_dt_, f32, s8, u8, s32, f16)
-                    && IMPLICATION(
-                            with_bias(), utils::one_of(bia_dt_, f32, dst_dt_));
+                    && utils::one_of(dst_dt_, f32, s8, u8, s32, f16);
             VDISPATCH_MATMUL(
                     (is_int8
                             || ((is_f32 || is_f64 || is_f16 || is_f8 || is_bf16)
@@ -100,6 +98,15 @@ struct ref_matmul_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_MATMUL(post_ops_with_binary_ok(attr(), dst_dt_, 6),
                     VERBOSE_UNSUPPORTED_POSTOP);
+            const memory_desc_wrapper dropout_md(attr_.dropout_.dropout_desc_);
+            VDISPATCH_MATMUL(
+                    IMPLICATION(!attr_.dropout_.has_default_values(),
+                            dropout_md.similar_to(dst_md(), true, false)),
+                    VERBOSE_INCONSISTENT_MDS, "dropout", "dst");
+            VDISPATCH_MATMUL(
+                    IMPLICATION(!attr_.dropout_.has_default_values(),
+                            utils::one_of(dropout_md.data_type(), u8, s8)),
+                    VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(
                     IMPLICATION(utils::one_of(f64, src_dt_, wei_dt_, dst_dt_),
                             dev_info_->has_native(f64)),
@@ -152,6 +159,8 @@ struct ref_matmul_t : public gpu_primitive_t {
         int ndims = pd()->dst_md()->ndims;
         kernel_ctx.define_int("DST_NDIMS", ndims);
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
+        kernel_ctx.define_int(
+                "WITH_DROPOUT", !pd()->attr()->dropout_.has_default_values());
         kernel_ctx.define_int("NON_DEFAULT_ATTRS", pd()->non_default_attrs_);
 
         kernel_ctx.set_data_type(pd()->dst_dt_);

@@ -154,6 +154,7 @@ struct attr_info_t {
 
         const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
         attr_info.with_src_scales = !src_scales.has_default_values();
+        attr_info.with_src0_scale = !src_scales.has_default_values();
         attr_info.src_scales_mask = src_scales.mask_;
 
         const auto &src1_scales = attr->scales_.get(DNNL_ARG_SRC_1);

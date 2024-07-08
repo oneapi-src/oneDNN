@@ -88,7 +88,7 @@ std::string problem_t::desc_str() const {
     std::ostringstream oss;
     oss << "mb" << mb;
     if (g > 1) oss << "g" << g;
-    oss << "ic" << ic;
+    oss << "ic" << g * ic;
 
     std::vector<int> xd = {id, od, kd, sd, dd, pd};
     std::vector<int> xh = {ih, oh, kh, sh, dh, ph};
@@ -105,7 +105,7 @@ std::string problem_t::desc_str() const {
     if (print_d) oss << "id" << id;
     if (print_h) oss << "ih" << ih;
     if (print_w) oss << "iw" << iw;
-    oss << "oc" << oc;
+    oss << "oc" << g * oc;
     if (print_d) oss << "od" << od;
     if (print_h) oss << "oh" << oh;
     if (print_w) oss << "ow" << ow;

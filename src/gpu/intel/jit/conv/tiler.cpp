@@ -641,10 +641,6 @@ private:
     // Hint values.
     static const int max_mad_reduce_bytes_ = 64;
     static const int max_tg_dim_ = 8;
-    static const int max_dpas_m_iter_ = 32;
-    static const int max_dpas_n_iter_ = 64;
-    static const int max_mad_m_iter_ = 16;
-    static const int max_mad_n_iter_ = 32;
     static const int min_m_iter_ = 16;
     static const int min_mad_x8_non_dw_m_iter_ = 2;
 
@@ -870,14 +866,24 @@ private:
         return std::min(hint_min_m_iter(), max_blk);
     }
 
+    int max_m_iter() const {
+        const int max_dpas_m_iter = 32;
+        const int max_mad_m_iter = 16;
+        if (cfg_.is_dp_fma()) return max_dpas_m_iter;
+        return max_mad_m_iter;
+    }
+
+    int max_n_iter() const {
+        const int max_dpas_n_iter = 64;
+        const int max_mad_n_iter = 32;
+        if (cfg_.is_dp_fma()) return max_dpas_n_iter;
+        return max_mad_n_iter;
+    }
+
     bool limit_m_iter_ok(const context_t &ctx) const {
         if (!is_enabled(check_kind_t::limit_m_iter)) return true;
 
-        if (cfg_.is_dp_fma()) {
-            if (ctx.m_iter > max_dpas_m_iter_) return false;
-        } else {
-            if (ctx.m_iter > max_mad_m_iter_) return false;
-        }
+        if (ctx.m_iter > max_m_iter()) return false;
         if (ctx.m_iter < min_m_iter(ctx)) return false;
         return true;
     }
@@ -885,11 +891,7 @@ private:
     bool limit_n_iter_ok(const context_t &ctx) const {
         if (!is_enabled(check_kind_t::limit_n_iter)) return true;
 
-        if (cfg_.is_dp_fma()) {
-            if (ctx.n_iter > max_dpas_n_iter_) return false;
-        } else {
-            if (ctx.n_iter > max_mad_n_iter_) return false;
-        }
+        if (ctx.n_iter > max_n_iter()) return false;
         return true;
     }
 
@@ -1498,6 +1500,8 @@ private:
             case tiler_mode_t::lookup: {
                 const auto params = const_conv_lookup_table().find(cfg.key());
                 if (!params.is_empty() && chk.is_ok(params.blocking())) {
+                    ir_info() << "[INFO] Using lookup table config: "
+                              << params.str() << std::endl;
                     params_gen_ = params_generator_t(tune_level, simd_size, chk,
                             level_tile_sets, params);
                 } else {

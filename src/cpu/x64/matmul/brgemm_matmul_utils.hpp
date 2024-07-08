@@ -21,6 +21,7 @@
 #include "common/memory_tracking.hpp"
 
 #include "common/verbose.hpp"
+#include "cpu/matmul/matmul_utils.hpp"
 #include "cpu/x64/brgemm/brgemm.hpp"
 
 namespace dnnl {
@@ -188,10 +189,14 @@ struct brgemm_matmul_conf_t {
     int required_k_granularity;
     bool is_bf32 = false;
     bool is_bf16_with_int_wei = false;
+    bool is_int4_weights = false;
     bool req_wei_vnni_downconvert = false;
     bool is_runtime_M = false;
     bool is_runtime_N = false;
     bool is_runtime_K = false;
+    bool is_src_batch_layout_trivial = false;
+    bool is_wei_batch_layout_trivial = false;
+    bool is_dst_batch_layout_trivial = false;
     inline bool lda_big_pow2() const {
         const dim_t big_stride_threshold_in_bytes = 8192;
         const dim_t big_K_threshold = big_stride_threshold_in_bytes / a_dt_sz;
@@ -248,13 +253,14 @@ struct brgemm_matmul_conf_utils_t {
     }
 
     inline dim_t get_actual_LDB() const {
+        const auto md_ldb = bgmmc.B_strides[1] / bgmmc.b_dt_sz;
         if (bgmmc.wei_tag == format_tag::acbd && !bgmmc.use_buffer_b) {
             assert(bgmmc.b_dt_sz == bgmmc.tr_b_dt_sz);
-            return bgmmc.B_strides[1] / bgmmc.b_dt_sz;
+            return md_ldb;
         }
         bool use_blocked_LDB = bgmmc.is_amx || bgmmc.use_buffer_b
                 || bgmmc.wei_tag != plain_tensor_layout_tag;
-        return use_blocked_LDB ? bgmmc.wei_n_blk : bgmmc.N;
+        return use_blocked_LDB ? bgmmc.wei_n_blk : md_ldb;
     }
 
     inline bool maybe_low_brg_blocking() const {
@@ -288,7 +294,8 @@ struct brgemm_matmul_conf_utils_t {
     inline bool is_bf16_with_int_wei() const { return bf16_with_int_wei_dt; }
 
     inline bool with_weights_decompression() const {
-        return !utils::one_of(bgmmc.src_dt, data_type::s8, data_type::u8)
+        return !utils::one_of(bgmmc.src_dt, data_type::s8, data_type::u8,
+                       data_type::s4, data_type::u4)
                 && weights_decompression_support;
     }
 
@@ -305,19 +312,22 @@ struct brgemm_matmul_conf_utils_t {
     inline cpu_isa_t get_isa() const { return isa_; }
 
     int get_default_n_block(format_tag_t matrix_b_tag) const;
-    status_t set_or_check_B_tag(
-            memory_desc_t &B_md, bool init_n_tag = true) const;
-    status_t update_and_check_B_tag(memory_desc_t &B_md, int n_blk_size) const;
+    status_t set_or_check_B_tag(memory_desc_t &B_md,
+            const dnnl::impl::cpu::matmul::matmul_helper_t &helper,
+            bool init_n_tag = true) const;
+    status_t update_and_check_B_tag(memory_desc_t &B_md, int n_blk_size,
+            const dnnl::impl::cpu::matmul::matmul_helper_t &helper) const;
     status_t set_or_check_tags(memory_desc_t &A_md, memory_desc_t &C_md,
-            memory_desc_t &bias_md) const;
+            memory_desc_t &bias_md,
+            const dnnl::impl::cpu::matmul::matmul_helper_t &helper) const;
     status_t set_B_flags(memory_desc_t &B_md) const;
     format_tag_t pick_blocked_B_layout(int n_blk) const;
 
 private:
     brgemm_matmul_conf_t &bgmmc;
 
-    const bool f32_dt, bf16_dt, f16_dt, int8_dt, bf32_dt, bf16_with_int_wei_dt;
-    const bool weights_decompression_support;
+    const bool f32_dt, bf16_dt, f16_dt, int8_dt, bf32_dt;
+    const bool weights_decompression_support, bf16_with_int_wei_dt;
     const bool A_any_layout;
     const bool B_any_layout;
     const bool C_any_layout;
@@ -352,6 +362,8 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const brgemm_matmul_conf_t &bgmmc);
 
 int get_n_block_from_tag(format_tag_t matrix_b_tag);
+
+bool is_batch_layout_trivial(const memory_desc_wrapper &mdw, const dim_t batch);
 
 } // namespace matmul
 } // namespace x64

@@ -231,6 +231,17 @@ static inline bool mayiuse_bf16() {
     return cpu().isBf16Supported();
 }
 
+static inline int isa_num_vregs(cpu_isa_t isa) {
+    if (isa == sve_512)
+        return cpu_isa_traits<sve_512>::n_vregs;
+    else if (isa == sve_256)
+        return cpu_isa_traits<sve_256>::n_vregs;
+    else if (isa == sve_128)
+        return cpu_isa_traits<sve_128>::n_vregs;
+    else
+        return 0;
+};
+
 } // namespace
 
 /* whatever is required to generate string literals... */

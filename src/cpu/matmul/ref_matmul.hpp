@@ -84,14 +84,21 @@ struct ref_matmul_t : public primitive_t {
                                     | smask_t::zero_points_runtime_data_type
                                     | smask_t::zero_points_runtime_groups
                                     | smask_t::post_ops | smask_t::sum_dt
-                                    | smask_t::fpmath_mode,
+                                    | smask_t::fpmath_mode | smask_t::dropout,
                             dst_type)
                     && attr_.post_ops_.check_sum_consistency(dst_type,
                             /* is_int8 */ false)
                     && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
                     && attr_scales_ok() && set_default_formats()
                     && zero_points_ok()
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && attr_.set_default_formats(dst_md(0)) == status::success
+                    && IMPLICATION(!attr_.dropout_.has_default_values(),
+                            utils::one_of(
+                                    attr_.dropout_.dropout_desc_.data_type, u8,
+                                    s8))
+                    && IMPLICATION(!attr_.dropout_.has_default_values(),
+                            memory_desc_wrapper(dst_md(0)).similar_to(
+                                    attr_.dropout_.dropout_desc_, true, false));
             return ok ? status::success : status::unimplemented;
         }
 

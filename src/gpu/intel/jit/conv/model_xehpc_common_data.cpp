@@ -24,8 +24,7 @@ namespace intel {
 namespace jit {
 
 // clang-format off
-const std::vector<uint64_t> &get_conv_model_xehpc_common_data() {
-    static std::vector<uint64_t> data = {
+static const uint64_t _data[] = {
         0x000000133dcccccd, 0x4000000000000001, 0x3b80000000000043, 0x3c0000003be00000, 0x3c6000003c400000, 0x3ca000003c800000, 0x3ce000003cc00000, 0x3d1800003d000000,
         0x3d3000003d200000, 0x3d5000003d400000, 0x3d8000003d600000, 0x3da000003d900000, 0x3db800003dab0000, 0x3dc800003dc00000, 0x3de000003dd80000, 0x3e0000003df00000,
         0x3e1000003e0c0000, 0x3e2000003e1c0000, 0x3e3400003e280000, 0x3e4800003e400000, 0x3e6000003e570000, 0x3e8000003e700000, 0x3e9000003e8c0000, 0x3ea000003e980000,
@@ -13770,9 +13769,13 @@ const std::vector<uint64_t> &get_conv_model_xehpc_common_data() {
         0xc0030bbba0c090ff, 0x49a0ff10bb2a0e10, 0x0ebc0e4240ffbbdd, 0x3d04b09cff10c936, 0x16070db9b18200ff, 0xe8010710f67d0511, 0x1135ff10e3030b10, 0x08bb52b440ff3c81,
         0xbb4509f0ff10f100, 0x082d0e3acb69deff, 0x3436ff11032c0e11, 0x073c8708a8ffbadb, 0xbb674db0ff111102, 0x3a030b3bbc7d7fff, 0x27010c112c010711, 0xd8ffbc2f8bd4ff11,
         0xff1135010c3c8086, 0x4d8a4effbc5c49b8, 0x470107114c0008bd, 0xb0ffbd17edc3ff11, 0xff11550108bd990e, 0xcf49a9ffbd1f53c4, 0x00000000000000bc
-    };
-    return data;
 };
+
+const std::vector<uint64_t> &get_conv_model_xehpc_common_data() {
+    static std::vector<uint64_t> data(
+            _data, _data + sizeof(_data) / sizeof(_data[0]));
+    return data;
+}
 // clang-format on
 
 } // namespace jit

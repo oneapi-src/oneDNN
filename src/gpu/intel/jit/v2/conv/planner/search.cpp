@@ -137,7 +137,7 @@ struct tile_info_t {
 
     std::vector<int> iter_tiles() const {
         if (!any(flags & tile_flags_t::iter)) return {1};
-        return pow_range(2, 64, 2);
+        return pow_range(1, 64, 2);
     }
 
     std::vector<int> thread_group_tiles() const {
@@ -244,10 +244,17 @@ struct tiling_desc_t {
 
 class dim_tile_set_t {
 public:
-    dim_tile_set_t(const tile_scheme_t &scheme) : dims_(scheme.dims()) {
+    dim_tile_set_t(const tile_scheme_t &scheme, bool is_dw = false)
+        : dims_(scheme.dims()) {
         for (auto &d : scheme.dims()) {
             auto &d_tiles = tiles_[d];
-            d_tiles = get_dim_tiles(scheme, d);
+            if (is_dw && utils::one_of(d, prb_dims::ic, prb_dims::oc)) {
+                dim_tile_t tile;
+                tile.iter = 1;
+                tile.tg = 1;
+                d_tiles = {tile};
+            } else
+                d_tiles = get_dim_tiles(scheme, d);
         }
     }
 
@@ -299,16 +306,16 @@ private:
 std::vector<tile_scheme_t> get_tile_schemes(prop_kind_t prop) {
     std::vector<tile_scheme_t> schemes;
     if (prop == prop_kind::forward) {
-        schemes.emplace_back("tg=[oc,ow], iter=[mb,oc,ic]");
-        schemes.emplace_back("tg=[oc,mb], iter=[mb,oc,ic]");
-        schemes.emplace_back("tg=[oc,ow], iter=[ow,oc,ic]");
+        schemes.emplace_back("tg=[ow], iter=[mb,g,oc,ic]");
+        schemes.emplace_back("tg=[oc,mb], iter=[mb,g,oc,ic]");
+        schemes.emplace_back("tg=[ic,ow], iter=[ow,g,oc,ic]");
     } else if (prop == prop_kind::backward_data) {
-        schemes.emplace_back("tg=[ic,iw], iter=[mb,oc,ic]");
-        schemes.emplace_back("tg=[ic,mb], iter=[mb,oc,ic]");
-        schemes.emplace_back("tg=[ic,iw], iter=[iw,oc,ic]");
+        schemes.emplace_back("tg=[ic,iw], iter=[mb,g,oc,ic]");
+        schemes.emplace_back("tg=[ic,mb], iter=[mb,g,oc,ic]");
+        schemes.emplace_back("tg=[ic,iw], iter=[iw,g,oc,ic]");
     } else if (prop == prop_kind::backward_weights) {
-        schemes.emplace_back("tg=[oc,ic], iter=[mb,oc,ic]");
-        schemes.emplace_back("tg=[oc,ic], iter=[ow,oc,ic]");
+        schemes.emplace_back("tg=[oc,ic], iter=[mb,g,oc,ic]");
+        schemes.emplace_back("tg=[oc,ic], iter=[ow,g,oc,ic]");
     } else {
         ir_error_not_expected();
     }
@@ -343,7 +350,7 @@ private:
         std::unordered_set<kernel_desc_t, ir_utils::hasher_t<kernel_desc_t>>
                 descs;
         for (auto &s : get_tile_schemes(base_desc_.prop)) {
-            dim_tile_set_t tile_set(s);
+            dim_tile_set_t tile_set(s, base_desc_.is_dw);
             auto tiling_descs = tile_set.create_tiling_descs();
             for (auto &td : tiling_descs) {
                 auto d = base_desc_;

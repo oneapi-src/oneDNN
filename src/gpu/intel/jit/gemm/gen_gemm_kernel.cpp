@@ -649,25 +649,25 @@ void gen_gemm_kernel_t::init_interface() {
             interface_.newArgument("ld" + bname, DataType::d);
     }
     if (problem.batch == BatchMode::Strided) {
-        if (problem.batchDims > 1) {
-            interface_.newArgument("stride_A1", DataType::d);
-            interface_.newArgument("stride_B1", DataType::d);
-            interface_.newArgument("stride_C1", DataType::d);
-            for (size_t i = 0; i < problem.postOps.len(); i++)
-                if (problem.postOps[i].is_binary() && problem.binaryBatch[i])
-                    interface_.newArgument(
-                            "stride1_binary" + std::to_string(i), DataType::d);
+        for (int i = 0; i < problem.batchDims; i++) {
+            interface_.newArgument("stride_A" + std::to_string(i), DataType::d);
+            interface_.newArgument("stride_B" + std::to_string(i), DataType::d);
+            interface_.newArgument("stride_C" + std::to_string(i), DataType::d);
         }
-        interface_.newArgument("stride_A", DataType::d);
-        interface_.newArgument("stride_B", DataType::d);
-        interface_.newArgument("stride_C", DataType::d);
-        for (size_t i = 0; i < problem.postOps.len(); i++)
-            if (problem.postOps[i].is_binary() && problem.binaryBatch[i])
-                interface_.newArgument(
-                        "stride_binary" + std::to_string(i), DataType::d);
-        if (problem.batchDims > 1) {
-            interface_.newArgument("batch_size1", DataType::ud);
-            interface_.newArgument("recip_batch_size1", DataType::ud);
+        for (size_t i = 0; i < problem.postOps.len(); i++) {
+            if (problem.postOps[i].is_binary() && problem.binaryBatch[i]) {
+                for (int b = 0; b < problem.batchDims; b++) {
+                    interface_.newArgument("stride" + std::to_string(b)
+                                    + "binary" + std::to_string(i),
+                            DataType::d);
+                }
+            }
+        }
+        for (int i = 0; i < problem.batchDims - 1; i++) {
+            interface_.newArgument(
+                    "batch_size" + std::to_string(i), DataType::ud);
+            interface_.newArgument(
+                    "recip_batch_size" + std::to_string(i), DataType::ud);
         }
     }
     if (strategy.fuseBeta || strategy.fusePostOps)

@@ -138,20 +138,10 @@ struct gemm_desc_t {
     dnnl_data_type_t bias_type() const { return bias_desc.data_type; }
     // Type of bias.
     int bias_mask() const {
-        assert(bias_desc.ndims <= 3);
+        assert(bias_desc.ndims <= 6);
         int mask = 0;
-        // TODO: update the mask for batched dimension if we start
-        // supporting more batch dimensions
-        if (is_batched()) mask |= (bias_desc.dims[0] > 1) ? 1 << 0 : 0;
-
-        // because the bias mask is in row major, we have to convert
-        // to col major here by swapping two last dimensions
-        int m_idx = is_batched();
-        mask |= (bias_desc.dims[m_idx] > 1) ? 1 << (bias_desc.ndims - m_idx)
-                                            : 0;
-        mask |= (bias_desc.dims[m_idx + 1] > 1)
-                ? 1 << (bias_desc.ndims - (m_idx + 1))
-                : 0;
+        for (int i = 0; i < bias_desc.ndims; i++)
+            mask |= (bias_desc.dims[i] > 1) ? 1 << i : 0;
         return mask;
     }
 };

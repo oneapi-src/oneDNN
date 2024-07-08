@@ -476,10 +476,16 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
                     CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(
                                     arg, 1 << 1, data_type::f32, {1, 3})));
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
+                                    data_type::f32, {1, 3})));
                 } else {
                     CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(
                                     arg, 1 << 1, data_type::f32, {1, 3})));
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
+                                    data_type::f32, {1, 3})));
                 }
             } else {
                 CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,

@@ -260,6 +260,75 @@ status_t ref_post_ops_t::init(const memory_desc_t *dst_md) {
     return status::success;
 }
 
+namespace {
+
+void mulhilo32(uint32_t a, uint32_t b, uint32_t &hi, uint32_t &lo) {
+    const uint64_t product = static_cast<uint64_t>(a) * b;
+    lo = static_cast<uint32_t>(product);
+    hi = static_cast<uint32_t>(product >> 32);
+}
+
+void philox4x32round(uint32_t *ctr, uint32_t *key) {
+    constexpr static uint32_t PHILOX_M4x32_0 = 0xD2511F53;
+    constexpr static uint32_t PHILOX_M4x32_1 = 0xCD9E8D57;
+    uint32_t hi0, lo0;
+    uint32_t hi1, lo1;
+    mulhilo32(PHILOX_M4x32_0, ctr[0], hi0, lo0);
+    mulhilo32(PHILOX_M4x32_1, ctr[2], hi1, lo1);
+    ctr[0] = hi1 ^ ctr[1] ^ key[0];
+    ctr[1] = lo1;
+    ctr[2] = hi0 ^ ctr[3] ^ key[1];
+    ctr[3] = lo0;
+}
+
+void philox4x32bumpkey(uint32_t *key) {
+    constexpr static uint32_t PHILOX_W4x32_0 = 0x9E3779B9;
+    constexpr static uint32_t PHILOX_W4x32_1 = 0xBB67AE85;
+    key[0] += PHILOX_W4x32_0;
+    key[1] += PHILOX_W4x32_1;
+}
+
+uint8_t philox_bernoulli(float p, int seed, dim_t d) {
+    // Visit ieeexplore.ieee.org/document/6114424 (4.3) to see what Philox is
+    uint32_t x = (d & ~3L);
+    uint32_t ctr[4] = {x + 0, x + 1, x + 2, x + 3};
+    uint32_t key[2] = {uint32_t(seed), uint32_t(seed)};
+    philox4x32round(ctr, key);
+    philox4x32bumpkey(key);
+    philox4x32round(ctr, key);
+    philox4x32bumpkey(key);
+    philox4x32round(ctr, key);
+    philox4x32bumpkey(key);
+    philox4x32round(ctr, key);
+    philox4x32bumpkey(key);
+    philox4x32round(ctr, key);
+    philox4x32bumpkey(key);
+    philox4x32round(ctr, key);
+    philox4x32bumpkey(key);
+    philox4x32round(ctr, key);
+    philox4x32bumpkey(key);
+    philox4x32round(ctr, key);
+    philox4x32bumpkey(key);
+    philox4x32round(ctr, key);
+    philox4x32bumpkey(key);
+    philox4x32round(ctr, key);
+    p = std::max(std::min(p, 1.f), 0.f);
+    return (ctr[d & 3L] > double(std::numeric_limits<uint32_t>::max()) * p);
+}
+
+} // namespace
+
+float ref_dropout(
+        float src, uint8_t *mask, dim_t offset, float p, int64_t seed) {
+    // Note: as this is a reference implementation, it's not intended to be
+    // efficient. For optimized versions, `1/(1-p)` should be passed as a
+    // single value computed once to avoid division for every element.
+    float inv_q = (p != 1.f) ? 1.f / (1.f - p) : 0.f;
+    uint8_t m = philox_bernoulli(p, seed, offset);
+    mask[offset] = m;
+    return (m) ? src * inv_q : 0;
+}
+
 void ref_post_ops_t::execute(float &res, const args_t &args) const {
     if (po_.len() == 0) return;
 

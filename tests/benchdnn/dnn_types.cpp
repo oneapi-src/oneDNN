@@ -589,7 +589,7 @@ bool attr_t::is_def(bool skip_fpmath) const {
             && scratchpad_mode == get_default_scratchpad_mode()
             && IMPLICATION(!skip_fpmath, fpmath_mode.is_def())
             && acc_mode == dnnl_accumulation_mode_strict
-            && deterministic.is_def();
+            && deterministic.is_def() && dropout.is_def();
 }
 
 int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
@@ -768,6 +768,13 @@ std::ostream &operator<<(std::ostream &s, const attr_t::deterministic_t &d) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, const attr_t::dropout_t &drop) {
+    s << drop.p;
+    if ((drop.seed != 0) || (drop.tag != tag::any)) s << ":" << drop.seed;
+    if (drop.tag != tag::any) s << ":" << drop.tag;
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     if (!attr.is_def()) {
         if (!attr.scales.is_def()) s << "--attr-scales=" << attr.scales << " ";
@@ -783,6 +790,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
             s << "--attr-acc-mode=" << attr.acc_mode << " ";
         if (!attr.deterministic.is_def())
             s << "--attr-deterministic=" << attr.deterministic << " ";
+        if (!attr.dropout.is_def())
+            s << "--attr-dropout=" << attr.dropout << " ";
     }
     return s;
 }
@@ -1019,6 +1028,13 @@ int attr_args_t::prepare_post_ops_mds(const attr_t &attr, int ndims,
         }
     }
 
+    // dropout
+    if (!attr.dropout.is_def()) {
+        auto drop_tensor_desc
+                = dnn_mem_t::init_md(ndims, dims, dnnl_u8, attr.dropout.tag);
+        mds.emplace(DNNL_ARG_ATTR_DROPOUT_MASK, std::move(drop_tensor_desc));
+    }
+
     return OK;
 }
 
@@ -1132,6 +1148,10 @@ dnnl_primitive_attr_t create_dnnl_attr(
     DNN_SAFE_V(dnnl_primitive_attr_set_deterministic(
             dnnl_attr, attr.deterministic.enabled));
 
+    if (!attr.dropout.is_def()) {
+        const auto &drop_mask_md = attr_args.get_md(DNNL_ARG_ATTR_DROPOUT_MASK);
+        DNN_SAFE_V(dnnl_primitive_attr_set_dropout(dnnl_attr, drop_mask_md));
+    }
     return dnnl_attr;
 }
 
@@ -1551,6 +1571,73 @@ float compute_binary(pk_t kind, float src0, float src1) {
         assert(!"operation not supported!");
     }
     return NAN;
+}
+
+// This function is a full copy of ref_dropout(...) from the library.
+void maybe_dropout(const attr_t &attr, float &val, int64_t offset,
+        const dnn_mem_t &dropout_m) {
+
+    auto philox_bernoulli = [](float p, int seed, int64_t d) {
+        auto philox4x32round = [](uint32_t *ctr, uint32_t *key) {
+            auto mulhilo32
+                    = [](uint32_t a, uint32_t b, uint32_t &hi, uint32_t &lo) {
+                          const uint64_t product = static_cast<uint64_t>(a) * b;
+                          lo = static_cast<uint32_t>(product);
+                          hi = static_cast<uint32_t>(product >> 32);
+                      };
+            constexpr static uint32_t PHILOX_M4x32_0 = 0xD2511F53;
+            constexpr static uint32_t PHILOX_M4x32_1 = 0xCD9E8D57;
+            uint32_t hi0, lo0;
+            uint32_t hi1, lo1;
+            mulhilo32(PHILOX_M4x32_0, ctr[0], hi0, lo0);
+            mulhilo32(PHILOX_M4x32_1, ctr[2], hi1, lo1);
+            ctr[0] = hi1 ^ ctr[1] ^ key[0];
+            ctr[1] = lo1;
+            ctr[2] = hi0 ^ ctr[3] ^ key[1];
+            ctr[3] = lo0;
+        };
+
+        auto philox4x32bumpkey = [](uint32_t *key) {
+            constexpr static uint32_t PHILOX_W4x32_0 = 0x9E3779B9;
+            constexpr static uint32_t PHILOX_W4x32_1 = 0xBB67AE85;
+            key[0] += PHILOX_W4x32_0;
+            key[1] += PHILOX_W4x32_1;
+        };
+
+        uint32_t x = (d & ~3L);
+        uint32_t ctr[4] = {x + 0, x + 1, x + 2, x + 3};
+        uint32_t key[2] = {uint32_t(seed), uint32_t(seed)};
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        philox4x32bumpkey(key);
+        philox4x32round(ctr, key);
+        p = std::max(std::min(p, 1.f), 0.f);
+        return (ctr[d & 3L] > double(std::numeric_limits<uint32_t>::max()) * p);
+    };
+
+    if (!attr.dropout.is_def()) {
+        float p = attr.dropout.p;
+        int seed = attr.dropout.seed;
+        float inv_q = (p != 1.f) ? 1.f / (1.f - p) : 0.f;
+        uint8_t m = philox_bernoulli(p, seed, offset);
+        dropout_m.set_elem(offset, m);
+        val = (m) ? val * inv_q : 0;
+    }
 }
 
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
