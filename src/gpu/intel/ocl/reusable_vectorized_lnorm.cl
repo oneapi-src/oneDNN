@@ -43,31 +43,33 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src, __global float *mean,
             = -(get_local_id(0)) + get_sub_group_id() * SG_SIZE * VECT_DT_N;
     src = GWS_GET_BUFFER_POS(SRC, gws_params, src) + sg_offset;
 
-    FLT_ACC_DATA_T local_variance = 0.f;
-    FLT_ACC_DATA_T local_mean = 0.f;
+    mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
+    variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
+    FLT_ACC_DATA_T local_variance = CALCULATE_STATS ? 0.f : *variance;
+    FLT_ACC_DATA_T local_mean = CALCULATE_STATS ? 0.f : *mean;
+
 #if PVT_MEM_SIZE > 1
     VECT_FLOAT_T val[PVT_MEM_SIZE];
+    unroll_for_by(N_UNROLL)(int sg_idx = 0, i = 0; i < PVT_MEM_SIZE;
+                            sg_idx += GROUP_STRIDE, i++) {
+        val[i] = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
+                (const __global BLOCK_DATA_T *)(&src[sg_idx]))));
+    }
 #else
-    VECT_FLOAT_T val;
+    VECT_FLOAT_T val = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+            VECT_BLOCK_READ((const __global BLOCK_DATA_T *)(src))));
 #endif
+
     if (CALCULATE_STATS) {
         /// Read global memory and mean and variance
         VECT_FLOAT_T sum = 0;
 #if PVT_MEM_SIZE > 1
-        unroll_for_by(N_UNROLL)(int sg_idx = 0, i = 0; i < PVT_MEM_SIZE;
-                                sg_idx += GROUP_STRIDE, i++) {
-            val[i] = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
-                    (const __global BLOCK_DATA_T *)(&src[sg_idx]))));
-        }
         unroll_for_by(N_UNROLL)(int i = 0; i < PVT_MEM_SIZE; i++) {
             sum += val[i];
         }
 #else
-        val = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
-                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)(src))));
         sum = val;
 #endif
-
         local_mean = GROUP_ADD(vec_sum(sum)) * rrs;
 
 #if PVT_MEM_SIZE > 1
@@ -81,14 +83,8 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src, __global float *mean,
 #else
         sum = val - local_mean;
         sum *= sum;
-        sum = sum;
 #endif
         local_variance = GROUP_ADD(vec_sum(sum)) * rrs;
-    } else {
-        mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
-        variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
-        local_mean = *mean;
-        local_variance = *variance;
     }
 
     if (USE_SCALE)
@@ -125,8 +121,6 @@ lnorm_reusable_vectorized(__global SRC_DATA_T *src, __global float *mean,
     }
 #endif
     if (SAVE_STATS && get_local_id(0) == 0) {
-        mean = GWS_GET_BUFFER_POS(STAT, gws_params, mean);
-        variance = GWS_GET_BUFFER_POS(STAT, gws_params, variance);
         *mean = local_mean;
         *variance = local_variance;
     }
