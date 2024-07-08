@@ -224,10 +224,13 @@ struct gen_gemm_t : public gpu_gemm_t {
                 }
             }
 
-            if (wei_decomp_ && attr()->scales_.get(DNNL_ARG_WEIGHTS).ndims_ > 1)
+            auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
+            auto &src_scales = attr()->scales_.get(DNNL_ARG_SRC);
+
+            if (wei_decomp_ && wei_scales.ndims_ > 1)
                 wei_scales_2d_ = true;
 
-            if (wei_decomp_ && attr()->scales_.get(DNNL_ARG_SRC).ndims_ > 1)
+            if (wei_decomp_ && src_scales.ndims_ > 1)
                 src_scales_2d_ = true;
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
@@ -239,25 +242,30 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
 
             if (wei_scales_2d_) {
-                VDISPATCH_GEMM(!(wei_zp && (ao_dims_ == 1 || bo_dims_ == 1)),
-                        VERBOSE_UNSUPPORTED_ZP_CFG);
-                auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
-                wei_scales_type = wei_scales.data_type_;
                 auto scales_group_k
                         = wei_scales.ndims_ > 0 ? wei_scales.group_dims_[0] : 1;
-                if (!wei_zp_2d)
-                    wei_q2d_group_k = scales_group_k;
-                else {
-                    VDISPATCH_GEMM((wei_q2d_group_k == scales_group_k),
-                            VERBOSE_UNSUPPORTED_SCALES_CFG);
+                if (scales_group_k >= d->k()) {
+                    wei_scales_2d_ = false;
+                } else {
+                    VDISPATCH_GEMM(!(wei_zp && (ao_dims_ == 1 || bo_dims_ == 1)),
+                            VERBOSE_UNSUPPORTED_ZP_CFG);
+                    wei_scales_type = wei_scales.data_type_;
+                    if (!wei_zp_2d)
+                        wei_q2d_group_k = scales_group_k;
+                    else {
+                        VDISPATCH_GEMM((wei_q2d_group_k == scales_group_k),
+                                VERBOSE_UNSUPPORTED_SCALES_CFG);
+                    }
                 }
             }
             if (src_scales_2d_) {
-                auto &src_scales = attr()->scales_.get(DNNL_ARG_SRC);
                 src_scales_type = src_scales.data_type_;
                 auto scales_group_k
                         = src_scales.ndims_ > 0 ? src_scales.group_dims_[1] : 1;
-                src_q2d_group_k = scales_group_k;
+                if (scales_group_k >= d->k())
+                    src_scales_2d_ = false;
+                else
+                    src_q2d_group_k = scales_group_k;
             }
 
             VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
