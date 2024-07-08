@@ -84,6 +84,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         int32_t ldaq = isColMajor(layout)
                 ? pd()->eff_m()
                 : utils::div_up(pd()->desc()->k(), problem->aqGroupK);
+        if (pd()->src_po_sc_ && swapab) ldaq = 0;
         arg_list.set(argn++, ldaq);
     }
     if (problem->boPtrDims == 2 || problem->bScale2D) {
@@ -92,6 +93,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         int32_t ldbq = !isColMajor(layout)
                 ? pd()->eff_n()
                 : utils::div_up(pd()->desc()->k(), problem->bqGroupK);
+        if (pd()->src_po_sc_ && !swapab) ldbq = 0;
         arg_list.set(argn++, ldbq);
     }
     if (pd()->with_c_zero_points() || pd()->with_bias()

@@ -258,6 +258,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
             if (src_scales_2d_) {
                 src_scales_type = src_scales.data_type_;
+                src_po_sc_ = src_scales.mask_ == 2;
                 auto scales_group_k
                         = src_scales.ndims_ > 0 ? src_scales.group_dims_[1] : 1;
                 if (scales_group_k >= d->k())
@@ -609,6 +610,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool wei_decomp_ = false;
         bool wei_scales_2d_ = false;
         bool src_scales_2d_ = false;
+        bool src_po_sc_ = false;
         dim_t eff_lda_ = 0, eff_ldb_ = 0;
         bool eff_transa_ = false, eff_transb_ = false;
 
