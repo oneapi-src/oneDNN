@@ -463,6 +463,18 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         }
     }
 
+    if (problem_.Ta.isInt4()) {
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[0] = "[FO]";
+        npatterns++;
+    }
+
+    if (problem_.Tb.isInt4()) {
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[1] = "[FO]";
+        npatterns++;
+    }
+
     EvaluateParams eval_params;
 
     eval_params.sizes = match_params[0].sizes;
@@ -498,6 +510,14 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
             problem_.Ta = Type::f16;
         if (utils::one_of(entry_->selector.precisions[1][0], 'H', '['))
             problem_.Tb = Type::f16;
+    }
+
+    if (problem_.Ta.isInt4()) {
+        if (entry_->selector.precisions[0][0] == '[') problem_.Ta = Type::s8;
+    }
+
+    if (problem_.Tb.isInt4()) {
+        if (entry_->selector.precisions[1][0] == '[') problem_.Tb = Type::s8;
     }
 
     auto block_k = entry_->driverInfo.blocking[LoopK];
