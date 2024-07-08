@@ -15441,6 +15441,14 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
             if (lookaheadSLMReload % unrollKSLM != 0)
                 last = std::min(last, lookaheadSLMReload % unrollKSLM);
         }
+        if (hasFlags(state.A_offsetLayout))
+            last = std::min(last, lcm(kaq_load, ka_loadMain) - 1);
+        if (hasFlags(state.A_scaleLayout))
+            last = std::min(last, lcm(as2DLate ? kaq_loadLate : kaq_load, ka_loadMain) - 1);
+        if (hasFlags(state.B_offsetLayout))
+            last = std::min(last, lcm(kbq_load, kb_loadMain) - 1);
+        if (hasFlags(state.B_scaleLayout))
+            last = std::min(last, lcm(bs2DLate ? kbq_loadLate : kbq_load, kb_loadMain) - 1);
         reqLoopCheck = reqLoopCheck.delay(unrollK - last);
     }
 
