@@ -34,6 +34,7 @@ struct acl_obj_t {
     arm_compute::Tensor wei_tensor;
     arm_compute::Tensor bia_tensor;
     arm_compute::Tensor dst_tensor;
+    arm_compute::experimental::MemoryRequirements aux_mem_req;
 };
 
 struct acl_conv_conf_t {
@@ -50,6 +51,12 @@ struct acl_conv_conf_t {
     arm_compute::TensorInfo wei_tensor_info;
     arm_compute::TensorInfo bia_tensor_info;
     arm_compute::TensorInfo dst_tensor_info;
+
+    // Asm GEMM kernel
+    arm_compute::TensorInfo gemm_tmp_buffer_info;
+    arm_compute::TensorInfo gemm_pretranspose_info;
+
+    arm_compute::TensorInfo conv_permuted_weights_info;
     arm_compute::PadStrideInfo padstride_info;
     arm_compute::Size2D dilation_info;
     // Additional information about the weights not included in wei_tensor_info
@@ -65,7 +72,7 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr);
 
-status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
+status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr);

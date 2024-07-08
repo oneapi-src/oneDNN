@@ -29,4 +29,4 @@ compile_commands.json
 .git-blame-ignore-revs
 **/.DS_Store
 __pycache__
-
+.cache
