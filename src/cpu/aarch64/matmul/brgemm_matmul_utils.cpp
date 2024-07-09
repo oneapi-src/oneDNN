@@ -130,11 +130,12 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
 
 status_t check_isa_with_datatype(
         const cpu_isa_t isa, const brgemm_matmul_conf_utils_t &bm_conf_utils) {
-    assert(bm_conf_utils.is_f32());
-    assert(!bm_conf_utils.is_int8());
-    assert(!bm_conf_utils.is_bf16());
-    assert(!bm_conf_utils.is_f16());
-    assert(!bm_conf_utils.is_int8());
+    if (bm_conf_utils.is_f32() && !bm_conf_utils.is_int8()
+            && !bm_conf_utils.is_bf16() && !bm_conf_utils.is_f16()
+            && !bm_conf_utils.is_int8())
+        return status::success;
+    else
+        return status::unimplemented;
     return status::success;
 }
 
