@@ -22,10 +22,11 @@
 #include "common/engine.hpp"
 
 #include "xpu/ocl/engine_factory.hpp"
+#include "xpu/ocl/engine_impl.hpp"
 #include "xpu/ocl/utils.hpp"
 
 using namespace dnnl::impl;
-using namespace dnnl::impl::gpu::intel::ocl;
+using namespace dnnl::impl::xpu::ocl;
 
 status_t dnnl_ocl_interop_engine_create(dnnl::impl::engine_t **engine,
         cl_device_id device, cl_context context) {
@@ -47,8 +48,9 @@ status_t dnnl_ocl_interop_engine_get_context(
 
     if (!args_ok) return status::invalid_arguments;
 
-    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
-    *context = ocl_engine->context();
+    auto *ocl_engine_impl
+            = utils::downcast<const xpu::ocl::engine_impl_t *>(engine->impl());
+    *context = ocl_engine_impl->context();
     return status::success;
 }
 
@@ -58,8 +60,9 @@ status_t dnnl_ocl_interop_get_device(engine_t *engine, cl_device_id *device) {
 
     if (!args_ok) return status::invalid_arguments;
 
-    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
-    *device = ocl_engine->device();
+    auto *ocl_engine_impl
+            = utils::downcast<const xpu::ocl::engine_impl_t *>(engine->impl());
+    *device = ocl_engine_impl->device();
     return status::success;
 }
 
@@ -84,16 +87,14 @@ status_t dnnl_ocl_interop_engine_get_cache_blob(
     if (engine->kind() != engine_kind::gpu || !size)
         return status::invalid_arguments;
 
-    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
-
     if (!cache_blob) {
         size_t sz = 0;
-        CHECK(ocl_engine->get_cache_blob_size(&sz));
+        CHECK(engine->get_cache_blob_size(&sz));
         (*size) = sz;
         return status::success;
     }
 
-    CHECK(ocl_engine->get_cache_blob(*size, cache_blob));
+    CHECK(engine->get_cache_blob(*size, cache_blob));
     return status::success;
 }
 

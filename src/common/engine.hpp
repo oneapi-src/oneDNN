@@ -130,6 +130,17 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         return dnnl::impl::status::runtime_error;
     }
 
+    virtual dnnl::impl::status_t get_cache_blob_size(size_t *size) const {
+        assert(!"unexpected");
+        return dnnl::impl::status::runtime_error;
+    }
+
+    virtual dnnl::impl::status_t get_cache_blob(
+            size_t size, uint8_t *cache_blob) const {
+        assert(!"unexpected");
+        return dnnl::impl::status::runtime_error;
+    }
+
     virtual bool mayiuse_f16_accumulator_with_f16() const { return false; }
 
     const dnnl::impl::engine_impl_t *impl() const { return impl_.get(); }
