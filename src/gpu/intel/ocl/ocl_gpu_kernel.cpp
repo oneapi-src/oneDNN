@@ -64,7 +64,7 @@ public:
 
     status_t set_usm_arg(
             impl::engine_t *engine, int arg_index, const void *arg_value) {
-        return xpu::ocl::usm::set_kernel_arg_usm(
+        return xpu::ocl::usm::set_kernel_arg(
                 engine, kernel_, arg_index, arg_value);
     }
 
