@@ -62,7 +62,7 @@
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "gpu/intel/ocl/verbose.hpp"
+#include "xpu/ocl/verbose.hpp"
 #endif
 
 #ifdef DNNL_WITH_SYCL
@@ -98,7 +98,7 @@ void print_header(const filter_status_t &filter_status) noexcept {
         // these fail (not printing a header is reasonable in this case)
         try {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-            gpu::intel::ocl::print_verbose_header();
+            xpu::ocl::print_verbose_header();
 #endif
 #ifdef DNNL_WITH_SYCL
             xpu::sycl::print_verbose_header();
