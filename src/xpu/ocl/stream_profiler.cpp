@@ -19,27 +19,24 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "gpu/intel/ocl/stream_profiler.hpp"
-
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
+
+#include "xpu/ocl/stream_profiler.hpp"
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/mdapi_utils.hpp"
 #include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
-
-using namespace dnnl::impl;
-using namespace dnnl::impl::gpu::intel::ocl;
+#endif
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
-status_t ocl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
+status_t stream_profiler_t::get_info(profiling_data_kind_t data_kind,
         int *num_entries, uint64_t *data) const {
     if (!num_entries) return status::invalid_arguments;
-    const ocl_stream_t *ocl_stream = static_cast<const ocl_stream_t *>(stream_);
     if (!data) {
         std::unordered_set<uint64_t> seen;
         for (auto &ev : events_)
@@ -61,14 +58,17 @@ status_t ocl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
                 CL_PROFILING_COMMAND_END, sizeof(end), &end, nullptr));
         entry.min_nsec = std::min(entry.min_nsec, beg);
         entry.max_nsec = std::max(entry.max_nsec, end);
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+        const auto *ocl_stream
+                = static_cast<const gpu::intel::ocl::ocl_stream_t *>(stream_);
         entry.freq += ocl_stream->mdapi_helper().get_freq(ocl_event[0]);
+#endif
         entry.kernel_count++;
     }
     return xpu::stream_profiler_t::get_info_impl(stamp2entry, data_kind, data);
 }
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

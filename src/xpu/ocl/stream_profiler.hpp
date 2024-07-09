@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_STREAM_PROFILER_HPP
-#define GPU_INTEL_OCL_STREAM_PROFILER_HPP
+#ifndef XPU_OCL_STREAM_PROFILER_HPP
+#define XPU_OCL_STREAM_PROFILER_HPP
 
 #include "common/c_types_map.hpp"
 
@@ -23,21 +23,19 @@
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
-struct ocl_stream_profiler_t : public xpu::stream_profiler_t {
-    ocl_stream_profiler_t(const impl::stream_t *stream)
-        : stream_profiler_t(stream) {}
+struct stream_profiler_t : public xpu::stream_profiler_t {
+    stream_profiler_t(const impl::stream_t *stream)
+        : xpu::stream_profiler_t(stream) {}
 
     status_t get_info(profiling_data_kind_t data_kind, int *num_entries,
             uint64_t *data) const override;
 };
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 
