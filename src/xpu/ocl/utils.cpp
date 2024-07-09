@@ -20,14 +20,12 @@
 // - CL_DEVICE_UUID_KHR
 #include <CL/cl_ext.h>
 
+#include "xpu/ocl/engine_impl.hpp"
 #include "xpu/ocl/utils.hpp"
 
 // XXX: Include this header for VERROR_ENGINE.
 // TODO: Move VERROR_ENGINE and other similar macros to a separate file.
 #include "common/engine.hpp"
-
-// TODO: remove it when engine_impl_t is introduced.
-#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -299,7 +297,7 @@ cl_platform_id get_platform(cl_device_id device) {
 }
 
 cl_platform_id get_platform(engine_t *engine) {
-    return utils::downcast<gpu::intel::ocl::ocl_gpu_engine_t *>(engine)
+    return utils::downcast<const xpu::ocl::engine_impl_t *>(engine->impl())
             ->platform();
 }
 
