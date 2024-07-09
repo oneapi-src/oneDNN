@@ -60,6 +60,12 @@ struct ocl_stream_t : public compute::compute_stream_t {
     void before_exec_hook() override;
     void after_exec_hook() override;
 
+    double get_freq(const xpu::event_t &event) const override {
+        const auto &ocl_event = xpu::ocl::event_t::from(event).events;
+        gpu_assert(ocl_event.size() == 1);
+        return mdapi_helper().get_freq(ocl_event[0]);
+    }
+
     status_t reset_profiling() override {
         if (!is_profiling_enabled()) return status::invalid_arguments;
         profiler_->reset();
