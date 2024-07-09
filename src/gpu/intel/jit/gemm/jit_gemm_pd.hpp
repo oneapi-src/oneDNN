@@ -145,12 +145,12 @@ struct jit_gemm_pd_t : public gpu_gemm_pd_t {
             if (convert) {
                 if (mask == 0) {
                     dim_t dims = 1;
-                    CHECK(memory_desc_init_by_tag(
-                        src_scales_md, 1, &dims, src_scales->data_type_, format_tag::a));
+                    CHECK(memory_desc_init_by_tag(src_scales_md, 1, &dims,
+                            src_scales->data_type_, format_tag::a));
                 } else {
                     dim_t dims[] = {d->n(), 1};
-                    CHECK(memory_desc_init_by_tag(
-                            src_scales_md, 2, dims, src_scales->data_type_, format_tag::ab));
+                    CHECK(memory_desc_init_by_tag(src_scales_md, 2, dims,
+                            src_scales->data_type_, format_tag::ab));
                 }
 
                 auto status
