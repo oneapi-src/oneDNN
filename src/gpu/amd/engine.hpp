@@ -69,6 +69,10 @@ public:
     rocblas_handle *get_rocblas_handle();
     const bool has_primary_context() const { return primary_context_; }
 
+    bool mayiuse_system_memory_allocators() const override {
+        return impl()->mayiuse_system_memory_allocators();
+    }
+
 protected:
     const xpu::sycl::engine_impl_t *impl() const {
         return (const xpu::sycl::engine_impl_t *)impl::engine_t::impl();

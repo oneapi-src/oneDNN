@@ -141,6 +141,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         return dnnl::impl::status::runtime_error;
     }
 
+    virtual bool mayiuse_system_memory_allocators() const { return false; }
     virtual bool mayiuse_f16_accumulator_with_f16() const { return false; }
 
     const dnnl::impl::engine_impl_t *impl() const { return impl_.get(); }

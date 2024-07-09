@@ -51,13 +51,10 @@ status_t dnnl_ocl_interop_memory_create(memory_t **memory,
 
     std::unique_ptr<memory_storage_t> mem_storage;
     if (is_usm) {
-        const auto *ocl_engine
-                = utils::downcast<gpu::intel::compute::compute_engine_t *>(
-                        engine);
         if (handle != DNNL_MEMORY_NONE && handle != DNNL_MEMORY_ALLOCATE
                 && xpu::ocl::usm::get_pointer_type(engine, handle)
                         == xpu::ocl::usm::kind_t::unknown
-                && !ocl_engine->mayiuse_system_memory_allocators()) {
+                && !engine->mayiuse_system_memory_allocators()) {
             return status::invalid_arguments;
         }
         mem_storage.reset(new xpu::ocl::usm_memory_storage_t(engine));
