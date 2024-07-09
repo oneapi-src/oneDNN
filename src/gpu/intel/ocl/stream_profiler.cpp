@@ -51,8 +51,8 @@ status_t ocl_stream_profiler_t::get_info(profiling_data_kind_t data_kind,
     std::unordered_map<uint64_t, xpu::stream_profiler_t::entry_t> stamp2entry;
     for (auto &ev : events_) {
         auto &entry = stamp2entry[ev.stamp];
-        const ocl_event_t &ocl_event
-                = *utils::downcast<ocl_event_t *>(ev.event.get());
+        const xpu::ocl::event_t &ocl_event
+                = *utils::downcast<xpu::ocl::event_t *>(ev.event.get());
         cl_ulong beg, end;
         assert(ocl_event.size() == 1);
         OCL_CHECK(clGetEventProfilingInfo(ocl_event[0].get(),

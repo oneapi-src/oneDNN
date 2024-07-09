@@ -25,10 +25,10 @@
 
 #include "xpu/stream_profiler.hpp"
 
+#include "xpu/ocl/context.hpp"
 #include "xpu/ocl/memory_storage.hpp"
 #include "xpu/ocl/usm_utils.hpp"
 
-#include "gpu/intel/ocl/ocl_context.hpp"
 #include "gpu/intel/ocl/ocl_stream.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
@@ -210,7 +210,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
 
     xpu::ocl::wrapper_t<cl_event> event;
     if (ocl_stream->flags() & stream_flags::out_of_order) {
-        const auto &event_wrappers = ocl_event_t::from(deps).events;
+        const auto &event_wrappers = xpu::ocl::event_t::from(deps).events;
         std::vector<cl_event> events(
                 event_wrappers.begin(), event_wrappers.end());
 
@@ -221,7 +221,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
                 range.local_range() ? range.local_range().data() : nullptr,
                 num_events, events_data, &event.unwrap());
         OCL_CHECK(err);
-        ocl_event_t::from(out_dep).events = {event};
+        xpu::ocl::event_t::from(out_dep).events = {event};
     } else {
         bool save_event = save_events_ || stream.is_profiling_enabled();
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
@@ -233,7 +233,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
 
     if (stream.is_profiling_enabled()) {
         ocl_stream->profiler().register_event(
-                utils::make_unique<ocl_event_t>(std::move(event)));
+                utils::make_unique<xpu::ocl::event_t>(std::move(event)));
     }
 
     return status::success;

@@ -36,8 +36,7 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
 
     std::vector<cl_event> events = [&] {
         if (flags() & stream_flags::out_of_order) {
-            const auto &event_wrappers
-                    = gpu::intel::ocl::ocl_event_t::from(deps).events;
+            const auto &event_wrappers = xpu::ocl::event_t::from(deps).events;
             return std::vector<cl_event>(
                     event_wrappers.begin(), event_wrappers.end());
         }
@@ -160,14 +159,13 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
     }
 
     if (is_profiling_enabled()) {
-        auto ocl_event = utils::make_unique<gpu::intel::ocl::ocl_event_t>(
+        auto ocl_event = utils::make_unique<xpu::ocl::event_t>(
                 std::vector<xpu::ocl::wrapper_t<cl_event>> {out_event});
         stream_profiler->register_event(std::move(ocl_event));
     }
 
     if (flags() & stream_flags::out_of_order)
-        gpu::intel::ocl::ocl_event_t::from(out_dep).events
-                = {std::move(out_event)};
+        xpu::ocl::event_t::from(out_dep).events = {std::move(out_event)};
 
     return status::success;
 }
@@ -183,8 +181,7 @@ status_t stream_impl_t::fill(impl::stream_t *stream,
 
     std::vector<cl_event> events = [&] {
         if (flags() & stream_flags::out_of_order) {
-            const auto &event_wrappers
-                    = gpu::intel::ocl::ocl_event_t::from(deps).events;
+            const auto &event_wrappers = xpu::ocl::event_t::from(deps).events;
             return std::vector<cl_event>(
                     event_wrappers.begin(), event_wrappers.end());
         }
@@ -213,27 +210,26 @@ status_t stream_impl_t::fill(impl::stream_t *stream,
     }
 
     if (is_profiling_enabled()) {
-        auto ocl_event = utils::make_unique<gpu::intel::ocl::ocl_event_t>(
+        auto ocl_event = utils::make_unique<xpu::ocl::event_t>(
                 std::vector<xpu::ocl::wrapper_t<cl_event>> {out_event});
         stream_profiler->register_event(std::move(ocl_event));
     }
 
     if (flags() & stream_flags::out_of_order)
-        gpu::intel::ocl::ocl_event_t::from(out_dep).events
-                = {std::move(out_event)};
+        xpu::ocl::event_t::from(out_dep).events = {std::move(out_event)};
 
     return status::success;
 }
 
-const gpu::intel::ocl::ocl_context_t &stream_impl_t::ocl_ctx() const {
-    static gpu::intel::ocl::ocl_context_t empty_ctx {};
+const xpu::ocl::context_t &stream_impl_t::ocl_ctx() const {
+    static xpu::ocl::context_t empty_ctx {};
     return ctx_.get(empty_ctx);
 }
 
-gpu::intel::ocl::ocl_context_t &stream_impl_t::ocl_ctx() {
-    const gpu::intel::ocl::ocl_context_t &ctx
+xpu::ocl::context_t &stream_impl_t::ocl_ctx() {
+    const xpu::ocl::context_t &ctx
             = const_cast<const stream_impl_t *>(this)->ocl_ctx();
-    return *const_cast<gpu::intel::ocl::ocl_context_t *>(&ctx);
+    return *const_cast<xpu::ocl::context_t *>(&ctx);
 }
 
 xpu::context_t &stream_impl_t::ctx() {
@@ -245,7 +241,7 @@ const xpu::context_t &stream_impl_t::ctx() const {
 }
 
 const xpu::ocl::wrapper_t<cl_event> &stream_impl_t::get_output_event() const {
-    auto &deps = gpu::intel::ocl::ocl_event_t::from(ctx().get_deps());
+    auto &deps = xpu::ocl::event_t::from(ctx().get_deps());
     assert(deps.size() == 1);
     return deps[0];
 }

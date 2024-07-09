@@ -115,7 +115,7 @@ void ocl_stream_t::before_exec_hook() {
 }
 
 void ocl_stream_t::after_exec_hook() {
-    ocl_ctx().set_deps(ocl_event_t());
+    ocl_ctx().set_deps(xpu::ocl::event_t());
     if (is_profiling_enabled()) profiler_->stop_profiling();
 }
 
