@@ -227,11 +227,9 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
             auto &src_scales = attr()->scales_.get(DNNL_ARG_SRC);
 
-            if (wei_decomp_ && wei_scales.ndims_ > 1)
-                wei_scales_2d_ = true;
+            if (wei_decomp_ && wei_scales.ndims_ > 1) wei_scales_2d_ = true;
 
-            if (wei_decomp_ && src_scales.ndims_ > 1)
-                src_scales_2d_ = true;
+            if (wei_decomp_ && src_scales.ndims_ > 1) src_scales_2d_ = true;
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto mask = attr()->scales_.get(s).mask_;
@@ -247,7 +245,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                 if (scales_group_k >= d->k()) {
                     wei_scales_2d_ = false;
                 } else {
-                    VDISPATCH_GEMM(!(wei_zp && (ao_dims_ == 1 || bo_dims_ == 1)),
+                    VDISPATCH_GEMM(
+                            !(wei_zp && (ao_dims_ == 1 || bo_dims_ == 1)),
                             VERBOSE_UNSUPPORTED_ZP_CFG);
                     wei_scales_type = wei_scales.data_type_;
                     if (!wei_zp_2d)

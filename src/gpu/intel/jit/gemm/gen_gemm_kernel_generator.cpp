@@ -6646,8 +6646,9 @@ void gemm_kernel_generator_t<hw>::incDecAddr(const A &addr, I inc,
 }
 
 template <HW hw>
-void gemm_kernel_generator_t<hw>::incAddr2D(Type T, const vector<GRFRange> &addr,
-        bool column, int k, const SubregisterPair &ld, const LDIncrements &incs,
+void gemm_kernel_generator_t<hw>::incAddr2D(Type T,
+        const vector<GRFRange> &addr, bool column, int k,
+        const SubregisterPair &ld, const LDIncrements &incs,
         const vector<RegisterBlock> &layout, const MatrixAddressing &atype,
         const MatrixAddressingStrategy &astrategy,
         const CommonStrategy &strategy, CommonState &state) {
@@ -7745,7 +7746,8 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
                 mul(i.simd, i.acc(Tc), i.acc(Tc), i.scale[1](i.scaleStride[1]));
         for (const auto &i : items) {
             if (i.scale[0].isValid())
-                mad(i.simd, i.C(1), i.C(1), i.acc(Tc), i.scale[0](i.scaleStride[0]));
+                mad(i.simd, i.C(1), i.C(1), i.acc(Tc),
+                        i.scale[0](i.scaleStride[0]));
             else
                 add(i.simd, i.C(1), i.C(1), i.acc(Tc));
         }
@@ -7806,15 +7808,16 @@ void gemm_kernel_generator_t<hw>::outerProductRepackC(int x0, int xr0, int nx,
                 coalesce &= (C.getBase() == last.C.getBase() + 1);
                 coalesce &= (Cr.getBase() == last.Cr.getBase() + 1);
                 for (int i = 0; i < 2; i++) {
-                if (scale[i].isValid()) {
-                    if (scaleStride[i] == 0)
-                        coalesce &= (scale[i] == last.scale[i]);
-                    else {
-                        coalesce
-                                &= (scale[i].getBase() == last.scale[i].getBase() + 1)
-                                && (getBytes(scale[i].getType()) == Tc.size());
+                    if (scale[i].isValid()) {
+                        if (scaleStride[i] == 0)
+                            coalesce &= (scale[i] == last.scale[i]);
+                        else {
+                            coalesce &= (scale[i].getBase()
+                                                == last.scale[i].getBase() + 1)
+                                    && (getBytes(scale[i].getType())
+                                            == Tc.size());
+                        }
                     }
-                }
                 }
             }
 
@@ -13672,10 +13675,12 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
     X_offsetStrategy.newDP = (hw >= HW::XeHPG);
     X_scaleStrategy = X_offsetStrategy;
 
-    X_offsetStrategy.accessType
-            = (isA == isColMajor(XO.layout)) ? AccessType::Block : AccessType::Scattered;
-    X_scaleStrategy.accessType
-            = (isA == isColMajor(XS.layout)) ? AccessType::Block : AccessType::Scattered;
+    X_offsetStrategy.accessType = (isA == isColMajor(XO.layout))
+            ? AccessType::Block
+            : AccessType::Scattered;
+    X_scaleStrategy.accessType = (isA == isColMajor(XS.layout))
+            ? AccessType::Block
+            : AccessType::Scattered;
 
     if (!X_offsetStrategy.base.isStateless()) {
         X_offsetStrategy.base.setIndex(
@@ -13714,8 +13719,8 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
               };
 
     if (xo2D)
-        makeQRepack(
-                Txo, Txo_int, Xr_offsetLayout, X_offsetLayout, r, c, div_up(crosspack, cpoDiv));
+        makeQRepack(Txo, Txo_int, Xr_offsetLayout, X_offsetLayout, r, c,
+                div_up(crosspack, cpoDiv));
     if (xs2D)
         makeQRepack(Txs, Tx_scaleOp, Xr_scaleLayout, X_scaleLayout, rs, cs,
                 lateScale ? 1 : crosspack);
@@ -13862,14 +13867,17 @@ void gemm_kernel_generator_t<hw>::gemm2DDequantizeOperation(bool doA, Type T,
                 }
 
                 int maxSIMD = (op == BinaryOp::Sub && T.isInt8()) ? 64 : 32;
-                int simd = std::min({ne * crosspack, 2 * elementsPerGRF(hw, T), maxSIMD});
+                int simd = std::min(
+                        {ne * crosspack, 2 * elementsPerGRF(hw, T), maxSIMD});
                 switch (op) {
                     case BinaryOp::Sub:
                         if (T.isInt8()) {
-                            add(simd / 2, data(2), data(2), -qdata(strideq * 2 / To));
+                            add(simd / 2, data(2), data(2),
+                                    -qdata(strideq * 2 / To));
                             data.setOffset(data.getOffset() + 1);
                             qdata.setOffset(qdata.getOffset() + strideq / To);
-                            add(simd / 2, data(2), data(2), -qdata(strideq * 2 / To));
+                            add(simd / 2, data(2), data(2),
+                                    -qdata(strideq * 2 / To));
                         } else
                             add(simd, data(1), data(1), -qdata(strideq));
                         break;
@@ -14015,8 +14023,7 @@ void gemm_kernel_generator_t<hw>::gemm2DDequantizeAB(bool doA, Type Tsrc,
     auto Tx1_int = xo2D ? Txo_int : Tx_scaleInt;
     auto Tx2_int = xs2D ? Tx_scaleInt : Tdst;
 
-    if (xo2D && !xs2D && (Txo_int.bits() > Tdst.bits()))
-        Tx1_int = Tdst;
+    if (xo2D && !xs2D && (Txo_int.bits() > Tdst.bits())) Tx1_int = Tdst;
 
     int offR = doA ? 0 : hab;
     int offC = doA ? hab : 0;
@@ -15444,11 +15451,13 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         if (hasFlags(state.A_offsetLayout))
             last = std::min(last, lcm(kaq_load, ka_loadMain) - 1);
         if (hasFlags(state.A_scaleLayout))
-            last = std::min(last, lcm(as2DLate ? kaq_loadLate : kaq_load, ka_loadMain) - 1);
+            last = std::min(last,
+                    lcm(as2DLate ? kaq_loadLate : kaq_load, ka_loadMain) - 1);
         if (hasFlags(state.B_offsetLayout))
             last = std::min(last, lcm(kbq_load, kb_loadMain) - 1);
         if (hasFlags(state.B_scaleLayout))
-            last = std::min(last, lcm(bs2DLate ? kbq_loadLate : kbq_load, kb_loadMain) - 1);
+            last = std::min(last,
+                    lcm(bs2DLate ? kbq_loadLate : kbq_load, kb_loadMain) - 1);
         reqLoopCheck = reqLoopCheck.delay(unrollK - last);
     }
 
@@ -15491,35 +15500,35 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
                     state.ldaoIncrements, state.A_offsetLayout, problem.AO,
                     state.A_offsetStrategy, strategy, state);
         if (as2D)
-            incAddr2D(problem.Ta_scale, state.A_scaleAddrs, true, kaInc, state.ldaScale,
-                    state.ldasIncrements, state.A_scaleLayout, problem.A_scale,
-                    state.A_scaleStrategy, strategy, state);
+            incAddr2D(problem.Ta_scale, state.A_scaleAddrs, true, kaInc,
+                    state.ldaScale, state.ldasIncrements, state.A_scaleLayout,
+                    problem.A_scale, state.A_scaleStrategy, strategy, state);
     };
 
     auto doIncBq = [&](Iteration h) {
         auto kbInc = kInc(h, state.kbqStride, problem.bqGroupK);
         if (bo2D)
-            incAddr2D(problem.Tbo, state.B_offsetAddrs, false, kbInc, state.ldbo,
-                    state.ldboIncrements, state.B_offsetLayout, problem.BO,
-                    state.B_offsetStrategy, strategy, state);
+            incAddr2D(problem.Tbo, state.B_offsetAddrs, false, kbInc,
+                    state.ldbo, state.ldboIncrements, state.B_offsetLayout,
+                    problem.BO, state.B_offsetStrategy, strategy, state);
         if (bs2D)
-            incAddr2D(problem.Tb_scale, state.B_scaleAddrs, false, kbInc, state.ldbScale,
-                    state.ldbsIncrements, state.B_scaleLayout, problem.B_scale,
-                    state.B_scaleStrategy, strategy, state);
+            incAddr2D(problem.Tb_scale, state.B_scaleAddrs, false, kbInc,
+                    state.ldbScale, state.ldbsIncrements, state.B_scaleLayout,
+                    problem.B_scale, state.B_scaleStrategy, strategy, state);
     };
 
     auto doIncAqLate = [&](Iteration h) {
         auto kaInc = kInc(h, state.kaqLate, problem.aqGroupK);
-        incAddr2D(problem.Ta_scale, state.A_scaleAddrs, true, kaInc, state.ldaScale,
-                state.ldasIncrements, state.A_scaleLayout, problem.A_scale,
-                state.A_scaleStrategy, strategy, state);
+        incAddr2D(problem.Ta_scale, state.A_scaleAddrs, true, kaInc,
+                state.ldaScale, state.ldasIncrements, state.A_scaleLayout,
+                problem.A_scale, state.A_scaleStrategy, strategy, state);
     };
 
     auto doIncBqLate = [&](Iteration h) {
         auto kbInc = kInc(h, state.kbqLate, problem.bqGroupK);
-        incAddr2D(problem.Tb_scale, state.B_scaleAddrs, false, kbInc, state.ldbScale,
-                state.ldbsIncrements, state.B_scaleLayout, problem.B_scale,
-                state.B_scaleStrategy, strategy, state);
+        incAddr2D(problem.Tb_scale, state.B_scaleAddrs, false, kbInc,
+                state.ldbScale, state.ldbsIncrements, state.B_scaleLayout,
+                problem.B_scale, state.B_scaleStrategy, strategy, state);
     };
 
     // SLM quantization parameter address increment.
@@ -17481,34 +17490,44 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
         }
     }
 
-    auto setupQAddr = [&](Type T, vector<GRFRange> &addrs, const vector<RegisterBlock> &layout, Subregister ptr, Subregister r0, Subregister c0, Subregister ld, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy) {
+    auto setupQAddr = [&](Type T, vector<GRFRange> &addrs,
+                              const vector<RegisterBlock> &layout,
+                              Subregister ptr, Subregister r0, Subregister c0,
+                              Subregister ld, const MatrixAddressing &atype,
+                              const MatrixAddressingStrategy &astrategy) {
         auto base = state.ra.alloc_sub(ptr.getType());
         if (!isColMajor(atype.layout)) std::swap(r0, c0);
-        if (r0.isValid())
-            eaddScaled(1, base, ptr, r0, T, strategy, state);
+        if (r0.isValid()) eaddScaled(1, base, ptr, r0, T, strategy, state);
         if (c0.isValid())
             emad(1, base, r0.isValid() ? base : ptr, c0, ld, strategy, state);
         if (r0.isInvalid() && c0.isInvalid())
             emov(1, base, ptr, strategy, state);
-        setupAddr(T, addrs, base, layout,
-                ld, atype, astrategy, strategy,
-                state);
+        setupAddr(
+                T, addrs, base, layout, ld, atype, astrategy, strategy, state);
         state.ra.safeRelease(base);
     };
 
     if (ao2D) {
-        setupQAddr(Tao, state.A_offsetAddrs, state.A_offsetLayout, state.inputs.aoPtr, i0q, A_h0q, state.inputs.ldao, problem.AO, state.A_offsetStrategy);
+        setupQAddr(Tao, state.A_offsetAddrs, state.A_offsetLayout,
+                state.inputs.aoPtr, i0q, A_h0q, state.inputs.ldao, problem.AO,
+                state.A_offsetStrategy);
     }
     if (as2D) {
         if (!state.lateScale2DA) i0s = i0q, A_h0s = A_h0q;
-        setupQAddr(Ta_scale, state.A_scaleAddrs, state.A_scaleLayout, state.inputs.aScalePtr, i0s, A_h0s, state.inputs.ldaScale, problem.A_scale, state.A_scaleStrategy);
+        setupQAddr(Ta_scale, state.A_scaleAddrs, state.A_scaleLayout,
+                state.inputs.aScalePtr, i0s, A_h0s, state.inputs.ldaScale,
+                problem.A_scale, state.A_scaleStrategy);
     }
     if (bo2D) {
-        setupQAddr(Tbo, state.B_offsetAddrs, state.B_offsetLayout, state.inputs.boPtr, B_h0q, j0q, state.inputs.ldbo, problem.BO, state.B_offsetStrategy);
+        setupQAddr(Tbo, state.B_offsetAddrs, state.B_offsetLayout,
+                state.inputs.boPtr, B_h0q, j0q, state.inputs.ldbo, problem.BO,
+                state.B_offsetStrategy);
     }
     if (bs2D) {
         if (!state.lateScale2DB) j0s = j0q, B_h0s = B_h0q;
-        setupQAddr(Tb_scale, state.B_scaleAddrs, state.B_scaleLayout, state.inputs.bScalePtr, B_h0s, j0s, state.inputs.ldbScale, problem.B_scale, state.B_scaleStrategy);
+        setupQAddr(Tb_scale, state.B_scaleAddrs, state.B_scaleLayout,
+                state.inputs.bScalePtr, B_h0s, j0s, state.inputs.ldbScale,
+                problem.B_scale, state.B_scaleStrategy);
     }
 
     if (i0q != state.i0) state.ra.safeRelease(i0q);
@@ -21036,8 +21055,10 @@ void gemm_kernel_generator_t<hw>::gemmAutoTypeConversions(
     auto &Ta_ext = problem.Ta_ext, &Tb_ext = problem.Tb_ext;
 
     // Weights decompression
-    if ((Ta.isInt8() || Ta.isInt4()) && Tb.isFP() && Tc.isFP()) Ta = Tb.asSigned();
-    if ((Tb.isInt8() || Tb.isInt4()) && Ta.isFP() && Tc.isFP()) Tb = Ta.asSigned();
+    if ((Ta.isInt8() || Ta.isInt4()) && Tb.isFP() && Tc.isFP())
+        Ta = Tb.asSigned();
+    if ((Tb.isInt8() || Tb.isInt4()) && Ta.isFP() && Tc.isFP())
+        Tb = Ta.asSigned();
 
     if (Ta == Ta_ext.asSigned()) Ta = Ta_ext;
     if (Tb == Tb_ext.asSigned()) Tb = Tb_ext;
@@ -27952,10 +27973,22 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                     if (Td.isInteger()) {
                                         if (Ts_real.isSigned()) {
                                             if (Td_real.isInt16()) {
-                                                shl(n_bytes | modMov,  dreg(effDCP), sreg.ub()(scrosspack_byte), 12);
-                                                shl(n_bytes | modMov, dreg1(effDCP), sreg.ub()(scrosspack_byte), 8);
-                                                asr(n_bytes | modMov,  dreg.w()(effDCP), dreg.w()(effDCP), 12);
-                                                asr(n_bytes | modMov,  dreg1.w()(effDCP), dreg1.w()(effDCP), 12);
+                                                shl(n_bytes | modMov,
+                                                        dreg(effDCP),
+                                                        sreg.ub()(
+                                                                scrosspack_byte),
+                                                        12);
+                                                shl(n_bytes | modMov,
+                                                        dreg1(effDCP),
+                                                        sreg.ub()(
+                                                                scrosspack_byte),
+                                                        8);
+                                                asr(n_bytes | modMov,
+                                                        dreg.w()(effDCP),
+                                                        dreg.w()(effDCP), 12);
+                                                asr(n_bytes | modMov,
+                                                        dreg1.w()(effDCP),
+                                                        dreg1.w()(effDCP), 12);
                                             } else if (!Td_real.isInt8())
                                                 stub();
                                             if (effDCP > 1 && !int4Zip) {
