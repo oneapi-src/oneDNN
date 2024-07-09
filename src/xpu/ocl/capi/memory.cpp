@@ -55,8 +55,8 @@ status_t dnnl_ocl_interop_memory_create(memory_t **memory,
                 = utils::downcast<gpu::intel::compute::compute_engine_t *>(
                         engine);
         if (handle != DNNL_MEMORY_NONE && handle != DNNL_MEMORY_ALLOCATE
-                && usm::get_pointer_type(engine, handle)
-                        == usm::ocl_usm_kind_t::unknown
+                && xpu::ocl::usm::get_pointer_type(engine, handle)
+                        == xpu::ocl::usm::kind_t::unknown
                 && !ocl_engine->mayiuse_system_memory_allocators()) {
             return status::invalid_arguments;
         }

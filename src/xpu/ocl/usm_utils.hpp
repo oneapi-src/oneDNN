@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_USM_UTILS_HPP
-#define GPU_INTEL_OCL_OCL_USM_UTILS_HPP
+#ifndef XPU_OCL_USM_UTILS_HPP
+#define XPU_OCL_USM_UTILS_HPP
 
 #include <CL/cl.h>
 
@@ -24,12 +24,11 @@
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 namespace usm {
 
-enum class ocl_usm_kind_t { unknown, host, device, shared };
+enum class kind_t { unknown, host, device, shared };
 
 bool is_usm_supported(impl::engine_t *engine);
 void *malloc_host(impl::engine_t *engine, size_t size);
@@ -48,13 +47,11 @@ status_t fill(impl::stream_t *stream, void *ptr, const void *pattern,
         const cl_event *events, cl_event *out_event);
 status_t DNNL_API memset(
         impl::stream_t *stream, void *ptr, int value, size_t size);
-ocl_usm_kind_t DNNL_API get_pointer_type(
-        impl::engine_t *engine, const void *ptr);
+kind_t DNNL_API get_pointer_type(impl::engine_t *engine, const void *ptr);
 
 } // namespace usm
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

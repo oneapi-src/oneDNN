@@ -16,10 +16,11 @@
 
 #include <CL/cl.h>
 
+#include "xpu/ocl/usm_utils.hpp"
+
 #include "gpu/intel/ocl/ocl_buffer_memory_storage.hpp"
 #include "gpu/intel/ocl/ocl_engine.hpp"
 #include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
 
 namespace dnnl {
 namespace impl {

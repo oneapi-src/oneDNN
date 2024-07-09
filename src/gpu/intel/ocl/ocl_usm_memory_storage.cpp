@@ -17,8 +17,10 @@
 #include <CL/cl.h>
 
 #include "common/memory_map_manager.hpp"
+
+#include "xpu/ocl/usm_utils.hpp"
+
 #include "gpu/intel/ocl/ocl_usm_memory_storage.hpp"
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -43,22 +45,23 @@ status_t ocl_usm_memory_storage_t::map_data(
 
     if (!stream) CHECK(engine()->get_service_stream(stream));
 
-    void *host_ptr = usm::malloc_host(engine(), size);
+    void *host_ptr = xpu::ocl::usm::malloc_host(engine(), size);
     if (!host_ptr) return status::out_of_memory;
 
     auto leak_guard = decltype(usm_ptr_)(
-            host_ptr, [this](void *p) { usm::free(engine(), p); });
-    CHECK(usm::memcpy(stream, host_ptr, usm_ptr(), size, 0, nullptr, nullptr));
+            host_ptr, [this](void *p) { xpu::ocl::usm::free(engine(), p); });
+    CHECK(xpu::ocl::usm::memcpy(
+            stream, host_ptr, usm_ptr(), size, 0, nullptr, nullptr));
     CHECK(stream->wait());
     leak_guard.release();
 
     auto *usm_ptr_for_unmap = usm_ptr();
     auto unmap_callback = [size, usm_ptr_for_unmap](
                                   impl::stream_t *stream, void *mapped_ptr) {
-        CHECK(usm::memcpy(stream, usm_ptr_for_unmap, mapped_ptr, size, 0,
-                nullptr, nullptr));
+        CHECK(xpu::ocl::usm::memcpy(stream, usm_ptr_for_unmap, mapped_ptr, size,
+                0, nullptr, nullptr));
         CHECK(stream->wait());
-        usm::free(stream->engine(), mapped_ptr);
+        xpu::ocl::usm::free(stream->engine(), mapped_ptr);
         return status::success;
     };
 

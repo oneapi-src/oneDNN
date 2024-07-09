@@ -23,12 +23,12 @@
 #include "common/rw_mutex.hpp"
 #include "common/utils.hpp"
 
+#include "xpu/ocl/usm_utils.hpp"
 #include "xpu/stream_profiler.hpp"
 
 #include "gpu/intel/ocl/ocl_context.hpp"
 #include "gpu/intel/ocl/ocl_memory_storage.hpp"
 #include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -63,7 +63,8 @@ public:
 
     status_t set_usm_arg(
             impl::engine_t *engine, int arg_index, const void *arg_value) {
-        return usm::set_kernel_arg_usm(engine, kernel_, arg_index, arg_value);
+        return xpu::ocl::usm::set_kernel_arg_usm(
+                engine, kernel_, arg_index, arg_value);
     }
 
 private:
@@ -188,7 +189,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
                     default: assert(!"not expected");
                 }
             } else {
-                if (usm::is_usm_supported(stream.engine())) {
+                if (xpu::ocl::usm::is_usm_supported(stream.engine())) {
                     CHECK(kernel->set_usm_arg(stream.engine(), i, nullptr));
                 } else {
                     cl_mem null_mem = nullptr;
