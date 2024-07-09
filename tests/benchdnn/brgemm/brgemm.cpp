@@ -330,6 +330,7 @@ int init_kernel(kernel_args_t &kernel_args) {
     if (res->state == SKIPPED) return OK;
 
     attr_args_t attr_args;
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     const auto &wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
     if (wei_scale.policy == policy_t::PER_OC) {
         attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, 2);
@@ -375,6 +376,7 @@ int init_kernel(kernel_args_t &kernel_args) {
     kernel_args.scratchpad_size_ = brgemm_desc.get_wsp_buffer_size();
 #else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
     attr_args_t attr_args;
+    attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -475,14 +477,6 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         return;
     }
 
-    if (prb->attr.post_ops.binary_index() >= 0) {
-        // TODO: binary post-op is not supported yet.
-        BENCHDNN_PRINT(2, "%s\n",
-                "Binary post-op is not supported in the driver yet.");
-        res->state = SKIPPED;
-        res->reason = skip_reason::case_not_supported;
-        return;
-    }
 #else
     if (!prb->attr.is_def()) {
         bool non_def_scales = !prb->attr.scales.is_def();
@@ -500,10 +494,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         if (non_def_po) {
             const auto &po = prb->attr.post_ops;
             bool has_sum = po.find(attr_t::post_ops_t::kind_t::SUM) != -1;
-            bool has_binary = po.binary_index() != -1;
-            if (has_sum || has_binary) {
-                BENCHDNN_PRINT(
-                        2, "%s\n", "Sum or binary post-ops are not supported");
+            if (has_sum) {
+                BENCHDNN_PRINT(2, "%s\n", "Sum post-op is not supported");
                 res->state = SKIPPED;
                 res->reason = skip_reason::case_not_supported;
                 return;
@@ -705,6 +697,41 @@ void init_memory_args(
         // condition.
         mem_map.emplace(
                 DNNL_ARG_SCRATCHPAD, dnn_mem_t(scratchpad_md, test_engine));
+    }
+
+    // Binary post-op.
+    const auto &po = prb->attr.post_ops;
+    for (int idx = 0; idx < po.len(); ++idx) {
+        const auto &e = po.entry[idx];
+        if (!e.is_binary_kind()) continue;
+
+        int po_arg = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
+        const auto &b = e.binary;
+        int ndims = 2;
+        dims_t dims = prb->dst_dims;
+
+        using mask_input_t
+                = attr_t::post_ops_t::entry_t::binary_t::mask_input_t;
+        int mask = -1;
+        if (b.mask_input == mask_input_t::mask) {
+            mask = b.mask;
+        } else if (b.mask_input == mask_input_t::policy) {
+            mask = attr_t::policy2mask(po_arg, b.policy, dnnl_matmul, 2);
+        } else {
+            mask = attr_t::get_default_mask(b.policy);
+        }
+
+        switch (mask) {
+            case 0: dims = {1, 1}; break;
+            case 1: dims = {dims[0], 1}; break;
+            case 2: dims = {1, dims[1]}; break;
+            // Masks can be bigger than values above depending on the policy.
+            default: break;
+        }
+
+        auto po_md
+                = dnn_mem_t::init_md(ndims, dims.data(), b.src1_dt, tag::abx);
+        mem_map.emplace(po_arg, dnn_mem_t(po_md, test_engine));
     }
 
     if (!prb->attr.scales.is_def()) {
@@ -924,6 +951,27 @@ int scales_post_processing(dnn_mem_map_t &mem_map) {
     return OK;
 }
 
+int binary_post_op_preprocessing(
+        std::vector<void *> &binary_po_v, const dnn_mem_map_t &mem_map) {
+    binary_po_v.reserve(mem_map.size());
+
+    for (const auto &map_entry : mem_map) {
+        const int exec_arg = map_entry.first;
+
+        const int post_ops_range = DNNL_ARG_ATTR_MULTIPLE_POST_OP(31)
+                - DNNL_ARG_ATTR_MULTIPLE_POST_OP(0);
+        const bool is_post_ops_arg = (exec_arg & post_ops_range);
+        if (!is_post_ops_arg) continue;
+
+        const auto &mem = map_entry.second;
+        void *handle;
+        DNN_SAFE(dnnl_memory_get_data_handle(mem.m_, &handle), WARN);
+        binary_po_v.push_back(handle);
+    }
+
+    return OK;
+}
+
 int init_hw_config(const kernel_args_t &kernel_args) {
 #if !defined(DNNL_EXPERIMENTAL_UKERNEL)
 #if defined(brg_x64)
@@ -990,6 +1038,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(scales_post_processing(mem_map), WARN);
 
+    std::vector<void *> binary_po_v;
+    SAFE(binary_post_op_preprocessing(binary_po_v, mem_map), WARN);
+
 #if !defined(DNNL_EXPERIMENTAL_UKERNEL)
     std::vector<namespace_impl::brgemm_batch_element_t> v_batch_element(
             prb->batch_size);
@@ -1039,9 +1090,13 @@ int doit(const prb_t *prb, res_t *res) {
 
     namespace_impl::brgemm_post_ops_data_t post_ops_data(
             /* bias */ bia_dt_ptr,
-            /* scales */ scales_ptr, /* binary_post_ops_rhs */ nullptr,
+            /* scales */ scales_ptr,
+            /* binary_post_ops_rhs */ binary_po_v.data(),
             /* oc_logical_off */ 0, /* dst_row_logical_off */ 0,
-            /* data_C_ptr_ */ acc_ptr, /* first_mb_matrix_addr_off */ 0,
+            // TODO: though the field is called `data_C_ptr_`, this is a
+            // misleading name since actually dst_ptr must be used there to
+            // have binary injector working for per_tensor policy.
+            /* data_C_ptr_ */ dst_ptr, /* first_mb_matrix_addr_off */ 0,
             /* a_zp_compensations */ src_comp_ptr,
             /* b_zp_compensations */ nullptr,
             /* c_zp_values */ dst_zp_ptr,
@@ -1108,9 +1163,10 @@ int doit(const prb_t *prb, res_t *res) {
                          offsets.data(), dst_ptr, scratchpad_ptr),
                 WARN);
     } else {
+        assert(binary_po_v.size() <= 1);
         DNN_SAFE(dnnl_brgemm_execute_postops(brgemm, src_ptr, wei_packed_ptr,
                          offsets.data(), acc_ptr, dst_ptr, scratchpad_ptr,
-                         nullptr),
+                         binary_po_v.empty() ? nullptr : binary_po_v[0]),
                 WARN);
     }
 #endif

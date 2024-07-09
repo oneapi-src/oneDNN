@@ -1,7 +1,7 @@
 # f32
 --reset
 --beta=0,1
---attr-post-ops=,sum:2,relu
+--attr-post-ops=,sum:2+add:f32,relu+add:f32:per_oc
 --bs=1,16
 --dt=f32
 --bia_dt=undef,f32
@@ -12,7 +12,7 @@
 # f16
 --reset
 --beta=0,1
---attr-post-ops=,sum:2,relu
+--attr-post-ops=,sum:2+add:f16,relu+add:f16:per_oc
 --bs=1,16
 --dt=f16,f16:f32:f32,f32:f16:f32
 --bia_dt=undef,f32,f16
@@ -21,7 +21,7 @@
 # bf16
 --reset
 --beta=0,1
---attr-post-ops=,sum:2,relu
+--attr-post-ops=,sum:2+add:bf16,relu+add:bf16:per_oc
 --bs=1,16
 --dt=bf16,bf16:bf16:f32
 --bia_dt=undef,f32,bf16
@@ -31,7 +31,7 @@
 # f8
 --reset
 --beta=0,1
---attr-post-ops=,sum:2,relu
+--attr-post-ops=,sum:2+add:f8_e5m2,relu+add:f8_e4m3:per_oc
 --bs=1,16
 --dt=f8_e5m2,f8_e5m2:f8_e5m2:f32
 --bia_dt=undef,f32,f8_e5m2
@@ -55,7 +55,7 @@
 --beta=0
 
 ## int8:attributes
---attr-post-ops=,sum:2,relu
+--attr-post-ops=,sum:2+add:f32,relu+add:f32:per_oc
 --attr-scales=,src:common:0.5,wei:per_oc,src:common:0.5+wei:per_oc
 --attr-zero-points=,src:common:-2,src:common:128+dst:common:-1
 --batch=shapes_2d_no_tail_int8

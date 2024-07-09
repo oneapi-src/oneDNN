@@ -187,7 +187,9 @@ status_t dnnl_brgemm_execute_postops(const brgemm_t *brgemm, const void *A_ptr,
     }
 
     brgemm_post_ops_data_t post_ops_data;
-    post_ops_data.data_C_ptr_ = reinterpret_cast<const char *>(C_ptr);
+    // Note: this member is used to compute an offset from the base DST address.
+    // Thus, it's not a C buffer that should be passed, but D buffer.
+    post_ops_data.data_C_ptr_ = reinterpret_cast<const char *>(D_ptr);
     // This member expect a pointer to a vector of pointers to binary_po args.
     post_ops_data.binary_post_ops_rhs = &binary_po_ptr;
 
