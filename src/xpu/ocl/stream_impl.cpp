@@ -19,10 +19,8 @@
 
 #include "xpu/stream_profiler.hpp"
 
+#include "xpu/ocl/memory_storage.hpp"
 #include "xpu/ocl/stream_impl.hpp"
-
-// TODO: move memory storage to xpu
-#include "gpu/intel/ocl/ocl_memory_storage.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -55,34 +53,31 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
 
     if (dst.engine()->kind() == engine_kind::gpu
             && src.engine() == dst.engine()) {
-        auto *ocl_src = utils::downcast<
-                const gpu::intel::ocl::ocl_memory_storage_base_t *>(&src);
-        auto *ocl_dst = utils::downcast<
-                const gpu::intel::ocl::ocl_memory_storage_base_t *>(&dst);
+        auto *ocl_src
+                = utils::downcast<const xpu::ocl::memory_storage_base_t *>(
+                        &src);
+        auto *ocl_dst
+                = utils::downcast<const xpu::ocl::memory_storage_base_t *>(
+                        &dst);
 
         if (ocl_src->memory_kind() == ocl_dst->memory_kind()) {
-            if (ocl_src->memory_kind() == gpu::intel::ocl::memory_kind::usm
-                    && ocl_dst->memory_kind()
-                            == gpu::intel::ocl::memory_kind::usm) {
+            if (ocl_src->memory_kind() == xpu::ocl::memory_kind::usm
+                    && ocl_dst->memory_kind() == xpu::ocl::memory_kind::usm) {
                 const auto *ocl_usm_src = utils::downcast<
-                        const gpu::intel::ocl::ocl_usm_memory_storage_t *>(
-                        ocl_src);
+                        const xpu::ocl::usm_memory_storage_t *>(ocl_src);
                 const auto *ocl_usm_dst = utils::downcast<
-                        const gpu::intel::ocl::ocl_usm_memory_storage_t *>(
-                        ocl_dst);
+                        const xpu::ocl::usm_memory_storage_t *>(ocl_dst);
                 CHECK(xpu::ocl::usm::memcpy(stream, ocl_usm_dst->usm_ptr(),
                         ocl_usm_src->usm_ptr(), size, num_events, events_ptr,
                         out_event_ptr));
             }
-            if (ocl_src->memory_kind() == gpu::intel::ocl::memory_kind::buffer
+            if (ocl_src->memory_kind() == xpu::ocl::memory_kind::buffer
                     && ocl_dst->memory_kind()
-                            == gpu::intel::ocl::memory_kind::buffer) {
+                            == xpu::ocl::memory_kind::buffer) {
                 const auto *ocl_buffer_src = utils::downcast<
-                        const gpu::intel::ocl::ocl_buffer_memory_storage_t *>(
-                        ocl_src);
+                        const xpu::ocl::buffer_memory_storage_t *>(ocl_src);
                 const auto *ocl_buffer_dst = utils::downcast<
-                        const gpu::intel::ocl::ocl_buffer_memory_storage_t *>(
-                        ocl_dst);
+                        const xpu::ocl::buffer_memory_storage_t *>(ocl_dst);
                 OCL_CHECK(clEnqueueCopyBuffer(queue(),
                         ocl_buffer_src->mem_object(),
                         ocl_buffer_dst->mem_object(), src.offset(),
@@ -97,20 +92,20 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
         void *src_ptr = nullptr;
         src.get_data_handle(&src_ptr);
 
-        const auto *ocl_dst = utils::downcast<
-                const gpu::intel::ocl::ocl_memory_storage_base_t *>(&dst);
-        bool usm_dst
-                = ocl_dst->memory_kind() == gpu::intel::ocl::memory_kind::usm;
+        const auto *ocl_dst
+                = utils::downcast<const xpu::ocl::memory_storage_base_t *>(
+                        &dst);
+        bool usm_dst = ocl_dst->memory_kind() == xpu::ocl::memory_kind::usm;
 
         if (usm_dst) {
-            const auto *ocl_usm_dst = utils::downcast<
-                    const gpu::intel::ocl::ocl_usm_memory_storage_t *>(ocl_dst);
+            const auto *ocl_usm_dst
+                    = utils::downcast<const xpu::ocl::usm_memory_storage_t *>(
+                            ocl_dst);
             CHECK(xpu::ocl::usm::memcpy(stream, ocl_usm_dst->usm_ptr(), src_ptr,
                     size, num_events, events_ptr, out_event_ptr));
         } else {
             const auto *ocl_buffer_dst = utils::downcast<
-                    const gpu::intel::ocl::ocl_buffer_memory_storage_t *>(
-                    ocl_dst);
+                    const xpu::ocl::buffer_memory_storage_t *>(ocl_dst);
 
             cl_mem ocl_mem = ocl_buffer_dst->mem_object();
             cl_int err = clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0,
@@ -124,20 +119,20 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
         void *dst_ptr = nullptr;
         dst.get_data_handle(&dst_ptr);
 
-        const auto *ocl_src = utils::downcast<
-                const gpu::intel::ocl::ocl_memory_storage_base_t *>(&src);
-        bool usm_src
-                = ocl_src->memory_kind() == gpu::intel::ocl::memory_kind::usm;
+        const auto *ocl_src
+                = utils::downcast<const xpu::ocl::memory_storage_base_t *>(
+                        &src);
+        bool usm_src = ocl_src->memory_kind() == xpu::ocl::memory_kind::usm;
 
         if (usm_src) {
-            const auto *ocl_usm_src = utils::downcast<
-                    const gpu::intel::ocl::ocl_usm_memory_storage_t *>(ocl_src);
+            const auto *ocl_usm_src
+                    = utils::downcast<const xpu::ocl::usm_memory_storage_t *>(
+                            ocl_src);
             CHECK(xpu::ocl::usm::memcpy(stream, dst_ptr, ocl_usm_src->usm_ptr(),
                     size, num_events, events_ptr, out_event_ptr));
         } else {
             const auto *ocl_buffer_src = utils::downcast<
-                    const gpu::intel::ocl::ocl_buffer_memory_storage_t *>(
-                    ocl_src);
+                    const xpu::ocl::buffer_memory_storage_t *>(ocl_src);
 
             cl_mem ocl_mem = ocl_buffer_src->mem_object();
             cl_int err = clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
@@ -184,8 +179,7 @@ status_t stream_impl_t::fill(impl::stream_t *stream,
     using namespace dnnl::impl::utils;
 
     const auto *ocl_dst
-            = downcast<const gpu::intel::ocl::ocl_memory_storage_base_t *>(
-                    &dst);
+            = downcast<const xpu::ocl::memory_storage_base_t *>(&dst);
 
     std::vector<cl_event> events = [&] {
         if (flags() & stream_flags::out_of_order) {
@@ -204,15 +198,14 @@ status_t stream_impl_t::fill(impl::stream_t *stream,
             = is_profiling_enabled() || flags() & stream_flags::out_of_order;
     cl_event *out_event_ptr = need_out_event ? &out_event.unwrap() : nullptr;
 
-    if (ocl_dst->memory_kind() == gpu::intel::ocl::memory_kind::usm) {
+    if (ocl_dst->memory_kind() == xpu::ocl::memory_kind::usm) {
         const auto *ocl_usm_dst
-                = downcast<const gpu::intel::ocl::ocl_usm_memory_storage_t *>(
-                        ocl_dst);
+                = downcast<const xpu::ocl::usm_memory_storage_t *>(ocl_dst);
         CHECK(xpu::ocl::usm::fill(stream, ocl_usm_dst->usm_ptr(), &pattern,
                 sizeof(pattern), size, num_events, events_ptr, out_event_ptr));
     } else {
-        const auto *ocl_buffer_dst = downcast<
-                const gpu::intel::ocl::ocl_buffer_memory_storage_t *>(ocl_dst);
+        const auto *ocl_buffer_dst
+                = downcast<const xpu::ocl::buffer_memory_storage_t *>(ocl_dst);
         cl_int err = clEnqueueFillBuffer(queue(), ocl_buffer_dst->mem_object(),
                 &pattern, sizeof(uint8_t), dst.offset(), size, num_events,
                 events_ptr, out_event_ptr);

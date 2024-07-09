@@ -22,13 +22,15 @@
 
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+
+#include "xpu/ocl/memory_storage.hpp"
+
 #include "gpu/intel/compute/kernel_list.hpp"
 #include "gpu/intel/microkernels/fuser.hpp"
 #include "gpu/intel/ocl/kernel_utils.hpp"
 #include "gpu/intel/ocl/ocl_gpu_device_info.hpp"
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 #include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
-#include "gpu/intel/ocl/ocl_memory_storage.hpp"
 #include "gpu/intel/ocl/ocl_stream.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
@@ -69,10 +71,10 @@ status_t ocl_gpu_engine_t::create_memory_storage(
     std::unique_ptr<memory_storage_t> _storage;
 
     if (flags & memory_flags_t::prefer_device_usm) {
-        _storage.reset(new ocl_usm_memory_storage_t(
+        _storage.reset(new xpu::ocl::usm_memory_storage_t(
                 this, xpu::ocl::usm::kind_t::device));
     } else
-        _storage.reset(new ocl_buffer_memory_storage_t(this));
+        _storage.reset(new xpu::ocl::buffer_memory_storage_t(this));
 
     if (!_storage) return status::out_of_memory;
 

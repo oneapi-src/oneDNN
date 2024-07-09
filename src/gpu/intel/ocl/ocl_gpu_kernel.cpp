@@ -23,11 +23,12 @@
 #include "common/rw_mutex.hpp"
 #include "common/utils.hpp"
 
-#include "xpu/ocl/usm_utils.hpp"
 #include "xpu/stream_profiler.hpp"
 
+#include "xpu/ocl/memory_storage.hpp"
+#include "xpu/ocl/usm_utils.hpp"
+
 #include "gpu/intel/ocl/ocl_context.hpp"
-#include "gpu/intel/ocl/ocl_memory_storage.hpp"
 #include "gpu/intel/ocl/ocl_stream.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
@@ -150,9 +151,8 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
             auto *mem_storage
                     = static_cast<const memory_storage_t *>(arg.value());
             if (!mem_storage->is_null()) {
-                auto *ocl_mem_storage
-                        = utils::downcast<const ocl_memory_storage_base_t *>(
-                                mem_storage);
+                auto *ocl_mem_storage = utils::downcast<
+                        const xpu::ocl::memory_storage_base_t *>(mem_storage);
 
                 // Validate that the OpenCL contexts match for execution
                 // context and memory.
@@ -170,17 +170,17 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
                 }
 
                 switch (ocl_mem_storage->memory_kind()) {
-                    case memory_kind::buffer: {
+                    case xpu::ocl::memory_kind::buffer: {
                         auto *m = utils::downcast<
-                                const ocl_buffer_memory_storage_t *>(
+                                const xpu::ocl::buffer_memory_storage_t *>(
                                 ocl_mem_storage);
                         auto ocl_mem = m->mem_object();
                         CHECK(kernel->set_arg(i, sizeof(cl_mem), &ocl_mem));
                         break;
                     }
-                    case memory_kind::usm: {
+                    case xpu::ocl::memory_kind::usm: {
                         auto *m = utils::downcast<
-                                const ocl_usm_memory_storage_t *>(
+                                const xpu::ocl::usm_memory_storage_t *>(
                                 ocl_mem_storage);
                         auto *usm_ptr = m->usm_ptr();
                         CHECK(kernel->set_usm_arg(stream.engine(), i, usm_ptr));

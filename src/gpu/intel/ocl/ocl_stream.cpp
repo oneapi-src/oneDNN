@@ -21,7 +21,9 @@
 #include "gpu/intel/ocl/ocl_stream.hpp"
 
 #include "common/verbose.hpp"
-#include "gpu/intel/ocl/ocl_memory_storage.hpp"
+
+#include "xpu/ocl/memory_storage.hpp"
+
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/ocl/stream_profiler.hpp"
 
