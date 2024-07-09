@@ -398,6 +398,48 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         match_params[npatterns].selector.precisions[0] = "[SB]";
         match_params[npatterns].selector.precisions[1] = "[SB]";
         npatterns++;
+    } else if ((mode & mode_bf16x1)
+            && utils::one_of(Type::f32, problem_.Ta, problem_.Tb)
+            && (problem_.Ta.isInteger() || problem_.Tb.isInteger())) {
+        if (problem_.Ta.isInt8() || problem_.Ta.isInt4()) {
+            match_params[npatterns] = match_params[0];
+            match_params[npatterns].selector.precisions[0]
+                    = match_params[0].selector.precisions[0];
+            match_params[npatterns].selector.precisions[1] = "B";
+            npatterns++;
+        } else {
+            match_params[npatterns] = match_params[0];
+            match_params[npatterns].selector.precisions[0] = "B";
+            match_params[npatterns].selector.precisions[1]
+                    = match_params[0].selector.precisions[1];
+            npatterns++;
+        }
+    }
+
+    if ((mode & mode_f16x1)
+            && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[0] = "[SH]";
+        match_params[npatterns].selector.precisions[1] = "[SH]";
+        npatterns++;
+    }
+
+    if ((mode & mode_f16x1)
+            && utils::one_of(Type::f32, problem_.Ta, problem_.Tb)
+            && (problem_.Ta.isInteger() || problem_.Tb.isInteger())) {
+        if (problem_.Ta.isInt8() || problem_.Ta.isInt4()) {
+            match_params[npatterns] = match_params[0];
+            match_params[npatterns].selector.precisions[0]
+                    = match_params[0].selector.precisions[0];
+            match_params[npatterns].selector.precisions[1] = "H";
+            npatterns++;
+        } else {
+            match_params[npatterns] = match_params[0];
+            match_params[npatterns].selector.precisions[0] = "H";
+            match_params[npatterns].selector.precisions[1]
+                    = match_params[0].selector.precisions[1];
+            npatterns++;
+        }
     }
 
     EvaluateParams eval_params;
@@ -424,8 +466,17 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     }
 
     if (mode & mode_bf16x1) {
-        if (entry_->selector.precisions[0][0] == '[') problem_.Ta = Type::bf16;
-        if (entry_->selector.precisions[1][0] == '[') problem_.Tb = Type::bf16;
+        if (utils::one_of(entry_->selector.precisions[0][0], 'B', '['))
+            problem_.Ta = Type::bf16;
+        if (utils::one_of(entry_->selector.precisions[1][0], 'B', '['))
+            problem_.Tb = Type::bf16;
+    }
+
+    if (mode & mode_f16x1) {
+        if (utils::one_of(entry_->selector.precisions[0][0], 'H', '['))
+            problem_.Ta = Type::f16;
+        if (utils::one_of(entry_->selector.precisions[1][0], 'H', '['))
+            problem_.Tb = Type::f16;
     }
 
     auto block_k = entry_->driverInfo.blocking[LoopK];

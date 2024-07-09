@@ -126,6 +126,15 @@
 3x5x12:3x12x17
 3x5x12:1x12x17
 
+--reset
+--dt=f32:s8:f32
+--attr-fpmath=f16:true,bf16:true,tf32:true
+--attr-scales=wei:common:2,wei:per_oc,wei:per_ocic:f16
+--attr-zero-points=,wei:common:2,wei:per_oc,wei:per_ocic:s8
+77x133:133x117
+15x24x16:15x16x32
+7x16x24x8:7x16x8x24
+
 ### int4 wei decomp
 --reset
 --dt=bf16:s4:bf16,bf16:u4:bf16
