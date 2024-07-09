@@ -3223,16 +3223,6 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         if (prd > thres) return status::unimplemented;
     }
 
-    auto thres = 1920 * 4096;
-    auto src_d = memory_desc_wrapper(src_md);
-    auto prd = 1;
-
-    for (int d = 0; d < src_d.ndims(); ++d) {
-        const auto dim = src_d.dims()[d];
-        prd *= dim;
-        if (prd > thres) return status::unimplemented;
-    }
-
     status_t prb_init_status = prb_init(prb, *src_md, *dst_md, attr);
     if (prb_init_status != status::success) return prb_init_status;
     // only uni_reorder supports tail processing now
