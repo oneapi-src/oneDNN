@@ -31,6 +31,10 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
+status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
+        cl_device_id dev, cl_context ctx, size_t index,
+        const std::vector<uint8_t> &cache_blob);
+
 class ocl_gpu_engine_t : public compute::compute_engine_t {
 public:
     ocl_gpu_engine_t(cl_device_id adevice, cl_context acontext, size_t index)

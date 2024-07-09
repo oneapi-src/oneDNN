@@ -19,11 +19,11 @@
 
 #include <cstdio>
 
+#include "xpu/ocl/engine_factory.hpp"
 #include "xpu/ocl/engine_impl.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/compute/device_info.hpp"
-#include "gpu/intel/ocl/ocl_engine.hpp"
 #endif
 
 namespace dnnl {
@@ -33,7 +33,7 @@ namespace intel {
 namespace ocl {
 
 void print_verbose_header() {
-    ocl_engine_factory_t factory(engine_kind::gpu);
+    xpu::ocl::engine_factory_t factory(engine_kind::gpu);
     for (size_t i = 0; i < factory.count(); ++i) {
         impl::engine_t *eng_ptr = nullptr;
         status_t status = factory.engine_create(&eng_ptr, i);

@@ -14,20 +14,30 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_ENGINE_HPP
-#define GPU_INTEL_OCL_OCL_ENGINE_HPP
+#ifndef XPU_OCL_ENGINE_FACTORY_HPP
+#define XPU_OCL_ENGINE_FACTORY_HPP
 
+#include <cassert>
+#include <vector>
+
+#include "common/c_types_map.hpp"
+#include "common/engine.hpp"
+#include "common/utils.hpp"
+
+#include "xpu/ocl/utils.hpp"
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
-class ocl_engine_factory_t : public engine_factory_t {
+class engine_factory_t : public impl::engine_factory_t {
 public:
-    ocl_engine_factory_t(engine_kind_t engine_kind) {
+    engine_factory_t(engine_kind_t engine_kind) {
         assert(engine_kind == engine_kind::gpu);
         MAYBE_UNUSED(engine_kind);
     }
@@ -43,7 +53,7 @@ public:
     status_t engine_create(
             impl::engine_t **engine, size_t index) const override {
 #ifdef DNNL_WITH_SYCL
-        gpu_error_not_expected() << "This interface is not for use with SYCL";
+        assert(!"This interface is not for use with SYCL");
         return status::runtime_error;
 #endif
         status_t status;
@@ -56,38 +66,23 @@ public:
         VERROR_ENGINE(index < ocl_devices.size(), status::invalid_arguments,
                 VERBOSE_INVALID_ENGINE_IDX, ocl_devices.size(), "ocl", index);
 
-        auto *ocl_engine
-                = new ocl_gpu_engine_t(ocl_devices[index], nullptr, index);
-        if (!ocl_engine) return status::out_of_memory;
-
-        status = ocl_engine->init();
-        if (status != status::success) {
-            ocl_engine->release();
-            return status;
-        }
-        *engine = ocl_engine;
-        return status::success;
+        return engine_create(engine, ocl_devices[index], nullptr, index);
     }
 
     status_t engine_create(impl::engine_t **engine, cl_device_id device,
             cl_context context, size_t index,
-            const std::vector<uint8_t> &cache_blob = {}) {
-        auto *ocl_engine = new ocl_gpu_engine_t(device, context, index);
-        if (!ocl_engine) return status::out_of_memory;
+            const std::vector<uint8_t> &cache_blob = {}) const {
 
-        status_t status = ocl_engine->init(cache_blob);
-        if (status != status::success) {
-            ocl_engine->release();
-            return status;
-        }
-        *engine = ocl_engine;
-        return status::success;
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+        return gpu::intel::ocl::engine_create(
+                engine, engine_kind::gpu, device, context, index, cache_blob);
+#endif
+        return status::runtime_error;
     }
 };
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_OCL_OCL_ENGINE_HPP
+#endif

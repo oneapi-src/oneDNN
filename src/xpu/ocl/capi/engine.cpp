@@ -20,7 +20,8 @@
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
-#include "gpu/intel/ocl/ocl_engine.hpp"
+
+#include "xpu/ocl/engine_factory.hpp"
 #include "xpu/ocl/utils.hpp"
 
 using namespace dnnl::impl;
@@ -31,7 +32,7 @@ status_t dnnl_ocl_interop_engine_create(dnnl::impl::engine_t **engine,
     bool args_ok = !utils::any_null(engine, device, context);
     VERROR_ENGINE(args_ok, status::invalid_arguments, VERBOSE_NULL_ARG);
 
-    ocl_engine_factory_t f(engine_kind::gpu);
+    xpu::ocl::engine_factory_t f(engine_kind::gpu);
 
     size_t index;
     CHECK(xpu::ocl::get_device_index(&index, device));
@@ -69,7 +70,7 @@ status_t dnnl_ocl_interop_engine_create_from_cache_blob(engine_t **engine,
             && size != 0;
     VERROR_ENGINE(args_ok, status::invalid_arguments, VERBOSE_NULL_ARG);
 
-    ocl_engine_factory_t f(engine_kind::gpu);
+    xpu::ocl::engine_factory_t f(engine_kind::gpu);
 
     size_t index;
     CHECK(xpu::ocl::get_device_index(&index, device));

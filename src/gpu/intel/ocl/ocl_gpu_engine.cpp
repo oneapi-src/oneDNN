@@ -40,6 +40,20 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
+status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
+        cl_device_id dev, cl_context ctx, size_t index,
+        const std::vector<uint8_t> &cache_blob) {
+    gpu_assert(engine_kind == engine_kind::gpu);
+    std::unique_ptr<intel::ocl::ocl_gpu_engine_t, engine_deleter_t> e(
+            (new intel::ocl::ocl_gpu_engine_t(dev, ctx, index)));
+    if (!e) return status::out_of_memory;
+
+    CHECK(e->init(cache_blob));
+    *engine = e.release();
+
+    return status::success;
+}
+
 void maybe_print_build_info(const std::vector<const char *> &kernel_names,
         const compute::kernel_ctx_t &kernel_ctx) {
 #ifndef DISABLE_VERBOSE
