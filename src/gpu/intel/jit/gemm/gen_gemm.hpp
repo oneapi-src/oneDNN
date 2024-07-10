@@ -69,9 +69,10 @@ struct gen_gemm_t : public gpu_gemm_t {
                                   && utils::one_of(d->a_type(), u8, s8, s4, u4)
                                   && utils::one_of(d->b_type(), f16, f32, bf16))
                     && attr()->mayiconvert(d->a_type(), f32);
-            wei_decomp_ |= (utils::one_of(d->c_type(), f32, f16, bf16)
+            dy_quant_enabled_ = (utils::one_of(d->c_type(), f32, f16, bf16)
                     && utils::one_of(d->a_type(), u8, s8, s4, u4)
                     && utils::one_of(d->b_type(), u8, s8));
+            quant_enabled_ = wei_decomp_ || dy_quant_enabled_;
             CHECK(set_default_formats(false));
 
             // If m = 1, swap A/B to use more efficient n = 1 kernels if possible.
@@ -109,7 +110,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 eff_ldb_ = utils::rnd_up(eff_ldb_, 16);
             }
 
-            if (wei_decomp_) {
+            if (quant_enabled_) {
                 attr_skip_mask |= smask_t::fpmath_mode
                         | smask_t::scales_runtime_data_type
                         | smask_t::scales_runtime_groups
@@ -226,9 +227,9 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
             auto &src_scales = attr()->scales_.get(DNNL_ARG_SRC);
 
-            if (wei_decomp_ && wei_scales.ndims_ > 1) wei_scales_2d_ = true;
+            if (quant_enabled_ && wei_scales.ndims_ > 1) wei_scales_2d_ = true;
 
-            if (wei_decomp_ && src_scales.ndims_ > 1) src_scales_2d_ = true;
+            if (quant_enabled_ && src_scales.ndims_ > 1) src_scales_2d_ = true;
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto mask = attr()->scales_.get(s).mask_;
@@ -359,7 +360,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             // Global k-parallel kernels don't support post-ops or non-f32/s32
             //   accumulation unless fusion is enabled.
             if (kernel_desc_.driver_info()->kParallel()
-                    && !kernel_desc_.driver_info()->kParallelLocal()
                     && !kernel_desc_.driver_info()->fusedPostOps()) {
                 VDISPATCH_GEMM(!with_eltwise && !with_binary
                                 && utils::one_of(d->c_type(), f32, s32),
@@ -608,6 +608,8 @@ struct gen_gemm_t : public gpu_gemm_t {
         int ao_dims_ = -1, bo_dims_ = -1;
         bool a_zp_ = false, b_zp_ = false;
         bool wei_decomp_ = false;
+        bool quant_enabled_ = false;
+        bool dy_quant_enabled_ = false;
         bool wei_scales_2d_ = false;
         bool src_scales_2d_ = false;
         bool src_po_sc_ = false;
