@@ -10133,7 +10133,7 @@ void gemm_kernel_generator_t<hw>::gemmAllocRegs(
     for (int buf = 0; buf < state.C_buffers; buf++) {
         for (int todo = C_regCountPerBuffer; todo > 0;) {
             if (it == C_regs.ranges.end())
-                throw std::runtime_error("Not enough C registers allocated.");
+                stub("Not enough C registers allocated.");
             int left = it->getLen() - off;
             int take = std::min(left, todo);
             state.C_regs[buf].ranges.push_back(
@@ -22648,7 +22648,7 @@ static inline micro::StructuredType::Type microType(Type T) {
         CASE(u32)
         CASE(u16)
         CASE(u8)
-        default: throw std::runtime_error("Unsupported type");
+        default: stub("Unsupported type");
     }
 #undef CASE
 }
