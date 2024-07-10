@@ -132,7 +132,6 @@ status_t ref_shuffle_t::execute(const exec_ctx_t &ctx) const {
         const int t_work
                 = (pd()->conf_.MB) * ((pd()->conf_.C / d2)) * pd()->conf_.SP;
 
-        std::cout << std::endl;
         const int wg_work = wg_size * block_size;
         const int wg_cnt = (t_work + wg_work - 1) / wg_work;
         const int n_thr = wg_cnt * wg_size;
