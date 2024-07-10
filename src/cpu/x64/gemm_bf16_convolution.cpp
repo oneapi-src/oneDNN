@@ -292,7 +292,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
 
     postamble();
 
-    if (jcp_.with_eltwise)
+    if (postops_injector_)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

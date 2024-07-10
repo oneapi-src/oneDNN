@@ -578,7 +578,7 @@ void jit_avx2_conv_fwd_kernel_f32::generate() {
 
     this->postamble();
 
-    if (jcp.with_eltwise)
+    if (postops_injector_)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

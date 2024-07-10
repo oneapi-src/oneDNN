@@ -698,7 +698,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::generate() {
         forward();
     postamble();
 
-    if ((conf_.with_eltwise || conf_.is_i8) && postops_injector_)
+    if (postops_injector_)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 
