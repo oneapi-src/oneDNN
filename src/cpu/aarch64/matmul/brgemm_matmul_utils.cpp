@@ -136,7 +136,6 @@ status_t check_isa_with_datatype(
         return status::success;
     else
         return status::unimplemented;
-    return status::success;
 }
 
 brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
