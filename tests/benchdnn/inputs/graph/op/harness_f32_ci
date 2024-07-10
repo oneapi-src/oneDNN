@@ -52,6 +52,7 @@
 --reset --case=op/f32/tanh_bwd.json
 --reset --case=op/f32/typecast.json
 --reset --op-attrs=0:alpha:2*beta:1 --case=op/f32/hardsigmoid_bwd.json
+--reset --case=op/f32/gnorm.json
 # only the graph compiler supports these 4 ops
 --reset --case=op/f32/pow.json
 --reset --case=op/f32/select.json

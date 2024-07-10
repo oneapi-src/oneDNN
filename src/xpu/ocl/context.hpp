@@ -14,26 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_CONTEXT_HPP
-#define GPU_INTEL_OCL_OCL_CONTEXT_HPP
+#ifndef XPU_OCL_CONTEXT_HPP
+#define XPU_OCL_CONTEXT_HPP
 
 #include "xpu/context.hpp"
 
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "xpu/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
-struct ocl_event_t final : xpu::event_t {
-    ocl_event_t() = default;
-    ocl_event_t(const std::vector<xpu::ocl::wrapper_t<cl_event>> &events)
+struct event_t final : xpu::event_t {
+    event_t() = default;
+    event_t(const std::vector<xpu::ocl::wrapper_t<cl_event>> &events)
         : events(events) {}
-    ocl_event_t(std::vector<xpu::ocl::wrapper_t<cl_event>> &&events)
+    event_t(std::vector<xpu::ocl::wrapper_t<cl_event>> &&events)
         : events(std::move(events)) {}
-    ocl_event_t(xpu::ocl::wrapper_t<cl_event> &&event) {
+    event_t(xpu::ocl::wrapper_t<cl_event> &&event) {
         events.emplace_back(std::move(event));
     }
 
@@ -43,57 +42,56 @@ struct ocl_event_t final : xpu::event_t {
     xpu::ocl::wrapper_t<cl_event> &operator[](size_t i) { return events[i]; }
     size_t size() const { return events.size(); }
 
-    static ocl_event_t &from(xpu::event_t &event) {
-        return *utils::downcast<ocl_event_t *>(&event);
+    static event_t &from(xpu::event_t &event) {
+        return *utils::downcast<event_t *>(&event);
     }
-    static const ocl_event_t &from(const xpu::event_t &event) {
-        return *utils::downcast<const ocl_event_t *>(&event);
+    static const event_t &from(const xpu::event_t &event) {
+        return *utils::downcast<const event_t *>(&event);
     }
     std::unique_ptr<xpu::event_t> clone() const {
-        return std::unique_ptr<xpu::event_t>(new ocl_event_t(*this));
+        return std::unique_ptr<xpu::event_t>(new event_t(*this));
     }
 
     void append(const xpu::event_t &event) {
-        auto &other = *utils::downcast<const ocl_event_t *>(&event);
+        auto &other = *utils::downcast<const event_t *>(&event);
         events.insert(events.end(), other.events.begin(), other.events.end());
     };
 
     std::vector<xpu::ocl::wrapper_t<cl_event>> events;
 };
 
-struct ocl_context_t final : public xpu::context_t {
-    ocl_context_t() = default;
-    ocl_context_t(const std::vector<xpu::ocl::wrapper_t<cl_event>> &&events)
+struct context_t final : public xpu::context_t {
+    context_t() = default;
+    context_t(const std::vector<xpu::ocl::wrapper_t<cl_event>> &&events)
         : events_(std::move(events)) {};
-    ocl_context_t(const ocl_context_t &) = default;
-    ~ocl_context_t() = default;
+    context_t(const context_t &) = default;
+    ~context_t() = default;
 
-    ocl_context_t &operator=(const ocl_context_t &other) {
+    context_t &operator=(const context_t &other) {
         events_ = other.events_;
         return *this;
     }
 
-    ocl_event_t &get_ocl_deps() { return events_; }
-    const ocl_event_t &get_ocl_deps() const { return events_; }
+    event_t &get_ocl_deps() { return events_; }
+    const event_t &get_ocl_deps() const { return events_; }
     xpu::event_t &get_deps() override { return events_; }
     const xpu::event_t &get_deps() const override { return events_; }
 
     void set_deps(std::vector<xpu::ocl::wrapper_t<cl_event>> &&event) {
-        events_ = ocl_event_t(std::move(event));
+        events_ = event_t(std::move(event));
     }
-    void set_deps(ocl_event_t &&events) { events_ = std::move(events); };
+    void set_deps(event_t &&events) { events_ = std::move(events); };
 
     void append_deps(const xpu::event_t &event) override {
         events_.append(event);
     }
 
 private:
-    ocl_event_t events_;
+    event_t events_;
 };
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 #endif

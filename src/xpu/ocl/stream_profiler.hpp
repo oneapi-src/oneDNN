@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,34 +14,29 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_MEMORY_STORAGE_BASE_HPP
-#define GPU_INTEL_OCL_OCL_MEMORY_STORAGE_BASE_HPP
+#ifndef XPU_OCL_STREAM_PROFILER_HPP
+#define XPU_OCL_STREAM_PROFILER_HPP
 
-#include "common/memory_storage.hpp"
-#include "gpu/intel/ocl/ocl_c_types_map.hpp"
+#include "common/c_types_map.hpp"
+
+#include "xpu/stream_profiler.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
-class ocl_memory_storage_base_t : public memory_storage_t {
-public:
-    // Explicitly define ctors due to a "circular dependencies" bug in ICC.
-    ocl_memory_storage_base_t(
-            impl::engine_t *engine, const memory_storage_t *parent_storage)
-        : memory_storage_t(engine, parent_storage) {}
-    ocl_memory_storage_base_t(impl::engine_t *engine)
-        : ocl_memory_storage_base_t(engine, this) {}
+struct stream_profiler_t : public xpu::stream_profiler_t {
+    stream_profiler_t(const impl::stream_t *stream)
+        : xpu::stream_profiler_t(stream) {}
 
-    virtual memory_kind_t memory_kind() const = 0;
+    status_t get_info(profiling_data_kind_t data_kind, int *num_entries,
+            uint64_t *data) const override;
 };
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_OCL_OCL_MEMORY_STORAGE_BASE_HPP
+#endif

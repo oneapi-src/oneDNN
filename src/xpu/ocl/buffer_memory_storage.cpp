@@ -16,23 +16,26 @@
 
 #include <CL/cl.h>
 
-#include "gpu/intel/ocl/ocl_buffer_memory_storage.hpp"
-#include "gpu/intel/ocl/ocl_engine.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
+#include "common/engine.hpp"
+#include "common/stream.hpp"
+
+#include "xpu/ocl/buffer_memory_storage.hpp"
+#include "xpu/ocl/engine_impl.hpp"
+#include "xpu/ocl/stream_impl.hpp"
+#include "xpu/ocl/usm_utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
-status_t ocl_buffer_memory_storage_t::init_allocate(size_t size) {
-    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine());
+status_t buffer_memory_storage_t::init_allocate(size_t size) {
+    auto context
+            = utils::downcast<const xpu::ocl::engine_impl_t *>(engine()->impl())
+                      ->context();
     cl_int err;
     mem_object_ = clCreateBuffer_wrapper(
-            ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
-
+            context, CL_MEM_READ_WRITE, size, nullptr, &err);
     OCL_CHECK(err);
     return status::success;
 }
@@ -40,19 +43,16 @@ status_t ocl_buffer_memory_storage_t::init_allocate(size_t size) {
 namespace {
 status_t get_map_queue(cl_command_queue &queue, impl::engine_t *engine,
         impl::stream_t *stream) {
-    ocl_stream_t *ocl_stream;
     if (stream == nullptr) {
-        auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
-        status_t status = ocl_engine->get_service_stream(stream);
+        status_t status = engine->get_service_stream(stream);
         if (status != status::success) { return status::runtime_error; }
     }
-    ocl_stream = utils::downcast<ocl_stream_t *>(stream);
-    queue = ocl_stream->queue();
+    queue = utils::downcast<xpu::ocl::stream_impl_t *>(stream->impl())->queue();
     return status::success;
 }
 } // namespace
 
-status_t ocl_buffer_memory_storage_t::map_data(
+status_t buffer_memory_storage_t::map_data(
         void **mapped_ptr, impl::stream_t *stream, size_t) const {
     if (!mem_object()) {
         *mapped_ptr = nullptr;
@@ -87,7 +87,7 @@ status_t ocl_buffer_memory_storage_t::map_data(
     return xpu::ocl::convert_to_dnnl(err);
 }
 
-status_t ocl_buffer_memory_storage_t::unmap_data(
+status_t buffer_memory_storage_t::unmap_data(
         void *mapped_ptr, impl::stream_t *stream) const {
     if (!mapped_ptr) return status::success;
     cl_command_queue queue;
@@ -98,7 +98,7 @@ status_t ocl_buffer_memory_storage_t::unmap_data(
     return status::success;
 }
 
-std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::get_sub_storage(
+std::unique_ptr<memory_storage_t> buffer_memory_storage_t::get_sub_storage(
         size_t offset, size_t size) const {
     // Fast return on size = 0.
     // It also seems clCreateSubBuffer() does not work properly for such case.
@@ -109,21 +109,29 @@ std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::get_sub_storage(
     cl_int err;
     err = clGetMemObjectInfo(
             mem_object(), CL_MEM_FLAGS, sizeof(mem_flags), &mem_flags, nullptr);
-    gpu_assert(err == CL_SUCCESS);
+
+    // TODO: Generalize gpu_assert to make it available for use in the xpu
+    // space.
+    assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 
-    gpu_assert(size != 0);
-    gpu_assert(offset % OCL_BUFFER_ALIGNMENT == 0);
+    const auto *ocl_engine_impl
+            = utils::downcast<const xpu::ocl::engine_impl_t *>(
+                    engine()->impl());
+    MAYBE_UNUSED(ocl_engine_impl);
+
+    assert(size != 0);
+    assert(offset % ocl_engine_impl->get_buffer_alignment() == 0);
 
     cl_buffer_region buffer_region = {base_offset_ + offset, size};
     xpu::ocl::wrapper_t<cl_mem> sub_buffer
             = clCreateSubBuffer(parent_mem_object(), mem_flags,
                     CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
-    gpu_assert(err == CL_SUCCESS);
+    assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 
     auto sub_storage
-            = new ocl_buffer_memory_storage_t(this->engine(), parent_storage());
+            = new buffer_memory_storage_t(this->engine(), parent_storage());
     if (sub_storage) {
         sub_storage->init(memory_flags_t::use_runtime_ptr, size, sub_buffer);
         sub_storage->base_offset_ = base_offset_ + offset;
@@ -131,20 +139,18 @@ std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::get_sub_storage(
     return std::unique_ptr<memory_storage_t>(sub_storage);
 }
 
-std::unique_ptr<memory_storage_t> ocl_buffer_memory_storage_t::clone() const {
-    auto storage = new ocl_buffer_memory_storage_t(engine());
+std::unique_ptr<memory_storage_t> buffer_memory_storage_t::clone() const {
+    auto storage = new buffer_memory_storage_t(engine());
     if (storage) storage->init(memory_flags_t::use_runtime_ptr, 0, mem_object_);
     return std::unique_ptr<memory_storage_t>(storage);
 }
 
-cl_mem ocl_buffer_memory_storage_t::parent_mem_object() const {
-    return utils::downcast<const ocl_buffer_memory_storage_t *>(
-            parent_storage())
+cl_mem buffer_memory_storage_t::parent_mem_object() const {
+    return utils::downcast<const buffer_memory_storage_t *>(parent_storage())
             ->mem_object();
 }
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

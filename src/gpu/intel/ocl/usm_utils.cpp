@@ -14,18 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <type_traits>
+#include "xpu/ocl/engine_impl.hpp"
+#include "xpu/ocl/stream_impl.hpp"
 
-#include <CL/cl.h>
-
-#include "common/cpp_compat.hpp"
-
-#include "common/utils.hpp"
-#include "common/verbose.hpp"
-#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/usm_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,15 +29,17 @@ namespace usm {
 namespace {
 
 cl_device_id get_ocl_device(impl::engine_t *engine) {
-    return utils::downcast<ocl_gpu_engine_t *>(engine)->device();
+    return utils::downcast<const xpu::ocl::engine_impl_t *>(engine->impl())
+            ->device();
 }
 
 cl_context get_ocl_context(impl::engine_t *engine) {
-    return utils::downcast<ocl_gpu_engine_t *>(engine)->context();
+    return utils::downcast<const xpu::ocl::engine_impl_t *>(engine->impl())
+            ->context();
 }
 
 cl_command_queue get_ocl_queue(impl::stream_t *stream) {
-    return utils::downcast<ocl_stream_t *>(stream)->queue();
+    return utils::downcast<xpu::ocl::stream_impl_t *>(stream->impl())->queue();
 }
 
 } // namespace
@@ -116,8 +110,8 @@ void free(impl::engine_t *engine, void *ptr) {
     MAYBE_UNUSED(err);
 }
 
-status_t set_kernel_arg_usm(impl::engine_t *engine, cl_kernel kernel,
-        int arg_index, const void *arg_value) {
+status_t set_kernel_arg(impl::engine_t *engine, cl_kernel kernel, int arg_index,
+        const void *arg_value) {
     using clSetKernelArgMemPointerINTEL_func_t
             = cl_int (*)(cl_kernel, cl_uint, const void *);
     static xpu::ocl::ext_func_t<clSetKernelArgMemPointerINTEL_func_t> ext_func(
@@ -163,7 +157,8 @@ status_t memset(impl::stream_t *stream, void *ptr, int value, size_t size) {
             stream, ptr, &pattern, sizeof(uint8_t), size, 0, nullptr, nullptr);
 }
 
-ocl_usm_kind_t get_pointer_type(impl::engine_t *engine, const void *ptr) {
+xpu::ocl::usm::kind_t get_pointer_type(
+        impl::engine_t *engine, const void *ptr) {
     using clGetMemAllocInfoINTEL_func_t = cl_int (*)(
             cl_context, const void *, cl_uint, size_t, void *, size_t *);
 
@@ -178,22 +173,22 @@ ocl_usm_kind_t get_pointer_type(impl::engine_t *engine, const void *ptr) {
     static xpu::ocl::ext_func_t<clGetMemAllocInfoINTEL_func_t> ext_func(
             "clGetMemAllocInfoINTEL");
 
-    if (!ptr) return ocl_usm_kind_t::unknown;
+    if (!ptr) return xpu::ocl::usm::kind_t::unknown;
 
     cl_uint alloc_type;
     cl_int err = ext_func(engine, get_ocl_context(engine), ptr,
             cl_mem_alloc_type_intel, sizeof(alloc_type), &alloc_type, nullptr);
     assert(err == CL_SUCCESS);
-    if (err != CL_SUCCESS) return ocl_usm_kind_t::unknown;
+    if (err != CL_SUCCESS) return xpu::ocl::usm::kind_t::unknown;
 
     switch (alloc_type) {
-        case cl_mem_type_unknown_intel: return ocl_usm_kind_t::unknown;
-        case cl_mem_type_host_intel: return ocl_usm_kind_t::host;
-        case cl_mem_type_device_intel: return ocl_usm_kind_t::device;
-        case cl_mem_type_shared_intel: return ocl_usm_kind_t::shared;
+        case cl_mem_type_unknown_intel: return xpu::ocl::usm::kind_t::unknown;
+        case cl_mem_type_host_intel: return xpu::ocl::usm::kind_t::host;
+        case cl_mem_type_device_intel: return xpu::ocl::usm::kind_t::device;
+        case cl_mem_type_shared_intel: return xpu::ocl::usm::kind_t::shared;
         default: assert(!"unknown alloc type");
     }
-    return ocl_usm_kind_t::unknown;
+    return xpu::ocl::usm::kind_t::unknown;
 }
 
 } // namespace usm

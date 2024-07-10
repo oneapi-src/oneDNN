@@ -1145,7 +1145,6 @@ status_t infer_norm_output_shape(op_t *n,
 
     auto norm_starting_position
             = begin_norm_axis >= 0 ? output_dims.begin() : output_dims.end();
-
     output_dims.erase(
             norm_starting_position + begin_norm_axis, output_dims.end());
 
@@ -1690,6 +1689,55 @@ status_t infer_prelu_bwd_output_shape(op_t *n,
             = {{0, 0}, {1, 1}};
     return identity_output_shape_on_pos(
             n, inputs, outputs, identity_shapes_pos);
+}
+
+status_t infer_groupnorm_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto status = infer_identity_output_shape(n, inputs, outputs);
+    if (status != status::success) return status;
+
+    const bool keep_stats = n->has_attr(op_attr::keep_stats)
+            ? n->get_attr<bool>(op_attr::keep_stats)
+            // Keep default value as which in op_schema
+            : true;
+    if (!keep_stats) return status::success;
+
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    const dims input0_dims = in0.vdims();
+
+    auto out1 = logical_tensor_wrapper_t(outputs[1]);
+    auto out2 = logical_tensor_wrapper_t(outputs[2]);
+
+    // GroupNorm
+    if (!n->has_attr(op_attr::groups)) return status::invalid_arguments;
+    const dim_t num_groups = n->get_attr<dim_t>(op_attr::groups);
+    // output_dims[batch_size, num_groups]
+    dims output_dims = {input0_dims[0], num_groups};
+
+    // check if output shape is already known
+    if (!out1.is_shape_unknown()) {
+        VCHECK_INVALID_SHAPE(validate(output_dims, out1.vdims()),
+                "%s, `mean` inferred output shape and shape from logical "
+                "tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
+    } else {
+        set_shape_and_strides(*outputs[1], output_dims);
+    }
+
+    // check if output shape is already known
+    if (!out2.is_shape_unknown()) {
+        VCHECK_INVALID_SHAPE(validate(output_dims, out2.vdims()),
+                "%s, `variance` inferred output shape and shape from logical "
+                "tensor are "
+                "not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
+    } else {
+        set_shape_and_strides(*outputs[2], output_dims);
+    }
+
+    return status::success;
 }
 
 } // namespace graph

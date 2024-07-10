@@ -17,18 +17,18 @@
 #include <CL/cl.h>
 
 #include "common/memory_map_manager.hpp"
-#include "gpu/intel/ocl/ocl_usm_memory_storage.hpp"
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
+
+#include "xpu/ocl/usm_memory_storage.hpp"
+#include "xpu/ocl/usm_utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
 struct map_usm_tag;
 
-status_t ocl_usm_memory_storage_t::map_data(
+status_t usm_memory_storage_t::map_data(
         void **mapped_ptr, impl::stream_t *stream, size_t size) const {
 
     if (is_host_accessible()) {
@@ -68,7 +68,7 @@ status_t ocl_usm_memory_storage_t::map_data(
     return map_manager.map(this, stream, *mapped_ptr, unmap_callback);
 }
 
-status_t ocl_usm_memory_storage_t::unmap_data(
+status_t usm_memory_storage_t::unmap_data(
         void *mapped_ptr, impl::stream_t *stream) const {
     if (!mapped_ptr || is_host_accessible()) return status::success;
 
@@ -77,13 +77,13 @@ status_t ocl_usm_memory_storage_t::unmap_data(
     return map_manager.unmap(this, stream, mapped_ptr);
 }
 
-std::unique_ptr<memory_storage_t> ocl_usm_memory_storage_t::get_sub_storage(
+std::unique_ptr<memory_storage_t> usm_memory_storage_t::get_sub_storage(
         size_t offset, size_t size) const {
     void *sub_ptr = usm_ptr_
             ? reinterpret_cast<uint8_t *>(usm_ptr_.get()) + offset
             : nullptr;
 
-    auto storage = utils::make_unique<ocl_usm_memory_storage_t>(engine());
+    auto storage = utils::make_unique<usm_memory_storage_t>(engine());
     if (!storage) return nullptr;
     auto status = storage->init(memory_flags_t::use_runtime_ptr, size, sub_ptr);
     if (status != status::success) return nullptr;
@@ -91,8 +91,8 @@ std::unique_ptr<memory_storage_t> ocl_usm_memory_storage_t::get_sub_storage(
     return std::unique_ptr<memory_storage_t>(storage.release());
 }
 
-std::unique_ptr<memory_storage_t> ocl_usm_memory_storage_t::clone() const {
-    auto storage = utils::make_unique<ocl_usm_memory_storage_t>(engine());
+std::unique_ptr<memory_storage_t> usm_memory_storage_t::clone() const {
+    auto storage = utils::make_unique<usm_memory_storage_t>(engine());
     if (!storage) return nullptr;
 
     auto status = storage->init(memory_flags_t::use_runtime_ptr, 0, nullptr);
@@ -106,7 +106,6 @@ std::unique_ptr<memory_storage_t> ocl_usm_memory_storage_t::clone() const {
 }
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl

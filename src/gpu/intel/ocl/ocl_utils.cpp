@@ -110,11 +110,6 @@ status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
     return status::runtime_error;
 }
 
-cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
-        size_t size, void *host_ptr, cl_int *errcode_ret) {
-    return clCreateBuffer(context, flags, size, host_ptr, errcode_ret);
-}
-
 static status_t get_number_devices(cl_program program, size_t *n_devices) {
     cl_int err = clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES,
             sizeof(size_t), n_devices, nullptr);
