@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
-* Copyright 2020-2023 FUJITSU LIMITED
-* Copyright 2022-2023 Arm Ltd. and affiliates
+* Copyright 2020-2024 FUJITSU LIMITED
+* Copyright 2022-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -167,7 +167,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
                 && simple_impl_desc_init(p, nullptr) && prb_has_small_strides(p)
-                && ((p.otype != bf16) || (p.itype == f32 && mayiuse_bf16()));
+                && IMPLICATION(
+                        p.otype == bf16, p.itype == f32 && mayiuse_bf16());
 
         return ok;
     }
