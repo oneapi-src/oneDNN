@@ -102,6 +102,24 @@ inline size_t data_type_size(data_type_t data_type) {
     return (size_t)-1; /* not supposed to be reachable */
 }
 
+inline size_t elements_to_bytes(data_type_t data_type, size_t count) {
+    using namespace data_type;
+    switch ((int)data_type) {
+        case s4:
+        case u4: return (count + 1) >> 1;
+        default: return data_type_size(data_type) * count;
+    }
+}
+
+inline size_t bytes_to_elements(data_type_t data_type, size_t bytes) {
+    using namespace data_type;
+    switch ((int)data_type) {
+        case s4:
+        case u4: return bytes * 2;
+        default: return utils::div_up(bytes, data_type_size(data_type));
+    }
+}
+
 template <typename T>
 inline T max_value(data_type_t data_type) {
     using namespace data_type;
