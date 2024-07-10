@@ -401,8 +401,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto a_t = (utils::one_of(d->a_type(), s4, u4)) ? s8 : d->a_type();
             auto b_t = (utils::one_of(d->b_type(), s4, u4)) ? s8 : d->b_type();
             auto c_t = d->c_type();
-            auto a_t_sz = types::data_type_size(a_t);
-            auto b_t_sz = types::data_type_size(b_t);
 
             bool is_f16 = utils::everyone_is(f16, a_t, b_t, c_t);
             bool is_xe_hp_plus = arch_ >= arch_t::xe_hp;
@@ -435,16 +433,16 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto lda = is_a_trans ? m : k;
             auto ldb = is_b_trans ? k : n;
 
-            auto is_aligned = [](dim_t ld, size_t sz, int byte) {
-                return ld * sz % byte == 0;
+            auto is_aligned = [](dim_t ld, data_type_t dt, int byte) {
+                return types::elements_to_bytes(dt, ld) % byte == 0;
             };
 
-            bool a_4B_aligned = is_aligned(lda, a_t_sz, 4);
-            bool b_4B_aligned = is_aligned(ldb, b_t_sz, 4);
+            bool a_4B_aligned = is_aligned(lda, a_t, 4);
+            bool b_4B_aligned = is_aligned(ldb, b_t, 4);
             bool ab_4B_aligned = a_4B_aligned && b_4B_aligned;
 
-            bool a_tn_4B_aligned = is_aligned(k, a_t_sz, 4);
-            bool b_tn_4B_aligned = is_aligned(k, b_t_sz, 4);
+            bool a_tn_4B_aligned = is_aligned(k, a_t, 4);
+            bool b_tn_4B_aligned = is_aligned(k, b_t, 4);
             bool ab_tn_4B_aligned = a_tn_4B_aligned && b_tn_4B_aligned;
 
             bool use_tn = (m <= 32 || n <= 32) && !ab_4B_aligned
@@ -560,27 +558,33 @@ struct gen_gemm_t : public gpu_gemm_t {
             return !swap_ab() ? desc()->b_type() : desc()->a_type();
         }
         int eff_align_a() const {
-            auto sz = types::data_type_size(eff_a_type());
-            auto align = utils::max_pow2_div(eff_lda() * sz);
+            auto dt = eff_a_type();
+            auto align = utils::max_pow2_div(
+                    types::elements_to_bytes(dt, eff_lda()));
             for (int b = 0; b < batch_dims(); b++)
-                align = nstl::min(
-                        align, utils::max_pow2_div(eff_stride_a(b) * sz));
+                align = nstl::min(align,
+                        utils::max_pow2_div(
+                                types::elements_to_bytes(dt, eff_stride_a(b))));
             return int(align);
         }
         int eff_align_b() const {
-            auto sz = types::data_type_size(eff_b_type());
-            auto align = utils::max_pow2_div(eff_ldb() * sz);
+            auto dt = eff_b_type();
+            auto align = utils::max_pow2_div(
+                    types::elements_to_bytes(dt, eff_ldb()));
             for (int b = 0; b < batch_dims(); b++)
-                align = nstl::min(
-                        align, utils::max_pow2_div(eff_stride_b(b) * sz));
+                align = nstl::min(align,
+                        utils::max_pow2_div(
+                                types::elements_to_bytes(dt, eff_stride_b(b))));
             return int(align);
         }
         int align_c() const {
-            auto sz = types::data_type_size(desc()->c_type());
-            auto align = utils::max_pow2_div(desc()->ldc() * sz);
+            auto dt = desc()->c_type();
+            auto align = utils::max_pow2_div(
+                    types::elements_to_bytes(dt, desc()->ldc()));
             for (int b = 0; b < batch_dims(); b++)
-                align = nstl::min(
-                        align, utils::max_pow2_div(desc()->stride_c(b) * sz));
+                align = nstl::min(align,
+                        utils::max_pow2_div(types::elements_to_bytes(
+                                dt, desc()->stride_c(b))));
             return int(align);
         }
 
