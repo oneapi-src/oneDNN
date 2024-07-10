@@ -29,6 +29,7 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/generic/sycl/ref_convolution.hpp"
 #include "gpu/nvidia/cudnn_convolution.hpp"
 #endif
 
@@ -53,6 +54,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::ref_convolution_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_convolution_fwd_t)
         GPU_INSTANCE_AMD(amd::miopen_convolution_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_convolution_fwd_t)
         nullptr,
     }},
     {{backward_data}, REG_BWD_D_PK({
@@ -61,6 +63,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::ref_convolution_bwd_data_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_convolution_bwd_data_t)
         GPU_INSTANCE_AMD(amd::miopen_convolution_bwd_data_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_convolution_bwd_data_t)
         nullptr,
     })},
     {{backward_weights}, REG_BWD_PK({
@@ -69,6 +72,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL(intel::ocl::ref_convolution_bwd_weights_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_convolution_bwd_weights_t)
         GPU_INSTANCE_AMD(amd::miopen_convolution_bwd_weights_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_convolution_bwd_weights_t)
         nullptr,
     })},
 });
