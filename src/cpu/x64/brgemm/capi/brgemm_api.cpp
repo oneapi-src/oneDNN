@@ -231,8 +231,13 @@ dnnl_brgemm_pack_B::dnnl_brgemm_pack_B(dim_t K, dim_t N, dim_t in_ld,
 
 bool brgemm_pack_B_t::need_pack() const {
     // TODO: move on unified method from the library.
-    return bmc_.orig_wei_dt != data_type::f32
-            && bmc_.orig_wei_dt != data_type::f16;
+    if (bmc_.orig_wei_dt == data_type::f32) {
+        return false;
+    } else if (bmc_.orig_wei_dt == data_type::f16) {
+        return mayiuse(avx512_core_amx_fp16) || mayiuse(avx2_vnni_2);
+    } else {
+        return true;
+    }
 }
 
 void brgemm_pack_B_t::generate() {
