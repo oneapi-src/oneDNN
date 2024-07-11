@@ -71,7 +71,6 @@ std::string to_string(const data_location_t &loc);
 void dump_kernel_descriptor(kernel_desc_t &desc);
 
 std::string to_string(const nhwc_bnorm_params_t &conf);
-float get_vectorization_factor(const int vect_size, const data_type_t dt);
 int get_ncalls(model_params_t &p, const nhwc_bnorm_params_t &conf,
         kernel_kind_t kernel);
 size_t get_kernel_input_size(const model_params_t &p,
@@ -85,18 +84,13 @@ float solve_2p_line(const float x, const float xa, const float xb,
 float solve_2pieces_linear_function(const float x, const float x0,
         const float x1, const float x2, const float y0, const float y1,
         const float y2);
-float get_ss_utilization_factor(const float util);
 float get_thr_utilization_factor(const float ss_util, const float thr_util,
         const data_location_t location, const compute::gpu_arch_t gpu_arch);
 void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
         const hw_params_t &hw_params, kernel_desc_t &desc);
-void init_ker_desc(model_params_t &p, nhwc_bnorm_params_t &conf,
-        const hw_params_t &hw_params, kernel_desc_t &desc,
-        const kernel_kind_t kernel);
 void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
         const hw_params_t &hw_params, bool reusable = false);
 void dump_params(std::vector<model_params_t> &params);
-
 int get_nhwc_vect_size(int ic, int max_vect_size, int simd = 16);
 int get_nhwc_sp_block_size(
         int sp, int ic_dim, int eu_count, int threads_per_eu, int simd = 16);
