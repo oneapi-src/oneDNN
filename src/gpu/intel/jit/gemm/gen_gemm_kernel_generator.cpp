@@ -14756,7 +14756,8 @@ void gemm_kernel_generator_t<hw>::kLoopActivateSLMRemainder(bool active,
         loadMasks(kMasksBi, remsBi, offsetsBi, strategy, state);
     }
 
-    bool mayAccessAllK = (minOPCount > 1) || problem.sumA || problem.sumB;
+    bool mayAccessAllK
+            = (minOPCount > 1) || problem.needsASums() || problem.needsBSums();
     bool asIfMaskedAi = Ai_lateKRem && state.Ai_strategy.padded;
     bool asIfMaskedBi = Bi_lateKRem && state.Bi_strategy.padded;
     slmRemaskA = slmA && mayAccessAllK && !Ai_remIncrCopy
