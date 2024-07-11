@@ -700,6 +700,8 @@ def convert_post_ops(post_ops, prim_kind):
         if post_op["mask"] != 0:
             policy = convert_scale_policy(post_op["mask"], prim_kind)
             benchdnn_p_op += ":" + policy
+        if post_op["has_scaleshift"] != "":
+            benchdnn_p_op += ":true"
         return benchdnn_p_op
 
     convert = {

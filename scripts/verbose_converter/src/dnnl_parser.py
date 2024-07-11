@@ -267,7 +267,7 @@ class LogParser:
                         return convert_structure_to_ir_seq(p_op, value)
 
                     def convert_prelu_post_op(value):
-                        p_op = {"alg": "", "mask": "0"}
+                        p_op = {"alg": "", "mask": "0", "has_scaleshift": ""}
                         return convert_structure_to_ir_seq(p_op, value)
 
                     convert = {
