@@ -84,7 +84,7 @@ static status_t final_set_rt_params(nhwc_bnorm_params_t &bn_conf,
     // Currently used for performance experiments/tuning
     // TODO: make it as part of perf model
     rt_conf.use_buffers_calc = dev_getenv("USE_BUFFERS_CALC", 0);
-    rt_conf.use_buffers_norm = dev_getenv("USE_BUFFERS_NORM", 0);
+    rt_conf.use_buffers_norm = dev_getenv("USE_BUFFERS_NORM", 1);
 
     return status::success;
 }
