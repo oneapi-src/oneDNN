@@ -43,6 +43,8 @@ namespace binary_injector {
 using dnnl::impl::cpu::binary_injector_utils::get_src1_desc;
 using dnnl::impl::cpu::binary_injector_utils::prepare_binary_args;
 
+bcast_set_t get_all_strategies_supported_by_injector();
+
 bool binary_args_broadcast_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set);

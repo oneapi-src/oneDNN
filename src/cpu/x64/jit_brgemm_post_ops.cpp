@@ -353,12 +353,7 @@ dnnl::impl::cpu::x64::jit_brgemm_kernel_post_ops_t<
                 static_cast<size_t>(brg_.load_dim % brg_.ld_block), k_tail_mask,
                 use_exact_tail_scalar_bcast};
         const binary_injector::static_params_t bsp(this->param1,
-                bcast_set_t {broadcasting_strategy_t::scalar,
-                        broadcasting_strategy_t::per_oc,
-                        broadcasting_strategy_t::per_oc_spatial,
-                        broadcasting_strategy_t::per_mb_w,
-                        broadcasting_strategy_t::per_w,
-                        broadcasting_strategy_t::no_broadcast},
+                binary_injector::get_all_strategies_supported_by_injector(),
                 rhs_sp, f8_e5m2_emulator_.get(), f8_e4m3_emulator_.get());
 
         const bool save_state = brg_.with_eltwise;
