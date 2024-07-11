@@ -27,6 +27,8 @@ namespace gpu {
 namespace generic {
 namespace sycl {
 
+#define MAX_NDIMS 6
+
 struct sycl_binary_conf_t {
     xpu::sycl::md_t src0_md;
     xpu::sycl::md_t src1_md;
@@ -341,6 +343,16 @@ struct sycl_pooling_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+struct sycl_sum_conf_t {
+    xpu::sycl::md_t src_md[MAX_NUM_TENSORS];
+    xpu::sycl::md_t dst_md;
+    float src_scales[MAX_NUM_TENSORS];
+    int n;
+    int block_size;
+    int wg_size;
+    int wk_size;
+};
+
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
@@ -351,6 +363,7 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_layer_normalization_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_eltwise_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_lrn_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_sum_conf_t);
 
 } // namespace sycl
 } // namespace generic

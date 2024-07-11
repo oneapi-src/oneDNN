@@ -31,6 +31,8 @@
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
 #include "gpu/nvidia/cudnn_sum.hpp"
+#include "gpu/generic/sycl/ref_sum.hpp"
+#include "gpu/generic/sycl/ref_sum_many_inputs.hpp"
 #endif
 
 namespace dnnl {
@@ -49,6 +51,8 @@ constexpr impl_list_item_t impl_list[] = REG_SUM_P({
         GPU_SUM_INSTANCE_INTEL(intel::ocl::many_inputs_sum_t)
         GPU_SUM_INSTANCE_INTEL(intel::ocl::simple_sum_t<data_type::f32>)
         GPU_SUM_INSTANCE_NVIDIA(nvidia::cudnn_ref_sum_t)
+        GPU_SUM_INSTANCE_GENERIC_SYCL(generic::sycl::ref_sum_t)
+        GPU_SUM_INSTANCE_GENERIC_SYCL(generic::sycl::ref_sum_many_inputs_t)
         GPU_SUM_INSTANCE_GENERIC(generic::ref_sum_t)
         nullptr,
 });
