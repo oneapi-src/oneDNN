@@ -368,12 +368,9 @@ public:
         execution_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
-        temporary_scratchpad_t scratchpad(
-                memory_planner_.total_internal_temporary_size(), p_engine_,
-                *g_alloc_);
-        assertm(scratchpad.size()
-                        >= memory_planner_.total_internal_temporary_size(),
-                "not enough scratchpad memory");
+        // Micro kernel doesn't use scratchpad memory, here we force-set size as
+        // zero to avoid redundant memory allocation and deallocation.
+        temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
         prepare_args_set(res, inputs, outputs, scratchpad);
 
         memory mem_storage[6];
@@ -397,12 +394,9 @@ public:
         execution_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
-        temporary_scratchpad_t scratchpad(
-                memory_planner_.total_internal_temporary_size(), p_engine_,
-                *g_alloc_);
-        assertm(scratchpad.size()
-                        >= memory_planner_.total_internal_temporary_size(),
-                "not enough scratchpad memory");
+        // Micro kernel doesn't use scratchpad memory, here we force-set size as
+        // zero to avoid redundant memory allocation and deallocation.
+        temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
         prepare_args_set(res, inputs, outputs, scratchpad);
 
         memory mem_storage[6];
@@ -446,12 +440,9 @@ public:
         execution_args_set_t *res = res_cache.get_or_add(
                 reinterpret_cast<size_t>(this), resource_ctor_);
 
-        temporary_scratchpad_t scratchpad(
-                memory_planner_.total_internal_temporary_size(), p_engine_,
-                *g_alloc_);
-        assertm(scratchpad.size()
-                        >= memory_planner_.total_internal_temporary_size(),
-                "not enough scratchpad memory");
+        // Micro kernel doesn't use scratchpad memory, here we force-set size as
+        // zero to avoid redundant memory allocation and deallocation.
+        temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
         prepare_args_set(res, inputs, outputs, scratchpad);
 
         memory mem_storage[6];
