@@ -196,9 +196,16 @@ private:
     }
 
     void generate() override {
-        size_t simd_w_ = (brg_.isa_impl == sve_512)
-                ? (cpu_isa_traits<sve_512>::vlen / sizeof(float))
-                : (cpu_isa_traits<sve_256>::vlen / sizeof(float));
+        size_t simd_w_;
+        switch (brg_.isa_impl) {
+            case sve_512:
+                simd_w_ = cpu_isa_traits<sve_512>::vlen / sizeof(float);
+                break;
+            case sve_256:
+                simd_w_ = cpu_isa_traits<sve_256>::vlen / sizeof(float);
+                break;
+            default: assert(!"unsupported isa");
+        }
         preamble();
         if (simd_w_ != cpu_sveLen / sizeof(float)) {
             set_preg(P_ALL_ONE.b, simd_w_ * 4, X_TMP_0, X_TMP_1);
@@ -843,9 +850,16 @@ private:
     }
 
     void generate() override {
-        size_t simd_w_ = (brg.isa_impl == sve_512)
-                ? (cpu_isa_traits<sve_512>::vlen / sizeof(float))
-                : (cpu_isa_traits<sve_256>::vlen / sizeof(float));
+        size_t simd_w_;
+        switch (brg.isa_impl) {
+            case sve_512:
+                simd_w_ = cpu_isa_traits<sve_512>::vlen / sizeof(float);
+                break;
+            case sve_256:
+                simd_w_ = cpu_isa_traits<sve_256>::vlen / sizeof(float);
+                break;
+            default: assert(!"unsupported isa");
+        }
         preamble();
         if (simd_w_ != cpu_sveLen / sizeof(float)) {
             set_preg(P_ALL_ONE.b, simd_w_ * 4, X_TMP_0, X_TMP_1);
