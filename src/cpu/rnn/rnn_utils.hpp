@@ -861,8 +861,12 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 #if DNNL_X64
             && IMPLICATION(
                     rnn.is_cell_dt_bf16(), !x64::mayiuse(x64::avx512_core))
+            && IMPLICATION(rnn.is_cell_dt_f32() || rnn.is_cell_dt_int8(),
+                    x64::mayiuse(x64::avx2)
+                            && utils::one_of(rd.cell_kind,
+                                    alg_kind::vanilla_gru,
+                                    alg_kind::vanilla_augru));
 #endif
-            && !rnn.is_cell_dt_f32() && !rnn.is_cell_dt_int8();
 
     /* Decide which gemm implementation to use: packed/nonpacked jit/cblas
      * and if to merge gemm across iterations */
