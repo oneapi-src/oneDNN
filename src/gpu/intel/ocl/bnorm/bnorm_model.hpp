@@ -26,6 +26,14 @@ namespace intel {
 namespace ocl {
 namespace bn_model {
 
+enum data_location_t { HBM, L3, SLM };
+enum mem_operation_t { read, write, atomic };
+enum appr_alg_t { linear, ln };
+
+constexpr int def_reduction_vect = 4;
+constexpr float max_appr_ss_util = 8;
+constexpr float max_appr_thr_util = 1;
+
 struct hw_params_t {
     impl::engine_t *engine;
     compute::gpu_arch_t gpu_arch;
@@ -41,7 +49,6 @@ struct hw_params_t {
     float host_overheads_per_kernel;
 };
 
-enum data_location_t { HBM, L3, SLM };
 struct kernel_desc_t {
     kernel_kind_t kernel;
     int ncalls = 0;
@@ -49,6 +56,7 @@ struct kernel_desc_t {
     size_t output_nbytes = 0;
     data_location_t input_location = data_location_t::HBM;
     data_location_t output_location = data_location_t::HBM;
+    bool reusable_version = false;
     // estimations
     size_t num_wgs;
     float used_ss_thr_util = 0.0f;
@@ -84,8 +92,6 @@ float solve_2p_line(const float x, const float xa, const float xb,
 float solve_2pieces_linear_function(const float x, const float x0,
         const float x1, const float x2, const float y0, const float y1,
         const float y2);
-float get_thr_utilization_factor(const float ss_util, const float thr_util,
-        const data_location_t location, const compute::gpu_arch_t gpu_arch);
 void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
         const hw_params_t &hw_params, kernel_desc_t &desc);
 void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
@@ -106,6 +112,12 @@ status_t make_perf_estimations(
 status_t get_params_by_model(nhwc_bnorm_params_t &conf,
         const batch_normalization_pd_t *pd, hw_params_t &hw_params,
         bool reusable_version);
+
+struct appr_formula_t {
+    float a;
+    float b;
+    appr_alg_t alg;
+};
 
 } // namespace bn_model
 } // namespace ocl
