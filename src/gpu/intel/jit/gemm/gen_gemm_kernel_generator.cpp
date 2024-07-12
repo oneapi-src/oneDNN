@@ -27966,14 +27966,17 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                 dj1, dst, delems1, dblockPtr1,
                                                 qCX);
                                         nelems_real *= 2;
-                                        if (elementDiff(hw, dreg1, dreg) == 1)
-                                            writeCombine |= Atomic;
                                     } else {
                                         dreg1.setOffset(
                                                 dreg1.getOffset() + dcrosspack);
                                         effDCP *= 2;
                                         n_bytes /= 2;
                                     }
+
+                                    if (hw >= HW::XeHPC && Td.isInt8()
+                                            && elementDiff(hw, dreg1, dreg)
+                                                    == 1)
+                                        writeCombine |= Atomic;
 
                                     if (Td.isInteger()) {
                                         if (Ts_real.isSigned()) {
@@ -27996,7 +27999,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
                                                         dreg1.w()(effDCP), 12);
                                             } else if (!Td_real.isInt8())
                                                 stub();
-                                            if (effDCP > 1 && !int4Zip) {
+                                            if (effDCP > 2 && !int4Zip) {
                                                 shl(n_bytes | modMov,
                                                         tmp0.w(0)(2),
                                                         sreg.b()(
