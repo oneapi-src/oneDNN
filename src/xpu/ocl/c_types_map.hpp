@@ -14,15 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_C_TYPES_MAP_HPP
-#define GPU_INTEL_OCL_OCL_C_TYPES_MAP_HPP
+#ifndef XPU_OCL_C_TYPES_MAP_HPP
+#define XPU_OCL_C_TYPES_MAP_HPP
 
 #include "oneapi/dnnl/dnnl_ocl_types.h"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
 using memory_kind_t = dnnl_ocl_interop_memory_kind_t;
@@ -32,8 +31,7 @@ const memory_kind_t buffer = dnnl_ocl_interop_buffer;
 } // namespace memory_kind
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

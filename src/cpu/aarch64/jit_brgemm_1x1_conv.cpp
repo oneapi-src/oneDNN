@@ -551,6 +551,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
 }
 
 template struct brgemm_1x1_convolution_fwd_t<sve_512>;
+template struct brgemm_1x1_convolution_fwd_t<sve_256>;
 
 } // namespace aarch64
 } // namespace cpu

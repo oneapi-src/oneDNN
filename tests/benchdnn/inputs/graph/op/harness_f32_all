@@ -947,6 +947,7 @@
 --reset --in-shapes=0:2x9x3x8x6*acdeb+1:2x9x2x5x12*acdeb --op-attrs=0:sizes:2x5x12*mode:linear --case=op/f32/interpolate_bwd.json
 --reset --in-shapes=0:2x9x3x8x7*acdeb+1:2x9x2x5x12*acdeb --op-attrs=0:sizes:2x5x12*mode:linear --case=op/f32/interpolate_bwd.json
 --reset --case=op/f32/select.json
+--reset --case=op/f32/gnorm.json
 # only the graph compiler supports these 3 ops
 --reset --case=op/f32/pow.json
 --reset --case=op/f32/static_reshape.json

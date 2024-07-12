@@ -53,12 +53,12 @@ namespace memory_tracking {
  * 3. While a primitive is responsible for its scratchpad, the implementation
  *    might use some other basic blocks (e.g. cpu_reducer) that also require
  *    scratchpad memory. So there should be a simple way of passing the
- *    information back and force between the main algorithm (a primitive) and
+ *    information back and forth between the main algorithm (a primitive) and
  *    auxiliary stuff that lives completely separately from it (e.g. reducer).
  *
- * To address these challenges this header file provides 3 structures:
- * 1. registry_t  -- the class the stores the information about requested
- *                   memory. The information includes required size and desired
+ * To address these challenges this header file provides 3 abstractions:
+ * 1. registry_t  -- the class to store the information about requested memory.
+ *                   The information includes required size and desired
  *                   alignment for each piece. This class is also responsible
  *                   for computing the right offset to a given piece using the
  *                   base pointer.
@@ -97,7 +97,7 @@ namespace memory_tracking {
  *      void exec(const grantor_t &scratchpad) {
  *          // get the pointer to preserved space. scratchpad came from
  *          // upper primitive (convolution in this example)
- *          auto space = scratchpad.get<float>(key_reducer_space);
+ *          auto space = scratchpad.template get<float>(key_reducer_space);
  *
  *          space[:] += ...;
  *      }
@@ -115,7 +115,7 @@ namespace memory_tracking {
  *              // flexibility targeted at memory debugging purposes
  *              scratchpad.book(key_conv_padded_bias, 128, 2, 4, 64);
  *
- *              // create a proxy registrar for the reducer All entries made
+ *              // create a proxy registrar for the reducer. All entries made
  *              // by reducer would live in convolution's registry, but would
  *              // have their own `prefix`, so no interference with conv's
  *              // buffers.
@@ -127,16 +127,13 @@ namespace memory_tracking {
  *          registry_t scratchpad_registry_;
  *      }
  *
- *      void exec() {
- *          // get the base pointer to a scratchpad memory from a user
- *          void *scratchpad_ptr = this->input(DNNL_MEM_SCRATCHPAD);
- *
- *          // create a grantor to the scratchpad (and provide the base
- *          // pointer).
- *          grantor_t scratchpad(pd()->scratchpad_registry_, scratchpad_ptr);
+ *      void exec(const exec_ctx_t &ctx) {
+ *          // get a grantor to the scratchpad from the execution context.
+ *          auto scratchpad = ctx.get_scratchpad_grantor();
  *
  *          // access the padded_bias (need only key name and the grantor)
- *          auto padded_bias = scratchpad.get<float>(key_conv_padded_bias);
+ *          float *padded_bias = scratchpad.template get<float>(
+ *                  memory_tracking::names::key_conv_padded_bias);
  *
  *          // to give the `right` grantor to reducer we need to add the
  *          // corresponding prefix, so that reducer would be able to access
@@ -519,11 +516,19 @@ struct grantor_t {
         if (e.size == 0) return nullptr;
 
         if (is_cpu_engine(base_mem_storage_)) {
+            // For SYCL CPU this interface must be used when returned
+            // memory_storage will be wrapped into memory objects which will be
+            // passed to nested primitives. It's required to keep host mapping
+            // working. It's working because handles in memory storages are keys
+            // in mapping.
             char *host_storage_ptr = get_host_storage_ptr(base_mem_storage_);
             char *base_ptr
                     = host_storage_ptr + base_mem_storage_->base_offset();
             char *aligned_ptr = (char *)e.compute_ptr(base_ptr);
             size_t aligned_offset = size_t(aligned_ptr - host_storage_ptr);
+            // Note: this interface is broken for SYCL buffer storages as
+            // returning sub_storage is basically a base storage itself by
+            // design.
             return base_mem_storage_->get_sub_storage(aligned_offset, e.size);
         }
 

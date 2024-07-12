@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_USM_MEMORY_STORAGE_HPP
-#define GPU_INTEL_OCL_OCL_USM_MEMORY_STORAGE_HPP
+#ifndef XPU_OCL_USM_MEMORY_STORAGE_HPP
+#define XPU_OCL_USM_MEMORY_STORAGE_HPP
 
 #include <CL/cl.h>
 
@@ -24,23 +24,24 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
+
+#include "xpu/ocl/memory_storage_base.hpp"
+#include "xpu/ocl/usm_utils.hpp"
+
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
-#include "gpu/intel/ocl/ocl_memory_storage_base.hpp"
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
-class ocl_usm_memory_storage_t : public ocl_memory_storage_base_t {
+class usm_memory_storage_t : public memory_storage_base_t {
 public:
-    using ocl_memory_storage_base_t::ocl_memory_storage_base_t;
+    using memory_storage_base_t::memory_storage_base_t;
 
-    ocl_usm_memory_storage_t(impl::engine_t *engine, usm::ocl_usm_kind_t kind)
-        : ocl_memory_storage_base_t(engine), usm_kind_(kind) {}
+    usm_memory_storage_t(impl::engine_t *engine, usm::kind_t kind)
+        : memory_storage_base_t(engine), usm_kind_(kind) {}
 
     void *usm_ptr() const { return usm_ptr_.get(); }
 
@@ -63,8 +64,8 @@ public:
             void *mapped_ptr, impl::stream_t *stream) const override;
 
     bool is_host_accessible() const override {
-        return utils::one_of(usm_kind_, usm::ocl_usm_kind_t::host,
-                usm::ocl_usm_kind_t::shared, usm::ocl_usm_kind_t::unknown);
+        return utils::one_of(usm_kind_, usm::kind_t::host, usm::kind_t::shared,
+                usm::kind_t::unknown);
     }
 
     std::unique_ptr<memory_storage_t> get_sub_storage(
@@ -73,7 +74,7 @@ public:
 
 protected:
     status_t init_allocate(size_t size) override {
-        using kind_t = usm::ocl_usm_kind_t;
+        using kind_t = usm::kind_t;
         if (usm_kind_ == kind_t::unknown) usm_kind_ = kind_t::shared;
 
         void *usm_ptr_alloc = nullptr;
@@ -99,13 +100,12 @@ protected:
 
 private:
     std::unique_ptr<void, std::function<void(void *)>> usm_ptr_;
-    usm::ocl_usm_kind_t usm_kind_ = usm::ocl_usm_kind_t::unknown;
+    usm::kind_t usm_kind_ = usm::kind_t::unknown;
 
-    DNNL_DISALLOW_COPY_AND_ASSIGN(ocl_usm_memory_storage_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(usm_memory_storage_t);
 };
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

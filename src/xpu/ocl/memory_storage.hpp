@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_MEMORY_STORAGE_HPP
-#define GPU_INTEL_OCL_OCL_MEMORY_STORAGE_HPP
+#ifndef XPU_OCL_MEMORY_STORAGE_HPP
+#define XPU_OCL_MEMORY_STORAGE_HPP
 
-#include "gpu/intel/ocl/ocl_buffer_memory_storage.hpp"
-#include "gpu/intel/ocl/ocl_usm_memory_storage.hpp"
+#include "xpu/ocl/buffer_memory_storage.hpp"
+#include "xpu/ocl/usm_memory_storage.hpp"
 
 #endif

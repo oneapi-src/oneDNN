@@ -102,11 +102,17 @@ public:
     constexpr bool isInt8() const {
         return (val == Type::u8) || (val == Type::s8);
     }
+    constexpr bool isInt16() const {
+        return (val == Type::u16) || (val == Type::s16);
+    }
     constexpr bool isF8() const {
         return (val == Type::bf8) || (val == Type::hf8);
     }
     constexpr bool isSigned() const {
         return (uint32_t(val) & 0x110000) != 0x100000;
+    }
+    constexpr Type asSigned() const {
+        return static_cast<_Type>(uint32_t(val) | (isInteger() ? 0x10000 : 0));
     }
     constexpr int bits() const { return isInt4() ? 4 : (paddedSize() * 8); }
     constexpr int paddedSize() const { return (uint32_t(val) >> 8) & 0xFF; }
@@ -1024,6 +1030,13 @@ struct GEMMProblem : public CommonProblem {
         s.append(binaryBatch);
         s.append(binaryTrans);
     }
+
+    Type Tc_compute() const {
+        if (Ta.isInteger() && Tb.isInteger() && Tc.isFP())
+            return Type::s32;
+        else
+            return Tc;
+    }
 };
 
 struct GEMMState;
@@ -1160,6 +1173,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool block2DCRemainder = false; // Generate block 2D C remainder path?
     bool block2DCFull
             = false; //   Use block 2D C remainder path even for full tiles?
+    int cRepackPanel = 0; // Size of panels for repacking C (0 = automatic)
     bool cAccumulators
             = false; // Use accumulator registers for part of C (to save a few registers)?
     bool cLoadAhead = false; // Load C before doing FMAs?
@@ -1452,6 +1466,7 @@ struct GEMMState : public CommonState {
     std::vector<ngen::GRFRange> A_scaleAddrs, B_scaleAddrs;
     std::vector<GRFMultirange> A_regs, B_regs, C_regs;
     GRFMultirange Ar_regs, Br_regs; // Repacked A/B registers.
+    GRFMultirange Cr_regs; // C registers to be repacked.
     std::vector<GRFMultirange> Ai_regs,
             Bi_regs; // Incoming data to copy to SLM.
     std::vector<GRFMultirange> Ai_regsRem, Bi_regsRem;
@@ -1512,7 +1527,8 @@ struct GEMMState : public CommonState {
     CoopSplit effCoopB = CoopSplit::K;
     ngen::Subregister kSLMA, kSLMB, kSLMStorage; // w/w/ud
     bool kSLMCountUp = false;
-    int kaq, kbq, kaqStride, kbqStride;
+    int kaq, kbq, kaqStride, kbqStride, kaqLate, kbqLate;
+    bool lateScale2DA = false, lateScale2DB = false;
     std::vector<RegisterBlock> A_layout, B_layout, C_layout;
     std::vector<RegisterBlock> A_layoutRem, B_layoutRem;
     std::vector<RegisterBlock> A_layoutAlt, B_layoutAlt;
@@ -1529,6 +1545,7 @@ struct GEMMState : public CommonState {
     std::vector<RegisterBlock> A_scaleLayout, B_scaleLayout;
     std::vector<RegisterBlock> Ar_offsetLayout, Br_offsetLayout;
     std::vector<RegisterBlock> Ar_scaleLayout, Br_scaleLayout;
+    std::vector<RegisterBlock> Cr_layout;
     std::vector<RegisterBlock> C_layoutExt, C_layoutExtUnmasked,
             C_layoutExtNonatomicUnmasked;
     Address2DParams A_params, B_params;
@@ -2424,7 +2441,7 @@ protected:
             const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             const CommonStrategy &strategy, CommonState &state, bool decrement);
-    void incAddrStrided(const std::vector<ngen::GRFRange> &addr, bool column,
+    void incAddr2D(Type T, const std::vector<ngen::GRFRange> &addr, bool column,
             int k, const SubregisterPair &ld, const LDIncrements &incs,
             const std::vector<RegisterBlock> &layout,
             const MatrixAddressing &atype,
@@ -2472,6 +2489,9 @@ protected:
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
     void setupTeardownAccumulateSumSystolic(bool setup, Type Tother,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
+    void outerProductRepackC(int x0, int xr0, int nx, int h,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
 

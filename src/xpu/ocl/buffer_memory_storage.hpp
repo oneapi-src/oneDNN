@@ -14,30 +14,31 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_BUFFER_MEMORY_STORAGE_HPP
-#define GPU_INTEL_OCL_OCL_BUFFER_MEMORY_STORAGE_HPP
+#ifndef XPU_OCL_BUFFER_MEMORY_STORAGE_HPP
+#define XPU_OCL_BUFFER_MEMORY_STORAGE_HPP
 
 #include <CL/cl.h>
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
-#include "gpu/intel/ocl/ocl_memory_storage_base.hpp"
+
+#include "xpu/ocl/memory_storage_base.hpp"
+
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
-class ocl_buffer_memory_storage_t : public ocl_memory_storage_base_t {
+class buffer_memory_storage_t : public memory_storage_base_t {
 public:
-    ocl_buffer_memory_storage_t(impl::engine_t *engine)
-        : ocl_memory_storage_base_t(engine), mem_object_(nullptr) {}
+    buffer_memory_storage_t(impl::engine_t *engine)
+        : memory_storage_base_t(engine), mem_object_(nullptr) {}
 
-    ocl_buffer_memory_storage_t(
+    buffer_memory_storage_t(
             impl::engine_t *engine, const memory_storage_t *parent_storage)
-        : ocl_memory_storage_base_t(engine, parent_storage) {}
+        : memory_storage_base_t(engine, parent_storage) {}
 
     status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(mem_object_.get());
@@ -75,12 +76,11 @@ private:
     xpu::ocl::wrapper_t<cl_mem> mem_object_;
     size_t base_offset_ = 0;
 
-    DNNL_DISALLOW_COPY_AND_ASSIGN(ocl_buffer_memory_storage_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(buffer_memory_storage_t);
 };
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

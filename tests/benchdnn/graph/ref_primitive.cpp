@@ -60,6 +60,7 @@ ref_primitive_t::ref_primitive_t(const deserialized_op &op) {
         CASE_DRIVER(conv); \
         CASE_DRIVER(deconv); \
         CASE_DRIVER(eltwise); \
+        CASE_DRIVER(gnorm); \
         CASE_DRIVER(lnorm); \
         CASE_DRIVER(matmul); \
         CASE_DRIVER(pool); \

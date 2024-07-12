@@ -14,14 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "xpu/ocl/engine_factory.hpp"
+
+#include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/device_info.hpp"
+#include "gpu/intel/sycl/engine.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 
-#include "gpu/intel/ocl/ocl_engine.hpp"
 #include "gpu/intel/ocl/ocl_gpu_hw_info.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
-#include "gpu/intel/sycl/compat.hpp"
-#include "gpu/intel/sycl/engine.hpp"
 
 namespace dnnl {
 namespace impl {

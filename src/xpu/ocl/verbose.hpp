@@ -14,26 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_VERBOSE_HPP
-#define GPU_INTEL_OCL_VERBOSE_HPP
+#ifndef XPU_OCL_VERBOSE_HPP
+#define XPU_OCL_VERBOSE_HPP
 
 #include <cstdio>
 
+#include "xpu/ocl/engine_factory.hpp"
 #include "xpu/ocl/engine_impl.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/compute/device_info.hpp"
-#include "gpu/intel/ocl/ocl_engine.hpp"
 #endif
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace intel {
+namespace xpu {
 namespace ocl {
 
 void print_verbose_header() {
-    ocl_engine_factory_t factory(engine_kind::gpu);
+    xpu::ocl::engine_factory_t factory(engine_kind::gpu);
     for (size_t i = 0; i < factory.count(); ++i) {
         impl::engine_t *eng_ptr = nullptr;
         status_t status = factory.engine_create(&eng_ptr, i);
@@ -51,7 +50,8 @@ void print_verbose_header() {
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(eng_ptr);
+                = utils::downcast<gpu::intel::compute::compute_engine_t *>(
+                        eng_ptr);
         auto *dev_info = compute_engine->device_info();
         printf("onednn_verbose,info,gpu,engine,%d,name:%s,"
                "driver_version:%s,binary_kernels:%s\n",
@@ -67,8 +67,7 @@ void print_verbose_header() {
 }
 
 } // namespace ocl
-} // namespace intel
-} // namespace gpu
+} // namespace xpu
 } // namespace impl
 } // namespace dnnl
 

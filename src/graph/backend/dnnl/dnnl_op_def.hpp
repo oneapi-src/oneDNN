@@ -1048,6 +1048,37 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reorder, 1,
                         executable_creator<reorder_executable_t>)
                 .SET_ARG_INDICES_GETTER(reorder_executable_t))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_groupnorm, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::variadic)
+                .set_num_inputs(std::set<size_t>({1, 32}))
+                .set_outputs_option(op_schema_t::param_num_option::optional)
+                .set_num_outputs(std::set<size_t>({2, 4}))
+                .set_input(0, "input")
+                .set_input(1, "gamma")
+                .set_input(2, "beta")
+                .set_output(0, "output")
+                .set_output(1, "mean")
+                .set_output(2, "variance")
+                .set_output(3, "scratchpad")
+                // Attributes inherited from GroupNorm
+                .set_attr(op_attr::keep_stats, false, attribute_kind::b, true)
+                .set_attr(op_attr::groups, true, attribute_kind::i)
+                .set_attr(op_attr::use_affine, false, attribute_kind::b, true)
+                .set_attr(op_attr::epsilon, false, attribute_kind::f, 1e-5f)
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
+                .set_attr(op_attr::fusion_info_key, false, attribute_kind::i,
+                        (int64_t)-1)
+                // New added attributes
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
+                // Analysis rules
+                .set_shape_inference_function(infer_groupnorm_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_groupnorm)
+                .SET_EXECUTABLE_CREATOR(
+                        executable_creator<groupnorm_executable_t>)
+                .SET_ARG_INDICES_GETTER(groupnorm_executable_t))
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

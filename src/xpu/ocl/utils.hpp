@@ -298,6 +298,14 @@ status_t check_device(engine_kind_t eng_kind, cl_device_id dev, cl_context ctx);
 
 status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel);
 
+#ifdef DNNL_ENABLE_MEM_DEBUG
+cl_mem DNNL_WEAK clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
+        size_t size, void *host_ptr, cl_int *errcode_ret);
+#else
+cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
+        size_t size, void *host_ptr, cl_int *errcode_ret);
+#endif
+
 } // namespace ocl
 } // namespace xpu
 } // namespace impl
