@@ -137,7 +137,6 @@ struct serialized_data_t {
         return oss.str();
     }
 
-protected:
     std::vector<uint8_t> data;
     static size_t hash_range(const uint8_t *v, size_t size) {
         size_t seed = 0;

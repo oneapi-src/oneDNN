@@ -48,6 +48,8 @@ struct gpu_primitive_t : public gpu::primitive_t {
 
         compute::kernel_t kernel() const { return kernel_; }
 
+        uint64_t get_id() const override { return kernel_.get_hash(); };
+
     private:
         bool empty_impl() const override { return !bool(kernel_); }
 
@@ -73,6 +75,18 @@ struct gpu_primitive_t : public gpu::primitive_t {
 
         compute::kernel_t kernel_;
     };
+
+    // This may need overriden by implementations that perform performance
+    // tuning via runtime parameters.
+    uint64_t get_id() const override {
+        size_t hash = 0;
+        for (auto &block : compute_blocks_) {
+            auto id = block->get_id();
+            if (id == 0) return 0;
+            hash = hash_combine(hash, id);
+        }
+        return hash != 0 ? hash : 2147483647; // id is required to be non-zero
+    }
 
     status_t get_cache_blob_size(
             impl::engine_t *engine, size_t *size) const override {

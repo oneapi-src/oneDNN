@@ -50,6 +50,7 @@ struct primitive_t : public impl::primitive_t {
         bool empty() const { return empty_impl(); }
 
         const impl::primitive_t *primitive() const { return primitive_; }
+        virtual uint64_t get_id() const { return primitive_->get_id(); }
 
     private:
         virtual bool empty_impl() const { return !bool(primitive_); }
@@ -137,7 +138,6 @@ protected:
         return compute_blocks_;
     }
 
-private:
     void register_primitive(impl::primitive_t *primitive) {
         compute_blocks_.emplace_back(new compute_block_t(primitive));
     }

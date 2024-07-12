@@ -24,6 +24,7 @@
 #include "common/verbose.hpp"
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/compute/utils.hpp"
+#include "gpu/intel/serialization.hpp"
 #include "gpu/intel/utils.hpp"
 #include "xpu/context.hpp"
 #include "xpu/utils.hpp"
@@ -158,6 +159,13 @@ public:
     status_t get_binary(
             const impl::engine_t *engine, xpu::binary_t &binary) const {
         return impl_->get_binary(engine, binary);
+    }
+
+    size_t get_hash() const {
+        xpu::binary_t binary;
+        auto status = get_kernel_binary(binary);
+        gpu_assert(status == status::success);
+        return serialized_data_t::hash_range(binary.data(), binary.size());
     }
 
     const std::vector<scalar_type_t> &arg_types() const {
