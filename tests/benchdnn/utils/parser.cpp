@@ -1112,6 +1112,7 @@ static bool parse_mode(
               "    `MODE` values are:\n"
               "    * `L` for listing mode.\n"
               "    * `I` for initialization mode.\n"
+              "    * `H` for hash mode.\n";
               "    * `R` for execution mode (no correctness validation).\n"
               "    * `C` for correctness testing.\n"
               "    * `P` for performance testing.\n"
@@ -1147,6 +1148,8 @@ static bool parse_mode(
                 case 'L': mode = bench_mode_t::list; break;
                 case 'i':
                 case 'I': mode = bench_mode_t::init; break;
+                case 'h':
+                case 'H': mode = bench_mode_t::hash; break;
                 case 'r':
                 case 'R': mode = bench_mode_t::exec; break;
                 case 'c':

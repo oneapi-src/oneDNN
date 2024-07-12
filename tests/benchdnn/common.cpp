@@ -147,14 +147,23 @@ void parse_result(res_t &res, const char *pstr) {
             break;
         case INITIALIZED:
             // TODO: workaround for failed fill functions.
-            if (bench_mode != bench_mode_t::init) {
+            if (bench_mode != bench_mode_t::init
+                    && bench_mode != bench_mode_t::hash) {
                 state = "FAILED";
                 bs.failed++;
             } else {
                 bs.passed++;
             }
 
-            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            if (bench_mode == bench_mode_t::hash)
+                if (res.impl_id == 0)
+                    BENCHDNN_PRINT(0, "%d:%s impl_id: %s __REPRO: %s\n", bs.tests,
+                            state, "(unsupported)", pstr);
+                else
+                    BENCHDNN_PRINT(0, "%d:%s impl_id: 0x%016" PRIx64 " __REPRO: %s\n",
+                            bs.tests, state, res.impl_id, pstr);
+            else
+                BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             break;
         default: assert(!"unknown state"); SAFE_V(FAIL);
     }

@@ -38,6 +38,8 @@ enum class mode_bit_t : unsigned {
     fast = 0x20,
     // `bitwise` bit is for a numerical determinism validation flow.
     bitwise = 0x40,
+    // `hash` bit is for logging primitive hash.
+    hash = 0x80,
 };
 
 // Mode modifiers is an extension of `bench_mode_t` abstraction which specifies
@@ -70,6 +72,7 @@ enum class bench_mode_t : unsigned {
     perf_fast = perf | static_cast<unsigned>(mode_bit_t::fast),
     corr_perf = corr | perf,
     bitwise = exec | static_cast<unsigned>(mode_bit_t::bitwise),
+    hash = init | static_cast<unsigned>(mode_bit_t::hash)
 };
 
 mode_bit_t operator&(bench_mode_t lhs, mode_bit_t rhs);

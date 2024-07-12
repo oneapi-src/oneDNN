@@ -62,7 +62,8 @@ struct task_t {
 
     int exec() {
         BENCHDNN_PRINT(1, "run: %s\n", prb_.str());
-        if (res_.state == INITIALIZED && bench_mode != bench_mode_t::init) {
+        if (res_.state == INITIALIZED && bench_mode != bench_mode_t::init
+                && bench_mode != bench_mode_t::hash) {
             do_func_(*v_prim_, &prb_, &res_);
         }
 
