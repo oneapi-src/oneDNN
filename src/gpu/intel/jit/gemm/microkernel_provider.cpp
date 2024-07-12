@@ -231,9 +231,11 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy,
     if (problem.C.layout == MatrixLayout::T) return false;
     if (!hwInfo.systolicAvailable) return false;
     if (problem.Ta.size() != 2 || problem.Tb.size() != 2) return false;
-
-    bool block2DA = (hw >= HW::XeHPC) && (problem.A.alignment % 16) == 0;
-    bool block2DB = (hw >= HW::XeHPC) && (problem.B.alignment % 16) == 0;
+    bool systolic = hwInfo.systolicAvailable;
+    bool block2DA
+            = (hw >= HW::XeHPC) && systolic && (problem.A.alignment % 16) == 0;
+    bool block2DB
+            = (hw >= HW::XeHPC) && systolic && (problem.B.alignment % 16) == 0;
 
     problem.A.alignment = std::min<int>(problem.A.alignment, 16);
     problem.B.alignment = std::min<int>(problem.B.alignment, 16);
@@ -266,7 +268,12 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy,
         s.B.accessType = AccessType::Block;
         s.doubleMasking = true;
         s.kb_load = (problem.B.layout == MatrixLayout::N) ? 32 : 16;
+        if (systolic) {
+            s.doubleMasking = true;
+            s.kb_load = (problem.B.layout == MatrixLayout::N) ? 32 : 16;
+        }
         s.slmB = true;
+
     } else if (problem.B.layout == MatrixLayout::T)
         s.B.accessType = AccessType::Block2DTranspose;
     else if (problem.B.layout == MatrixLayout::N) {
@@ -321,7 +328,7 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy,
 
     if (s.wgTile(LoopM) * s.wgTile(LoopN) == 0) return false;
 
-    s.systolic = true;
+    s.systolic = systolic;
     s.registerScheme = GEMMStrategy::VAvoid;
     if (s.wgTile(LoopM) * s.wgTile(LoopN) > 512) s.GRFs = 256;
     if (localA && !localB) s.loadBFirst = true;

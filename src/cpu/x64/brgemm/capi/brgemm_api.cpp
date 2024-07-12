@@ -187,7 +187,9 @@ status_t dnnl_brgemm_execute_postops(const brgemm_t *brgemm, const void *A_ptr,
     }
 
     brgemm_post_ops_data_t post_ops_data;
-    post_ops_data.data_C_ptr_ = reinterpret_cast<const char *>(C_ptr);
+    // Note: this member is used to compute an offset from the base DST address.
+    // Thus, it's not a C buffer that should be passed, but D buffer.
+    post_ops_data.data_C_ptr_ = reinterpret_cast<const char *>(D_ptr);
     // This member expect a pointer to a vector of pointers to binary_po args.
     post_ops_data.binary_post_ops_rhs = &binary_po_ptr;
 
@@ -229,8 +231,13 @@ dnnl_brgemm_pack_B::dnnl_brgemm_pack_B(dim_t K, dim_t N, dim_t in_ld,
 
 bool brgemm_pack_B_t::need_pack() const {
     // TODO: move on unified method from the library.
-    return bmc_.orig_wei_dt != data_type::f32
-            && bmc_.orig_wei_dt != data_type::f16;
+    if (bmc_.orig_wei_dt == data_type::f32) {
+        return false;
+    } else if (bmc_.orig_wei_dt == data_type::f16) {
+        return mayiuse(avx512_core_amx_fp16) || mayiuse(avx2_vnni_2);
+    } else {
+        return true;
+    }
 }
 
 void brgemm_pack_B_t::generate() {

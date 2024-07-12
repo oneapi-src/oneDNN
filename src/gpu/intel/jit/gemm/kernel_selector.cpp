@@ -304,21 +304,34 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, const GEMMProblem &problem) {
         equivCLayout = (colMajor ? MatrixLayout::N : MatrixLayout::T);
     }
 
+    auto makeABConvert = [](Type T, Type T_ext, char *out) {
+        if (T == T_ext)
+            out[0] = precisionChar(T);
+        else {
+            out[0] = '[';
+            out[1] = precisionChar(T_ext);
+            out[2] = precisionChar(T);
+            out[3] = ']';
+        }
+    };
+
     selector.kernelType = "gemm";
 
     std::fill(temp.begin(), temp.end(), '\0');
-    temp[0] = precisionChar(problem.Ta);
-    temp[2] = precisionChar(problem.Tb);
-    temp[4] = precisionChar(problem.Tc);
-    temp[6] = layoutChar(problem.A.layout);
-    temp[8] = layoutChar(problem.B.layout);
-    temp[10] = layoutChar(equivCLayout);
+
+    makeABConvert(problem.Ta, problem.Ta_ext, &temp[0]);
+    makeABConvert(problem.Tb, problem.Tb_ext, &temp[5]);
+    temp[10] = precisionChar(problem.Tc);
+    temp[12] = layoutChar(problem.A.layout);
+    temp[14] = layoutChar(problem.B.layout);
+    temp[16] = layoutChar(equivCLayout);
+
     selector.precisions[0] = &temp[0];
-    selector.precisions[1] = &temp[2];
-    selector.precisions[2] = &temp[4];
-    selector.layouts[0] = &temp[6];
-    selector.layouts[1] = &temp[8];
-    selector.layouts[2] = &temp[10];
+    selector.precisions[1] = &temp[5];
+    selector.precisions[2] = &temp[10];
+    selector.layouts[0] = &temp[12];
+    selector.layouts[1] = &temp[14];
+    selector.layouts[2] = &temp[16];
 
     precisionCExt = precisionChar(problem.Tc_ext);
 
@@ -326,7 +339,7 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, const GEMMProblem &problem) {
     alignment[1] = problem.B.alignment;
     alignment[2] = problem.C.alignment;
 
-    char *tagPtr = &temp[12];
+    char *tagPtr = &temp[18];
     lateTags = tagPtr;
 
     // Late-only tags. Don't choose lower-performing kernels

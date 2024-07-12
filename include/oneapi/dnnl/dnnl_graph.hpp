@@ -777,6 +777,7 @@ public:
         Exp = dnnl_graph_op_exp,
         GELU = dnnl_graph_op_gelu,
         GELUBackward = dnnl_graph_op_gelu_backward,
+        GroupNorm = dnnl_graph_op_group_norm,
         HardSigmoid = dnnl_graph_op_hard_sigmoid,
         HardSigmoidBackward = dnnl_graph_op_hard_sigmoid_backward,
         HardSwish = dnnl_graph_op_hard_swish,

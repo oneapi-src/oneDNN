@@ -287,6 +287,20 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         softmax_bwd_pass, SoftMaxBackward, softmax_bwd_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, Reorder, float_reorder)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(select_pass, Select, select_t)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gn_pass)
+        .set_priority(DEFAULT_P)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    graph::utils::pm::pb_op_t *p_groupnorm
+                            = pgraph->append_op(graph::op_kind::GroupNorm);
+                    p_groupnorm->append_decision_function(
+                            check_input_dtype_from_offset<graph::data_type::f32,
+                                    1>);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<groupnorm_fwd_t>();
+        });
 
 // if op is interpolate, need to filter out attrs not supported by dnnl
 #define INTERPOLATE_ATTR_CHECK() \

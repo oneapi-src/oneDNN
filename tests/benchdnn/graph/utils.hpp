@@ -157,6 +157,7 @@ enum class dnnl_driver_t {
     reorder,
     resampling,
     softmax,
+    gnorm,
     others
 };
 

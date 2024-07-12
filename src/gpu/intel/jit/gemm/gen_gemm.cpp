@@ -79,11 +79,21 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     if (problem->aScale2D) arg_list.set(argn++, *a_scales);
     if (problem->bScale2D) arg_list.set(argn++, *b_scales);
     if (problem->aoPtrDims == 2 || problem->aScale2D) {
-        int32_t ldaq = pd()->eff_m();
+        auto layout = problem->aScale2D ? problem->A_scale.layout
+                                        : problem->AO.layout;
+        int32_t ldaq = isColMajor(layout)
+                ? pd()->eff_m()
+                : utils::div_up(pd()->desc()->k(), problem->aqGroupK);
+        if (pd()->src_po_sc_ && swapab) ldaq = 0;
         arg_list.set(argn++, ldaq);
     }
     if (problem->boPtrDims == 2 || problem->bScale2D) {
-        int32_t ldbq = pd()->eff_m();
+        auto layout = problem->bScale2D ? problem->B_scale.layout
+                                        : problem->BO.layout;
+        int32_t ldbq = !isColMajor(layout)
+                ? pd()->eff_n()
+                : utils::div_up(pd()->desc()->k(), problem->bqGroupK);
+        if (pd()->src_po_sc_ && !swapab) ldbq = 0;
         arg_list.set(argn++, ldbq);
     }
     if (pd()->with_c_zero_points() || pd()->with_bias()
@@ -308,11 +318,11 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     }
 
     size_t off_a0
-            = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
+            = types::bytes_to_elements(a_type, a.offset()) + pd()->dyn_offset_a;
     size_t off_b0
-            = b.offset() / types::data_type_size(b_type) + pd()->dyn_offset_b;
+            = types::bytes_to_elements(b_type, b.offset()) + pd()->dyn_offset_b;
     size_t off_c0
-            = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
+            = types::bytes_to_elements(c_type, c.offset()) + pd()->dyn_offset_c;
     size_t off_aq0 = 0, off_bq0 = 0, off_co0 = 0;
 
     int32_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
@@ -323,15 +333,15 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     int cmask = 0;
 
     if (pd()->with_c_zero_points()) {
-        off_co0 = co->offset() / types::data_type_size(c_type)
+        off_co0 = types::bytes_to_elements(c_type, co->offset())
                 + pd()->dyn_offset_co;
         CHECK(pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask));
     } else if (pd()->with_bias()) {
-        off_co0 = bias.offset() / types::data_type_size(c_type);
+        off_co0 = types::bytes_to_elements(c_type, bias.offset());
         co = &bias;
         cmask = pd()->bias_cmask();
     } else if (pd()->with_sum_ab()) {
-        off_co0 = sum_ab.offset() / types::data_type_size(c_type);
+        off_co0 = types::bytes_to_elements(c_type, sum_ab.offset());
         co = &sum_ab;
         cmask = pd()->sum_ab_cmask();
     }
@@ -342,10 +352,10 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         if (swapab) std::swap(ao, bo);
     }
 
-    if (pd()->wei_scales_2d()) {
-        a_scales = &GEMM_CTX_ARG_STORAGE(a_scales);
-        if (swapab) std::swap(a_scales, b_scales);
-    }
+    if (pd()->wei_scales_2d()) { a_scales = &GEMM_CTX_ARG_STORAGE(a_scales); }
+
+    if (pd()->src_scales_2d()) { b_scales = &GEMM_CTX_ARG_STORAGE(b_scales); }
+    if (swapab) std::swap(a_scales, b_scales);
 
     if (swapab) {
         uint8_t swap_table[4] = {0, 2, 1, 3};
