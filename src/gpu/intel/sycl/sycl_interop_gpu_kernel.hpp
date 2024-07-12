@@ -46,6 +46,7 @@ public:
         return arg_types_;
     }
 
+    status_t get_kernel_binary(xpu::binary_t &binary) const override;
     status_t dump() const override;
     std::string name() const override {
         return sycl_kernel_->get_info<::sycl::info::kernel::function_name>();

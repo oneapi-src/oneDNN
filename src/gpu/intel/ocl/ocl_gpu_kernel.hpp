@@ -39,6 +39,7 @@ public:
 
     cl_kernel ocl_kernel() const { return ocl_kernel_; }
 
+    status_t get_kernel_binary(xpu::binary_t &binary) const override;
     status_t get_binary(
             const impl::engine_t *engine, xpu::binary_t &binary) const override;
     status_t get_binary_size(

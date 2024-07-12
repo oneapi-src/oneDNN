@@ -121,6 +121,10 @@ ocl_gpu_kernel_t::~ocl_gpu_kernel_t() {
     if (ocl_kernel_) OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
 }
 
+status_t ocl_gpu_kernel_t::get_kernel_binary(xpu::binary_t &binary) const {
+    return get_ocl_kernel_binary(ocl_kernel(), binary);
+}
+
 status_t ocl_gpu_kernel_t::get_binary(
         const impl::engine_t *engine, xpu::binary_t &binary) const {
     auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
