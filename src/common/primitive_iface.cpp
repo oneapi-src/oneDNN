@@ -254,6 +254,12 @@ status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {
     return success;
 }
 
+extern "C" uint64_t DNNL_API dnnl_primitive_get_id(
+        primitive_iface_t *primitive_iface) {
+    if (primitive_iface == nullptr) return 0;
+    return primitive_iface->get_id();
+}
+
 // primitive_iface_t implementation
 dnnl_primitive::dnnl_primitive(
         const std::shared_ptr<primitive_t> &primitive, engine_t *engine)
@@ -335,6 +341,11 @@ status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
     ctx.set_scratchpad_grantor(nullptr);
     return status;
 }
+
+uint64_t dnnl_primitive::get_id() const {
+    if (primitive_ == nullptr) return 0;
+    return primitive_->get_id();
+};
 
 status_t dnnl_primitive::get_cache_blob_size(size_t *size) const {
     return primitive_->get_cache_blob_size(engine(), size);

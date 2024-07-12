@@ -61,6 +61,7 @@ struct primitive_t : public c_compatible {
     const std::shared_ptr<primitive_desc_t> &pd() const { return pd_; }
     primitive_kind_t kind() const { return pd_->kind(); }
     virtual status_t execute(const exec_ctx_t &ctx) const = 0;
+    virtual uint64_t get_id() const { return 0; }
 
     virtual status_t get_cache_blob(
             engine_t *engine, cache_blob_t &cache_blob) const {

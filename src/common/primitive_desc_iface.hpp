@@ -54,6 +54,7 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
 
     dnnl::impl::status_t init();
     dnnl::impl::status_t next_impl();
+    uint64_t get_hash_id();
     const char *info() const;
     std::string info_with_runtime_dims(const dnnl::impl::memory_desc_t *src_md,
             const dnnl::impl::memory_desc_t *wei_md,

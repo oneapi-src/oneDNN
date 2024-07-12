@@ -65,6 +65,7 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl::impl::status_t get_cache_blob(
             dnnl::impl::cache_blob_t cache_blob) const;
     dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
+    uint64_t get_id() const;
 
     void retain() { counter_++; }
 
