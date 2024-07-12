@@ -362,8 +362,10 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         }
     }
 
-    if (problem_.Ta_ext.isInt4() && ao_dims >= 2) problem_.Ta = Type::s8;
-    if (problem_.Tb_ext.isInt4() && bo_dims >= 2) problem_.Tb = Type::s8;
+    if (problem_.Ta_ext.isInt4() && problem_.Tb_ext.isInt8() && ao_dims >= 2)
+        problem_.Ta = Type::s8;
+    if (problem_.Tb_ext.isInt4() && problem_.Ta_ext.isInt8() && bo_dims >= 2)
+        problem_.Tb = Type::s8;
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
