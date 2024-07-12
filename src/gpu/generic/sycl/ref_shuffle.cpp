@@ -28,7 +28,11 @@ using namespace impl::utils;
 
 status_t ref_shuffle_t::pd_t::init_conf() {
     conf_ = sycl_shuffle_conf_t();
-    const memory_desc_wrapper data_d(src_md(0));
+
+    auto src_data_md = invariant_src_md();
+    auto dst_data_md = invariant_dst_md();
+
+    const memory_desc_wrapper data_d(src_data_md);
 
     conf_.axis = axis();
     conf_.axis_size = axis_size();
@@ -43,7 +47,7 @@ status_t ref_shuffle_t::pd_t::init_conf() {
     conf_.MB = MB();
     conf_.C = C();
 
-    const bool has_spatial = utils::one_of(data_d.ndims(), 3, 4, 5);
+    const bool has_spatial = utils::one_of(data_d.ndims(), 2, 3, 4, 5);
     if (has_spatial) {
         conf_.H = H();
         conf_.W = W();
@@ -51,10 +55,10 @@ status_t ref_shuffle_t::pd_t::init_conf() {
         conf_.HW = conf_.H * conf_.W;
         conf_.SP = conf_.D * conf_.HW;
     }
-    conf_.stat_md = xpu::sycl::md_t(src_md(0));
-    conf_.work_amount = memory_desc_wrapper(src_md()).nelems();
-    conf_.src_md = xpu::sycl::md_t(src_md(0));
-    conf_.dst_md = xpu::sycl::md_t(dst_md(0));
+    conf_.stat_md = xpu::sycl::md_t(src_data_md);
+    conf_.work_amount = data_d.nelems();
+    conf_.src_md = xpu::sycl::md_t(src_data_md);
+    conf_.dst_md = xpu::sycl::md_t(dst_data_md);
 
     if (ndims() == 5) {
         const auto tag
@@ -84,8 +88,7 @@ status_t ref_shuffle_t::pd_t::init_conf() {
     const int wg_cnt = (t_work + wg_work - 1) / wg_work;
     conf_.nthr = wg_cnt * conf_.wg_size;
 
-    if (memory_desc_wrapper(src_md()).nelems() % conf_.block_size != 0)
-        return status::unimplemented;
+    if (data_d.nelems() % conf_.block_size != 0) return status::unimplemented;
 
     return status::success;
 }
