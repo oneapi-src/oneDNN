@@ -33,6 +33,8 @@ struct ncsp_matmul_reduction_helper_t {
     status_t reshape_activations(memory_desc_t *o_md, const memory_desc_t *i_md,
             bool to_matmul, bool is_dst) {
         dims_t reduce {};
+        // 1 (batch) + groups + 2 (c/g and sp) for matmul
+        // groups + convolution dims for convolution
         const dim_t ndims_out = to_matmul ? 1 + pd_->with_groups() + 2
                                           : pd_->with_groups() + pd_->ndims();
         // convert between activations for convolution and matmul
@@ -59,6 +61,7 @@ struct ncsp_matmul_reduction_helper_t {
 
     status_t reshape_bias(memory_desc_t *o_md, const memory_desc_t *i_md) {
         dims_t reduce {};
+        // 1 (batch) + groups + 2 (c/g and sp) for matmul
         const dim_t ndims_out = 1 + pd_->with_groups() + 2;
         // reshape bias from convolution to matmul
         // for matmul, batch and spatial dimensions are always 1
