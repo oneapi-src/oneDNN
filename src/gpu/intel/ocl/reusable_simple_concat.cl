@@ -21,6 +21,7 @@ typedef int idx_t;
 #endif
 
 #include "gpu/intel/ocl/concat_common.h"
+#define unroll_for __attribute__((opencl_unroll_hint)) for
 
 #define SRC_PARAM(n) \
     CS_PARAM(__global const DATA_T *src##n, const idx_t src_ext_offset##n, \
@@ -194,8 +195,7 @@ reusable_simple_concat(__global DATA_T *dst, const ulong dst_offset0,
         const uint elems_per_iteration = MAX(SIMD, WRITE_BLOCK);
         const uint iterations = DIV_UP(READ_BLOCK, elems_per_iteration);
 
-#pragma unroll
-        for (int j = 0; j < iterations; ++j) {
+        unroll_for(int j = 0; j < iterations; ++j) {
             const uint buf_off = DIV_UP(j * elems_per_iteration, SIMD);
             const uint block_off = buf_off * SIMD;
             // Accounting for any values borrowed from the last iteration, this

@@ -176,12 +176,11 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
     if (conf.n_blocks && conf.write_block * conf.data_type_size == 1) {
         return status::unimplemented;
     }
-    // In this band, this implementation underperforms against either
-    // (1) gen9 concat or (2) ref concat.
-    if (dst_md.dims[axis::inner] > (1l << 20) // (1)
-            && dst_md.dims[axis::inner] <= (1l << 24) // (2)
-            && dst_md.dims[axis::concat] != dst_md.padded_dims[axis::concat]
-            && dst_md.dims[axis::concat] < 8) {
+    bool underperforms_gen9 = (dst_md.dims[axis::inner] > (1l << 20));
+    bool underperforms_ref = (dst_md.dims[axis::inner] <= (1l << 24))
+            && (dst_md.dims[axis::concat] != dst_md.padded_dims[axis::concat])
+            && (dst_md.dims[axis::concat] < 8);
+    if (underperforms_gen9 && underperforms_ref) {
         return status::unimplemented;
     }
 
@@ -189,9 +188,8 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
             rt_conf.gws_d, 0, device_info->gpu_arch());
 
     conf.use_large_index = (total_bytes > std::numeric_limits<int>::max());
-    size_t param_bytes = (conf.use_large_index)
-            ? kernel_parameter_bytes(conf.n, conf.n_blocks, sizeof(dim_t))
-            : kernel_parameter_bytes(conf.n, conf.n_blocks, sizeof(int));
+    size_t param_bytes = kernel_parameter_bytes(conf.n, conf.n_blocks,
+            conf.use_large_index ? sizeof(dim_t) : sizeof(int));
     if (param_bytes > device_info->max_kernel_param_size()) {
         return status::unimplemented;
     }
