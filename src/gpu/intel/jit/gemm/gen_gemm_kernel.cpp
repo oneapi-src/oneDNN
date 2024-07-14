@@ -257,13 +257,15 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(
 status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         int stepping, int eu_count, bool has_systolic, compute_mode mode,
         int batch_dims, bool trans_a, bool trans_b, bool trans_co, bool swap_ab,
-        int ao_dims, int bo_dims, bool wei_scale_2d, int wei_q2d_group_k,
-        bool c_offset, bool bias, sum_ab_t reduce_ab, float alpha, float beta,
-        data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t ao_type, data_type_t bo_type, data_type_t wei_scales_type,
-        data_type_t co_type, data_type_t acc_type, int align_a, int align_b,
-        int align_c, dim_t m, dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc,
-        dim_t batch, gpu_post_ops_t &&post_ops) {
+        int ao_dims, int bo_dims, bool wei_scale_2d, bool src_scale_2d,
+        int wei_q2d_group_k, int src_q2d_group_k, bool c_offset, bool bias,
+        sum_ab_t reduce_ab, float alpha, float beta, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t ao_type,
+        data_type_t bo_type, data_type_t wei_scales_type,
+        data_type_t src_scales_type, data_type_t co_type, data_type_t acc_type,
+        int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
+        dim_t lda, dim_t ldb, dim_t ldc, dim_t batch,
+        gpu_post_ops_t &&post_ops) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -328,21 +330,40 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         problem_.BO.setAlignment(int(types::data_type_size(bo_type)));
     if (!swap_ab) {
         problem_.aScale2D = wei_scale_2d;
+        problem_.bScale2D = src_scale_2d;
         problem_.aqGroupK = wei_q2d_group_k;
+        problem_.bqGroupK = src_q2d_group_k;
         if (wei_scales_type != data_type::undef) {
             problem_.Ta_scale = convert_dnnl_to_kernel_type(wei_scales_type);
             problem_.A_scale.setAlignment(
                     int(types::data_type_size(wei_scales_type)));
         }
+        if (src_scales_type != data_type::undef) {
+            problem_.Tb_scale = convert_dnnl_to_kernel_type(src_scales_type);
+            problem_.B_scale.layout = MatrixLayout::N;
+            problem_.B_scale.setAlignment(
+                    int(types::data_type_size(src_scales_type)));
+        }
     } else {
         problem_.bScale2D = wei_scale_2d;
+        problem_.aScale2D = src_scale_2d;
         problem_.bqGroupK = wei_q2d_group_k;
+        problem_.aqGroupK = src_q2d_group_k;
         if (wei_scales_type != data_type::undef) {
             problem_.Tb_scale = convert_dnnl_to_kernel_type(wei_scales_type);
             problem_.B_scale.setAlignment(
                     int(types::data_type_size(wei_scales_type)));
         }
+        if (src_scales_type != data_type::undef) {
+            problem_.Ta_scale = convert_dnnl_to_kernel_type(src_scales_type);
+            problem_.A_scale.layout = MatrixLayout::T;
+            problem_.A_scale.setAlignment(
+                    int(types::data_type_size(src_scales_type)));
+        }
     }
+
+    if (problem_.Ta_ext.isInt4() && ao_dims >= 2) problem_.Ta = Type::s8;
+    if (problem_.Tb_ext.isInt4() && bo_dims >= 2) problem_.Tb = Type::s8;
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
@@ -442,6 +463,18 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         }
     }
 
+    if (problem_.Ta.isInt4()) {
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[0] = "[FO]";
+        npatterns++;
+    }
+
+    if (problem_.Tb.isInt4()) {
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[1] = "[FO]";
+        npatterns++;
+    }
+
     EvaluateParams eval_params;
 
     eval_params.sizes = match_params[0].sizes;
@@ -477,6 +510,14 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
             problem_.Ta = Type::f16;
         if (utils::one_of(entry_->selector.precisions[1][0], 'H', '['))
             problem_.Tb = Type::f16;
+    }
+
+    if (problem_.Ta.isInt4()) {
+        if (entry_->selector.precisions[0][0] == '[') problem_.Ta = Type::s8;
+    }
+
+    if (problem_.Tb.isInt4()) {
+        if (entry_->selector.precisions[1][0] == '[') problem_.Tb = Type::s8;
     }
 
     auto block_k = entry_->driverInfo.blocking[LoopK];

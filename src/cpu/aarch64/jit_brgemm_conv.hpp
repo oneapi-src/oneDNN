@@ -252,7 +252,7 @@ private:
 
     brgemm_containers::brgemm_kernel_container_t brgemm_kernels_;
 
-    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops>> kernels_po_;
+    std::vector<std::unique_ptr<jit_brgemm_kernel_post_ops<isa>>> kernels_po_;
     std::unique_ptr<jit_sve_core_brgemm_conv_trans_kernel::
                     jit_sve_core_brgemm_conv_trans_kernel_t>
             copy_to_pbuffer_;

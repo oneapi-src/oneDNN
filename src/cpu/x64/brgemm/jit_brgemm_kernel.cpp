@@ -98,17 +98,6 @@ struct jit_brgemm_kernel_t : public jit_generator {
             static constexpr bool use_exact_tail_scalar_bcast = false;
             const auto dst_md_wrapper = memory_desc_wrapper(brg.dst_md());
 
-            static const bcast_set_t enabled_bcast_strategy
-                    = {broadcasting_strategy_t::scalar,
-                            broadcasting_strategy_t::per_oc,
-                            broadcasting_strategy_t::per_oc_spatial,
-                            broadcasting_strategy_t::per_mb,
-                            broadcasting_strategy_t::per_mb_spatial,
-                            broadcasting_strategy_t::per_mb_w,
-                            broadcasting_strategy_t::per_w,
-                            broadcasting_strategy_t::batch,
-                            broadcasting_strategy_t::spatial,
-                            broadcasting_strategy_t::no_broadcast};
             const binary_injector::rhs_arg_static_params_t rhs_sp {
                     static_cast<size_t>(vmm_tmp(0).getIdx()), this->r14,
                     this->r15, this->r13, preserve_gpr, preserve_vmm,
@@ -117,8 +106,8 @@ struct jit_brgemm_kernel_t : public jit_generator {
                     ld_tail_mask, use_exact_tail_scalar_bcast};
 
             const binary_injector::static_params_t bsp {this->param1,
-                    enabled_bcast_strategy, rhs_sp, f8_e5m2_emulator_.get(),
-                    f8_e4m3_emulator_.get()};
+                    binary_injector::get_all_strategies_supported_by_injector(),
+                    rhs_sp, f8_e5m2_emulator_.get(), f8_e4m3_emulator_.get()};
 
             auto st = safe_ptr_assign(postops_injector_,
                     po_injector_t::create(

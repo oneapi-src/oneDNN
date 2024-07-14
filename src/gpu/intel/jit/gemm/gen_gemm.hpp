@@ -69,6 +69,10 @@ struct gen_gemm_t : public gpu_gemm_t {
                                   && utils::one_of(d->a_type(), u8, s8, s4, u4)
                                   && utils::one_of(d->b_type(), f16, f32, bf16))
                     && attr()->mayiconvert(d->a_type(), f32);
+            dy_quant_enabled_ = (utils::one_of(d->c_type(), f32, f16, bf16)
+                    && utils::one_of(d->a_type(), u8, s8, s4, u4)
+                    && utils::one_of(d->b_type(), u8, s8));
+            quant_enabled_ = wei_decomp_ || dy_quant_enabled_;
             CHECK(set_default_formats(false));
 
             // If m = 1, swap A/B to use more efficient n = 1 kernels if possible.
@@ -106,7 +110,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 eff_ldb_ = utils::rnd_up(eff_ldb_, 16);
             }
 
-            if (wei_decomp_) {
+            if (quant_enabled_) {
                 attr_skip_mask |= smask_t::fpmath_mode
                         | smask_t::scales_runtime_data_type
                         | smask_t::scales_runtime_groups
@@ -116,7 +120,9 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             bool wei_zp = false, wei_zp_2d = false;
             auto wei_scales_type = data_type::undef;
+            auto src_scales_type = data_type::undef;
             int wei_q2d_group_k = 0;
+            int src_q2d_group_k = 0;
 
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
@@ -198,7 +204,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 CHECK(attr_zps.get(DNNL_ARG_C, &cmask_c));
 
                 wei_zp = a_zp;
-                wei_zp_2d = wei_decomp_ && (cmask_a == ((1 << 0) | (1 << 1)));
+                wei_zp_2d = attr_zps.get_groups_ndims(DNNL_ARG_A) > 1;
                 VDISPATCH_GEMM(
                         (utils::one_of(cmask_a, 0, 1 << 1, 1 << 2) || wei_zp_2d)
                                 && utils::one_of(cmask_b, 0, 1 << 0)
@@ -218,31 +224,48 @@ struct gen_gemm_t : public gpu_gemm_t {
                 }
             }
 
-            if (wei_decomp_
-                    && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_
-                            == ((1 << 0) | (1 << 1)))
-                wei_scales_2d_ = true;
+            auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
+            auto &src_scales = attr()->scales_.get(DNNL_ARG_SRC);
+
+            if (quant_enabled_ && wei_scales.ndims_ > 1) wei_scales_2d_ = true;
+
+            if (quant_enabled_ && src_scales.ndims_ > 1) src_scales_2d_ = true;
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto mask = attr()->scales_.get(s).mask_;
                 VDISPATCH_GEMM(utils::one_of(mask, 0, 1 << 0, 1 << 1, 1 << 2)
-                                || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_),
+                                || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_)
+                                || (s == DNNL_ARG_SRC && src_scales_2d_),
                         VERBOSE_UNSUPPORTED_SCALES_CFG);
             }
 
             if (wei_scales_2d_) {
-                VDISPATCH_GEMM(!(wei_zp && (ao_dims_ == 1 || bo_dims_ == 1)),
-                        VERBOSE_UNSUPPORTED_ZP_CFG);
-                auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
-                wei_scales_type = wei_scales.data_type_;
                 auto scales_group_k
                         = wei_scales.ndims_ > 0 ? wei_scales.group_dims_[0] : 1;
-                if (!wei_zp_2d)
-                    wei_q2d_group_k = scales_group_k;
-                else {
-                    VDISPATCH_GEMM((wei_q2d_group_k == scales_group_k),
-                            VERBOSE_UNSUPPORTED_SCALES_CFG);
+                if (scales_group_k >= d->k()) {
+                    wei_scales_2d_ = false;
+                } else {
+                    VDISPATCH_GEMM(
+                            !(wei_zp && (ao_dims_ == 1 || bo_dims_ == 1)),
+                            VERBOSE_UNSUPPORTED_ZP_CFG);
+                    wei_scales_type = wei_scales.data_type_;
+                    if (!wei_zp_2d)
+                        wei_q2d_group_k = scales_group_k;
+                    else {
+                        VDISPATCH_GEMM((wei_q2d_group_k == scales_group_k),
+                                VERBOSE_UNSUPPORTED_SCALES_CFG);
+                    }
                 }
+            }
+            if (src_scales_2d_) {
+                src_scales_type = src_scales.data_type_;
+                src_po_sc_ = src_scales.mask_ == 2;
+                auto scales_group_k
+                        = src_scales.ndims_ > 0 ? src_scales.group_dims_[1] : 1;
+                if (scales_group_k >= d->k())
+                    src_scales_2d_ = false;
+                else
+                    src_q2d_group_k = scales_group_k;
             }
 
             VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
@@ -325,10 +348,11 @@ struct gen_gemm_t : public gpu_gemm_t {
             CHECK(kernel_desc_.select_kernel(arch_, stepping,
                     dev_info_->eu_count(), has_systolic, mode, batch_dims(),
                     eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
-                    ao_dims_, bo_dims_, wei_scales_2d_, wei_q2d_group_k,
-                    with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
-                    beta(), eff_a_type(), eff_b_type(), desc()->c_type(),
-                    ao_type, bo_type, wei_scales_type, co_type, acc_type,
+                    ao_dims_, bo_dims_, wei_scales_2d_, src_scales_2d_,
+                    wei_q2d_group_k, src_q2d_group_k, with_c_zero_points(),
+                    with_bias(), eff_sum_ab(), alpha(), beta(), eff_a_type(),
+                    eff_b_type(), desc()->c_type(), ao_type, bo_type,
+                    wei_scales_type, src_scales_type, co_type, acc_type,
                     eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
                     d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch(),
                     std::move(gpu_post_ops)));
@@ -377,8 +401,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto a_t = (utils::one_of(d->a_type(), s4, u4)) ? s8 : d->a_type();
             auto b_t = (utils::one_of(d->b_type(), s4, u4)) ? s8 : d->b_type();
             auto c_t = d->c_type();
-            auto a_t_sz = types::data_type_size(a_t);
-            auto b_t_sz = types::data_type_size(b_t);
 
             bool is_f16 = utils::everyone_is(f16, a_t, b_t, c_t);
             bool is_xe_hp_plus = arch_ >= arch_t::xe_hp;
@@ -411,16 +433,16 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto lda = is_a_trans ? m : k;
             auto ldb = is_b_trans ? k : n;
 
-            auto is_aligned = [](dim_t ld, size_t sz, int byte) {
-                return ld * sz % byte == 0;
+            auto is_aligned = [](dim_t ld, data_type_t dt, int byte) {
+                return types::elements_to_bytes(dt, ld) % byte == 0;
             };
 
-            bool a_4B_aligned = is_aligned(lda, a_t_sz, 4);
-            bool b_4B_aligned = is_aligned(ldb, b_t_sz, 4);
+            bool a_4B_aligned = is_aligned(lda, a_t, 4);
+            bool b_4B_aligned = is_aligned(ldb, b_t, 4);
             bool ab_4B_aligned = a_4B_aligned && b_4B_aligned;
 
-            bool a_tn_4B_aligned = is_aligned(k, a_t_sz, 4);
-            bool b_tn_4B_aligned = is_aligned(k, b_t_sz, 4);
+            bool a_tn_4B_aligned = is_aligned(k, a_t, 4);
+            bool b_tn_4B_aligned = is_aligned(k, b_t, 4);
             bool ab_tn_4B_aligned = a_tn_4B_aligned && b_tn_4B_aligned;
 
             bool use_tn = (m <= 32 || n <= 32) && !ab_4B_aligned
@@ -506,6 +528,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         }
 
         bool wei_scales_2d() const { return wei_scales_2d_; }
+        bool src_scales_2d() const { return src_scales_2d_; }
 
         bool swap_ab() const { return swap_ab_; }
 
@@ -535,27 +558,33 @@ struct gen_gemm_t : public gpu_gemm_t {
             return !swap_ab() ? desc()->b_type() : desc()->a_type();
         }
         int eff_align_a() const {
-            auto sz = types::data_type_size(eff_a_type());
-            auto align = utils::max_pow2_div(eff_lda() * sz);
+            auto dt = eff_a_type();
+            auto align = utils::max_pow2_div(
+                    types::elements_to_bytes(dt, eff_lda()));
             for (int b = 0; b < batch_dims(); b++)
-                align = nstl::min(
-                        align, utils::max_pow2_div(eff_stride_a(b) * sz));
+                align = nstl::min(align,
+                        utils::max_pow2_div(
+                                types::elements_to_bytes(dt, eff_stride_a(b))));
             return int(align);
         }
         int eff_align_b() const {
-            auto sz = types::data_type_size(eff_b_type());
-            auto align = utils::max_pow2_div(eff_ldb() * sz);
+            auto dt = eff_b_type();
+            auto align = utils::max_pow2_div(
+                    types::elements_to_bytes(dt, eff_ldb()));
             for (int b = 0; b < batch_dims(); b++)
-                align = nstl::min(
-                        align, utils::max_pow2_div(eff_stride_b(b) * sz));
+                align = nstl::min(align,
+                        utils::max_pow2_div(
+                                types::elements_to_bytes(dt, eff_stride_b(b))));
             return int(align);
         }
         int align_c() const {
-            auto sz = types::data_type_size(desc()->c_type());
-            auto align = utils::max_pow2_div(desc()->ldc() * sz);
+            auto dt = desc()->c_type();
+            auto align = utils::max_pow2_div(
+                    types::elements_to_bytes(dt, desc()->ldc()));
             for (int b = 0; b < batch_dims(); b++)
-                align = nstl::min(
-                        align, utils::max_pow2_div(desc()->stride_c(b) * sz));
+                align = nstl::min(align,
+                        utils::max_pow2_div(types::elements_to_bytes(
+                                dt, desc()->stride_c(b))));
             return int(align);
         }
 
@@ -583,7 +612,11 @@ struct gen_gemm_t : public gpu_gemm_t {
         int ao_dims_ = -1, bo_dims_ = -1;
         bool a_zp_ = false, b_zp_ = false;
         bool wei_decomp_ = false;
+        bool quant_enabled_ = false;
+        bool dy_quant_enabled_ = false;
         bool wei_scales_2d_ = false;
+        bool src_scales_2d_ = false;
+        bool src_po_sc_ = false;
         dim_t eff_lda_ = 0, eff_ldb_ = 0;
         bool eff_transa_ = false, eff_transb_ = false;
 

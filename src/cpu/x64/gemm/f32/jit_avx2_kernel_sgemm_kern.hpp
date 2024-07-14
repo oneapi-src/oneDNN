@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 #ifndef CPU_X64_GEMM_F32_JIT_AVX2_KERNEL_SGEMM_KERN_HPP
 #define CPU_X64_GEMM_F32_JIT_AVX2_KERNEL_SGEMM_KERN_HPP
 
+#include "cpu/gemm/gemm.hpp"
+
 #include "cpu/x64/jit_generator.hpp"
 
 #define MAX_UNROLL_M 48
@@ -32,15 +34,18 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_kernel_sgemm_kern);
     const int elt_size_ = 4;
     const int elt_size_bin_ = 2;
-    int nelt_per_vecreg_ = mayiuse(avx512_core) ? 16 : 8;
+    int nelt_per_vecreg_ = mayiuse(avx512_core) && __BUILD_GEMM_AVX512 ? 16 : 8;
     const int unroll_m_reg_ = 3;
     int unroll_m_ = unroll_m_reg_ * nelt_per_vecreg_;
-    const int unroll_n_ = mayiuse(avx512_core) ? 8 : 4;
+    const int unroll_n_ = mayiuse(avx512_core) && __BUILD_GEMM_AVX512 ? 8 : 4;
     const int unroll_k_ = 4;
     const int unroll_k_bin_ = 2;
-    const int unroll_m_bin_ = mayiuse(avx512_core) ? 6 : 5;
-    const int second_fetch_ = mayiuse(avx512_core) ? 32 : 34;
-    unsigned int unroll_n_bin_ = mayiuse(avx512_core) ? 3 : 2;
+    const int unroll_m_bin_
+            = mayiuse(avx512_core) && __BUILD_GEMM_AVX512 ? 6 : 5;
+    const int second_fetch_
+            = mayiuse(avx512_core) && __BUILD_GEMM_AVX512 ? 32 : 34;
+    unsigned int unroll_n_bin_
+            = mayiuse(avx512_core) && __BUILD_GEMM_AVX512 ? 3 : 2;
     bool beta_zero_;
 
     Xbyak::Reg64 M_ = rdi, N_ = rsi, K_ = rdx, A_ = r8, B_ = r9, C_ = r10,
@@ -48,15 +53,21 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
     Xbyak::Reg64 I_ = r12, J_ = r13, AA_ = rcx, KK_ = K_, BO_ = rbp, CO1_ = r14,
                  CO2_ = r15;
     Xbyak::Reg64 AO_ = rbx, LL_ = rax;
-    int zmm_a_idx_ = 0, zmm_b_idx_ = mayiuse(avx512_core) ? 6 : 3,
-        zmm_acc_idx_ = mayiuse(avx512_core) ? 8 : 4;
-    int nb_zmm_a_ = mayiuse(avx512_core) ? unroll_m_reg_ * 2 : unroll_m_reg_,
-        nb_zmm_b_ = mayiuse(avx512_core) ? 2 : 1;
+    int zmm_a_idx_ = 0,
+        zmm_b_idx_ = mayiuse(avx512_core) && __BUILD_GEMM_AVX512 ? 6 : 3,
+        zmm_acc_idx_ = mayiuse(avx512_core) && __BUILD_GEMM_AVX512 ? 8 : 4;
+    int nb_zmm_a_ = mayiuse(avx512_core) && __BUILD_GEMM_AVX512
+            ? unroll_m_reg_ * 2
+            : unroll_m_reg_,
+        nb_zmm_b_ = mayiuse(avx512_core) && __BUILD_GEMM_AVX512 ? 2 : 1;
 
-    int addr_off_ = mayiuse(avx512_core) ? 128 : 32;
-    int PREFETCHSIZEB_ = mayiuse(avx512_core) ? (-128 + 16 * 8) : 64;
-    int PREFETCHSIZEA_ = mayiuse(avx512_core) ? (-128 + 16 * 2)
-                                              : (PREFETCHSIZEB_ * 2 + 16);
+    int addr_off_ = mayiuse(avx512_core) && __BUILD_GEMM_AVX512 ? 128 : 32;
+    int PREFETCHSIZEB_ = mayiuse(avx512_core) && __BUILD_GEMM_AVX512
+            ? (-128 + 16 * 8)
+            : 64;
+    int PREFETCHSIZEA_ = mayiuse(avx512_core) && __BUILD_GEMM_AVX512
+            ? (-128 + 16 * 2)
+            : (PREFETCHSIZEB_ * 2 + 16);
     int off_ = 0, offb_ = 0;
 
     int next_acc(int idx, int um, int un) const;
@@ -74,10 +85,11 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
     void loadA_betweenFMAs(int um, int un, int k_idx, int n_idx, int m_idx,
             void (Xbyak::CodeGenerator::*aload)(
                     const T_desta &, const T_srca &)) {
-        int next_zmm_a = mayiuse(avx512_core)
+        int next_zmm_a = mayiuse(avx512_core) && __BUILD_GEMM_AVX512
                 ? unroll_m_reg_
                 : std::max(1, um / nelt_per_vecreg_);
-        if (!(mayiuse(avx512_core) || (um <= 8) || ((um == 16) && (un == 4)))) {
+        if (!((mayiuse(avx512_core) && __BUILD_GEMM_AVX512) || (um <= 8)
+                    || ((um == 16) && (un == 4)))) {
             if (n_idx == un - 1) {
                 (this->*aload)(T_reg(zmm_a_idx_ + m_idx
                                        + (k_idx % (nb_zmm_a_ / unroll_m_reg_))
@@ -100,10 +112,11 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
                     const T_desta &, const T_srca &)) {
 
         int i;
-        int next_zmm_a = mayiuse(avx512_core)
+        int next_zmm_a = mayiuse(avx512_core) && __BUILD_GEMM_AVX512
                 ? unroll_m_reg_
                 : std::max(1, um / nelt_per_vecreg_);
-        if (mayiuse(avx512_core) || (um <= 8) || ((um == 16) && (un == 4))) {
+        if ((mayiuse(avx512_core) && __BUILD_GEMM_AVX512) || (um <= 8)
+                || ((um == 16) && (un == 4))) {
             for (i = 0; i < std::max(um / nelt_per_vecreg_, 1); i++) {
                 (this->*aload)(T_reg(zmm_a_idx_ + i
                                        + (k_idx % (nb_zmm_a_ / unroll_m_reg_))
@@ -130,31 +143,38 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
 
         Xbyak::Label K_loop_body_label;
         int i, j, p, b_idx;
-        int addb_off = ((!mayiuse(avx512_core)) && (nb_zmm_b_ == 2)) ? 1 : 0;
+        int addb_off = (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                               && (nb_zmm_b_ == 2))
+                ? 1
+                : 0;
 
-        int next_zmm_a = mayiuse(avx512_core)
+        int next_zmm_a = mayiuse(avx512_core) && __BUILD_GEMM_AVX512
                 ? unroll_m_reg_
                 : std::max(1, um / nelt_per_vecreg_);
 
         off_ = 0, offb_ = 0;
 
-        if (mayiuse(avx512_core)) L_aligned(K_loop_body_label);
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+            L_aligned(K_loop_body_label);
 
         if (cfetch) prefetchC_beforeKloop(um);
 
-        if (!mayiuse(avx512_core)) L_aligned(K_loop_body_label);
+        if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512))
+            L_aligned(K_loop_body_label);
 
         for (p = 0; p < unroll_k_; p++) {
-            if (mayiuse(avx512_core)) {
+            if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
                 if ((um == unroll_m_) && (p == unroll_k_ - 1)) {
                     prefetcht2(ptr[AA_ - elt_size_ * 128]);
                 }
             }
             for (j = 0; j < un; j++) {
 
-                b_idx = mayiuse(avx512_core) ? j % nb_zmm_b_ : p % nb_zmm_b_;
+                b_idx = mayiuse(avx512_core) && __BUILD_GEMM_AVX512
+                        ? j % nb_zmm_b_
+                        : p % nb_zmm_b_;
 
-                if (!mayiuse(avx512_core)) {
+                if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
                     if ((um == unroll_m_) && (un == unroll_n_)) {
                         if ((j == un - 1) && (p == unroll_k_ - 1))
                             sub(BO_, -un * unroll_k_ * elt_size_);
@@ -182,9 +202,9 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
 
                 prefetchB_beforeBload(um, un, p, j);
 
-                if (!mayiuse(avx512_core) && (um == unroll_m_)
-                        && (un == unroll_n_) && (j == un - 1)
-                        && (p == unroll_k_ - 1)) {
+                if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                        && (um == unroll_m_) && (un == unroll_n_)
+                        && (j == un - 1) && (p == unroll_k_ - 1)) {
                     (this->*bload)(T_reg(zmm_b_idx_ + b_idx),
                             ptr[BO_
                                     + elt_size_
@@ -205,14 +225,14 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
 
                 if (cfetch) prefetchC_afterBload(um, un, p, j);
 
-                if (mayiuse(avx512_core)) {
+                if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
                     if ((um == unroll_m_) && (p == unroll_k_ - 1)
                             && (j == std::min(un - 1, 3)))
                         lea(AA_, ptr[AA_ + elt_size_ * unroll_n_]);
                 }
             }
 
-            if (mayiuse(avx512_core)) {
+            if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
                 for (j = un; j < unroll_n_; j++) {
                     if (um < unroll_m_) {
                         if (((p % (nb_zmm_a_ / unroll_m_reg_) == 0)
@@ -228,7 +248,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
             loadA_after<T_reg, T_desta, T_srca>(um, un, p, aload);
         }
 
-        if (mayiuse(avx512_core)) {
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
             lea(AO_, ptr[AO_ + um * unroll_k_ * elt_size_]);
             lea(BO_, ptr[BO_ + un * unroll_k_ * elt_size_]);
         } else {
@@ -261,7 +281,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
                         T_reg(zmm_b_idx_ + (j % nb_zmm_b_)),
                         T_reg(i + zmm_a_idx_));
 
-                if (mayiuse(avx512_core)) {
+                if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
                     if (i == 0) {
                         if (j % 3 == 0) {
                             prefetcht0(ptr[AO_
@@ -290,17 +310,18 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
                                             - j)]);
         }
 
-        if (mayiuse(avx512_core) && (un < 2))
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512 && (un < 2))
             prefetcht0(ptr[BO_ + elt_size_ * (PREFETCHSIZEB_)]);
 
-        if (mayiuse(avx512_core)) {
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
             for (i = un; i < 8; i += 4) {
                 prefetcht0(ptr[AO_ + elt_size_ * (PREFETCHSIZEA_ + off_)]);
                 off_ += 16;
             }
         }
 
-        if (mayiuse(avx512_core) || (um <= nelt_per_vecreg_)) {
+        if ((mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                || (um <= nelt_per_vecreg_)) {
             for (i = 0; i < std::max(um / nelt_per_vecreg_, 1); i++) {
                 (this->*aload)(T_reg(zmm_a_idx_ + i),
                         ptr[AO_
@@ -310,7 +331,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
             }
         }
 
-        if (mayiuse(avx512_core)) {
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
             lea(AO_, ptr[AO_ + um * elt_size_]);
             lea(BO_, ptr[BO_ + un * elt_size_]);
         } else {
@@ -334,14 +355,15 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
         Xbyak::Label end_K_loop_label, end_main_K_loop_label;
         Xbyak::Label K_loop_with_prefetch_label, K_loop_with_prefetch_rem_label;
 
-        Xbyak::Reg64 A_reg = (mayiuse(avx512_core))        ? AO_
-                : ((um == unroll_m_) && (un == unroll_n_)) ? A_
+        Xbyak::Reg64 A_reg = (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) ? AO_
+                : ((um == unroll_m_) && (un == unroll_n_))                 ? A_
                                                            : AO_;
 
-        if (mayiuse(avx512_core) || (unroll_m_ != um) || (unroll_n_ != un))
+        if ((mayiuse(avx512_core) && __BUILD_GEMM_AVX512) || (unroll_m_ != um)
+                || (unroll_n_ != un))
             mov(AO_, A_);
 
-        if (!mayiuse(avx512_core)) {
+        if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
 
             nb_zmm_a_ = unroll_m_reg_;
             nb_zmm_b_ = 1;
@@ -366,10 +388,11 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
         zmm_acc_idx_ = zmm_b_idx_ + nb_zmm_b_;
         acc_idx = 0;
 
-        if (!mayiuse(avx512_core)) {
+        if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
             j = zmm_b_idx_;
             for (k = 0; k < nb_zmm_b_; k++) {
-                if (!mayiuse(avx512_core) && (un > 1)) {
+                if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                        && (un > 1)) {
                     acc_idx = next_acc(acc_idx, um, un);
                     vxorps(T_reg(zmm_acc_idx_ + acc_idx),
                             T_reg(zmm_acc_idx_ + acc_idx),
@@ -383,14 +406,14 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
         }
 
         for (k = 0; k < nb_zmm_a_ / unroll_m_reg_; k++) {
-            if (mayiuse(avx512_core))
+            if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
                 j = zmm_a_idx_ + k * unroll_m_reg_;
             else
                 j = zmm_a_idx_ + k * std::max(1, um / nelt_per_vecreg_);
 
             for (i = nelt_per_vecreg_; i <= std::max(um, nelt_per_vecreg_);
                     i += nelt_per_vecreg_) {
-                if (!mayiuse(avx512_core)) {
+                if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
                     acc_idx = next_acc(acc_idx, um, un);
                     vxorps(T_reg(zmm_acc_idx_ + acc_idx),
                             T_reg(zmm_acc_idx_ + acc_idx),
@@ -405,10 +428,11 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
             }
         }
 
-        if (mayiuse(avx512_core)) {
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
             j = zmm_b_idx_;
             for (k = 0; k < nb_zmm_b_; k++) {
-                if (!mayiuse(avx512_core) && (un > 1)) {
+                if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                        && (un > 1)) {
                     acc_idx = next_acc(acc_idx, um, un);
                     vxorps(T_reg(zmm_acc_idx_ + acc_idx),
                             T_reg(zmm_acc_idx_ + acc_idx),
@@ -421,7 +445,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
             }
         }
 
-        if (!mayiuse(avx512_core)) {
+        if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
 
             if (un > 1) {
                 if ((um == unroll_m_)
@@ -490,16 +514,17 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
                 vxorps(T_reg(i), T_reg(i), T_reg(i));
         }
 
-        if (!((mayiuse(avx512_core) || (unroll_m_ != um) || (unroll_n_ != un))))
+        if (!((mayiuse(avx512_core) && __BUILD_GEMM_AVX512) || (unroll_m_ != um)
+                    || (unroll_n_ != un)))
             mov(AO_, A_);
 
         mov(LL_, KK_);
         sar(LL_, unroll_k_bin_);
         jle(end_main_K_loop_label, T_NEAR);
 
-        if (mayiuse(avx512_core)
-                || (!mayiuse(avx512_core) && (un == unroll_n_)
-                        && (um == unroll_m_))) {
+        if ((mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                || (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                        && (un == unroll_n_) && (um == unroll_m_))) {
             sub(LL_, second_fetch_);
             jle(K_loop_with_prefetch_label, T_NEAR);
         }
@@ -507,26 +532,26 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
         k_loop_body<T_reg, T_desta, T_srca, T_destb, T_srcb>(
                 0, um, un, aload, bload);
 
-        if (mayiuse(avx512_core)
-                || (!mayiuse(avx512_core) && (un == unroll_n_)
-                        && (um == unroll_m_))) {
+        if ((mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                || (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                        && (un == unroll_n_) && (um == unroll_m_))) {
             L_aligned(K_loop_with_prefetch_label);
         }
 
-        if (mayiuse(avx512_core)) {
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
             lea(CO2_, ptr[CO1_ + (nelt_per_vecreg_ - 1) * elt_size_]);
             add(LL_, un);
             jle(K_loop_with_prefetch_rem_label, T_NEAR);
         }
 
-        if (mayiuse(avx512_core)
-                || (!mayiuse(avx512_core) && (un == unroll_n_)
-                        && (um == unroll_m_))) {
+        if ((mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                || (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                        && (un == unroll_n_) && (um == unroll_m_))) {
             k_loop_body<T_reg, T_desta, T_srca, T_destb, T_srcb>(
                     1, um, un, aload, bload);
         }
 
-        if (mayiuse(avx512_core)) {
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
             L_aligned(K_loop_with_prefetch_rem_label);
             add(LL_, second_fetch_ - un);
             jle(end_main_K_loop_label, T_NEAR);
@@ -537,7 +562,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
 
         L_aligned(end_main_K_loop_label);
 
-        if (!mayiuse(avx512_core)) {
+        if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
             if ((un == unroll_n_) && ((um == 16) || (um == 8))) {
                 prefetcht2(ptr[AA_ - 16 * elt_size_]);
             }
@@ -568,7 +593,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
         if ((um < unroll_m_) && (um >= nelt_per_vecreg_))
             offAA = 32 - (un / 2) * 16;
 
-        if (mayiuse(avx512_core))
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
             lea(CO2_, ptr[CO1_ + LDC_]);
         else {
             if ((um == nelt_per_vecreg_) && (un == unroll_n_)) {
@@ -578,7 +603,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
         }
         for (j = 0; j < un; j++) {
 
-            if (mayiuse(avx512_core)) {
+            if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
                 reg_C = (j == 0) ? CO1_ : CO2_;
                 if (j >= 2) { add(CO2_, LDC_); }
             } else
@@ -588,7 +613,8 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
             if (!is_beta_zero) {
                 if (sepload) {
                     for (i = 0; i < std::max(um / nelt_per_vecreg_, 1); i++) {
-                        if (!mayiuse(avx512_core) && (j % 2 == 1)) {
+                        if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                                && (j % 2 == 1)) {
                             (this->*sload)(vec_reg_t(i),
                                     ptr[reg_C + LDC_
                                             + elt_size_ * i
@@ -614,7 +640,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
                 }
             }
 
-            if (!mayiuse(avx512_core)) {
+            if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
                 if (j > 0) {
                     prefetcht2(ptr[AA_ + elt_size_ * offAA]);
                     offAA += 16;
@@ -623,7 +649,8 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
 
             // store accumulated value in C_
             for (i = 0; i < std::max(um / nelt_per_vecreg_, 1); i++) {
-                if (!mayiuse(avx512_core) && (j % 2 == 1)) {
+                if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+                        && (j % 2 == 1)) {
                     (this->*store)(ptr[reg_C + LDC_
                                            + elt_size_ * i * nelt_per_vecreg_],
                             vec_reg_t(zmm_acc_idx_ + j + i * unroll_n_));
@@ -632,21 +659,21 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
                             ptr[reg_C + elt_size_ * i * nelt_per_vecreg_],
                             vec_reg_t(zmm_acc_idx_ + j + i * unroll_n_));
                 }
-                if (mayiuse(avx512_core)) {
+                if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
                     vpxorq(vec_reg_t(zmm_acc_idx_ + j + i * unroll_n_),
                             vec_reg_t(zmm_acc_idx_ + j + i * unroll_n_),
                             vec_reg_t(zmm_acc_idx_ + j + i * unroll_n_));
                 }
             }
 
-            if (!mayiuse(avx512_core)) {
+            if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
                 if ((um == unroll_m_) && (un == 1)) {
                     prefetcht2(ptr[AA_ + elt_size_ * offAA]);
                     offAA += 16;
                 }
             }
 
-            if (!mayiuse(avx512_core)) {
+            if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
                 if (j == std::min(1, un - 1)) {
                     if (j == 0)
                         add(CO1_, LDC_);
@@ -662,9 +689,10 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
             }
         }
 
-        if (mayiuse(avx512_core)) lea(CO1_, ptr[CO2_ + LDC_]);
+        if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+            lea(CO1_, ptr[CO2_ + LDC_]);
 
-        if (!mayiuse(avx512_core)) {
+        if (!(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)) {
             if ((um >= nelt_per_vecreg_) && (un < unroll_n_)) {
                 prefetcht2(ptr[AA_ + elt_size_ * offAA]);
                 offAA += 16;
