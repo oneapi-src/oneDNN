@@ -108,7 +108,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(impl::engine_t *engine) {
             VERBOSE_UNSUPPORTED_FEATURE, "bias reduction");
     VDISPATCH_GEMM(IMPLICATION(with_bias(),
                            utils::one_of(d->bias_type(), d->a_type(), f32)
-                                   && utils::one_of(bias_cmask(), 0, 1, 2, 3)),
+                                   && d->bias_mask() < 8),
             VERBOSE_UNSUPPORTED_BIAS_CFG);
 
     VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);

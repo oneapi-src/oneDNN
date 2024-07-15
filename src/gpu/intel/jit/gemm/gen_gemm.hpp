@@ -173,7 +173,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                                    utils::one_of(d->bias_type(), f64, f32, bf16,
                                            f16, f8_e5m2, f8_e4m3)
                                            && (d->bias_desc.ndims <= 6)
-                                           && bias_cmask() < 8),
+                                           && d->bias_mask() < 8),
                     VERBOSE_UNSUPPORTED_BIAS_CFG);
             VDISPATCH_GEMM(
                     IMPLICATION(with_bias(),
