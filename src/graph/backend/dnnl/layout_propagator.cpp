@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -734,6 +734,12 @@ status_t layout_propagator_for_layernorm(op_ptr &op,
     status_t status = status::success;
     const auto &pd
             = layernorm_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+
+    insert_reorder_before(
+            op, 0, pd.src_desc(), p_engine, mgr, pd_cache, rewriter);
+    value_ptr src = op->get_input_value(0);
+    status = fill_layout_info(src, pd.src_desc());
+    if (status != status::success) return status;
 
     insert_reorder_after(
             op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
