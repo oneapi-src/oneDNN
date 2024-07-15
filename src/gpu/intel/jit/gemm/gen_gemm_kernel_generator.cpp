@@ -13708,6 +13708,7 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
                                                         : state.Br_layout));
     if (lsrc.empty()) stub();
     int crosspack = lsrc[0].crosspack;
+    if (int4SpecialPath && Tx == Type::bf16) crosspack = 1;
 
     auto makeQRepack
             = [&](Type Txq, Type Txq_int, vector<RegisterBlock> &repack,
