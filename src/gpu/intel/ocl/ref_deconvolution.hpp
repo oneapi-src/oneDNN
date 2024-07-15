@@ -190,7 +190,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
-        std::string name_ = "ocl:ref:any";
+        std::string name_ = "conv:any";
 
         void init_name() {
             name_.append("+");
@@ -333,7 +333,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
-        std::string name_ = "ocl:ref:any";
+        std::string name_ = "conv:any";
 
         void init_name() {
             name_.append("+");
@@ -457,7 +457,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> conv_pd_;
 
     private:
-        std::string name_ = "ocl:ref:any";
+        std::string name_ = "conv:any";
 
         void init_name() {
             name_.append("+");
