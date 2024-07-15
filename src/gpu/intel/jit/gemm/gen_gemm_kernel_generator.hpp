@@ -111,6 +111,9 @@ public:
     constexpr bool isSigned() const {
         return (uint32_t(val) & 0x110000) != 0x100000;
     }
+    constexpr Type asUnsigned() const {
+        return static_cast<_Type>(uint32_t(val) & ~(isInteger() ? 0x10000 : 0));
+    }
     constexpr Type asSigned() const {
         return static_cast<_Type>(uint32_t(val) | (isInteger() ? 0x10000 : 0));
     }
