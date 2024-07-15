@@ -43,7 +43,7 @@ namespace sycl {
 #define DNNL_ARG_SRC_14 15
 #define DNNL_ARG_SRC_15 16
 
-#define MAX_NUM_TENSORS 16
+#define DNNL_REF_SUM_MAX_NUM_TENSORS 16
 
 // The macros are expected to be called within a command group function object
 // that is passed to `parallel_for`.

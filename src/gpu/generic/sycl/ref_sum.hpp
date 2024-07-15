@@ -64,7 +64,7 @@ struct ref_sum_t : public gpu::generic::sycl::primitive_t {
             }
 
             const bool ok = set_default_params() == status::success
-                    && n <= MAX_NUM_TENSORS;
+                    && n <= DNNL_REF_SUM_MAX_NUM_TENSORS;
             if (!ok) return status::unimplemented;
 
             return init_conf();

@@ -47,20 +47,20 @@ struct ref_sum_many_inputs_t : public gpu::generic::sycl::primitive_t {
             const int n = n_inputs();
             const bool ok = set_default_params() == status::success
                     && attr()->has_default_values()
-                    && n > MAX_NUM_TENSORS; // prevent inf recursion
+                    && n > DNNL_REF_SUM_MAX_NUM_TENSORS; // prevent inf recursion
             if (!ok) return status::unimplemented;
 
             // the first kernel handles up to 16 inputs and remaining ones up to 15
             const int n_kernels
-                    = n == 1 ? 1 : utils::div_up(n - 1, MAX_NUM_TENSORS - 1);
+                    = n == 1 ? 1 : utils::div_up(n - 1, DNNL_REF_SUM_MAX_NUM_TENSORS - 1);
             base_pds_.resize(n_kernels);
             int in_arg_offset = 0;
             int n_remaining = n;
             for (auto i = 0; i < n_kernels; ++i) {
                 bool pass_in_dst = i > 0;
-                int max_n_child_inputs = MAX_NUM_TENSORS - pass_in_dst;
+                int max_n_child_inputs = DNNL_REF_SUM_MAX_NUM_TENSORS - pass_in_dst;
                 int n_child_inputs = std::min(n_remaining, max_n_child_inputs);
-                const memory_desc_t *src[MAX_NUM_TENSORS];
+                const memory_desc_t *src[DNNL_REF_SUM_MAX_NUM_TENSORS];
                 if (pass_in_dst) { src[0] = dst_md(); }
                 for (int j = 0; j < n_child_inputs; j++) {
                     src[j + pass_in_dst] = src_md(j + in_arg_offset);

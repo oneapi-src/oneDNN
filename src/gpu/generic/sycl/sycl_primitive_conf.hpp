@@ -343,9 +343,9 @@ struct sycl_pooling_fwd_conf_t : public sycl_pooling_base_conf_t {
 
 
 struct sycl_sum_conf_t {
-    xpu::sycl::md_t src_md[MAX_NUM_TENSORS];
+    xpu::sycl::md_t src_md[DNNL_REF_SUM_MAX_NUM_TENSORS];
     xpu::sycl::md_t dst_md;
-    float src_scales[MAX_NUM_TENSORS];
+    float src_scales[DNNL_REF_SUM_MAX_NUM_TENSORS];
     int n;
     int block_size;
     int wg_size;

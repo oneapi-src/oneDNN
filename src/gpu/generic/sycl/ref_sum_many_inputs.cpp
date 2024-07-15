@@ -51,7 +51,7 @@ status_t ref_sum_many_inputs_t::execute(const exec_ctx_t &ctx) const {
 
     while (n_remaining > 0) {
         bool pass_in_dst = i > 0;
-        int max_n_child_inputs = MAX_NUM_TENSORS - pass_in_dst;
+        int max_n_child_inputs = DNNL_REF_SUM_MAX_NUM_TENSORS - pass_in_dst;
         int args_handled = std::min(n_remaining, max_n_child_inputs);
         exec_args_t r_args;
         r_args[DNNL_ARG_DST] = dst_mem_arg;
