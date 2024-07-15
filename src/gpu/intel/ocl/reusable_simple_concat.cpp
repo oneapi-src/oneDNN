@@ -28,22 +28,6 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-// returns the total number of bytes kernel parameters will demand for n inputs
-size_t kernel_parameter_bytes(
-        const size_t n, const size_t n_blocks, const size_t idx_type_size) {
-    // zero_pad_offset, zero_pad_concat_axis, read_overlap, gws0_block, inner_offset, must_compute_ext_idx
-    const size_t additional_param_bytes
-            = 5 * idx_type_size + sizeof(unsigned char);
-
-    // dst, dst_offset0, dst_ext_offset,
-    const size_t dst_param_bytes = sizeof(void *) + 2 * idx_type_size;
-
-    // *src##n, src_ext_offset##n, offset##n, padded_offset##n, src_concat_axis##n
-    const size_t src_param_bytes = n * (sizeof(void *) + (4 * idx_type_size));
-
-    return dst_param_bytes + src_param_bytes + additional_param_bytes;
-}
-
 static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
         reusable_simple_concat_params_t &conf,
         reusable_simple_concat_runtime_params_t &rt_conf) {
@@ -188,12 +172,6 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
             rt_conf.gws_d, 0, device_info->gpu_arch());
 
     conf.use_large_index = (total_bytes > std::numeric_limits<int>::max());
-    size_t param_bytes = kernel_parameter_bytes(conf.n, conf.n_blocks,
-            conf.use_large_index ? sizeof(dim_t) : sizeof(int));
-    if (param_bytes > device_info->max_kernel_param_size()) {
-        return status::unimplemented;
-    }
-
     return status::success;
 }
 

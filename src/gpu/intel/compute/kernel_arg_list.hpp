@@ -224,48 +224,48 @@ private:
 
 class kernel_arg_list_t {
 public:
-    kernel_arg_list_t() { nargs_ = 0; }
+    kernel_arg_list_t() { args_.reserve(512); }
 
     void append(const memory_storage_t &storage) {
-        assert(nargs_ + 1 < max_args);
-        args_[nargs_++].set_value(storage);
+        args_.emplace_back();
+        args_.back().set_value(storage);
     }
 
     void append(void *value, kernel_arg_kind_t kind) {
-        assert(nargs_ + 1 < max_args);
-        args_[nargs_++].set_value(value, kind);
+        args_.emplace_back();
+        args_.back().set_value(value, kind);
     }
 
     template <class T>
     void append(const T &value) {
-        assert(nargs_ + 1 < max_args);
-        args_[nargs_++].set_value(value, unused_storage);
+        args_.emplace_back();
+        args_.back().set_value(value, unused_storage);
 
         assert(unused_storage
                 <= reinterpret_cast<char *>(&scalar_storage_) + storage_size);
     }
 
     void append(size_t size, std::nullptr_t) {
-        assert(nargs_ + 1 < max_args);
-        args_[nargs_++].set_value(size, nullptr);
+        args_.emplace_back();
+        args_.back().set_value(size, nullptr);
     }
 
     void set(int index, const memory_storage_t &storage) {
-        assert(index < max_args);
-        nargs_ = nstl::max(nargs_, index + 1);
+        assert(index < storage_size);
+        if ((index + 1) > nargs()) { args_.resize(index + 1); };
         args_[index].set_value(storage);
     }
 
     void set(int index, void *value, kernel_arg_kind_t kind) {
-        assert(index < max_args);
-        nargs_ = nstl::max(nargs_, index + 1);
+        assert(index < storage_size);
+        if ((index + 1) > nargs()) { args_.resize(index + 1); };
         args_[index].set_value(value, kind);
     }
 
     template <class T>
     void set(int index, const T &value) {
-        assert(index < max_args);
-        nargs_ = nstl::max(nargs_, index + 1);
+        assert(index < storage_size);
+        if ((index + 1) > nargs()) { args_.resize(index + 1); };
         args_[index].set_value(value, unused_storage);
 
         assert(unused_storage
@@ -273,12 +273,12 @@ public:
     }
 
     void set(int index, size_t size, std::nullptr_t) {
-        assert(index < max_args);
-        nargs_ = nstl::max(nargs_, index + 1);
+        assert(index < storage_size);
+        if ((index + 1) > nargs()) { args_.resize(index + 1); };
         args_[index].set_value(size, nullptr);
     }
 
-    int nargs() const { return nargs_; }
+    int nargs() const { return static_cast<int>(args_.size()); }
 
     const kernel_arg_t &get(int index) const {
         assert(index < nargs());
@@ -291,13 +291,11 @@ public:
     }
 
 private:
-    static constexpr int max_args = 512;
     static constexpr int storage_size = 2048;
-    static constexpr int storage_alginment = 8;
+    static constexpr int storage_alignment = 8;
 
-    int nargs_ = 0;
-    kernel_arg_t args_[max_args];
-    typename std::aligned_storage<storage_size, storage_alginment>::type
+    std::vector<kernel_arg_t> args_;
+    typename std::aligned_storage<storage_size, storage_alignment>::type
             scalar_storage_;
     void *unused_storage = &scalar_storage_;
 

@@ -145,6 +145,13 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
     kernel_wrapper_t *kernel = nullptr;
     CHECK(cache_->get(&kernel));
     CHECK(check_scalar_arguments(arg_list));
+
+    auto stream_ocl_device_info
+            = utils::downcast<ocl_gpu_engine_t *>(stream.engine())
+                      ->device_info();
+    const size_t pointer_size
+            = stream_ocl_device_info->device_address_bits() / 8;
+    size_t param_bytes = 0;
     for (int i = 0; i < arg_list.nargs(); ++i) {
         auto &arg = arg_list.get(i);
         if (arg.is_global()) {
@@ -176,6 +183,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
                                 ocl_mem_storage);
                         auto ocl_mem = m->mem_object();
                         CHECK(kernel->set_arg(i, sizeof(cl_mem), &ocl_mem));
+                        param_bytes += pointer_size;
                         break;
                     }
                     case xpu::ocl::memory_kind::usm: {
@@ -184,6 +192,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
                                 ocl_mem_storage);
                         auto *usm_ptr = m->usm_ptr();
                         CHECK(kernel->set_usm_arg(stream.engine(), i, usm_ptr));
+                        param_bytes += pointer_size;
                         break;
                     }
                     default: assert(!"not expected");
@@ -191,18 +200,31 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
             } else {
                 if (xpu::ocl::usm::is_usm_supported(stream.engine())) {
                     CHECK(kernel->set_usm_arg(stream.engine(), i, nullptr));
+                    param_bytes += pointer_size;
                 } else {
                     cl_mem null_mem = nullptr;
                     CHECK(kernel->set_arg(i, sizeof(cl_mem), &null_mem));
+                    param_bytes += pointer_size;
                 }
             }
         } else if (arg.is_local()) {
             CHECK(kernel->set_arg(i, arg.size(), arg.value()));
+            // Assuming local memory arguments contribute to
+            // the CL_DEVICE_MAX_PARAMETER_SIZE limit as a pointer type
+            param_bytes += pointer_size;
         } else if (arg.is_svm_pointer()) {
             CHECK(kernel->set_svm_arg(i, arg.value()));
+            param_bytes += pointer_size;
         } else {
             CHECK(kernel->set_arg(i, arg.size(), arg.value()));
+            param_bytes += arg.size();
         }
+    }
+
+    if (param_bytes > stream_ocl_device_info->max_kernel_param_size()) {
+        MAYBE_REPORT_ERROR(
+                "parameter bytes requirements greater than device supports");
+        return status::invalid_arguments;
     }
 
     cl_uint ndims = static_cast<cl_uint>(range.ndims());

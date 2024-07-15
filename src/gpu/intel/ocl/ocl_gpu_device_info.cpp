@@ -163,6 +163,12 @@ status_t ocl_gpu_device_info_t::init_attributes(impl::engine_t *engine) {
     OCL_CHECK(err);
     max_kernel_param_size_ = max_kernel_param_size;
 
+    cl_uint device_address_bits;
+    err = clGetDeviceInfo(device, CL_DEVICE_ADDRESS_BITS,
+            sizeof(device_address_bits), &device_address_bits, nullptr);
+    OCL_CHECK(err);
+    device_address_bits_ = device_address_bits;
+
 #ifdef cl_intel_unified_shared_memory
     cl_device_unified_shared_memory_capabilities_intel
             system_memory_capabilities_intel
