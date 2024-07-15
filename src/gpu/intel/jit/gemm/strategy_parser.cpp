@@ -599,6 +599,26 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy,
         strategy.remHandling[LoopN] = RemainderHandling::Ignore;
 }
 
+const char *parsePrecision(const char *s, Type &precision) {
+    if (*s) { precision = charPrecision(*s++); }
+    return s;
+}
+
+const char *parsePrecisions(const char *s, Type &precision1, Type &precision2) {
+    if (*s == '[') {
+        s++;
+        s = parsePrecision(s, precision1);
+        s = parsePrecision(s, precision2);
+        if (*s++ != ']')
+            throw std::runtime_error("Syntax error in precisions; expected ]");
+    } else {
+        s = parsePrecision(s, precision1);
+        precision2 = precision1;
+    }
+
+    return s;
+}
+
 } // namespace jit
 } // namespace intel
 } // namespace gpu
