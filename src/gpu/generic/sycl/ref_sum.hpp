@@ -19,12 +19,12 @@
 
 #include "common/primitive.hpp"
 #include "common/stream.hpp"
-#include "gpu/gpu_sum_pd.hpp"
 #include "gpu/generic/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "gpu/gpu_sum_pd.hpp"
 
 namespace dnnl {
 namespace impl {

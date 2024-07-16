@@ -18,12 +18,12 @@
 #define GPU_SYCL_REF_SUM_MANY_INPUTS_HPP
 
 #include "common/primitive.hpp"
-#include "gpu/gpu_sum_pd.hpp"
 #include "gpu/generic/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "gpu/gpu_sum_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -51,14 +51,16 @@ struct ref_sum_many_inputs_t : public gpu::generic::sycl::primitive_t {
             if (!ok) return status::unimplemented;
 
             // the first kernel handles up to 16 inputs and remaining ones up to 15
-            const int n_kernels
-                    = n == 1 ? 1 : utils::div_up(n - 1, DNNL_REF_SUM_MAX_NUM_TENSORS - 1);
+            const int n_kernels = n == 1
+                    ? 1
+                    : utils::div_up(n - 1, DNNL_REF_SUM_MAX_NUM_TENSORS - 1);
             base_pds_.resize(n_kernels);
             int in_arg_offset = 0;
             int n_remaining = n;
             for (auto i = 0; i < n_kernels; ++i) {
                 bool pass_in_dst = i > 0;
-                int max_n_child_inputs = DNNL_REF_SUM_MAX_NUM_TENSORS - pass_in_dst;
+                int max_n_child_inputs
+                        = DNNL_REF_SUM_MAX_NUM_TENSORS - pass_in_dst;
                 int n_child_inputs = std::min(n_remaining, max_n_child_inputs);
                 const memory_desc_t *src[DNNL_REF_SUM_MAX_NUM_TENSORS];
                 if (pass_in_dst) { src[0] = dst_md(); }
