@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_REF_DECONVOLUTION_HPP
-#define GPU_INTEL_OCL_REF_DECONVOLUTION_HPP
+#ifndef GPU_INTEL_OCL_CONVOLUTION_DECONVOLUTION_HPP
+#define GPU_INTEL_OCL_CONVOLUTION_DECONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
@@ -83,7 +83,7 @@ static status_t conv_descr_create(
             dd->strides, dd->dilates, dd->padding[0], dd->padding[1]);
 }
 
-struct ref_deconvolution_fwd_t : public gpu_primitive_t {
+struct convolution_deconvolution_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_deconvolution_fwd_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -94,7 +94,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_fwd_t);
+        DECLARE_COMMON_PD_T(name_.c_str(), convolution_deconvolution_fwd_t);
         status_t init_convolution(impl::engine_t *engine) {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
@@ -253,7 +253,7 @@ private:
     std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
-struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
+struct convolution_deconvolution_bwd_data_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_deconvolution_bwd_data_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -265,7 +265,8 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(
+                name_.c_str(), convolution_deconvolution_bwd_data_t);
 
         status_t init_convolution(impl::engine_t *engine) {
             convolution_desc_t cd;
@@ -373,7 +374,7 @@ private:
     std::shared_ptr<impl::primitive_t> conv_p_;
 };
 
-struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
+struct convolution_deconvolution_bwd_weights_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_deconvolution_bwd_weights_pd_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -384,7 +385,8 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T(name_.c_str(), ref_deconvolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(
+                name_.c_str(), convolution_deconvolution_bwd_weights_t);
 
         status_t init_convolution(impl::engine_t *engine) {
             convolution_desc_t cd;
