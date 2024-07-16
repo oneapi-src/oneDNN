@@ -450,6 +450,10 @@ public:
                 type_kind_t::f32, type_kind_t::f64);
     }
 
+    bool is_fp8() const {
+        return utils::one_of(kind(), type_kind_t::bf8, type_kind_t::hf8);
+    }
+
     bool is_bf8() const { return kind() == type_kind_t::bf8; }
     bool is_hf8() const { return kind() == type_kind_t::hf8; }
     bool is_bf16() const { return kind() == type_kind_t::bf16; }
