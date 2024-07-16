@@ -18,6 +18,8 @@
 #define GPU_GENERIC_SYCL_REF_PRELU_HPP
 
 #include "common/broadcast_strategy.hpp"
+#include "common/primitive_desc_iterator.hpp"
+#include "common/reduction_pd.hpp"
 #include "gpu/generic/sycl/prelu_kernels.hpp"
 #include "gpu/generic/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
@@ -95,11 +97,22 @@ struct ref_prelu_bwd_t : public gpu::generic::sycl::primitive_t {
                             == weights_md(0)->data_type;
 
             if (!ok) return status::unimplemented;
-            return init_conf();
+
+            CHECK(init_conf());
+            CHECK(init_reduction(engine));
+            init_scratchpad();
+
+            return status::success;
         }
 
         status_t init_conf();
+        status_t init_reduction(impl::engine_t *engine);
+        void init_scratchpad();
+
         sycl_prelu_conf_t conf_;
+        bool reduce_diff_weights_ = false;
+        memory_desc_t scratch_md_;
+        std::shared_ptr<primitive_desc_t> reduction_pd_;
     };
 
     status_t init(impl::engine_t *engine) override;
@@ -111,6 +124,7 @@ private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     kernel_t kernel_;
+    std::shared_ptr<impl::primitive_t> reduction_p_;
 };
 
 } // namespace sycl
