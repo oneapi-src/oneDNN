@@ -146,25 +146,10 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
     rt_conf.gws_d[1] = extern_axis / rt_conf.read_overlap;
     rt_conf.gws_d[2] = concat_dim_size;
 
-    // Bound estimates based on limited empirical evidence
-    int coalesced_writes = ((max_write_size ^ (max_write_size - 1)) >> 1) + 1;
-    size_t extern_axis_bound = 256 * 512 * std::min(coalesced_writes, 8);
-    if (conf.simd == 1 && rt_conf.gws_d[2] > 64) return status::unimplemented;
-    if (conf.simd == 1 && rt_conf.gws_d[1] > extern_axis_bound) {
-        return status::unimplemented;
-    }
-    if (rt_conf.inner_axis == 1 && 16 * conf.simd <= conf.read_block
-            && (size_t)conf.read_block < rt_conf.gws_d[2]) {
-        return status::unimplemented;
-    }
-    if (conf.n_blocks && conf.write_block * conf.data_type_size == 1) {
-        return status::unimplemented;
-    }
-    bool underperforms_gen9 = (dst_md.dims[axis::inner] > (1l << 20));
-    bool underperforms_ref = (dst_md.dims[axis::inner] <= (1l << 24))
-            && (dst_md.dims[axis::concat] != dst_md.padded_dims[axis::concat])
-            && (dst_md.dims[axis::concat] < 8);
-    if (underperforms_gen9 && underperforms_ref) {
+    // Lots of zero padding byte writes -- very costly in this kernel
+    if (conf.write_block * conf.data_type_size == 1
+            && 4 * dst_md.dims[axis::concat]
+                    <= dst_md.padded_dims[axis::concat]) {
         return status::unimplemented;
     }
 
