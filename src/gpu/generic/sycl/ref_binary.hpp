@@ -91,7 +91,8 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
             const auto dst_dt = dst.data_type();
 
             for (auto t : {src0_dt, src1_dt, dst_dt}) {
-                if (!utils::one_of(t, f32, bf16, f16, s8, u8)) return false;
+                if (!utils::one_of(t, f32, bf16, f16, s8, u8, s32))
+                    return false;
             }
 
             return true;
