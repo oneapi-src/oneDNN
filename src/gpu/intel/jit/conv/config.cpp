@@ -859,7 +859,11 @@ bool data_types_ok(const conv_problem_t &prb, const hw_t &hw) {
         ok &= utils::one_of(src, data_type::f8_e5m2, data_type::bf16,
                 data_type::f16, data_type::f32, data_type::f64);
         ok &= (dst == src);
-        ok &= utils::one_of(wei, src, default_acc_type);
+        ok &= (utils::one_of(wei, src, default_acc_type)
+                || (utils::one_of(src, data_type::f8_e4m3, data_type::f8_e5m2)
+                        && utils::one_of(wei, data_type::f8_e4m3,
+                                data_type::f8_e5m2, data_type::f32,
+                                data_type::bf16, data_type::f16)));
 
         if (prb.with_bias) { ok &= utils::one_of(bia, src, data_type::f32); }
         return ok;
