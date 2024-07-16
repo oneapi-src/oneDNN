@@ -47,23 +47,15 @@ struct ref_resampling_fwd_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper src_d(src_md(0));
             const memory_desc_wrapper dst_d(dst_md(0));
 
-            const bool ok = src_md()->data_type == dst_md()->data_type
-                    && set_default_params() == status::success
-                    && (src_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && (utils::everyone_is(
-                                s8, src_md(0)->data_type, dst_md(0)->data_type)
-                            || utils::everyone_is(u8, src_md(0)->data_type,
-                                    dst_md(0)->data_type)
-                            || utils::everyone_is(f32, src_md(0)->data_type,
-                                    dst_md(0)->data_type)
-                            || utils::everyone_is(bf16, src_md(0)->data_type,
-                                    dst_md(0)->data_type)
-                            || utils::everyone_is(f16, src_md(0)->data_type,
-                                    dst_md(0)->data_type)
-                            || utils::everyone_is(s32, src_md(0)->data_type,
-                                    dst_md(0)->data_type))
+            const bool ok = is_fwd()
+                    && utils::one_of(
+                            src_md(0)->data_type, f32, bf16, f16, s32, s8, u8)
+                    && utils::one_of(
+                            dst_md(0)->data_type, f32, bf16, f16, s32, s8, u8)
                     && attr()->has_default_values(sm::post_ops)
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && set_default_params() == status::success
+                    && attr_.set_default_formats(dst_md(0)) == status::success
+                    && (src_md(0)->format_desc.blocking.inner_nblks == 0);
 
             if (!ok) { return status::unimplemented; }
             return init_conf();
