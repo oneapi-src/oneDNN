@@ -17,17 +17,10 @@ where *matmul-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={ab [default], any, ...}` -- memory format of the destination memory.
             Refer to [tags](knobs_tag.md) for details.
- - `--strides=S0xS1x..xS_mxS_k:W_0xW_1x..xW_kxW_n:D_0xD_1x..xD_mxD_n` -- direct
-            stride specification for `src`, `weights`, and `dst` tensors that
-            can be specified as an alternative to memory formats. The syntax
-            matches with problem descriptor where `x` is the delimiter for
-            dimensions within a tensor and `:` is the delimiter for tensors in
-            the order `src`, `weights`, and `dst` respectively. The stride for
-            either of the tensors can be skipped and moreover if a separate tag
-            is not provided for the skipped tensor, trivial strides based on the
-            default format of the skipped tensor will be used. As long as
-            `--strides` and `--*tag` options refer to different tensors, they
-            can be specified together.
+ - `--strides=SRC_STRIDES:WEI_STRIDES:DST_STRIDES` -- physical memory layout
+            specification for `src`, `weights`, and `dst` tensors through
+            strides values. Refer to [option documentation](knob_strides.md)
+            for details.
  - `--bia_dt={undef [default], f32, s32, s8, u8}` -- bias data type.
             To run MatMul without bias, use `undef` data type (default).
             Refer to [data types](knobs_dt.md) for details.
