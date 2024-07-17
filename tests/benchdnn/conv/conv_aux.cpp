@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -321,9 +321,9 @@ dims_t desc_t::dst_dims() const {
     return dst_dims;
 }
 
-dims_t desc_t::strides() const {
-    dims_t strides {sd, sh, sw};
-    return dims_t(strides.begin() + (5 - ndims), strides.end());
+dims_t desc_t::kstrides() const {
+    dims_t kstrides {sd, sh, sw};
+    return dims_t(kstrides.begin() + (5 - ndims), kstrides.end());
 }
 
 dims_t desc_t::dilations() const {

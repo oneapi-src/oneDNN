@@ -256,7 +256,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                                               : dnnl_forward_training,
                             alg,
                             init_pd_args.src_md ? init_pd_args.src_md : src_d,
-                            wei_d, bia_d, dst_d, prb->strides().data(),
+                            wei_d, bia_d, dst_d, prb->kstrides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), dnnl_attr)));
             break;
@@ -264,7 +264,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_convolution_backward_data_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, src_d,
-                            wei_d, dst_d, prb->strides().data(),
+                            wei_d, dst_d, prb->kstrides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
                             dnnl_attr)));
@@ -275,7 +275,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_convolution_backward_weights_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, src_d,
-                            wei_d, bia_d, dst_d, prb->strides().data(),
+                            wei_d, bia_d, dst_d, prb->kstrides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
                             dnnl_attr)));

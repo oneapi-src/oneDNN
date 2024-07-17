@@ -75,7 +75,7 @@ struct desc_t {
     dims_t wei_dims() const;
     dims_t bia_dims() const;
     dims_t dst_dims() const;
-    dims_t strides() const;
+    dims_t kstrides() const;
     dims_t dilations() const;
     dims_t padding() const;
     dims_t padding_r() const;
