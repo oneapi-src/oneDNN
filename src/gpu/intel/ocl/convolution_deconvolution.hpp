@@ -506,7 +506,7 @@ struct convolution_deconvolution_bwd_weights_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, accum_data_type, "ACC");
 
         CHECK(create_kernel(
-                engine, &bias_kernel_, "ref_deconv_backward_bias", kernel_ctx));
+                engine, &bias_kernel_, "deconv_backward_bias", kernel_ctx));
         if (!bias_kernel_) return status::runtime_error;
 
         return status::success;

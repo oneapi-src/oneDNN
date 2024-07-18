@@ -16,7 +16,7 @@
 
 #include "gpu/intel/ocl/ocl_types.h"
 
-__kernel void ref_deconv_backward_bias(
+__kernel void deconv_backward_bias(
         __global DST_DATA_T *diff_dst, __global BIA_DATA_T *diff_bias) {
     const int g = get_global_id(0) / OC;
     const int oc = get_global_id(0) % OC;
