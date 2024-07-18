@@ -85,7 +85,7 @@ message(STATUS "Host compiler kind: ${DPCPP_HOST_COMPILER_KIND}")
 # Preprocessor prints out major and minor versions of the compiler when
 # compiling host_compiler_id.cpp. Using the regex below to extract
 # the versions from the preprocessor message.
-string(REGEX MATCH "([0-9]+\\.[0-9]+)" _ "${STDERR_MESSAGE}")
+string(REGEX MATCH "host compiler version: ([0-9]+\\.[0-9]+)" _ "${STDERR_MESSAGE}")
 set(DPCPP_HOST_COMPILER_VER ${CMAKE_MATCH_1} CACHE INTERNAL "")
 
 string(REPLACE "." ";" DPCPP_HOST_COMPILER_VER_LIST ${DPCPP_HOST_COMPILER_VER})

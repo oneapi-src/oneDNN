@@ -21,7 +21,8 @@ int main() {
 #ifdef TRY_GNU
 #if (defined __GNUC__) && (!defined(__INTEL_COMPILER)) \
         && (!defined(__INTEL_LLVM_COMPILER)) && (!defined(__clang_major__))
-#pragma message(STRINGIFY(__GNUC__) "." STRINGIFY(__GNUC_MINOR__))
+#pragma message("host compiler version: " STRINGIFY(__GNUC__) "." STRINGIFY( \
+        __GNUC_MINOR__))
     return 0;
 #else
     breaks_on_purpose
