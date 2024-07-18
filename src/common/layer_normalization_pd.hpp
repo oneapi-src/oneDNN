@@ -215,7 +215,10 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
                 + n_binary_po_inputs();
     }
     int n_outputs() const override {
-        return 1 + 2 * (!stats_are_src()) * is_training();
+        // Originally as '1 + 2 * (!stats_are_src()) * is_training()',
+        // had to be worked around MSVC bug not copying inlined bodies
+        // of stats_are_src() and is_training().
+        return (!stats_are_src() && is_training()) ? 3 : 1;
     }
 
 protected:
