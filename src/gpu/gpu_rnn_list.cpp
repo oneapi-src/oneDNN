@@ -17,7 +17,7 @@
 #include "gpu/gpu_impl_list.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
-#include "gpu/intel/ocl/rnn/ref_rnn.hpp"
+#include "gpu/intel/ocl/rnn/rnn_grid.hpp"
 #endif
 
 namespace dnnl {

@@ -18,7 +18,7 @@
  * Cell execution GRU with linear before reset
  */
 
-#include "gpu/intel/ocl/rnn/ref_rnn.hpp"
+#include "gpu/intel/ocl/rnn/rnn_grid.hpp"
 
 namespace dnnl {
 namespace impl {

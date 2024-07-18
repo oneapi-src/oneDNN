@@ -457,7 +457,7 @@ struct user_data_t : public data_helper_t {
                 && offsets_.src_layer[1] < INT_MAX
                 && offsets_.src_layer[2] < INT_MAX)
                 << "[UNIMPLEMENTED]: src offsets larger than INT_MAX are not "
-                   "currently supported in ref_rnn.cl";
+                   "currently supported in rnn_grid.cl";
 
         if (!conf.is_fwd) {
             gpu_assert(IMPLICATION(!conf.copy_diff_dst_layer && conf.n_iter > 1,
@@ -471,7 +471,7 @@ struct user_data_t : public data_helper_t {
                     && offsets_.diff_dst_layer[1] < INT_MAX
                     && offsets_.diff_dst_layer[2] < INT_MAX)
                     << "[UNIMPLEMENTED]: diff_dst offsets larger than INT_MAX "
-                       "are not currently supported in ref_rnn.cl";
+                       "are not currently supported in rnn_grid.cl";
         }
     }
 

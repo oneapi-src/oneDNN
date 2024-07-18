@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/rnn/ref_rnn.hpp"
+#include "gpu/intel/ocl/rnn/rnn_grid.hpp"
 #include "gpu/intel/utils.hpp"
 
 namespace dnnl {

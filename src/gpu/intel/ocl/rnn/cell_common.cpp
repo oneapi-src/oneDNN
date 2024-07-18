@@ -16,7 +16,7 @@
 
 // Common for RNN and LSTM cell execution
 
-#include "gpu/intel/ocl/rnn/ref_rnn.hpp"
+#include "gpu/intel/ocl/rnn/rnn_grid.hpp"
 
 namespace dnnl {
 namespace impl {
