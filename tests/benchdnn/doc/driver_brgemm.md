@@ -14,6 +14,11 @@ where *brgemm-knobs* are:
  - `--bia_dt={undef [default], f32, s32, s8, u8}` -- bias data type.
             To run BRGEMM kernel without bias, use `undef` data type.
             Refer to [data types](knobs_dt.md) for details.
+ - `--wtag={abx [default], ...}` -- physical wei memory layout.
+            Refer to [tags](knobs_tag.md) for details.
+ - `--strides=:WEI_STRIDES:` -- physical memory layout specification for
+            `weights` tensor through strides values.
+            Refer to [option documentation](knob_strides.md) for details.
  - `--ld=LDA:LDB:LDD` -- direct leading dimension specification for src,
             weights, and dst tensors. The value for either of the tensors can be
             skipped meaning a default value will be applied.

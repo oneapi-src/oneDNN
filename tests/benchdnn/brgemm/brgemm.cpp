@@ -402,10 +402,18 @@ int init_kernel(kernel_args_t &kernel_args) {
     SAFE(check_dnnl_status(st, prb, res), WARN);
     if (res->state == SKIPPED) return OK;
 
+    // Create a memory desc based on user inputs and query strides to use them
+    // in a pack routine.
+    const dnnl_dims_t wei_dims = {prb->k * prb->batch_size, prb->n};
+    auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(),
+            prb->wtag, prb->strides[STRIDES_WEI]);
+    const auto &wei_strides = query_md_strides(wei_md);
+    assert(query_md_ndims(wei_md) == 2);
+
     auto &brgemm_pack_B = kernel_args.brgemm_pack_B_;
-    dnnl_dim_t in_ld = prb->n; // TODO: extend for more?
     st = dnnl_brgemm_pack_B_create(&brgemm_pack_B, prb->k * prb->batch_size,
-            prb->n, in_ld, prb->get_ldb(), prb->wei_dt(), prb->wei_dt());
+            prb->n, wei_strides[0], prb->get_ldb(), prb->wei_dt(),
+            prb->wei_dt());
     SAFE(check_dnnl_status(st, prb, res), WARN);
     if (res->state == SKIPPED) return OK;
 
@@ -478,6 +486,22 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         return;
     }
 
+    if (prb->wtag != tag::abx) {
+        BENCHDNN_PRINT(
+                2, "%s\n", "`wtag` option is supported for ukernel API only.");
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+
+    if (!prb->strides[STRIDES_WEI].empty()) {
+        BENCHDNN_PRINT(2, "%s\n",
+                "`strides` option for weights is supported for ukernel API "
+                "only.");
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
 #else
     if (!prb->attr.is_def()) {
         bool non_def_scales = !prb->attr.scales.is_def();
@@ -656,8 +680,8 @@ void init_memory_args(
 #else
     dims_t wei_strides = {prb->get_ldb(), 1};
 
-    auto wei_md = dnn_mem_t::init_md(
-            prb->ndims, wei_dims, prb->wei_dt(), tag::abx); // TODO: add `ba`.
+    auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(),
+            prb->wtag, prb->strides[STRIDES_WEI]);
 
     // Needed to have enough memory after packing routine.
     // TODO: generalize special f16 case.
