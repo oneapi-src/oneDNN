@@ -428,11 +428,11 @@ __kernel void simple_rnn_copy_res_iter(
 #endif
 }
 
-__kernel void ref_rnn_bias_prepare(__global float *ws_bias,
-        __global float *scales, __global char *wei_layer,
-        __global char *wei_iter, __global BIAS_DATA_T *bias, int dhc,
-        int n_layer, int n_dir, float data_shift, float data_scale,
-        int wei_l_comp_off, int wei_i_comp_off, int64x4_t bias_strides) {
+__kernel void rnn_bias_prepare(__global float *ws_bias, __global float *scales,
+        __global char *wei_layer, __global char *wei_iter,
+        __global BIAS_DATA_T *bias, int dhc, int n_layer, int n_dir,
+        float data_shift, float data_scale, int wei_l_comp_off,
+        int wei_i_comp_off, int64x4_t bias_strides) {
 #if COPY_BIAS
 
     const int dhc_ = get_global_id(0);

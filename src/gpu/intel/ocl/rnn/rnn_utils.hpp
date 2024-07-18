@@ -161,7 +161,7 @@ struct ocl_conf_t {
                 bundle, get_kernel_names(), kernel_ctx);
     }
     const std::vector<const char *> &get_kernel_names() const {
-        static const std::vector<const char *> names = {"ref_rnn_bias_prepare",
+        static const std::vector<const char *> names = {"rnn_bias_prepare",
                 "simple_rnn_copy_init_layer", "simple_rnn_copy_init_iter",
                 "simple_rnn_copy_res_layer", "simple_rnn_copy_res_iter",
                 "simple_rnn_elemwise_fwd", "simple_rnn_elemwise_bwd",
