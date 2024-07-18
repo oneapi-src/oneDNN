@@ -99,6 +99,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     // This implementation is temporarly unavailable by default
     // TODO: remove the guard after performance tuning
     if (!dev_getenv("enable_bn_nhwc_reusable", 0)) return status::unimplemented;
+    bn_conf.impl = bn_impl_t::nhwc_reusable;
 
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper data_mdw(
