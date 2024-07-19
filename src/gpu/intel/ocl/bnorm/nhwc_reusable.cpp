@@ -110,6 +110,8 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     // basic init bn_conf
     init_conf_basic(bn_conf, pd);
 
+    bn_conf.is_nhwc = true;
+
     // TODO: create flags() accessor that returns the correct type
     bn_conf.flags = (normalization_flags_t)pd->desc()->flags;
 
