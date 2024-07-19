@@ -24,7 +24,6 @@
 
 #include "cpu/x64/brgemm/brgemm.hpp"
 
-#include <memory>
 #include "cpu/x64/brgemm/capi/brgemm_api.hpp"
 
 using namespace dnnl::impl;
@@ -49,7 +48,7 @@ status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
         float alpha, float beta, const primitive_attr_t *attr) {
     if (brgemm == nullptr) return invalid_arguments;
 
-    auto _brgemm = std::unique_ptr<brgemm_t>(new brgemm_t());
+    auto _brgemm = utils::make_unique<brgemm_t>();
     auto &brgemm_desc = _brgemm->brgemm_desc_;
 
     brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_offs;
