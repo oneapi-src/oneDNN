@@ -42,26 +42,56 @@ if(opencl_root_hints)
 endif()
 
 function(_FIND_OPENCL_VERSION)
-  include(CheckSymbolExists)
-  include(CMakePushCheckState)
-  set(CMAKE_REQUIRED_QUIET ${OpenCL_FIND_QUIETLY})
+  foreach(VERSION "3_0" "2_2" "2_1" "2_0" "1_2" "1_1" "1_0")
+    # Write the test program to check OpenCL
+    set(SOURCE_CODE
+      "
+      #include <CL/cl.h>
+      #ifndef CL_VERSION_${VERSION}
+      #error \"CL_VERSION_${VERSION} is not defined\"
+      #endif
 
-  CMAKE_PUSH_CHECK_STATE()
-  foreach(VERSION "2_2" "2_1" "2_0" "1_2" "1_1" "1_0")
-    set(CMAKE_REQUIRED_INCLUDES "${OpenCL_INCLUDE_DIR}")
+      int main() {
+        return 0\;
+      }
+      ")
 
-    if(APPLE)
-      CHECK_SYMBOL_EXISTS(
-        CL_VERSION_${VERSION}
-        "${OpenCL_INCLUDE_DIR}/Headers/cl.h"
-        OPENCL_VERSION_${VERSION})
+    # Create a temporary directory for the test
+    set(TEST_DIR "${CMAKE_BINARY_DIR}/CheckOpenCLSymbol")
+    file(MAKE_DIRECTORY ${TEST_DIR})
+
+    # Write the test program to a file
+    set(TEST_SOURCE "${TEST_DIR}/test_opencl_symbol.c")
+    file(WRITE ${TEST_SOURCE} ${SOURCE_CODE})
+    file(WRITE "${TEST_DIR}/CMakeLists.txt" 
+      "
+      cmake_minimum_required(VERSION 3.8)
+
+      project(CheckOpenCLSymbol)
+
+      add_executable(TestOpenCL test_opencl_symbol.c)
+      target_include_directories(TestOpenCL PUBLIC ${OpenCL_INCLUDE_DIR})
+      target_link_libraries(TestOpenCL PUBLIC ${OpenCL_LIBRARIES})
+      ")
+
+    # Use try_compile to check if the symbol exists
+    try_compile(
+      COMPILE_RESULT
+      PROJECT "CheckOpenCLSymbol"
+      SOURCE_DIR ${TEST_DIR}
+      BINARY_DIR ${TEST_DIR}
+    )
+
+    # Clean up temporary directory
+    file(REMOVE_RECURSE ${TEST_DIR})
+
+    # Output the result
+    if(COMPILE_RESULT)
+      set(OPENCL_VERSION_${VERSION} ${VERSION})
     else()
-      CHECK_SYMBOL_EXISTS(
-        CL_VERSION_${VERSION}
-        "${OpenCL_INCLUDE_DIR}/CL/cl.h"
-        OPENCL_VERSION_${VERSION})
+      set(OPENCL_VERSION_${VERSION} "")
     endif()
-
+    
     if(OPENCL_VERSION_${VERSION})
       string(REPLACE "_" "." VERSION "${VERSION}")
       set(OpenCL_VERSION_STRING ${VERSION} PARENT_SCOPE)
@@ -73,7 +103,6 @@ function(_FIND_OPENCL_VERSION)
       break()
     endif()
   endforeach()
-  CMAKE_POP_CHECK_STATE()
 endfunction()
 
 find_path(OpenCL_INCLUDE_DIR
@@ -93,8 +122,6 @@ find_path(OpenCL_INCLUDE_DIR
     sycl
     OpenCL/common/inc
     "AMD APP/include")
-
-_FIND_OPENCL_VERSION()
 
 message(STATUS "Found OpenCL headers: ${OpenCL_INCLUDE_DIR}")
 
@@ -158,6 +185,8 @@ endif()
 
 set(OpenCL_LIBRARIES ${OpenCL_LIBRARY})
 set(OpenCL_INCLUDE_DIRS ${OpenCL_INCLUDE_DIR})
+
+_FIND_OPENCL_VERSION()
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
