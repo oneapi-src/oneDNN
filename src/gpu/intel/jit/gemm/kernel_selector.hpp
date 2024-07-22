@@ -78,7 +78,8 @@ struct MatchParamsBase {
     const StrategyRequirement *extraReqs = nullptr;
 
     MatchParamsBase() {}
-    MatchParamsBase(ngen::HW hw, const GEMMProblem &problem);
+    MatchParamsBase(
+            ngen::HW hw, bool systolicAvailable, const GEMMProblem &problem);
 
 protected:
     std::array<char, 32> temp;
@@ -86,8 +87,8 @@ protected:
 
 struct MatchParams : public MatchParamsBase {
     MatchParams() : MatchParamsBase() {}
-    MatchParams(ngen::HW hw, const GEMMProblem &problem)
-        : MatchParamsBase(hw, problem) {}
+    MatchParams(ngen::HW hw, bool systolicAvailable, const GEMMProblem &problem)
+        : MatchParamsBase(hw, systolicAvailable, problem) {}
 
     MatchParams(const MatchParams &other) { *this = other; }
     MatchParams &operator=(const MatchParams &other) {
