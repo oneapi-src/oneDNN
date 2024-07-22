@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/ref_binary.hpp"
+#include "gpu/intel/ocl/simple_binary.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -23,7 +23,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-status_t ref_binary_t::pd_t::init_conf(impl::engine_t *engine) {
+status_t simple_binary_t::pd_t::init_conf(impl::engine_t *engine) {
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));
     const memory_desc_wrapper dst_d(dst_md());
@@ -107,7 +107,7 @@ status_t ref_binary_t::pd_t::init_conf(impl::engine_t *engine) {
     return status::success;
 }
 
-status_t ref_binary_t::pd_t::init_kernel_ctx(
+status_t simple_binary_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     def_binary_alg_kinds(kernel_ctx);
     kernel_ctx.define_int("BINARY_ALG", conf.alg);
@@ -153,7 +153,7 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
-status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
+status_t simple_binary_t::execute_simple(const exec_ctx_t &ctx) const {
 
     status_t status = status::success;
 

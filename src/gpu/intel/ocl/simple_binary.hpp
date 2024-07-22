@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_REF_BINARY_HPP
-#define GPU_INTEL_OCL_REF_BINARY_HPP
+#ifndef GPU_INTEL_OCL_SIMPLE_BINARY_HPP
+#define GPU_INTEL_OCL_SIMPLE_BINARY_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
@@ -29,12 +29,12 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-struct ref_binary_t : public gpu_primitive_t {
+struct simple_binary_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_binary_pd_t {
         using gpu_binary_pd_t::gpu_binary_pd_t;
 
-        DECLARE_COMMON_PD_T("ocl:ref:any", ref_binary_t);
+        DECLARE_COMMON_PD_T("ocl:simple:any", simple_binary_t);
 
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
@@ -164,18 +164,18 @@ struct ref_binary_t : public gpu_primitive_t {
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        CHECK(create_kernel(engine, &kernel_, "ref_binary", kernel_ctx));
+        CHECK(create_kernel(engine, &kernel_, "simple_binary", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        return execute_ref(ctx);
+        return execute_simple(ctx);
     }
 
 private:
-    status_t execute_ref(const exec_ctx_t &ctx) const;
+    status_t execute_simple(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
