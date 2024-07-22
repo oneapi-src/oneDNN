@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2019-2024 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
-* Copyright 2021-2024 Arm Ltd. and affiliates
+* Copyright 2021-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ using namespace dnnl::impl::cpu::x64;
 #include "cpu/aarch64/matmul/brgemm_matmul.hpp"
 #ifdef DNNL_AARCH64_USE_ACL
 #include "cpu/aarch64/matmul/acl_lowp_matmul.hpp"
+#include "cpu/aarch64/matmul/acl_lowp_matmul_sq.hpp"
 #include "cpu/aarch64/matmul/acl_matmul.hpp"
 #endif
 using namespace dnnl::impl::cpu::aarch64::matmul;
@@ -73,10 +74,11 @@ using namespace dnnl::impl::cpu::matmul;
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
 
-        CPU_INSTANCE_AARCH64(brgemm_matmul_t<sve_512>)        
+        CPU_INSTANCE_AARCH64(brgemm_matmul_t<sve_512>)
+        CPU_INSTANCE_AARCH64_ACL(acl_lowp_matmul_sq_t)
         CPU_INSTANCE_AARCH64_ACL(acl_lowp_matmul_t)
-        CPU_INSTANCE_AARCH64_ACL(acl_matmul_t) 
-        CPU_INSTANCE_AARCH64(brgemm_matmul_t<sve_256>)       
+        CPU_INSTANCE_AARCH64_ACL(acl_matmul_t)
+        CPU_INSTANCE_AARCH64(brgemm_matmul_t<sve_256>)
         CPU_INSTANCE_AMX(brgemm_matmul_t<avx512_core_amx_fp16>)
         CPU_INSTANCE_AMX(brgemm_matmul_t<avx512_core_amx>)
         CPU_INSTANCE_AVX512(brgemm_matmul_t<avx512_core_fp16>)
