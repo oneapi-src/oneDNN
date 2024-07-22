@@ -185,6 +185,8 @@ public:
         }
     }
 
+    void unset(const prb_dim_t &dim) { tile_infos_.unset(dim); }
+
     std::vector<prb_dim_t> dims() const { return tile_infos_.keys(); }
     const tile_info_t &tile_info(const prb_dim_t &dim) const {
         return tile_infos_.at(dim);
@@ -244,17 +246,10 @@ struct tiling_desc_t {
 
 class dim_tile_set_t {
 public:
-    dim_tile_set_t(const tile_scheme_t &scheme, bool is_dw = false)
-        : dims_(scheme.dims()) {
+    dim_tile_set_t(const tile_scheme_t &scheme) : dims_(scheme.dims()) {
         for (auto &d : scheme.dims()) {
             auto &d_tiles = tiles_[d];
-            if (is_dw && utils::one_of(d, prb_dims::ic, prb_dims::oc)) {
-                dim_tile_t tile;
-                tile.iter = 1;
-                tile.tg = 1;
-                d_tiles = {tile};
-            } else
-                d_tiles = get_dim_tiles(scheme, d);
+            d_tiles = get_dim_tiles(scheme, d);
         }
     }
 
@@ -303,7 +298,7 @@ private:
     dim_map_t<prb_dim_t, std::vector<dim_tile_t>> tiles_;
 };
 
-std::vector<tile_scheme_t> get_tile_schemes(prop_kind_t prop) {
+std::vector<tile_scheme_t> get_tile_schemes(prop_kind_t prop, bool is_dw) {
     std::vector<tile_scheme_t> schemes;
     if (prop == prop_kind::forward) {
         schemes.emplace_back("tg=[ow], iter=[mb,g,oc,ic]");
@@ -318,6 +313,14 @@ std::vector<tile_scheme_t> get_tile_schemes(prop_kind_t prop) {
         schemes.emplace_back("tg=[oc,ic], iter=[ow,g,oc,ic]");
     } else {
         ir_error_not_expected();
+    }
+    for (auto &s : schemes) {
+        if (is_dw) {
+            s.unset(prb_dims::ic);
+            s.unset(prb_dims::oc);
+        } else {
+            s.unset(prb_dims::g);
+        }
     }
     return schemes;
 }
@@ -349,8 +352,8 @@ private:
     std::vector<kernel_desc_t> gen_descs() const {
         std::unordered_set<kernel_desc_t, ir_utils::hasher_t<kernel_desc_t>>
                 descs;
-        for (auto &s : get_tile_schemes(base_desc_.prop)) {
-            dim_tile_set_t tile_set(s, base_desc_.is_dw);
+        for (auto &s : get_tile_schemes(base_desc_.prop, base_desc_.is_dw)) {
+            dim_tile_set_t tile_set(s);
             auto tiling_descs = tile_set.create_tiling_descs();
             for (auto &td : tiling_descs) {
                 auto d = base_desc_;
