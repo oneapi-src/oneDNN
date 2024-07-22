@@ -1,5 +1,9 @@
 /*******************************************************************************
+<<<<<<< HEAD
 * Copyright 2025 Arm Ltd. and affiliates
+=======
+* Copyright 2024 Arm Ltd. and affiliates
+>>>>>>> src: cpu: aarch64: Enable matmul static quantisation.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +27,15 @@
 #include "cpu/matmul/cpu_matmul_pd.hpp"
 #include "cpu/matmul/matmul_utils.hpp"
 
+<<<<<<< HEAD
 #include "cpu/aarch64/acl_post_ops.hpp"
+=======
+#include "arm_compute/core/utils/quantization/AsymmHelpers.h"
+#include "arm_compute/runtime/NEON/functions/NEGEMMLowpMatrixMultiplyCore.h"
+#include "arm_compute/runtime/NEON/functions/NEQuantizationLayer.h"
+#include "cpu/aarch64/acl_post_ops.hpp"
+#include "cpu/aarch64/acl_utils.hpp"
+>>>>>>> src: cpu: aarch64: Enable matmul static quantisation.
 
 namespace dnnl {
 namespace impl {
