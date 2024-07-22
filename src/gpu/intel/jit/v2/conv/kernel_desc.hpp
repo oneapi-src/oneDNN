@@ -120,11 +120,10 @@ public:
         switch (spec_strategy_) {
             case spec_strategy_t::max: spec_tile_ = prb.shape(); break;
             case spec_strategy_t::one_d:
-                spec_tile_ = str_to_prb_tile(
-                        "id1ih1od1oh1kd1kh1dd0dh0pd0ph0sd1sh1");
+                jit::parse("id1ih1od1oh1kd1kh1dd0dh0pd0ph0sd1sh1", spec_tile_);
                 break;
             case spec_strategy_t::two_d:
-                spec_tile_ = str_to_prb_tile("id1od1kd1dd0pd0sd1");
+                jit::parse("id1od1kd1dd0pd0sd1", spec_tile_);
                 break;
             default: spec_tile_ = {}; break;
         }

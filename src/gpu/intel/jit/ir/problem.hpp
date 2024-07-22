@@ -447,11 +447,6 @@ inline prb_coord_t<T> operator+(
 
 using prb_tile_t = tile_t<prb_dim_t>;
 
-inline prb_tile_t str_to_prb_tile(const std::string &s) {
-    if (s.empty() || s == "x") return prb_tile_t();
-    return prb_tile_t(s);
-}
-
 template <typename T>
 bool has_spatial(const dim_map_t<prb_dim_t, T> &map,
         prb_dim_spatial_kind_t spatial_kind) {
