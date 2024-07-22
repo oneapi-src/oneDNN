@@ -381,12 +381,23 @@ struct brgemm_desc_t {
         return sz;
     }
 
-    bool is_b_data_layout_vnni() {
-        // True in general, only exception is f16 with avx512_core_fp16.
-        // We also return `true` for bf32 (brgattr.fpmath_.mode_ = bf16),
-        // because the data transformation to vnni layout is internal
-        // and transparent to user.
-        return !(dt_b == data_type::f16 && isa_impl == avx512_core_fp16);
+    // This function indicates when VNNI granularity packing is expected by the
+    // kernel.
+    //
+    // Note: used in benchdnn only, not used inside the library.
+    // Note: for `bf32` (or brgattr.fpmath_mode_ == bf16) the function returns
+    //   `true` because the data transformation to vnni layout is internal and
+    //   transparent to the user.
+    bool is_b_data_layout_vnni() const {
+        using namespace data_type;
+        switch (dt_b) {
+            case f32: return false;
+            // Note: `dt_a == f32` means implicit up-conversion of B to f32.
+            case f16: return (isa_impl != avx512_core_fp16) && (dt_a != f32);
+            // Note: `dt_a == f32` means implicit up-conversion of B to f32.
+            case bf16: return dt_a != f32;
+            default: return true;
+        }
     }
     bool is_xf16() const noexcept { return is_bf16 || is_f16; }
 
