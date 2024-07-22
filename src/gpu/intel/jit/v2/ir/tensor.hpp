@@ -212,19 +212,15 @@ struct layout_raw_tag_entry_t {
 
 class layout_raw_tag_t {
 public:
-    static layout_raw_tag_t any() {
-        layout_raw_tag_t ret;
-        ret.is_any_ = true;
-        return ret;
-    }
+    static layout_raw_tag_t any() { return layout_raw_tag_t("any"); }
 
     layout_raw_tag_t() = default;
-    explicit layout_raw_tag_t(const std::string &s, int ndims = 0) {
-        init_entries(s);
-        normalize(ndims);
+    explicit layout_raw_tag_t(const std::string &tag, int ndims = 0)
+        : is_any_(tag == "any"), entries_(to_entries(tag)) {
+        expand_x(ndims);
     }
 
-    bool is_empty() const { return entries_.empty(); }
+    bool is_empty() const { return !is_any_ && entries_.empty(); }
     bool is_any() const { return is_any_; }
     const std::vector<layout_raw_tag_entry_t> &entries() const {
         return entries_;
@@ -266,11 +262,16 @@ public:
 private:
     void init_entries(const std::string &s);
     bool has_x() const;
-    void normalize(int ndims);
+    void expand_x(int ndims);
+    layout_raw_tag_t collapse_x() const;
     std::vector<bool> skip_mask(
             const layout_desc_t &desc, const prb_tile_t &sizes) const;
     static std::vector<std::pair<char, int>> parse_letter_blocks(
             const std::string &tag);
+    static std::vector<layout_raw_tag_entry_t> to_entries(
+            const std::string &tag);
+    static std::string to_tag(
+            const std::vector<layout_raw_tag_entry_t> &entries);
 
     bool is_any_ = false;
     std::vector<layout_raw_tag_entry_t> entries_;
