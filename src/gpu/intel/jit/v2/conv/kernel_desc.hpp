@@ -45,23 +45,13 @@ namespace conv {
 
 enum class spec_strategy_t { none, max, one_d, two_d };
 
-inline std::string to_string(spec_strategy_t mode) {
-    switch (mode) {
-        case spec_strategy_t::none: return "none";
-        case spec_strategy_t::max: return "max";
-        case spec_strategy_t::one_d: return "1d";
-        case spec_strategy_t::two_d: return "2d";
-        default: ir_error_not_expected(); return "invalid";
-    }
-}
-
-inline spec_strategy_t str_to_spec_strategy(const std::string &s) {
-    if (s == "none") return spec_strategy_t::none;
-    if (s == "max") return spec_strategy_t::max;
-    if (s == "1d") return spec_strategy_t::one_d;
-    if (s == "2d") return spec_strategy_t::two_d;
-    return spec_strategy_t::none;
-}
+static auto spec_strategy_names = nstl::to_array({
+        make_enum_name(spec_strategy_t::none, "none"),
+        make_enum_name(spec_strategy_t::max, "max"),
+        make_enum_name(spec_strategy_t::one_d, "1d"),
+        make_enum_name(spec_strategy_t::two_d, "2d"),
+});
+GPU_DEFINE_PARSE_ENUM(spec_strategy_t, spec_strategy_names)
 
 // The class spec_reqs_t represents specialization requirements for problem
 // dimensions. It supports a strategy based mode where specialization can be

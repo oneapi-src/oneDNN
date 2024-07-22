@@ -36,11 +36,16 @@ enum class fma_kind_t {
     dp4a,
     dpas,
     dpasw,
-    _max,
 };
 
-std::string to_string(fma_kind_t kind);
-fma_kind_t str_to_fma_kind(const std::string &s);
+static auto fma_kind_names = nstl::to_array({
+        make_enum_name(fma_kind_t::undef, "undef"),
+        make_enum_name(fma_kind_t::mad, "mad"),
+        make_enum_name(fma_kind_t::dp4a, "dp4a"),
+        make_enum_name(fma_kind_t::dpas, "dpas"),
+        make_enum_name(fma_kind_t::dpasw, "dpasw"),
+});
+GPU_DEFINE_PARSE_ENUM(fma_kind_t, fma_kind_names)
 
 inline bool is_dp_fma(fma_kind_t kind) {
     switch (kind) {

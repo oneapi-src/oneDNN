@@ -227,7 +227,31 @@ enum class type_kind_t {
     hword
 };
 
-std::string to_string(type_kind_t kind);
+static auto type_kind_names = nstl::to_array({
+        make_enum_name(type_kind_t::undef, "undef"),
+        make_enum_name(type_kind_t::u8, "u8"),
+        make_enum_name(type_kind_t::s8, "s8"),
+        make_enum_name(type_kind_t::u16, "u16"),
+        make_enum_name(type_kind_t::s16, "s16"),
+        make_enum_name(type_kind_t::u32, "u32"),
+        make_enum_name(type_kind_t::s32, "s32"),
+        make_enum_name(type_kind_t::u64, "u64"),
+        make_enum_name(type_kind_t::s64, "s64"),
+        make_enum_name(type_kind_t::bf8, "bf8"),
+        make_enum_name(type_kind_t::hf8, "hf8"),
+        make_enum_name(type_kind_t::bf16, "bf16"),
+        make_enum_name(type_kind_t::f16, "f16"),
+        make_enum_name(type_kind_t::tf32, "tf32"),
+        make_enum_name(type_kind_t::f32, "f32"),
+        make_enum_name(type_kind_t::f64, "f64"),
+        make_enum_name(type_kind_t::byte, "byte"),
+        make_enum_name(type_kind_t::dword, "dword"),
+        make_enum_name(type_kind_t::qword, "qword"),
+        make_enum_name(type_kind_t::oword, "oword"),
+        make_enum_name(type_kind_t::hword, "hword"),
+        make_enum_name(type_kind_t::_bool, "bool"),
+});
+GPU_DEFINE_PARSE_ENUM(type_kind_t, type_kind_names)
 
 class type_t {
 public:

@@ -43,9 +43,9 @@ load_desc_t str_to_load_desc(const std::string &s) {
         auto tensor = p_parts[0];
         auto kind = p_parts[1];
         if (tensor == "a") {
-            ret.a = str_to_send_kind(kind);
+            ret.a = to_enum<send_kind_t>(kind);
         } else if (tensor == "b") {
-            ret.b = str_to_send_kind(kind);
+            ret.b = to_enum<send_kind_t>(kind);
         } else {
             ir_error_not_expected() << p;
         }
@@ -62,7 +62,7 @@ store_desc_t str_to_store_desc(const std::string &s) {
         auto tensor = p_parts[0];
         auto kind = p_parts[1];
         if (tensor == "c") {
-            ret.c = str_to_send_kind(kind);
+            ret.c = to_enum<send_kind_t>(kind);
         } else {
             ir_error_not_expected() << p;
         }
@@ -448,7 +448,7 @@ ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
     ir_utils::cli_iface_t<kernel_desc_t> iface;
     iface.add_arg("--prop", "Propagation kind (fwd, bwd_d or bwd_w).",
             MAKE_GETTER(ir_utils::to_string(desc->prop)),
-            MAKE_SETTER(prop, ir_utils::str_to_prop_kind(value)));
+            MAKE_SETTER(prop, to_enum<prop_kind_t>(value)));
     iface.add_arg("--dw",
             "Whether the problem is a depthwise convolution (0 or 1).",
             MAKE_GETTER(std::string(desc->is_dw ? "1" : "0")),
@@ -472,9 +472,9 @@ ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
             MAKE_SETTER(spec_reqs, str_to_spec_reqs(value)));
     iface.add_arg("--hw", "Hardware (xehpc).",
             MAKE_GETTER(ir_utils::to_lower(jit::to_string(desc->hw.to_ngen()))),
-            MAKE_SETTER(hw, str_to_hw(value)));
+            MAKE_SETTER(hw, hw_t(to_enum<ngen::HW>(value))));
     iface.add_arg("--fma", "FMA kind (mad).", MAKE_GETTER(to_string(desc->fma)),
-            MAKE_SETTER(fma, str_to_fma_kind(value)));
+            MAKE_SETTER(fma, to_enum<fma_kind_t>(value)));
     iface.add_arg("--simd", "SIMD size (16 or 32).",
             MAKE_GETTER(std::to_string(desc->simd)),
             MAKE_SETTER(simd, std::stoi(value)));
