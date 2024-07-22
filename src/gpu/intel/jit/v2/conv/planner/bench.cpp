@@ -20,7 +20,7 @@
 #include "gpu/intel/jit/v2/conv/plan.hpp"
 #include "gpu/intel/jit/v2/conv/plan_preset.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
+#include "gpu/intel/ocl/usm_utils.hpp"
 
 #include <algorithm>
 #include <cassert>
