@@ -349,7 +349,7 @@ prb_tile_t random_shape(bool is_dw = false) {
 }
 
 std::vector<problem_t> generate_problems(const kernel_desc_t &kd) {
-    srand(kd.get_hash());
+    srand(ir_utils::get_hash(jit::stringify(kd)));
     std::vector<problem_t> ret;
     const int nprbs = 100;
     const int max_iters = (1 << 20);

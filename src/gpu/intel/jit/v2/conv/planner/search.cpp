@@ -350,8 +350,7 @@ public:
 
 private:
     std::vector<kernel_desc_t> gen_descs() const {
-        std::unordered_set<kernel_desc_t, ir_utils::hasher_t<kernel_desc_t>>
-                descs;
+        std::unordered_map<std::string, kernel_desc_t> descs;
         for (auto &s : get_tile_schemes(base_desc_.prop, base_desc_.is_dw)) {
             dim_tile_set_t tile_set(s);
             auto tiling_descs = tile_set.create_tiling_descs();
@@ -360,11 +359,16 @@ private:
                 d.thread_group_tile = td.thread_group;
                 d.iter_tile = td.iter;
                 if (!is_supported(d)) continue;
-                descs.insert(d);
+                auto d_key = jit::stringify(d);
+                if (descs.find(d_key) != descs.end()) continue;
+                descs[d_key] = d;
+                std::cout << d_key << std::endl;
             }
         }
         std::vector<kernel_desc_t> ret;
-        ret.insert(ret.end(), descs.begin(), descs.end());
+        for (auto &kv : descs) {
+            ret.push_back(kv.second);
+        }
         std::minstd_rand seed;
         std::shuffle(ret.begin(), ret.end(), seed);
         ret.resize(std::min((int)ret.size(), 8));
@@ -407,7 +411,8 @@ void auto_search(const bench_manager_t &bench_mger) {
         "--prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:2d --store c:2d",
     };
     // clang-format on
-    for (const char *r : recipes) {
+    for (const char *_r : recipes) {
+        auto r = std::string(_r) + "--iter x --tg x";
         kernel_desc_t desc;
         desc.set(r);
         desc.hw = hw_t(bench_mger.get_engine().get());

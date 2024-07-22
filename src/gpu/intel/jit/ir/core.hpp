@@ -462,9 +462,9 @@ public:
         ir_utils::deserialize(is_ptr_, in);
     }
 
-    static void init_parse_iface(parse_iface_t<type_t> &iface) {
-        iface.add<type_kind_t, &type_t::kind_>();
-        iface.set_pre_stringify_func([](const type_t &type) {
+    static void init_parse_iface(parse_iface_t<type_t> *iface) {
+        iface->add<type_kind_t, &type_t::kind_>();
+        iface->set_pre_stringify_func([](const type_t &type) {
             ir_assert(!type.is_ptr() && type.is_scalar())
                     << "Cannot stringify pointer/non-scalar type.";
         });

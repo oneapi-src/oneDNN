@@ -34,60 +34,64 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-load_desc_t str_to_load_desc(const std::string &s) {
+void load_desc_t::parse(std::istream &in) {
+    operator=(load_desc_t());
+    a = send_kind_t::undef;
+    b = send_kind_t::undef;
+    std::string s;
+    in >> s;
+    if (s == "x") return;
     auto parts = gpu_utils::split(s, ",");
-    load_desc_t ret;
     for (auto &p : parts) {
         auto p_parts = gpu_utils::split(p, ":");
         ir_assert(p_parts.size() == 2);
         auto tensor = p_parts[0];
         auto kind = p_parts[1];
         if (tensor == "a") {
-            ret.a = to_enum<send_kind_t>(kind);
+            a = to_enum<send_kind_t>(kind);
         } else if (tensor == "b") {
-            ret.b = to_enum<send_kind_t>(kind);
+            b = to_enum<send_kind_t>(kind);
         } else {
             ir_error_not_expected() << p;
         }
     }
-    return ret;
 }
 
-store_desc_t str_to_store_desc(const std::string &s) {
+void store_desc_t::parse(std::istream &in) {
+    operator=(store_desc_t());
+    std::string s;
+    in >> s;
+    if (s == "x") return;
     auto parts = gpu_utils::split(s, ",");
-    store_desc_t ret;
     for (auto &p : parts) {
         auto p_parts = gpu_utils::split(p, ":");
         ir_assert(p_parts.size() == 2);
         auto tensor = p_parts[0];
         auto kind = p_parts[1];
         if (tensor == "c") {
-            ret.c = to_enum<send_kind_t>(kind);
+            c = to_enum<send_kind_t>(kind);
         } else {
             ir_error_not_expected() << p;
         }
     }
-    return ret;
 }
 
-prefetch_desc_t str_to_prefetch_desc(const std::string &s) {
+void prefetch_desc_t::parse(std::istream &in) {
+    operator=(prefetch_desc_t());
+    std::string s;
+    in >> s;
     auto parts = gpu_utils::split(s, ".");
     ir_assert(utils::one_of((int)parts.size(), 1, 2));
     ir_assert(parts[0].size() >= 2);
-    int dist = std::stoi(parts[0].substr(1));
+    dist = std::stoi(parts[0].substr(1));
     ir_assert(dist >= 0);
-    bool a = (dist > 0);
-    bool b = (dist > 0);
+    a = (dist > 0);
+    b = (dist > 0);
     if (parts.size() == 2 && dist > 0) {
         ir_assert(utils::one_of(parts[1], "a", "b", "ab"));
         a = (parts[1].find("a") != std::string::npos);
         b = (parts[1].find("b") != std::string::npos);
     }
-    prefetch_desc_t ret;
-    ret.dist = dist;
-    ret.a = a;
-    ret.b = b;
-    return ret;
 }
 
 layout_desc_t make_conv_layout_desc(
@@ -303,7 +307,7 @@ void kernel_desc_t::set(const std::string &s) {
     operator=(kernel_desc_t());
     if (s.empty()) return;
     auto iface = cli_iface();
-    iface.parse(s, this);
+    iface.parse(s, *this);
     set_defaults();
 }
 
@@ -344,7 +348,7 @@ void kernel_desc_t::finalize(const plan_t &plan) {
 }
 
 std::string kernel_desc_t::cmd_str() const {
-    return cli_iface().cmd_str(this);
+    return cli_iface().cmd_str(*this);
 }
 
 std::string kernel_desc_t::str() const {
@@ -355,7 +359,7 @@ std::string kernel_desc_t::str() const {
     oss << "Weights tag:        " << wei_tag << std::endl;
     oss << "Destination tag:    " << dst_tag << std::endl;
     oss << "Specialization:     " << spec_reqs << std::endl;
-    oss << "HW:                 " << ir_utils::to_lower(hw.str()) << std::endl;
+    oss << "HW:                 " << jit::to_string(hw.to_ngen()) << std::endl;
     oss << "FMA kind:           " << to_string(fma) << std::endl;
     oss << "SIMD:               " << simd << std::endl;
     oss << "Registers:          " << regs << std::endl;
@@ -368,6 +372,62 @@ std::string kernel_desc_t::str() const {
     if (reqs) oss << ir_utils::add_tag("Reqs", reqs.str()) << std::endl;
     oss << "Command:            " << cmd_str();
     return ir_utils::add_tag("Desc", oss.str());
+}
+
+void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
+#define PACK(member) decltype(kernel_desc_t::member), &kernel_desc_t::member
+    iface->add<PACK(prop)>("prop", "Propagation kind (fwd, bwd_d or bwd_w).",
+            /*cli_required=*/true);
+    iface->add<PACK(is_dw)>(
+            "dw", "Whether the problem is a depthwise convolution (0 or 1).");
+    iface->add<PACK(src_tag)>("src",
+            "Source layout tag. Examples: axb:f32, aBx16b:f16).",
+            /*cli_required=*/true);
+    iface->add<PACK(wei_tag)>("wei", "Weights layout tag (e.g. axcb:f32).",
+            /*cli_required=*/true);
+    iface->add<PACK(dst_tag)>("dst", "Destination layout tag (e.g. axb:f32).",
+            /*cli_required=*/true);
+    iface->add<PACK(hw_desc)>("hw", "Hardware (xehpc).", /*cli_required=*/true);
+    iface->add<PACK(fma)>("fma", "FMA kind (e.g. mad).", /*cli_required=*/true);
+    iface->add<PACK(simd)>(
+            "simd", "SIMD size (16 or 32).", /*cli_required=*/true);
+    iface->add<PACK(regs)>(
+            "regs", "Number of registers (128 or 256).", /*cli_required=*/true);
+    iface->add<PACK(iter_tile)>("iter", "Iteration tile (e.g. mb32ic16oc16).",
+            /*cli_required=*/true);
+    iface->add<PACK(thread_group_tile)>(
+            "tg", "Threadgroup tile (e.g. ow4oc4).", /*cli_required=*/true);
+    iface->add<PACK(loop_desc)>("loop_desc",
+            "Loop description, variables ordered from innermost to outermost "
+            "(e.g. kw,kh,kd,ic).");
+    iface->add<PACK(load)>("load",
+            "Load type (block, scattered [default], 2d) for A and B, e.g. "
+            "a:2d,b:block.");
+    iface->add<PACK(store)>("store",
+            "Store type (block, scattered [default], 2d) for C,  e.g. c:2d.");
+    iface->add<PACK(prefetch)>("prefetch",
+            "Prefetch description specifying distance and whether A/B are "
+            "prefetched. Examples: x3 (distance is 3, both A/B are "
+            "prefetched), x2.a (distance is 2, only A is prefetched), x0 (no "
+            "prefetch, default).");
+    iface->add<PACK(spec_reqs)>("spec",
+            "Specialization requirements for problem dimensions (e.g. "
+            "kd1kw1kh1 for convolution without filter).");
+    iface->add<PACK(reqs)>("reqs",
+            "Dimension requirements, colon-separated (e.g. kd=1:mb>=16).");
+#undef PACK
+
+    iface->set_pre_stringify_func(
+            [](const kernel_desc_t &desc) { ir_assert(desc.is_finalized); });
+    iface->set_post_parse_func([](kernel_desc_t &desc) {
+        desc.src_tag
+                = make_conv_layout_tag(tensor_kind_t::src, desc.src_tag.str());
+        desc.wei_tag
+                = make_conv_layout_tag(tensor_kind_t::wei, desc.wei_tag.str());
+        desc.dst_tag
+                = make_conv_layout_tag(tensor_kind_t::dst, desc.dst_tag.str());
+        desc.is_finalized = true;
+    });
 }
 
 void init_kernel_info_div_magic(
@@ -421,7 +481,7 @@ status_t kernel_desc_t::create_generator(
 
 serialized_t kernel_desc_t::serialize() const {
     std::ostringstream oss;
-    serialize(oss);
+    jit::stringify(oss, *this);
     auto str = oss.str();
     return serialized_t::from_data(
             std::vector<uint8_t>(str.begin(), str.end()));
@@ -431,91 +491,18 @@ kernel_desc_t kernel_desc_t::deserialize(const serialized_t &s) {
     auto &data = s.get_data();
     std::string str(data.begin(), data.end());
     std::istringstream iss(str);
-    kernel_desc_t desc;
-    desc.deserialize(iss);
+    auto desc = jit::parse<kernel_desc_t>(iss);
     return desc;
 }
 
-ir_utils::cli_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
-#define MAKE_SETTER(lhs, rhs) \
-    *static_cast<void (*)(kernel_desc_t *, const std::string &)>( \
-            [](kernel_desc_t *desc, const std::string &value) { \
-                desc->lhs = rhs; \
-            })
-#define MAKE_GETTER(value) \
-    *static_cast<std::string (*)(const kernel_desc_t *)>( \
-            [](const kernel_desc_t *desc) { return value; })
-    ir_utils::cli_iface_t<kernel_desc_t> iface;
-    iface.add_arg("--prop", "Propagation kind (fwd, bwd_d or bwd_w).",
-            MAKE_GETTER(ir_utils::to_string(desc->prop)),
-            MAKE_SETTER(prop, to_enum<prop_kind_t>(value)));
-    iface.add_arg("--dw",
-            "Whether the problem is a depthwise convolution (0 or 1).",
-            MAKE_GETTER(std::string(desc->is_dw ? "1" : "0")),
-            MAKE_SETTER(is_dw, ir_utils::str_to_bool(value)));
-    iface.add_arg("--src", "Source layout tag. Examples: axb:f32, aBx16b:f16).",
-            MAKE_GETTER(desc->src_tag.str()),
-            MAKE_SETTER(
-                    src_tag, make_conv_layout_tag(tensor_kind_t::src, value)));
-    iface.add_arg("--wei", "Weights layout tag (e.g. axcb:f32).",
-            MAKE_GETTER(desc->wei_tag.str()),
-            MAKE_SETTER(
-                    wei_tag, make_conv_layout_tag(tensor_kind_t::wei, value)));
-    iface.add_arg("--dst", "Destination layout tag (e.g. axb:f32).",
-            MAKE_GETTER(desc->dst_tag.str()),
-            MAKE_SETTER(
-                    dst_tag, make_conv_layout_tag(tensor_kind_t::dst, value)));
-    iface.add_arg("--spec-reqs",
-            "Specialization requirements for problem dimensions (e.g. "
-            "kd1kw1kh1 for convolution without filter).",
-            MAKE_GETTER(desc->spec_reqs.str()),
-            MAKE_SETTER(spec_reqs, str_to_spec_reqs(value)));
-    iface.add_arg("--hw", "Hardware (xehpc).",
-            MAKE_GETTER(ir_utils::to_lower(jit::to_string(desc->hw.to_ngen()))),
-            MAKE_SETTER(hw, hw_t(to_enum<ngen::HW>(value))));
-    iface.add_arg("--fma", "FMA kind (mad).", MAKE_GETTER(to_string(desc->fma)),
-            MAKE_SETTER(fma, to_enum<fma_kind_t>(value)));
-    iface.add_arg("--simd", "SIMD size (16 or 32).",
-            MAKE_GETTER(std::to_string(desc->simd)),
-            MAKE_SETTER(simd, std::stoi(value)));
-    iface.add_arg("--regs", "Number of registers (128 or 256).",
-            MAKE_GETTER(std::to_string(desc->regs)),
-            MAKE_SETTER(regs, std::stoi(value)));
-    iface.add_arg("--iter", "Iteration tile (e.g. mb32ic16oc16).",
-            MAKE_GETTER(desc->iter_tile.str()),
-            MAKE_SETTER(iter_tile, str_to_prb_tile(value)));
-    iface.add_arg("--tg", "Threadgroup tile (e.g. ow4oc4).",
-            MAKE_GETTER(desc->thread_group_tile.str()),
-            MAKE_SETTER(thread_group_tile, str_to_prb_tile(value)));
-    iface.add_arg("--loop-desc",
-            "Loop description, variables ordered from innermost to outermost "
-            "(e.g. kw,kh,kd,ic).",
-            MAKE_GETTER(desc->loop_desc.str()),
-            MAKE_SETTER(loop_desc, str_to_loop_desc(value)));
-    iface.add_arg("--load",
-            "Load type (block, scattered [default], 2d) for A and B, e.g. "
-            "a:2d,b:block.",
-            MAKE_GETTER(desc->load.str()),
-            MAKE_SETTER(load, str_to_load_desc(value)));
-    iface.add_arg("--store",
-            "Store type (block, scattered [default], 2d) for C,  e.g. c:2d.",
-            MAKE_GETTER(desc->store.str()),
-            MAKE_SETTER(store, str_to_store_desc(value)));
-    iface.add_arg("--prefetch",
-            "Prefetch description specifying distance and whether A/B are "
-            "prefetched. Examples: x3 (distance is 3, both A/B are "
-            "prefetched), x2.a (distance is 2, only A is prefetched), x0 (no "
-            "prefetch, default).",
-            MAKE_GETTER(desc->prefetch.str()),
-            MAKE_SETTER(prefetch, str_to_prefetch_desc(value)));
+parse_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
+    parse_iface_t<kernel_desc_t> iface(/*cli=*/true);
+    init_parse_iface(&iface);
     return iface;
-#undef MAKE_SETTER
-#undef MAKE_GETTER
 }
 
 void kernel_desc_t::show_help() {
-    kernel_desc_t desc;
-    desc.set("--help");
+    cli_iface().print_help();
 }
 
 grid_t create_thread_group_grid(const kernel_desc_t &desc) {

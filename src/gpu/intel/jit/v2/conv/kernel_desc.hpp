@@ -18,6 +18,7 @@
 #define GPU_INTEL_JIT_V2_CONV_KERNEL_DESC_HPP
 
 #include "gpu/intel/jit/ir/fma.hpp"
+#include "gpu/intel/jit/ir/hw.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/v2/conv/problem.hpp"
@@ -43,6 +44,13 @@ class kernel_info_t;
 namespace v2 {
 namespace conv {
 
+struct hw_desc_t {
+    ngen::HW hw;
+
+    void stringify(std::ostream &out) const { jit::stringify(out, hw); }
+    void parse(std::istream &in) { jit::parse(in, hw); }
+};
+
 enum class spec_strategy_t { none, max, one_d, two_d };
 
 static auto spec_strategy_names = nstl::to_array({
@@ -60,23 +68,31 @@ GPU_DEFINE_PARSE_ENUM(spec_strategy_t, spec_strategy_names)
 class spec_reqs_t {
 public:
     spec_reqs_t() = default;
-    spec_reqs_t(const prb_tile_t &spec_tile)
-        : spec_tile_(spec_tile), spec_strategy_(spec_strategy_t::none) {}
+    spec_reqs_t(const prb_tile_t &spec_tile) : spec_tile_(spec_tile) {}
     spec_reqs_t(spec_strategy_t spec_strategy)
         : spec_strategy_(spec_strategy) {}
 
-    bool operator==(const spec_reqs_t &other) const {
-        return as_elements() == other.as_elements();
+    void stringify(std::ostream &out) const {
+        if (spec_strategy_ == spec_strategy_t::none && spec_tile_.is_empty()) {
+            out << "x";
+            return;
+        }
+        if (spec_strategy_ != spec_strategy_t::none) {
+            jit::stringify(out, spec_strategy_);
+        } else {
+            jit::stringify(out, spec_tile_);
+        }
     }
 
-    size_t get_hash() const { return ir_utils::get_hash(as_elements()); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(as_elements(), out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(as_elements(), in);
+    void parse(std::istream &in) {
+        operator=(spec_reqs_t());
+        auto s = stream_parse<std::string>(in);
+        if (s == "x") return;
+        if (is_enum_name<spec_strategy_t>(s)) {
+            jit::parse(s, spec_strategy_);
+        } else {
+            jit::parse(s, spec_tile_);
+        }
     }
 
     bool is_equal(const prb_dim_t &dim, int value) const {
@@ -95,7 +111,10 @@ public:
         return ret;
     }
 
-    void set(const prb_dim_t &dim, int value) { spec_tile_[dim] = value; }
+    void set(const prb_dim_t &dim, int value) {
+        ir_assert(spec_strategy_ == spec_strategy_t::none);
+        spec_tile_[dim] = value;
+    }
 
     constraint_set_t as_constraint_set(const kernel_info_t &kernel_info) const {
         constraint_set_t ret;
@@ -120,10 +139,11 @@ public:
         switch (spec_strategy_) {
             case spec_strategy_t::max: spec_tile_ = prb.shape(); break;
             case spec_strategy_t::one_d:
-                jit::parse("id1ih1od1oh1kd1kh1dd0dh0pd0ph0sd1sh1", spec_tile_);
+                spec_tile_ = jit::parse<prb_tile_t>(
+                        "id1ih1od1oh1kd1kh1dd0dh0pd0ph0sd1sh1");
                 break;
             case spec_strategy_t::two_d:
-                jit::parse("id1od1kd1dd0pd0sd1", spec_tile_);
+                spec_tile_ = jit::parse<prb_tile_t>("id1od1kd1dd0pd0sd1");
                 break;
             default: spec_tile_ = {}; break;
         }
@@ -147,16 +167,8 @@ public:
 
 private:
     prb_tile_t spec_tile_;
-    spec_strategy_t spec_strategy_;
+    spec_strategy_t spec_strategy_ = spec_strategy_t::none;
 };
-
-inline spec_reqs_t str_to_spec_reqs(const std::string &s) {
-    spec_strategy_t mode = str_to_spec_strategy(s);
-    if (mode == spec_strategy_t::none)
-        return spec_reqs_t(str_to_prb_tile(s));
-    else
-        return spec_reqs_t(mode);
-}
 
 struct loop_desc_entry_t {
     prb_dim_t dim;
@@ -179,34 +191,6 @@ struct loop_desc_entry_t {
     }
 
     IR_DEFINE_DUMP()
-
-    bool operator==(const loop_desc_entry_t &other) const {
-        return (dim == other.dim) && (idx == other.idx)
-                && (is_outer == other.is_outer)
-                && (is_global == other.is_global);
-    }
-
-    bool operator!=(const loop_desc_entry_t &other) const {
-        return !operator==(other);
-    }
-
-    size_t get_hash() const {
-        return ir_utils::get_hash(dim, idx, is_outer, is_global);
-    }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(dim, out);
-        ir_utils::serialize(idx, out);
-        ir_utils::serialize(is_outer, out);
-        ir_utils::serialize(is_global, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(dim, in);
-        ir_utils::deserialize(idx, in);
-        ir_utils::deserialize(is_outer, in);
-        ir_utils::deserialize(is_global, in);
-    }
 };
 
 class loop_desc_t {
@@ -253,20 +237,16 @@ public:
 
     IR_DEFINE_DUMP()
 
-    bool operator==(const loop_desc_t &other) const {
-        return entries_ == other.entries_;
-    }
+    void stringify(std::ostream &out) const { out << str(); }
 
-    bool operator!=(const loop_desc_t &other) const {
-        return !operator==(other);
+    void parse(std::istream &in) {
+        entries_.clear();
+        std::string s;
+        in >> s;
+        auto parts = gpu_utils::split(s, ",");
+        for (auto &p : parts)
+            add(prb_dim_t::from_name(p));
     }
-
-    size_t get_hash() const { return ir_utils::get_hash(entries_); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(entries_, out);
-    }
-    void deserialize(std::istream &in) { ir_utils::deserialize(entries_, in); }
 
 private:
     void update_indices() {
@@ -279,14 +259,6 @@ private:
     std::vector<loop_desc_entry_t> entries_;
 };
 
-inline loop_desc_t str_to_loop_desc(const std::string &s) {
-    auto parts = gpu_utils::split(s, ",");
-    loop_desc_t ret;
-    for (auto &p : parts)
-        ret.add(prb_dim_t::from_name(p));
-    return ret;
-}
-
 struct load_desc_t {
     send_kind_t a = send_kind_t::undef;
     send_kind_t b = send_kind_t::undef;
@@ -295,58 +267,29 @@ struct load_desc_t {
         std::vector<std::string> parts;
         if (a != send_kind_t::undef) parts.emplace_back("a:" + to_string(a));
         if (b != send_kind_t::undef) parts.emplace_back("b:" + to_string(b));
+        if (parts.empty()) return "x";
         return gpu_utils::join(",", parts);
     }
 
     IR_DEFINE_DUMP()
 
-    bool operator==(const load_desc_t &other) const {
-        return (a == other.a) && (b == other.b);
-    }
-
-    bool operator!=(const load_desc_t &other) const {
-        return !operator==(other);
-    }
-
-    size_t get_hash() const { return ir_utils::get_hash(a, b); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(a, out);
-        ir_utils::serialize(b, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(a, in);
-        ir_utils::deserialize(b, in);
-    }
+    void stringify(std::ostream &out) const { out << str(); }
+    void parse(std::istream &in);
 };
-
-load_desc_t str_to_load_desc(const std::string &s);
 
 struct store_desc_t {
     send_kind_t c = send_kind_t::undef;
 
     std::string str() const {
         if (c != send_kind_t::undef) return "c:" + to_string(c);
-        return "c:scattered";
+        return "x";
     }
 
     IR_DEFINE_DUMP()
 
-    bool operator==(const store_desc_t &other) const { return (c == other.c); }
-
-    bool operator!=(const store_desc_t &other) const {
-        return !operator==(other);
-    }
-
-    size_t get_hash() const { return ir_utils::get_hash(c); }
-
-    void serialize(std::ostream &out) const { ir_utils::serialize(c, out); }
-
-    void deserialize(std::istream &in) { ir_utils::deserialize(c, in); }
+    void stringify(std::ostream &out) const { out << str(); }
+    void parse(std::istream &in);
 };
-
-store_desc_t str_to_store_desc(const std::string &s);
 
 struct prefetch_desc_t {
     int dist = 0;
@@ -364,30 +307,9 @@ struct prefetch_desc_t {
 
     IR_DEFINE_DUMP()
 
-    bool operator==(const prefetch_desc_t &other) const {
-        return (dist == other.dist) && (a == other.a) && (b == other.b);
-    }
-
-    bool operator!=(const prefetch_desc_t &other) const {
-        return !operator==(other);
-    }
-
-    size_t get_hash() const { return ir_utils::get_hash(dist, a, b); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(dist, out);
-        ir_utils::serialize(a, out);
-        ir_utils::serialize(b, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(dist, in);
-        ir_utils::deserialize(a, in);
-        ir_utils::deserialize(b, in);
-    }
+    void stringify(std::ostream &out) const { out << str(); }
+    void parse(std::istream &in);
 };
-
-prefetch_desc_t str_to_prefetch_desc(const std::string &s);
 
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group = false);
@@ -408,7 +330,7 @@ public:
     layout_tag_t wei_tag;
     layout_tag_t dst_tag;
     spec_reqs_t spec_reqs;
-    hw_t hw;
+    hw_desc_t hw_desc;
     fma_kind_t fma = fma_kind_t::undef;
     int simd = 0;
     int regs = 0;
@@ -419,6 +341,8 @@ public:
     store_desc_t store;
     prefetch_desc_t prefetch;
     prb_reqs_t reqs;
+
+    hw_t hw;
     bool is_finalized = false;
 
     bool is_empty() const { return prop == prop_kind::undef; }
@@ -451,70 +375,7 @@ public:
 
     IR_DEFINE_DUMP()
 
-    bool operator==(const kernel_desc_t &other) const {
-        return (prop == other.prop) && (is_dw == other.is_dw)
-                && (src_tag == other.src_tag) && (wei_tag == other.wei_tag)
-                && (dst_tag == other.dst_tag) && (spec_reqs == other.spec_reqs)
-                && (hw == other.hw) && (fma == other.fma)
-                && (simd == other.simd) && (regs == other.regs)
-                && (iter_tile == other.iter_tile)
-                && (thread_group_tile == other.thread_group_tile)
-                && (loop_desc == other.loop_desc) && (load == other.load)
-                && (prefetch == other.prefetch) && (store == other.store)
-                && (is_finalized == other.is_finalized);
-    }
-
-    bool operator!=(const kernel_desc_t &other) const {
-        return !operator==(other);
-    }
-
-    size_t get_hash() const {
-        return ir_utils::get_hash(prop, is_dw, src_tag, wei_tag, dst_tag,
-                spec_reqs, hw, fma, simd, regs, iter_tile, thread_group_tile,
-                loop_desc, load, prefetch, store, is_finalized);
-    }
-
-    void serialize(std::ostream &out) const {
-        ir_assert(is_finalized);
-        ir_utils::serialize(prop, out);
-        ir_utils::serialize(is_dw, out);
-        ir_utils::serialize(src_tag, out);
-        ir_utils::serialize(wei_tag, out);
-        ir_utils::serialize(dst_tag, out);
-        ir_utils::serialize(spec_reqs, out);
-        ir_utils::serialize(hw, out);
-        ir_utils::serialize(fma, out);
-        ir_utils::serialize(simd, out);
-        ir_utils::serialize(regs, out);
-        ir_utils::serialize(iter_tile, out);
-        ir_utils::serialize(thread_group_tile, out);
-        ir_utils::serialize(loop_desc, out);
-        ir_utils::serialize(load, out);
-        ir_utils::serialize(prefetch, out);
-        ir_utils::serialize(store, out);
-        ir_utils::serialize(reqs, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(prop, in);
-        ir_utils::deserialize(is_dw, in);
-        ir_utils::deserialize(src_tag, in);
-        ir_utils::deserialize(wei_tag, in);
-        ir_utils::deserialize(dst_tag, in);
-        ir_utils::deserialize(spec_reqs, in);
-        ir_utils::deserialize(hw, in);
-        ir_utils::deserialize(fma, in);
-        ir_utils::deserialize(simd, in);
-        ir_utils::deserialize(regs, in);
-        ir_utils::deserialize(iter_tile, in);
-        ir_utils::deserialize(thread_group_tile, in);
-        ir_utils::deserialize(loop_desc, in);
-        ir_utils::deserialize(load, in);
-        ir_utils::deserialize(prefetch, in);
-        ir_utils::deserialize(store, in);
-        ir_utils::deserialize(reqs, in);
-        is_finalized = true;
-    }
+    static void init_parse_iface(parse_iface_t<kernel_desc_t> *iface);
 
     // Helper methods.
     const type_t &a_type() const {
@@ -568,7 +429,7 @@ public:
             compute::kernel_t &kernel) const;
     serialized_t serialize() const override;
     static kernel_desc_t deserialize(const serialized_t &s);
-    static ir_utils::cli_iface_t<kernel_desc_t> cli_iface();
+    static parse_iface_t<kernel_desc_t> cli_iface();
     static void show_help();
 };
 
