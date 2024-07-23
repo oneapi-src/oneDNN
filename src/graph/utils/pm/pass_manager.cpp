@@ -125,13 +125,14 @@ impl::status_t pass_manager_t::run_passes(graph_t &agraph, std::istream *fs,
             return impl::status::success;
         }
         if (read_json) {
-            printf("onednn_graph_verbose,warn,pattern,ignore config file "
-                   "for incompatible hash id\n");
+            verbose_printf(
+                    "onednn_graph_verbose,warn,pattern,ignore config file for "
+                    "incompatible hash id\n");
         } else {
-            printf("onednn_graph_verbose,warn,pattern,ignore config file "
-                   "for missing json filed\n");
+            verbose_printf(
+                    "onednn_graph_verbose,warn,pattern,ignore config file for "
+                    "missing json filed\n");
         }
-        fflush(stdout);
     }
 
     // if no ifstream is given or the string provided is not a valid json,

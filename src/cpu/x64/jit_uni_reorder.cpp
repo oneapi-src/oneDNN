@@ -2505,9 +2505,10 @@ static void prb_thread_kernel_balance(
 
     if (want_borrow_ker_from_drv || want_borrow_drv_from_ker) {
         DEBUG({
-            printf("split: ");
+            verbose_printf(verbose_t::debuginfo, "split: ");
             prb_dump(prb);
-            printf("ndims_ker_max = %d\n", ndims_ker_max);
+            verbose_printf(verbose_t::debuginfo, "ndims_ker_max = %d\n",
+                    ndims_ker_max);
         });
     }
 }
@@ -2572,7 +2573,7 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
 
     prb_block_for_cache(prb);
     DEBUG({
-        printf("cache: ");
+        verbose_printf(verbose_t::debuginfo, "cache: ");
         prb_dump(prb);
     });
 
@@ -2592,7 +2593,7 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
             VERBOSE_BAD_NDIMS, "driver", ndims_driver);
 
     DEBUG({
-        printf("ker  : ");
+        verbose_printf(verbose_t::debuginfo, "ker  : ");
         prb_dump(ker_desc.prb);
     });
 
@@ -2802,11 +2803,11 @@ void jit_uni_reorder_t::omp_driver(const char *in, char *out,
     out += pd()->prb_.ooff * data_type_size(pd()->prb_.otype);
 
     DEBUG({
-        printf("prb  : ");
+        verbose_printf(verbose_t::debuginfo, "prb  : ");
         tr::prb_dump(pd()->prb_);
     });
     DEBUG({
-        printf("ker  : ");
+        verbose_printf(verbose_t::debuginfo, "ker  : ");
         tr::prb_dump(pd()->ker_desc_.prb);
     });
 
@@ -3003,7 +3004,7 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
 
     prb_tile_normalize(prb);
     DEBUG({
-        printf("tile : ");
+        verbose_printf(verbose_t::debuginfo, "tile : ");
         prb_dump(prb);
     });
 

@@ -809,7 +809,7 @@ status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
             auto t = 0;
             CHECK(gemm_pd->query(query::preferred_gpu_threads_per_eu, 0, &t));
             if (t != ocl_conf.threads_per_eu)
-                printf("[WARNING] GEMM grf modes are inconsistent");
+                verbose_printf("[WARNING] GEMM grf modes are inconsistent");
         }
         return status::success;
     };
