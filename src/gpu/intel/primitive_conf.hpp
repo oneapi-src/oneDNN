@@ -1304,8 +1304,20 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
     std::string po_kernel_args = "-DPOST_OP_ARGS=\"";
     int nof_supported_post_ops = 0;
 
+    auto define_bin_types = [&](bool bf16, bool bf8, bool hf8, int idx) {
+        kernel_ctx.define_int(
+                "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", bf16);
+        kernel_ctx.define_int(
+                "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_HF8", hf8);
+        kernel_ctx.define_int(
+                "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF8", bf8);
+    };
+
     auto add_po_defines = [&](const std::string &bin_arg_name,
                                   const post_ops_t::entry_t &e, int idx) {
+        bool bin_arg_bf16 = false;
+        bool bin_arg_bf8 = false;
+        bool bin_arg_hf8 = false;
         if (e.is_binary()) {
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_binary_id);
@@ -1315,13 +1327,10 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             const memory_desc_wrapper src1_mdw(e.binary.src1_desc);
             const auto mdi = memory_desc_info_t::create(src1_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
-            if (mdi.data_type == data_type::bf16) {
-                kernel_ctx.define_int(
-                        "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 1);
-            } else {
-                kernel_ctx.define_int(
-                        "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 0);
-            }
+            bin_arg_bf16 |= mdi.data_type == data_type::bf16;
+            bin_arg_bf8 |= mdi.data_type == data_type::f8_e5m2;
+            bin_arg_hf8 |= mdi.data_type == data_type::f8_e4m3;
+            define_bin_types(bin_arg_bf16, bin_arg_bf8, bin_arg_hf8, idx);
         } else if (e.is_prelu()) {
             // binary && eltwise relu = prelu post op
             kernel_ctx.define_int(
@@ -1338,8 +1347,7 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
 
             // prelu weights are assumed to be f32
-            kernel_ctx.define_int(
-                    "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 0);
+            define_bin_types(bin_arg_bf16, bin_arg_bf8, bin_arg_hf8, idx);
         } else {
             memory_desc_t empty_mem_desc;
             dnnl_dims_t empty_dims = {1, 1, 1, 1};
@@ -1348,8 +1356,7 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             const memory_desc_wrapper src1_mdw(empty_mem_desc);
             const auto mdi = memory_desc_info_t::create(src1_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
-            kernel_ctx.define_int(
-                    "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 0);
+            define_bin_types(bin_arg_bf16, bin_arg_bf8, bin_arg_hf8, idx);
         }
         if (e.is_eltwise(false)) {
             kernel_ctx.define_int(
@@ -1414,6 +1421,8 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
         // due to C macro limitations on which post op service is build always
         // load bf16 conversion functions
         kernel_ctx.define_int("POST_OP_USING_BF16", 1);
+        kernel_ctx.define_int("POST_OP_USING_HF8", 1);
+        kernel_ctx.define_int("POST_OP_USING_BF8", 1);
     }
     po_kernel_args += "\"";
     kernel_ctx.add_option(po_kernel_args);

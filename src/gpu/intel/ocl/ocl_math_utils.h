@@ -36,12 +36,12 @@ int rnd_down(int a, unsigned int b) {
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 #if DT_BF8 || SRC_DT_BF8 || WEI_DT_BF8 || DST_DT_BF8 || BIA_DT_BF8 || A_DT_BF8 \
-        || B_DT_BF8 || C_DT_BF8
+        || B_DT_BF8 || C_DT_BF8 || POST_OP_USING_BF8 || POST_OP_USING_HF8
 #define MATH_UTILS_DECLARE_BF8 1
 #endif
 
 #if DT_HF8 || SRC_DT_HF8 || WEI_DT_HF8 || DST_DT_HF8 || BIA_DT_HF8 || A_DT_HF8 \
-        || A_DT_HF8 || B_DT_HF8 || C_DT_HF8
+        || B_DT_HF8 || C_DT_HF8 || POST_OP_USING_HF8 || POST_OP_USING_BF8
 #define MATH_UTILS_DECLARE_HF8 1
 #endif
 
