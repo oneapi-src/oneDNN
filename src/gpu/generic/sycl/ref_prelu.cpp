@@ -57,13 +57,9 @@ status_t ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return status::success;
 
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto data = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-        auto weights = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS);
-        auto dst = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
         auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
         int tot_work = nelems_A;
-        prelu_fwd_kernel_vec_t prelu_fwd_kernel(
-                pd()->conf_, data, weights, dst);
+        prelu_fwd_kernel_vec_t prelu_fwd_kernel(pd()->conf_, cgh, ctx);
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;
         int work_per_wg = wg_size * block_size;
@@ -109,17 +105,10 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return status::success;
 
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto data = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-        auto weights = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS);
-        auto diff_data = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC);
-        auto diff_weights = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
-        auto diff_dst = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST);
-        auto scratchpad = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_SCRATCHPAD);
         auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
         int tot_work = nelems_A;
 
-        prelu_bwd_kernel_vec_t prelu_bwd_kernel(pd()->conf_, data, diff_data,
-                weights, diff_weights, diff_dst, scratchpad);
+        prelu_bwd_kernel_vec_t prelu_bwd_kernel(pd()->conf_, cgh, ctx);
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;
         int work_per_wg = wg_size * block_size;

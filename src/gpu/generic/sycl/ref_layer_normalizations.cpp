@@ -86,19 +86,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     if (pd()->stats_are_src()) {
         return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-            auto data = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-            auto scale = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE);
-            auto shift = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SHIFT);
-            auto mean = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN);
-            auto src_scales = CTX_IN_SYCL_KERNEL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto dst_scales = CTX_IN_SYCL_KERNEL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-            auto var = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE);
-            auto dst = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
             layer_normalization_fwd_kernel_vec_t layer_normalization_fwd_kernel(
-                    pd()->conf_, data, scale, shift, mean, var, dst, src_scales,
-                    dst_scales);
+                    pd()->conf_, cgh, ctx);
             const int block_size = pd()->conf_.block_size;
             const int wg_size = pd()->conf_.wg_size;
 
@@ -110,19 +99,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
         });
     } else {
         return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-            auto data = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-            auto scale = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE);
-            auto shift = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SHIFT);
-            auto mean = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN);
-            auto src_scales = CTX_IN_SYCL_KERNEL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto dst_scales = CTX_IN_SYCL_KERNEL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-            auto var = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE);
-            auto dst = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
             layer_normalization_fwd_kernel_vec1_t
-                    layer_normalization_fwd_kernel1(pd()->conf_, data, scale,
-                            shift, dst, mean, var, src_scales, dst_scales);
+                    layer_normalization_fwd_kernel1(pd()->conf_, cgh, ctx);
 
             const int block_size = pd()->conf_.block_size;
             const int wg_size = pd()->conf_.wg_size;
@@ -191,14 +169,6 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
     if (pd()->conf_.use_scale || pd()->conf_.use_shift) {
         auto status = parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-            auto data = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-            auto diff_data = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC);
-            auto scale = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE);
-            auto diff_scale = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SCALE);
-            auto diff_shift = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SHIFT);
-            auto mean = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN);
-            auto var = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE);
-            auto diff_dst = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST);
             auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
             const int block_size = pd()->conf_.block_size;
             const int wg_size = pd()->conf_.wg_size;
@@ -207,8 +177,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
 
             int n_thr = n_wgs * wg_size;
             layer_normalization_bwd_kernel_vec_t layer_normalization_bwd_kernel(
-                    pd()->conf_, data, diff_data, scale, diff_scale, diff_shift,
-                    mean, var, diff_dst);
+                    pd()->conf_, cgh, ctx);
 
             cgh.parallel_for(::sycl::nd_range<1>(n_thr, wg_size),
                     layer_normalization_bwd_kernel);
@@ -217,14 +186,6 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     }
 
     return parallel_for(ctx, kernel2_, [&](::sycl::handler &cgh) {
-        auto data = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-        auto diff_data = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC);
-        auto scale = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE);
-        auto diff_scale = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SCALE);
-        auto diff_shift = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SHIFT);
-        auto mean = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN);
-        auto var = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE);
-        auto diff_dst = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST);
         auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;
@@ -233,8 +194,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
 
         int n_thr = n_wgs * wg_size;
         layer_normalization_bwd_kernel_vec2_t layer_normalization_bwd_kernel2(
-                pd()->conf_, data, diff_data, scale, diff_scale, diff_shift,
-                mean, var, diff_dst);
+                pd()->conf_, cgh, ctx);
 
         cgh.parallel_for(::sycl::nd_range<1>(n_thr, wg_size),
                 layer_normalization_bwd_kernel2);

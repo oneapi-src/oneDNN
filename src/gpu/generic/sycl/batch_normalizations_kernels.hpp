@@ -50,20 +50,17 @@ inline float maybe_up_convert<bfloat16_t>(bfloat16_t x) {
 
 struct batch_normalization_fwd_kernel_vec_t {
     batch_normalization_fwd_kernel_vec_t(
-            const sycl_batch_normalization_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data, xpu::sycl::in_memory_arg_t &scale,
-            xpu::sycl::in_memory_arg_t &shift, xpu::sycl::in_memory_arg_t &stat,
-            xpu::sycl::in_memory_arg_t &var, xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::out_memory_arg_t &ws, xpu::sycl::in_memory_arg_t &src1)
+            const sycl_batch_normalization_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
         : conf_(conf)
-        , data_(data)
-        , scale_(scale)
-        , shift_(shift)
-        , stat_(stat)
-        , var_(var)
-        , dst_(dst)
-        , ws_(ws)
-        , src1_(src1) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , scale_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE))
+        , shift_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SHIFT))
+        , stat_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN))
+        , var_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , ws_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_WORKSPACE))
+        , src1_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_1)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
@@ -194,21 +191,17 @@ private:
 
 struct batch_normalization_fwd_kernel_vec_t1 {
     batch_normalization_fwd_kernel_vec_t1(
-            const sycl_batch_normalization_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data, xpu::sycl::in_memory_arg_t &scale,
-            xpu::sycl::in_memory_arg_t &shift, xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::out_memory_arg_t &mean_out,
-            xpu::sycl::out_memory_arg_t &var_out,
-            xpu::sycl::out_memory_arg_t &ws, xpu::sycl::in_memory_arg_t &src1)
+            const sycl_batch_normalization_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
         : conf_(conf)
-        , data_(data)
-        , scale_(scale)
-        , shift_(shift)
-        , dst_(dst)
-        , mean_out_(mean_out)
-        , var_out_(var_out)
-        , ws_(ws)
-        , src1_(src1) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , scale_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE))
+        , shift_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SHIFT))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , mean_out_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN))
+        , var_out_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE))
+        , ws_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_WORKSPACE))
+        , src1_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_1)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
@@ -376,28 +369,20 @@ private:
 
 struct batch_normalization_bwd_kernel_vec_t {
     batch_normalization_bwd_kernel_vec_t(
-            const sycl_batch_normalization_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data,
-            xpu::sycl::out_memory_arg_t &diff_data,
-            xpu::sycl::in_memory_arg_t &scale,
-            xpu::sycl::out_memory_arg_t &diff_scale,
-            xpu::sycl::out_memory_arg_t &diff_shift,
-            xpu::sycl::in_memory_arg_t &stat, xpu::sycl::in_memory_arg_t &var,
-            xpu::sycl::in_memory_arg_t &diff_dst,
-            xpu::sycl::in_memory_arg_t &dst, xpu::sycl::in_memory_arg_t &ws,
-            xpu::sycl::out_memory_arg_t &diff_src1)
+            const sycl_batch_normalization_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
         : conf_(conf)
-        , data_(data)
-        , diff_data_(diff_data)
-        , scale_(scale)
-        , diff_scale_(diff_scale)
-        , diff_shift_(diff_shift)
-        , stat_(stat)
-        , var_(var)
-        , diff_dst_(diff_dst)
-        , dst_(dst)
-        , ws_(ws)
-        , diff_src1_(diff_src1) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
+        , scale_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE))
+        , diff_scale_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SCALE))
+        , diff_shift_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SHIFT))
+        , stat_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN))
+        , var_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE))
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
+        , dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , ws_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WORKSPACE))
+        , diff_src1_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC_1)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();

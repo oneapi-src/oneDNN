@@ -66,9 +66,6 @@ status_t ref_sycl_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     using namespace format_tag;
 
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto src_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-        auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
-
         const auto block_size = pd()->conf_.block_size;
         const auto wg_size = pd()->conf_.wg_size;
         const auto t_work = pd()->conf_.wk_size;
@@ -78,8 +75,7 @@ status_t ref_sycl_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         n_thr = n_thr < 1 ? 1 : n_thr;
         const format_tag_t tag = pd()->dat_tag_;
 
-        lrn_fwd_kernel_vec_t lrn_fwd_kernel_(
-                pd()->conf_, src_mem_arg, dst_mem_arg, tag);
+        lrn_fwd_kernel_vec_t lrn_fwd_kernel_(pd()->conf_, cgh, ctx, tag);
 
         cgh.parallel_for(::sycl::nd_range<1>(n_thr, wg_size), lrn_fwd_kernel_);
     });
@@ -126,14 +122,9 @@ status_t ref_sycl_lrn_bwd_t::init(impl::engine_t *engine) {
 
 status_t ref_sycl_lrn_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto diff_src_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-        auto diff_dst_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST);
-        auto diff_src_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC);
-
         const format_tag_t tag = pd()->dat_tag_;
 
-        lrn_bwd_kernel_vec_t lrn_bwd_kernel_(pd()->conf_, diff_src_arg,
-                diff_dst_mem_arg, diff_src_mem_arg, tag);
+        lrn_bwd_kernel_vec_t lrn_bwd_kernel_(pd()->conf_, cgh, ctx, tag);
 
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;

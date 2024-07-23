@@ -30,15 +30,14 @@ namespace sycl {
 
 struct softmax_fwd_kernel_vec_t {
     softmax_fwd_kernel_vec_t(const sycl_softmax_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &src,
-            xpu::sycl::in_memory_arg_t &scale_src,
-            xpu::sycl::in_memory_arg_t &scale_dst,
-            xpu::sycl::out_memory_arg_t &dst)
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
-        , src_(src)
-        , scale_src_(scale_src)
-        , scale_dst_(scale_dst)
-        , dst_(dst) {}
+        , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , scale_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC))
+        , scale_dst_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();
@@ -131,10 +130,11 @@ private:
 
 struct softmax_bwd_kernel_vec_t {
     softmax_bwd_kernel_vec_t(const sycl_softmax_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &dst,
-            xpu::sycl::in_memory_arg_t &diff_dst,
-            xpu::sycl::out_memory_arg_t &diff_src)
-        : conf_(conf), dst_(dst), diff_dst_(diff_dst), diff_src_(diff_src) {}
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
+        : conf_(conf)
+        , dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
+        , diff_src_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();

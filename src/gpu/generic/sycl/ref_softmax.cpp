@@ -51,13 +51,6 @@ status_t ref_sycl_softmax_fwd_t::init(impl::engine_t *engine) {
 
 status_t ref_sycl_softmax_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto src_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-        auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
-        auto src_scales = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-        auto dst_scales = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
         const auto block_size = pd()->conf_.block_size;
         const auto wg_size = pd()->conf_.wg_size;
         const auto t_work = pd()->conf_.wk_size;
@@ -66,8 +59,7 @@ status_t ref_sycl_softmax_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         auto n_thr = wg_cnt * wg_size;
         n_thr = n_thr < 1 ? 1 : n_thr;
 
-        softmax_fwd_kernel_vec_t softmax_fwd_kernel_(
-                pd()->conf_, src_mem_arg, src_scales, dst_scales, dst_mem_arg);
+        softmax_fwd_kernel_vec_t softmax_fwd_kernel_(pd()->conf_, cgh, ctx);
 
         cgh.parallel_for(
                 ::sycl::nd_range<1>(n_thr, wg_size), softmax_fwd_kernel_);
@@ -99,12 +91,7 @@ status_t ref_sycl_softmax_bwd_t::init(impl::engine_t *engine) {
 
 status_t ref_sycl_softmax_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto dst = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
-        auto diff_dst = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST);
-        auto diff_src = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC);
-
-        softmax_bwd_kernel_vec_t softmax_bwd_kernel(
-                pd()->conf_, dst, diff_dst, diff_src);
+        softmax_bwd_kernel_vec_t softmax_bwd_kernel(pd()->conf_, cgh, ctx);
 
         const auto block_size = pd()->conf_.block_size;
         const auto wg_size = pd()->conf_.wg_size;
