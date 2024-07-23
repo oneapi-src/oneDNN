@@ -131,6 +131,15 @@ private:
     alg_kind_t alg_;
 };
 
+struct sycl_post_op_t {
+    primitive_kind_t kind_;
+    union {
+        ref_binary_op_t binary_;
+        ref_eltwise_fwd_t eltwise_;
+        float sum_scale_;
+    };
+};
+
 struct sycl_post_ops_t {
     // SYCL has a limitation on total size of kernel arguments.
     // This affects number of post ops, e.g. binary post op (which is not yet
@@ -145,22 +154,16 @@ struct sycl_post_ops_t {
         const auto &attr_po = attr->post_ops_;
         assert(attr_po.len() <= max_post_ops);
 
-        int sum_idx = 0;
-        int eltwise_idx = 0;
-        int binary_idx = 0;
-
         for (auto i = 0; i < attr_po.len(); ++i) {
             if (attr_po.contain(sum, i)) {
-                post_op_kinds_[i] = sum;
-                sum_scales_[sum_idx++] = attr_po.entry_[i].sum.scale;
+                ops_[i].kind_ = sum;
+                ops_[i].sum_scale_ = attr_po.entry_[i].sum.scale;
             } else if (attr_po.contain(eltwise, i)) {
-                post_op_kinds_[i] = eltwise;
-                eltwise_post_ops_[eltwise_idx++]
-                        = ref_eltwise_fwd_t(attr_po.entry_[i].eltwise);
+                ops_[i].kind_ = eltwise;
+                ops_[i].eltwise_ = ref_eltwise_fwd_t(attr_po.entry_[i].eltwise);
             } else if (attr_po.contain(binary, i)) {
-                post_op_kinds_[i] = binary;
-                binary_post_ops_[binary_idx++]
-                        = ref_binary_op_t(attr_po.entry_[i].binary);
+                ops_[i].kind_ = binary;
+                ops_[i].binary_ = ref_binary_op_t(attr_po.entry_[i].binary);
             }
         }
         n_post_ops_ = attr_po.len();
@@ -172,22 +175,15 @@ struct sycl_post_ops_t {
         using namespace primitive_kind;
         constexpr ::sycl::vec<float, width> nan_vec(NAN);
 
-        if (n_post_ops_ == 0) return acc;
-
-        int sum_idx = 0;
-        int eltwise_idx = 0;
-
         for (auto i = 0; i < n_post_ops_; ++i) {
-            switch (post_op_kinds_[i]) {
+            switch (ops_[i].kind_) {
                 case sum: {
                     const ::sycl::vec<float, width> sum_scale(
-                            sum_scales_[sum_idx++]);
+                            ops_[i].sum_scale_);
                     acc += sum_scale * dst;
                     break;
                 }
-                case eltwise:
-                    acc = eltwise_post_ops_[eltwise_idx++].compute(acc);
-                    break;
+                case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
                 default: acc = nan_vec;
             }
         }
@@ -197,17 +193,10 @@ struct sycl_post_ops_t {
     float apply(float acc, float dst) const {
         using namespace primitive_kind;
 
-        if (n_post_ops_ == 0) return acc;
-
-        int sum_idx = 0;
-        int eltwise_idx = 0;
-
         for (auto i = 0; i < n_post_ops_; ++i) {
-            switch (post_op_kinds_[i]) {
-                case sum: acc += sum_scales_[sum_idx++] * dst; break;
-                case eltwise:
-                    acc = eltwise_post_ops_[eltwise_idx++].compute(acc);
-                    break;
+            switch (ops_[i].kind_) {
+                case sum: acc += ops_[i].sum_scale_ * dst; break;
+                case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
                 default: acc = ::sycl::nan(0u);
             }
         }
@@ -218,20 +207,11 @@ struct sycl_post_ops_t {
     float apply(float acc, float dst_sum, ::sycl::vec<float, width> dst) const {
         using namespace primitive_kind;
 
-        if (n_post_ops_ == 0) return acc;
-
-        int binary_idx = 0;
-        int sum_idx = 0;
-        int eltwise_idx = 0;
         for (auto i = 0; i < n_post_ops_; ++i) {
-            switch (post_op_kinds_[i]) {
-                case eltwise:
-                    acc = eltwise_post_ops_[eltwise_idx++].compute(acc);
-                    break;
-                case binary:
-                    acc = binary_post_ops_[binary_idx++].compute(acc, dst[i]);
-                    break;
-                case sum: acc += sum_scales_[sum_idx++] * dst_sum; break;
+            switch (ops_[i].kind_) {
+                case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
+                case binary: acc = ops_[i].binary_.compute(acc, dst[i]); break;
+                case sum: acc += ops_[i].sum_scale_ * dst_sum; break;
                 default: acc = ::sycl::nan(0u);
             }
         }
@@ -242,18 +222,10 @@ struct sycl_post_ops_t {
     float apply(float acc, ::sycl::vec<float, width> dst) const {
         using namespace primitive_kind;
 
-        if (n_post_ops_ == 0) return acc;
-
-        int binary_idx = 0;
-        int eltwise_idx = 0;
         for (auto i = 0; i < n_post_ops_; ++i) {
-            switch (post_op_kinds_[i]) {
-                case eltwise:
-                    acc = eltwise_post_ops_[eltwise_idx++].compute(acc);
-                    break;
-                case binary:
-                    acc = binary_post_ops_[binary_idx++].compute(acc, dst[i]);
-                    break;
+            switch (ops_[i].kind_) {
+                case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
+                case binary: acc = ops_[i].binary_.compute(acc, dst[i]); break;
                 default: acc = ::sycl::nan(0u);
             }
         }
@@ -263,24 +235,22 @@ struct sycl_post_ops_t {
     inline int get_post_op() const { return n_post_ops_; }
 
     inline primitive_kind_t get_post_op_kind(int i) const {
-        return post_op_kinds_[i];
+        return ops_[i].kind_;
     }
 
     inline ref_binary_op_t get_binary_post_op(int i) const {
-        return binary_post_ops_[i];
+        return ops_[i].binary_;
     }
 
 private:
-    float sum_scales_[max_post_ops];
-    ref_binary_op_t binary_post_ops_[max_post_ops];
-    ref_eltwise_fwd_t eltwise_post_ops_[max_post_ops];
-    primitive_kind_t post_op_kinds_[max_post_ops];
+    sycl_post_op_t ops_[max_post_ops];
     // Indicates the actual number of post ops.
     int n_post_ops_;
 };
 
 CHECK_SYCL_KERNEL_ARG_TYPE(ref_binary_op_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(ref_eltwise_fwd_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_post_op_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_post_ops_t);
 
 } // namespace sycl
