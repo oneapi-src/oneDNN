@@ -310,33 +310,6 @@ public:
         return ir_utils::get_hash(is_set_, values_, size_);
     }
 
-    void serialize(std::ostream &out) const {
-        using key_int_type =
-                typename std::underlying_type<typename KeyT::kind_type>::type;
-        ir_utils::serialize(size_, out);
-        for (int i = 0; i < KeyT::max_id(); i++) {
-            if (!is_set_[i]) continue;
-            ir_utils::serialize((key_int_type)i, out);
-            // To keep binary compatibility with the old version.
-            ir_utils::serialize((key_int_type)i, out);
-            ir_utils::serialize(values_[i], out);
-        }
-    }
-
-    void deserialize(std::istream &in) {
-        using key_int_type =
-                typename std::underlying_type<typename KeyT::kind_type>::type;
-        ir_utils::deserialize(size_, in);
-        is_set_.fill(false);
-        values_.fill(ValueT());
-        for (int j = 0; j < size_; j++) {
-            auto i = ir_utils::deserialize<key_int_type>(in);
-            (void)ir_utils::deserialize<key_int_type>(in);
-            is_set_[i] = true;
-            ir_utils::deserialize(values_[i], in);
-        }
-    }
-
     void stringify(std::ostream &out) const {
         if (size_ == 0) {
             out << "x";

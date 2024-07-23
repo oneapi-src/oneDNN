@@ -450,18 +450,6 @@ public:
         return ir_utils::get_hash(kind(), elems(), is_ptr());
     }
 
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(kind_, out);
-        ir_utils::serialize(elems_, out);
-        ir_utils::serialize(is_ptr_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(kind_, in);
-        ir_utils::deserialize(elems_, in);
-        ir_utils::deserialize(is_ptr_, in);
-    }
-
     static void init_parse_iface(parse_iface_t<type_t> *iface) {
         iface->add<type_kind_t, &type_t::kind_>();
         iface->set_pre_stringify_func([](const type_t &type) {

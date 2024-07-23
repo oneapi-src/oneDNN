@@ -108,18 +108,6 @@ public:
         return !operator==(other);
     }
 
-    size_t get_hash() const { return ir_utils::get_hash(letter_map_); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(letter_map_, out);
-        ir_utils::serialize(canonical_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(letter_map_, in);
-        ir_utils::deserialize(canonical_, in);
-    }
-
     std::string str() const;
     IR_DEFINE_DUMP()
 
@@ -192,22 +180,6 @@ struct layout_raw_tag_entry_t {
     bool operator!=(const layout_raw_tag_entry_t &other) const {
         return !operator==(other);
     }
-
-    size_t get_hash() const {
-        return ir_utils::get_hash(letter, block, is_blocked);
-    }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(letter, out);
-        ir_utils::serialize(block, out);
-        ir_utils::serialize(is_blocked, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(letter, in);
-        ir_utils::deserialize(block, in);
-        ir_utils::deserialize(is_blocked, in);
-    }
 };
 
 class layout_raw_tag_t {
@@ -245,18 +217,6 @@ public:
 
     bool operator!=(const layout_raw_tag_t &other) const {
         return !operator==(other);
-    }
-
-    size_t get_hash() const { return ir_utils::get_hash(is_any_, entries_); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(is_any_, out);
-        ir_utils::serialize(entries_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(is_any_, in);
-        ir_utils::deserialize(entries_, in);
     }
 
     void stringify(std::ostream &out) const {
@@ -308,31 +268,6 @@ public:
     bool matches(const layout_tag_t &other, const prb_tile_t &sizes) const;
     std::string str() const;
     IR_DEFINE_DUMP()
-
-    bool operator==(const layout_tag_t &other) const {
-        return (desc_ == other.desc_) && (type_ == other.type_)
-                && (raw_tag_ == other.raw_tag_);
-    }
-
-    bool operator!=(const layout_tag_t &other) const {
-        return !operator==(other);
-    }
-
-    size_t get_hash() const {
-        return ir_utils::get_hash(desc_, type_, raw_tag_);
-    }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(desc_, out);
-        ir_utils::serialize(type_, out);
-        ir_utils::serialize(raw_tag_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(desc_, in);
-        ir_utils::deserialize(type_, in);
-        ir_utils::deserialize(raw_tag_, in);
-    }
 
     void stringify(std::ostream &out) const {
         jit::stringify(out, raw_tag_);
