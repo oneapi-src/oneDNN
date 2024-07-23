@@ -18,6 +18,7 @@
 
 #include "gpu/generic/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_softmax_pd.hpp"
 
 namespace dnnl {
@@ -42,7 +43,8 @@ struct ref_sycl_softmax_fwd_t : public gpu::generic::sycl::primitive_t {
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && attr()->has_default_values(sm::scales_runtime)
                     && attr_oscale_ok()
-                    && set_default_formats() == status::success;
+                    && set_default_formats() == status::success
+                    && md_dims_in_range(src_md());
 
             if (!ok) return status::unimplemented;
             return init_conf();
@@ -94,7 +96,8 @@ struct ref_sycl_softmax_bwd_t : public gpu::generic::sycl::primitive_t {
                     && (dst_md(0)->format_desc.blocking.inner_nblks == 0)
                     && dst_md()->data_type == diff_dst_md()->data_type
                     && attr()->has_default_values()
-                    && set_default_formats() == status::success;
+                    && set_default_formats() == status::success
+                    && md_dims_in_range(diff_dst_md());
 
             if (!ok) return status::unimplemented;
             return init_conf();

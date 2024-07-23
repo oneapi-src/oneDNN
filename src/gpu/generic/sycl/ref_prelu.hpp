@@ -24,6 +24,7 @@
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_prelu_pd.hpp"
 #include "xpu/sycl/types.hpp"
 
@@ -50,7 +51,9 @@ struct ref_prelu_fwd_t : public gpu::generic::sycl::primitive_t {
 
             const bool ok = is_fwd() && set_default_formats()
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && (weights_md(0)->format_desc.blocking.inner_nblks == 0);
+                    && (weights_md(0)->format_desc.blocking.inner_nblks == 0)
+                    && md_dims_in_range(src_md())
+                    && md_dims_in_range(weights_md());
 
             if (!ok) return status::unimplemented;
             return init_conf();
@@ -91,8 +94,9 @@ struct ref_prelu_bwd_t : public gpu::generic::sycl::primitive_t {
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && (weights_md(0)->format_desc.blocking.inner_nblks == 0)
                     && diff_src_md(0)->data_type == src_md(0)->data_type
-                    && diff_weights_md(0)->data_type
-                            == weights_md(0)->data_type;
+                    && diff_weights_md(0)->data_type == weights_md(0)->data_type
+                    && md_dims_in_range(diff_src_md())
+                    && md_dims_in_range(weights_md());
 
             if (!ok) return status::unimplemented;
             return init_conf();
