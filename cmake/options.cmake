@@ -146,6 +146,7 @@ set(DNNL_ENABLE_PRIMITIVE_GPU_ISA "ALL" CACHE STRING
     at build time. Regardless of value chosen, reference OpenCL-based
     implementations will always be available. Valid values:
     - ALL (the default). Includes all ISA to be enabled.
+    - NONE. Includes no ISAs, just the generic kernels.
     - <ISA_NAME>;<ISA_NAME>;... Includes only selected ISA to be enabled.
       Possible values are: GEN9, GEN11, XELP, XEHP, XEHPG, XEHPC, XE2.")
 
@@ -281,13 +282,13 @@ endif()
 
 set(DNNL_GPU_VENDOR "NONE" CACHE STRING
     "When DNNL_GPU_RUNTIME is not NONE DNNL_GPU_VENDOR specifies target GPU
-    vendor for GPU engines. Can be INTEL (default), NVIDIA or AMD.")
+    vendor for GPU engines. Can be INTEL (default), GENERIC, NVIDIA or AMD.")
 
 if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE" AND DNNL_GPU_VENDOR STREQUAL "NONE")
     set(DNNL_GPU_VENDOR "INTEL")
 endif()
 
-if(NOT "${DNNL_GPU_VENDOR}" MATCHES "^(NONE|INTEL|NVIDIA|AMD)$")
+if(NOT "${DNNL_GPU_VENDOR}" MATCHES "^(NONE|GENERIC|INTEL|NVIDIA|AMD)$")
     message(FATAL_ERROR "Unsupported GPU vendor: ${DNNL_GPU_VENDOR}")
 endif()
 
