@@ -556,6 +556,12 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
         return;
     }
 
+    if (prb->alpha != 1.f) {
+        BENCHDNN_PRINT(2, "%s\n", "Alpha is purposely not supported");
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
 #endif
 }
 
