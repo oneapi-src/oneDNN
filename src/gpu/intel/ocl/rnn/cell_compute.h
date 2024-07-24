@@ -17,7 +17,7 @@
 #ifndef GPU_INTEL_OCL_RNN_CELL_COMPUTE_H
 #define GPU_INTEL_OCL_RNN_CELL_COMPUTE_H
 
-#include "gpu/intel/ocl/rnn/rnn_types.h"
+#include "gpu/intel/ocl/rnn/rnn_common.h"
 
 #if CELL_COMP_ENABLED
 #define DHC_TG get_local_size(0)
