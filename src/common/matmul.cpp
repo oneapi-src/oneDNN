@@ -49,7 +49,8 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     const data_type_t wei_dt = desc.weights_desc.data_type;
     const data_type_t dst_dt = desc.dst_desc.data_type;
 
-    auto attr_mask = smask_t::post_ops | smask_t::sum_dt | smask_t::dropout;
+    auto attr_mask = smask_t::post_ops | smask_t::sum_dt | smask_t::dropout
+            | smask_t::rounding_mode;
     // Matmul supports scales for floating point data types
     attr_mask |= smask_t::scales_runtime;
 
