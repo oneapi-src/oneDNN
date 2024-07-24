@@ -243,6 +243,7 @@ public:
 
 using float_prelu_fwd = prelu_fwd_t</* quantized */ false>;
 
+#if BUILD_TRAINING
 struct prelu_bwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
@@ -436,6 +437,7 @@ public:
     }
 #endif
 };
+#endif
 
 } // namespace dnnl_impl
 } // namespace graph

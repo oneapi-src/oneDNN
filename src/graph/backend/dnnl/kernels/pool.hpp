@@ -421,6 +421,7 @@ public:
 using float_pooling_fwd = pooling_fwd_t</* quantized */ false>;
 using quantized_pooling = pooling_fwd_t</* quantized */ true>;
 
+#if BUILD_TRAINING
 struct pooling_bwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
@@ -625,6 +626,7 @@ public:
     }
 #endif
 };
+#endif
 
 } // namespace dnnl_impl
 } // namespace graph

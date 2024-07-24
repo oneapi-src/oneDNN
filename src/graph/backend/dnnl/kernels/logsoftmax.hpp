@@ -230,6 +230,7 @@ public:
 #endif
 };
 
+#if BUILD_TRAINING
 struct logsoftmax_bwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
@@ -425,6 +426,7 @@ public:
         return status::success;
     }
 };
+#endif
 
 } // namespace dnnl_impl
 } // namespace graph

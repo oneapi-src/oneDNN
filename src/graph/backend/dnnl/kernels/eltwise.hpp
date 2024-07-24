@@ -393,6 +393,7 @@ public:
 using float_eltwise_fwd = eltwise_fwd_t</* quantized */ false>;
 using quantized_eltwise = eltwise_fwd_t</* quantized */ true>;
 
+#if BUILD_TRAINING
 struct eltwise_bwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
@@ -579,6 +580,7 @@ public:
     }
 #endif
 };
+#endif
 
 } // namespace dnnl_impl
 } // namespace graph

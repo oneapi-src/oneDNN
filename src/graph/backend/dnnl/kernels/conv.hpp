@@ -443,6 +443,7 @@ public:
     }
 };
 
+#if BUILD_TRAINING
 struct conv_bwd_data_t : public conv_base_t {
 public:
     status_t compile_impl(const dnnl_partition_impl_t *part,
@@ -568,6 +569,7 @@ public:
         return status::success;
     }
 };
+#endif
 
 using float_conv_fwd = conv_fwd_t</* quantized */ false>;
 using quantized_conv = conv_fwd_t</* quantized */ true>;
