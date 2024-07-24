@@ -20,3 +20,9 @@
 --bia_dt=f32
 --dt=bf16
 --batch=option_set_bf16
+
+# ukernel wtag support
+--reset
+--wtag=ba
+--dt=bf16
+--batch=option_set_bf16
