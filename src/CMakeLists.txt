@@ -125,16 +125,16 @@ endif()
 
 add_subdirectory(common)
 
+if(DNNL_WITH_SYCL OR DNNL_GPU_RUNTIME STREQUAL "OCL")
+    add_subdirectory(xpu)
+endif()
+
 if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
     add_subdirectory(cpu)
 endif()
 
 if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     add_subdirectory(gpu)
-endif()
-
-if(DNNL_WITH_SYCL OR DNNL_GPU_RUNTIME STREQUAL "OCL")
-    add_subdirectory(xpu)
 endif()
 
 if(DNNL_WITH_SYCL)
