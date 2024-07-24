@@ -41,6 +41,11 @@ struct softmax_fwd_kernel_vec_t {
         , dst_(dst) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t src_mem(src_, conf_.src_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+        memory_plain_t src_scale_mem(scale_src_, data_type::f32);
+        memory_plain_t dst_scale_mem(scale_dst_, data_type::f32);
+
         auto sg = item.get_sub_group();
         size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
         size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
@@ -48,7 +53,8 @@ struct softmax_fwd_kernel_vec_t {
         size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
         size_t base_idx = offset_t * conf_.block_size;
 
-        auto operation = [= WA_THIS_COPY_CAPTURE](dim_t &ou, dim_t &in) {
+        auto operation = [= WA_THIS_COPY_CAPTURE](
+                                 dim_t &ou, dim_t &in) mutable {
             float space_denom = 0;
             float space_max = -FLT_MAX;
             dim_t ou_in_offset = ou * conf_.channels * conf_.inner_size + in;
@@ -56,15 +62,13 @@ struct softmax_fwd_kernel_vec_t {
             for (dim_t c = 0; c < conf_.channels; c++) {
                 size_t off
                         = src_md().off_l(ou_in_offset + c * conf_.inner_size);
-                float s = load_float_value(
-                        src_md().data_type(), src_ptr(), off);
+                float s = src_mem.load(off);
                 space_max = nstl::max(space_max, s);
             }
             for (dim_t c = 0; c < conf_.channels; c++) {
                 size_t src_off
                         = src_md().off_l(ou_in_offset + c * conf_.inner_size);
-                float s = load_float_value(
-                        src_md().data_type(), src_ptr(), src_off);
+                float s = src_mem.load(src_off);
                 float d = s - space_max;
                 space_denom += ::sycl::exp((float)d);
             }
@@ -74,8 +78,7 @@ struct softmax_fwd_kernel_vec_t {
             for (dim_t c = 0; c < conf_.channels; c++) {
                 size_t src_off
                         = src_md().off_l(ou_in_offset + c * conf_.inner_size);
-                float s = load_float_value(
-                        src_md().data_type(), src_ptr(), src_off);
+                float s = src_mem.load(src_off);
                 float d = s - space_max;
                 if (conf_.alg_kind == alg_kind::softmax_accurate) {
                     d = ::sycl::exp((float)d);
@@ -88,17 +91,13 @@ struct softmax_fwd_kernel_vec_t {
                 }
 
                 float scale = 1.0f;
-                scale = conf_.do_scale_src
-                        ? load_float_value(data_type::f32, scale_src_ptr(), 0)
-                        : scale;
-                scale /= conf_.do_scale_dst
-                        ? load_float_value(data_type::f32, scale_dst_ptr(), 0)
-                        : 1.0f;
+                scale = conf_.do_scale_src ? src_scale_mem.load(0) : scale;
+                scale /= conf_.do_scale_dst ? dst_scale_mem.load(0) : 1.0f;
 
                 d = (d * scale);
                 size_t dst_off
                         = dst_md().off_l(ou_in_offset + c * conf_.inner_size);
-                store_float_value(dst_md().data_type(), d, dst_ptr(), dst_off);
+                dst_mem.store(d, dst_off);
             }
         };
 
@@ -117,11 +116,6 @@ private:
     const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
-    void *src_ptr() const { return src_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
-    void *scale_src_ptr() const { return scale_src_.get_pointer(); }
-    void *scale_dst_ptr() const { return scale_dst_.get_pointer(); }
-
     sycl_softmax_conf_t conf_;
     xpu::sycl::in_memory_arg_t src_;
     xpu::sycl::in_memory_arg_t scale_src_;
@@ -137,6 +131,10 @@ struct softmax_bwd_kernel_vec_t {
         : conf_(conf), dst_(dst), diff_dst_(diff_dst), diff_src_(diff_src) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+        memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);
+        memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
+
         auto sg = item.get_sub_group();
         size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
         size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
@@ -144,19 +142,18 @@ struct softmax_bwd_kernel_vec_t {
         size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
         size_t base_idx = offset_t * conf_.block_size;
 
-        auto operation = [= WA_THIS_COPY_CAPTURE](dim_t &ou, dim_t &in) {
+        auto operation = [= WA_THIS_COPY_CAPTURE](
+                                 dim_t &ou, dim_t &in) mutable {
             dim_t ou_in_offset = ou * conf_.channels * conf_.inner_size + in;
             float sbr = 0;
             for (dim_t c = 0; c < conf_.channels; ++c) {
                 auto diff_dst_off = diff_dst_md().off_l(
                         ou_in_offset + c * conf_.inner_size);
-                float dd = load_float_value(diff_dst_md().data_type(),
-                        diff_dst_ptr(), diff_dst_off);
+                float dd = diff_dst_mem.load(diff_dst_off);
                 if (conf_.alg_kind == alg_kind::softmax_accurate) {
                     auto dst_off = dst_md().off_l(
                             ou_in_offset + c * conf_.inner_size);
-                    float d = load_float_value(
-                            dst_md().data_type(), dst_ptr(), dst_off);
+                    float d = dst_mem.load(dst_off);
                     sbr += dd * d;
                 } else if (conf_.alg_kind == alg_kind::softmax_log) {
                     sbr += dd;
@@ -169,10 +166,8 @@ struct softmax_bwd_kernel_vec_t {
                 auto dst_off
                         = dst_md().off_l(ou_in_offset + c * conf_.inner_size);
 
-                float d = load_float_value(
-                        dst_md().data_type(), dst_ptr(), dst_off);
-                float dd = load_float_value(diff_dst_md().data_type(),
-                        diff_dst_ptr(), diff_dst_off);
+                float d = dst_mem.load(dst_off);
+                float dd = diff_dst_mem.load(diff_dst_off);
 
                 float val = 0;
                 if (conf_.alg_kind == alg_kind::softmax_accurate) {
@@ -183,8 +178,7 @@ struct softmax_bwd_kernel_vec_t {
 
                 auto diff_src_off = diff_src_md().off_l(
                         ou_in_offset + c * conf_.inner_size);
-                store_float_value(diff_src_md().data_type(), val,
-                        diff_src_ptr(), diff_src_off);
+                diff_src_mem.store(val, diff_src_off);
             }
         };
 
@@ -202,10 +196,6 @@ private:
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
     const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
-
-    void *dst_ptr() const { return dst_.get_pointer(); }
-    void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
-    void *diff_src_ptr() const { return diff_src_.get_pointer(); }
 
     sycl_softmax_conf_t conf_;
     xpu::sycl::in_memory_arg_t dst_;

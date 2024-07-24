@@ -37,6 +37,9 @@ struct shuffle_kernel_vec1_t {
         : conf_(conf), data_(data), dst_(dst) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t data_mem(data_, conf_.src_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+
         auto sg = item.get_sub_group();
         dim_t blk_size = conf_.block_size;
         const dim_t stride_mb = conf_.stride_m;
@@ -56,10 +59,8 @@ struct shuffle_kernel_vec1_t {
                 = xaxis * stride_mb + (i * conf_.transpose_row + j) * conf_.SP;
 
         for (dim_t sp = 0; sp < conf_.SP; ++sp) {
-            float dst = load_float_value(
-                    data_md().data_type(), data_ptr(), input_off + sp);
-            store_float_value(
-                    data_md().data_type(), dst, dst_ptr(), output_off + sp);
+            float dst = data_mem.load(input_off + sp);
+            dst_mem.store(dst, output_off + sp);
         }
     }
 
@@ -67,9 +68,6 @@ private:
     const xpu::sycl::md_t &data_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
     const xpu::sycl::md_t &stat_md() const { return conf_.stat_md; }
-
-    void *data_ptr() const { return data_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
 
     sycl_shuffle_conf_t conf_;
     xpu::sycl::in_memory_arg_t data_;
@@ -82,6 +80,9 @@ struct shuffle_kernel_vec2_t {
         : conf_(conf), data_(data), dst_(dst) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t data_mem(data_, conf_.src_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+
         const dim_t stride_mb = conf_.stride_m;
 
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
@@ -94,10 +95,9 @@ struct shuffle_kernel_vec2_t {
                 for (dim_t c = 0; c < conf_.C; ++c) {
                     dim_t i = c % conf_.transpose_col;
                     dim_t j = c / conf_.transpose_col;
-                    float dst = load_float_value(data_md().data_type(),
-                            data_ptr(), (off + (i * conf_.transpose_row + j)));
-                    store_float_value(
-                            data_md().data_type(), dst, dst_ptr(), off + c);
+                    float dst
+                            = data_mem.load(off + i * conf_.transpose_row + j);
+                    dst_mem.store(dst, off + c);
                 }
             }
         }
@@ -107,9 +107,6 @@ private:
     const xpu::sycl::md_t &data_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
     const xpu::sycl::md_t &stat_md() const { return conf_.stat_md; }
-
-    void *data_ptr() const { return data_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
 
     sycl_shuffle_conf_t conf_;
     xpu::sycl::in_memory_arg_t data_;
@@ -122,6 +119,9 @@ struct shuffle_kernel_vec3_t {
         : conf_(conf), data_(data), dst_(dst) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t data_mem(data_, conf_.src_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
         const dim_t outer_size = conf_.outer_size;
         const dim_t inner_size = conf_.inner_size;
@@ -137,13 +137,10 @@ struct shuffle_kernel_vec3_t {
                 int i = iwork % conf_.transpose_col;
                 for (dim_t in = 0; in < inner_size; in++) {
                     const dim_t off = ou * dim + in;
-                    float dst = load_float_value(data_md().data_type(),
-                            data_ptr(),
-                            data_md().off_l(off
-                                    + (i * conf_.transpose_row + j)
-                                            * inner_size));
-                    store_float_value(data_md().data_type(), dst, dst_ptr(),
-                            data_md().off_l(off + iwork * inner_size));
+                    float dst = data_mem.load(data_md().off_l(
+                            off + (i * conf_.transpose_row + j) * inner_size));
+                    dst_mem.store(
+                            dst, data_md().off_l(off + iwork * inner_size));
                 }
             }
         }
@@ -153,9 +150,6 @@ private:
     const xpu::sycl::md_t &data_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
     const xpu::sycl::md_t &stat_md() const { return conf_.stat_md; }
-
-    void *data_ptr() const { return data_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
 
     sycl_shuffle_conf_t conf_;
     xpu::sycl::in_memory_arg_t data_;

@@ -46,6 +46,11 @@ struct reorder_kernel_t {
         , scales_dst_dt_(scales_dst_dt) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t src_mem(src_, conf_.src_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+        memory_plain_t src_scale_mem(src_scale_, scales_src_dt_);
+        memory_plain_t dst_scale_mem(dst_scale_, scales_dst_dt_);
+
         auto sg = item.get_sub_group();
         size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
         size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
@@ -55,10 +60,10 @@ struct reorder_kernel_t {
         size_t base_idx = offset_t * conf_.block_size;
 
         float scale_src = conf_.do_scale_src && conf_.scale_src_mask == 0
-                ? load_float_value(scales_src_dt_, src_scale_ptr(), 0)
+                ? src_scale_mem.load(0)
                 : 1.f;
         float scale_dst = conf_.do_scale_dst && conf_.scale_dst_mask == 0
-                ? load_float_value(scales_dst_dt_, dst_scale_ptr(), 0)
+                ? dst_scale_mem.load(0)
                 : 1.f;
 
         dims_t dims, off, strides;
@@ -90,10 +95,8 @@ struct reorder_kernel_t {
                 }
 
                 int dst_idx = dst_md().off_v(off);
-                auto src = load_float_value(
-                        src_md().data_type(), src_ptr(), idx);
-                auto dst = load_float_value(
-                        dst_md().data_type(), dst_ptr(), dst_idx);
+                auto src = src_mem.load(idx);
+                auto dst = dst_mem.load(dst_idx);
 
                 if (conf_.do_scale_src) {
                     if (conf_.scale_src_mask != 0) {
@@ -107,8 +110,7 @@ struct reorder_kernel_t {
                                         + off_scales_i;
                             }
                         }
-                        scale_src = load_float_value(
-                                scales_src_dt_, src_scale_ptr(), scale_idx);
+                        scale_src = src_scale_mem.load(scale_idx);
                     }
                     src *= scale_src;
                 }
@@ -128,13 +130,11 @@ struct reorder_kernel_t {
                             }
                         }
 
-                        scale_dst = load_float_value(
-                                scales_dst_dt_, dst_scale_ptr(), scale_idx);
+                        scale_dst = dst_scale_mem.load(scale_idx);
                     }
                     acc /= scale_dst;
                 }
-                store_float_value(
-                        dst_md().data_type(), acc, dst_ptr(), dst_idx);
+                dst_mem.store(acc, dst_idx);
             }
         }
     }
@@ -142,15 +142,6 @@ struct reorder_kernel_t {
 private:
     const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
-
-    void *src_ptr() const { return src_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
-    float *src_scale_ptr() const {
-        return static_cast<float *>(src_scale_.get_pointer());
-    }
-    float *dst_scale_ptr() const {
-        return static_cast<float *>(dst_scale_.get_pointer());
-    }
 
     sycl_reorder_conf_t conf_;
 
