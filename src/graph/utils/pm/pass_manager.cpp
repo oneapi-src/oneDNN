@@ -84,7 +84,7 @@ void pass_manager_t::print_passes(std::ostream *os) {
 }
 
 impl::status_t pass_manager_t::run_passes(graph_t &agraph, std::istream *fs,
-        partition_policy_t policy, pass_filter_fn filter_fn) {
+        partition_policy_t policy, const pass_filter_fn &filter_fn) {
     impl::status_t status = impl::status::success;
 
     if (*fs) {
@@ -151,7 +151,7 @@ impl::status_t pass_manager_t::run_passes(graph_t &agraph, std::istream *fs,
 
 impl::status_t pass_manager_t::run_passes(graph_t &agraph,
         const std::string &pass_config_json, partition_policy_t policy,
-        pass_filter_fn filter_fn) {
+        const pass_filter_fn &filter_fn) {
     std::ifstream fs(pass_config_json.c_str());
     return run_passes(agraph, &fs, policy, filter_fn);
 }

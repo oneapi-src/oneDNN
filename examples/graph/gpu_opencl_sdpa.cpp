@@ -40,10 +40,10 @@ void gpu_float_sdpa(data_type dtype, int batch_size, int seq_len, int num_head,
     allocator alloc = ocl_interop::make_allocator(ocl_malloc_shared, ocl_free);
 
     cl_uint num_platforms = 0;
-    OCL_CHECK(clGetPlatformIDs(0, NULL, &num_platforms));
+    OCL_CHECK(clGetPlatformIDs(0, nullptr, &num_platforms));
     std::vector<cl_platform_id> platforms(num_platforms);
     if (num_platforms > 0) {
-        OCL_CHECK(clGetPlatformIDs(num_platforms, platforms.data(), NULL));
+        OCL_CHECK(clGetPlatformIDs(num_platforms, platforms.data(), nullptr));
     } else {
         throw "Cannot find any openCL platform!";
     }
@@ -51,11 +51,11 @@ void gpu_float_sdpa(data_type dtype, int batch_size, int seq_len, int num_head,
     std::vector<cl_device_id> gpu_device_ids;
     for (cl_platform_id &platform_id : platforms) {
         cl_uint num_devices;
-        if (!clGetDeviceIDs(
-                    platform_id, CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices)) {
+        if (!clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 0, nullptr,
+                    &num_devices)) {
             std::vector<cl_device_id> device_ids(num_devices);
             OCL_CHECK(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU,
-                    num_devices, device_ids.data(), NULL));
+                    num_devices, device_ids.data(), nullptr));
             gpu_device_ids.insert(
                     gpu_device_ids.end(), device_ids.begin(), device_ids.end());
         }
@@ -64,7 +64,7 @@ void gpu_float_sdpa(data_type dtype, int batch_size, int seq_len, int num_head,
 
     cl_device_id device_id = gpu_device_ids[0];
     cl_int err = 0;
-    auto ctx = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
+    auto ctx = clCreateContext(nullptr, 1, &device_id, nullptr, nullptr, &err);
     OCL_CHECK(err);
 
 // clCreateCommandQueue is deprecated in OpenCL.
