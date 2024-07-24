@@ -26,6 +26,8 @@
 
 #include "cpu/x64/brgemm/capi/brgemm_api.hpp"
 
+#ifdef DNNL_EXPERIMENTAL_UKERNEL
+
 using namespace dnnl::impl;
 using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::status;
@@ -372,5 +374,7 @@ status_t dnnl_brgemm_pack_B_destroy(brgemm_pack_B_t *brgemm_pack_B) {
     delete brgemm_pack_B;
     return status::success;
 }
+
+#endif
 
 //vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

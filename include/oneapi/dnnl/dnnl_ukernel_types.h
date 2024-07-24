@@ -33,6 +33,19 @@ extern "C" {
 /// @{
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
+
+/// Packing specification
+typedef enum {
+    /// Undefined pack type. A guard value.
+    dnnl_pack_type_undef = 0,
+    /// Plain, not transposed layout. Similar to format_tag::ab.
+    dnnl_pack_type_no_trans,
+    /// Plain, transposed layout. Similar to format_tag::ba.
+    dnnl_pack_type_trans,
+    /// Packed by 32 bits along K dimension layout.
+    dnnl_pack_type_pack32,
+} dnnl_pack_type_t;
+
 /// @addtogroup dnnl_api_ukernel_brgemm
 /// @{
 

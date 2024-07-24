@@ -61,6 +61,18 @@ namespace ukernel {
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
 
+/// Packing specification
+enum class pack_type {
+    /// Undefined pack type. A guard value.
+    undef = dnnl_pack_type_undef,
+    /// Plain, not transposed layout. Similar to format_tag::ab.
+    no_trans = dnnl_pack_type_no_trans,
+    /// Plain, transposed layout. Similar to format_tag::ba.
+    trans = dnnl_pack_type_trans,
+    /// Packed by 32 bits along K dimension layout.
+    pack32 = dnnl_pack_type_pack32,
+};
+
 /// @addtogroup dnnl_api_ukernel_brgemm BRGeMM ukernel
 /// BRGeMM ukernel routines
 /// @{

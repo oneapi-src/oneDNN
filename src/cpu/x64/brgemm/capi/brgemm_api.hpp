@@ -24,6 +24,27 @@
 
 #include "cpu/x64/brgemm/brgemm_types.hpp"
 
+#ifdef DNNL_EXPERIMENTAL_UKERNEL
+
+// A section identical to c_map_types.hpp but just for brgemm ukernel so far.
+namespace dnnl {
+namespace impl {
+namespace cpu {
+namespace x64 {
+
+using pack_type_t = dnnl_pack_type_t;
+namespace pack_type {
+const pack_type_t undef = dnnl_pack_type_undef;
+const pack_type_t no_trans = dnnl_pack_type_no_trans;
+const pack_type_t trans = dnnl_pack_type_trans;
+const pack_type_t pack32 = dnnl_pack_type_pack32;
+} // namespace pack_type
+
+} // namespace x64
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl
+
 struct dnnl_brgemm : public dnnl::impl::c_compatible {
     dnnl_brgemm(dnnl::impl::dim_t M, dnnl::impl::dim_t N, dnnl::impl::dim_t K,
             dnnl::impl::dim_t batch_size, dnnl::impl::dim_t lda,
@@ -108,6 +129,8 @@ private:
     std::unique_ptr<dnnl::impl::cpu::x64::matmul::jit_brgemm_matmul_copy_b_t>
             kernel_;
 };
+
+#endif
 
 #endif
 
