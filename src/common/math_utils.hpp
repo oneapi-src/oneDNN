@@ -24,6 +24,7 @@
 
 #include "dnnl_traits.hpp"
 #include "nstl.hpp"
+#include "type_helpers.hpp"
 #include "utils.hpp"
 
 namespace dnnl {
@@ -505,6 +506,61 @@ inline uint32_t philox4x32(uint32_t idx, uint32_t seed) {
     philox4x32round();
 
     return ctr[idx & 3L];
+}
+
+inline uint16_t philox8x16(uint32_t idx, uint32_t seed) {
+    // we split the index in two parts:
+    // - 31 msb are used to generate 32 random bits
+    // - 1 lsb is used to index 16-bit words within this 32 bit random
+    //   value
+    uint32_t r = philox4x32(idx >> 1, seed);
+    return (uint16_t)(r >> ((idx & 1) * sizeof(uint16_t)));
+}
+
+inline uint8_t philox16x8(uint32_t idx, uint32_t seed) {
+    // we split the index in two parts:
+    // - 30 msb are used to generate 32 random bits
+    // - 2 lsb is used to index 8-bit words within this 32 bit random
+    //   value
+    uint32_t r = philox4x32(idx >> 2, seed);
+    return (uint8_t)(r >> ((idx & 3) * sizeof(uint8_t)));
+}
+
+inline float stochastic_round_fwd(
+        float s, uint32_t idx, uint32_t seed, data_type_t dst_dt) {
+    // The general algorithm for stochastic rounding:
+    // - generates random bias
+    // - aligns the bias to dst_dt mantissa precision
+    // - add the bias and truncate to destination accuracy.
+    // - saturate properly to final destination datatype
+
+    // Note: the bias alignment performed allows to apply stochastic
+    // flush-to-zero (sftz).
+
+    // TODO: NaN handling when dst_dt has no NaN
+    if (std::isnan(s)) return s;
+
+    using namespace dnnl::impl::types;
+    assert(digits<uint32_t>(data_type::f32) >= digits<uint32_t>(dst_dt));
+
+    uint32_t truncation_mask = 0xffffffff
+            << (digits<uint32_t>(data_type::f32) - digits<uint32_t>(dst_dt));
+
+    // IMPORTANT: lsb of bias are used.
+    uint32_t rnd_bias = data_type_size(dst_dt) == 16 ? philox16x8(idx, seed)
+                                                     : philox8x16(idx, seed);
+    rnd_bias = rnd_bias & ~truncation_mask;
+
+    uint32_t s_u = utils::bit_cast<uint32_t>(s);
+    uint32_t r_u = (s_u + rnd_bias) & truncation_mask;
+    float r = utils::bit_cast<float>(r_u);
+    // Result saturation and flush to zero.
+    r = nstl::min(nstl::max(r, lowest_value<float>(dst_dt)),
+            max_value<float>(dst_dt));
+    if (r > 0 && r < min_value<float>(dst_dt)) r = 0;
+    if (r < 0 && r > -min_value<float>(dst_dt)) r = 0;
+
+    return r;
 }
 
 } // namespace math
