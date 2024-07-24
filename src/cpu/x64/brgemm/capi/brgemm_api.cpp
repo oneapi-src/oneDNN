@@ -42,16 +42,146 @@ using brgemm_pack_B_t = dnnl_brgemm_pack_B;
     VCONDCHECK(primitive, create, check, brgemm, (cond), (status), msg, \
             ##__VA_ARGS__)
 
+dnnl_brgemm::~dnnl_brgemm() {
+    brgemm_kernel_destroy(brgemm_kernel_);
+}
+
+status_t brgemm_t::create() {
+    brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_offs;
+
+    auto status = brgemm_desc_init(&brgemm_desc_, cpu_isa_t::isa_undef,
+            batch_kind, a_dt_, b_dt_, /* transA = */ false,
+            /* trans_B = */ false, brgemm_row_major, /* alpha = */ 1.f, beta_,
+            lda_, ldb_, ldc_, M_, N_, K_,
+            /* strides = */ nullptr);
+    if (status != status::success) {
+        VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_init failed");
+    }
+
+    memory_desc_t D_md;
+    dims_t dims {M_, N_};
+    dims_t strides {ldc_, 1};
+    status = memory_desc_init_by_strides(
+            D_md, /* ndims = */ 2, dims, d_dt_, strides);
+    if (status != status::success) {
+        VCHECK_BRGEMM_STATUS(status, false, "D_md creation failed");
+    }
+
+    status = brgemm_desc_set_postops(
+            &brgemm_desc_, &attr_, &D_md, ldd_, data_type::undef);
+    if (status != status::success) {
+        VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_set_postops failed");
+    }
+
+    brgemm_attr_t brgemm_attr;
+    brgemm_attr.max_bs = batch_size_;
+    if (mayiuse(avx512_core_amx)) {
+        brgemm_attr.use_uker = true;
+        brgemm_attr.use_interleave_stores = true;
+        brgemm_attr.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf0;
+    }
+
+    status = brgemm_desc_set_attr(&brgemm_desc_, brgemm_attr);
+    if (status != status::success) {
+        VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_set_attr failed");
+    }
+
+    // Note: API can't take a compensation buffer externally. Users must add
+    // compensation on their own as a binary post-op.
+    brgemm_desc_.req_s8s8_compensation = false;
+
+    return status::success;
+}
+
+size_t brgemm_t::get_scratchpad_size() const {
+    return brgemm_desc_.get_wsp_buffer_size();
+}
+
+status_t brgemm_t::set_hw_context() const {
+    char palette[AMX_PALETTE_SIZE] = {};
+    auto status = brgemm_init_tiles(brgemm_desc_, palette);
+    // If status isn't successful, it means tiles configuration is not required.
+    if (status == status::success) {
+        status = amx_tile_lazy_configure(palette);
+        VCHECK_BRGEMM_STATUS(
+                status, status == status::success, "amx_tile_configure failed");
+    }
+    return status::success;
+}
+
+status_t brgemm_t::generate() {
+    // Re-generation won't take any effect.
+    if (brgemm_kernel_ != nullptr) return status::success;
+
+    auto status = brgemm_kernel_create(&brgemm_kernel_, brgemm_desc_);
+    VCHECK_BRGEMM_STATUS(
+            status, status == status::success, "brgemm_kernel_create failed");
+
+    return status::success;
+}
+
+status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
+        const dim_t *A_B_offsets, void *C_ptr, void *scratchpad_ptr) const {
+    const auto batch_size = brgemm_desc_.brgattr.max_bs;
+    std::vector<brgemm_batch_element_t> v_batch_element(batch_size);
+    for (int i = 0; i < batch_size; i++) {
+        v_batch_element[i].offset.A = A_B_offsets[2 * i];
+        v_batch_element[i].offset.B = A_B_offsets[2 * i + 1];
+    }
+
+    brgemm_kernel_execute(brgemm_kernel_, batch_size, A_ptr, B_ptr,
+            v_batch_element.data(), C_ptr, scratchpad_ptr,
+            /* dynamic_values = */ nullptr);
+    return status::success;
+}
+
+status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
+        const dim_t *A_B_offsets, const void *C_ptr, void *D_ptr,
+        void *scratchpad_ptr, const void *binary_po_ptr) const {
+    const auto batch_size = brgemm_desc_.brgattr.max_bs;
+    std::vector<brgemm_batch_element_t> v_batch_element(batch_size);
+    for (int i = 0; i < batch_size; i++) {
+        v_batch_element[i].offset.A = A_B_offsets[2 * i];
+        v_batch_element[i].offset.B = A_B_offsets[2 * i + 1];
+    }
+
+    brgemm_post_ops_data_t post_ops_data;
+    // Note: this member is used to compute an offset from the base DST address.
+    // Thus, it's not a C buffer that should be passed, but D buffer.
+    post_ops_data.data_C_ptr_ = reinterpret_cast<const char *>(D_ptr);
+    // This member expects a pointer to a vector of pointers to binary_po args.
+    post_ops_data.binary_post_ops_rhs = &binary_po_ptr;
+
+    if (D_ptr && c_dt_ == d_dt_
+            && attr_.has_default_values(
+                    primitive_attr_t::skip_mask_t::fpmath_mode)) {
+        C_ptr = D_ptr;
+    }
+
+    brgemm_kernel_execute_postops(brgemm_kernel_, batch_size, A_ptr, B_ptr,
+            v_batch_element.data(), const_cast<void *>(C_ptr), D_ptr,
+            post_ops_data, scratchpad_ptr,
+            /* dynamic_values = */ nullptr);
+    return status::success;
+}
+
 dnnl_brgemm_pack_B::dnnl_brgemm_pack_B(dim_t K, dim_t N, dim_t in_ld,
-        dim_t out_ld, data_type_t in_dt, data_type_t out_dt) {
+        dim_t out_ld, data_type_t in_dt, data_type_t out_dt)
+    : K_(K)
+    , N_(N)
+    , in_ld_(in_ld)
+    , out_ld_(out_ld)
+    , in_dt_(in_dt)
+    , out_dt_(out_dt) {
     // So far, only `ab` input format (dense or strided) is supported.
-    assert(in_ld >= N);
+    assert(in_ld_ >= N);
+    UNUSED(in_ld_);
     // Only special N_blk sizes are supported by matmul copy routines. Rest
     // will crash.
-    assert(utils::one_of(out_ld, 16, 32, 48, 64));
+    assert(utils::one_of(out_ld_, 16, 32, 48, 64));
 
-    auto status = matmul::init_conf(
-            bmc_, /* batch = */ 1, K, N, out_ld, in_dt, out_dt, format_tag::ab);
+    auto status = matmul::init_conf(bmc_, /* batch = */ 1, K_, N_, out_ld_,
+            in_dt_, out_dt_, format_tag::ab);
     assert(status == status::success);
     if (status != status::success) return;
 }
@@ -67,16 +197,15 @@ bool brgemm_pack_B_t::need_pack() const {
     }
 }
 
-void brgemm_pack_B_t::generate() {
+status_t brgemm_pack_B_t::generate() {
     // Re-generation won't take any effect.
-    if (kernel_ != nullptr) return;
+    if (kernel_ != nullptr) return status::success;
 
-    auto status = matmul::create_brgemm_matmul_copy_b(kernel_, &bmc_);
-    assert(status == status::success);
-    if (status != status::success) return;
+    CHECK(matmul::create_brgemm_matmul_copy_b(kernel_, &bmc_));
+    return status::success;
 }
 
-void brgemm_pack_B_t::execute(const void *src, void *dst) const {
+status_t brgemm_pack_B_t::execute(const void *src, void *dst) const {
     const uint8_t *src_ptr = reinterpret_cast<const uint8_t *>(src);
     uint8_t *dst_ptr = reinterpret_cast<uint8_t *>(dst);
 
@@ -123,6 +252,8 @@ void brgemm_pack_B_t::execute(const void *src, void *dst) const {
             (*kernel_)(&ker_exec_ctx);
         }
     }
+
+    return status::success;
 }
 
 ////////////////
@@ -137,81 +268,29 @@ status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
         dim_t batch_size, dim_t lda, dim_t ldb, dim_t ldc, dim_t ldd,
         data_type_t a_dt, data_type_t b_dt, data_type_t c_dt, data_type_t d_dt,
         float alpha, float beta, const primitive_attr_t *attr) {
-    if (brgemm == nullptr) return invalid_arguments;
-
-    auto _brgemm = utils::make_unique<brgemm_t>();
-    auto &brgemm_desc = _brgemm->brgemm_desc_;
-
-    brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_offs;
-
-    auto status = brgemm_desc_init(&brgemm_desc, cpu_isa_t::isa_undef,
-            batch_kind, a_dt, b_dt, /* transA = */ false, /* trans_B = */ false,
-            brgemm_row_major, alpha, beta, lda, ldb, ldc, M, N, K,
-            /* strides = */ nullptr);
-    if (status != status::success) {
-        VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_init failed");
-    }
-
-    memory_desc_t D_md;
-    dims_t dims {M, N};
-    dims_t strides {ldc, 1};
-    status = memory_desc_init_by_strides(
-            D_md, /* ndims = */ 2, dims, d_dt, strides);
-    if (status != status::success) {
-        VCHECK_BRGEMM_STATUS(status, false, "D_md creation failed");
-    }
-
-    status = brgemm_desc_set_postops(
-            &brgemm_desc, attr, &D_md, ldd, data_type::undef);
-    if (status != status::success) {
-        VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_set_postops failed");
-    }
-
     if (batch_size <= 0) {
         VCHECK_BRGEMM_STATUS(
                 status::invalid_arguments, false, "batch size is non-positive");
     }
 
-    brgemm_attr_t brgemm_attr;
-    brgemm_attr.max_bs = batch_size;
-    if (mayiuse(avx512_core_amx)) {
-        brgemm_attr.use_uker = true;
-        brgemm_attr.use_interleave_stores = true;
-        brgemm_attr.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf0;
-    }
-
-    status = brgemm_desc_set_attr(&brgemm_desc, brgemm_attr);
-    if (status != status::success) {
-        VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_set_attr failed");
-    }
-
-    // Note: API can't take a compensation buffer externally. Users must add
-    // compensation on their own as a binary post-op.
-    brgemm_desc.req_s8s8_compensation = false;
-
+    auto _brgemm = utils::make_unique<brgemm_t>(M, N, K, batch_size, lda, ldb,
+            ldc, ldd, a_dt, b_dt, c_dt, d_dt, beta, attr);
+    CHECK(_brgemm->create());
     *brgemm = _brgemm.release();
     return status::success;
 }
 
 status_t dnnl_brgemm_get_scratchpad_size(const brgemm_t *brgemm, size_t *size) {
-    if (utils::any_null(brgemm, size)) return invalid_arguments;
+    if (brgemm == nullptr) return invalid_arguments;
 
-    *size = brgemm->brgemm_desc_.get_wsp_buffer_size();
+    if (size) *size = brgemm->get_scratchpad_size();
     return status::success;
 }
 
 status_t dnnl_brgemm_set_hw_context(const brgemm_t *brgemm) {
     if (brgemm == nullptr) return invalid_arguments;
 
-    const auto &brgemm_desc = brgemm->brgemm_desc_;
-    char palette[AMX_PALETTE_SIZE] = {};
-    auto status = brgemm_init_tiles(brgemm_desc, palette);
-    if (status == status::success) {
-        status = amx_tile_lazy_configure(palette);
-        VCHECK_BRGEMM_STATUS(
-                status, status == status::success, "amx_tile_configure failed");
-    }
-
+    CHECK(brgemm->set_hw_context());
     return status::success;
 }
 
@@ -227,77 +306,27 @@ status_t dnnl_brgemm_release_hw_context() {
 status_t dnnl_brgemm_generate(brgemm_t *brgemm) {
     if (brgemm == nullptr) return invalid_arguments;
 
-    // Re-generation won't take any effect.
-    if (brgemm->brgemm_kernel_ != nullptr) return status::success;
-
-    auto &brgemm_desc = brgemm->brgemm_desc_;
-    auto status = brgemm_kernel_create(&brgemm->brgemm_kernel_, brgemm_desc);
-    VCHECK_BRGEMM_STATUS(
-            status, status == status::success, "brgemm_kernel_create failed");
-
+    CHECK(brgemm->generate());
     return status::success;
 }
 
 status_t dnnl_brgemm_execute(const brgemm_t *brgemm, const void *A_ptr,
         const void *B_ptr, const dim_t *A_B_offsets, void *C_ptr,
         void *scratchpad_ptr) {
-    const auto &brgemm_desc = brgemm->brgemm_desc_;
-    const auto &brgemm_kernel = brgemm->brgemm_kernel_;
-
-    const auto batch_size = brgemm_desc.brgattr.max_bs;
-
-    std::vector<brgemm_batch_element_t> v_batch_element(batch_size);
-    for (int i = 0; i < batch_size; i++) {
-        v_batch_element[i].offset.A = A_B_offsets[2 * i];
-        v_batch_element[i].offset.B = A_B_offsets[2 * i + 1];
-    }
-
-    brgemm_kernel_execute(brgemm_kernel, batch_size, A_ptr, B_ptr,
-            v_batch_element.data(), C_ptr, scratchpad_ptr,
-            /* dynamic_values = */ nullptr);
+    CHECK(brgemm->execute(A_ptr, B_ptr, A_B_offsets, C_ptr, scratchpad_ptr));
     return status::success;
 }
 
 status_t dnnl_brgemm_execute_postops(const brgemm_t *brgemm, const void *A_ptr,
         const void *B_ptr, const dim_t *A_B_offsets, const void *C_ptr,
         void *D_ptr, void *scratchpad_ptr, const void *binary_po_ptr) {
-    const auto &brgemm_desc = brgemm->brgemm_desc_;
-    const auto &brgemm_kernel = brgemm->brgemm_kernel_;
-
-    const auto batch_size = brgemm_desc.brgattr.max_bs;
-
-    std::vector<brgemm_batch_element_t> v_batch_element(batch_size);
-    for (int i = 0; i < batch_size; i++) {
-        v_batch_element[i].offset.A = A_B_offsets[2 * i];
-        v_batch_element[i].offset.B = A_B_offsets[2 * i + 1];
-    }
-
-    brgemm_post_ops_data_t post_ops_data;
-    // Note: this member is used to compute an offset from the base DST address.
-    // Thus, it's not a C buffer that should be passed, but D buffer.
-    post_ops_data.data_C_ptr_ = reinterpret_cast<const char *>(D_ptr);
-    // This member expect a pointer to a vector of pointers to binary_po args.
-    post_ops_data.binary_post_ops_rhs = &binary_po_ptr;
-
-    bool use_D_as_C = false;
-    if (brgemm_desc.dt_c == brgemm_desc.dt_d
-            && brgemm_desc.attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::fpmath_mode))
-        use_D_as_C = true;
-
-    if (use_D_as_C) C_ptr = D_ptr;
-
-    brgemm_kernel_execute_postops(brgemm_kernel, batch_size, A_ptr, B_ptr,
-            v_batch_element.data(), const_cast<void *>(C_ptr), D_ptr,
-            post_ops_data, scratchpad_ptr,
-            /* dynamic_values = */ nullptr);
+    CHECK(brgemm->execute(A_ptr, B_ptr, A_B_offsets, C_ptr, D_ptr,
+            scratchpad_ptr, binary_po_ptr));
     return status::success;
 }
 
 status_t dnnl_brgemm_destroy(brgemm_t *brgemm) {
-    brgemm_kernel_destroy(brgemm->brgemm_kernel_);
     delete brgemm;
-
     return status::success;
 }
 
@@ -326,7 +355,7 @@ status_t dnnl_brgemm_pack_B_need_pack(
 status_t dnnl_brgemm_pack_B_generate(brgemm_pack_B_t *brgemm_pack_B) {
     if (brgemm_pack_B == nullptr) return status::invalid_arguments;
 
-    brgemm_pack_B->generate();
+    CHECK(brgemm_pack_B->generate());
     return status::success;
 }
 
@@ -335,7 +364,7 @@ status_t dnnl_brgemm_pack_B_execute(const brgemm_pack_B_t *brgemm_pack_B,
     if (utils::any_null(brgemm_pack_B, in_ptr, out_ptr))
         return status::invalid_arguments;
 
-    brgemm_pack_B->execute(in_ptr, out_ptr);
+    CHECK(brgemm_pack_B->execute(in_ptr, out_ptr));
     return status::success;
 }
 
