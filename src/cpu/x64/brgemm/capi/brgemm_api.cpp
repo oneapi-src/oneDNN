@@ -42,6 +42,97 @@ using brgemm_pack_B_t = dnnl_brgemm_pack_B;
     VCONDCHECK(primitive, create, check, brgemm, (cond), (status), msg, \
             ##__VA_ARGS__)
 
+dnnl_brgemm_pack_B::dnnl_brgemm_pack_B(dim_t K, dim_t N, dim_t in_ld,
+        dim_t out_ld, data_type_t in_dt, data_type_t out_dt) {
+    // So far, only `ab` input format (dense or strided) is supported.
+    assert(in_ld >= N);
+    // Only special N_blk sizes are supported by matmul copy routines. Rest
+    // will crash.
+    assert(utils::one_of(out_ld, 16, 32, 48, 64));
+
+    auto status = matmul::init_conf(
+            bmc_, /* batch = */ 1, K, N, out_ld, in_dt, out_dt, format_tag::ab);
+    assert(status == status::success);
+    if (status != status::success) return;
+}
+
+bool brgemm_pack_B_t::need_pack() const {
+    // TODO: move on unified method from the library.
+    if (bmc_.orig_wei_dt == data_type::f32) {
+        return false;
+    } else if (bmc_.orig_wei_dt == data_type::f16) {
+        return mayiuse(avx512_core_amx_fp16) || mayiuse(avx2_vnni_2);
+    } else {
+        return true;
+    }
+}
+
+void brgemm_pack_B_t::generate() {
+    // Re-generation won't take any effect.
+    if (kernel_ != nullptr) return;
+
+    auto status = matmul::create_brgemm_matmul_copy_b(kernel_, &bmc_);
+    assert(status == status::success);
+    if (status != status::success) return;
+}
+
+void brgemm_pack_B_t::execute(const void *src, void *dst) const {
+    const uint8_t *src_ptr = reinterpret_cast<const uint8_t *>(src);
+    uint8_t *dst_ptr = reinterpret_cast<uint8_t *>(dst);
+
+    const auto &kernel_conf = bmc_;
+    const dim_t n_blks = utils::div_up(kernel_conf.N, kernel_conf.N_blk);
+    const dim_t k_blks = utils::div_up(kernel_conf.K, kernel_conf.K_blk);
+    const auto blk_size = kernel_conf.K_blk * kernel_conf.N_blk;
+
+    const auto i_dt_sz = kernel_conf.b_dt_sz;
+    const auto o_dt_sz = kernel_conf.a_dt_sz;
+
+    for (dim_t n_blk_idx = 0; n_blk_idx < n_blks; n_blk_idx++) {
+        const auto n = n_blk_idx * kernel_conf.N_blk;
+        const bool is_N_tail = (kernel_conf.N - n) < kernel_conf.N_blk;
+        auto ker_exec_ctx = matmul::jit_brgemm_matmul_copy_b_t::ctx_t();
+        ker_exec_ctx.current_N_blk
+                = is_N_tail ? kernel_conf.N_tail : kernel_conf.N_blk;
+
+        int k_blk_idx = 0;
+        for (; k_blk_idx < kernel_conf.K / kernel_conf.K_blk; k_blk_idx++) {
+            const auto k = k_blk_idx * kernel_conf.K_blk;
+            assert(kernel_conf.wei_tag == format_tag::ab);
+            // Since only `ab` is supported so far, hard code the stride.
+            const auto src_offset = i_dt_sz * (k * kernel_conf.N + n);
+            const auto dst_offset
+                    = o_dt_sz * (k_blk_idx * blk_size + n_blk_idx * k_blks);
+            ker_exec_ctx.src = &src_ptr[src_offset];
+            ker_exec_ctx.tr_src = &dst_ptr[dst_offset];
+            ker_exec_ctx.current_K_start = k;
+            ker_exec_ctx.current_K_iters = kernel_conf.K_blk;
+            (*kernel_)(&ker_exec_ctx);
+        }
+        if (kernel_conf.K_tail > 0) {
+            const auto k = k_blk_idx * kernel_conf.K_blk;
+            assert(kernel_conf.wei_tag == format_tag::ab);
+            // Since only `ab` is supported so far, hard code the stride.
+            const auto src_offset = i_dt_sz * (k * kernel_conf.N + n);
+            const auto dst_offset
+                    = o_dt_sz * (k_blk_idx * blk_size + n_blk_idx * k_blks);
+            ker_exec_ctx.src = &src_ptr[src_offset];
+            ker_exec_ctx.tr_src = &dst_ptr[dst_offset];
+            ker_exec_ctx.current_K_start = k;
+            ker_exec_ctx.current_K_iters = kernel_conf.K_tail;
+            (*kernel_)(&ker_exec_ctx);
+        }
+    }
+}
+
+////////////////
+// Public API //
+////////////////
+
+////////////
+// BRGeMM //
+////////////
+
 status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
         dim_t batch_size, dim_t lda, dim_t ldb, dim_t ldc, dim_t ldd,
         data_type_t a_dt, data_type_t b_dt, data_type_t c_dt, data_type_t d_dt,
@@ -210,88 +301,9 @@ status_t dnnl_brgemm_destroy(brgemm_t *brgemm) {
     return status::success;
 }
 
-dnnl_brgemm_pack_B::dnnl_brgemm_pack_B(dim_t K, dim_t N, dim_t in_ld,
-        dim_t out_ld, data_type_t in_dt, data_type_t out_dt) {
-    // So far, only `ab` input format (dense or strided) is supported.
-    assert(in_ld >= N);
-    // Only special N_blk sizes are supported by matmul copy routines. Rest
-    // will crash.
-    assert(utils::one_of(out_ld, 16, 32, 48, 64));
-
-    auto status = matmul::init_conf(
-            bmc_, /* batch = */ 1, K, N, out_ld, in_dt, out_dt, format_tag::ab);
-    assert(status == status::success);
-    if (status != status::success) return;
-}
-
-bool brgemm_pack_B_t::need_pack() const {
-    // TODO: move on unified method from the library.
-    if (bmc_.orig_wei_dt == data_type::f32) {
-        return false;
-    } else if (bmc_.orig_wei_dt == data_type::f16) {
-        return mayiuse(avx512_core_amx_fp16) || mayiuse(avx2_vnni_2);
-    } else {
-        return true;
-    }
-}
-
-void brgemm_pack_B_t::generate() {
-    // Re-generation won't take any effect.
-    if (kernel_ != nullptr) return;
-
-    auto status = matmul::create_brgemm_matmul_copy_b(kernel_, &bmc_);
-    assert(status == status::success);
-    if (status != status::success) return;
-}
-
-void brgemm_pack_B_t::execute(const void *src, void *dst) const {
-    const uint8_t *src_ptr = reinterpret_cast<const uint8_t *>(src);
-    uint8_t *dst_ptr = reinterpret_cast<uint8_t *>(dst);
-
-    const auto &kernel_conf = bmc_;
-    const dim_t n_blks = utils::div_up(kernel_conf.N, kernel_conf.N_blk);
-    const dim_t k_blks = utils::div_up(kernel_conf.K, kernel_conf.K_blk);
-    const auto blk_size = kernel_conf.K_blk * kernel_conf.N_blk;
-
-    const auto i_dt_sz = kernel_conf.b_dt_sz;
-    const auto o_dt_sz = kernel_conf.a_dt_sz;
-
-    for (dim_t n_blk_idx = 0; n_blk_idx < n_blks; n_blk_idx++) {
-        const auto n = n_blk_idx * kernel_conf.N_blk;
-        const bool is_N_tail = (kernel_conf.N - n) < kernel_conf.N_blk;
-        auto ker_exec_ctx = matmul::jit_brgemm_matmul_copy_b_t::ctx_t();
-        ker_exec_ctx.current_N_blk
-                = is_N_tail ? kernel_conf.N_tail : kernel_conf.N_blk;
-
-        int k_blk_idx = 0;
-        for (; k_blk_idx < kernel_conf.K / kernel_conf.K_blk; k_blk_idx++) {
-            const auto k = k_blk_idx * kernel_conf.K_blk;
-            assert(kernel_conf.wei_tag == format_tag::ab);
-            // Since only `ab` is supported so far, hard code the stride.
-            const auto src_offset = i_dt_sz * (k * kernel_conf.N + n);
-            const auto dst_offset
-                    = o_dt_sz * (k_blk_idx * blk_size + n_blk_idx * k_blks);
-            ker_exec_ctx.src = &src_ptr[src_offset];
-            ker_exec_ctx.tr_src = &dst_ptr[dst_offset];
-            ker_exec_ctx.current_K_start = k;
-            ker_exec_ctx.current_K_iters = kernel_conf.K_blk;
-            (*kernel_)(&ker_exec_ctx);
-        }
-        if (kernel_conf.K_tail > 0) {
-            const auto k = k_blk_idx * kernel_conf.K_blk;
-            assert(kernel_conf.wei_tag == format_tag::ab);
-            // Since only `ab` is supported so far, hard code the stride.
-            const auto src_offset = i_dt_sz * (k * kernel_conf.N + n);
-            const auto dst_offset
-                    = o_dt_sz * (k_blk_idx * blk_size + n_blk_idx * k_blks);
-            ker_exec_ctx.src = &src_ptr[src_offset];
-            ker_exec_ctx.tr_src = &dst_ptr[dst_offset];
-            ker_exec_ctx.current_K_start = k;
-            ker_exec_ctx.current_K_iters = kernel_conf.K_tail;
-            (*kernel_)(&ker_exec_ctx);
-        }
-    }
-}
+///////////////////
+// BRGeMM Pack B //
+///////////////////
 
 status_t dnnl_brgemm_pack_B_create(brgemm_pack_B_t **brgemm_pack_B, dim_t K,
         dim_t N, dim_t in_ld, dim_t out_ld, data_type_t in_dt,
