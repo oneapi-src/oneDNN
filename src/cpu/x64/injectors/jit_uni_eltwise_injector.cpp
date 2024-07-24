@@ -16,6 +16,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 

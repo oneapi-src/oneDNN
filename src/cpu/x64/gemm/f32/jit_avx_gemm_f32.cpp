@@ -20,6 +20,7 @@
 #include <mutex>
 
 #include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"

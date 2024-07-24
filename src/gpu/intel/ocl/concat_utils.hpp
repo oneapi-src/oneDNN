@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <numeric>
 
+#include "common/math_utils.hpp"
 #include "gpu/intel/compute/dispatch.hpp"
 
 namespace dnnl {
