@@ -29,44 +29,10 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-inline std::string to_string(ngen::HW hw) {
-#define CASE(name) \
-    case ngen::HW::name: return #name;
-    switch (hw) {
-        CASE(Unknown)
-        CASE(Gen9)
-        CASE(Gen10)
-        CASE(Gen11)
-        CASE(XeLP)
-        CASE(XeHP)
-        CASE(XeHPG)
-        CASE(XeHPC)
-        CASE(Xe2)
-        default: ir_error_not_expected();
-    }
-#undef CASE
-    return "Unexpected";
-}
-
-inline ngen::HW str_to_ngen_hw(const std::string &s) {
-#define CASE(name) \
-    do { \
-        auto s_cur = to_string(ngen::HW::name); \
-        if (utils::one_of(s, s_cur, ir_utils::to_lower(s_cur))) \
-            return ngen::HW::name; \
-    } while (false)
-    CASE(Unknown);
-    CASE(Gen9);
-    CASE(Gen10);
-    CASE(Gen11);
-    CASE(XeLP);
-    CASE(XeHP);
-    CASE(XeHPG);
-    CASE(XeHPC);
-    CASE(Xe2);
-#undef CASE
-    return ngen::HW::Unknown;
-}
+std::string to_string(ngen::HW hw);
+std::string to_string(ngen::ProductFamily family);
+ngen::HW str_to_ngen_hw(const std::string &s);
+ngen::ProductFamily str_to_ngen_product_family(const std::string &s);
 
 // Provides access to HW configuration which includes non-configurable
 // properties.
@@ -80,6 +46,8 @@ public:
 
         auto *device_info = compute_engine->device_info();
         gpu_arch_t gpu_arch = device_info->gpu_arch();
+        product_family_ = static_cast<ngen::ProductFamily>(
+                device_info->gpu_product_family());
         stepping_id_ = device_info->stepping_id();
         eu_count_ = device_info->eu_count();
         max_wg_size_ = static_cast<int>(
@@ -104,6 +72,7 @@ public:
     bool is_undef() const { return hw_ == ngen::HW::Unknown; }
     bool has_fp64_atomic_support() const { return with_atomic_fp64_; }
     ngen::HW to_ngen() const { return hw_; }
+    ngen::ProductFamily product_family() const { return product_family_; }
     int stepping_id() const { return stepping_id_; }
     int eu_count() const { return eu_count_; }
     int large_grf_support() const { return large_grf_support_; }
@@ -199,6 +168,7 @@ private:
     }
 
     ngen::HW hw_ = ngen::HW::Unknown;
+    ngen::ProductFamily product_family_ = ngen::ProductFamily::Unknown;
     int stepping_id_ = -1;
     int eu_count_ = 0;
     int max_wg_size_ = 0;

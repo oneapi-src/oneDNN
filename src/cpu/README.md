@@ -5,12 +5,14 @@ The source code is organized in a modular way to separate generic code that
 does not depend or weakly depends on architecture from architecture-specific
 code.
 - The generic code is located under `cpu/`;
-- The architecture-specific code is put into `cpu/<arch>/` sub-directories.
+- The architecture-specific code is put into `cpu/<arch>/` sub-directories;
+- The SYCL-specific code is put into `cpu/sycl/` sub-directory.
 
 ## Directory structure
 
 ```
 cpu
+├── sycl/               # SYCL-specific sub-directory
 ├── gemm/               # Generic GEMM implementation (may call <arch>/gemm)
 ├── rnn/                # Generic RNN implementation (may call <arch>/rnn)
 ├── x64                 # x64-specific sub-directory

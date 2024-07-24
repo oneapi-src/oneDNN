@@ -17,7 +17,7 @@
 #include "gpu/intel/ocl/rnn/rnn_utils.hpp"
 
 #include "common/c_types_map.hpp"
-#include "gpu/intel/ocl/rnn/ref_rnn.hpp"
+#include "gpu/intel/ocl/rnn/rnn_grid.hpp"
 #include "gpu/intel/utils.hpp"
 
 namespace dnnl {

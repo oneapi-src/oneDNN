@@ -19,6 +19,8 @@
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/gemm/gemm.hpp"
+
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
@@ -313,10 +315,10 @@ void jit_sse41_gemv_n_f32_kern::generate() {
 // Function signature: gemv(*m, *n, *alpha, *a, *lda, *x, *incx, *y, *incy)
 jit_sse41_gemv_n_f32_kern::jit_sse41_gemv_n_f32_kern(void)
     : jit_generator(jit_name())
-    , has_avx512_(mayiuse(avx512_core))
-    , has_avx2_(mayiuse(avx2))
-    , has_avx_(mayiuse(avx))
-    , has_sse41_(mayiuse(sse41))
+    , has_avx512_(mayiuse(avx512_core) && __BUILD_GEMM_AVX512)
+    , has_avx2_(mayiuse(avx2) && __BUILD_GEMM_AVX2)
+    , has_avx_(mayiuse(avx) && __BUILD_GEMM_AVX2)
+    , has_sse41_(mayiuse(sse41) && __BUILD_GEMM_SSE41)
     , arg_lda_(0)
     , arg_x_(0)
     , arg_incx_(0)

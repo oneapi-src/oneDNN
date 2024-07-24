@@ -69,7 +69,7 @@ struct sycl_eltwise_conf_t {
     dim_t wg_size;
     dim_t wk_size;
     dim_t post_po_len;
-    xpu::sycl::md_t binary_src_arr[8];
+    xpu::sycl::md_t binary_src_arr[sycl::sycl_post_ops_t::max_post_ops];
     sycl_post_ops_t post_ops;
 };
 
@@ -301,14 +301,8 @@ struct sycl_lrn_conf_t {
     int wk_size;
 };
 
-struct sycl_pooling_conf_t {
-    xpu::sycl::md_t src_md;
-    // The size "5" is lower than DNNL_MAX_NDIMS because only 5 dimension formats are supported.
-    xpu::sycl::md_t src1_md[5];
-    xpu::sycl::md_t dst_md;
+struct sycl_pooling_base_conf_t {
     xpu::sycl::md_t ws_md;
-    xpu::sycl::md_t diff_src_md;
-    xpu::sycl::md_t diff_dst_md;
     int ndims;
     int po_len;
     bool zero_dims;
@@ -336,9 +330,18 @@ struct sycl_pooling_conf_t {
     dim_t DD;
     dim_t DH;
     dim_t DW;
-    dims_t dst_dims;
-    int dst_ndims;
+};
+
+struct sycl_pooling_fwd_conf_t : public sycl_pooling_base_conf_t {
+    xpu::sycl::md_t src_md;
+    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
+    xpu::sycl::md_t dst_md;
     sycl_post_ops_t post_ops;
+};
+
+struct sycl_pooling_bwd_conf_t : public sycl_pooling_base_conf_t {
+    xpu::sycl::md_t diff_src_md;
+    xpu::sycl::md_t diff_dst_md;
 };
 
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
@@ -350,7 +353,9 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_softmax_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_layer_normalization_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_eltwise_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_lrn_conf_t);
-CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_base_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_fwd_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_bwd_conf_t);
 
 } // namespace sycl
 } // namespace generic

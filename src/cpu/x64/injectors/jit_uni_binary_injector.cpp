@@ -28,7 +28,7 @@ namespace cpu {
 namespace x64 {
 namespace binary_injector {
 
-static bcast_set_t get_all_strategies_supported_by_injector() {
+bcast_set_t get_all_strategies_supported_by_injector() {
     return bcast_set_t {broadcasting_strategy_t::scalar,
             broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
@@ -2430,14 +2430,14 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_no_tail(
         case data_type::f8_e5m2:
             if (is_superset(isa, avx512_core_fp16)) {
                 assert(f8_e5m2_emu_);
-                f8_e5m2_emu_->vcvt_f8_to_f32(tmp_vmm, rhs_addr);
+                f8_e5m2_emu_->bcst_f8_to_f32(tmp_vmm, rhs_addr);
             } else
                 assert(!"unsupported ISA for given data type");
             break;
         case data_type::f8_e4m3:
             if (is_superset(isa, avx512_core_fp16)) {
                 assert(f8_e4m3_emu_);
-                f8_e4m3_emu_->vcvt_f8_to_f32(tmp_vmm, rhs_addr);
+                f8_e4m3_emu_->bcst_f8_to_f32(tmp_vmm, rhs_addr);
             } else
                 assert(!"unsupported ISA for given data type");
             break;
@@ -2590,7 +2590,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_opmask(
         case data_type::f8_e5m2:
             if (is_superset(isa, avx512_core_fp16)) {
                 assert(f8_e5m2_emu_);
-                f8_e5m2_emu_->vcvt_f8_to_f32(
+                f8_e5m2_emu_->bcst_f8_to_f32(
                         tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
             } else
                 assert(!"unsupported ISA for given data type");
@@ -2598,7 +2598,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_broadcast_tail_with_opmask(
         case data_type::f8_e4m3:
             if (is_superset(isa, avx512_core_fp16)) {
                 assert(f8_e4m3_emu_);
-                f8_e4m3_emu_->vcvt_f8_to_f32(
+                f8_e4m3_emu_->bcst_f8_to_f32(
                         tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
             } else
                 assert(!"unsupported ISA for given data type");

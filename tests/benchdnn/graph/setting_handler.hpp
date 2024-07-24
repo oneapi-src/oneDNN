@@ -26,6 +26,7 @@
 #include "custom_driver.hpp"
 #include "deconv/deconv.hpp"
 #include "eltwise/eltwise.hpp"
+#include "gnorm/gnorm.hpp"
 #include "lnorm/lnorm.hpp"
 #include "matmul/matmul.hpp"
 #include "pool/pool.hpp"
@@ -50,6 +51,7 @@ DECLARE_GET_SETTING(conv);
 DECLARE_GET_SETTING(custom);
 DECLARE_GET_SETTING(deconv);
 DECLARE_GET_SETTING(eltwise);
+DECLARE_GET_SETTING(gnorm);
 DECLARE_GET_SETTING(lnorm);
 DECLARE_GET_SETTING(matmul);
 DECLARE_GET_SETTING(pool);
@@ -90,6 +92,7 @@ DECLARE_TEMPLATE_GET_SETTING(conv);
 DECLARE_TEMPLATE_GET_SETTING(custom);
 DECLARE_TEMPLATE_GET_SETTING(deconv);
 DECLARE_TEMPLATE_GET_SETTING(eltwise);
+DECLARE_TEMPLATE_GET_SETTING(gnorm);
 DECLARE_TEMPLATE_GET_SETTING(lnorm);
 DECLARE_TEMPLATE_GET_SETTING(matmul);
 DECLARE_TEMPLATE_GET_SETTING(pool);

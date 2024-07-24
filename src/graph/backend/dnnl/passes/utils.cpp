@@ -490,6 +490,7 @@ get_post_ops_fusible_map() {
                     {dnnl_reorder, {dnnl_binary}},
                     {dnnl_softmax, {dnnl_eltwise, dnnl_binary}},
                     {dnnl_layernorm, {dnnl_eltwise, dnnl_binary}},
+                    {dnnl_groupnorm, {dnnl_eltwise, dnnl_binary}},
             };
     return fusible_map;
 }

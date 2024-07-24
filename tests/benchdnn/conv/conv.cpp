@@ -206,16 +206,16 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     bool force_f32_dt = init_pd_args.force_f32_dt;
 
     auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
-            force_f32_dt ? dnnl_f32 : prb->get_dt(SRC),
-            normalize_tag(prb->stag, prb->ndims));
+            force_f32_dt ? dnnl_f32 : prb->get_dt(SRC), prb->stag,
+            prb->strides[STRIDES_SRC]);
     auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups,
             prb->wei_dims().data(), force_f32_dt ? dnnl_f32 : prb->get_dt(WEI),
-            normalize_tag(prb->wtag, prb->ndims + prb->has_groups));
+            prb->wtag, prb->strides[STRIDES_WEI]);
     auto bia_d = dnn_mem_t::init_md(1, prb->bia_dims().data(),
             force_f32_dt ? dnnl_f32 : prb->get_dt(BIA), tag::any);
     auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims().data(),
-            force_f32_dt ? dnnl_f32 : prb->get_dt(DST),
-            normalize_tag(prb->dtag, prb->ndims));
+            force_f32_dt ? dnnl_f32 : prb->get_dt(DST), prb->dtag,
+            prb->strides[STRIDES_DST]);
 
     dnnl_alg_kind_t alg = dnnl_convolution_direct;
     if (prb->alg == WINO) alg = dnnl_convolution_winograd;
@@ -256,7 +256,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                                               : dnnl_forward_training,
                             alg,
                             init_pd_args.src_md ? init_pd_args.src_md : src_d,
-                            wei_d, bia_d, dst_d, prb->strides().data(),
+                            wei_d, bia_d, dst_d, prb->kstrides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), dnnl_attr)));
             break;
@@ -264,7 +264,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_convolution_backward_data_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, src_d,
-                            wei_d, dst_d, prb->strides().data(),
+                            wei_d, dst_d, prb->kstrides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
                             dnnl_attr)));
@@ -275,7 +275,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_convolution_backward_weights_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, src_d,
-                            wei_d, bia_d, dst_d, prb->strides().data(),
+                            wei_d, bia_d, dst_d, prb->kstrides().data(),
                             prb->dilations().data(), prb->padding().data(),
                             prb->padding_r().data(), init_pd_args.hint,
                             dnnl_attr)));
@@ -316,8 +316,8 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
 
     for (const auto &prim_ref_dt_i : prim_ref_dt) {
         prb_t prb_cpu {*prb, prb->dir, prim_ref_dt_i, tag::any, tag::any,
-                tag::any, DIRECT, cpu_attr, prb->ctx_init, prb->ctx_exe,
-                prb->mb};
+                tag::any, {vdims_t(STRIDES_SIZE)}, DIRECT, cpu_attr,
+                prb->ctx_init, prb->ctx_exe, prb->mb};
 
         init_pd_args_t<prb_t> init_pd_args(
                 /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,

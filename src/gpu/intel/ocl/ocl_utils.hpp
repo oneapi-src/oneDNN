@@ -43,14 +43,6 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
 status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
         cl_kernel ocl_kernel, int idx, bool allow_undef = false);
 
-#ifdef DNNL_ENABLE_MEM_DEBUG
-cl_mem DNNL_WEAK clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
-        size_t size, void *host_ptr, cl_int *errcode_ret);
-#else
-cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
-        size_t size, void *host_ptr, cl_int *errcode_ret);
-#endif
-
 status_t get_ocl_program_binary(
         cl_program program, cl_device_id device, xpu::binary_t &binary);
 

@@ -26,6 +26,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/platform.hpp"
+
 #define XBYAK64
 #define XBYAK_NO_OP_NAMES
 /* in order to make selinux happy memory that would be marked with X-bit should
@@ -97,7 +99,7 @@ namespace cpu_isa_hints_utils {
    bits declared inside the cpu_isa_bit_t */
 static constexpr unsigned hints_mask = prefer_ymm_bit;
 
-static unsigned cvt2mask(dnnl_cpu_isa_hints_t hints) {
+inline unsigned cvt2mask(dnnl_cpu_isa_hints_t hints) {
     switch (hints) {
         case dnnl_cpu_isa_no_hints: return 0;
         case dnnl_cpu_isa_prefer_ymm: return prefer_ymm_bit;
@@ -106,7 +108,7 @@ static unsigned cvt2mask(dnnl_cpu_isa_hints_t hints) {
     return 0;
 };
 
-static bool is_hints_bit_set(cpu_isa_bit_t hint_bit, bool soft) {
+inline bool is_hints_bit_set(cpu_isa_bit_t hint_bit, bool soft) {
     const dnnl_cpu_isa_hints_t hints = get_cpu_isa_hints(soft);
     const unsigned cur_hints_mask = cpu_isa_hints_utils::cvt2mask(hints);
     return (cur_hints_mask & hint_bit) == hint_bit;
@@ -361,46 +363,57 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     if ((cpu_isa_mask & cpu_isa_no_hints) != cpu_isa_no_hints) return false;
 
     switch (cpu_isa) {
-        case sse41: return cpu().has(Cpu::tSSE41);
-        case avx: return cpu().has(Cpu::tAVX);
-        case avx2: return cpu().has(Cpu::tAVX2);
-        case avx2_vnni: return mayiuse(avx2, soft) && cpu().has(Cpu::tAVX_VNNI);
+        case sse41: REG_SSE41_ISA(return cpu().has(Cpu::tSSE41));
+        case avx: REG_AVX2_ISA(return cpu().has(Cpu::tAVX));
+        case avx2: REG_AVX2_ISA(return cpu().has(Cpu::tAVX2));
+        case avx2_vnni:
+            REG_AVX2_ISA(
+                    return mayiuse(avx2, soft) && cpu().has(Cpu::tAVX_VNNI));
         case avx2_vnni_2:
-            return mayiuse(avx2_vnni, soft) && cpu().has(Cpu::tAVX_VNNI_INT8)
-                    && cpu().has(Cpu::tAVX_NE_CONVERT);
+            REG_AVX2_ISA(return mayiuse(avx2_vnni, soft)
+                    && cpu().has(Cpu::tAVX_VNNI_INT8)
+                    && cpu().has(Cpu::tAVX_NE_CONVERT));
         case avx512_core:
-            return cpu().has(Cpu::tAVX512F) && cpu().has(Cpu::tAVX512BW)
-                    && cpu().has(Cpu::tAVX512VL) && cpu().has(Cpu::tAVX512DQ);
+            REG_AVX512_ISA(return cpu().has(Cpu::tAVX512F)
+                    && cpu().has(Cpu::tAVX512BW) && cpu().has(Cpu::tAVX512VL)
+                    && cpu().has(Cpu::tAVX512DQ));
         case avx512_core_vnni:
-            return cpu().has(Cpu::tAVX512F) && cpu().has(Cpu::tAVX512BW)
-                    && cpu().has(Cpu::tAVX512VL) && cpu().has(Cpu::tAVX512DQ)
-                    && cpu().has(Cpu::tAVX512_VNNI);
+            REG_AVX512_ISA(return cpu().has(Cpu::tAVX512F)
+                    && cpu().has(Cpu::tAVX512BW) && cpu().has(Cpu::tAVX512VL)
+                    && cpu().has(Cpu::tAVX512DQ)
+                    && cpu().has(Cpu::tAVX512_VNNI));
         case avx512_core_bf16:
-            return mayiuse(avx512_core_vnni, soft)
-                    && cpu().has(Cpu::tAVX512_BF16);
+            REG_AVX512_ISA(return mayiuse(avx512_core_vnni, soft)
+                    && cpu().has(Cpu::tAVX512_BF16));
         case avx512_core_bf16_ymm:
-            return mayiuse(avx512_core_bf16, soft)
+            REG_AVX512_ISA(return mayiuse(avx512_core_bf16, soft)
                     && cpu_isa_hints_utils::is_hints_bit_set(
-                            prefer_ymm_bit, soft);
+                            prefer_ymm_bit, soft));
         case avx512_core_fp16:
-            return cpu().has(Cpu::tAVX512_FP16)
+            REG_AVX512_ISA(return cpu().has(Cpu::tAVX512_FP16)
                     && mayiuse(avx512_core_bf16, soft)
-                    && mayiuse(avx2_vnni, soft);
+                    && mayiuse(avx2_vnni, soft));
         case amx_tile:
-            return cpu().has(Cpu::tAMX_TILE) && x64::amx::is_available();
+            REG_AMX_ISA(return cpu().has(Cpu::tAMX_TILE)
+                    && x64::amx::is_available());
         case amx_int8:
-            return mayiuse(amx_tile, soft) && cpu().has(Cpu::tAMX_INT8);
+            REG_AMX_ISA(return mayiuse(amx_tile, soft)
+                    && cpu().has(Cpu::tAMX_INT8));
         case amx_bf16:
-            return mayiuse(amx_tile, soft) && cpu().has(Cpu::tAMX_BF16);
+            REG_AMX_ISA(return mayiuse(amx_tile, soft)
+                    && cpu().has(Cpu::tAMX_BF16));
         case amx_fp16:
-            return mayiuse(amx_tile, soft) && cpu().has(Cpu::tAMX_FP16);
+            REG_AMX_ISA(return mayiuse(amx_tile, soft)
+                    && cpu().has(Cpu::tAMX_FP16));
         case avx512_core_amx:
-            return mayiuse(amx_int8, soft) && mayiuse(amx_bf16, soft)
-                    && mayiuse(avx512_core_fp16, soft);
+            REG_AMX_ISA(return mayiuse(amx_int8, soft)
+                    && mayiuse(amx_bf16, soft)
+                    && mayiuse(avx512_core_fp16, soft));
         case avx512_core_amx_fp16:
-            return mayiuse(avx512_core_amx, soft) && mayiuse(amx_fp16, soft);
-        case isa_undef: return true;
+            REG_AMX_ISA(return mayiuse(avx512_core_amx, soft)
+                    && mayiuse(amx_fp16, soft));
         case isa_all: return false;
+        case isa_undef: return true;
     }
     return false;
 }

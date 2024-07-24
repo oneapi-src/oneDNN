@@ -436,6 +436,31 @@ DNNL_GRAPH_OP_SCHEMA(GELUBackward, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(GroupNorm, 1,
+        op_schema_t()
+                .set_inputs_option(op_schema_t::param_num_option::optional)
+                .set_num_inputs(std::set<size_t>({1, 3}))
+                .set_outputs_option(op_schema_t::param_num_option::optional)
+                .set_num_outputs(std::set<size_t>({1, 3}))
+                .set_input(0, "src", "T1")
+                .set_input(1, "gamma", "T2")
+                .set_input(2, "beta", "T2")
+                .set_output(0, "dst", "T1")
+                .set_output(1, "mean", "T2")
+                .set_output(2, "variance", "T2")
+                .set_attr(op_attr::keep_stats, false, attribute_kind::b, true)
+                .set_attr(op_attr::groups, true, attribute_kind::i)
+                .set_attr(op_attr::use_affine, false, attribute_kind::b, true)
+                .set_attr(op_attr::epsilon, false, attribute_kind::f, 1e-5f)
+                .set_attr(op_attr::data_format, false, attribute_kind::s, "NXC",
+                        {"NCX", "NXC"})
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::f32, data_type::bf16})
+                .set_shape_inference_function(infer_groupnorm_output_shape)
+                .set_op_def_constraint_function(check_ln_gn_data_type)
+                .set_op_def_constraint_function(check_ln_gn_fwd_outputs_num))
+
 DNNL_GRAPH_OP_SCHEMA(HardSigmoid, 1,
         op_schema_t()
                 .set_num_inputs(1)
@@ -550,8 +575,8 @@ DNNL_GRAPH_OP_SCHEMA(LayerNorm, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
                 .set_shape_inference_function(infer_norm_output_shape)
-                .set_op_def_constraint_function(check_ln_data_type)
-                .set_op_def_constraint_function(check_ln_fwd_outputs_num))
+                .set_op_def_constraint_function(check_ln_gn_data_type)
+                .set_op_def_constraint_function(check_ln_gn_fwd_outputs_num))
 
 DNNL_GRAPH_OP_SCHEMA(LayerNormBackward, 1,
         op_schema_t()
@@ -576,7 +601,7 @@ DNNL_GRAPH_OP_SCHEMA(LayerNormBackward, 1,
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::f32, data_type::bf16})
                 .set_shape_inference_function(infer_norm_bprop_output_shape)
-                .set_op_def_constraint_function(check_ln_data_type)
+                .set_op_def_constraint_function(check_ln_gn_data_type)
                 .set_op_def_constraint_function(check_ln_bwd_use_affine))
 
 DNNL_GRAPH_OP_SCHEMA(LeakyReLU, 1,

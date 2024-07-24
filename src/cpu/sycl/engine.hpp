@@ -58,6 +58,10 @@ public:
 
     xpu::sycl::backend_t backend() const { return impl()->backend(); }
 
+    bool mayiuse_system_memory_allocators() const override {
+        return impl()->mayiuse_system_memory_allocators();
+    }
+
 protected:
     const xpu::sycl::engine_impl_t *impl() const {
         return (const xpu::sycl::engine_impl_t *)impl::engine_t::impl();

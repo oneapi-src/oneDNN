@@ -19,7 +19,7 @@
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/gen9_binary.hpp"
 #include "gpu/intel/ocl/multi_po_reorder_binary.hpp"
-#include "gpu/intel/ocl/ref_binary.hpp"
+#include "gpu/intel/ocl/simple_binary.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
@@ -41,7 +41,7 @@ namespace {
 constexpr impl_list_item_t impl_list[] = REG_BINARY_P({
         GPU_INSTANCE_INTEL(intel::ocl::multi_po_reorder_binary)
         GPU_INSTANCE_INTEL(intel::ocl::gen9_binary_t)
-        GPU_INSTANCE_INTEL(intel::ocl::ref_binary_t)
+        GPU_INSTANCE_INTEL(intel::ocl::simple_binary_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_binary_t)
         GPU_INSTANCE_AMD(amd::miopen_binary_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_binary_t)

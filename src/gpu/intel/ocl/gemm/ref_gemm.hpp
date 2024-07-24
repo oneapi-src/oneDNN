@@ -88,10 +88,27 @@ struct ref_gemm_t : public gpu_gemm_t {
             VDISPATCH_GEMM(desc()->sum_ab == sum_ab::sum_none,
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_GEMM(
-                    ((utils::one_of(a_dt, u8, s8) && utils::one_of(b_dt, u8, s8)
-                             && utils::one_of(c_dt, f32, s8, u8, s32)
-                             && IMPLICATION(with_bias(),
-                                     utils::one_of(bia_dt, f32, u8, s8, s32)))
+                    ((utils::everyone_is(f32, a_dt, b_dt, c_dt)
+                             && IMPLICATION(with_bias(), bia_dt == f32))
+                            || (utils::everyone_is(f16, a_dt, b_dt)
+                                    && utils::one_of(c_dt, u8, s8, f16)
+                                    && IMPLICATION(with_bias(),
+                                            utils::one_of(bia_dt, f16, f32)))
+                            || (utils::everyone_is(bf16, a_dt, b_dt)
+                                    && utils::one_of(c_dt, bf16, f32)
+                                    && IMPLICATION(with_bias(),
+                                            utils::one_of(bia_dt, bf16, f32)))
+                            || (utils::one_of(a_dt, f32, bf16, f16)
+                                    && utils::one_of(b_dt, u8, s8)
+                                    && utils::one_of(c_dt, f32, bf16, f16)
+                                    && IMPLICATION(with_bias(),
+                                            utils::one_of(f32, bf16, f16)))
+                            || (utils::one_of(a_dt, u8, s8)
+                                    && utils::one_of(b_dt, u8, s8)
+                                    && utils::one_of(c_dt, f32, s8, u8, s32)
+                                    && IMPLICATION(with_bias(),
+                                            utils::one_of(
+                                                    bia_dt, f32, u8, s8, s32)))
                             || (utils::one_of(a_dt, f8_e5m2, f8_e4m3)
                                     && utils::one_of(b_dt, f8_e5m2, f8_e4m3)
                                     && utils::one_of(c_dt, f32, f16, bf16,
@@ -99,8 +116,6 @@ struct ref_gemm_t : public gpu_gemm_t {
                                     && IMPLICATION(with_bias(),
                                             utils::one_of(bia_dt, f32, f8_e5m2,
                                                     f8_e4m3)))
-                            || (utils::everyone_is(f32, a_dt, b_dt, c_dt)
-                                    && IMPLICATION(with_bias(), bia_dt == f32))
                             || (utils::one_of(a_dt, u8, s8)
                                     && (utils::everyone_is(f32, b_dt, c_dt)
                                             || utils::everyone_is(
@@ -108,14 +123,7 @@ struct ref_gemm_t : public gpu_gemm_t {
                                     && IMPLICATION(with_bias(),
                                             utils::one_of(
                                                     bia_dt, f32, u8, s8, s32)))
-                            || (utils::everyone_is(f16, a_dt, b_dt)
-                                    && utils::one_of(c_dt, u8, s8, f16)
-                                    && IMPLICATION(with_bias(), bia_dt == f16))
-                            || wei_decompress
-                            || (utils::everyone_is(bf16, a_dt, b_dt)
-                                    && utils::one_of(c_dt, bf16, f32)
-                                    && IMPLICATION(with_bias(),
-                                            utils::one_of(bia_dt, bf16, f32)))),
+                            || wei_decompress),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             attr_info = attr_info_t::create(attr());
 

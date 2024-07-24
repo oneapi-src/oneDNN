@@ -102,11 +102,20 @@ public:
     constexpr bool isInt8() const {
         return (val == Type::u8) || (val == Type::s8);
     }
+    constexpr bool isInt16() const {
+        return (val == Type::u16) || (val == Type::s16);
+    }
     constexpr bool isF8() const {
         return (val == Type::bf8) || (val == Type::hf8);
     }
     constexpr bool isSigned() const {
         return (uint32_t(val) & 0x110000) != 0x100000;
+    }
+    constexpr Type asUnsigned() const {
+        return static_cast<_Type>(uint32_t(val) & ~(isInteger() ? 0x10000 : 0));
+    }
+    constexpr Type asSigned() const {
+        return static_cast<_Type>(uint32_t(val) | (isInteger() ? 0x10000 : 0));
     }
     constexpr int bits() const { return isInt4() ? 4 : (paddedSize() * 8); }
     constexpr int paddedSize() const { return (uint32_t(val) >> 8) & 0xFF; }
@@ -984,19 +993,28 @@ struct GEMMProblem : public CommonProblem {
     bool backward() const { return false; }
 
     bool needsASums() const {
-        return (bOffset == ABOffset::Calc && boPtrDims < 2 && !quantized2DB())
-                || sumA;
+        return sumA || (bOffset == ABOffset::Calc && !earlyDequantizeB());
     }
     bool needsBSums() const {
-        return (aOffset == ABOffset::Calc && aoPtrDims < 2 && !quantized2DA())
-                || sumB;
+        return sumB || (aOffset == ABOffset::Calc && !earlyDequantizeA());
     }
+
     bool usesCO() const { return (cOffset != COffset::None) || sumA || sumB; }
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
 
     bool quantized2DA() const { return (aoPtrDims == 2) || aScale2D; }
     bool quantized2DB() const { return (boPtrDims == 2) || bScale2D; }
 
+    bool earlyDequantizeA() const {
+        return (aOffset == ABOffset::Calc && Tao.asSigned().isSubsetOf(Ta))
+                || (aScale2D && Ta_scale.isSubsetOf(Ta));
+    }
+    bool earlyDequantizeB() const {
+        return (bOffset == ABOffset::Calc && Tbo.asSigned().isSubsetOf(Tb))
+                || (bScale2D && Tb_scale.isSubsetOf(Tb));
+    }
+
+    inline void autoTypeConversions(ngen::HW hw, bool systolicAvailable);
     void transpose();
 
     /* Kernel cache helpers. */
@@ -1023,6 +1041,13 @@ struct GEMMProblem : public CommonProblem {
         s.append(binaryCol);
         s.append(binaryBatch);
         s.append(binaryTrans);
+    }
+
+    Type Tc_compute() const {
+        if (Ta.isInteger() && Tb.isInteger() && Tc.isFP())
+            return Type::s32;
+        else
+            return Tc;
     }
 };
 
@@ -1160,6 +1185,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool block2DCRemainder = false; // Generate block 2D C remainder path?
     bool block2DCFull
             = false; //   Use block 2D C remainder path even for full tiles?
+    int cRepackPanel = 0; // Size of panels for repacking C (0 = automatic)
     bool cAccumulators
             = false; // Use accumulator registers for part of C (to save a few registers)?
     bool cLoadAhead = false; // Load C before doing FMAs?
@@ -1402,10 +1428,12 @@ struct GEMMState : public CommonState {
         ngen::Subregister statusBuffer; // q
         uint8_t surfaceA, surfaceAO, surfaceAScale; // BTS indices
         uint8_t surfaceB, surfaceBO, surfaceBScale; // BTS indices
-        uint8_t surfaceC[2], surfaceCO, surfaceTempC; // BTS indices
-        ngen::Subregister strideA[2], strideB[2],
-                strideC[2]; // ud, used for strided batch.
-        ngen::Subregister batchSize1, recipBatchSize1; // ud, 2D strided batch
+        uint8_t surfaceC[2], surfaceCO, surfaceTempC; // BTS
+        std::vector<ngen::Subregister> strideA; // ud, used for strided batch.
+        std::vector<ngen::Subregister> strideB; // ud
+        std::vector<ngen::Subregister> strideC; // ud
+        std::vector<ngen::Subregister> batchSize; // ud
+        std::vector<ngen::Subregister> recipBatchSize; // ud
         ngen::Subregister offsetBatch; // ud, used for non-strided batch.
         ngen::Subregister incr_a_array,
                 incr_b_array; // ud, used for non-strided variable batch.
@@ -1417,13 +1445,13 @@ struct GEMMState : public CommonState {
         std::vector<ngen::Subregister> binarySrcs; // q
         std::vector<ngen::Subregister> binaryOffsets; // q/d
         std::vector<ngen::Subregister> binaryLDs; // d
-        std::vector<std::array<ngen::Subregister, 2>> binaryStrides; // d
+        std::vector<std::vector<ngen::Subregister>> binaryStrides; // d
         std::vector<uint8_t> binarySurfaces;
     } inputs;
     Type Ta_load, Tb_load; // Current type to be loaded into A/B_regs.
     Type Tacc; // Current type in accumulator registers.
     ngen::Subregister persistentGroupID; // ud
-    ngen::Subregister batchID[2]; // ud
+    ngen::Subregister batchID[4]; // ud
     ngen::Subregister offsetA, offsetB, offsetC[2];
     ngen::Subregister offsetAp, offsetBp, offsetCp;
     ngen::Subregister offsetCO;
@@ -1450,6 +1478,7 @@ struct GEMMState : public CommonState {
     std::vector<ngen::GRFRange> A_scaleAddrs, B_scaleAddrs;
     std::vector<GRFMultirange> A_regs, B_regs, C_regs;
     GRFMultirange Ar_regs, Br_regs; // Repacked A/B registers.
+    GRFMultirange Cr_regs; // C registers to be repacked.
     std::vector<GRFMultirange> Ai_regs,
             Bi_regs; // Incoming data to copy to SLM.
     std::vector<GRFMultirange> Ai_regsRem, Bi_regsRem;
@@ -1510,7 +1539,8 @@ struct GEMMState : public CommonState {
     CoopSplit effCoopB = CoopSplit::K;
     ngen::Subregister kSLMA, kSLMB, kSLMStorage; // w/w/ud
     bool kSLMCountUp = false;
-    int kaq, kbq, kaqStride, kbqStride;
+    int kaq, kbq, kaqStride, kbqStride, kaqLate, kbqLate;
+    bool lateScale2DA = false, lateScale2DB = false;
     std::vector<RegisterBlock> A_layout, B_layout, C_layout;
     std::vector<RegisterBlock> A_layoutRem, B_layoutRem;
     std::vector<RegisterBlock> A_layoutAlt, B_layoutAlt;
@@ -1527,6 +1557,7 @@ struct GEMMState : public CommonState {
     std::vector<RegisterBlock> A_scaleLayout, B_scaleLayout;
     std::vector<RegisterBlock> Ar_offsetLayout, Br_offsetLayout;
     std::vector<RegisterBlock> Ar_scaleLayout, Br_scaleLayout;
+    std::vector<RegisterBlock> Cr_layout;
     std::vector<RegisterBlock> C_layoutExt, C_layoutExtUnmasked,
             C_layoutExtNonatomicUnmasked;
     Address2DParams A_params, B_params;
@@ -2422,7 +2453,7 @@ protected:
             const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy,
             const CommonStrategy &strategy, CommonState &state, bool decrement);
-    void incAddrStrided(const std::vector<ngen::GRFRange> &addr, bool column,
+    void incAddr2D(Type T, const std::vector<ngen::GRFRange> &addr, bool column,
             int k, const SubregisterPair &ld, const LDIncrements &incs,
             const std::vector<RegisterBlock> &layout,
             const MatrixAddressing &atype,
@@ -2470,6 +2501,9 @@ protected:
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
     void setupTeardownAccumulateSumSystolic(bool setup, Type Tother,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
+    void outerProductRepackC(int x0, int xr0, int nx, int h,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
 
@@ -2706,12 +2740,12 @@ protected:
             GRFMultirange dst, GRFMultirange offset, GRFMultirange scale,
             Type Tscale, int offR, int offC, const GEMMProblem *problem,
             const CommonStrategy &strategy, CommonState &state);
-    void gemm2DDequantizeOperation(bool doA, Type T, Type To, BinaryOp op,
+    void gemmDequantizeOperation(bool doA, Type T, Type To, BinaryOp op,
             const std::vector<RegisterBlock> &layout,
             const std::vector<RegisterBlock> &qlayout,
             const GRFMultirange &regs, const GRFMultirange &qregs, int hq,
             const GEMMProblem &problem);
-    void gemm2DDequantizeAB(bool doA, Type Tsrc, Type Tdst,
+    void gemmDequantizeAB(bool doA, Type Tsrc, Type Tdst,
             const std::vector<RegisterBlock> &layoutSrc,
             const std::vector<RegisterBlock> &layoutDst,
             const GRFMultirange &src, const GRFMultirange &dst, int hab,
@@ -2876,8 +2910,6 @@ protected:
             GEMMState &state, bool inSK = false);
     void gemmInitState(GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state, bool inSK = false);
-    static void gemmAutoTypeConversions(
-            GEMMProblem &problem, const GEMMStrategy &strategy);
     void gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
 
     void gemmSuperkernelInitState(GEMMSuperkernelProblem &problem,
@@ -3002,6 +3034,36 @@ protected:
     void initState(const CommonProblem &problem, const CommonStrategy &strategy,
             CommonState &state);
 };
+
+// Apply automatic internal type conversions to a problem.
+void GEMMProblem::autoTypeConversions(ngen::HW hw, bool systolicAvailable) {
+    using namespace ngen;
+
+    // Weights decompression
+    if ((Ta.isInt8() || Ta.isInt4()) && Tb.isFP() && Tc.isFP()) Ta = Tb;
+    if ((Tb.isInt8() || Tb.isInt4()) && Ta.isFP() && Tc.isFP()) Tb = Ta;
+
+    if (Ta == Ta_ext.asSigned()) Ta = Ta_ext;
+    if (Tb == Tb_ext.asSigned()) Tb = Tb_ext;
+
+    if (Ta.isF8()) Ta = Type::f16;
+    if (Tb.isF8()) Tb = Type::f16;
+
+    if (hw > HW::Gen9 && !systolicAvailable && Tc == Type::f32) {
+        if (Ta == Type::f16) Ta = Type::f32;
+        if (Tb == Type::f16) Tb = Type::f32;
+    }
+
+    if (hw < HW::XeHP || (hw > HW::XeHP && !systolicAvailable)) {
+        if (Ta == Type::bf16) Ta = Type::f32;
+        if (Tb == Type::bf16) Tb = Type::f32;
+    }
+
+    if (hw == HW::Gen11) {
+        if (utils::one_of(Ta, Type::s8, Type::u8)) Ta = Type::s16;
+        if (utils::one_of(Tb, Type::s8, Type::u8)) Tb = Type::s16;
+    }
+}
 
 inline char precisionChar(Type T) {
     switch (T.baseType()) {

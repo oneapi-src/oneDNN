@@ -19,9 +19,11 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
+#include "common/memory_storage.hpp"
 #include "common/type_helpers.hpp"
+
 #include "gpu/intel/compute/device_info.hpp"
-#include "gpu/intel/ocl/ocl_memory_storage.hpp"
+#include "gpu/intel/ocl/ocl_utils.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;
 

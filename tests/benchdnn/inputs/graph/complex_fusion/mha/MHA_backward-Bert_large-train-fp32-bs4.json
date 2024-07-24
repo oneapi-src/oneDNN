@@ -1,0 +1,837 @@
+{
+    "version": "3.2.0",
+    "engine_kind": "cpu",
+    "fpmath_mode": "strict",
+    "input_ports": [
+        5178,
+        2525,
+        2547,
+        2506,
+        2545,
+        2591,
+        2514,
+        2518,
+        2548
+    ],
+    "output_ports": [
+        5196,
+        5188,
+        5204
+    ],
+    "graph": [
+        {
+            "id": 7392,
+            "name": "gradients/bert/encoder/layer_0/attention/self/Reshape_3_grad/Reshape",
+            "kind": "StaticReshape",
+            "attrs": {
+                "shape": {
+                    "type": "s64[]",
+                    "value": [
+                        4,
+                        512,
+                        16,
+                        64
+                    ]
+                },
+                "special_zero": {
+                    "type": "bool",
+                    "value": 0
+                }
+            },
+            "inputs": [
+                {
+                    "id": 5178,
+                    "dtype": "f32",
+                    "shape": [
+                        2048,
+                        1024
+                    ],
+                    "stride": [
+                        1024,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5179,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        512,
+                        16,
+                        64
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7393,
+            "name": "gradients/bert/encoder/layer_0/attention/self/transpose_3_grad/transpose",
+            "kind": "StaticTranspose",
+            "attrs": {
+                "order": {
+                    "type": "s64[]",
+                    "value": [
+                        0,
+                        2,
+                        1,
+                        3
+                    ]
+                }
+            },
+            "inputs": [
+                {
+                    "id": 5179,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        512,
+                        16,
+                        64
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5180,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7394,
+            "name": "gradients/bert/encoder/layer_0/attention/self/MatMul_1_grad/MatMul",
+            "kind": "MatMul",
+            "attrs": {
+                "transpose_a": {
+                    "type": "bool",
+                    "value": 0
+                },
+                "transpose_b": {
+                    "type": "bool",
+                    "value": 1
+                }
+            },
+            "inputs": [
+                {
+                    "id": 5180,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2525,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5181,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7395,
+            "name": "gradients/bert/encoder/layer_0/attention/self/dropout/SelectV2_grad/SelectV2",
+            "kind": "Multiply",
+            "attrs": {
+                "auto_broadcast": {
+                    "type": "string",
+                    "value": "numpy"
+                }
+            },
+            "inputs": [
+                {
+                    "id": 5181,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2547,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        4194304,
+                        262144,
+                        512,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5182,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7396,
+            "name": "gradients/bert/encoder/layer_0/attention/self/dropout/Mul_grad/Mul",
+            "kind": "Multiply",
+            "attrs": {
+                "auto_broadcast": {
+                    "type": "string",
+                    "value": "numpy"
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2506,
+                    "dtype": "f32",
+                    "shape": [],
+                    "stride": [],
+                    "layout_type": "strided",
+                    "property_type": "constant"
+                },
+                {
+                    "id": 5182,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5183,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7397,
+            "name": "gradients/bert/encoder/layer_0/attention/self/Softmax_grad/mul",
+            "kind": "Multiply",
+            "attrs": {
+                "auto_broadcast": {
+                    "type": "string",
+                    "value": "numpy"
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2545,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        4194304,
+                        262144,
+                        512,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 5183,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5184,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7398,
+            "name": "gradients/bert/encoder/layer_0/attention/self/Softmax_grad/Sum",
+            "kind": "ReduceSum",
+            "attrs": {
+                "axes": {
+                    "type": "s64[]",
+                    "value": [
+                        -1
+                    ]
+                },
+                "keep_dims": {
+                    "type": "bool",
+                    "value": 1
+                }
+            },
+            "inputs": [
+                {
+                    "id": 5184,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5185,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        1
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7399,
+            "name": "gradients/bert/encoder/layer_0/attention/self/Softmax_grad/sub",
+            "kind": "Subtract",
+            "attrs": {
+                "auto_broadcast": {
+                    "type": "string",
+                    "value": "numpy"
+                }
+            },
+            "inputs": [
+                {
+                    "id": 5183,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 5185,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        1
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5186,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7400,
+            "name": "gradients/bert/encoder/layer_0/attention/self/Mul_grad/Mul",
+            "kind": "Multiply",
+            "attrs": {
+                "auto_broadcast": {
+                    "type": "string",
+                    "value": "numpy"
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2591,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        4194304,
+                        262144,
+                        512,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 5186,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5187,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7411,
+            "name": "gradients/bert/encoder/layer_0/attention/self/MatMul_grad/MatMul_1",
+            "kind": "MatMul",
+            "attrs": {
+                "transpose_a": {
+                    "type": "bool",
+                    "value": 1
+                },
+                "transpose_b": {
+                    "type": "bool",
+                    "value": 0
+                }
+            },
+            "inputs": [
+                {
+                    "id": 5187,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2514,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5196,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7401,
+            "name": "gradients/bert/encoder/layer_0/attention/self/MatMul_grad/MatMul",
+            "kind": "MatMul",
+            "attrs": {
+                "transpose_a": {
+                    "type": "bool",
+                    "value": 0
+                },
+                "transpose_b": {
+                    "type": "bool",
+                    "value": 0
+                }
+            },
+            "inputs": [
+                {
+                    "id": 5187,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 2518,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5188,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7421,
+            "name": "gradients/bert/encoder/layer_0/attention/self/MatMul_1_grad/MatMul_1",
+            "kind": "MatMul",
+            "attrs": {
+                "transpose_a": {
+                    "type": "bool",
+                    "value": 1
+                },
+                "transpose_b": {
+                    "type": "bool",
+                    "value": 0
+                }
+            },
+            "inputs": [
+                {
+                    "id": 2548,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        512
+                    ],
+                    "stride": [
+                        4194304,
+                        262144,
+                        512,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                },
+                {
+                    "id": 5180,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        -9223372036854775808
+                    ],
+                    "layout_type": "undef",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": [
+                {
+                    "id": 5204,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ]
+        },
+        {
+            "id": 7422,
+            "name": "end",
+            "kind": "End",
+            "attrs": {},
+            "inputs": [
+                {
+                    "id": 5196,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "id": 7423,
+            "name": "end",
+            "kind": "End",
+            "attrs": {},
+            "inputs": [
+                {
+                    "id": 5188,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": []
+        },
+        {
+            "id": 7424,
+            "name": "end",
+            "kind": "End",
+            "attrs": {},
+            "inputs": [
+                {
+                    "id": 5204,
+                    "dtype": "f32",
+                    "shape": [
+                        4,
+                        16,
+                        512,
+                        64
+                    ],
+                    "stride": [
+                        524288,
+                        32768,
+                        64,
+                        1
+                    ],
+                    "layout_type": "strided",
+                    "property_type": "undef"
+                }
+            ],
+            "outputs": []
+        }
+    ]
+}

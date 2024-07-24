@@ -34,7 +34,7 @@
 #include "graph/utils/ocl_check.hpp"
 #include "graph/utils/ocl_usm_utils.hpp"
 
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
+#include "xpu/ocl/usm_utils.hpp"
 
 #include "oneapi/dnnl/dnnl_ocl.hpp"
 #endif
@@ -224,20 +224,35 @@ struct memory_reparser_t : public dummy_impl_t {
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
-                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
-                "memory reparser must be inplaced");
-        dummy_impl_t::execute(stream, args);
+        if (args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                == args.find(DNNL_ARG_TO)->second.get_data_handle())
+            dummy_impl_t::execute(stream, args);
+        else {
+            const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
+            const memory &src_mem = args.find(DNNL_ARG_FROM)->second;
+            const memory temp_mem = make_dnnl_memory(dst_mem.get_desc(),
+                    src_mem.get_engine(), src_mem.get_data_handle());
+            dnnl::reorder(temp_mem, dst_mem)
+                    .execute(stream, const_cast<memory &>(temp_mem),
+                            const_cast<memory &>(dst_mem));
+        }
     }
 
 #ifdef DNNL_WITH_SYCL
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
-                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
-                "memory reparser must be inplaced");
-        return dummy_impl_t::execute_sycl(stream, args, deps);
+        if (args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                == args.find(DNNL_ARG_TO)->second.get_data_handle())
+            return dummy_impl_t::execute_sycl(stream, args, deps);
+        else {
+            const memory &src_mem = args.find(DNNL_ARG_FROM)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
+            auto sycl_queue = dnnl::sycl_interop::get_queue(stream);
+            auto e = sycl_queue.memcpy(dst_mem.get_data_handle(),
+                    src_mem.get_data_handle(), dst_mem.get_desc().get_size());
+            return e;
+        }
     }
 #endif
 
@@ -245,10 +260,23 @@ struct memory_reparser_t : public dummy_impl_t {
     cl_event execute_ocl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<cl_event> &deps = {}) const override {
-        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
-                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
-                "memory reparser must be inplaced");
-        return dummy_impl_t::execute_ocl(stream, args, deps);
+        if (args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                == args.find(DNNL_ARG_TO)->second.get_data_handle())
+            return dummy_impl_t::execute_ocl(stream, args, deps);
+        else {
+            const memory &src_mem = args.find(DNNL_ARG_FROM)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
+            assert(deps.size() <= 1);
+            // Passing the empty event to memcpy below causes failure.
+            const bool empty = deps.size() == 0 || deps[0] == 0;
+            const cl_uint num = empty ? 0 : static_cast<cl_uint>(deps.size());
+            cl_event e;
+            UNUSED_STATUS(xpu::ocl::usm::memcpy(stream.get(),
+                    dst_mem.get_data_handle(), src_mem.get_data_handle(),
+                    dst_mem.get_desc().get_size(), num,
+                    empty ? nullptr : deps.data(), &e));
+            return e;
+        }
     }
 #endif
 };
@@ -326,10 +354,10 @@ struct const_memory_filler_t : public op_executable_t {
         const bool empty = deps.size() == 0 || deps[0] == 0;
         const cl_uint num = empty ? 0 : static_cast<cl_uint>(deps.size());
         cl_event e;
-        UNUSED_STATUS(gpu::intel::ocl::usm::memcpy(stream.get(),
-                dst_mem.get_data_handle(), data_handle,
-                dst_mem.get_desc().get_size(), num,
-                empty ? nullptr : deps.data(), &e));
+        UNUSED_STATUS(
+                xpu::ocl::usm::memcpy(stream.get(), dst_mem.get_data_handle(),
+                        data_handle, dst_mem.get_desc().get_size(), num,
+                        empty ? nullptr : deps.data(), &e));
         return e;
     }
 #endif
@@ -1623,9 +1651,9 @@ struct bn_folding_t : public op_executable_t {
 
         // 1. sqrt_variance = sqrt(variance + epsilon)
         cl_event e;
-        gpu::intel::ocl::usm::memcpy(stream.get(),
-                epsilon_mem.get_data_handle(), &desc_.epsilon_,
-                epsilon_mem.get_desc().get_size(), 0, nullptr, &e);
+        xpu::ocl::usm::memcpy(stream.get(), epsilon_mem.get_data_handle(),
+                &desc_.epsilon_, epsilon_mem.get_desc().get_size(), 0, nullptr,
+                &e);
         clWaitForEvents(1, &e);
 
         auto ocl_deps = dnnl::ocl_interop::execute(add_prim_, stream,
@@ -1654,9 +1682,9 @@ struct bn_folding_t : public op_executable_t {
             // initialize the bias with zero value
             std::vector<float> zero(
                     graph::utils::prod(variance.get_desc().get_dims()), 0.0f);
-            gpu::intel::ocl::usm::memcpy(stream.get(),
-                    valid_bias.get_data_handle(), zero.data(),
-                    valid_bias.get_desc().get_size(), 0, nullptr, &e);
+            xpu::ocl::usm::memcpy(stream.get(), valid_bias.get_data_handle(),
+                    zero.data(), valid_bias.get_desc().get_size(), 0, nullptr,
+                    &e);
             clWaitForEvents(1, &e);
 
             auto ocl_deps3 = dnnl::ocl_interop::execute(sub_prim_, stream,
@@ -2388,6 +2416,46 @@ struct reduction_executable_t : public op_executable_t {
 private:
     dnnl::reduction prim_;
     bool with_sum_ {false};
+};
+
+struct groupnorm_executable_t : public op_executable_t {
+    DECLARE_DESC_CLASS_AND_CREATOR(
+            dnnl::group_normalization_forward::primitive_desc);
+    DECLARE_ARG_INDICES_GETTER;
+
+    groupnorm_executable_t(std::shared_ptr<op_t> &op,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
+            pd_cache_t &pd_cache) {
+        auto desc = create_desc(op, p_engine, mgr, pd_cache);
+        prim_ = dnnl::group_normalization_forward(desc);
+    }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override {
+        prim_.execute(stream, args);
+    }
+
+#ifdef DNNL_WITH_SYCL
+    ::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<::sycl::event> &deps = {}) const override {
+        auto e = dnnl::sycl_interop::execute(prim_, stream, args, deps);
+        if (stream.get_engine().get_kind() == engine::kind::cpu) e.wait();
+        return e;
+    }
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    cl_event execute_ocl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl_event> &deps = {}) const override {
+        auto e = dnnl::ocl_interop::execute(prim_, stream, args, deps);
+        return e;
+    }
+#endif
+
+private:
+    dnnl::group_normalization_forward prim_;
 };
 
 } // namespace dnnl_impl

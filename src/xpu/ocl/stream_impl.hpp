@@ -24,8 +24,7 @@
 #include "xpu/context.hpp"
 #include "xpu/stream_profiler.hpp"
 
-// TODO: move ocl_context to xpu
-#include "gpu/intel/ocl/ocl_context.hpp"
+#include "xpu/ocl/context.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -68,8 +67,8 @@ public:
             xpu::event_t &out_dep,
             xpu::stream_profiler_t *stream_profiler = nullptr);
 
-    const gpu::intel::ocl::ocl_context_t &ocl_ctx() const;
-    gpu::intel::ocl::ocl_context_t &ocl_ctx();
+    const xpu::ocl::context_t &ocl_ctx() const;
+    xpu::ocl::context_t &ocl_ctx();
     xpu::context_t &ctx();
     const xpu::context_t &ctx() const;
     const xpu::ocl::wrapper_t<cl_event> &get_output_event() const;
@@ -94,7 +93,7 @@ public:
 private:
     cl_command_queue queue_;
 
-    mutable utils::thread_local_storage_t<gpu::intel::ocl::ocl_context_t> ctx_;
+    mutable utils::thread_local_storage_t<xpu::ocl::context_t> ctx_;
 };
 
 } // namespace ocl

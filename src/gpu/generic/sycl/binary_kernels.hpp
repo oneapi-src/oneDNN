@@ -78,6 +78,7 @@ struct binary_kernel_vec_t {
 
         dims_t dims, strides, off_dst, off0, off1;
         bool any_broadcast = false;
+        bool is_same_tag = true;
         for (int i = 0; i < max_supported_ndims; i++) {
             if (i < dst_md().ndims()) {
                 dims[i] = dst_md().dims()[i];
@@ -88,10 +89,15 @@ struct binary_kernel_vec_t {
                 dims[i] = 1;
                 strides[i] = INT_MAX;
             }
+            if (i < src0_md().ndims()) {
+                is_same_tag = is_same_tag
+                        && (src0_md().strides()[i] == src1_md().strides()[i]);
+            }
         }
         if (!any_broadcast && conf_.post_ops.get_post_op() == 0
                 && sg_base_idx + (sg.get_local_range()[0] * conf_.block_size)
-                        < conf_.wk_size) {
+                        < conf_.wk_size
+                && is_same_tag) {
             for (int i = 0; i < conf_.block_size / vec_len; i++) {
                 auto src0_vec = load_float_vec<vec_len>(
                         src0_md().data_type(), src0_ptr(), vec_base_idx + i);

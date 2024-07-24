@@ -31,6 +31,9 @@ void parseStrategy(const char *str, ngen::HW hw, const GEMMProblem &problem,
 void adjustStrategy(ngen::HW hw, const GEMMProblem &problem,
         GEMMStrategy &strategy, const char *tags = nullptr);
 
+const char *parsePrecision(const char *s, Type &precision);
+const char *parsePrecisions(const char *s, Type &precision1, Type &precision2);
+
 } // namespace jit
 } // namespace intel
 } // namespace gpu

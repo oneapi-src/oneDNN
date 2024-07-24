@@ -66,15 +66,17 @@ void print_verbose_header(engine_kind_t kind) {
                         ? "enabled"
                         : "disabled";
 
-                printf("onednn_verbose,info,%s,engine,%zu,backend:%s,name:%s,"
-                       "driver_version:%s,binary_kernels:%s\n",
+                verbose_printf(
+                        "onednn_verbose,info,%s,engine,%zu,backend:%s,name:%s,"
+                        "driver_version:%s,binary_kernels:%s\n",
                         s_engine_kind, i, s_backend.c_str(), s_name.c_str(),
                         s_ver.c_str(), s_binary_kernels);
                 continue;
             }
 #endif
-            printf("onednn_verbose,info,%s,engine,%zu,backend:%s,name:%s,"
-                   "driver_version:%s\n",
+            verbose_printf(
+                    "onednn_verbose,info,%s,engine,%zu,backend:%s,name:%s,"
+                    "driver_version:%s\n",
                     s_engine_kind, i, s_backend.c_str(), s_name.c_str(),
                     s_ver.c_str());
         } catch (...) {

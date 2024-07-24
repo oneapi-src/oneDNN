@@ -1181,6 +1181,59 @@ inline int max_unique_pad_states(int O, int I, int KD, int P, int S, bool lim) {
 }
 
 } // namespace ir_utils
+
+template <typename T>
+T to_enum(const std::string &s) {
+    for (int id = 0; id < static_cast<int>(T::_max); id++) {
+        auto value = static_cast<T>(id);
+        if (to_string(value) == s) return value;
+    }
+    ir_error_not_expected() << s;
+    return T::_max;
+}
+
+template <typename T>
+T stream_parse(std::istream &in) {
+    T t;
+    in >> t;
+    ir_assert(!in.fail());
+    return t;
+}
+
+template <typename T>
+bool stream_try_parse(std::istream &in, T &t) {
+    in >> t;
+    bool ret = !in.fail();
+    in.clear();
+    return ret;
+}
+
+inline void stream_match(std::istream &in, const std::string &s) {
+    in >> std::ws;
+    for (auto &c : s) {
+        char next = in.get();
+        if (next != c || in.fail())
+            ir_error_not_expected() << "Cannot match " << s;
+    }
+}
+
+inline bool stream_try_match(std::istream &in, const std::string &s) {
+    in >> std::ws;
+    auto pos = in.tellg();
+    bool ok = true;
+    for (auto &c : s) {
+        if (in.get() != c || in.fail()) {
+            ok = false;
+            break;
+        }
+    }
+    if (!ok) {
+        in.clear();
+        in.seekg(pos);
+    }
+    return ok;
+}
+
 } // namespace jit
 } // namespace intel
 } // namespace gpu

@@ -57,6 +57,11 @@ struct matmul_helper_t {
                                                                         : 'T';
     }
 
+    char transC() const {
+        const auto &strides = &dst_md_.blocking_desc().strides[ndims() - 2];
+        return strides[1] == 1 ? 'N' : 'T';
+    }
+
     dim_t lda() const {
         const auto &strides = &src_md_.blocking_desc().strides[ndims() - 2];
         return strides[transA() == 'N' ? 0 : 1];
@@ -77,7 +82,10 @@ struct matmul_helper_t {
         return weights_md_.blocking_desc().strides[dim];
     }
 
-    dim_t ldc() const { return dst_md_.blocking_desc().strides[ndims() - 2]; }
+    dim_t ldc() const {
+        const auto &strides = &dst_md_.blocking_desc().strides[ndims() - 2];
+        return strides[transC() == 'N' ? 0 : 1];
+    }
 
     dim_t get_c_stride(int dim) const {
         if (dim >= ndims() || dim < 0) return 0;
@@ -127,8 +135,8 @@ struct matmul_helper_t {
         utils::simultaneous_sort(src_strides, ou_dims, perm, batch_ndims,
                 [](stride_t a, stride_t b) { return a - b; });
 
-        dim_t src_stride = M() * lda();
-        dim_t dst_stride = M() * ldc();
+        dim_t src_stride = lda() * (transA() == 'N' ? M() : K());
+        dim_t dst_stride = ldc() * (transC() == 'N' ? M() : N());
 
         for (int i = 0; i < batch_ndims; ++i) {
             const dim_t dim_idx = perm[i];

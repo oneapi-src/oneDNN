@@ -26,6 +26,7 @@
 
 #include "cpu/gemm/f32/gemm_utils_f32.hpp"
 #include "cpu/gemm/f32/ref_gemm_f32.hpp"
+#include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm/gemm_msan_unpoison.hpp"
 
 #include "cpu/x64/jit_generator.hpp"
@@ -1626,7 +1627,7 @@ dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
     if (utils::any_null(ker_bn, ker_b1, ker_b0)) return dnnl_runtime_error;
 
     dim_t BM = 4032, BN, BK;
-    if (mayiuse(avx512_core)) {
+    if (mayiuse(avx512_core) && __BUILD_GEMM_AVX512) {
         BN = isTransA ? 384 : 64;
         BK = 384;
     } else {

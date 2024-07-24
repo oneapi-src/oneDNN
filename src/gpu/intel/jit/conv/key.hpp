@@ -50,6 +50,7 @@ class conv_key_t {
 public:
     conv_key_t() = default;
     conv_key_t(const conv_config_t &cfg, bool make_filter = false);
+    const std::string &desc() const;
     // Makes a filter from the given key.
     conv_key_t to_filter() const;
     // Computes the distance between this key and other key (must be
@@ -58,10 +59,9 @@ public:
     int distance(const conv_key_t &other) const;
     bool operator==(const conv_key_t &other) const;
     bool matches(const conv_key_t &other) const;
-    bool is_desc_equal(const conv_key_t &other) const;
     size_t get_hash() const;
-    void serialize(std::ostream &out) const;
-    void deserialize(std::istream &in);
+    void stringify(std::ostream &out) const;
+    void parse(std::istream &in);
     std::string str(bool csv = false) const;
     static std::vector<std::string> csv_keys();
 
@@ -73,12 +73,6 @@ private:
 
 struct conv_key_hash_t {
     size_t operator()(const conv_key_t &key) const { return key.get_hash(); }
-};
-
-struct conv_key_lookup_table_equal_t {
-    bool operator()(const conv_key_t &a, const conv_key_t &b) const {
-        return a.is_desc_equal(b);
-    }
 };
 
 } // namespace jit

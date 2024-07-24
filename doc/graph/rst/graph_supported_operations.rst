@@ -31,6 +31,7 @@ Supported Operations
    dev_guide_op_elubackward
    dev_guide_op_end
    dev_guide_op_exp
+   dev_guide_op_groupnorm
    dev_guide_op_gelu
    dev_guide_op_gelubackward
    dev_guide_op_hardsigmoid

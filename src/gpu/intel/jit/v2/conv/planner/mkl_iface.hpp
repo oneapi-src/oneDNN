@@ -66,7 +66,8 @@ struct mkl_iface_t {
         const char *library_name = "libmkl_rt.so";
         lib_ = dlopen(library_name, RTLD_LAZY);
         if (!lib_) {
-            printf("Error: cannot open library: %s\n", library_name);
+            dnnl::impl::verbose_printf(
+                    "Error: cannot open library: %s\n", library_name);
             exit(1);
         }
         mkl_set_threading_layer.load(lib_, "MKL_Set_Threading_Layer");

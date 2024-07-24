@@ -17,7 +17,6 @@
 #include "gpu/intel/jit/gen9_simple_sum.hpp"
 
 #include "gpu/intel/jit/gen9_simple_sum_kernel_f32.hpp"
-#include "gpu/intel/ocl/ocl_engine.hpp"
 #include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
 
 namespace dnnl {
@@ -28,10 +27,6 @@ namespace jit {
 
 status_t gen9_simple_sum_t::init(impl::engine_t *engine) {
     compute::kernel_ctx_t kernel_ctx;
-
-    auto *gpu_engine = utils::downcast<ocl::ocl_gpu_engine_t *>(engine);
-    if (!gpu_engine) return status::runtime_error;
-
     auto jitter = gen9_simple_sum_kernel_f32_t();
     CHECK(create_kernel(engine, &kernel_, &jitter));
 

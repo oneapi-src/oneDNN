@@ -393,6 +393,7 @@ public:
             CASE(Exp);
             CASE(GELU);
             CASE(GELUBackward);
+            CASE(GroupNorm);
             CASE(HardSigmoid);
             CASE(HardSigmoidBackward);
             CASE(HardSwish);

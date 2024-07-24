@@ -1664,6 +1664,63 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<op_t> &op,
     return desc;
 }
 
+groupnorm_executable_t::desc_t groupnorm_executable_t::create_desc(
+        std::shared_ptr<op_t> &op, const dnnl::engine &p_engine,
+        fusion_info_mgr_t &mgr, pd_cache_t &pd_cache) {
+
+    // first look up the cache
+    if (pd_cache.find(op.get()) != pd_cache.end()) {
+        auto pd = graph::utils::any_cast<
+                dnnl::group_normalization_forward::primitive_desc>(
+                pd_cache.at(op.get()));
+        return {pd, true};
+    }
+
+    dnnl::primitive_attr prm_attr;
+    if (op->has_attr(op_attr::fusion_info_key)
+            && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
+        prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
+    }
+
+    prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    float epsilon = 1e-5f;
+    if (op->has_attr(op_attr::epsilon))
+        epsilon = op->get_attr<float>(op_attr::epsilon);
+    bool keep_stats = true;
+    if (op->has_attr(op_attr::keep_stats))
+        keep_stats = op->get_attr<bool>(op_attr::keep_stats);
+    bool use_affine = true;
+    if (op->has_attr(op_attr::use_affine))
+        use_affine = op->get_attr<bool>(op_attr::use_affine);
+    int64_t group_num = 1;
+    if (op->has_attr(op_attr::groups)) {
+        group_num = op->get_attr<int64_t>(op_attr::groups);
+    } else {
+        assertm(false, "group_num is required.");
+    }
+    auto flags = dnnl::normalization_flags::none;
+    if (use_affine)
+        flags |= (dnnl::normalization_flags::use_scale
+                | dnnl::normalization_flags::use_shift);
+
+    prop_kind pkind = keep_stats ? prop_kind::forward_training
+                                 : prop_kind::forward_inference;
+
+    auto src = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    auto dst = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+
+    dst = to_format_any(dst);
+
+    dnnl::group_normalization_forward::primitive_desc pd(
+            p_engine, pkind, src, dst, group_num, epsilon, flags, prm_attr);
+
+    pd_cache.insert({op.get(), pd});
+    return {pd, false};
+}
+
 static void get_arg_indices_for_post_ops(const op_t *op, fusion_info_mgr_t &mgr,
         arg_indices_t &indices, size_t &base_index) {
     const fusion_info_t &fusion_info
@@ -2083,9 +2140,8 @@ arg_indices_t batchnorm_bwd_executable_t::get_arg_indices(
     return arg_indices;
 }
 
-arg_indices_t layernorm_executable_t::get_arg_indices(
+static arg_indices_t get_arg_indices_for_lnorm_and_gnorm(
         const op_t *op, fusion_info_mgr_t &mgr) {
-    UNUSED(mgr);
     arg_indices_t arg_indices;
 
     size_t in_index = 0;
@@ -2118,12 +2174,14 @@ arg_indices_t layernorm_executable_t::get_arg_indices(
                 {DNNL_ARG_VARIANCE, indices_t {output, out_index++}});
     }
 
-    if (op->num_outputs() > out_index) {
-        arg_indices.insert(
-                {DNNL_ARG_SCRATCHPAD, indices_t {output, out_index++}});
-    }
+    arg_indices.insert({DNNL_ARG_SCRATCHPAD, indices_t {output, out_index++}});
 
     return arg_indices;
+}
+
+arg_indices_t layernorm_executable_t::get_arg_indices(
+        const op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_lnorm_and_gnorm(op, mgr);
 }
 
 arg_indices_t layernorm_bwd_executable_t::get_arg_indices(
@@ -2249,6 +2307,11 @@ arg_indices_t eltwise_bwd_executable_t::get_arg_indices(
     arg_indices.insert({DNNL_ARG_SCRATCHPAD, indices_t {output, 1}});
 
     return arg_indices;
+}
+
+arg_indices_t groupnorm_executable_t::get_arg_indices(
+        const op_t *op, fusion_info_mgr_t &mgr) {
+    return get_arg_indices_for_lnorm_and_gnorm(op, mgr);
 }
 
 } // namespace dnnl_impl

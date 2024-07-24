@@ -39,9 +39,10 @@ matcher and want to debug pattern matcher.
     do { \
         if (get_verbose(verbose_t::debuginfo, component_t::graph) \
                 >= debug_level) { \
-            printf("onednn_verbose,graph,debuginfo,pattern_" \
-                   "matcher," __VA_ARGS__); \
-            printf("\n"); \
+            verbose_printf( \
+                    "onednn_verbose,graph,debuginfo,pattern_" \
+                    "matcher," __VA_ARGS__); \
+            verbose_printf("\n"); \
         } \
     } while (0)
 #else
@@ -59,9 +60,10 @@ export ONEDNN_VERBOSE=dispatch,filter=graph
 #define VPATTERN_MATCHER(...) \
     do { \
         if (get_verbose(verbose_t::create_dispatch, component_t::graph)) { \
-            printf("onednn_verbose,graph,create:dispatch,pattern_" \
-                   "matcher," __VA_ARGS__); \
-            printf("\n"); \
+            verbose_printf( \
+                    "onednn_verbose,graph,create:dispatch,pattern_" \
+                    "matcher," __VA_ARGS__); \
+            verbose_printf("\n"); \
         } \
     } while (0)
 

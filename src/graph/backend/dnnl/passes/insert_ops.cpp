@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -154,6 +154,7 @@ std::unordered_map<op_kind_t, std::pair<io_indices_t, io_indices_t>>
                 {op_kind::dnnl_prelu_bwd, {{0, 1, 2}, {0, 1}}},
                 {op_kind::dnnl_resampling, {{0}, {0}}},
                 {op_kind::dnnl_resampling_bwd, {{0, 1}, {0}}},
+                {op_kind::dnnl_groupnorm, {{0}, {0}}},
 };
 
 // insert permute for those ops only requiring data_format attribute

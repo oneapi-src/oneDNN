@@ -110,11 +110,6 @@ status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
     return status::runtime_error;
 }
 
-cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
-        size_t size, void *host_ptr, cl_int *errcode_ret) {
-    return clCreateBuffer(context, flags, size, host_ptr, errcode_ret);
-}
-
 static status_t get_number_devices(cl_program program, size_t *n_devices) {
     cl_int err = clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES,
             sizeof(size_t), n_devices, nullptr);
@@ -302,8 +297,12 @@ static status_t get_ocl_device_eu_count_intel(cl_device_id device,
     OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_NUM_EUS_PER_SUB_SLICE_INTEL,
             sizeof(num_eus_per_sub_slice), &num_eus_per_sub_slice, nullptr));
 
-    if (arch == gpu::intel::compute::gpu_arch_t::xe2)
+    if (arch == gpu::intel::compute::gpu_arch_t::xe2) {
+#ifdef _WIN32
+        return status::unimplemented; /* cannot rely on these queries */
+#endif
         num_eus_per_sub_slice = 8; /* runtime reports incorrect value */
+    }
 
     *eu_count = (int32_t)(
             num_slices * num_sub_slices_per_slice * num_eus_per_sub_slice);

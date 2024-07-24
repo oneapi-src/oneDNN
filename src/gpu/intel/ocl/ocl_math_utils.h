@@ -662,15 +662,21 @@ DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
 #endif
 
 // Atomics
-#if !DETERMINISTIC
+#if !DETERMINISTIC && ATOMICS_SUPPORTED
+#define ATOMIC(x) CONCAT2(atomic_, x)
 #define DECLARE_ATOMIC_OP(op, type) \
     type __attribute__((overloadable)) CONCAT3(atomic_, op, _global)( \
-            volatile global CONCAT2(atomic_, type) * source, type operand) { \
+            volatile global ATOMIC(type) * source, type operand) { \
         return CONCAT3(atomic_fetch_, op, _explicit)( \
                 source, operand, memory_order_relaxed); \
     }
 
-#ifdef cl_ext_float_atomics
+DECLARE_ATOMIC_OP(min, int)
+DECLARE_ATOMIC_OP(max, int)
+DECLARE_ATOMIC_OP(add, int)
+DECLARE_ATOMIC_OP(sub, int)
+
+#if ATOMIC_FLOAT_SUPPORTED
 #ifdef __opencl_c_ext_fp32_global_atomic_add
 #define HAS_FLOAT_ATOMIC_ADD
 DECLARE_ATOMIC_OP(add, float)
@@ -681,10 +687,10 @@ DECLARE_ATOMIC_OP(sub, float)
 DECLARE_ATOMIC_OP(min, float)
 DECLARE_ATOMIC_OP(max, float)
 #endif // __opencl_c_ext_fp32_global_atomic_min_max
+#endif // ATOMIC_FLOATS_SUPPORTED
 
-#endif // cl_ext_float_atomics
-
-#if __OPENCL_C_VERSION__ >= 200 && !defined(HAS_FLOAT_ATOMIC_ADD)
+#ifndef HAS_FLOAT_ATOMIC_ADD
+// Fallback atomic implementations
 inline float atomic_add_global(
         volatile __global atomic_float *source, float operand) {
     float old_val = atomic_load_explicit(

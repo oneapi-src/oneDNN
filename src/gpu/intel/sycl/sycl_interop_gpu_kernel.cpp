@@ -19,7 +19,6 @@
 #include "common/verbose.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
-#include "gpu/intel/ocl/stream_profiler.hpp"
 #include "gpu/intel/ocl/types_interop.hpp"
 #include "gpu/intel/sycl/l0/utils.hpp"
 #include "gpu/intel/sycl/stream.hpp"

@@ -18,12 +18,13 @@
 
 #include <CL/cl.h>
 
-#include "gpu/intel/ocl/ocl_stream.hpp"
-
 #include "common/verbose.hpp"
-#include "gpu/intel/ocl/ocl_memory_storage.hpp"
+
+#include "xpu/ocl/memory_storage.hpp"
+#include "xpu/ocl/stream_profiler.hpp"
+
+#include "gpu/intel/ocl/ocl_stream.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
-#include "gpu/intel/ocl/stream_profiler.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,7 +34,7 @@ namespace ocl {
 
 status_t ocl_stream_t::init() {
     if (is_profiling_enabled()) {
-        profiler_ = utils::make_unique<ocl_stream_profiler_t>(this);
+        profiler_ = utils::make_unique<xpu::ocl::stream_profiler_t>(this);
         mdapi_helper_ = utils::make_unique<mdapi_helper_t>();
     }
     // Restore queue on successful exit, otherwise queue may be released
@@ -113,7 +114,7 @@ void ocl_stream_t::before_exec_hook() {
 }
 
 void ocl_stream_t::after_exec_hook() {
-    ocl_ctx().set_deps(ocl_event_t());
+    ocl_ctx().set_deps(xpu::ocl::event_t());
     if (is_profiling_enabled()) profiler_->stop_profiling();
 }
 

@@ -64,6 +64,9 @@ struct fp8_emulation_base_t {
             const Xbyak::Reg64 &reg_data_out)
             = 0;
 
+    virtual void bcst_f8_to_f32(
+            const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in);
+
 protected:
     jit_generator *const host_;
     Xbyak::Label label_table_to_f8_;

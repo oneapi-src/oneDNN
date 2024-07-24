@@ -141,6 +141,7 @@
 --reset --case=op/f16/sqrt.json
 --reset --case=op/f16/sqrt_bwd.json
 --reset --case=op/f16/select.json
+--reset --case=op/f16/gnorm.json
 # reorder
 --reset --in-shapes=0:2x64x3x3 --case=op/f16/reorder.json
 # large scope

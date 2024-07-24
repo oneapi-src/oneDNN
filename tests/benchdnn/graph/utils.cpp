@@ -370,6 +370,7 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"Exp", dnnl::graph::op::kind::Exp},
             {"GELU", dnnl::graph::op::kind::GELU},
             {"GELUBackward", dnnl::graph::op::kind::GELUBackward},
+            {"GroupNorm", dnnl::graph::op::kind::GroupNorm},
             {"HardSigmoid", dnnl::graph::op::kind::HardSigmoid},
             {"HardSigmoidBackward", dnnl::graph::op::kind::HardSigmoidBackward},
             {"HardSwish", dnnl::graph::op::kind::HardSwish},
@@ -561,6 +562,7 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
                     {dnnl::graph::op::kind::GELU, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::GELUBackward,
                             dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::GroupNorm, dnnl_driver_t::gnorm},
                     {dnnl::graph::op::kind::HardSigmoid,
                             dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::HardSigmoidBackward,
@@ -884,6 +886,21 @@ int get_prim_arg_name_from_graph_op_output_offset(
                 assert(false);
                 return -1;
             }
+        } break;
+        case dnnl::graph::op::kind::GroupNorm: {
+            if (output_offset == 0)
+                return DNNL_ARG_DST;
+            else if (output_offset == 1)
+                return DNNL_ARG_MEAN;
+            else if (output_offset == 2)
+                return DNNL_ARG_VARIANCE;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %d",
+                        static_cast<int>(output_offset));
+                assert(false);
+                return -1;
+            }
+
         } break;
         default: {
             return DNNL_ARG_DST;
@@ -1223,6 +1240,20 @@ int get_prim_arg_name_from_graph_op_input_offset(
                 return DNNL_ARG_SRC_0;
             else if (input_offset == 2)
                 return DNNL_ARG_SRC_1;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::GroupNorm: {
+            if (input_offset == 0)
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                return DNNL_ARG_SCALE;
+            else if (input_offset == 2)
+                return DNNL_ARG_SHIFT;
             else {
                 BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);

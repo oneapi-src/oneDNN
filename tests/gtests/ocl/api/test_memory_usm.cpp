@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/gpu/intel/ocl/ocl_usm_utils.hpp"
+#include "src/xpu/ocl/usm_utils.hpp"
 
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
@@ -25,15 +25,14 @@
 #include <cstdint>
 #include <vector>
 
-using namespace dnnl::impl::gpu::intel::ocl;
+using namespace dnnl::impl::xpu::ocl;
 
 namespace dnnl {
 
 namespace {
 void fill_data(void *usm_ptr, memory::dim n, const engine &eng) {
     auto alloc_kind = usm::get_pointer_type(eng.get(), usm_ptr);
-    if (alloc_kind == usm::ocl_usm_kind_t::host
-            || alloc_kind == usm::ocl_usm_kind_t::shared) {
+    if (alloc_kind == usm::kind_t::host || alloc_kind == usm::kind_t::shared) {
         for (int i = 0; i < n; i++)
             ((float *)usm_ptr)[i] = float(i);
     } else {
@@ -194,13 +193,13 @@ TEST(ocl_memory_usm_test, ErrorMakeMemoryUsingSystemMemory) {
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, DeviceMapUnmap) {
-    test_usm_map_unmap(dnnl::impl::gpu::intel::ocl::usm::malloc_device,
-            dnnl::impl::gpu::intel::ocl::usm::free);
+    test_usm_map_unmap(dnnl::impl::xpu::ocl::usm::malloc_device,
+            dnnl::impl::xpu::ocl::usm::free);
 }
 
 HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, SharedMapUnmap) {
-    test_usm_map_unmap(dnnl::impl::gpu::intel::ocl::usm::malloc_shared,
-            dnnl::impl::gpu::intel::ocl::usm::free);
+    test_usm_map_unmap(dnnl::impl::xpu::ocl::usm::malloc_shared,
+            dnnl::impl::xpu::ocl::usm::free);
 }
 
 } // namespace dnnl

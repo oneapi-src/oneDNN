@@ -65,3 +65,10 @@ if(CMAKE_COMPILER_IS_GNUCC)
     set_source_files_properties(gemm/loop_sequencer.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
     set_source_files_properties(gemm/gen_gemm_kernel_generator.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
 endif()
+
+# Workaround for unordered_map related issues with DPC++ on Windows
+string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
+if(WIN32 AND UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "RELWITHMDD" AND CMAKE_BASE_NAME MATCHES "(icx|icpx)")
+    file(GLOB_RECURSE FILES_LIMIT_INLINE ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+    set_source_files_properties(${FILES_LIMIT_INLINE} PROPERTIES COMPILE_FLAGS "/Ob1")
+endif()

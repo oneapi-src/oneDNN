@@ -257,13 +257,15 @@ status_t gen_gemm_kernel_desc_t::transfer_post_ops(
 status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         int stepping, int eu_count, bool has_systolic, compute_mode mode,
         int batch_dims, bool trans_a, bool trans_b, bool trans_co, bool swap_ab,
-        int ao_dims, int bo_dims, bool wei_scale_2d, int wei_q2d_group_k,
-        bool c_offset, bool bias, sum_ab_t reduce_ab, float alpha, float beta,
-        data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t ao_type, data_type_t bo_type, data_type_t wei_scales_type,
-        data_type_t co_type, data_type_t acc_type, int align_a, int align_b,
-        int align_c, dim_t m, dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc,
-        dim_t batch, gpu_post_ops_t &&post_ops) {
+        int ao_dims, int bo_dims, bool wei_scale_2d, bool src_scale_2d,
+        int wei_q2d_group_k, int src_q2d_group_k, bool c_offset, bool bias,
+        sum_ab_t reduce_ab, float alpha, float beta, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t ao_type,
+        data_type_t bo_type, data_type_t wei_scales_type,
+        data_type_t src_scales_type, data_type_t co_type, data_type_t acc_type,
+        int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
+        dim_t lda, dim_t ldb, dim_t ldc, dim_t batch,
+        gpu_post_ops_t &&post_ops) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -328,21 +330,42 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         problem_.BO.setAlignment(int(types::data_type_size(bo_type)));
     if (!swap_ab) {
         problem_.aScale2D = wei_scale_2d;
+        problem_.bScale2D = src_scale_2d;
         problem_.aqGroupK = wei_q2d_group_k;
+        problem_.bqGroupK = src_q2d_group_k;
         if (wei_scales_type != data_type::undef) {
             problem_.Ta_scale = convert_dnnl_to_kernel_type(wei_scales_type);
             problem_.A_scale.setAlignment(
                     int(types::data_type_size(wei_scales_type)));
         }
+        if (src_scales_type != data_type::undef) {
+            problem_.Tb_scale = convert_dnnl_to_kernel_type(src_scales_type);
+            problem_.B_scale.layout = MatrixLayout::N;
+            problem_.B_scale.setAlignment(
+                    int(types::data_type_size(src_scales_type)));
+        }
     } else {
         problem_.bScale2D = wei_scale_2d;
+        problem_.aScale2D = src_scale_2d;
         problem_.bqGroupK = wei_q2d_group_k;
+        problem_.aqGroupK = src_q2d_group_k;
         if (wei_scales_type != data_type::undef) {
             problem_.Tb_scale = convert_dnnl_to_kernel_type(wei_scales_type);
             problem_.B_scale.setAlignment(
                     int(types::data_type_size(wei_scales_type)));
         }
+        if (src_scales_type != data_type::undef) {
+            problem_.Ta_scale = convert_dnnl_to_kernel_type(src_scales_type);
+            problem_.A_scale.layout = MatrixLayout::T;
+            problem_.A_scale.setAlignment(
+                    int(types::data_type_size(src_scales_type)));
+        }
     }
+
+    if (problem_.Ta_ext.isInt4() && problem_.Tb_ext.isInt8() && ao_dims >= 0)
+        problem_.Ta = Type::s8;
+    if (problem_.Tb_ext.isInt4() && problem_.Ta_ext.isInt8() && bo_dims >= 0)
+        problem_.Tb = Type::s8;
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
@@ -368,7 +391,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     MatchParams match_params[3];
     int npatterns = 1;
 
-    match_params[0] = MatchParams(hw_, problem_);
+    match_params[0] = MatchParams(hw_, has_systolic, problem_);
 
     match_params[0].sizes.m = m;
     match_params[0].sizes.n = n;
@@ -382,7 +405,6 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     if (can_2d_a) *tags++ = kcatalog::ReqBlock2DA;
     if (can_2d_b) *tags++ = kcatalog::ReqBlock2DB;
     if (can_2d_c) *tags++ = kcatalog::ReqBlock2DC;
-    if (has_systolic) *tags++ = kcatalog::ReqSystolic;
 
     if ((mode & mode_tf32)
             && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
@@ -397,6 +419,60 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         match_params[npatterns] = match_params[0];
         match_params[npatterns].selector.precisions[0] = "[SB]";
         match_params[npatterns].selector.precisions[1] = "[SB]";
+        npatterns++;
+    } else if ((mode & mode_bf16x1)
+            && utils::one_of(Type::f32, problem_.Ta, problem_.Tb)
+            && (problem_.Ta.isInteger() || problem_.Tb.isInteger())) {
+        if (problem_.Ta.isInt8() || problem_.Ta.isInt4()) {
+            match_params[npatterns] = match_params[0];
+            match_params[npatterns].selector.precisions[0]
+                    = match_params[0].selector.precisions[0];
+            match_params[npatterns].selector.precisions[1] = "B";
+            npatterns++;
+        } else {
+            match_params[npatterns] = match_params[0];
+            match_params[npatterns].selector.precisions[0] = "B";
+            match_params[npatterns].selector.precisions[1]
+                    = match_params[0].selector.precisions[1];
+            npatterns++;
+        }
+    }
+
+    if ((mode & mode_f16x1)
+            && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[0] = "[SH]";
+        match_params[npatterns].selector.precisions[1] = "[SH]";
+        npatterns++;
+    }
+
+    if ((mode & mode_f16x1)
+            && utils::one_of(Type::f32, problem_.Ta, problem_.Tb)
+            && (problem_.Ta.isInteger() || problem_.Tb.isInteger())) {
+        if (problem_.Ta.isInt8() || problem_.Ta.isInt4()) {
+            match_params[npatterns] = match_params[0];
+            match_params[npatterns].selector.precisions[0]
+                    = match_params[0].selector.precisions[0];
+            match_params[npatterns].selector.precisions[1] = "H";
+            npatterns++;
+        } else {
+            match_params[npatterns] = match_params[0];
+            match_params[npatterns].selector.precisions[0] = "H";
+            match_params[npatterns].selector.precisions[1]
+                    = match_params[0].selector.precisions[1];
+            npatterns++;
+        }
+    }
+
+    if (problem_.Ta.isInt4()) {
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[0] = "[FO]";
+        npatterns++;
+    }
+
+    if (problem_.Tb.isInt4()) {
+        match_params[npatterns] = match_params[0];
+        match_params[npatterns].selector.precisions[1] = "[FO]";
         npatterns++;
     }
 
@@ -416,17 +492,20 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     if (!entry_) return status::unimplemented;
 
-    if (mode & mode_tf32) {
-        if (entry_->selector.precisions[0][0] == 'T')
-            problem_.Ta = problem_.Ta_ext = Type::tf32;
-        if (entry_->selector.precisions[1][0] == 'T')
-            problem_.Tb = problem_.Tb_ext = Type::tf32;
-    }
+    // Update A/B types from entry.
+    Type Ta_new, Ta_ext_new, Tb_new, Tb_ext_new;
+    parsePrecisions(entry_->selector.precisions[0], Ta_ext_new, Ta_new);
+    parsePrecisions(entry_->selector.precisions[1], Tb_ext_new, Tb_new);
 
-    if (mode & mode_bf16x1) {
-        if (entry_->selector.precisions[0][0] == '[') problem_.Ta = Type::bf16;
-        if (entry_->selector.precisions[1][0] == '[') problem_.Tb = Type::bf16;
-    }
+    auto update_type = [](Type &T, Type T_new, bool sz_change = false) {
+        if ((T.bits() != T_new.bits()) && !sz_change) return;
+        if (T.isF8() && T_new.isF8()) return;
+        T = T.isSigned() ? T_new.asSigned() : T_new.asUnsigned();
+    };
+    update_type(problem_.Ta, Ta_new, true);
+    update_type(problem_.Tb, Tb_new, true);
+    update_type(problem_.Ta_ext, Ta_ext_new);
+    update_type(problem_.Tb_ext, Tb_ext_new);
 
     auto block_k = entry_->driverInfo.blocking[LoopK];
     if (block_k > 0 && k > block_k && beta != 1.0f) problem_.beta = Scalar();
@@ -520,7 +599,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     }
 
     // Find it in the catalog.
-    MatchParams match_params(hw_, problem_);
+    MatchParams match_params(hw_, true, problem_);
 
     match_params.sizes.m = m;
     match_params.sizes.n = n;
@@ -649,25 +728,25 @@ void gen_gemm_kernel_t::init_interface() {
             interface_.newArgument("ld" + bname, DataType::d);
     }
     if (problem.batch == BatchMode::Strided) {
-        if (problem.batchDims > 1) {
-            interface_.newArgument("stride_A1", DataType::d);
-            interface_.newArgument("stride_B1", DataType::d);
-            interface_.newArgument("stride_C1", DataType::d);
-            for (size_t i = 0; i < problem.postOps.len(); i++)
-                if (problem.postOps[i].is_binary() && problem.binaryBatch[i])
-                    interface_.newArgument(
-                            "stride1_binary" + std::to_string(i), DataType::d);
+        for (int i = 0; i < problem.batchDims; i++) {
+            interface_.newArgument("stride_A" + std::to_string(i), DataType::d);
+            interface_.newArgument("stride_B" + std::to_string(i), DataType::d);
+            interface_.newArgument("stride_C" + std::to_string(i), DataType::d);
         }
-        interface_.newArgument("stride_A", DataType::d);
-        interface_.newArgument("stride_B", DataType::d);
-        interface_.newArgument("stride_C", DataType::d);
-        for (size_t i = 0; i < problem.postOps.len(); i++)
-            if (problem.postOps[i].is_binary() && problem.binaryBatch[i])
-                interface_.newArgument(
-                        "stride_binary" + std::to_string(i), DataType::d);
-        if (problem.batchDims > 1) {
-            interface_.newArgument("batch_size1", DataType::ud);
-            interface_.newArgument("recip_batch_size1", DataType::ud);
+        for (size_t i = 0; i < problem.postOps.len(); i++) {
+            if (problem.postOps[i].is_binary() && problem.binaryBatch[i]) {
+                for (int b = 0; b < problem.batchDims; b++) {
+                    interface_.newArgument("stride" + std::to_string(b)
+                                    + "binary" + std::to_string(i),
+                            DataType::d);
+                }
+            }
+        }
+        for (int i = 0; i < problem.batchDims - 1; i++) {
+            interface_.newArgument(
+                    "batch_size" + std::to_string(i), DataType::ud);
+            interface_.newArgument(
+                    "recip_batch_size" + std::to_string(i), DataType::ud);
         }
     }
     if (strategy.fuseBeta || strategy.fusePostOps)

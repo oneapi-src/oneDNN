@@ -481,6 +481,43 @@ void flex_rewrite::infer_output_shape(
                 merge_ncx(data_format, gi[out0], n, c, x);
                 break;
             // infer_norm_output_shape
+            case dnnl::graph::op::kind::GroupNorm:
+                // infer shape for dst.
+                in0 = aop.in_lts_[0].id_;
+                out0 = aop.out_lts_[0].id_;
+                gi[out0] = gi[in0];
+                // attr `keep_stats` is optional, default is `true`
+                if (aop.attrs_.find("keep_stats") == aop.attrs_.end()
+                        || aop.attrs_["keep_stats"].bool_value_) {
+                    // `true` means it has 3 output: dst, mean and var.
+                    //  need to infer shape for mean and var
+                    if (aop.out_lts_.size() == 3) {
+                        int64_t groups = 0;
+                        if (aop.attrs_.find("groups") == aop.attrs_.end()) {
+                            fprintf(stderr,
+                                    "graph: groups is required for "
+                                    "GroupNorm!\n");
+                            SAFE_V(FAIL);
+                        } else {
+                            groups = aop.attrs_["groups"].s64_value_;
+                        }
+                        size_t out1 = aop.out_lts_[1].id_;
+                        size_t out2 = aop.out_lts_[2].id_;
+                        gi[out1].clear();
+                        gi[out2].clear();
+                        // mean/var shape is N,C
+                        std::vector<int64_t> mv_shape = {gi[in0][0], groups};
+                        gi[out1] = mv_shape;
+                        gi[out2] = mv_shape;
+                    } else {
+                        fprintf(stderr,
+                                "graph: GroupNorm output number "
+                                "mismatch!\n");
+                        SAFE_V(FAIL);
+                    }
+                }
+                break;
+            // infer_norm_output_shape
             case dnnl::graph::op::kind::LayerNorm:
                 in0 = aop.in_lts_[0].id_;
                 out0 = aop.out_lts_[0].id_;
@@ -1040,6 +1077,7 @@ void flex_rewrite::update_output_info(
         case dnnl::graph::op::kind::Exp:
         case dnnl::graph::op::kind::GELU:
         case dnnl::graph::op::kind::GELUBackward:
+        case dnnl::graph::op::kind::GroupNorm:
         case dnnl::graph::op::kind::HardSigmoid:
         case dnnl::graph::op::kind::HardSigmoidBackward:
         case dnnl::graph::op::kind::HardSwish:

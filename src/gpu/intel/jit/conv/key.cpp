@@ -23,6 +23,7 @@
 
 #include "common/utils.hpp"
 #include "gpu/intel/jit/conv/config.hpp"
+#include "gpu/intel/jit/ir/hw.hpp"
 #include "gpu/intel/jit/ngen/ngen.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
 
@@ -36,55 +37,15 @@ namespace {
 
 template <typename KindT>
 struct key_kind_traits_t {
-    static bool supports_filter() { return false; }
-    static bool is_filter(KindT kind) { return false; }
     static bool matches(KindT a, KindT b) { return a == b; }
 };
-
-enum class key_hw_kind_t {
-    undef,
-    gen9,
-    gen12lp,
-    xehp,
-    xehpg,
-    xehpc,
-    xe2,
-};
-
-std::string to_string(key_hw_kind_t kind) {
-#define CASE(name) \
-    case key_hw_kind_t::name: return #name
-    switch (kind) {
-        CASE(undef);
-        CASE(gen9);
-        CASE(gen12lp);
-        CASE(xehp);
-        CASE(xehpg);
-        CASE(xehpc);
-        CASE(xe2);
-        default: ir_error_not_expected();
-    }
-#undef CASE
-    return {};
-}
-
-key_hw_kind_t to_hw_kind(ngen::HW hw) {
-    switch (hw) {
-        case ngen::HW::Gen9: return key_hw_kind_t::gen9;
-        case ngen::HW::Gen12LP: return key_hw_kind_t::gen12lp;
-        case ngen::HW::XeHP: return key_hw_kind_t::xehp;
-        case ngen::HW::XeHPG: return key_hw_kind_t::xehpg;
-        case ngen::HW::XeHPC: return key_hw_kind_t::xehpc;
-        case ngen::HW::Xe2: return key_hw_kind_t::xe2;
-        default: ir_error_not_expected(); return key_hw_kind_t::undef;
-    }
-}
 
 enum class key_fma_kind_t {
     undef,
     mad,
     dp4a,
     dpas,
+    _max,
 };
 
 std::string to_string(key_fma_kind_t kind) {
@@ -93,6 +54,7 @@ std::string to_string(key_fma_kind_t kind) {
     switch (kind) {
         CASE(undef);
         CASE(mad);
+        CASE(dp4a);
         CASE(dpas);
         default: ir_error_not_expected();
     }
@@ -115,6 +77,7 @@ enum class key_prop_kind_t {
     fwd,
     bwd_d,
     bwd_w,
+    _max,
 };
 
 std::string to_string(key_prop_kind_t kind) {
@@ -159,6 +122,7 @@ enum class key_type_kind_t {
     hf8,
     f8_e4m3 = hf8,
     xf8, // bf8 or hf8
+    _max,
 };
 
 std::string to_string(key_type_kind_t kind) {
@@ -229,34 +193,10 @@ key_type_kind_t to_filter(key_type_kind_t kind) {
 
 template <>
 struct key_kind_traits_t<key_type_kind_t> {
-    static bool supports_filter() { return true; }
-
-    static bool is_filter(key_type_kind_t kind) {
-        switch (kind) {
-            case key_type_kind_t::any:
-            case key_type_kind_t::x8:
-            case key_type_kind_t::xf8:
-            case key_type_kind_t::x16: return true;
-            default: return false;
-        }
-    }
-
-    static bool matches(key_type_kind_t a, key_type_kind_t b) {
-        if (is_filter(a) && is_filter(b)) return a == b;
-        if (!is_filter(a) && is_filter(b)) return matches(b, a);
-        switch (a) {
-            case key_type_kind_t::any: return true;
-            case key_type_kind_t::x8:
-                return utils::one_of(
-                        b, key_type_kind_t::s8, key_type_kind_t::u8);
-            case key_type_kind_t::xf8:
-                return utils::one_of(
-                        b, key_type_kind_t::bf8, key_type_kind_t::hf8);
-            case key_type_kind_t::x16:
-                return utils::one_of(
-                        b, key_type_kind_t::bf16, key_type_kind_t::f16);
-            default: ir_assert(!is_filter(a)); return a == b;
-        }
+    static bool matches(key_type_kind_t filter, key_type_kind_t other) {
+        ir_assert(filter == to_filter(filter));
+        if (filter == key_type_kind_t::any) return true;
+        return filter == to_filter(other);
     }
 };
 
@@ -269,23 +209,19 @@ struct subkey_t {
     subkey_t() = default;
     subkey_t(KindT kind) : kind(kind) {}
 
-    bool is_filter() const { return traits_t::is_filter(kind); }
-
     bool operator==(const subkey_t &other) const { return kind == other.kind; }
 
     bool matches(const subkey_t &other) const {
         return traits_t::matches(kind, other.kind);
     }
 
-    size_t get_hash() const {
-        if (traits_t::supports_filter()) return 0;
-        return ir_utils::get_hash(kind);
-    }
+    size_t get_hash() const { return ir_utils::get_hash(kind); }
 
-    void serialize(std::ostream &out) const { ir_utils::serialize(kind, out); }
+    void stringify(std::ostream &out) const { out << to_string(kind); }
 
-    void deserialize(std::istream &in) {
-        kind = ir_utils::deserialize<KindT>(in);
+    void parse(std::istream &in) {
+        auto s = stream_parse<std::string>(in);
+        kind = to_enum<KindT>(s);
     }
 
     std::string str() const { return to_string(kind); }
@@ -293,10 +229,56 @@ struct subkey_t {
     IR_DEFINE_DUMP()
 };
 
-using key_hw_t = subkey_t<key_hw_kind_t>;
 using key_fma_t = subkey_t<key_fma_kind_t>;
 using key_prop_t = subkey_t<key_prop_kind_t>;
 using key_type_t = subkey_t<key_type_kind_t>;
+
+struct key_hw_t {
+    ngen::HW hw = ngen::HW::Unknown;
+    ngen::ProductFamily family = ngen::ProductFamily::Unknown;
+
+    key_hw_t() = default;
+    key_hw_t(ngen::HW hw, ngen::ProductFamily family)
+        : hw(hw), family(family) {}
+
+    bool with_family() const { return family != ngen::ProductFamily::Unknown; }
+
+    bool matches(const key_hw_t &other) const {
+        if (hw != other.hw) return false;
+        if (!with_family()) return true;
+        return family == other.family;
+    }
+
+    bool operator==(const key_hw_t &other) const {
+        return (hw == other.hw) && (family == other.family);
+    }
+
+    size_t get_hash() const { return ir_utils::get_hash(hw, family); }
+
+    void stringify(std::ostream &out) const {
+        out << ir_utils::to_lower(jit::to_string(hw));
+        if (with_family())
+            out << ":" << ir_utils::to_lower(jit::to_string(family));
+    }
+
+    void parse(std::istream &in) {
+        auto s = stream_parse<std::string>(in);
+        auto parts = gpu_utils::split(s, ":");
+        ir_assert(parts.size() <= 2);
+        hw = str_to_ngen_hw(parts[0]);
+        family = (parts.size() > 1 ? str_to_ngen_product_family(parts[1])
+                                   : ngen::ProductFamily::Unknown);
+    }
+
+    std::string str() const {
+        std::ostringstream oss;
+        oss << jit::to_string(hw);
+        if (with_family()) oss << ":" << jit::to_string(family);
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
+};
 
 struct key_type_info_t {
     key_type_t src;
@@ -314,10 +296,6 @@ struct key_type_info_t {
         src = to_type_kind(src_type);
         wei = to_type_kind(wei_type);
         dst = to_type_kind(dst_type);
-    }
-
-    bool is_filter() const {
-        return src.is_filter() || wei.is_filter() || dst.is_filter();
     }
 
     key_type_info_t to_filter(key_prop_kind_t prop) const {
@@ -346,16 +324,21 @@ struct key_type_info_t {
 
     size_t get_hash() const { return ir_utils::get_hash(src, wei, dst); }
 
-    void serialize(std::ostream &out) const {
-        src.serialize(out);
-        wei.serialize(out);
-        dst.serialize(out);
+    void stringify(std::ostream &out) const {
+        src.stringify(out);
+        out << ":";
+        wei.stringify(out);
+        out << ":";
+        dst.stringify(out);
     }
 
-    void deserialize(std::istream &in) {
-        src.deserialize(in);
-        wei.deserialize(in);
-        dst.deserialize(in);
+    void parse(std::istream &in) {
+        auto s = stream_parse<std::string>(in);
+        auto parts = gpu_utils::split(s, ":");
+        ir_assert(parts.size() == 3);
+        src = key_type_t(to_enum<key_type_kind_t>(parts[0]));
+        wei = key_type_t(to_enum<key_type_kind_t>(parts[1]));
+        dst = key_type_t(to_enum<key_type_kind_t>(parts[2]));
     }
 
     std::string str() const {
@@ -378,7 +361,6 @@ bool is_mb_blocked(const layout_t &layout) {
 }
 
 struct key_mb_t {
-    bool is_filter = false;
     bool is_blocked = false;
     int value = 0;
 
@@ -398,43 +380,32 @@ struct key_mb_t {
         }
     }
 
-    key_mb_t to_filter() const {
-        auto ret = *this;
-        ret.is_filter = true;
-        return ret;
-    }
-
     bool operator==(const key_mb_t &other) const {
-        return (is_filter == other.is_filter)
-                && (is_blocked == other.is_blocked) && (value == other.value);
+        return (is_blocked == other.is_blocked) && (value == other.value);
     }
 
     bool matches(const key_mb_t &other) const {
-        if (is_filter && other.is_filter) return operator==(other);
-        if (!is_filter && other.is_filter) return other.matches(*this);
         if (is_blocked != other.is_blocked) return false;
-        if (is_filter) return value <= other.value;
-        return value == other.value;
+        return value <= other.value;
     }
 
     size_t get_hash() const { return ir_utils::get_hash(is_blocked); }
 
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(is_filter, out);
-        ir_utils::serialize(is_blocked, out);
-        ir_utils::serialize(value, out);
+    void stringify(std::ostream &out) const {
+        out << "mb" << value;
+        if (is_blocked) out << "b";
     }
 
-    void deserialize(std::istream &in) {
-        is_filter = ir_utils::deserialize<bool>(in);
-        is_blocked = ir_utils::deserialize<bool>(in);
-        value = ir_utils::deserialize<int>(in);
+    void parse(std::istream &in) {
+        stream_match(in, "mb");
+        value = stream_parse<int>(in);
+        stream_try_match(in, "+");
+        is_blocked = stream_try_match(in, "b");
     }
 
     std::string str() const {
         std::ostringstream oss;
         oss << "mb" << value;
-        if (is_filter) oss << "+";
         if (is_blocked) oss << "(blocked)";
         return oss.str();
     }
@@ -456,11 +427,9 @@ struct key_desc_t {
 
     size_t get_hash() const { return std::hash<std::string>()(desc); }
 
-    void serialize(std::ostream &out) const { ir_utils::serialize(desc, out); }
+    void stringify(std::ostream &out) const { out << desc; }
 
-    void deserialize(std::istream &in) {
-        desc = ir_utils::deserialize<std::string>(in);
-    }
+    void parse(std::istream &in) { desc = stream_parse<std::string>(in); }
 
     std::string str() const { return desc; }
 
@@ -483,27 +452,33 @@ public:
         , mb_(mb)
         , desc_(desc) {}
 
-    bool is_filter() const { return type_info_.is_filter() || mb_.is_filter; }
+    const std::string &desc_str() const { return desc_.desc; }
 
     conv_key_impl_t to_filter() const {
         conv_key_impl_t ret = *this;
         ret.type_info_ = type_info_.to_filter(prop_.kind);
-        ret.mb_ = mb_.to_filter();
         return ret;
     }
 
     int distance(const conv_key_impl_t &other) const {
-        ir_assert(!other.is_filter());
         int max_dist = std::numeric_limits<int>::max();
         if (!matches(other)) return max_dist;
-        if (!is_filter()) return 0;
         // Here this object is a filter, other object is a non-filter.
         // matches(other) ensures that mb_.value <= other.mb_.value.
         // Example:
         //   Key     : mb512
         //   Filter A: mb128+ (distance: 384)
         //   Filter B: mb256+ (distance: 256) <- smaller distance, preferred.
-        return other.mb_.value - mb_.value;
+        int dist = other.mb_.value - mb_.value;
+        auto f1 = hw_.family;
+        auto f2 = other.hw_.family;
+        if (f1 != f2) {
+            const int large_dist = (1 << 20);
+            dist += large_dist;
+            if (!utils::one_of(ngen::ProductFamily::Unknown, f1, f2))
+                dist += large_dist;
+        }
+        return dist;
     }
 
     bool operator==(const conv_key_impl_t &other) const {
@@ -519,30 +494,31 @@ public:
                 && mb_.matches(other.mb_) && desc_.matches(other.desc_);
     }
 
-    bool is_desc_equal(const conv_key_impl_t &other) const {
-        return desc_ == other.desc_;
-    }
-
     size_t get_hash() const {
         return ir_utils::get_hash(hw_, fma_, prop_, type_info_, mb_, desc_);
     }
 
-    void serialize(std::ostream &out) const {
-        hw_.serialize(out);
-        fma_.serialize(out);
-        prop_.serialize(out);
-        type_info_.serialize(out);
-        mb_.serialize(out);
-        desc_.serialize(out);
+    void stringify(std::ostream &out) const {
+        hw_.stringify(out);
+        out << " ";
+        fma_.stringify(out);
+        out << " ";
+        prop_.stringify(out);
+        out << " ";
+        type_info_.stringify(out);
+        out << " ";
+        mb_.stringify(out);
+        out << " ";
+        desc_.stringify(out);
     }
 
-    void deserialize(std::istream &in) {
-        hw_.deserialize(in);
-        fma_.deserialize(in);
-        prop_.deserialize(in);
-        type_info_.deserialize(in);
-        mb_.deserialize(in);
-        desc_.deserialize(in);
+    void parse(std::istream &in) {
+        hw_.parse(in);
+        fma_.parse(in);
+        prop_.parse(in);
+        type_info_.parse(in);
+        mb_.parse(in);
+        desc_.parse(in);
     }
 
     std::string str(bool csv = false) const {
@@ -574,7 +550,7 @@ private:
 
 conv_key_t::conv_key_t(const conv_config_t &cfg, bool make_filter) {
     auto &prb = cfg.prb();
-    auto hw = key_hw_t(to_hw_kind(cfg.hw().to_ngen()));
+    auto hw = key_hw_t(cfg.hw().to_ngen(), cfg.hw().product_family());
     auto fma = key_fma_t(to_fma_kind(cfg.fma_kind()));
     auto prop = key_prop_t(to_prop_kind(prb.prop_kind()));
     auto type_info = key_type_info_t(cfg);
@@ -592,6 +568,11 @@ conv_key_t conv_key_t::to_filter() const {
     return ret;
 }
 
+const std::string &conv_key_t::desc() const {
+    ir_assert(impl_);
+    return impl_->desc_str();
+}
+
 int conv_key_t::distance(const conv_key_t &other) const {
     ir_assert(impl_ && other.impl_);
     return impl_->distance(*other.impl_);
@@ -607,23 +588,18 @@ bool conv_key_t::matches(const conv_key_t &other) const {
     return impl_->matches(*other.impl_);
 }
 
-bool conv_key_t::is_desc_equal(const conv_key_t &other) const {
-    if (!impl_ || !other.impl_) return impl_ == other.impl_;
-    return impl_->is_desc_equal(*other.impl_);
-}
-
 size_t conv_key_t::get_hash() const {
     return impl_ ? impl_->get_hash() : 0;
 }
 
-void conv_key_t::serialize(std::ostream &out) const {
+void conv_key_t::stringify(std::ostream &out) const {
     ir_assert(impl_);
-    impl_->serialize(out);
+    impl_->stringify(out);
 }
 
-void conv_key_t::deserialize(std::istream &in) {
+void conv_key_t::parse(std::istream &in) {
     impl_ = std::make_shared<conv_key_impl_t>();
-    impl_->deserialize(in);
+    impl_->parse(in);
 }
 
 std::string conv_key_t::str(bool csv) const {

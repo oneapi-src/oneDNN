@@ -66,135 +66,48 @@ bool logical_tensor_sanity_check(
 }
 } // namespace
 
-namespace dnnl {
-namespace impl {
-namespace graph {
-
-// function to do graph rewriting
-void rewrite(
-        graph_t &agraph, const std::vector<std::vector<op_t *>> &fusion_ops) {
-    std::unordered_set<op_t *> visited;
-    std::unordered_set<op_t *> fusion_ops_set;
-
-    for (auto &ops : fusion_ops) {
-        visited.clear();
-        fusion_ops_set.clear();
-
-        for (size_t i = 0; i < ops.size(); ++i) {
-            fusion_ops_set.insert(ops[i]);
-        }
-
-        op_t *fused_op = agraph.create_op(op_kind::Wildcard);
-        fused_op->set_partition(ops[0]->get_partition());
-
-        // the values that will be connected to fused op
-        std::vector<std::pair<std::shared_ptr<value_t>, value_t::consumer_t>>
-                fused_inputs;
-        std::vector<std::shared_ptr<value_t>> fused_outputs;
-
-        for (size_t i = 0; i < ops.size(); ++i) {
-            op_t *cur_op = ops[i];
-            visited.insert(cur_op);
-            fused_op->merge_attributes(cur_op->get_attributes());
-            fused_op->add_op_ids(cur_op->get_op_ids());
-
-            // if cur_op has input op which isn't in pattern,
-            // update value's connection. if cur_op has input op
-            // which is in pattern, add its output_tensor into visited
-            for (size_t j = 0; j < cur_op->num_inputs(); ++j) {
-                auto in_value = cur_op->get_input_value(j);
-                //if in_op isn't in pattern,
-                //set it as a input op of fused_op
-                if (!in_value->has_producer()
-                        || !visited.count(&in_value->get_producer())) {
-                    fused_inputs.emplace_back(
-                            in_value, value_t::consumer_t(*cur_op, j));
-                }
-            }
-
-            for (size_t k = 0; k < cur_op->num_outputs(); ++k) {
-                auto out_value = cur_op->get_output_value(k);
-                auto out_cons = out_value->get_consumers();
-
-                bool cons_all_in_pattern = true;
-                for (auto &con : out_cons) {
-                    if (!fusion_ops_set.count(&(con.get_op()))) {
-                        cons_all_in_pattern = false;
-                        break;
-                    }
-                }
-
-                if (out_cons.empty() || !cons_all_in_pattern) {
-                    // it's a end op of pattern, need to update
-                    // op connection of it's output ops
-                    fused_outputs.emplace_back(out_value);
-                }
-            }
-        }
-
-        // connect inputs to fused op
-        for (const auto &fused_ins : fused_inputs) {
-            fused_ins.first->remove_consumer(
-                    fused_ins.second.get_op(), fused_ins.second.get_offset());
-            fused_ins.first->add_consumer(*fused_op, fused_op->num_inputs());
-            fused_op->add_input(fused_ins.first);
-        }
-
-        // connect outputs to fused op
-        for (const auto &fused_outs : fused_outputs) {
-            fused_outs->set_producer(*fused_op);
-            fused_op->add_output(fused_outs);
-        }
-
-        for (size_t i = 0; i < ops.size(); ++i) {
-            agraph.delete_op(ops[i]);
-        }
-    }
-}
-} // namespace graph
-} // namespace impl
-} // namespace dnnl
-
+// One requirement of this function is returning the vector of partitions in
+// topological order of the fused graph, as the topological order of a fused
+// graph and unfused graph may be different(as showed in the example subgraph,
+// the topological order of unfused graph is 1234 or 1324, while the one of
+// fused graph should be: 13(24) ), the whole workflow is:
+// 1. construct an op set `topo_unfused_ops` in topological order of the
+// unfused graph
+// 2. traverse  `topo_unfused_ops`  in reverse and insert proxy op of each
+// partition into `topo_fused_ops`, the definition of “proxy op” is: the last
+// one in the topological order of the partition
 status_t dnnl_graph_graph::get_ordered_partitions(
         std::vector<partition_t *> &partitions) {
-    dnnl_graph_graph copied_graph(*this); // deep copy
 
-    // Cluster ops that belong to same partition
-    std::vector<std::vector<op_t *>> fusion_ops;
-    auto ret = topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
-        partition_impl_t *part = n->get_partition();
-        if (!part) return status::success;
-        auto pos = std::find_if(fusion_ops.begin(), fusion_ops.end(),
-                [&](std::vector<op_t *> &tmp) -> bool {
-                    return tmp[0]->get_partition() == part;
-                });
-        if (pos != fusion_ops.end()) {
-            pos->emplace_back(n);
-        } else {
-            std::vector<op_t *> tmp {n};
-            fusion_ops.emplace_back(tmp);
-        }
+    std::vector<op_t *> topo_unfused_ops;
+    std::vector<op_t *> topo_fused_ops;
+    std::unordered_set<partition_impl_t *> visited_parts;
+    size_t count = 0;
+    topo_unfused_ops.reserve((*this).num_ops());
+    topo_fused_ops.reserve((*this).num_ops());
+    auto ret = topo_order_visit((*this).get_output_ops(), [&](op_t *n) {
+        topo_unfused_ops.emplace_back(n);
         return status::success;
     });
-
     if (ret != status::success) return ret;
 
-    // Fuse ops that belong to same partition
-    rewrite(copied_graph, fusion_ops);
+    // Get the last op in topo order as proxy op for each partition.
+    std::for_each(topo_unfused_ops.rbegin(), topo_unfused_ops.rend(),
+            [&](op_t *op_ptr) {
+                partition_impl_t *part = op_ptr->get_partition();
+                if (!part) return;
+                if (!visited_parts.count(part)) {
+                    topo_fused_ops.emplace_back(op_ptr);
+                    visited_parts.emplace(part);
+                }
+            });
 
-    // Get partitions out according to the order of fused op
-    // TODO(qun) Here is a workaround. Dfs order of unfused ops
-    // and fused ops is not exactly same, which will break the
-    // tests and examples
-    size_t count = 0;
-    ret = topo_order_visit(copied_graph.get_output_ops(), [&](op_t *n) {
-        partition_impl_t *part = n->get_partition();
-        if (part) {
-            partitions[count]->init(part->shared_from_this());
-            count++;
-        }
-        return status::success;
-    });
+    std::for_each(
+            topo_fused_ops.rbegin(), topo_fused_ops.rend(), [&](op_t *op_ptr) {
+                partition_impl_t *part = op_ptr->get_partition();
+                partitions[count]->init(part->shared_from_this());
+                count++;
+            });
     return ret;
 }
 

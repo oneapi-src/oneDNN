@@ -98,6 +98,10 @@ public:
 
     int get_buffer_alignment() const override { return 128; }
 
+    bool mayiuse_system_memory_allocators() const {
+        return device().has(::sycl::aspect::usm_system_allocations);
+    }
+
 private:
     std::string name_;
     runtime_version_t runtime_version_;

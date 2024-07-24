@@ -188,6 +188,7 @@ int test_persistent_cache_api(
         std::vector<uint8_t> md_blob(sz);
         dnnl_memory_desc_get_blob(md_blob.data(), &sz, wei_md);
         dnnl_memory_desc_create_with_blob(&new_md, md_blob.data());
+        auto mew_mdw = make_benchdnn_dnnl_wrapper(new_md);
 
         if (dnnl_memory_desc_equal(wei_md, new_md) == 0)
             return res->state = FAILED, FAIL;
@@ -1520,6 +1521,7 @@ dnnl_data_type_t deduce_cfg_data_type(
         switch (attr.fpmath_mode.mode) {
             case dnnl_fpmath_mode_strict: break;
             case dnnl_fpmath_mode_bf16: dt_ = dnnl_bf16; break;
+            case dnnl_fpmath_mode_f16: dt_ = dnnl_f16; break;
             case dnnl_fpmath_mode_tf32: dt_ = dnnl_bf16; break;
             default: assert(!"unsupported_fpmath_mode"); SAFE_V(CRIT);
         }

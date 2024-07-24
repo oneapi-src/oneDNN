@@ -19,6 +19,8 @@
 
 #include <unordered_map>
 
+#include "cpu/platform.hpp"
+
 #include "graph/interface/c_types_map.hpp"
 
 #define IMPLICATION(cause, effect) (!(cause) || !!(effect))

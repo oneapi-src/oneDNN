@@ -150,7 +150,7 @@ public:
         return device_info_->mayiuse_non_uniform_work_groups();
     }
     /// Returns true if the engine can directly access pointers from system allocators
-    bool mayiuse_system_memory_allocators() const {
+    bool mayiuse_system_memory_allocators() const override {
         return device_info_->mayiuse_system_memory_allocators();
     }
     bool mayiuse_sub_group(int size) const {

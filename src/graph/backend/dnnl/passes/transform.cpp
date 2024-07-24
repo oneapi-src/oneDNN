@@ -143,6 +143,7 @@ status_t replace_quant_data_with_binary_post_op(
     for (const auto &cur_op : sg->get_ops()) {
         if ((is_output_scales_supported(cur_op->get_kind())
                     && cur_op->get_kind() != op_kind::dnnl_softmax
+                    && cur_op->get_kind() != op_kind::dnnl_groupnorm
                     && cur_op->get_kind() != op_kind::dnnl_layernorm)
                 || visited.count(cur_op.get()))
             continue;
@@ -1163,6 +1164,7 @@ status_t fuse_dst_scales(std::shared_ptr<subgraph_t> &sg) {
                     && cur_op->get_kind() != op_kind::dnnl_convtranspose
                     && cur_op->get_kind() != op_kind::dnnl_softmax
                     && cur_op->get_kind() != op_kind::dnnl_layernorm
+                    && cur_op->get_kind() != op_kind::dnnl_groupnorm
                     && cur_op->get_kind() != op_kind::dnnl_reorder)
                 || visited.count(cur_op.get()) != 0)
             continue;
@@ -1209,7 +1211,8 @@ status_t convert_to_runtime_dst_scales(std::shared_ptr<subgraph_t> &sg) {
                 || !impl::utils::one_of(cur_op->get_input_op(0)->get_kind(),
                         op_kind::dnnl_softmax, op_kind::dnnl_layernorm,
                         op_kind::dnnl_convolution, op_kind::dnnl_matmul,
-                        op_kind::dnnl_convtranspose, op_kind::dnnl_reorder)
+                        op_kind::dnnl_convtranspose, op_kind::dnnl_reorder,
+                        op_kind::dnnl_groupnorm)
                 || visited.count(cur_op.get()))
             continue;
 
@@ -1921,7 +1924,7 @@ status_t fuse_post_typecast_to_predecessor(std::shared_ptr<subgraph_t> &sg) {
         if (!impl::utils::one_of(cur_op->get_kind(), op_kind::dnnl_matmul,
                     op_kind::dnnl_convolution, op_kind::dnnl_eltwise,
                     op_kind::dnnl_binary, op_kind::dnnl_softmax,
-                    op_kind::dnnl_layernorm))
+                    op_kind::dnnl_layernorm, op_kind::dnnl_groupnorm))
             continue;
         auto out = cur_op->get_output_value(0);
         if (out->get_consumers().size() != 1) continue;

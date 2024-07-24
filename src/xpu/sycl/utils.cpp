@@ -27,35 +27,12 @@
 #include "gpu/intel/sycl/l0/utils.hpp"
 #endif
 
-// TODO: Refactor build system for NVIDIA and AMD parts to enable them properly
-// to be able to include their utility headers here.
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
-// Do not include sycl_cuda_utils.hpp because it's intended for use in
-// gpu/nvidia directory only.
-
-namespace dnnl {
-namespace impl {
-namespace gpu {
-namespace nvidia {
-bool compare_cuda_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
-}
-} // namespace gpu
-} // namespace impl
-} // namespace dnnl
+#include "gpu/nvidia/sycl_cuda_utils.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
-// Do not include sycl_hip_utils.hpp because it's intended for use in
-// gpu/amd directory only.
-namespace dnnl {
-namespace impl {
-namespace gpu {
-namespace amd {
-bool compare_hip_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
-}
-} // namespace gpu
-} // namespace impl
-} // namespace dnnl
+#include "gpu/amd/sycl_hip_utils.hpp"
 #endif
 
 namespace dnnl {

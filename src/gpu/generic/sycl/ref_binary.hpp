@@ -94,8 +94,7 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
                 if (!utils::one_of(t, f32, bf16, f16, s8, u8)) return false;
             }
 
-            return IMPLICATION(utils::one_of(bf16, src0_dt, src1_dt, dst_dt),
-                    src0_dt == dst_dt && src1_dt == dst_dt);
+            return true;
         }
 
         static bool check_formats(const memory_desc_wrapper &src0,

@@ -28,7 +28,7 @@ namespace sycl {
 
 status_t ref_pooling_fwd_t::pd_t::init_conf() {
     using namespace primitive_kind;
-    conf_ = sycl_pooling_conf_t();
+    conf_ = sycl_pooling_fwd_conf_t();
     conf_.ndims = ndims();
     conf_.block_size = 16;
     conf_.wg_size = 32;
@@ -38,10 +38,6 @@ status_t ref_pooling_fwd_t::pd_t::init_conf() {
             ? xpu::sycl::md_t(workspace_md(0))
             : xpu::sycl::md_t {};
     conf_.zero_dims = has_zero_dim_memory();
-    for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
-        conf_.dst_dims[i] = dst_md()->dims[i];
-    }
-    conf_.dst_ndims = dst_md()->ndims;
     auto nelems_A = memory_desc_wrapper(src_md(0)).nelems();
     int work_per_wg = conf_.wg_size * conf_.block_size;
     int n_wgs = (nelems_A + work_per_wg - 1) / work_per_wg;
@@ -70,6 +66,9 @@ status_t ref_pooling_fwd_t::pd_t::init_conf() {
 
     const auto *att = attr();
     const auto &attr_po = att->post_ops_;
+    if (attr_po.len() > sycl_post_ops_t::max_post_ops) {
+        return dnnl_unimplemented;
+    }
     conf_.po_len = attr_po.len();
     for (auto i = 0; i < attr_po.len(); ++i) {
         if (attr_po.contain(binary, i)) {
@@ -117,7 +116,7 @@ status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_pooling_bwd_t::pd_t::init_conf() {
-    conf_ = sycl_pooling_conf_t();
+    conf_ = sycl_pooling_bwd_conf_t();
     conf_.ndims = ndims();
     conf_.block_size = 16;
     conf_.wg_size = 32;

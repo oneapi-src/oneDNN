@@ -786,6 +786,8 @@ static const std::unordered_map<graph::op_kind_t, handler_func> handler_table {
         // layernorm
         ITEM(LayerNorm, common_handler<op_kind::kDnnl_layernorm>),
         ITEM(LayerNormBackward, common_handler<op_kind::kDnnl_layernorm_bwd>),
+        // groupnorm
+        ITEM(GroupNorm, common_handler<op_kind::kDnnl_groupnorm>),
         // quantization
         ITEM(Quantize, static_quant_handler),
         ITEM(Dequantize, static_dequant_handler),

@@ -22,13 +22,15 @@
 
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+
+#include "xpu/ocl/memory_storage.hpp"
+
 #include "gpu/intel/compute/kernel_list.hpp"
 #include "gpu/intel/microkernels/fuser.hpp"
 #include "gpu/intel/ocl/kernel_utils.hpp"
 #include "gpu/intel/ocl/ocl_gpu_device_info.hpp"
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 #include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
-#include "gpu/intel/ocl/ocl_memory_storage.hpp"
 #include "gpu/intel/ocl/ocl_stream.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
@@ -37,6 +39,20 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace ocl {
+
+status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
+        cl_device_id dev, cl_context ctx, size_t index,
+        const std::vector<uint8_t> &cache_blob) {
+    gpu_assert(engine_kind == engine_kind::gpu);
+    std::unique_ptr<intel::ocl::ocl_gpu_engine_t, engine_deleter_t> e(
+            (new intel::ocl::ocl_gpu_engine_t(dev, ctx, index)));
+    if (!e) return status::out_of_memory;
+
+    CHECK(e->init(cache_blob));
+    *engine = e.release();
+
+    return status::success;
+}
 
 void maybe_print_build_info(const std::vector<const char *> &kernel_names,
         const compute::kernel_ctx_t &kernel_ctx) {
@@ -69,10 +85,10 @@ status_t ocl_gpu_engine_t::create_memory_storage(
     std::unique_ptr<memory_storage_t> _storage;
 
     if (flags & memory_flags_t::prefer_device_usm) {
-        _storage.reset(new ocl_usm_memory_storage_t(
-                this, usm::ocl_usm_kind_t::device));
+        _storage.reset(new xpu::ocl::usm_memory_storage_t(
+                this, xpu::ocl::usm::kind_t::device));
     } else
-        _storage.reset(new ocl_buffer_memory_storage_t(this));
+        _storage.reset(new xpu::ocl::buffer_memory_storage_t(this));
 
     if (!_storage) return status::out_of_memory;
 

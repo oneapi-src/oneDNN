@@ -229,7 +229,8 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 #pragma unroll
     for (int q = 0; q < n_col_sg; q++)
         intel_sub_group_block_write(
-                (local uint *)&S_max_slm[q + sg_ij * n_col_sg * SUBGROUP_SIZE],
+                (local uint *)&S_max_slm[(q + sg_ij * n_col_sg)
+                        * SUBGROUP_SIZE],
                 as_uint(neg_inf));
 
     /* Clear accumulator */

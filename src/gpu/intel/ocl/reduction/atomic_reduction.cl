@@ -41,10 +41,10 @@
     }
 
 #if ATOMIC_REDUCTION_SIZE > 1
-#define ATOMIC(x) CONCAT2(atomic_, x)
+#define MAYBE_ATOMIC(x) ATOMIC(x)
 DEF_atomic_accumulate(float);
 #else
-#define ATOMIC(x) x
+#define MAYBE_ATOMIC(x) x
 #endif
 
 // Define how to read data
@@ -77,7 +77,7 @@ DEF_atomic_accumulate(float);
 
 KERNEL_ATTR
 __kernel void atomic_reduce(__global SRC_DATA_T *src,
-        __global ATOMIC(DST_DATA_T) * dst, int inner_size, off_t div,
+        __global MAYBE_ATOMIC(DST_DATA_T) * dst, int inner_size, off_t div,
         float power, float eps, off_t num_reductions,
         dispatch_gws_rt_params_t gws_params) {
     ASSUME(inner_size > 0);

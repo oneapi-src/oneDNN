@@ -25,10 +25,11 @@
 
 #include "xpu/stream_profiler.hpp"
 
-#include "gpu/intel/ocl/ocl_context.hpp"
-#include "gpu/intel/ocl/ocl_memory_storage.hpp"
+#include "xpu/ocl/context.hpp"
+#include "xpu/ocl/memory_storage.hpp"
+#include "xpu/ocl/usm_utils.hpp"
+
 #include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_usm_utils.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -63,7 +64,8 @@ public:
 
     status_t set_usm_arg(
             impl::engine_t *engine, int arg_index, const void *arg_value) {
-        return usm::set_kernel_arg_usm(engine, kernel_, arg_index, arg_value);
+        return xpu::ocl::usm::set_kernel_arg(
+                engine, kernel_, arg_index, arg_value);
     }
 
 private:
@@ -143,15 +145,21 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
     kernel_wrapper_t *kernel = nullptr;
     CHECK(cache_->get(&kernel));
     CHECK(check_scalar_arguments(arg_list));
+
+    auto stream_ocl_device_info
+            = utils::downcast<ocl_gpu_engine_t *>(stream.engine())
+                      ->device_info();
+    const size_t pointer_size
+            = stream_ocl_device_info->device_address_bits() / 8;
+    size_t param_bytes = 0;
     for (int i = 0; i < arg_list.nargs(); ++i) {
         auto &arg = arg_list.get(i);
         if (arg.is_global()) {
             auto *mem_storage
                     = static_cast<const memory_storage_t *>(arg.value());
             if (!mem_storage->is_null()) {
-                auto *ocl_mem_storage
-                        = utils::downcast<const ocl_memory_storage_base_t *>(
-                                mem_storage);
+                auto *ocl_mem_storage = utils::downcast<
+                        const xpu::ocl::memory_storage_base_t *>(mem_storage);
 
                 // Validate that the OpenCL contexts match for execution
                 // context and memory.
@@ -169,39 +177,54 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
                 }
 
                 switch (ocl_mem_storage->memory_kind()) {
-                    case memory_kind::buffer: {
+                    case xpu::ocl::memory_kind::buffer: {
                         auto *m = utils::downcast<
-                                const ocl_buffer_memory_storage_t *>(
+                                const xpu::ocl::buffer_memory_storage_t *>(
                                 ocl_mem_storage);
                         auto ocl_mem = m->mem_object();
                         CHECK(kernel->set_arg(i, sizeof(cl_mem), &ocl_mem));
+                        param_bytes += pointer_size;
                         break;
                     }
-                    case memory_kind::usm: {
+                    case xpu::ocl::memory_kind::usm: {
                         auto *m = utils::downcast<
-                                const ocl_usm_memory_storage_t *>(
+                                const xpu::ocl::usm_memory_storage_t *>(
                                 ocl_mem_storage);
                         auto *usm_ptr = m->usm_ptr();
                         CHECK(kernel->set_usm_arg(stream.engine(), i, usm_ptr));
+                        param_bytes += pointer_size;
                         break;
                     }
                     default: assert(!"not expected");
                 }
             } else {
-                if (usm::is_usm_supported(stream.engine())) {
+                if (xpu::ocl::usm::is_usm_supported(stream.engine())) {
                     CHECK(kernel->set_usm_arg(stream.engine(), i, nullptr));
+                    param_bytes += pointer_size;
                 } else {
                     cl_mem null_mem = nullptr;
                     CHECK(kernel->set_arg(i, sizeof(cl_mem), &null_mem));
+                    param_bytes += pointer_size;
                 }
             }
         } else if (arg.is_local()) {
             CHECK(kernel->set_arg(i, arg.size(), arg.value()));
+            // Assuming local memory arguments contribute to
+            // the CL_DEVICE_MAX_PARAMETER_SIZE limit as a pointer type
+            param_bytes += pointer_size;
         } else if (arg.is_svm_pointer()) {
             CHECK(kernel->set_svm_arg(i, arg.value()));
+            param_bytes += pointer_size;
         } else {
             CHECK(kernel->set_arg(i, arg.size(), arg.value()));
+            param_bytes += arg.size();
         }
+    }
+
+    if (param_bytes > stream_ocl_device_info->max_kernel_param_size()) {
+        MAYBE_REPORT_ERROR(
+                "parameter bytes requirements greater than device supports");
+        return status::invalid_arguments;
     }
 
     cl_uint ndims = static_cast<cl_uint>(range.ndims());
@@ -209,7 +232,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
 
     xpu::ocl::wrapper_t<cl_event> event;
     if (ocl_stream->flags() & stream_flags::out_of_order) {
-        const auto &event_wrappers = ocl_event_t::from(deps).events;
+        const auto &event_wrappers = xpu::ocl::event_t::from(deps).events;
         std::vector<cl_event> events(
                 event_wrappers.begin(), event_wrappers.end());
 
@@ -220,7 +243,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
                 range.local_range() ? range.local_range().data() : nullptr,
                 num_events, events_data, &event.unwrap());
         OCL_CHECK(err);
-        ocl_event_t::from(out_dep).events = {event};
+        xpu::ocl::event_t::from(out_dep).events = {event};
     } else {
         bool save_event = save_events_ || stream.is_profiling_enabled();
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
@@ -232,7 +255,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
 
     if (stream.is_profiling_enabled()) {
         ocl_stream->profiler().register_event(
-                utils::make_unique<ocl_event_t>(std::move(event)));
+                utils::make_unique<xpu::ocl::event_t>(std::move(event)));
     }
 
     return status::success;

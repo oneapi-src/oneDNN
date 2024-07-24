@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ void prepare_bo(int32_t &bo_gemm_info, const uint8_t *bo_orig) {
 template <>
 void prepare_bo(int32_t &bo_gemm_info, const int8_t *bo_orig) {
     int bo_s32 = bo_orig ? *bo_orig : 0;
-    if (!mayiuse(avx512_core_amx)) bo_s32 += 128;
+    if (!mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX) bo_s32 += 128;
     bo_gemm_info = bo_s32;
 }
 
@@ -160,7 +160,8 @@ gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
 
     // Copy-based sgemm doesn't support force-nocopy for ISAs older
     // than Intel AVX.
-    this->force_nocopy = is_sgemm && force_nocopy && mayiuse(avx);
+    this->force_nocopy
+            = is_sgemm && force_nocopy && mayiuse(avx) && __BUILD_GEMM_AVX2;
 
     if (!this->force_nocopy || is_gemv) { this->jit_init(); }
 }
@@ -208,19 +209,24 @@ template <typename a_t, typename b_t, typename c_t>
 void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
     bool use_bf16_ymm = false;
+    UNUSED(use_bf16_ymm);
     // TODO: Add dispatching for 1-fma SKUs with support to bf16
     // instructions for AMX kernel.
     {
         constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
-        const bool max_isa_supports_bf16_ymm
-                = mayiuse(avx512_core_bf16_ymm) && !mayiuse(avx512_core_amx);
+        const bool max_isa_supports_bf16_ymm = mayiuse(avx512_core_bf16_ymm)
+                && __BUILD_GEMM_AVX512
+                && !(mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX);
 
         use_bf16_ymm = is_bf16 && max_isa_supports_bf16_ymm;
     }
 
     switch (data_traits<a_t>::data_type) {
         case data_type::s8:
-            if (mayiuse(avx512_core_amx)) {
+            if (false) {
+                // dummy if
+#if __BUILD_GEMM_AMX
+            } else if (mayiuse(avx512_core_amx)) {
                 this->um = 32;
                 this->un = 32;
                 this->uk = 64;
@@ -231,6 +237,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 0;
                 this->blocking_small_k = 0;
                 this->bn_small_k = 0;
+#endif
+#if __BUILD_GEMM_AVX512
             } else if (mayiuse(avx512_core)) {
                 this->um = 48;
                 this->un = 8;
@@ -242,6 +250,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 384;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+#endif
+#if __BUILD_GEMM_AVX2
             } else if (mayiuse(avx2)) {
                 this->um = mayiuse(avx2_vnni) ? 24 : 16;
                 this->un = 4;
@@ -253,6 +263,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 256;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+#endif
+#if __BUILD_GEMM_AVX2
             } else if (mayiuse(avx)) {
                 this->um = 16;
                 this->un = 2;
@@ -264,6 +276,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 256;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+#endif
+#if __BUILD_GEMM_SSE41
             } else if (mayiuse(sse41)) {
                 this->um = 16;
                 this->un = 2;
@@ -275,11 +289,15 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 256;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+#endif
             }
             break;
 
         case data_type::bf16:
-            if (mayiuse(avx512_core_amx)) {
+            if (false) {
+                // dummy if
+#if __BUILD_GEMM_AMX
+            } else if (mayiuse(avx512_core_amx)) {
                 this->um = 32;
                 this->un = 32;
                 this->uk = 32;
@@ -290,6 +308,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 0;
                 this->blocking_small_k = 0;
                 this->bn_small_k = 0;
+#endif
+#if __BUILD_GEMM_AVX512
             } else if (mayiuse(avx512_core)) {
                 this->um = use_bf16_ymm ? 24 : 48;
                 this->un = 8;
@@ -301,11 +321,15 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 384;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+#endif
             }
             break;
 
         case data_type::f32:
-            if (mayiuse(avx512_core)) {
+            if (false) {
+                // dummy if
+#if __BUILD_GEMM_AVX512
+            } else if (mayiuse(avx512_core)) {
                 this->um = 48;
                 this->un = 8;
                 this->uk = 1;
@@ -316,6 +340,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 384;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+#endif
+#if __BUILD_GEMM_AVX2
             } else if (mayiuse(avx2)) {
                 this->um = 24;
                 this->un = 4;
@@ -327,6 +353,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 256;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+#endif
+#if __BUILD_GEMM_AVX2
             } else if (mayiuse(avx)) {
                 this->um = 16;
                 this->un = 4;
@@ -338,6 +366,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 256;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+#endif
+#if __BUILD_GEMM_SSE41
             } else if (mayiuse(sse41)) {
                 this->um = 8;
                 this->un = 4;
@@ -349,6 +379,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 256;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+#endif
             }
             break;
         default: assert(!"unsupported data type!");
@@ -360,14 +391,15 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     static std::once_flag initialized;
     static std::atomic<dnnl_status_t> st(dnnl_success);
     std::call_once(initialized, [&, um] {
-#if __BUILD_GEMM_AVX512
         const bool b_is_s8 = data_traits<b_t>::data_type == data_type::s8;
-#endif
+        UNUSED(b_is_s8);
         constexpr bool is_int8 = utils::one_of(
                 data_traits<a_t>::data_type, data_type::s8, data_type::u8);
         constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
-        bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx);
-        bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_amx);
+        bool is_int8_amx
+                = is_int8 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
+        bool is_bf16_amx
+                = is_bf16 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
         bool is_amx = is_int8_amx || is_bf16_amx;
 
         static maybe_unique_ptr<jit_generator> copy_a[2][2] = {{nullptr}};
@@ -375,8 +407,10 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
-                if (mayiuse(amx_int8)) {
+                if (false) {
+                    // dummy if
 #if __BUILD_GEMM_AMX
+                } else if (mayiuse(amx_int8)) {
                     for (int isTrans : {no_trans, do_trans}) {
                         copy_a[isTrans][no_sum].reset(
                                 new jit_avx512_core_amx_copy_kern(
@@ -387,8 +421,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                         false, isTrans, sizeof(b_t)));
                     }
 #endif
-                } else if (mayiuse(avx512_core)) {
 #if __BUILD_GEMM_AVX512
+                } else if (mayiuse(avx512_core)) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_avx512_core_u8_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -409,8 +443,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     copy_b[do_trans][do_sum].reset(
                             new jit_avx512_core_u8_copy_sum_bt_kern(b_is_s8));
 #endif
-                } else if (mayiuse(avx2_vnni)) {
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx2_vnni)) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_avx2_vnni_u8_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -431,8 +465,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     copy_b[do_trans][do_sum].reset(
                             new jit_avx2_vnni_u8_copy_sum_bt_kern());
 #endif
-                } else if (mayiuse(avx2)) {
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx2)) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_avx2_u8_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -453,8 +487,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     copy_b[do_trans][do_sum].reset(
                             new jit_avx2_u8_copy_sum_bt_kern());
 #endif
-                } else if (mayiuse(avx)) {
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx)) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_avx_u8_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -475,8 +509,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     copy_b[do_trans][do_sum].reset(
                             new jit_avx_u8_copy_sum_bt_kern());
 #endif
-                } else if (mayiuse(sse41)) {
 #if __BUILD_GEMM_SSE41
+                } else if (mayiuse(sse41)) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_sse41_u8_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -501,8 +535,10 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 break;
 
             case data_type::bf16:
-                if (mayiuse(amx_bf16)) {
+                if (false) {
+                    // dummy if
 #if __BUILD_GEMM_AMX
+                } else if (mayiuse(amx_bf16)) {
                     for (int isTrans : {no_trans, do_trans}) {
                         copy_a[isTrans][no_sum].reset(
                                 new jit_avx512_core_amx_copy_kern(
@@ -513,8 +549,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                         false, isTrans, sizeof(b_t)));
                     }
 #endif
-                } else if (mayiuse(avx512_core) && !use_bf16_ymm) {
 #if __BUILD_GEMM_AVX512
+                } else if (mayiuse(avx512_core) && !use_bf16_ymm) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_avx512_core_s16_48x8_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -525,8 +561,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     copy_b[do_trans][no_sum].reset(
                             new jit_avx512_core_s16_48x8_copy_bt_kern());
 #endif
-                } else if (mayiuse(avx512_core) && use_bf16_ymm) {
 #if __BUILD_GEMM_AVX512
+                } else if (mayiuse(avx512_core) && use_bf16_ymm) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_avx512_core_s16_24x8_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -541,8 +577,10 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 break;
 
             case data_type::f32:
-                if (mayiuse(avx512_core)) {
+                if (false) {
+                    // dummy if
 #if __BUILD_GEMM_AVX512
+                } else if (mayiuse(avx512_core)) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_avx512_core_f32_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -553,8 +591,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     copy_b[do_trans][no_sum].reset(
                             new jit_avx512_core_f32_copy_bt_kern());
 #endif
-                } else if (mayiuse(avx2)) {
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx2)) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_avx2_f32_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -565,8 +603,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     copy_b[do_trans][no_sum].reset(
                             new jit_avx2_f32_copy_bt_kern());
 #endif
-                } else if (mayiuse(avx)) {
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx)) {
                     copy_a[no_trans][no_sum].reset(
                             new jit_avx_f32_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -577,8 +615,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     copy_b[do_trans][no_sum].reset(
                             new jit_avx_f32_copy_bt_kern());
 #endif
+#if __BUILD_GEMM_SSE41
                 } else if (mayiuse(sse41)) {
-#if __BUILD_GEMM_AVX2
                     copy_a[no_trans][no_sum].reset(
                             new jit_sse41_f32_copy_an_kern());
                     copy_a[do_trans][no_sum].reset(
@@ -595,26 +633,29 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
             default: break;
         }
 
-#if __BUILD_GEMM_AMX
         constexpr bool is_a_s8 = data_traits<a_t>::data_type == data_type::s8;
         constexpr bool is_b_s8 = data_traits<b_t>::data_type == data_type::s8;
         constexpr bool is_c_s32 = data_traits<c_t>::data_type == data_type::s32;
-#endif
+        UNUSED(is_a_s8);
+        UNUSED(is_b_s8);
+        UNUSED(is_c_s32);
 
         static maybe_unique_ptr<jit_generator> kernel[2][2][2][2]
                 = {{{{nullptr}}}};
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
-                if (mayiuse(avx512_core_amx)) {
+                if (false) {
+                    // dummy if
 #if __BUILD_GEMM_AMX
+                } else if (mayiuse(avx512_core_amx)) {
                     for (int isBeta0 : {no_beta0, do_beta0}) {
                         kernel[isBeta0][do_alpha1][no_sum][no_sum].reset(
                                 new jit_avx512_core_amx_gemm_kern(
                                         is_a_s8, is_b_s8, is_c_s32, isBeta0));
                     }
 #endif
-                } else if (mayiuse(avx512_core)) {
 #if __BUILD_GEMM_AVX512
+                } else if (mayiuse(avx512_core)) {
                     for (int isBeta0 : {no_beta0, do_beta0})
                         for (int doColSum : {no_sum, do_sum})
                             for (int doRowSum : {no_sum, do_sum}) {
@@ -623,8 +664,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                                 isBeta0, doColSum, doRowSum));
                             }
 #endif
-                } else if (mayiuse(avx2)) {
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx2)) {
                     for (int isBeta0 : {no_beta0, do_beta0})
                         for (int doColSum : {no_sum, do_sum})
                             for (int doRowSum : {no_sum, do_sum}) {
@@ -634,8 +675,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                                 um));
                             }
 #endif
-                } else if (mayiuse(avx)) {
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx)) {
                     kernel[no_beta0][do_alpha1][no_sum][no_sum].reset(
                             new jit_avx_kernel_gemm_s8u8s32_kern());
                     kernel[no_beta0][do_alpha1][do_sum][no_sum].reset(
@@ -654,8 +695,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     kernel[do_beta0][do_alpha1][do_sum][do_sum].reset(
                             new jit_avx_kernel_b0_b_gemm_s8u8s32_kern());
 #endif
-                } else if (mayiuse(sse41)) {
 #if __BUILD_GEMM_SSE41
+                } else if (mayiuse(sse41)) {
                     kernel[no_beta0][do_alpha1][no_sum][no_sum].reset(
                             new jit_sse41_kernel_gemm_s8u8s32_kern());
                     kernel[no_beta0][do_alpha1][do_sum][no_sum].reset(
@@ -678,16 +719,18 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 break;
 
             case data_type::bf16:
-                if (mayiuse(avx512_core_amx)) {
+                if (false) {
+                    // dummy if
 #if __BUILD_GEMM_AMX
+                } else if (mayiuse(avx512_core_amx)) {
                     for (int isBeta0 : {no_beta0, do_beta0}) {
                         kernel[isBeta0][do_alpha1][no_sum][no_sum].reset(
                                 new jit_avx512_core_amx_gemm_kern(
                                         is_a_s8, is_b_s8, is_c_s32, isBeta0));
                     }
 #endif
-                } else if (mayiuse(avx512_core)) {
 #if __BUILD_GEMM_AVX512
+                } else if (mayiuse(avx512_core)) {
                     for (int isBeta0 : {no_beta0, do_beta0})
                         for (int isAlpha1 : {no_alpha1, do_alpha1}) {
                             kernel[isBeta0][isAlpha1][no_sum][no_sum].reset(
@@ -699,22 +742,24 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 break;
 
             case data_type::f32:
-                if (mayiuse(avx2)) {
+                if (false) {
+                    // dummy if
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx2)) {
                     for (int isBeta0 : {no_beta0, do_beta0}) {
                         kernel[isBeta0][do_alpha1][no_sum][no_sum].reset(
                                 new jit_avx2_kernel_sgemm_kern(isBeta0));
                     }
 #endif
-                } else if (mayiuse(avx)) {
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx)) {
                     kernel[no_beta0][do_alpha1][no_sum][no_sum].reset(
                             new jit_avx_kernel_sgemm_kern());
                     kernel[do_beta0][do_alpha1][no_sum][no_sum].reset(
                             new jit_avx_kernel_b0_sgemm_kern());
 #endif
-                } else if (mayiuse(sse41)) {
 #if __BUILD_GEMM_SSE41
+                } else if (mayiuse(sse41)) {
                     kernel[no_beta0][do_alpha1][no_sum][no_sum].reset(
                             new jit_sse41_kernel_sgemm_kern());
                     kernel[do_beta0][do_alpha1][no_sum][no_sum].reset(
@@ -732,8 +777,10 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         static maybe_unique_ptr<jit_generator> gemv_u8s8s32_kernel = nullptr;
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
-                if (mayiuse(avx512_core)) {
+                if (false) {
+                    // dummy if
 #if __BUILD_GEMM_AVX512
+                } else if (mayiuse(avx512_core)) {
                     gemv_s8s8s32_kernel.reset(
                             new jit_avx512_core_gemv_s8x8s32_kern(ver_t::s8s8));
                     gemv_s8u8s32_kernel.reset(
@@ -745,8 +792,10 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 break;
 
             case data_type::bf16:
-                if (mayiuse(avx512_core)) {
+                if (false) {
+                    // dummy if
 #if __BUILD_GEMM_AVX512
+                } else if (mayiuse(avx512_core)) {
                     for (int isTrans : {no_trans, do_trans})
                         gemv_kernel[isTrans].reset(
                                 new jit_avx512_core_gemv_bf16bf16f32_kern(
@@ -756,14 +805,16 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 break;
 
             case data_type::f32:
-                if (mayiuse(avx)) {
+                if (false) {
+                    // dummy if
 #if __BUILD_GEMM_AVX2
+                } else if (mayiuse(avx)) {
                     gemv_kernel[no_trans].reset(
                             new jit_sse41_gemv_n_f32_kern());
                     gemv_kernel[do_trans].reset(new jit_avx_gemv_t_f32_kern());
 #endif
-                } else if (mayiuse(sse41)) {
 #if __BUILD_GEMM_SSE41
+                } else if (mayiuse(sse41)) {
                     gemv_kernel[no_trans].reset(
                             new jit_sse41_gemv_n_f32_kern());
                     gemv_kernel[do_trans].reset(
@@ -816,6 +867,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                     = (gemm_fptr_t)p_kernel->jit_ker();
                         }
                     }
+
         // Override compute kernel table with AMX kernels
         if (is_amx) {
             // AMX compute kernels don't support alpha scaling, row-offset or
@@ -924,14 +976,17 @@ bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
 
                 if (!this->copyA || !this->copyB) return false;
 
+#if __BUILD_GEMM_AVX512
                 if (mayiuse(avx512_core))
                     if (!this->gemv_s8u8s32_kernel || !this->gemv_u8s8s32_kernel
                             || !this->gemv_s8s8s32_kernel)
                         return false;
+#endif
             }
             break;
 
         case data_type::bf16:
+#if __BUILD_GEMM_AVX512
             if (mayiuse(avx512_core)) {
                 for (int isBeta0 : {no_beta0, do_beta0})
                     if (!this->kernel[isBeta0][no_sum][no_sum]) return false;
@@ -941,6 +996,7 @@ bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
                 for (int isTrans : {no_trans, do_trans})
                     if (!this->gemv_kernel[isTrans]) return false;
             }
+#endif
             break;
 
         case data_type::f32:

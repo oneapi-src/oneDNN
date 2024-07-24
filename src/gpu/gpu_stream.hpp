@@ -46,6 +46,8 @@ public:
     }
     xpu::stream_profiler_t &profiler() { return *profiler_; }
 
+    virtual double get_freq(const xpu::event_t &event) const { return 0.0; }
+
 protected:
     std::unique_ptr<xpu::stream_profiler_t> profiler_;
 };

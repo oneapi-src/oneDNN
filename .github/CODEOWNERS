@@ -27,12 +27,21 @@
 # CPU BLAS
 /src/cpu/gemm/ @intel-innersource/dnn-blas @intel-innersource/dnn-arch
 
+# CPU SYCL
+/src/cpu/sycl/ @intel-innersource/dnn-arch
+
 # GPU-specific optimizations
 /src/gpu/ @intel-innersource/dnn-gpu
 
-# NVIDIA and AMD backends
+# NVIDIA and AMD vendors
 /src/gpu/nvidia @intel-innersource/dnn-gpu @intel-innersource/dnn-arch
 /src/gpu/amd @intel-innersource/dnn-gpu @intel-innersource/dnn-arch
+
+# Generic vendor
+/src/gpu/generic @intel-innersource/dnn-gpu @intel-innersource/dnn-arch
+
+# XPU-specific code
+/src/xpu/ @intel-innersource/dnn-arch
 
 # Tests
 /tests/benchdnn/inputs/ @intel-innersource/dnn-arch @intel-innersource/dnn-cpu @intel-innersource/dnn-gpu

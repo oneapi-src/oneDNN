@@ -22,12 +22,13 @@
 #include "common/c_types_map.hpp"
 #include "common/thread_local_storage.hpp"
 
-#include "xpu/ocl/stream_impl.hpp"
 #include "xpu/stream_profiler.hpp"
+
+#include "xpu/ocl/context.hpp"
+#include "xpu/ocl/stream_impl.hpp"
 
 #include "gpu/intel/compute/compute_stream.hpp"
 #include "gpu/intel/ocl/mdapi_utils.hpp"
-#include "gpu/intel/ocl/ocl_context.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -59,6 +60,12 @@ struct ocl_stream_t : public compute::compute_stream_t {
     void before_exec_hook() override;
     void after_exec_hook() override;
 
+    double get_freq(const xpu::event_t &event) const override {
+        const auto &ocl_event = xpu::ocl::event_t::from(event).events;
+        gpu_assert(ocl_event.size() == 1);
+        return mdapi_helper().get_freq(ocl_event[0]);
+    }
+
     status_t reset_profiling() override {
         if (!is_profiling_enabled()) return status::invalid_arguments;
         profiler_->reset();
@@ -84,8 +91,8 @@ struct ocl_stream_t : public compute::compute_stream_t {
 
     ~ocl_stream_t() override = default;
 
-    const ocl_context_t &ocl_ctx() const { return impl()->ocl_ctx(); }
-    ocl_context_t &ocl_ctx() { return impl()->ocl_ctx(); }
+    const xpu::ocl::context_t &ocl_ctx() const { return impl()->ocl_ctx(); }
+    xpu::ocl::context_t &ocl_ctx() { return impl()->ocl_ctx(); }
     xpu::context_t &ctx() override { return impl()->ocl_ctx(); }
     const xpu::context_t &ctx() const override { return impl()->ocl_ctx(); }
 

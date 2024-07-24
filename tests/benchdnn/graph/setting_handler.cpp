@@ -1010,6 +1010,128 @@ bool get_eltwise_beta(const deserialized_op &base_op_ref, float &beta) {
 
 } // namespace eltwise
 
+namespace gnorm {
+
+bool get_gnorm_desc(const deserialized_op &base_op_ref, ::gnorm::desc_t &d) {
+    auto src_dims = base_op_ref.in_lts_[0].shape_;
+    if (base_op_ref.has_NXC_format()) {
+        src_dims = base_op_ref.get_NCX_shape(0, true);
+    }
+    d.ndims = static_cast<int>(src_dims.size());
+
+    base_op_ref.get_attr_s64(d.g, "groups");
+    d.mb = src_dims[0];
+    d.ic = src_dims[1];
+    d.id = d.ndims >= 5 ? src_dims[d.ndims - 3] : 1;
+    d.ih = d.ndims >= 4 ? src_dims[d.ndims - 2] : 1;
+    d.iw = d.ndims >= 3 ? src_dims[d.ndims - 1] : 1;
+
+    d.eps = 1e-5f;
+    base_op_ref.get_attr_f32(d.eps, "eps");
+
+    return true;
+}
+
+bool get_gnorm_dir(const deserialized_op &base_op_ref, dir_t &dir) {
+    const auto &op_kind = base_op_ref.kind_;
+    if (op_kind == "GroupNorm") {
+        bool keep_stats = false;
+
+        base_op_ref.get_attr_bool(keep_stats, "keep_stats");
+
+        const size_t out_size = base_op_ref.out_lts_.size();
+        // output: dst, mean(opt), var(opt)
+        if (out_size == 1) {
+            dir = dir_t::FWD_I;
+            if (keep_stats) return false;
+        } else if (out_size == 3) {
+            dir = dir_t::FWD_D;
+            if (!keep_stats) return false;
+        } else {
+            return false;
+        }
+        // TODO: GroupNormBackward
+    } else if (op_kind == "GroupNormBackward") {
+        assert(!"GroupNormBackward is not supported for now");
+    } else {
+        assert(!"unsupported op_kind");
+        return false;
+    }
+    return true;
+}
+
+bool get_gnorm_dt(
+        const deserialized_op &base_op_ref, std::vector<dnnl_data_type_t> &dt) {
+    auto src_dt = convert_dt(base_op_ref.in_lts_[0].get_data_type());
+    auto dst_dt = convert_dt(base_op_ref.out_lts_[0].get_data_type());
+    dt = {src_dt, dst_dt};
+    return true;
+}
+
+bool get_gnorm_flags(
+        const deserialized_op &base_op_ref, ::bnorm::flags_t &flags) {
+    bool use_affine = false;
+    base_op_ref.get_attr_bool(use_affine, "use_affine");
+    const auto &op_kind = base_op_ref.kind_;
+    const size_t in_size = base_op_ref.in_lts_.size();
+    if (op_kind == "GroupNorm") {
+        // input: src, gamma(opt), beta(opt)
+        if (use_affine) {
+            if (in_size == 3) {
+                flags = ::gnorm::USE_SCALE | ::gnorm::USE_SHIFT;
+            } else {
+                return false;
+            }
+        } else {
+            if (in_size == 1) {
+                flags = ::gnorm::NONE;
+            } else {
+                return false;
+            }
+        }
+        // TODO: add GroupNormBackward
+    } else if (op_kind == "GroupNormBackward") {
+        assert(!"GroupNormBackward is not supported for now");
+        return false;
+    } else {
+        assert(!"unsupported op_kind");
+        return false;
+    }
+    return true;
+}
+
+bool get_gnorm_stag_and_dtag(const deserialized_op &base_op_ref,
+        std::vector<std::vector<std::string>> &tag) {
+    // src and dst may have different tags.
+    std::string stag, dtag;
+    if (!get_driver_tag_by_idx(base_op_ref, dtag, 0, true)
+            || !get_driver_tag_by_idx(base_op_ref, stag, 0, false)) {
+        return false;
+    }
+    assert(!stag.empty() && !dtag.empty());
+    tag = {{std::move(stag), std::move(dtag)}};
+    return true;
+}
+
+::gnorm::settings_t get_setting(
+        const deserialized_op &base_op_ref, res_t *res) {
+    ::gnorm::settings_t op_setting;
+    DNN_GRAPH_CHECK_SETTINGS(get_gnorm_desc(base_op_ref, op_setting.desc), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            gnorm::get_gnorm_dir(base_op_ref, op_setting.dir.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            gnorm::get_gnorm_dt(base_op_ref, op_setting.dt.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            gnorm::get_gnorm_stag_and_dtag(base_op_ref, op_setting.tag), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            gnorm::get_gnorm_flags(base_op_ref, op_setting.flags.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_graph_attr(base_op_ref, op_setting.fpmath_mode.front()), res);
+    return op_setting;
+}
+
+} // namespace gnorm
+
 namespace lnorm {
 
 bool get_lnorm_dir(const deserialized_op &base_op_ref, dir_t &dir) {

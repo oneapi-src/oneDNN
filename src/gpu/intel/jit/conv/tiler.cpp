@@ -1500,6 +1500,8 @@ private:
             case tiler_mode_t::lookup: {
                 const auto params = const_conv_lookup_table().find(cfg.key());
                 if (!params.is_empty() && chk.is_ok(params.blocking())) {
+                    ir_info() << "[INFO] Using lookup table config: "
+                              << params.str() << std::endl;
                     params_gen_ = params_generator_t(tune_level, simd_size, chk,
                             level_tile_sets, params);
                 } else {

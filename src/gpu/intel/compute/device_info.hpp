@@ -194,6 +194,7 @@ public:
     bool has(device_ext_t ext) const { return extensions_ & (uint64_t)ext; }
     bool has_native(native_ext_t ext) const { return native_extensions_ & (uint64_t)ext; }
     gpu_arch_t gpu_arch() const { return gpu_arch_; }
+    int gpu_product_family() const { return gpu_product_family_; }
     int stepping_id() const { return stepping_id_; }
     uint32_t ip_version() const { return ip_version_; }
     int max_eus_per_wg() const { return max_eus_per_wg_; }
@@ -220,6 +221,8 @@ public:
             gpu_arch_t gpu_arch, int tg_size, bool large_grf_mode = false);
     size_t l3_cache_size() const { return l3_cache_size_; }
     size_t icache_size() const;
+    size_t max_kernel_param_size() const { return max_kernel_param_size_; }
+    uint32_t device_address_bits() const { return device_address_bits_; }
 
     const xpu::runtime_version_t &runtime_version() const {
         return runtime_version_;
@@ -269,6 +272,7 @@ protected:
     virtual status_t init_attributes(impl::engine_t *engine) = 0;
 
     compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
+    int gpu_product_family_ = 0;
     int stepping_id_ = 0;
     uint32_t ip_version_ = 0;
     bool mayiuse_systolic_ = false;
@@ -288,6 +292,8 @@ protected:
     int max_exec_size_ = 0;
     size_t max_wg_size_ = 0;
     size_t l3_cache_size_ = 0;
+    size_t max_kernel_param_size_ = 1024;
+    uint32_t device_address_bits_ = 64;
 
     // extensions_ and gpu_arch_ describe effective extensions and GPU architecture.
     uint64_t extensions_ = 0;

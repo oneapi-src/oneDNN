@@ -15,11 +15,13 @@
 *******************************************************************************/
 
 #include "gpu/intel/sycl/utils.hpp"
-#include "gpu/intel/ocl/ocl_engine.hpp"
 #include "gpu/intel/sycl/engine.hpp"
 
 #include "gpu/intel/sycl/l0/utils.hpp"
+
+#include "xpu/ocl/engine_factory.hpp"
 #include "xpu/ocl/utils.hpp"
+
 #include "xpu/sycl/compat.hpp"
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
@@ -148,7 +150,7 @@ static status_t create_ocl_engine(
                 *ocl_engine,
         const ::sycl::device &sycl_dev,
         const ::sycl::context *sycl_ctx = nullptr) {
-    gpu::intel::ocl::ocl_engine_factory_t f(engine_kind::gpu);
+    xpu::ocl::engine_factory_t f(engine_kind::gpu);
     const auto backend = xpu::sycl::get_backend(sycl_dev);
 
     // The SYCL context is always provided for OpenCL backend.

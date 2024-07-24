@@ -27,52 +27,99 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-const std::vector<uint64_t> &get_conv_lookup_table_data();
+const char **get_conv_lookup_table_entries();
+
+void conv_lookup_table_t::entry_t::stringify(std::ostream &out) const {
+    key.stringify(out);
+    out << " ";
+    params.stringify(out);
+}
+
+void conv_lookup_table_t::entry_t::parse(std::istream &in) {
+    key.parse(in);
+    params.parse(in);
+}
+
+conv_lookup_table_t::conv_lookup_table_t(const char **entries) {
+    while (*entries) {
+        conv_lookup_table_t::entry_t e;
+        std::istringstream iss(*entries);
+        e.parse(iss);
+#ifdef DNNL_DEV_MODE
+        {
+            std::ostringstream oss;
+            e.stringify(oss);
+            ir_assert(oss.str() == *entries)
+                    << "parsed from:\n  " << *entries << "\nstringified to\n  "
+                    << oss.str();
+        }
+#endif
+        set(e.key, e.params);
+        entries++;
+    }
+}
+
+void conv_lookup_table_t::set(
+        const conv_key_t &key, const blocking_params_t &params) {
+    auto &desc_entries = data_[key.desc()];
+    for (auto &e : desc_entries) {
+        if (e.key == key) {
+            e.params = params;
+            return;
+        }
+    }
+    desc_entries.push_back(entry_t {key, params});
+}
 
 void conv_lookup_table_t::merge(const conv_lookup_table_t &other) {
     for (auto &kv : other.data_) {
-        set(kv.first, kv.second);
+        for (auto &e : kv.second) {
+            set(e.key, e.params);
+        }
     }
 }
 
 blocking_params_t conv_lookup_table_t::find(const conv_key_t &key) const {
-    auto it = data_.find(key);
-    auto best = data_.end();
+    auto entries_it = data_.find(key.desc());
+    if (entries_it == data_.end()) return blocking_params_t();
+    auto &desc_entries = entries_it->second;
+    auto it = desc_entries.begin();
+    auto best = desc_entries.end();
     int best_dist = std::numeric_limits<int>::max();
-    for (; it != data_.end(); it++) {
-        if (!it->first.matches(key)) continue;
-        int dist = it->first.distance(key);
+    for (; it != desc_entries.end(); it++) {
+        if (!it->key.matches(key)) continue;
+        int dist = it->key.distance(key);
         if (dist < best_dist) {
             best_dist = dist;
             best = it;
         }
     }
-    return (best == data_.end()) ? blocking_params_t() : best->second;
+    return (best == desc_entries.end()) ? blocking_params_t() : best->params;
 }
 
-void conv_lookup_table_t::serialize(std::ostream &out) const {
-    ir_utils::serialize(data_.size(), out);
+void conv_lookup_table_t::stringify(std::ostream &out) const {
     for (auto &kv : data_) {
-        kv.first.serialize(out);
-        kv.second.serialize(out);
+        for (auto &e : kv.second) {
+            out << "\"";
+            e.stringify(out);
+            out << "\",\n";
+        }
     }
 }
 
-void conv_lookup_table_t::deserialize(std::istream &in) {
-    auto n = ir_utils::deserialize<size_t>(in);
-    for (size_t i = 0; i < n; i++) {
-        conv_key_t key;
-        blocking_params_t params;
-        key.deserialize(in);
-        params.deserialize(in);
-        data_.emplace(key, params);
+void conv_lookup_table_t::parse(std::istream &in) {
+    data_.clear();
+    while (stream_try_match(in, "\"")) {
+        entry_t e;
+        e.parse(in);
+        data_[e.key.desc()].push_back(e);
+        stream_match(in, "\",\n");
     }
 }
 
 struct conv_lookup_table_instance_t {
     conv_lookup_table_instance_t() {
-        table = ir_utils::deserialize_from_data<conv_lookup_table_t>(
-                get_conv_lookup_table_data());
+        table = conv_lookup_table_t(get_conv_lookup_table_entries());
 #ifdef DNNL_DEV_MODE
         table_path = getenv_string_user(env_table_path_name);
 #endif
@@ -80,7 +127,7 @@ struct conv_lookup_table_instance_t {
             std::ifstream in(table_path, std::ios::binary);
             if (!in.good()) return;
             conv_lookup_table_t file_table;
-            file_table.deserialize(in);
+            file_table.parse(in);
             table.merge(file_table);
         }
     }
@@ -88,7 +135,7 @@ struct conv_lookup_table_instance_t {
     ~conv_lookup_table_instance_t() {
         if (table_path.empty()) return;
         std::ofstream out(table_path, std::ios::binary);
-        table.serialize(out);
+        table.stringify(out);
     }
 
     static const char *env_table_path_name;
