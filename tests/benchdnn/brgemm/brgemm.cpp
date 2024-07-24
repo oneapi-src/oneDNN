@@ -394,13 +394,10 @@ int init_kernel(kernel_args_t &kernel_args) {
     // Unneeded from API perspective, needed for reference.
     kernel_args.generate_skip_accumulation_ = false;
 
-    st = dnnl_brgemm_generate(brgemm);
-    SAFE(check_dnnl_status(st, prb, res), WARN);
-    if (res->state == SKIPPED) return OK;
-
-    st = dnnl_brgemm_get_scratchpad_size(brgemm, &kernel_args.scratchpad_size_);
-    SAFE(check_dnnl_status(st, prb, res), WARN);
-    if (res->state == SKIPPED) return OK;
+    DNN_SAFE(dnnl_brgemm_generate(brgemm), WARN);
+    DNN_SAFE(dnnl_brgemm_get_scratchpad_size(
+                     brgemm, &kernel_args.scratchpad_size_),
+            WARN);
 
     // Create a memory desc based on user inputs and query strides to use them
     // in a pack routine.
@@ -417,14 +414,12 @@ int init_kernel(kernel_args_t &kernel_args) {
     SAFE(check_dnnl_status(st, prb, res), WARN);
     if (res->state == SKIPPED) return OK;
 
-    st = dnnl_brgemm_pack_B_need_pack(brgemm_pack_B, &kernel_args.need_pack_);
-    SAFE(check_dnnl_status(st, prb, res), WARN);
-    if (res->state == SKIPPED) return OK;
+    DNN_SAFE(dnnl_brgemm_pack_B_need_pack(
+                     brgemm_pack_B, &kernel_args.need_pack_),
+            WARN);
 
     if (kernel_args.need_pack_) {
-        st = dnnl_brgemm_pack_B_generate(brgemm_pack_B);
-        SAFE(check_dnnl_status(st, prb, res), WARN);
-        if (res->state == SKIPPED) return OK;
+        DNN_SAFE(dnnl_brgemm_pack_B_generate(brgemm_pack_B), WARN);
     }
 #endif
     return OK;
@@ -1157,10 +1152,9 @@ int doit(const prb_t *prb, res_t *res) {
             : nullptr;
 
     if (kernel_args.need_pack_) {
-        auto st = dnnl_brgemm_pack_B_execute(
-                brgemm_pack_B, wei_ptr, wei_packed_ptr);
-        SAFE(check_dnnl_status(st, prb, res), WARN);
-        if (res->state == SKIPPED) return OK;
+        DNN_SAFE(dnnl_brgemm_pack_B_execute(
+                         brgemm_pack_B, wei_ptr, wei_packed_ptr),
+                WARN);
     } else {
         const auto &wei_dt = mem_map.at(DNNL_ARG_WEIGHTS);
         auto &wei_packed_dt = mem_map.at(DNNL_ARG_WEIGHTS_1);
