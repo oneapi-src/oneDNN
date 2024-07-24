@@ -495,6 +495,26 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
         dnnl_primitive_attr_t attr, int arg, int mask, int ndims,
         const dnnl_dims_t group_dims, dnnl_data_type_t data_type);
 
+/// Sets the rounding mode attribute value for a given argument
+///
+/// @param attr Primitive attributes.
+/// @param arg Argument for which rounding mode should be set.
+/// @params mode Rounding mode to apply to the argument.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_rounding(
+        dnnl_primitive_attr_t attr, int arg, dnnl_rounding_mode_t mode);
+
+/// Returns the rounding mode attribute value for a given argument
+///
+/// @param attr Primitive attributes.
+/// @param arg Argument for which rounding mode query applies.
+/// @params mode Output rounding mode.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_rounding(
+        dnnl_primitive_attr_t attr, int arg, dnnl_rounding_mode_t *mode);
+
 /// Returns primitive attributes post-ops.
 ///
 /// @warning

@@ -217,6 +217,15 @@ void serialize_attr(
             sstream.write(&dt);
         }
 
+    // Rounding modes
+    if (!attr.rounding_mode_.has_default_values()) sstream.write("rm:");
+    for (const auto &e : attr.rounding_mode_.rounding_modes_map_) {
+        if (!attr.rounding_mode_.has_default_values(e.first)) {
+            sstream.write(&e.first);
+            sstream.write(&e.second);
+        }
+    }
+
     if (!attr.dropout_.has_default_values()) {
         sstream.write("dropout:");
         serialize_md(sstream, attr.dropout_.user_dropout_desc_);

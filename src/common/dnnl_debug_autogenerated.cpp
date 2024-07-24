@@ -1855,6 +1855,13 @@ const char *dnnl_scratchpad_mode2str(dnnl_scratchpad_mode_t v) {
     return "unknown scratchpad_mode";
 }
 
+const char *dnnl_rounding_mode2str(dnnl_rounding_mode_t v) {
+    if (v == dnnl_rounding_mode_environment) return "environment";
+    if (v == dnnl_rounding_mode_stochastic) return "stochastic";
+    assert(!"unknown rounding_mode");
+    return "unknown rounding_mode";
+}
+
 const char *dnnl_cpu_isa2str(dnnl_cpu_isa_t v) {
     if (v == dnnl_cpu_isa_default) return "cpu_isa_default";
     if (v == dnnl_cpu_isa_sse41) return "cpu_isa_sse41";

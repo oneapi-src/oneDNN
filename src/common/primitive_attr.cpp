@@ -170,6 +170,8 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
                     dnnl::impl::accumulation_mode::any)));
     CHECK_ARG(IMPLICATION(
             (bool)(~mask & smask_t::dropout), dropout_.has_default_values()));
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::rounding_mode),
+            rounding_mode_.has_default_values()));
     CHECK_ARG(this->defined(defined_mask));
     bool fpmath_mode_ok = IMPLICATION(
             (bool)(~mask & smask_t::fpmath_mode) && fpmath_.apply_to_int_,
@@ -598,6 +600,19 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
     if (!ok) return invalid_arguments;
 
     return attr->zero_points_.set(arg, mask, ndims, group_dims, data_type);
+}
+
+status_t dnnl_primitive_attr_get_rounding(
+        primitive_attr_t *attr, int arg, dnnl_rounding_mode_t *mode) {
+    if (any_null(attr, mode)) return invalid_arguments;
+    *mode = attr->rounding_mode_.get(arg);
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_rounding(
+        primitive_attr_t *attr, int arg, dnnl_rounding_mode_t mode) {
+    if (attr == nullptr) return invalid_arguments;
+    return attr->rounding_mode_.set(arg, mode);
 }
 
 status_t dnnl_primitive_attr_get_post_ops(

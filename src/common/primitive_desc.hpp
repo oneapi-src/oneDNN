@@ -178,6 +178,9 @@ struct primitive_desc_t : public c_compatible {
                     || arg == DNNL_ARG_ATTR_DROPOUT_SEED)
                 && !attr()->dropout_.has_default_values())
             return arg_usage_t::input;
+        if ((arg == DNNL_ARG_ATTR_ROUNDING_SEED)
+                && !attr()->rounding_mode_.has_default_values())
+            return arg_usage_t::input;
         for (int idx = 0; idx < attr()->post_ops_.len(); ++idx) {
             using namespace primitive_kind;
             if (post_op_has_proper_input(

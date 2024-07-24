@@ -662,6 +662,8 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         char next = 0;
     } field_delim;
 
+    std::string empty_delim, attr_delim = "+";
+
     // scratchpad and fpmath mode are not a part of
     // has_default_values(). Check them first.
     const scratchpad_mode_t &spm = attr->scratchpad_mode_;
@@ -682,6 +684,20 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         ss << field_delim() << "attr-acc:" << dnnl_accumulation_mode2str(am);
     }
 
+    const auto &rm = attr->rounding_mode_;
+    if (!rm.has_default_values()) {
+        std::string delim = empty_delim;
+        ss << field_delim() << "attr-rounding-mode:";
+        for (const auto &e : rm.rounding_modes_map_) {
+            // TODO: add support for diff tensors in arg2str when
+            // support is added
+            if (!rm.has_default_values(e.first))
+                ss << delim << arg2str(e.first) << ":"
+                   << dnnl_rounding_mode2str(e.second);
+            delim = attr_delim;
+        }
+    }
+
     const bool deterministic = attr->deterministic_;
     if (deterministic) {
         ss << field_delim() << "attr-deterministic:" << deterministic;
@@ -692,8 +708,6 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     if (!os.has_default_values()) {
         ss << field_delim() << "attr-oscale:" << os;
     }
-
-    std::string empty_delim, attr_delim = "+";
 
     const arg_scales_t &as = attr->scales_;
     if (!as.has_default_values()) {

@@ -300,6 +300,23 @@ inline dnnl_scratchpad_mode_t convert_to_c(scratchpad_mode mode) {
     return static_cast<dnnl_scratchpad_mode_t>(mode);
 }
 
+/// Rounding mode
+enum class rounding_mode {
+    /// rounding mode dictated by the floating-point environment
+    environment = dnnl_rounding_mode_environment,
+    /// stochastic rounding mode where a random bias is added to the
+    /// trailing mantissa bits before conversion.
+    stochastic = dnnl_rounding_mode_stochastic
+};
+
+/// Converts a rounding mode enum value from C++ API to C API type.
+///
+/// @param mode C++ API rounding mode enum value.
+/// @returns Corresponding C API rounding mode enum value.
+inline dnnl_rounding_mode_t convert_to_c(rounding_mode mode) {
+    return static_cast<dnnl_rounding_mode_t>(mode);
+}
+
 /// Propagation kind.
 enum class prop_kind {
     /// Undefined propagation kind.
@@ -3990,6 +4007,27 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(dnnl_primitive_attr_set_deterministic(
                                   get(), static_cast<int>(value)),
                 "could not set deterministic primitive attribute");
+    }
+
+    /// Returns the rounding mode attribute value
+    ///
+    /// @param arg Argument for which rounding mode query applies.
+    /// @returns The rounding mode applied to the specified argument.
+    rounding_mode get_rounding_mode(int arg) const {
+        dnnl_rounding_mode_t result;
+        error::wrap_c_api(dnnl_primitive_attr_get_rounding(get(), arg, &result),
+                "could not get rounding mode primitive attribute");
+        return rounding_mode(result);
+    }
+
+    /// Sets the rounding mode attribute value for a given argument
+    ///
+    /// @param arg Argument for which to set rounding mode.
+    /// @param mode Rounding mode to apply.
+    void set_rounding_mode(int arg, rounding_mode mode) {
+        error::wrap_c_api(dnnl_primitive_attr_set_rounding(
+                                  get(), arg, convert_to_c(mode)),
+                "could not set rounding mode primitive attribute");
     }
 
     /// Returns the scratchpad mode.

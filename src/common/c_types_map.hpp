@@ -190,6 +190,12 @@ const scratchpad_mode_t library = dnnl_scratchpad_mode_library;
 const scratchpad_mode_t user = dnnl_scratchpad_mode_user;
 } // namespace scratchpad_mode
 
+using rounding_mode_t = dnnl_rounding_mode_t;
+namespace rounding_mode {
+const rounding_mode_t environment = dnnl_rounding_mode_environment;
+const rounding_mode_t stochastic = dnnl_rounding_mode_stochastic;
+} // namespace rounding_mode
+
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 using sparse_encoding_t = dnnl_sparse_encoding_t;
 namespace sparse_encoding {
