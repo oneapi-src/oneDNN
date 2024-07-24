@@ -14,21 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/dispatch.h"
-#include "gpu/intel/ocl/ocl_types.h"
-
-#undef SRC_OFF
-#undef DST_OFF
-
-#define SRC_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC, x0, x1, x2, x3, x4, x5)
-#define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
-#define STAT_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(STAT, x0, x1, x2, x3, x4, x5)
-
-#if SRC_DT_F64 || DST_DT_F64
-#define ACC_DATA_T double
-#else
-#define ACC_DATA_T float
-#endif
+#include "gpu/intel/ocl/layer_norm_common.h"
 
 #if IS_FWD
 #if VECTORIZE_CALC_STATS == 1
@@ -210,46 +196,8 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif
 
 #if IS_BWD
-
 #if USE_SCALE || USE_SHIFT
 #if VECTORIZE_BWD_SCALESHIFT
-
-#if VECTOR_SIZE_SCALESHIFT == 1
-#define VECTORIZED_VERSION(x) x
-#define vector_load(x) (x);
-#else
-#define VECTORIZED_VERSION(x) CONCAT2(x, VECTOR_SIZE_SCALESHIFT)
-#define vector_load(x) CONCAT2(vload, VECTOR_SIZE_SCALESHIFT)(0, &x);
-#endif
-
-#if DT_BF16 == 1
-#define convert_vector_to_float cvt_bf16_to_f32
-#else
-#define convert_vector_to_float VECTORIZED_VERSION(convert_float)
-#endif
-
-#if SRC_DT_BF16 == 1
-#define convert_vector_src_to_float cvt_bf16_to_f32
-#else
-#define convert_vector_src_to_float VECTORIZED_VERSION(convert_float)
-#endif
-
-#if defined(SRC_DT_F64)
-#define SRC_BLOCK_DATA_T ulong
-#elif defined(SRC_DT_F32)
-#define SRC_BLOCK_DATA_T uint
-#elif defined(SRC_DT_F16) || defined(SRC_DT_BF16)
-#define SRC_BLOCK_DATA_T ushort
-#elif defined(SRC_DT_U8) || defined(SRC_DT_S8)
-#define SRC_BLOCK_DATA_T uchar
-#else
-#error "Unexpected SRC data type"
-#endif
-
-#define as_vector_data_t VECTORIZED_VERSION(AS_DATA_T)
-#define as_vector_src_data_t VECTORIZED_VERSION(AS_SRC_DATA_T)
-#define sub_group_read VECTORIZED_VERSION(BLOCK_READ)
-#define vector_float VECTORIZED_VERSION(float)
 
 NAMED_KERNEL_ATTR(SCALESHIFT)
 __kernel void ref_lnorm_bwd_scaleshift(__global SRC_DATA_T *src,
