@@ -64,7 +64,7 @@ bool is_supported_partition(const std::shared_ptr<graph::partition_impl_t> &p) {
             && (p->get_assigned_backend()->get_name() != "fake_backend");
 }
 
-static bool is_supported_dtype(data_type_t dt, dir_t dir = dir_t::FLAG_FWD) {
+bool is_supported_dtype(data_type_t dt, dir_t dir = dir_t::FLAG_FWD) {
     static graph::engine_t *engine = get_engine();
     return get_dtype_support_status(engine->kind(), dt, dir);
 }

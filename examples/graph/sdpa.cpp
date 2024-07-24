@@ -235,8 +235,6 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     double avg_time = (duration.count() - dur_first.count()) / runs;
     std::cout << "primitive runs: " << runs + 1 << "; ";
     std::cout << "avg_time: " << avg_time << " ms" << std::endl;
-
-    return;
 }
 
 const char *get_type_string(logical_tensor::data_type dt) {
@@ -400,8 +398,6 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     double avg_time = (duration.count() - dur_first.count()) / runs;
     std::cout << "graph runs: " << runs + 1 << "; ";
     std::cout << "avg_time: " << avg_time << " ms" << std::endl;
-
-    return;
 }
 
 void bad_args() {
