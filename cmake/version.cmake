@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2021 Intel Corporation
+# Copyright 2019-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,6 +43,11 @@ endif()
 configure_file(
     "${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_version.h.in"
     "${PROJECT_BINARY_DIR}/include/oneapi/dnnl/dnnl_version.h"
+)
+
+configure_file(
+    "${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_version_hash.h.in"
+    "${PROJECT_BINARY_DIR}/include/oneapi/dnnl/dnnl_version_hash.h"
 )
 
 if(WIN32)

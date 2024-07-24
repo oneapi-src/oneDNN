@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,19 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef ONEAPI_DNNL_DNNL_VERSION_H
-#define ONEAPI_DNNL_DNNL_VERSION_H
+#ifndef ONEAPI_DNNL_DNNL_VERSION_HASH_H
+#define ONEAPI_DNNL_DNNL_VERSION_HASH_H
 
 // clang-format off
 
-/// Major version
-#define DNNL_VERSION_MAJOR @DNNL_VERSION_MAJOR@
-
-/// Minor version
-#define DNNL_VERSION_MINOR @DNNL_VERSION_MINOR@
-
-/// Patch version
-#define DNNL_VERSION_PATCH @DNNL_VERSION_PATCH@
+/// Note: this macro and header file were moved to a separate instance to avoid
+/// incremental build issues as moving from commit to commit would trigger a
+/// complete library rebuild. Including a generated header file in a single
+/// translation unit makes this problem go away.
+/// Git commit hash
+#define DNNL_VERSION_HASH  "@DNNL_VERSION_HASH@"
 
 // clang-format on
 
