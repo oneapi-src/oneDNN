@@ -172,7 +172,7 @@ public:
                 ok = true;
             } else if (obj.template is<func_call_t>()) {
                 auto &call = obj.template as<func_call_t>();
-                ok = call.func.is_equal(funcs::barrier_func());
+                ok = call.func.is_same(funcs::barrier_func());
             }
 
             if (!ok) {
@@ -912,9 +912,9 @@ public:
                 }
             } else if (s.is<func_call_t>()) {
                 auto &c = s.as<func_call_t>();
-                if (c.func.is_equal(funcs::signal_func())
-                        || c.func.is_equal(funcs::slm_fence_func())
-                        || c.func.is_equal(funcs::barrier_func())) {
+                if (c.func.is_same(funcs::signal_func())
+                        || c.func.is_same(funcs::slm_fence_func())
+                        || c.func.is_same(funcs::barrier_func())) {
                     // Use 0 as the key for signals and SLM fences.
                     auto sbid = get_sbid(expr_t(0));
                     s = update_call_with_sbid(s, sbid);
@@ -1472,9 +1472,9 @@ public:
         auto ret = s;
         for (auto &_c : find_objects<func_call_t>(s)) {
             auto &c = _c.as<func_call_t>();
-            if (c.func.is_equal(funcs::signal_func())
-                    || c.func.is_equal(funcs::slm_fence_func())
-                    || c.func.is_equal(funcs::barrier_func())) {
+            if (c.func.is_same(funcs::signal_func())
+                    || c.func.is_same(funcs::slm_fence_func())
+                    || c.func.is_same(funcs::barrier_func())) {
                 ret = substitute(ret, _c, stmt_t(), 1);
             }
         }

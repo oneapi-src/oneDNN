@@ -2517,6 +2517,16 @@ public:
 
     func_impl_t(type_info_t type_info) : object_impl_t(type_info) {}
 
+    size_t get_hash() const override {
+        ir_error_not_expected() << "get_hash() is not implemented.";
+        return 0;
+    }
+
+    bool is_equal(const object_impl_t &obj) const override {
+        ir_error_not_expected() << "is_equal() is not implemented.";
+        return false;
+    }
+
     stmt_t call(const std::vector<expr_t> &args,
             const func_call_attr_t &attr = {}) const;
 
@@ -2572,9 +2582,7 @@ public:
                 && attr.is_equal(other.attr);
     }
 
-    size_t get_hash() const override {
-        return ir_utils::get_hash(func, args, attr);
-    }
+    size_t get_hash() const override { return ir_utils::get_hash(args, attr); }
 
     IR_DECLARE_TRAVERSERS()
 
@@ -2624,8 +2632,6 @@ public:
 
         return name == other.name;
     }
-
-    size_t get_hash() const override { return ir_utils::get_hash(name); }
 
     std::string str() const override { return name; }
 

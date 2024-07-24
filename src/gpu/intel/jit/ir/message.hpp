@@ -116,12 +116,6 @@ struct block_2d_info_t {
                 && (transpose == other.transpose);
     }
 
-    size_t get_hash() const {
-        if (is_empty()) return 0;
-        return ir_utils::get_hash(surface_width, surface_height, surface_pitch,
-                width, height, count, vnni, transpose);
-    }
-
     std::string str() const {
         std::ostringstream oss;
         oss << count << "x";
@@ -210,19 +204,14 @@ public:
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return (hw == other.hw) && (op == other.op)
-                && (address == other.address) && (type == other.type)
-                && (slots == other.slots) && (slot_mask == other.slot_mask)
-                && (is_lsc == other.is_lsc) && (zero_out == other.zero_out)
+        // hw is not compared as cross-hardware IR operations are not expected.
+        return (op == other.op) && (address == other.address)
+                && (type == other.type) && (slots == other.slots)
+                && (slot_mask == other.slot_mask) && (is_lsc == other.is_lsc)
+                && (zero_out == other.zero_out)
                 && (block_2d_info == other.block_2d_info)
                 && (cache_hint == other.cache_hint);
     }
-
-    size_t get_hash() const override {
-        return ir_utils::get_hash(hw, op, address, type, slots, slot_mask,
-                is_lsc, zero_out, block_2d_info, cache_hint);
-    }
-
     std::string str() const override {
         std::ostringstream oss;
         oss << op;

@@ -131,12 +131,6 @@ public:
                 && (src1_type == other.src1_type)
                 && (src2_type == other.src2_type);
     }
-
-    size_t get_hash() const override {
-        return ir_utils::get_hash(is_dpasw, exec_size, sdepth, rcount, dst_type,
-                src1_type, src2_type);
-    }
-
     std::string str() const override {
         std::ostringstream oss;
         oss << (is_dpasw ? "dpasw" : is_dp4a() ? "dp4a" : "dpas");
@@ -210,22 +204,6 @@ public:
             int src2_stride) {
         return func_t(new mad_t(hw, dst_type, exec_size, src1_type, src1_stride,
                 src2_type, src2_stride));
-    }
-
-    bool is_equal(const object_impl_t &obj) const override {
-        if (!obj.is<self_type>()) return false;
-        auto &other = obj.as<self_type>();
-
-        return (dst_type == other.dst_type) && (src1_type == other.src1_type)
-                && (src2_type == other.src2_type)
-                && (exec_size == other.exec_size)
-                && (src1_stride == other.src1_stride)
-                && (src2_stride == other.src2_stride);
-    }
-
-    size_t get_hash() const override {
-        return ir_utils::get_hash(dst_type, src1_type, src2_type, exec_size,
-                src2_stride, src1_stride);
     }
 
     std::string str() const override {
