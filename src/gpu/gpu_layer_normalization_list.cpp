@@ -20,6 +20,7 @@
 #include "gpu/intel/ocl/ref_layer_normalization.hpp"
 #include "gpu/intel/ocl/reusable_lnorm.hpp"
 #include "gpu/intel/ocl/reusable_vectorized_lnorm.hpp"
+#include "gpu/intel/ocl/simple_layer_normalization.hpp"
 #include "gpu/intel/ocl/vectorized_lnorm.hpp"
 #endif
 
@@ -40,6 +41,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{forward}, {
         GPU_INSTANCE_INTEL(intel::ocl::reusable_vectorized_layer_normalization_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::vectorized_lnorm_fwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::simple_layer_normalization_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_layer_normalization_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::reusable_layer_normalization_fwd_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_layer_normalization_fwd_t)

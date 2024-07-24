@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/ref_layer_normalization.hpp"
 #include "common/c_types_map.hpp"
+#include "gpu/intel/ocl/ref_layer_normalization.hpp"
 
 #include "common/primitive_exec_types.hpp"
 #include "common/scratchpad.hpp"
@@ -80,44 +80,10 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     };
 
     if (pd->is_fwd()) {
-        const int sg_size = [&]() {
-            int size = desired_sg_size;
-            while (size > 1) {
-                const bool fit_to_shape = (conf.norm_axis % size == 0)
-                        && (c_block == 1
-                                || (c_block % size == 0 && ndims == 2));
-                if (mayiuse_sg(size) && fit_to_shape) return size;
-                size -= 16;
-            }
-            return size;
-        }();
-        if (src_mdw.is_dense() && c_is_last_physical && ndims < 4
-                && sg_size > 1
-                // f64 for ref impl only
-                && utils::one_of(data_type::f64, conf.src_dt, conf.dst_dt)) {
-            conf.vectorize_calc_stats = true;
-            conf.sub_group_size = sg_size;
-            int vector_size = 8;
-            while (conf.norm_axis % (conf.sub_group_size * vector_size) != 0) {
-                vector_size /= 2;
-            }
-            while (c_block > 1 && vector_size * conf.sub_group_size > c_block) {
-                vector_size /= 2;
-            }
-            conf.vect_dt_n = vector_size;
-        }
         for (int i = 0; i < 4; i++) {
             int md_hint_idx = nstl::min(i, ndims - 1);
             int dim = (i < ndims - 1) ? dims[i] : 1;
-            if (conf.vectorize_calc_stats && (i == ndims - 1)) {
-                dim = sg_size;
-                conf.dispatch.define_dim(
-                        utils::format("X%d", i), md_hint_idx, dim);
-                CHECK(conf.dispatch.vectorize_dim(
-                        utils::format("X%d", i), conf.sub_group_size));
-            } else
-                conf.dispatch.define_dim(
-                        utils::format("X%d", i), md_hint_idx, dim);
+            conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx, dim);
         }
     } else {
         conf.vectorize_bwd = false;
@@ -259,7 +225,6 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("IS_FWD", conf.is_fwd);
     kernel_ctx.define_int("IS_BWD", !conf.is_fwd);
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
-    kernel_ctx.define_int("VECTORIZE_CALC_STATS", conf.vectorize_calc_stats);
     kernel_ctx.define_int("VECTORIZE_BWD", conf.vectorize_bwd);
     kernel_ctx.define_int(
             "VECTORIZE_BWD_SCALESHIFT", conf.vectorize_bwd_scaleshift);
