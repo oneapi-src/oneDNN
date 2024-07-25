@@ -91,9 +91,8 @@ std::unique_ptr<memory_storage_t> buffer_memory_storage_t::get_sub_storage(
     if (status != status::success) return nullptr;
 
     if (engine()->kind() == engine_kind::cpu) {
-        // On CPU the pointer to `buffer_` must be permanent since it's
-        // host-mapped inside `exec_ctx_t` object in sycl_cpu_thunk.
         storage->buffer_ = buffer_;
+        storage->base_offset_ = base_offset_ + offset;
     } else {
         const auto *sycl_engine_impl
                 = utils::downcast<const xpu::sycl::engine_impl_t *>(
