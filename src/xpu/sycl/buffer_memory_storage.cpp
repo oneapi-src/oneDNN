@@ -50,8 +50,8 @@ buffer_memory_storage_t::buffer_memory_storage_t(engine_t *engine)
     : memory_storage_base_t(engine) {}
 
 buffer_memory_storage_t::buffer_memory_storage_t(
-        engine_t *engine, const memory_storage_t *parent_storage)
-    : memory_storage_base_t(engine, parent_storage) {}
+        engine_t *engine, const memory_storage_t *root_storage)
+    : memory_storage_base_t(engine, root_storage) {}
 
 status_t buffer_memory_storage_t::map_data(
         void **mapped_ptr, stream_t *stream, size_t) const {
@@ -83,7 +83,7 @@ status_t buffer_memory_storage_t::unmap_data(
 std::unique_ptr<memory_storage_t> buffer_memory_storage_t::get_sub_storage(
         size_t offset, size_t size) const {
     auto storage = utils::make_unique<buffer_memory_storage_t>(
-            engine(), parent_storage());
+            engine(), root_storage());
     if (!storage) return nullptr;
 
     status_t status
@@ -142,7 +142,7 @@ status_t buffer_memory_storage_t::init_allocate(size_t size) {
 }
 
 xpu::sycl::buffer_u8_t &buffer_memory_storage_t::parent_buffer() const {
-    return utils::downcast<const buffer_memory_storage_t *>(parent_storage())
+    return utils::downcast<const buffer_memory_storage_t *>(root_storage())
             ->buffer();
 }
 
