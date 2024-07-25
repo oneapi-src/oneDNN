@@ -27,7 +27,6 @@
 #include "oneapi/dnnl/dnnl.hpp"
 #ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.hpp"
-#include <CL/sycl.hpp>
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
