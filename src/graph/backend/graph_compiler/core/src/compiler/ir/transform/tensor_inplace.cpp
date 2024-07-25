@@ -408,8 +408,7 @@ const_ir_module_ptr tensor_inplace_t::operator()(const_ir_module_ptr f) {
                             arg_id++) {
                         auto &arg_in_decl = funct->params_[arg_id];
                         auto &arg_in_def = func_def->params_.at(arg_id);
-                        if (auto alias_id
-                                = alias_info::get_alias_info(*arg_in_decl)) {
+                        if (alias_info::get_alias_info(*arg_in_decl)) {
                             // sync the alias info
                             arg_in_def->attr()[attr_keys::pointer_alias]
                                     = arg_in_decl->attr_->get_any(
