@@ -42,9 +42,9 @@ struct handle_traits<dnnl_brgemm_t> {
 };
 
 template <>
-struct handle_traits<dnnl_brgemm_pack_B_t> {
-    static dnnl_status_t destructor(dnnl_brgemm_pack_B_t p) {
-        return dnnl_brgemm_pack_B_destroy(p);
+struct handle_traits<dnnl_transform_t> {
+    static dnnl_status_t destructor(dnnl_transform_t p) {
+        return dnnl_transform_destroy(p);
     }
 };
 
@@ -250,11 +250,11 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     }
 };
 
-struct brgemm_pack_B : public handle<dnnl_brgemm_pack_B_t> {
+struct transform : public handle<dnnl_transform_t> {
     /// Default constructor. Produces an empty object.
-    brgemm_pack_B() = default;
+    transform() = default;
 
-    /// Constructs a BRGeMM ukernel packing tensor B object.
+    /// Constructs a transform object.
     ///
     /// @param K Dimension K.
     /// @param N Dimension N.
@@ -267,35 +267,35 @@ struct brgemm_pack_B : public handle<dnnl_brgemm_pack_B_t> {
     ///     allowed to fail without throwing an exception. In this case an
     ///     empty object will be produced. This flag is optional and
     ///     defaults to false.
-    brgemm_pack_B(memory::dim K, memory::dim N, memory::dim in_ld,
+    transform(memory::dim K, memory::dim N, memory::dim in_ld,
             memory::dim out_ld, memory::data_type in_dt,
             memory::data_type out_dt, bool allow_empty = false) {
 
-        dnnl_brgemm_pack_B_t brgemm_pack_B = nullptr;
-        dnnl_status_t status = dnnl_brgemm_pack_B_create(&brgemm_pack_B, K, N,
-                in_ld, out_ld, memory::convert_to_c(in_dt),
+        dnnl_transform_t transform = nullptr;
+        dnnl_status_t status = dnnl_transform_create(&transform, K, N, in_ld,
+                out_ld, memory::convert_to_c(in_dt),
                 memory::convert_to_c(out_dt));
 
         if (!allow_empty)
             error::wrap_c_api(status,
                     "could not create a BRGeMM ukernel packing B object");
-        reset(brgemm_pack_B);
+        reset(transform);
     }
 
-    /// Generates an executable part of BRGeMM ukernel packing B object.
+    /// Generates an executable part of transform object.
     void generate() {
-        dnnl_status_t status = dnnl_brgemm_pack_B_generate(get());
+        dnnl_status_t status = dnnl_transform_generate(get());
         if (status != dnnl_success)
             error::wrap_c_api(status,
                     "could not generate a BRGeMM ukernel packing B object");
     }
 
-    /// Executes a BRGeMM ukernel packing tensor B object.
+    /// Executes a transform object.
     ///
     /// @param in Pointer to an input buffer.
     /// @param out Pointer to an output buffer.
     void execute(const void *in, void *out) const {
-        dnnl_status_t status = dnnl_brgemm_pack_B_execute(get(), in, out);
+        dnnl_status_t status = dnnl_transform_execute(get(), in, out);
         if (status != dnnl_success)
             error::wrap_c_api(status,
                     "could not execute a BRGeMM ukernel packing B object");

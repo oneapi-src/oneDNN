@@ -183,48 +183,44 @@ dnnl_status_t DNNL_API dnnl_brgemm_execute_postops(const_dnnl_brgemm_t brgemm,
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_brgemm_destroy(dnnl_brgemm_t brgemm);
 
-/// Creates a BRGeMM ukernel packing tensor B object.
+/// Creates a transform object.
 ///
-/// @param brgemm_pack_B Output BRGeMM ukernel packing B object.
+/// @param transform Output transform object.
 /// @param K Dimension K.
 /// @param N Dimension N.
 /// @param in_ld Input leading dimension.
-/// @param out_ld Output leading dimension. Specifies a block by N dimension
-///     during data packing.
+/// @param out_ld Output leading dimension. When packing data, it specifies a
+///     block by N dimension.
 /// @param in_dt Input data type.
 /// @param out_dt Output data type.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_brgemm_pack_B_create(
-        dnnl_brgemm_pack_B_t *brgemm_pack_B, dnnl_dim_t K, dnnl_dim_t N,
-        dnnl_dim_t in_ld, dnnl_dim_t out_ld, dnnl_data_type_t in_dt,
-        dnnl_data_type_t out_dt);
+dnnl_status_t DNNL_API dnnl_transform_create(dnnl_transform_t *transform,
+        dnnl_dim_t K, dnnl_dim_t N, dnnl_dim_t in_ld, dnnl_dim_t out_ld,
+        dnnl_data_type_t in_dt, dnnl_data_type_t out_dt);
 
-/// Generates an executable part of BRGeMM ukernel packing B object.
-/// @param brgemm_pack_B BRGeMM ukernel packing B object.
+/// Generates an executable part of transform object.
+/// @param transform Transform object.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_brgemm_pack_B_generate(
-        dnnl_brgemm_pack_B_t brgemm_pack_B);
+dnnl_status_t DNNL_API dnnl_transform_generate(dnnl_transform_t transform);
 
-/// Executes a BRGeMM ukernel packing tensor B object.
+/// Executes a transform object.
 ///
-/// @param brgemm_pack_B BRGeMM ukernel packing B object.
+/// @param transform Transform object.
 /// @param in_ptr Pointer to an input buffer.
 /// @param out_ptr Pointer to an output buffer.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_brgemm_pack_B_execute(
-        const_dnnl_brgemm_pack_B_t brgemm_pack_B, const void *in_ptr,
-        void *out_ptr);
+dnnl_status_t DNNL_API dnnl_transform_execute(
+        const_dnnl_transform_t transform, const void *in_ptr, void *out_ptr);
 
-/// Destroys a BRGeMM ukernel packing tensor B object.
+/// Destroys a transform object.
 ///
-/// @param brgemm_pack_B BRGeMM ukernel packing B object.
+/// @param transform Transform object.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_brgemm_pack_B_destroy(
-        dnnl_brgemm_pack_B_t brgemm_pack_B);
+dnnl_status_t DNNL_API dnnl_transform_destroy(dnnl_transform_t transform);
 
 /// @} dnnl_api_ukernel_brgemm
 

@@ -59,15 +59,15 @@ typedef struct dnnl_brgemm *dnnl_brgemm_t;
 /// A constant brgemm ukernel handle.
 typedef const struct dnnl_brgemm *const_dnnl_brgemm_t;
 
-/// @struct dnnl_brgemm_pack_B
-/// An opaque structure to describe a brgemm ukernel packing B routine.
-struct dnnl_brgemm_pack_B;
+/// @struct dnnl_transform
+/// An opaque structure to describe a transform routine.
+struct dnnl_transform;
 
-/// A brgemm ukernel packing B routine handle.
-typedef struct dnnl_brgemm_pack_B *dnnl_brgemm_pack_B_t;
+/// A transform routine handle.
+typedef struct dnnl_transform *dnnl_transform_t;
 
-/// A constant brgemm ukernel packing B routine handle.
-typedef const struct dnnl_brgemm_pack_B *const_dnnl_brgemm_pack_B_t;
+/// A constant transform routine handle.
+typedef const struct dnnl_transform *const_dnnl_transform_t;
 
 /// @} dnnl_api_ukernel_brgemm
 #endif

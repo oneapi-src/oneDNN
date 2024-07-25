@@ -70,9 +70,9 @@ struct dnnl_api_traits<dnnl_brgemm_t> {
 };
 
 template <>
-struct dnnl_api_traits<dnnl_brgemm_pack_B_t> {
-    static void destroy(dnnl_brgemm_pack_B_t t) {
-        DNN_SAFE_V(dnnl_brgemm_pack_B_destroy(t));
+struct dnnl_api_traits<dnnl_transform_t> {
+    static void destroy(dnnl_transform_t t) {
+        DNN_SAFE_V(dnnl_transform_destroy(t));
     }
 };
 
@@ -273,7 +273,7 @@ struct kernel_args_t {
         , original_wei_md_size_(0)
 #else
         brgemm_(nullptr)
-        , brgemm_pack_B_(nullptr)
+        , transform_(nullptr)
         , need_pack_(0)
 #endif
         , scratchpad_size_(0)
@@ -291,7 +291,7 @@ struct kernel_args_t {
     size_t original_wei_md_size_;
 #else
     dnnl_brgemm_t brgemm_;
-    dnnl_brgemm_pack_B_t brgemm_pack_B_;
+    dnnl_transform_t transform_;
     int need_pack_; // `int` to match C API
 #endif
     size_t scratchpad_size_;
@@ -418,14 +418,13 @@ int init_kernel(kernel_args_t &kernel_args) {
         const auto &wei_strides = query_md_strides(wei_md);
         assert(query_md_ndims(wei_md) == 2);
 
-        auto &brgemm_pack_B = kernel_args.brgemm_pack_B_;
-        st = dnnl_brgemm_pack_B_create(&brgemm_pack_B, prb->k * prb->batch_size,
-                prb->n, wei_strides[0], prb->get_ldb(), prb->wei_dt(),
-                prb->wei_dt());
+        auto &transform = kernel_args.transform_;
+        st = dnnl_transform_create(&transform, prb->k * prb->batch_size, prb->n,
+                wei_strides[0], prb->get_ldb(), prb->wei_dt(), prb->wei_dt());
         SAFE(check_dnnl_status(st, prb, res), WARN);
         if (res->state == SKIPPED) return OK;
 
-        DNN_SAFE(dnnl_brgemm_pack_B_generate(brgemm_pack_B), WARN);
+        DNN_SAFE(dnnl_transform_generate(transform), WARN);
     }
 
     // Unneeded from API perspective, it's needed for reference.
@@ -1053,7 +1052,7 @@ int doit(const prb_t *prb, res_t *res) {
     auto brgemm_kernel = make_benchdnn_dnnl_wrapper(kernel_args.brgemm_kernel_);
 #else
     auto brgemm = make_benchdnn_dnnl_wrapper(kernel_args.brgemm_);
-    auto brgemm_pack_B = make_benchdnn_dnnl_wrapper(kernel_args.brgemm_pack_B_);
+    auto transform = make_benchdnn_dnnl_wrapper(kernel_args.transform_);
 #endif
 
     dnn_mem_map_t mem_map, ref_mem_map;
@@ -1161,8 +1160,7 @@ int doit(const prb_t *prb, res_t *res) {
             : nullptr;
 
     if (kernel_args.need_pack_) {
-        DNN_SAFE(dnnl_brgemm_pack_B_execute(
-                         brgemm_pack_B, wei_ptr, wei_packed_ptr),
+        DNN_SAFE(dnnl_transform_execute(transform, wei_ptr, wei_packed_ptr),
                 WARN);
     } else {
         const auto &wei_dt = mem_map.at(DNNL_ARG_WEIGHTS);

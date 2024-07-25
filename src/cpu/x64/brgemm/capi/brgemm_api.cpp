@@ -34,7 +34,7 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::cpu::x64;
 
 using brgemm_t = dnnl_brgemm;
-using brgemm_pack_B_t = dnnl_brgemm_pack_B;
+using transform_t = dnnl_transform;
 
 #define VCHECK_BRGEMM(cond, msg, ...) \
     VCONDCHECK(primitive, create, check, brgemm, (cond), \
@@ -190,8 +190,8 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
     return status::success;
 }
 
-dnnl_brgemm_pack_B::dnnl_brgemm_pack_B(dim_t K, dim_t N, dim_t in_ld,
-        dim_t out_ld, data_type_t in_dt, data_type_t out_dt)
+dnnl_transform::dnnl_transform(dim_t K, dim_t N, dim_t in_ld, dim_t out_ld,
+        data_type_t in_dt, data_type_t out_dt)
     : K_(K)
     , N_(N)
     , in_ld_(in_ld)
@@ -211,15 +211,15 @@ dnnl_brgemm_pack_B::dnnl_brgemm_pack_B(dim_t K, dim_t N, dim_t in_ld,
     if (status != status::success) return;
 }
 
-status_t brgemm_pack_B_t::generate() {
+status_t transform_t::generate() {
     // Re-generation won't take any effect.
-    if (kernel_ != nullptr) return status::success;
+    if (pack_B_kernel_ != nullptr) return status::success;
 
-    CHECK(matmul::create_brgemm_matmul_copy_b(kernel_, &bmc_));
+    CHECK(matmul::create_brgemm_matmul_copy_b(pack_B_kernel_, &bmc_));
     return status::success;
 }
 
-status_t brgemm_pack_B_t::execute(const void *src, void *dst) const {
+status_t transform_t::execute(const void *src, void *dst) const {
     const uint8_t *src_ptr = reinterpret_cast<const uint8_t *>(src);
     uint8_t *dst_ptr = reinterpret_cast<uint8_t *>(dst);
 
@@ -250,7 +250,7 @@ status_t brgemm_pack_B_t::execute(const void *src, void *dst) const {
             ker_exec_ctx.tr_src = &dst_ptr[dst_offset];
             ker_exec_ctx.current_K_start = k;
             ker_exec_ctx.current_K_iters = kernel_conf.K_blk;
-            (*kernel_)(&ker_exec_ctx);
+            (*pack_B_kernel_)(&ker_exec_ctx);
         }
         if (kernel_conf.K_tail > 0) {
             const auto k = k_blk_idx * kernel_conf.K_blk;
@@ -263,7 +263,7 @@ status_t brgemm_pack_B_t::execute(const void *src, void *dst) const {
             ker_exec_ctx.tr_src = &dst_ptr[dst_offset];
             ker_exec_ctx.current_K_start = k;
             ker_exec_ctx.current_K_iters = kernel_conf.K_tail;
-            (*kernel_)(&ker_exec_ctx);
+            (*pack_B_kernel_)(&ker_exec_ctx);
         }
     }
 
@@ -371,37 +371,36 @@ status_t dnnl_brgemm_destroy(brgemm_t *brgemm) {
     return status::success;
 }
 
-///////////////////
-// BRGeMM Pack B //
-///////////////////
+///////////////
+// Transform //
+///////////////
 
-status_t dnnl_brgemm_pack_B_create(brgemm_pack_B_t **brgemm_pack_B, dim_t K,
-        dim_t N, dim_t in_ld, dim_t out_ld, data_type_t in_dt,
-        data_type_t out_dt) {
-    if (brgemm_pack_B == nullptr) return status::invalid_arguments;
+status_t dnnl_transform_create(transform_t **transform, dim_t K, dim_t N,
+        dim_t in_ld, dim_t out_ld, data_type_t in_dt, data_type_t out_dt) {
+    if (transform == nullptr) return status::invalid_arguments;
 
-    *brgemm_pack_B = new brgemm_pack_B_t(K, N, in_ld, out_ld, in_dt, out_dt);
+    *transform = new transform_t(K, N, in_ld, out_ld, in_dt, out_dt);
     return status::success;
 }
 
-status_t dnnl_brgemm_pack_B_generate(brgemm_pack_B_t *brgemm_pack_B) {
-    if (brgemm_pack_B == nullptr) return status::invalid_arguments;
+status_t dnnl_transform_generate(transform_t *transform) {
+    if (transform == nullptr) return status::invalid_arguments;
 
-    CHECK(brgemm_pack_B->generate());
+    CHECK(transform->generate());
     return status::success;
 }
 
-status_t dnnl_brgemm_pack_B_execute(const brgemm_pack_B_t *brgemm_pack_B,
-        const void *in_ptr, void *out_ptr) {
-    if (utils::any_null(brgemm_pack_B, in_ptr, out_ptr))
+status_t dnnl_transform_execute(
+        const transform_t *transform, const void *in_ptr, void *out_ptr) {
+    if (utils::any_null(transform, in_ptr, out_ptr))
         return status::invalid_arguments;
 
-    CHECK(brgemm_pack_B->execute(in_ptr, out_ptr));
+    CHECK(transform->execute(in_ptr, out_ptr));
     return status::success;
 }
 
-status_t dnnl_brgemm_pack_B_destroy(brgemm_pack_B_t *brgemm_pack_B) {
-    delete brgemm_pack_B;
+status_t dnnl_transform_destroy(transform_t *transform) {
+    delete transform;
     return status::success;
 }
 

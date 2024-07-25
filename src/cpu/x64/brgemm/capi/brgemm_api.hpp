@@ -105,16 +105,16 @@ private:
     dnnl::impl::cpu::x64::brgemm_kernel_t *brgemm_kernel_;
 };
 
-struct dnnl_brgemm_pack_B : public dnnl::impl::c_compatible {
+struct dnnl_transform : public dnnl::impl::c_compatible {
     // Ctor that follows a call to initialize matmul conf struct.
-    dnnl_brgemm_pack_B(dnnl::impl::dim_t K, dnnl::impl::dim_t N,
+    dnnl_transform(dnnl::impl::dim_t K, dnnl::impl::dim_t N,
             dnnl::impl::dim_t in_ld, dnnl::impl::dim_t out_ld,
             dnnl::impl::data_type_t in_dt, dnnl::impl::data_type_t out_dt);
 
-    // Generates a copy_b kernel.
+    // Generates a transform kernel.
     dnnl::impl::status_t generate();
 
-    // Executes a copy_b kernel.
+    // Executes a transform kernel.
     dnnl::impl::status_t execute(const void *src, void *dst) const;
 
 private:
@@ -123,11 +123,13 @@ private:
     dnnl::impl::dim_t in_ld_, out_ld_;
     dnnl::impl::data_type_t in_dt_, out_dt_;
 
-    // A pack_B kernel.
+    // A transform kernel.
+    // Note: though it's a generic class for any kind of transformation, so far
+    // it's only matmul's copy_B.
     dnnl::impl::cpu::x64::matmul::brgemm_matmul_conf_t bmc_;
-    // unique_ptr is required by API that generates a kernel.
+    // `unique_ptr` is required by API that generates a kernel.
     std::unique_ptr<dnnl::impl::cpu::x64::matmul::jit_brgemm_matmul_copy_b_t>
-            kernel_;
+            pack_B_kernel_;
 };
 
 #endif

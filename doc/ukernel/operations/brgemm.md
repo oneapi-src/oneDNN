@@ -47,7 +47,7 @@ layout.
 
 The @ref dnnl_brgemm_get_B_pack_type method can be called to determine if
 packing is necessary. If so,
-[packB ukernel](@ref dev_guide_ukernel_transform) shall be created to do the
+[transform ukernel](@ref dev_guide_ukernel_transform) shall be created to do the
 actual packing.
 
 ## Attributes
