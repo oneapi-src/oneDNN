@@ -432,6 +432,7 @@ and OpenCL Driver](https://github.com/intel/compute-runtime)
 * [Doxyrest](https://github.com/vovkos/doxyrest)
 * [Intel Metrics Discovery Application Programming
 Interface](https://github.com/intel/metrics-discovery)
+* [spdlog](https://github.com/gabime/spdlog)
 
 This third party software, even if included with the distribution of
 the Intel software, may be governed by separate license terms, including

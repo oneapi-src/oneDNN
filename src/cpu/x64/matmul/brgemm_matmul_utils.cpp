@@ -193,10 +193,11 @@ status_t check_isa_with_datatype(
 }
 
 status_t check_datatype_cfg(const brgemm_matmul_conf_utils_t &bm_conf_utils) {
-    const bool ok = one_of(true, bm_conf_utils.is_f32(),
-                            bm_conf_utils.is_bf16(), bm_conf_utils.is_f16(),
-                            bm_conf_utils.is_bf32(), bm_conf_utils.is_int8(),
-                            bm_conf_utils.is_bf16_with_int_wei())
+    const bool ok
+            = one_of(true, bm_conf_utils.is_f32(), bm_conf_utils.is_bf16(),
+                      bm_conf_utils.is_f16(), bm_conf_utils.is_bf32(),
+                      bm_conf_utils.is_f8(), bm_conf_utils.is_int8(),
+                      bm_conf_utils.is_bf16_with_int_wei())
             && IMPLICATION(bm_conf_utils.is_bf16_with_int_wei(),
                     bm_conf_utils.with_weights_decompression());
     return ok ? status::success : status::unimplemented;
@@ -212,6 +213,9 @@ brgemm_matmul_conf_utils_t::brgemm_matmul_conf_utils_t(
               && one_of(bgmmc.dst_dt, bf16, f32))
     , f16_dt(utils::everyone_is(f16, bgmmc.src_dt, bgmmc.wei_dt)
               && one_of(bgmmc.dst_dt, f16, f32))
+    , f8_dt(one_of(bgmmc.src_dt, f8_e5m2, f8_e4m3)
+              && one_of(bgmmc.wei_dt, f8_e5m2, f8_e4m3)
+              && one_of(bgmmc.dst_dt, f16, f32, bf16, f8_e5m2, f8_e4m3))
     , int8_dt(utils::one_of(bgmmc.src_dt, u8, s8) && bgmmc.wei_dt == s8
               && one_of(bgmmc.dst_dt, u8, s8, s32, f32, bf16))
     , bf32_dt(f32_dt

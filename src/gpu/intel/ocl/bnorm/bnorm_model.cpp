@@ -15,6 +15,7 @@
 *******************************************************************************/
 #include "gpu/intel/ocl/bnorm/bnorm_model.hpp"
 #include <climits>
+#include <cmath>
 #include "common/utils.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/ocl/bnorm/bnorm_utils.hpp"
@@ -204,26 +205,49 @@ std::string to_string(const nhwc_bnorm_params_t &conf) {
 }
 
 // How short vector can increase r/w expected time
-float get_vectorization_factor(const int vect_size, const data_type_t dt) {
-    if (dt == data_type::f16 || dt == data_type::bf16) {
-        switch (vect_size) {
-            case 1: return 4.f;
-            case 2: return 1.5f;
-            case 4: return 1.3f;
-            case 8:
-            default: return 1.f;
+float get_vectorization_factor(
+        const int vect_size, const data_type_t dt, const bool is_reusable) {
+    const bool is_dt16 = dt == data_type::f16 || dt == data_type::bf16;
+    if (is_reusable) {
+        if (is_dt16) {
+            switch (vect_size) {
+                case 1: return 2.5f;
+                case 2: return 1.8f;
+                case 4: return 1.2f;
+                case 8:
+                default: return 1.f;
+            }
+        } else {
+            switch (vect_size) {
+                case 1: return 2.5f;
+                case 2: return 1.5f;
+                case 4:
+                case 8:
+                default: return 1.f;
+            }
         }
     } else {
-        switch (vect_size) {
-            case 1: return 4.f;
-            case 2: return 1.3f;
-            case 4:
-            case 8:
-            default: return 1.f;
+        if (is_dt16) {
+            switch (vect_size) {
+                case 1: return 4.f;
+                case 2: return 1.5f;
+                case 4: return 1.3f;
+                case 8:
+                default: return 1.f;
+            }
+        } else {
+            switch (vect_size) {
+                case 1: return 4.f;
+                case 2: return 1.3f;
+                case 4:
+                case 8:
+                default: return 1.f;
+            }
         }
     }
 }
 
+// Get number of calls
 int get_ncalls(model_params_t &p, const nhwc_bnorm_params_t &conf,
         kernel_kind_t kernel) {
     if (conf.is_forward) {
@@ -379,8 +403,7 @@ void get_expected_data_location(model_params_t &p, nhwc_bnorm_params_t &conf,
 
 // linear approximation
 // return y by x on the line passing thru (xa,ya) and (xb,yb)
-float solve_2p_line(const float x, const float xa, const float xb,
-        const float ya, const float yb) {
+float solve_2p_line(float x, float xa, float xb, float ya, float yb) {
     float dx = xb - xa;
     float dy = yb - ya;
     assert(dx != 0.0);
@@ -388,9 +411,8 @@ float solve_2p_line(const float x, const float xa, const float xb,
 }
 
 // approximation by 2 pieces linear function
-float solve_2pieces_linear_function(const float x, const float x0,
-        const float x1, const float x2, const float y0, const float y1,
-        const float y2) {
+float solve_2pieces_linear_function(
+        float x, float x0, float x1, float x2, float y0, float y1, float y2) {
     float y;
     if (x < x1) {
         y = solve_2p_line(x, x0, x1, y0, y1);
@@ -399,42 +421,146 @@ float solve_2pieces_linear_function(const float x, const float x0,
     }
     return y;
 }
-// Inverse proportional relationship subslice saturation
-// and read/write time for all archs and data location.
-float get_ss_utilization_factor(const float util) {
-    return std::min(util, 1.f);
+float get_pow_ratio(float x1, float x2, float a, float b) {
+    return a * pow(x1, b) / pow(x2, b);
 }
-// Dependency on threads utilization is approximated by two linear segments.
-// The segments experimentally selected, based on microbenchmarks results
-float get_thr_utilization_factor(const float ss_util, const float thr_util,
-        const data_location_t location, const compute::gpu_arch_t gpu_arch) {
 
-    if (location == L3) {
-        // for all archs
-        float ss_util_adj = std::min(ss_util, 1.0f);
-        float thr_util_adj = std::min(thr_util, 1.0f);
-        const float y_br = 1 - ss_util_adj / 2;
-        return solve_2pieces_linear_function(
-                thr_util_adj, 0.f, 0.25f, 1.f, 0.f, y_br, 1.f);
-    } else { // HBM
-        if (gpu_arch == compute::gpu_arch_t::xe_hpg) {
-            const float x_br = pow(
-                    2, (log2(utils::rnd_up_pow2((int)round(ss_util))) - 4));
-            const float y_br = ss_util > 4 ? 0.9 : 0.5;
-            return solve_2pieces_linear_function(
-                    thr_util, 0.f, x_br, 32, 0.f, y_br, 1.f);
+// Subslice saturation impact to read/write time for all archs and data location.
+float get_ss_utilization_factor(float util, data_type_t dt, bool is_reusable) {
+    if (is_reusable) {
+        if (dt == data_type::f16 || dt == data_type::bf16) {
+            return get_pow_ratio(util, 1.0f, 2.0f, -0.8f);
+        } else {
+            return get_pow_ratio(util, 1.0f, 5.3f, -0.7f);
+        }
+        return 1.f;
+    } else {
+        return 1.f / std::min(util, 1.f);
+    }
+}
 
-        } else if (gpu_arch >= compute::gpu_arch_t::xe_hpc) {
+std::vector<float> ss_util_set = {0.125, 0.25, 1, 2, 4, 8};
+// clang-format off
+appr_formula_t appr_table[] =
+{
+    //HBM reusable
+    { 191, 0.27f, linear }, { 347, 5.03f, linear }, { 156, 595, ln },
+    { 190, 785, ln }, { 165, 793, ln }, { 170, 926, ln },
+    { 101, 0.02f, linear }, { 192, 1.5f, linear }, { 592, 27, linear },
+    { 147, 571, ln }, { 174, 737, ln }, { 167, 811, ln }, { 103, 394, ln },
+    { 99, 434, ln }, { 116, 707, ln }, { 140, 969, ln }, { 82, 949, ln },
+    { 82, 1128, ln }, { 60, 220, ln }, { 82, 324, ln }, { 196, 832, ln },
+    { 186, 936, ln }, { 201, 1192, ln }, { 176, 1330, ln },
+    //HBM opt
+    { 83, 313, ln }, { 131, 509, ln }, { 146, 733, ln }, { 153, 871, ln },
+    { 120, 816, ln }, { 129, 914, ln }, { 296, 7.6f, linear },
+    { 94, 345, ln }, { 177, 731, ln }, { 154, 740, ln }, { 159, 857, ln },
+    { 143, 907, ln }, { 93, 389, ln }, { 125, 568, ln }, { 125, 820, ln },
+    { 123, 1023, ln }, { 50, 938, ln }, { 40, 1057, ln }, { 68, 263, ln },
+    { 87, 370, ln }, { 194, 889, ln }, { 170, 978, ln }, { 165, 1192, ln },
+    { 133, 1296, ln },
+    //L3 reusable
+    { 188, 2.3f, linear }, { 340, 9.2f, linear }, { 158, 604, ln },
+    { 159, 813, ln }, { 185, 813, ln }, { 115, 954, ln },
+    { 97, 2.29f, linear }, { 186, 5.98f, linear }, { 591, 41, linear },
+    { 145, 598, ln }, { 171, 800, ln }, { 144, 901, ln }, { 102, 393, ln },
+    { 99, 436, ln }, { 119, 734, ln }, { 136, 985, ln }, { 51, 906, ln },
+    { 46, 1008, linear }, { 59, 218, ln }, { 77, 308, ln },
+    { 195, 831, ln }, { 179, 911, ln }, { 180, 1112, ln },
+    { 139, 1209, ln },
+    //L3 opt
+    { 79, 309, ln }, { 126, 512, ln }, { 121, 734, ln }, { 114, 827, ln },
+    { 4, 798, linear }, { -116, 788, ln }, { 285, 16, linear },
+    { 89, 345, ln }, { 173, 788, ln }, { 132, 823, ln }, { 99, 964, ln },
+    { -121, 1040, ln }, { 91, 384, ln }, { 120, 552, ln }, { 122, 825, ln },
+    { 109, 990, ln }, { -0.18f, 867, linear }, { -55, 910, ln },
+    { 65, 253, ln }, { 76, 333, ln }, { 189, 875, ln }, { 158, 927, ln },
+    { 137, 1096, ln }, { 84, 1169, ln }
+};
+// clang-format on
+
+size_t get_ss_util_idx(float v) {
+    for (size_t i = 0; i < ss_util_set.size(); i++)
+        if (v <= ss_util_set[i]) return i;
+    return ss_util_set.size() - 1;
+};
+size_t get_appr_table_idx(float ss_util, data_type_t dt, mem_operation_t op,
+        bool is_reusable, data_location_t location) {
+    size_t idx = get_ss_util_idx(ss_util);
+    const int ss_dim = (int)ss_util_set.size();
+    const int dt_idx = (dt == data_type::f16 || dt == data_type::bf16) ? 1 : 0;
+    const int opt_idx = op == mem_operation_t::read ? 0 : 1;
+    const int reusable_idx = is_reusable ? 0 : 1;
+    const int location_idx = location == HBM ? 0 : 1;
+    return idx + dt_idx * ss_dim + opt_idx * (2 * ss_dim)
+            + reusable_idx * (2 * 2 * ss_dim)
+            + location_idx * (2 * 2 * 2 * ss_dim);
+}
+
+float get_appr_val(float a, float b, float x, appr_alg_t alg) {
+    if (alg == linear)
+        return a * x + b;
+    else if (alg == ln)
+        return a * log(x) + b;
+    else
+        gpu_assert(false) << "Unexpected approximation alg";
+    return 0.f;
+}
+
+float get_thr_utilization_factor(float ss_util, float thr_util,
+        data_location_t location, compute::gpu_arch_t gpu_arch,
+        mem_operation_t op, data_type_t dt, bool is_reusable) {
+    float ss_util_adj = std::min(ss_util, max_appr_ss_util);
+    float thr_util_adj = std::min(thr_util, max_appr_thr_util);
+
+    if (is_reusable) {
+        const size_t idx = get_appr_table_idx(
+                ss_util_adj, dt, op, is_reusable, location);
+
+        const float a = appr_table[idx].a;
+        const float b = appr_table[idx].b;
+        const appr_alg_t used_alg = appr_table[idx].alg;
+
+        const float y = get_appr_val(a, b, thr_util_adj, used_alg);
+        const float y_max = get_appr_val(a, b, max_appr_thr_util, used_alg);
+        return y_max / y;
+    } else {
+        if (location == L3) {
+            // for all archs
             float ss_util_adj = std::min(ss_util, 1.0f);
             float thr_util_adj = std::min(thr_util, 1.0f);
-            const float y_br = ss_util_adj < 0.25 ? 0.9 : 0.7;
-            return solve_2pieces_linear_function(
-                    thr_util_adj, 0.f, 0.125f, 1.f, 0.f, y_br, 1.f);
-        } else {
-            assert(!"unsupported");
-            return 1.f;
+            const float y_br = 1 - ss_util_adj / 2;
+            return 1.f
+                    / solve_2pieces_linear_function(
+                            thr_util_adj, 0.f, 0.25f, 1.f, 0.f, y_br, 1.f);
+        } else { // HBM
+            if (gpu_arch == compute::gpu_arch_t::xe_hpg) {
+                const float x_br = pow(
+                        2, (log2(utils::rnd_up_pow2((int)round(ss_util))) - 4));
+                const float y_br = ss_util > 4 ? 0.9 : 0.5;
+                return 1.f
+                        / solve_2pieces_linear_function(
+                                thr_util, 0.f, x_br, 32, 0.f, y_br, 1.f);
+
+            } else if (gpu_arch >= compute::gpu_arch_t::xe_hpc) {
+                float ss_util_adj = std::min(ss_util, 1.0f);
+                float thr_util_adj = std::min(thr_util, 1.0f);
+                const float y_br = ss_util_adj < 0.25 ? 0.9 : 0.7;
+                return 1.f
+                        / solve_2pieces_linear_function(
+                                thr_util_adj, 0.f, 0.125f, 1.f, 0.f, y_br, 1.f);
+            } else {
+                assert(!"unsupported");
+                return 1.f;
+            }
         }
     }
+}
+
+bool is_reduction_kernel(const kernel_kind_t &kernel) {
+    return kernel == reduce_stats_fwd_ker || kernel == reduce_mean_var_ker
+            || kernel == reduce_stats_bwd_ker
+            || kernel == reusable_reduce_stats_fwd_ker;
 }
 
 void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
@@ -457,14 +583,19 @@ void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
     // consider HW utilization
 
     // SS utilization
-    read_ns /= get_ss_utilization_factor(std::min(desc.ss_util, 1.f));
-    write_ns /= get_ss_utilization_factor(std::min(desc.ss_util, 1.f));
+    const float adj_util = std::min(desc.ss_util, 1.f);
+    const float ss_utilization_factor = get_ss_utilization_factor(
+            adj_util, conf.data_type, desc.reusable_version);
+    read_ns *= ss_utilization_factor;
+    write_ns *= ss_utilization_factor;
 
     // thr utilization
-    read_ns /= get_thr_utilization_factor(desc.ss_util, desc.used_ss_thr_util,
-            input_location, hw_params.gpu_arch);
-    write_ns /= get_thr_utilization_factor(desc.ss_util, desc.used_ss_thr_util,
-            output_location, hw_params.gpu_arch);
+    read_ns *= get_thr_utilization_factor(desc.ss_util, desc.used_ss_thr_util,
+            input_location, hw_params.gpu_arch, mem_operation_t::read,
+            conf.data_type, desc.reusable_version);
+    write_ns *= get_thr_utilization_factor(desc.ss_util, desc.used_ss_thr_util,
+            output_location, hw_params.gpu_arch, mem_operation_t::write,
+            conf.data_type, desc.reusable_version);
 
     // consider atomics cost
     if (p.use_fused_atomics_reduction
@@ -481,16 +612,21 @@ void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
     MAYBE_UNUSED(w_ns_location);
 
     // consider vectorization
-    const float v_coeff = get_vectorization_factor(p.vect_size, conf.data_type);
+    const int vect_size
+            = is_reduction_kernel(desc.kernel) && desc.reusable_version
+            ? def_reduction_vect
+            : p.vect_size;
+
+    const float v_coeff = get_vectorization_factor(
+            vect_size, conf.data_type, desc.reusable_version);
     read_ns *= v_coeff;
     write_ns *= v_coeff;
-
     desc.time_ns = read_ns + write_ns;
-
     // For debuging and analysis purposes
     std::string kernel_type_name = to_string(desc.kernel);
     DPRINT_MODEL(
-            "%s:%s:%d estimation - %s : p = %d %d %d : thr_util = %g ss_util = "
+            "%s:%s:%d estimation - %s : p = %d %d %d : thr_util = %g "
+            "ss_util = "
             "%g "
             ": base %.1f %.1f "
             ": location %.1f %.1f "
@@ -504,9 +640,16 @@ void get_estimated_kernel_time(model_params_t &p, nhwc_bnorm_params_t &conf,
 
 void init_ker_desc(model_params_t &p, nhwc_bnorm_params_t &conf,
         const hw_params_t &hw_params, kernel_desc_t &desc,
-        const kernel_kind_t kernel) {
+        bool reusable_version, const kernel_kind_t kernel) {
     desc.kernel = kernel;
+    desc.reusable_version = reusable_version;
     desc.ncalls = get_ncalls(p, conf, kernel);
+}
+void dump_kernel_desc(kernel_desc_t &desc) {
+    std::string kernel_type_name = to_string(desc.kernel);
+    DPRINT("%s:%s:%d kernel_desc: %s : reusable = %s : ncalls = %d\n",
+            PRINTHEAD, kernel_type_name.c_str(),
+            desc.reusable_version ? "yes" : "no", desc.ncalls);
 }
 
 void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
@@ -515,33 +658,38 @@ void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
 
     // logic about which kernels will be running and how many times
     if (conf.is_forward) {
-        init_ker_desc(p, conf, hw_params, desc, default_fwd_ker);
+        init_ker_desc(
+                p, conf, hw_params, desc, reusable_version, default_fwd_ker);
         p.kernel_descs.push_back(desc);
         if (conf.calculate_stats) {
             if (conf.use_stats_one_pass) {
-                init_ker_desc(p, conf, hw_params, desc, calc_mean_var_ker);
+                init_ker_desc(p, conf, hw_params, desc, reusable_version,
+                        calc_mean_var_ker);
                 p.kernel_descs.push_back(desc);
             } else {
-                init_ker_desc(p, conf, hw_params, desc, calc_mean_ker);
+                init_ker_desc(p, conf, hw_params, desc, reusable_version,
+                        calc_mean_ker);
                 p.kernel_descs.push_back(desc);
-                init_ker_desc(p, conf, hw_params, desc, calc_var_ker);
+                init_ker_desc(p, conf, hw_params, desc, reusable_version,
+                        calc_var_ker);
                 p.kernel_descs.push_back(desc);
             }
 
             if (p.use_fused_atomics_reduction) {
                 // distinguished due to different data amount to process
-                init_ker_desc(p, conf, hw_params, desc, reduce_aux_init_ker);
+                init_ker_desc(p, conf, hw_params, desc, reusable_version,
+                        reduce_aux_init_ker);
                 p.kernel_descs.push_back(desc);
-                init_ker_desc(
-                        p, conf, hw_params, desc, reduce_aux_finalize_ker);
+                init_ker_desc(p, conf, hw_params, desc, reusable_version,
+                        reduce_aux_finalize_ker);
                 p.kernel_descs.push_back(desc);
             } else {
                 if (conf.use_stats_one_pass) {
-                    init_ker_desc(
-                            p, conf, hw_params, desc, reduce_mean_var_ker);
+                    init_ker_desc(p, conf, hw_params, desc, reusable_version,
+                            reduce_mean_var_ker);
                     p.kernel_descs.push_back(desc);
                 } else {
-                    init_ker_desc(p, conf, hw_params, desc,
+                    init_ker_desc(p, conf, hw_params, desc, reusable_version,
                             reusable_version ? reusable_reduce_stats_fwd_ker
                                              : reduce_stats_fwd_ker);
                     p.kernel_descs.push_back(desc);
@@ -549,20 +697,26 @@ void init_kernel_descriptors(model_params_t &p, nhwc_bnorm_params_t &conf,
             }
         }
     } else { // BWD pass
-        init_ker_desc(p, conf, hw_params, desc, default_bwd_ker);
+        init_ker_desc(
+                p, conf, hw_params, desc, reusable_version, default_bwd_ker);
         p.kernel_descs.push_back(desc);
-        init_ker_desc(p, conf, hw_params, desc, calc_stats_ker);
+        init_ker_desc(
+                p, conf, hw_params, desc, reusable_version, calc_stats_ker);
         p.kernel_descs.push_back(desc);
         if (p.use_fused_atomics_reduction) {
-            init_ker_desc(p, conf, hw_params, desc, reduce_aux_init_ker);
+            init_ker_desc(p, conf, hw_params, desc, reusable_version,
+                    reduce_aux_init_ker);
             p.kernel_descs.push_back(desc);
-            init_ker_desc(p, conf, hw_params, desc, reduce_aux_finalize_ker);
+            init_ker_desc(p, conf, hw_params, desc, reusable_version,
+                    reduce_aux_finalize_ker);
             p.kernel_descs.push_back(desc);
         } else {
-            init_ker_desc(p, conf, hw_params, desc, reduce_stats_bwd_ker);
+            init_ker_desc(p, conf, hw_params, desc, reusable_version,
+                    reduce_stats_bwd_ker);
             p.kernel_descs.push_back(desc);
         }
     }
+    dump_kernel_desc(desc);
 }
 
 void dump_params(std::vector<model_params_t> &params) {

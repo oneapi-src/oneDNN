@@ -122,6 +122,19 @@ inline bool check_begin_norm_axis_attr(const op_t *op) {
     return true;
 }
 
+// min <= input[offset]->ndims() <= max
+template <size_t OFFSET, int32_t MIN, int32_t MAX>
+inline bool check_input_ndim_from_offset(const op_t *op) {
+    if (OFFSET >= op->num_inputs()) return false;
+    const logical_tensor_t &src_lt
+            = op->get_input_value(OFFSET)->get_logical_tensor();
+    const auto src_lt_wrapper = logical_tensor_wrapper_t(src_lt);
+    const auto ndims = src_lt_wrapper.ndims();
+
+    if (ndims == DNNL_GRAPH_UNKNOWN_NDIMS) return true;
+    return ndims >= MIN && ndims <= MAX;
+}
+
 inline const std::vector<op_kind_t> &get_unary_ops() {
     const static std::vector<op_kind_t> unary = {
             graph::op_kind::Abs,

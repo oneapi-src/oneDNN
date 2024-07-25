@@ -80,8 +80,8 @@ struct jit_brgemm_kernel_t : public jit_generator {
                 // 'fp8_to_f16_upconvert()' param and would collision with these
                 // emulation vmms
                 f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(
-                        this, xmm_fp8_emu_aux2, xmm_fp8_emu_aux3,
-                        xmm_fp8_emu_aux4, kmask_fp8_aux, reg64_fp8_aux);
+                        this, xmm_fp8_emu_aux1, xmm_fp8_emu_aux2,
+                        xmm_fp8_emu_aux3, kmask_fp8_aux, reg64_fp8_aux);
             if (one_of(data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_c,
                         brg.dt_d)
                     || has_f8_e4m3_binary_postops)
@@ -220,8 +220,11 @@ private:
     const reg64_t bf16_emu_scratch = reg_rdb_loop;
 
     // FP8 Convert
+    // Note: registers (GPR and VMM) used in the fp8 emulator should not
+    // intersect with the set of registers used in binary injector because fp8
+    // emulator may be called from injector
     const reg64_t reg_converted_stride = reg_rdb_loop;
-    const reg64_t reg64_fp8_aux = reg_A;
+    const reg64_t reg64_fp8_aux = reg_a_offset;
 
     constexpr static int origin_offs_batch_offs_ = 0;
     constexpr static int origin_strd_batch_offs_ = 0;
@@ -317,11 +320,11 @@ private:
     // note: zmm reserv_5 is not necessary since it's only used for 'vdpbf16ps'
 
     // fp8 emulation convert
-    Vmm xmm_fp8_emu_aux1 = Vmm(0);
-    Vmm xmm_fp8_emu_aux2 = Vmm(1);
-    Vmm xmm_fp8_emu_aux3 = Vmm(2);
-    Vmm xmm_fp8_emu_aux4 = Vmm(3);
-    Vmm xmm_fp8_emu_aux5 = Vmm(4);
+    Vmm xmm_fp8_emu_aux1 = Vmm(1);
+    Vmm xmm_fp8_emu_aux2 = Vmm(2);
+    Vmm xmm_fp8_emu_aux3 = Vmm(3);
+    Vmm xmm_fp8_emu_aux4 = Vmm(4);
+    Vmm xmm_fp8_emu_aux5 = Vmm(5);
 
     // Required in every dot product for INT8 non-VNNI computation.
     Vmm int8_ones_words() const noexcept {
