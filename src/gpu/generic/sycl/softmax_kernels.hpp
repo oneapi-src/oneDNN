@@ -33,12 +33,22 @@ struct softmax_fwd_kernel_vec_t {
             xpu::sycl::in_memory_arg_t &src,
             xpu::sycl::in_memory_arg_t &scale_src,
             xpu::sycl::in_memory_arg_t &scale_dst,
-            xpu::sycl::out_memory_arg_t &dst)
+            xpu::sycl::out_memory_arg_t &dst,
+            xpu::sycl::in_memory_arg_t &po1_src,
+            xpu::sycl::in_memory_arg_t &po2_src,
+            xpu::sycl::in_memory_arg_t &po3_src,
+            xpu::sycl::in_memory_arg_t &po4_src,
+            xpu::sycl::in_memory_arg_t &po5_src)
         : conf_(conf)
         , src_(src)
         , scale_src_(scale_src)
         , scale_dst_(scale_dst)
-        , dst_(dst) {}
+        , dst_(dst)
+        , po1_src_(po1_src)
+        , po2_src_(po2_src)
+        , po3_src_(po3_src)
+        , po4_src_(po4_src)
+        , po5_src_(po5_src) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();
@@ -87,17 +97,54 @@ struct softmax_fwd_kernel_vec_t {
                     d -= sd;
                 }
 
-                float scale = 1.0f;
-                scale = conf_.do_scale_src
-                        ? load_float_value(data_type::f32, scale_src_ptr(), 0)
-                        : scale;
-                scale /= conf_.do_scale_dst
-                        ? load_float_value(data_type::f32, scale_dst_ptr(), 0)
-                        : 1.0f;
-
-                d = (d * scale);
                 size_t dst_off
                         = dst_md().off_l(ou_in_offset + c * conf_.inner_size);
+
+                float scale = 1.0f;
+                if (conf_.do_scale_src) {
+                    scale = conf_.do_scale_src ? load_float_value(
+                                    data_type::f32, scale_src_ptr(), 0)
+                                               : scale;
+                    d = d * scale;
+                }
+
+                ::sycl::vec<float, 8> dst_arr;
+                for (int idx = 0; idx < conf_.po_len; ++idx) {
+                    float r = 0.0f;
+                    if (conf_.post_ops.get_post_op_kind(idx)
+                            == primitive_kind::binary) {
+                        if (idx == 0) {
+                            r = dst_value(po1_src_, idx,
+                                    ou_in_offset + c * conf_.inner_size);
+                        }
+                        if (idx == 1) {
+                            r = dst_value(po2_src_, idx,
+                                    ou_in_offset + c * conf_.inner_size);
+                        }
+                        if (idx == 2) {
+                            r = dst_value(po3_src_, idx,
+                                    ou_in_offset + c * conf_.inner_size);
+                        }
+                        if (idx == 3) {
+                            r = dst_value(po4_src_, idx,
+                                    ou_in_offset + c * conf_.inner_size);
+                        }
+                        if (idx == 4) {
+                            r = dst_value(po5_src_, idx,
+                                    ou_in_offset + c * conf_.inner_size);
+                        }
+                        dst_arr[idx] = r;
+                    }
+                }
+                d = conf_.post_ops.apply(d, dst_arr);
+
+                if (conf_.do_scale_dst) {
+                    scale = conf_.do_scale_dst ? load_float_value(
+                                    data_type::f32, scale_dst_ptr(), 0)
+                                               : scale;
+                    d = d / scale;
+                }
+
                 store_float_value(dst_md().data_type(), d, dst_ptr(), dst_off);
             }
         };
@@ -118,15 +165,75 @@ private:
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     void *src_ptr() const { return src_.get_pointer(); }
+    void *src_1_ptr() const { return po1_src_.get_pointer(); }
+    void *src_2_ptr() const { return po2_src_.get_pointer(); }
+    void *src_3_ptr() const { return po3_src_.get_pointer(); }
+    void *src_4_ptr() const { return po4_src_.get_pointer(); }
+    void *src_5_ptr() const { return po5_src_.get_pointer(); }
     void *dst_ptr() const { return dst_.get_pointer(); }
     void *scale_src_ptr() const { return scale_src_.get_pointer(); }
     void *scale_dst_ptr() const { return scale_dst_.get_pointer(); }
+
+    void *gen_ptr(xpu::sycl::in_memory_arg_t gen_) const {
+        return gen_.get_pointer();
+    }
+
+    float dst_value(xpu::sycl::in_memory_arg_t arr, int idx, int offset) const {
+        auto src1_desc = conf_.src1_md[idx];
+        dim_t src_dim[DNNL_MAX_NDIMS];
+        auto src_dim_ = src1_desc.dims();
+
+        for (int j = 0; j < src1_desc.ndims(); j++) {
+            src_dim[j] = src_dim_[j];
+        }
+
+        dims_t dst_dims;
+        for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
+            dst_dims[i] = dst_md().dims()[i];
+        }
+        const auto off = get_binary_src1_off(
+                src1_desc, src_dim, offset, dst_dims, dst_md().ndims());
+        auto dst = load_float_value(src1_desc.data_type(), gen_ptr(arr), off);
+        return dst;
+    }
+
+    dim_t get_binary_src1_off(const xpu::sycl::md_t &src1_md,
+            const dim_t *src_dim, const dim_t l_offset, const dim_t *dst_dims,
+            const int dst_ndims) const {
+
+        const int mask_binary_po
+                = utils::get_dims_mask(dst_dims, src_dim, dst_ndims);
+
+        return get_po_tensor_off(
+                src1_md, l_offset, dst_dims, dst_ndims, mask_binary_po);
+    }
+
+    dim_t get_po_tensor_off(const xpu::sycl::md_t &tensor_md,
+            const dim_t l_offset, const dim_t *dst_dims, const int dst_ndims,
+            int mask) const {
+
+        dims_t l_dims_po {};
+        get_l_dims_po(l_dims_po, l_offset, dst_dims, dst_ndims, mask);
+
+        return tensor_md.off_v(l_dims_po);
+    }
+
+    void get_l_dims_po(dims_t &l_dims_po, const dim_t l_offset,
+            const dim_t *dst_dims, const int dst_ndims, int mask) const {
+        utils::l_dims_by_l_offset(l_dims_po, l_offset, dst_dims, dst_ndims);
+        utils::apply_mask_on_dims(l_dims_po, dst_ndims, mask);
+    }
 
     sycl_softmax_conf_t conf_;
     xpu::sycl::in_memory_arg_t src_;
     xpu::sycl::in_memory_arg_t scale_src_;
     xpu::sycl::in_memory_arg_t scale_dst_;
     xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::in_memory_arg_t po1_src_;
+    xpu::sycl::in_memory_arg_t po2_src_;
+    xpu::sycl::in_memory_arg_t po3_src_;
+    xpu::sycl::in_memory_arg_t po4_src_;
+    xpu::sycl::in_memory_arg_t po5_src_;
 };
 
 struct softmax_bwd_kernel_vec_t {
