@@ -1608,7 +1608,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 }
 
 status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
-        dim_t n_blk, data_type_t in_type, data_type_t out_type,
+        dim_t in_ld, dim_t n_blk, data_type_t in_type, data_type_t out_type,
         format_tag_t in_tag) {
     if (n_blk <= 0) return status::invalid_arguments;
 
@@ -1638,7 +1638,7 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
     conf.a_dt_sz = conf.tr_a_dt_sz = types::data_type_size(conf.src_dt);
     conf.b_dt_sz = types::data_type_size(in_type);
     conf.tr_b_dt_sz = types::data_type_size(conf.wei_dt);
-    conf.copy_B_wei_stride = conf.N * conf.b_dt_sz;
+    conf.copy_B_wei_stride = in_ld * conf.b_dt_sz;
     conf.N_chunk_elems = conf.N; // To match seems unneeded assert.
     conf.s8s8_comp_b_str = utils::rnd_up(conf.N, conf.wei_n_blk);
     conf.s8s8_comp_n_str = conf.wei_n_blk;

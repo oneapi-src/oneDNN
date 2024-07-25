@@ -205,8 +205,8 @@ dnnl_transform::dnnl_transform(dim_t K, dim_t N, dim_t in_ld, dim_t out_ld,
     // will crash.
     assert(utils::one_of(out_ld_, 16, 32, 48, 64));
 
-    auto status = matmul::init_conf(bmc_, /* batch = */ 1, K_, N_, out_ld_,
-            in_dt_, out_dt_, format_tag::ab);
+    auto status = matmul::init_conf(bmc_, /* batch = */ 1, K_, N_, in_ld_,
+            out_ld_, in_dt_, out_dt_, format_tag::ab);
     assert(status == status::success);
     if (status != status::success) return;
 }

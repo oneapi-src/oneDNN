@@ -81,7 +81,10 @@ status_t init_conf(matmul::brgemm_matmul_conf_t &conf,
     dim_t K = dims[ndims - 2];
     dim_t N = dims[ndims - 1];
 
-    CHECK(matmul::init_conf(conf, batch, K, N,
+    dim_t in_ld
+            = ndims >= 2 ? memory_desc_wrapper(src_md).strides()[ndims - 2] : 1;
+
+    CHECK(matmul::init_conf(conf, batch, K, N, in_ld,
             matmul::get_n_block_from_tag(otag), type_i, type_o, itag));
 
     conf.s8s8_compensation_required
