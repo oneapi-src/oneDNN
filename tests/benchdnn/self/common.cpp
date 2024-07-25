@@ -294,6 +294,16 @@ static int check_attr() {
         SELF_CHECK_CASE_STR_EQ(d[0].tag.c_str(), tag::any);
     }
 
+    {
+        base_settings_t s;
+        std::vector<attr_t::rounding_mode_t> &rm = s.rounding_mode;
+        auto st = parse_attributes(
+                s, def, "--attr-rounding-mode=dst:stochastic");
+        SELF_CHECK_EQ(st, true);
+        SELF_CHECK_EQ(rm[0].get(DNNL_ARG_DST), dnnl_rounding_mode_stochastic);
+        SELF_CHECK_EQ(rm[0].get(DNNL_ARG_SRC), dnnl_rounding_mode_environment);
+    }
+
 #undef SELF_CHECK_ATTR_ZP
 
     return OK;

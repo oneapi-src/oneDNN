@@ -856,6 +856,7 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 dnn_mem_t(ndims, dims.data(), dnnl_f32, tag::axb, test_engine));
     }
 
+    // Dropout
     if (is_fwd_training(prop_kind) && !prb->attr.dropout.is_def()) {
         const auto &dropout_md = query_md(const_pd, DNNL_ARG_ATTR_DROPOUT_MASK);
         mem_map.emplace(
@@ -966,6 +967,14 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 if (!zp.is_def(exec_arg)) append_zero_points(exec_arg);
             }
         }
+    }
+
+    // rounding mode
+    if (!prb->attr.rounding_mode.is_def()) {
+        int64_t count = 1;
+        auto seed_md = dnn_mem_t::init_md(1, &count, dnnl_s32, tag::abx);
+        mem_map.emplace(
+                DNNL_ARG_ATTR_ROUNDING_SEED, dnn_mem_t(seed_md, test_engine));
     }
 }
 
