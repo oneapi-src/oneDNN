@@ -174,8 +174,13 @@ void brgemm_example() {
     brgemm brg, brg_po;
     if (batch_size > 0) {
         try {
-            brg = brgemm(M, N, K_k, batch_size, lda, ldb, ldc, a_dt, b_dt, c_dt,
-                    /* alpha = */ 1.f, /* beta = */ 1.f);
+            // Construct a basic brgemm object.
+            brg = brgemm(
+                    M, N, K_k, batch_size, lda, ldb, ldc, a_dt, b_dt, c_dt);
+            // Instruct the kernel to append the result to C tensor.
+            brg.set_add_C(true);
+            // Finalize the initialization.
+            brg.finalize();
             // Generate the executable JIT code for the objects.
             brg.generate();
         } catch (error &e) {
@@ -189,8 +194,14 @@ void brgemm_example() {
     }
 
     try {
-        brg_po = brgemm(M, N, K_k, 1, lda, ldb, ldc, ldd, a_dt, b_dt, c_dt,
-                d_dt, 1.f, 1.f, brgemm_attr);
+        // Construct a basic brgemm object.
+        brg_po = brgemm(M, N, K_k, 1, lda, ldb, ldc, a_dt, b_dt, c_dt);
+        // Instruct the kernel to append the result to C tensor.
+        brg_po.set_add_C(true);
+        // Specify post-ops for the brgemm object.
+        brg_po.set_post_ops(ldd, d_dt, brgemm_attr);
+        // Finalize the initialization.
+        brg_po.finalize();
         // Generate the executable JIT code for the objects.
         brg_po.generate();
     } catch (error &e) {
@@ -208,23 +219,27 @@ void brgemm_example() {
     size_t scratchpad_size = brg_po.get_scratchpad_size();
     std::vector<uint8_t> scratchpad(scratchpad_size);
 
-    // Packing B tensor routine. The BRGeMM ukernel expects B passed in a
-    // special VNNI format for low precision data types, e.g., bf16.
-    // For f32 data type the routine blocks data in memory friendly way. This
-    // is beneficial in cases when leading dimension has a big power of 2 which
-    // leads to cache aliasing effects.
-    // Note: the routine doesn't take `batch_size` in the constructor as there's
-    // no performance benefit to copy more data at once. It's user's
-    // responsibility to iterate pack routine over batch_size provided for a
-    // ukernel.
-    brgemm_pack_B pack_B(/* K = */ K_k, /* N = */ N, /* in_ld = */ N,
-            /* out_ld = */ ldb, /* in_dt = */ b_dt, /* out_dt = */ b_dt);
-
     uint8_t *B_blocked = nullptr;
     void *B_base_ptr = B_ptr;
     size_t blocked_B_size = 0;
 
-    if (pack_B.need_pack()) {
+    // Query the packing requirement from the kernel. It's enough to query
+    // packing requirements from a single object as long as only dimension
+    // settings change between objects.
+    // Note: example uses the one that always present regardless of dimensions.
+    const bool need_pack = brg_po.get_B_pack_type() == pack_type::pack32;
+
+    // If packing is needed, create a dedicated object for data transformation.
+    if (need_pack) {
+        // Packing B tensor routine. The BRGeMM ukernel expects B passed in a
+        // special VNNI format for low precision data types, e.g., bfloat16_t.
+        // Note: the routine doesn't provide a `batch_size` argument in the
+        // constructor as it can be either incorporated into `K` dimension, or
+        // manually iterated over in a for-loop on the user side.
+        brgemm_pack_B pack_B(/* K = */ K_k * n_calls, /* N = */ N,
+                /* in_ld = */ N,
+                /* out_ld = */ ldb, /* in_dt = */ b_dt, /* out_dt = */ b_dt);
+
         // Size of the packed tensor.
         blocked_B_size = ldb * K_k * memory::data_type_size(b_dt);
 
@@ -237,11 +252,7 @@ void brgemm_example() {
 
         pack_B.generate();
 
-        for (memory::dim i = 0; i < n_calls; i++) {
-            auto *B_ptr_i = B_ptr + i * N * K_k * b_dt_size;
-            auto *B_blocked_ptr_i = B_blocked + i * blocked_B_size;
-            pack_B.execute(B_ptr_i, B_blocked_ptr_i);
-        }
+        pack_B.execute(B_ptr, B_blocked);
     }
 
     // BRGeMM ukernel execute section.
@@ -249,9 +260,8 @@ void brgemm_example() {
     std::vector<std::pair<memory::dim, memory::dim>> A_B_offsets(batch_size);
     for (memory::dim i = 0; i < batch_size; i++) {
         const memory::dim A_offset_i = i * K_k * a_dt_size;
-        const memory::dim B_offset_i = pack_B.need_pack()
-                ? i * blocked_B_size
-                : i * N * K_k * b_dt_size;
+        const memory::dim B_offset_i
+                = need_pack ? i * blocked_B_size : i * N * K_k * b_dt_size;
         A_B_offsets[i] = std::make_pair(A_offset_i, B_offset_i);
     }
 
@@ -268,7 +278,7 @@ void brgemm_example() {
     // Same set of operations for a ukernel with post-ops.
     std::vector<std::pair<memory::dim, memory::dim>> A_B_po_offsets;
     const memory::dim A_offset_po = batch_size * K_k * a_dt_size;
-    const memory::dim B_offset_po = pack_B.need_pack()
+    const memory::dim B_offset_po = need_pack
             ? batch_size * blocked_B_size
             : batch_size * N * K_k * b_dt_size;
     A_B_po_offsets.emplace_back(A_offset_po, B_offset_po);

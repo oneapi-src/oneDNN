@@ -48,10 +48,9 @@ const pack_type_t pack32 = dnnl_pack_type_pack32;
 struct dnnl_brgemm : public dnnl::impl::c_compatible {
     dnnl_brgemm(dnnl::impl::dim_t M, dnnl::impl::dim_t N, dnnl::impl::dim_t K,
             dnnl::impl::dim_t batch_size, dnnl::impl::dim_t lda,
-            dnnl::impl::dim_t ldb, dnnl::impl::dim_t ldc, dnnl::impl::dim_t ldd,
+            dnnl::impl::dim_t ldb, dnnl::impl::dim_t ldc,
             dnnl::impl::data_type_t a_dt, dnnl::impl::data_type_t b_dt,
-            dnnl::impl::data_type_t c_dt, dnnl::impl::data_type_t d_dt,
-            float beta, const dnnl::impl::primitive_attr_t *attr)
+            dnnl::impl::data_type_t c_dt)
         : M_(M)
         , N_(N)
         , K_(K)
@@ -59,20 +58,25 @@ struct dnnl_brgemm : public dnnl::impl::c_compatible {
         , lda_(lda)
         , ldb_(ldb)
         , ldc_(ldc)
-        , ldd_(ldd)
+        , ldd_(ldc) // User may overwrite with set_post_ops().
         , a_dt_(a_dt)
         , b_dt_(b_dt)
         , c_dt_(c_dt)
-        , d_dt_(d_dt)
-        , beta_(beta)
-        , brgemm_kernel_(nullptr) {
-        // TODO: check status when moved to a call.
-        if (attr) attr_.copy_from(*attr);
-    }
+        , d_dt_(c_dt) // User may overwrite with set_post_ops().
+        , beta_(0.f) // User may overwrite with set_add_C().
+        , brgemm_kernel_(nullptr) {}
 
     ~dnnl_brgemm();
 
-    dnnl::impl::status_t create();
+    dnnl::impl::status_t set_add_C(int add_C);
+
+    dnnl::impl::status_t set_post_ops(dnnl::impl::dim_t ldd,
+            dnnl::impl::data_type_t d_dt,
+            const dnnl::impl::primitive_attr_t *attr);
+
+    dnnl::impl::status_t finalize();
+
+    dnnl::impl::cpu::x64::pack_type_t get_B_pack_type() const;
 
     size_t get_scratchpad_size() const;
 
@@ -106,10 +110,6 @@ struct dnnl_brgemm_pack_B : public dnnl::impl::c_compatible {
     dnnl_brgemm_pack_B(dnnl::impl::dim_t K, dnnl::impl::dim_t N,
             dnnl::impl::dim_t in_ld, dnnl::impl::dim_t out_ld,
             dnnl::impl::data_type_t in_dt, dnnl::impl::data_type_t out_dt);
-
-    // Returns the flag is packing for VNNI is needed.
-    // Note: not completely aligned with primitives logic.
-    bool need_pack() const;
 
     // Generates a copy_b kernel.
     dnnl::impl::status_t generate();

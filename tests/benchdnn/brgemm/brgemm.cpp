@@ -384,43 +384,52 @@ int init_kernel(kernel_args_t &kernel_args) {
 
     dnnl_status_t st = dnnl_success;
     auto &brgemm = kernel_args.brgemm_;
-    st = dnnl_brgemm_create(&brgemm, prb->m, prb->n, prb->k, prb->batch_size,
-            prb->get_lda(), prb->get_ldb(), prb->get_ldc(), prb->get_ldd(),
-            prb->src_dt(), prb->wei_dt(), prb->acc_dt(), prb->dst_dt(),
-            prb->alpha, prb->beta, dnnl_attr);
+    DNN_SAFE(
+            dnnl_brgemm_create(&brgemm, prb->m, prb->n, prb->k, prb->batch_size,
+                    prb->get_lda(), prb->get_ldb(), prb->get_ldc(),
+                    prb->src_dt(), prb->wei_dt(), prb->acc_dt()),
+            WARN);
+    // Only `beta` equal to `0.f` and `1.f` works.
+    DNN_SAFE(dnnl_brgemm_set_add_C(brgemm, static_cast<int>(prb->beta)), WARN);
+    DNN_SAFE(dnnl_brgemm_set_post_ops(
+                     brgemm, prb->get_ldd(), prb->dst_dt(), dnnl_attr),
+            WARN);
+    // This call is responsible whether the final configuration is supported
+    // or not.
+    st = dnnl_brgemm_finalize(brgemm);
     SAFE(check_dnnl_status(st, prb, res), WARN);
     if (res->state == SKIPPED) return OK;
 
-    // Unneeded from API perspective, needed for reference.
-    kernel_args.generate_skip_accumulation_ = false;
+    dnnl_pack_type_t pack_type = dnnl_pack_type_undef;
+    DNN_SAFE(dnnl_brgemm_get_B_pack_type(brgemm, &pack_type), WARN);
+    kernel_args.need_pack_ = pack_type == dnnl_pack_type_pack32;
 
     DNN_SAFE(dnnl_brgemm_generate(brgemm), WARN);
     DNN_SAFE(dnnl_brgemm_get_scratchpad_size(
                      brgemm, &kernel_args.scratchpad_size_),
             WARN);
 
-    // Create a memory desc based on user inputs and query strides to use them
-    // in a pack routine.
-    const dnnl_dims_t wei_dims = {prb->k * prb->batch_size, prb->n};
-    auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(),
-            prb->wtag, prb->strides[STRIDES_WEI]);
-    const auto &wei_strides = query_md_strides(wei_md);
-    assert(query_md_ndims(wei_md) == 2);
-
-    auto &brgemm_pack_B = kernel_args.brgemm_pack_B_;
-    st = dnnl_brgemm_pack_B_create(&brgemm_pack_B, prb->k * prb->batch_size,
-            prb->n, wei_strides[0], prb->get_ldb(), prb->wei_dt(),
-            prb->wei_dt());
-    SAFE(check_dnnl_status(st, prb, res), WARN);
-    if (res->state == SKIPPED) return OK;
-
-    DNN_SAFE(dnnl_brgemm_pack_B_need_pack(
-                     brgemm_pack_B, &kernel_args.need_pack_),
-            WARN);
-
     if (kernel_args.need_pack_) {
+        // Create a memory desc based on user inputs and query strides to use
+        // them in a pack routine.
+        const dnnl_dims_t wei_dims = {prb->k * prb->batch_size, prb->n};
+        auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(),
+                prb->wtag, prb->strides[STRIDES_WEI]);
+        const auto &wei_strides = query_md_strides(wei_md);
+        assert(query_md_ndims(wei_md) == 2);
+
+        auto &brgemm_pack_B = kernel_args.brgemm_pack_B_;
+        st = dnnl_brgemm_pack_B_create(&brgemm_pack_B, prb->k * prb->batch_size,
+                prb->n, wei_strides[0], prb->get_ldb(), prb->wei_dt(),
+                prb->wei_dt());
+        SAFE(check_dnnl_status(st, prb, res), WARN);
+        if (res->state == SKIPPED) return OK;
+
         DNN_SAFE(dnnl_brgemm_pack_B_generate(brgemm_pack_B), WARN);
     }
+
+    // Unneeded from API perspective, it's needed for reference.
+    kernel_args.generate_skip_accumulation_ = false;
 #endif
     return OK;
 }

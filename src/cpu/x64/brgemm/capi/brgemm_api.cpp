@@ -48,7 +48,25 @@ dnnl_brgemm::~dnnl_brgemm() {
     brgemm_kernel_destroy(brgemm_kernel_);
 }
 
-status_t brgemm_t::create() {
+// Typical usage is either `1.f` to append to previous result, or `0.f` to write
+// C from scratch.
+status_t brgemm_t::set_add_C(int add_C) {
+    if (add_C == 0)
+        beta_ = 0.f;
+    else if (add_C == 1)
+        beta_ = 1.f;
+    return status::success;
+}
+
+status_t brgemm_t::set_post_ops(
+        dim_t ldd, data_type_t d_dt, const primitive_attr_t *attr) {
+    ldd_ = ldd;
+    d_dt_ = d_dt;
+    CHECK(attr_.copy_from(*attr));
+    return status::success;
+}
+
+status_t brgemm_t::finalize() {
     brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_offs;
 
     auto status = brgemm_desc_init(&brgemm_desc_, cpu_isa_t::isa_undef,
@@ -93,6 +111,11 @@ status_t brgemm_t::create() {
     brgemm_desc_.req_s8s8_compensation = false;
 
     return status::success;
+}
+
+pack_type_t brgemm_t::get_B_pack_type() const {
+    if (brgemm_desc_.is_b_data_layout_vnni()) return pack_type::pack32;
+    return pack_type::no_trans;
 }
 
 size_t brgemm_t::get_scratchpad_size() const {
@@ -188,17 +211,6 @@ dnnl_brgemm_pack_B::dnnl_brgemm_pack_B(dim_t K, dim_t N, dim_t in_ld,
     if (status != status::success) return;
 }
 
-bool brgemm_pack_B_t::need_pack() const {
-    // TODO: move on unified method from the library.
-    if (bmc_.orig_wei_dt == data_type::f32) {
-        return false;
-    } else if (bmc_.orig_wei_dt == data_type::f16) {
-        return mayiuse(avx512_core_amx_fp16) || mayiuse(avx2_vnni_2);
-    } else {
-        return true;
-    }
-}
-
 status_t brgemm_pack_B_t::generate() {
     // Re-generation won't take any effect.
     if (kernel_ != nullptr) return status::success;
@@ -267,18 +279,45 @@ status_t brgemm_pack_B_t::execute(const void *src, void *dst) const {
 ////////////
 
 status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
-        dim_t batch_size, dim_t lda, dim_t ldb, dim_t ldc, dim_t ldd,
-        data_type_t a_dt, data_type_t b_dt, data_type_t c_dt, data_type_t d_dt,
-        float alpha, float beta, const primitive_attr_t *attr) {
+        dim_t batch_size, dim_t lda, dim_t ldb, dim_t ldc, data_type_t a_dt,
+        data_type_t b_dt, data_type_t c_dt) {
     if (batch_size <= 0) {
         VCHECK_BRGEMM_STATUS(
                 status::invalid_arguments, false, "batch size is non-positive");
     }
 
-    auto _brgemm = utils::make_unique<brgemm_t>(M, N, K, batch_size, lda, ldb,
-            ldc, ldd, a_dt, b_dt, c_dt, d_dt, beta, attr);
-    CHECK(_brgemm->create());
-    *brgemm = _brgemm.release();
+    *brgemm = new brgemm_t(
+            M, N, K, batch_size, lda, ldb, ldc, a_dt, b_dt, c_dt);
+    return status::success;
+}
+
+status_t dnnl_brgemm_set_add_C(brgemm_t *brgemm, int add_C) {
+    if (brgemm == nullptr) return invalid_arguments;
+
+    CHECK(brgemm->set_add_C(add_C));
+    return status::success;
+}
+
+status_t dnnl_brgemm_set_post_ops(brgemm_t *brgemm, dim_t ldd, data_type_t d_dt,
+        const primitive_attr_t *attr) {
+    if (brgemm == nullptr) return invalid_arguments;
+
+    CHECK(brgemm->set_post_ops(ldd, d_dt, attr));
+    return status::success;
+}
+
+status_t dnnl_brgemm_finalize(brgemm_t *brgemm) {
+    if (brgemm == nullptr) return invalid_arguments;
+
+    CHECK(brgemm->finalize());
+    return status::success;
+}
+
+status_t dnnl_brgemm_get_B_pack_type(
+        const brgemm_t *brgemm, dnnl_pack_type_t *pack_type) {
+    if (brgemm == nullptr) return invalid_arguments;
+
+    if (pack_type) *pack_type = brgemm->get_B_pack_type();
     return status::success;
 }
 
@@ -342,15 +381,6 @@ status_t dnnl_brgemm_pack_B_create(brgemm_pack_B_t **brgemm_pack_B, dim_t K,
     if (brgemm_pack_B == nullptr) return status::invalid_arguments;
 
     *brgemm_pack_B = new brgemm_pack_B_t(K, N, in_ld, out_ld, in_dt, out_dt);
-    return status::success;
-}
-
-status_t dnnl_brgemm_pack_B_need_pack(
-        const brgemm_pack_B_t *brgemm_pack_B, int *need_pack) {
-    if (utils::any_null(brgemm_pack_B, need_pack))
-        return status::invalid_arguments;
-
-    *need_pack = brgemm_pack_B->need_pack();
     return status::success;
 }
 
