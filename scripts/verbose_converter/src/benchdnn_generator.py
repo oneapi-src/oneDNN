@@ -781,6 +781,11 @@ def convert_zero_points(zero_points, prim_kind):
         q_param=zero_points, prim_kind=prim_kind, def_value="1", def_type="s32"
     )
 
+def convert_rounding_mode(rounding_modes, prim_kind):
+    res = []
+    for arg in rounding_modes.keys():
+        res.append(arg + ":" + rounding_modes[arg])
+    return "+".join(res)
 
 def convert_scratchpad_mode(scratchpad_mode, prim_kind):
     return scratchpad_mode
@@ -815,6 +820,7 @@ def convert_attrs(exts, prim_kind):
         "attr-scratchpad": convert_scratchpad_mode,
         "attr-fpmath": convert_fpmath_mode,
         "attr-acc": convert_acc_mode,
+        "attr-rounding-mode": convert_rounding_mode,
         "attr-dropout": convert_dropout,
         "attr-deterministic": convert_deterministic,
     }

@@ -329,6 +329,14 @@ class LogParser:
                         res[arg] = convert_structure_to_ir_seq(zp_dict, zp_value_wo_arg)
                     return res
 
+                def convert_rounding_mode(value):
+                    res = {}
+                    rounding_modes = value.split("+")
+                    for r in rounding_modes:
+                        arg = r[: r.find(":")]
+                        res[arg] = r[r.find(":") + 1 :]
+                    return res
+
                 def convert_scratchpad_mode(value):
                     return value
 
@@ -358,6 +366,7 @@ class LogParser:
                     "attr-scratchpad": convert_scratchpad_mode,
                     "attr-fpmath": convert_fpmath_mode,
                     "attr-acc": convert_acc_mode,
+                    "attr-rounding-mode": convert_rounding_mode,
                     "attr-dropout": convert_dropout,
                     "attr-deterministic": convert_deterministic,
                 }
