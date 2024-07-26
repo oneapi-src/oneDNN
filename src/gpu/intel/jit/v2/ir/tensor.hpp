@@ -269,6 +269,10 @@ public:
     std::string str() const;
     IR_DEFINE_DUMP()
 
+#if __cplusplus >= 202002L
+    bool operator==(const layout_tag_t &other) const = default;
+#endif
+
     void stringify(std::ostream &out) const {
         jit::stringify(out, raw_tag_);
         out << ":";

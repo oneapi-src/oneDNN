@@ -383,6 +383,9 @@ public:
         value /= factor;
         return true;
     }
+#if __cplusplus >= 202002L
+    bool operator==(const tile_t &other) const = default;
+#endif
 
     std::string str() const override { return str_impl(/*multiline=*/false); }
 };

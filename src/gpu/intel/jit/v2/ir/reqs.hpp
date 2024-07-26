@@ -77,6 +77,9 @@ public:
         return impl_->to_int(sizes);
     }
     expr_t to_ir() const { return impl_->to_ir(); }
+#if __cplusplus >= 202002L
+    bool operator==(const req_expr_t &other) const = default;
+#endif
     void serialize(std::ostream &out) const { return impl_->serialize(out); }
     void deserialize(std::istream &in);
 
@@ -111,6 +114,9 @@ public:
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
     std::string str() const;
+#if __cplusplus >= 202002L
+    bool operator==(const prb_reqs_t &other) const = default;
+#endif
 
     IR_DEFINE_DUMP()
 
@@ -130,6 +136,9 @@ private:
         void stringify(std::ostream &out) const;
         void parse(std::istream &in);
         std::string str() const;
+#if __cplusplus >= 202002L
+        bool operator==(const req_t &other) const = default;
+#endif
         IR_DEFINE_DUMP()
     };
 
