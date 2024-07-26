@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -160,6 +160,7 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
 }
 
 template struct jit_uni_dw_convolution_fwd_t<sve_512, data_type::f32>;
+template struct jit_uni_dw_convolution_fwd_t<sve_256, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t diff_dst_type, data_type_t diff_src_type>
 void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
@@ -269,6 +270,7 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
 }
 
 template struct jit_uni_dw_convolution_bwd_data_t<sve_512, data_type::f32>;
+template struct jit_uni_dw_convolution_bwd_data_t<sve_256, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>::
@@ -404,7 +406,7 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
  * this should be explored in the future if further optimizations are required.
  */
 template <>
-void jit_uni_dw_convolution_bwd_weights_t<sve_512,
+void jit_uni_dw_convolution_bwd_weights_t<sve_256,
         data_type::bf16>::execute_reduction(const exec_ctx_t &ctx) const {
 
     auto diff_wei_reduction_buf
@@ -527,7 +529,7 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
 }
 
 template struct jit_uni_dw_convolution_bwd_weights_t<sve_512, data_type::f32>;
-
+template struct jit_uni_dw_convolution_bwd_weights_t<sve_256, data_type::f32>;
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl

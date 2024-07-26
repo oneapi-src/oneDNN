@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2022 Intel Corporation
-* Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,17 +43,15 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::load_src(int ur_ch_blocks, int ur_w) {
     const auto ch_blk = jcp.ch_block;
     const auto ocb_stride = dst_layout_nxc ? ch_blk : jcp.oh * jcp.ow * ch_blk;
     const auto ow_stride = dst_layout_nxc ? jcp.ngroups : ch_blk;
-
     for (int ch = 0; ch < ur_ch_blocks; ch++) {
         for (int ow = 0; ow < ur_w; ow++) {
-            ZReg zreg_acc = get_acc_reg(ch * ur_w + ow);
             ZRegS zregs_acc = get_acc_reg_s(ch * ur_w + ow);
 
             int b_off = ch * ch_blk;
             if (this->jcp.with_bias) {
                 add_imm(reg_tmp_addr, reg_bias, b_off * sizeof(float),
                         reg_tmp_imm);
-                ldr(zreg_acc, ptr(reg_tmp_addr));
+                ld1w(zregs_acc, P_ALL_ONE, ptr(reg_tmp_addr));
             } else
                 fmov(zregs_acc); // zero clear
 
@@ -61,7 +59,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::load_src(int ur_ch_blocks, int ur_w) {
             if (this->jcp.with_sum) {
                 add_imm(reg_tmp_addr, reg_output, o_off * sizeof(float),
                         reg_tmp_imm);
-                ldr(ZReg(0), ptr(reg_tmp_addr));
+                ld1w(ZRegS(0), P_ALL_ONE, ptr(reg_tmp_addr));
                 fadd(zregs_acc, zregs_acc, ZRegS(0));
             }
         }
@@ -96,15 +94,15 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
             ldr(aux_reg_input, ptr(aux_reg_input_buffer_ptr));
             add(aux_reg_input, aux_reg_input, reg_iw_offset);
         }
+
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
             for (int kw = 0; kw < jcp.kw; kw++) {
                 int ker_off = ch * jcp.kh * jcp.kw * ch_blk + kw * ch_blk;
 
-                ZReg zreg_ker = get_ker_reg(0);
                 ZRegS zregs_ker = get_ker_reg_s(0);
                 add_imm(reg_tmp_addr, aux_reg_kernel, ker_off * sizeof(float),
                         reg_tmp_imm);
-                ldr(zreg_ker, ptr(reg_tmp_addr));
+                ld1w(zregs_ker, P_ALL_ONE, ptr(reg_tmp_addr));
 
                 int ow_start = get_ow_start(kw, pad_l);
                 int ow_end = get_ow_end(ur_w, kw, pad_r);
@@ -113,11 +111,10 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
                             + (ow * stride_w - pad_l) * iw_stride
                             + kw * dilate_w * iw_stride;
 
-                    ZReg zreg_src = get_src_reg(0);
                     ZRegS zregs_src = get_src_reg_s(0);
                     add_imm(reg_tmp_addr, aux_reg_input,
                             inp_off * jcp.typesize_in, reg_tmp_imm);
-                    ldr(zreg_src, ptr(reg_tmp_addr));
+                    ld1w(zregs_src, P_ALL_ONE, ptr(reg_tmp_addr));
 
                     ZRegS zregs_acc = get_acc_reg_s(ch * ur_w + ow);
                     fmla(zregs_acc, P_ALL_ONE, zregs_src, zregs_ker);
@@ -164,11 +161,11 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::store_dst(
         for (int ow = 0; ow < ur_w; ow++) {
             const int o_off = ch * ocb_stride + ow * ow_stride;
 
-            ZReg zreg_dst = get_acc_reg(ch * ur_w + ow);
+            ZRegS zregS_dst = get_acc_reg_s(ch * ur_w + ow);
 
             add_imm(reg_tmp_addr, reg_output, o_off * sizeof(float),
                     reg_tmp_imm);
-            str(zreg_dst, ptr(reg_tmp_addr));
+            st1w(zregS_dst, P_ALL_ONE, ptr(reg_tmp_addr));
         }
     }
 }
@@ -322,8 +319,11 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::ow_loop(int ur_ch_blocks) {
 
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
+    const int simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
     this->preamble();
-
+    //TO DO : renaming predicate register (P_ALL_ONE)
+    if (simd_w_ != cpu_sveLen / sizeof(float))
+        set_preg(P_ALL_ONE.s, simd_w_, X_TMP_0, X_TMP_1);
     if (jcp.is_fused_conv) {
         ldr(reg_input_buffer_ptr, ptr(abi_param1, GET_OFF(src)));
         mov(reg_iw_offset, 0);
@@ -366,6 +366,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
 }
 
 template struct jit_uni_dw_conv_fwd_kernel_f32<sve_512>;
+template struct jit_uni_dw_conv_fwd_kernel_f32<sve_256>;
 
 template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::load_ddst(
@@ -412,21 +413,19 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
             for (int ch = 0; ch < ur_ch_blocks;
                     ch++) { // unrolloing channel blocks
                 int ker_off = ch * kh * kw * ch_blk;
-                ZReg zreg_ker = get_ker_reg(0);
                 ZRegS zregs_ker = get_ker_reg_s(0);
 
                 add_imm(reg_tmp_addr, aux1_reg_kernel, ker_off * sizeof(float),
                         reg_tmp_imm);
-                ldr(zreg_ker, ptr(reg_tmp_addr));
+                ld1w(zregs_ker, P_ALL_ONE / T_z, ptr(reg_tmp_addr));
 
                 for (int w = 0; w < ur_str_w; w++) {
                     int ddst_off = (ch * oh * ow + w) * ch_blk;
 
-                    ZReg zreg_src = get_src_reg(0);
                     ZRegS zregs_src = get_src_reg_s(0);
                     add_imm(reg_tmp_addr, aux1_reg_ddst,
                             ddst_off * sizeof(float), reg_tmp_imm);
-                    ldr(zreg_src, ptr(reg_tmp_addr));
+                    ld1w(zregs_src, P_ALL_ONE / T_z, ptr(reg_tmp_addr));
 
                     ZRegS zregs_acc = get_acc_reg_s(ch * ur_str_w + w);
                     fmla(zregs_acc, P_ALL_ONE, zregs_src, zregs_ker);
@@ -465,11 +464,11 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::store_dsrc(
     for (int ch = 0; ch < ur_ch_blocks; ch++) {
         for (int w = 0; w < ur_str_w; w++) {
             int dsrc_off = (ch * ih * iw + w * stride_w) * ch_blk;
-            ZReg zreg_acc = get_acc_reg(ch * ur_str_w + w);
+            ZRegS zregs_acc = get_acc_reg_s(ch * ur_str_w + w);
 
             add_imm(reg_tmp_addr, reg_dsrc, dsrc_off * sizeof(float),
                     reg_tmp_imm);
-            str(zreg_acc, ptr(reg_tmp_addr));
+            st1w(zregs_acc, P_ALL_ONE / T_z, ptr(reg_tmp_addr));
         }
     }
 }
@@ -569,6 +568,7 @@ void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
 }
 
 template struct jit_uni_dw_conv_bwd_data_kernel_f32<sve_512>;
+template struct jit_uni_dw_conv_bwd_data_kernel_f32<sve_256>;
 
 template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::zero_filter() {
@@ -1096,15 +1096,12 @@ jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::compute_ow_block_unroll() {
 
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
+    const int simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
     preamble();
-
-    if (simd_w == 16)
-        ptrue(P_ALL_ONE.b);
-    else if (simd_w == 8)
-        ptrue(P_ALL_ONE.b, VL32);
-    else
-        assert(!"Unsupport: simd_w != 16, 8");
-
+    //TO DO : renaming predicate register (P_ALL_ONE)
+    if (simd_w_ != cpu_sveLen / sizeof(float))
+        set_preg(P_ALL_ONE.s, simd_w_, X_TMP_0, X_TMP_1);
+    if (simd_w_ != 16 || simd_w_ != 8) assert(!"Unsupport: simd_w != 16, 8");
     ldr(reg_input_baddr,
             ptr(abi_param1,
                     static_cast<int32_t>(offsetof(jit_dw_conv_call_s, input))));
@@ -1123,6 +1120,7 @@ void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
 }
 
 template struct jit_uni_dw_conv_bwd_weights_kernel_f32<sve_512>;
+template struct jit_uni_dw_conv_bwd_weights_kernel_f32<sve_256>;
 
 } // namespace aarch64
 } // namespace cpu

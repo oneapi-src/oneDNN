@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021 Intel Corporation
-* Copyright 2021 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,9 +96,10 @@ private:
 
     std::unique_ptr<jit_uni_dw_conv_fwd_kernel<isa, src_type>> kernel_;
 };
-
 using jit_sve_512_dw_convolution_fwd_t
         = jit_uni_dw_convolution_fwd_t<sve_512, data_type::f32>;
+using jit_sve_256_dw_convolution_fwd_t
+        = jit_uni_dw_convolution_fwd_t<sve_256, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t diff_dst_type,
         data_type_t diff_src_type = diff_dst_type>
@@ -137,11 +138,20 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
 
     protected:
         bool set_default_formats() {
+
             using namespace format_tag;
-
-            auto dat_tag = nChw16c;
-            auto wei_tag = Goihw16g;
-
+            format_tag_t dat_tag, wei_tag;
+            switch (isa) {
+                case sve_512:
+                    dat_tag = nChw16c;
+                    wei_tag = Goihw16g;
+                    break;
+                case sve_256:
+                    dat_tag = nChw8c;
+                    wei_tag = Goihw8g;
+                    break;
+                default: return false;
+            }
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
@@ -174,6 +184,8 @@ private:
 
 using jit_sve_512_dw_convolution_bwd_data_t
         = jit_uni_dw_convolution_bwd_data_t<sve_512, data_type::f32>;
+using jit_sve_256_dw_convolution_bwd_data_t
+        = jit_uni_dw_convolution_bwd_data_t<sve_256, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t src_type,
         data_type_t diff_weights_type = src_type>
@@ -222,9 +234,18 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
     protected:
         bool set_default_formats() {
             using namespace format_tag;
-
-            auto dat_tag = isa == sve_512 ? nChw16c : nChw8c;
-            auto wei_tag = isa == sve_512 ? Goihw16g : Goihw8g;
+            format_tag_t dat_tag, wei_tag;
+            switch (isa) {
+                case sve_512:
+                    dat_tag = nChw16c;
+                    wei_tag = Goihw16g;
+                    break;
+                case sve_256:
+                    dat_tag = nChw8c;
+                    wei_tag = Goihw8g;
+                    break;
+                default: return false;
+            }
 
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
@@ -246,7 +267,7 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
 
         if (pd()->jcp_.nthr_mb > 1) {
             CHECK(safe_ptr_assign(
-                    acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
+                    acc_ker_, new cpu_accumulator_1d_t<data_type::f32, isa>()));
             CHECK(acc_ker_->create_kernel());
         }
         return status::success;
@@ -263,12 +284,14 @@ private:
     void execute_reduction(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32, isa>> acc_ker_;
     std::unique_ptr<jit_uni_dw_conv_bwd_weights_kernel<isa, src_type>> kernel_;
 };
 
 using jit_sve_512_dw_convolution_bwd_weights_t
         = jit_uni_dw_convolution_bwd_weights_t<sve_512, data_type::f32>;
+using jit_sve_256_dw_convolution_bwd_weights_t
+        = jit_uni_dw_convolution_bwd_weights_t<sve_256, data_type::f32>;
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl
