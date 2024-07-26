@@ -218,6 +218,7 @@ def addTocTrees(app, env, docnames):
                                                                      'dev_guide_training_bf16.rst'],
                  'rst/dev_guide_attributes.rst':['dev_guide_attributes_fpmath_mode.rst',
                                                  'dev_guide_attributes_accumulation_mode.rst',
+                                                 'dev_guide_attributes_rounding_mode.rst',
                                                  'dev_guide_attributes_deterministic.rst',
                                                  'dev_guide_attributes_quantization.rst',
                                                  'dev_guide_attributes_post_ops.rst',

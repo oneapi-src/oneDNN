@@ -76,6 +76,8 @@ The detailed explanation is provided in the corresponding sections.
   allow implicit down-conversions of f32 values during computation;
 - [Accumulation mode](@ref dev_guide_attributes_accumulation_mode) to
   allow the usage of lower precision datatypes for accumulation;
+- [Rounding mode](@ref dev_guide_attributes_rounding_mode) to control
+  rounding mode upon specific argument downconversions.
 - [Deterministic mode](@ref dev_guide_attributes_deterministic) to enforce
   run-to-run deterministic primitive execution.
 - [Dropout](@ref dev_guide_attributes_dropout) to apply pseudo-random dropout
