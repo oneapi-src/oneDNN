@@ -46,6 +46,8 @@ namespace injector {
 using lambda_jit_injectors_t
         = std::map<dnnl_primitive_kind_t, std::function<void()>>;
 
+size_t aux_vec_count(const post_ops_t &post_ops, cpu_isa_t isa, bool is_fwd);
+
 // A base isa-agnostic post-ops injector abstract class.
 //
 // The main mechanism of handling various post-ops types. It utilizes internally
