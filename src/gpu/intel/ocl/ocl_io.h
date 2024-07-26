@@ -106,18 +106,24 @@ DEF_write(bf16, half);
 // Loads
 DEF_load(half, f8_e5m2);
 DEF_load(float, f8_e5m2);
-DEF_load(half, f8_e4m3);
-DEF_load(float, f8_e4m3);
 
 // Writes
 DEF_write(f8_e5m2, half);
 DEF_write(f8_e5m2, float);
 DEF_write(f8_e5m2, int);
+#endif // MATH_UTILS_DECLARE_BF8
+
+#ifdef MATH_UTILS_DECLARE_HF8
+// Loads
+DEF_load(half, f8_e4m3);
+DEF_load(float, f8_e4m3);
+
+// Writes
 DEF_write(f8_e4m3, half);
 DEF_write(f8_e4m3, float);
 DEF_write(f8_e4m3, int);
 
-#endif // MATH_UTILS_DECLARE_BF8
+#endif // MATH_UTILS_DECLARE_HF8
 #endif // cl_khr_fp16
 
 #ifdef cl_khr_fp64
@@ -143,10 +149,13 @@ DEF_write(half, double);
 
 #ifdef MATH_UTILS_DECLARE_BF8
 DEF_load(double, f8_e5m2);
-DEF_load(double, f8_e4m3);
 DEF_write(f8_e5m2, double);
-DEF_write(f8_e4m3, double);
 #endif // MATH_UTILS_DECLARE_BF8
+
+#ifdef MATH_UTILS_DECLARE_HF8
+DEF_load(double, f8_e4m3);
+DEF_write(f8_e4m3, double);
+#endif // MATH_UTILS_DECLARE_HF8
 #endif
 
 #endif
