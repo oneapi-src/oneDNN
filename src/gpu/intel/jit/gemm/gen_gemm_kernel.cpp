@@ -384,7 +384,10 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     if (can_2d_c) *tags++ = kcatalog::ReqBlock2DC;
     if (has_systolic) *tags++ = kcatalog::ReqSystolic;
 
-    if ((mode & mode_tf32)
+    bool fpmath_tf32 = mode & mode_tf32;
+    bool fpmath_bf16 = mode & mode_bf16x1;
+
+    if (fpmath_tf32
             && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
         match_params[npatterns] = match_params[0];
         match_params[npatterns].selector.precisions[0] = "T";
@@ -392,7 +395,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         npatterns++;
     }
 
-    if ((mode & mode_bf16x1)
+    if (fpmath_bf16
             && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
         match_params[npatterns] = match_params[0];
         match_params[npatterns].selector.precisions[0] = "[SB]";
