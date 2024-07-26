@@ -20,9 +20,13 @@
 #include "common/c_types_map.hpp"
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/compute/kernel_arg_list.hpp"
-#include "gpu/intel/jit/gemm/gen_gemm_kernel_generator.hpp"
-#include "gpu/intel/jit/gemm/kernel_catalog.hpp"
-#include "gpu/intel/jit/gemm/kernel_evaluator.hpp"
+#include "gpu/intel/jit/gemm/include/driver_info.hpp"
+#include "gpu/intel/jit/gemm/include/kernel_catalog.hpp"
+#include "gpu/intel/jit/gemm/include/kernel_evaluator.hpp"
+#include "gpu/intel/jit/gemm/include/kernel_selector.hpp"
+#include "gpu/intel/jit/gemm/include/problem.hpp"
+#include "gpu/intel/jit/gemm/include/strategy.hpp"
+#include "gpu/intel/jit/gemm/include/types.hpp"
 #include "gpu/intel/jit/jit_generator_base.hpp"
 #include "gpu/intel/kernel_cache.hpp"
 #include "xpu/utils.hpp"
@@ -60,27 +64,7 @@ struct gen_gemm_kernel_desc_t {
     const CommonDriverInfo *driver_info() const { return &driver_info_; };
     const EvaluateAuxOutput *aux_params() const { return &aux_params_; };
 
-    compute::scalar_type_t scalar_type() const {
-        switch (problem_.Ts) {
-            case Type::s4: return compute::scalar_type_t::_int4;
-            case Type::u4: return compute::scalar_type_t::_uint4;
-            case Type::s8: return compute::scalar_type_t::_char;
-            case Type::u8: return compute::scalar_type_t::_uchar;
-            case Type::s16: return compute::scalar_type_t::_short;
-            case Type::u16: return compute::scalar_type_t::_ushort;
-            case Type::s32: return compute::scalar_type_t::_int;
-            case Type::u32: return compute::scalar_type_t::_uint;
-            case Type::s64: return compute::scalar_type_t::_long;
-            case Type::u64: return compute::scalar_type_t::_ulong;
-            case Type::bf8: return compute::scalar_type_t::_bfloat8;
-            case Type::hf8: return compute::scalar_type_t::_hfloat8;
-            case Type::bf16: return compute::scalar_type_t::_bfloat16;
-            case Type::f16: return compute::scalar_type_t::_half;
-            case Type::f32: return compute::scalar_type_t::_float;
-            case Type::f64: return compute::scalar_type_t::_double;
-            default: return compute::scalar_type_t::undef;
-        }
-    }
+    compute::scalar_type_t scalar_type() const;
 
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_t &kernel) const;
