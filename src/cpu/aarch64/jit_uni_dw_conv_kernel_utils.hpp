@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2022 Intel Corporation
-* Copyright 2021-2022 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,8 +107,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     const auto wei_tag = isa == sve_512 ? Goihw16g : Goihw8g;
     const auto nxc_tag = nhwc;
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
-    if ((blocked_tag != nChw16c) || (wei_tag != Goihw16g))
-        return status::unimplemented;
 
     if (src_d.format_kind() == format_kind::any) {
         CHECK(memory_desc_init_by_tag(src_md, blocked_tag));
@@ -146,8 +144,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     if (!mayiuse(isa)) return status::unimplemented;
 
     const int simd_w = isa == sve_512 ? 16 : 8;
-    if (simd_w != 16) return status::unimplemented;
-
     jcp.prop_kind = cd.prop_kind;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -258,7 +254,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
     }
     bool ok_to_pad_channels = true && jcp.oc == jcp.ngroups
-            && jcp.ic == jcp.ngroups && isa == sve_512;
+            && jcp.ic == jcp.ngroups && (isa == sve_256 || isa == sve_512);
     if (ok_to_pad_channels) {
         jcp.oc = rnd_up(jcp.oc, simd_w);
         jcp.ic = rnd_up(jcp.oc, simd_w);
@@ -286,6 +282,7 @@ void jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_scratchpad(
 }
 
 template struct jit_uni_dw_conv_fwd_kernel<sve_512, data_type::f32>;
+template struct jit_uni_dw_conv_fwd_kernel<sve_256, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_data_kernel {
@@ -372,7 +369,7 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
 
     bool ok_to_pad_channels = true && jcp.oc == jcp.ngroups
-            && jcp.ic == jcp.ngroups && isa == sve_512;
+            && jcp.ic == jcp.ngroups && (isa == sve_256 || isa == sve_512);
     if (ok_to_pad_channels) {
         jcp.oc = rnd_up(jcp.oc, simd_w);
         jcp.ic = rnd_up(jcp.oc, simd_w);
@@ -418,6 +415,7 @@ void jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_scratchpad(
 }
 
 template struct jit_uni_dw_conv_bwd_data_kernel<sve_512, data_type::f32>;
+template struct jit_uni_dw_conv_bwd_data_kernel<sve_256, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_weights_kernel {
@@ -589,6 +587,7 @@ void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::balance(
 }
 
 template struct jit_uni_dw_conv_bwd_weights_kernel<sve_512, data_type::f32>;
+template struct jit_uni_dw_conv_bwd_weights_kernel<sve_256, data_type::f32>;
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl

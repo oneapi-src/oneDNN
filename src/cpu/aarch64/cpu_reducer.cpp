@@ -217,7 +217,11 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type, isa> {
         const int load_len[nbranches] = {vlen, vlen, typesize};
         Label loop_x_label[nbranches + 1];
 
-        this->ptrue(preg_all.b);
+        switch (isa) {
+            case sve_256: this->ptrue(preg_all.b, VL32); break;
+            case sve_512: this->ptrue(preg_all.b, VL64); break;
+            default: assert(!"Unsupported ISA"); break;
+        }
         if (typesize == 4)
             this->ptrue(preg_one.s, VL1);
         else
