@@ -108,6 +108,7 @@ private:
 struct dnnl_transform : public dnnl::impl::c_compatible {
     // Ctor that follows a call to initialize matmul conf struct.
     dnnl_transform(dnnl::impl::dim_t K, dnnl::impl::dim_t N,
+            dnnl::impl::cpu::x64::pack_type_t in_pack_type,
             dnnl::impl::dim_t in_ld, dnnl::impl::dim_t out_ld,
             dnnl::impl::data_type_t in_dt, dnnl::impl::data_type_t out_dt);
 
@@ -122,6 +123,8 @@ private:
     dnnl::impl::dim_t K_, N_;
     dnnl::impl::dim_t in_ld_, out_ld_;
     dnnl::impl::data_type_t in_dt_, out_dt_;
+    // Save `strides_` for `execute` to get proper source offset.
+    dnnl::impl::dims_t strides_;
 
     // A transform kernel.
     // Note: though it's a generic class for any kind of transformation, so far

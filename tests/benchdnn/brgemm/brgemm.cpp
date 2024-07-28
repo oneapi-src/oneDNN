@@ -419,8 +419,15 @@ int init_kernel(kernel_args_t &kernel_args) {
         assert(query_md_ndims(wei_md) == 2);
 
         auto &transform = kernel_args.transform_;
+        // Choose `no_trans` for cases when K = 1 as less memory is required.
+        auto in_pack_type = wei_strides[1] > wei_strides[0]
+                ? dnnl_pack_type_trans
+                : dnnl_pack_type_no_trans;
+        // One of strides implicitly equals to `1`.
+        auto in_ld = MAX2(wei_strides[0], wei_strides[1]);
         st = dnnl_transform_create(&transform, prb->k * prb->batch_size, prb->n,
-                wei_strides[0], prb->get_ldb(), prb->wei_dt(), prb->wei_dt());
+                in_pack_type, in_ld, prb->get_ldb(), prb->wei_dt(),
+                prb->wei_dt());
         SAFE(check_dnnl_status(st, prb, res), WARN);
         if (res->state == SKIPPED) return OK;
 
@@ -687,21 +694,44 @@ void init_memory_args(
                 prb->ndims, bia_dims, prb->bia_dt, tag::abx);
     }
 #else
-    dims_t wei_strides = {prb->get_ldb(), 1};
-
     auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(),
             prb->wtag, prb->strides[STRIDES_WEI]);
+    const auto &wei_strides = query_md_strides(wei_md);
 
-    // Needed to have enough memory after packing routine.
-    // TODO: generalize special f16 case.
+    // Note: packing routine transforms a plain user tensor into an internal
+    // blocking format with various JIT kernels depending on user inputs.
+    // While some kernels working fine with less memory, some don't, such as
+    // transposed `ba` format.
+    //
+    // To supply enough memory for the transformation, the following logic
+    // adjusts memory amount based on `simd_w` and `dt_multiplier` same way
+    // what physical padding would do.
+    //
+    // `dt_multiplier` is required to form a 32-bit element which is a basic
+    // unit of BRGeMM computations. There's the only outlier - f16 on ISAs where
+    // packing is not expected, it acts as f32 there.
     const int dt_multiplier
             = prb->wei_dt() == dnnl_f16 && !kernel_args.need_pack_
             ? 1
             : 4 / dnnl_data_type_size(prb->wei_dt());
-    const dnnl_dim_t k_rounded = dt_multiplier * div_up(prb->k, dt_multiplier);
+
+    int multiplier = 1;
+    if (kernel_args.need_pack_) {
+        multiplier = dt_multiplier;
+        // Note (impl detail): transposed kernel wants 64 bytes for K dim.
+        if (wei_strides[0] < wei_strides[1]) {
+            // Though `simd_w` is not necessarily `16` on all ISAs, it's for
+            // simplicity.
+            constexpr int simd_w = 16;
+            multiplier *= simd_w;
+        }
+    }
+
+    const dnnl_dim_t k_rounded = multiplier * div_up(prb->k, multiplier);
     const dnnl_dims_t wei_packed_dims = {k_rounded * prb->batch_size, prb->n};
+    dims_t wei_packed_strides = {prb->get_ldb(), 1};
     auto wei_packed_md = dnn_mem_t::init_md(
-            prb->ndims, wei_packed_dims, prb->wei_dt(), "", wei_strides);
+            prb->ndims, wei_packed_dims, prb->wei_dt(), "", wei_packed_strides);
 #endif
 
     dnnl_dim_t scratchpad_size

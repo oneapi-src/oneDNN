@@ -188,6 +188,8 @@ dnnl_status_t DNNL_API dnnl_brgemm_destroy(dnnl_brgemm_t brgemm);
 /// @param transform Output transform object.
 /// @param K Dimension K.
 /// @param N Dimension N.
+/// @param in_pack_type Input packing type. Must be one of
+///     `dnnl_pack_type_no_trans`, or `dnnl_pack_type_trans`.
 /// @param in_ld Input leading dimension.
 /// @param out_ld Output leading dimension. When packing data, it specifies a
 ///     block by N dimension.
@@ -196,8 +198,9 @@ dnnl_status_t DNNL_API dnnl_brgemm_destroy(dnnl_brgemm_t brgemm);
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_transform_create(dnnl_transform_t *transform,
-        dnnl_dim_t K, dnnl_dim_t N, dnnl_dim_t in_ld, dnnl_dim_t out_ld,
-        dnnl_data_type_t in_dt, dnnl_data_type_t out_dt);
+        dnnl_dim_t K, dnnl_dim_t N, dnnl_pack_type_t in_pack_type,
+        dnnl_dim_t in_ld, dnnl_dim_t out_ld, dnnl_data_type_t in_dt,
+        dnnl_data_type_t out_dt);
 
 /// Generates an executable part of transform object.
 /// @param transform Transform object.

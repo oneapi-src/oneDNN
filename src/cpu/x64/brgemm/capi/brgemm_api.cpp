@@ -190,25 +190,36 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
     return status::success;
 }
 
-dnnl_transform::dnnl_transform(dim_t K, dim_t N, dim_t in_ld, dim_t out_ld,
-        data_type_t in_dt, data_type_t out_dt)
+dnnl_transform::dnnl_transform(dim_t K, dim_t N, pack_type_t in_pack_type,
+        dim_t in_ld, dim_t out_ld, data_type_t in_dt, data_type_t out_dt)
     : K_(K)
     , N_(N)
     , in_ld_(in_ld)
     , out_ld_(out_ld)
     , in_dt_(in_dt)
     , out_dt_(out_dt) {
-    // So far, only `ab` input format (dense or strided) is supported.
-    assert(in_ld_ >= N);
-    UNUSED(in_ld_);
+    // Check for a valid in_ld depending on a pack type.
+    assert(in_pack_type == pack_type::no_trans ? in_ld_ >= N_ : in_ld_ >= K_);
     // Only special N_blk sizes are supported by matmul copy routines. Rest
     // will crash.
     assert(utils::one_of(out_ld_, 16, 32, 48, 64));
 
+    const auto in_tag = in_pack_type == pack_type::trans ? format_tag::ba
+                                                         : format_tag::ab;
     auto status = matmul::init_conf(bmc_, /* batch = */ 1, K_, N_, in_ld_,
-            out_ld_, in_dt_, out_dt_, format_tag::ab);
+            out_ld_, in_dt_, out_dt_, in_tag);
     assert(status == status::success);
     if (status != status::success) return;
+
+    if (in_pack_type == pack_type::trans) {
+        strides_[0] = 1;
+        strides_[1] = in_ld_;
+    } else if (in_pack_type == pack_type::no_trans) {
+        strides_[0] = in_ld_;
+        strides_[1] = 1;
+    } else {
+        assert(!"Unsupported pack type");
+    }
 }
 
 status_t transform_t::generate() {
@@ -241,9 +252,8 @@ status_t transform_t::execute(const void *src, void *dst) const {
         int k_blk_idx = 0;
         for (; k_blk_idx < kernel_conf.K / kernel_conf.K_blk; k_blk_idx++) {
             const auto k = k_blk_idx * kernel_conf.K_blk;
-            assert(kernel_conf.wei_tag == format_tag::ab);
-            // Since only `ab` is supported so far, hard code the stride.
-            const auto src_offset = i_dt_sz * (k * kernel_conf.N + n);
+            const auto src_offset
+                    = i_dt_sz * (k * strides_[0] + n * strides_[1]);
             const auto dst_offset
                     = o_dt_sz * (k_blk_idx * blk_size + n_blk_idx * k_blks);
             ker_exec_ctx.src = &src_ptr[src_offset];
@@ -254,9 +264,8 @@ status_t transform_t::execute(const void *src, void *dst) const {
         }
         if (kernel_conf.K_tail > 0) {
             const auto k = k_blk_idx * kernel_conf.K_blk;
-            assert(kernel_conf.wei_tag == format_tag::ab);
-            // Since only `ab` is supported so far, hard code the stride.
-            const auto src_offset = i_dt_sz * (k * kernel_conf.N + n);
+            const auto src_offset
+                    = i_dt_sz * (k * strides_[0] + n * strides_[1]);
             const auto dst_offset
                     = o_dt_sz * (k_blk_idx * blk_size + n_blk_idx * k_blks);
             ker_exec_ctx.src = &src_ptr[src_offset];
@@ -376,10 +385,12 @@ status_t dnnl_brgemm_destroy(brgemm_t *brgemm) {
 ///////////////
 
 status_t dnnl_transform_create(transform_t **transform, dim_t K, dim_t N,
-        dim_t in_ld, dim_t out_ld, data_type_t in_dt, data_type_t out_dt) {
+        pack_type_t in_pack_type, dim_t in_ld, dim_t out_ld, data_type_t in_dt,
+        data_type_t out_dt) {
     if (transform == nullptr) return status::invalid_arguments;
 
-    *transform = new transform_t(K, N, in_ld, out_ld, in_dt, out_dt);
+    *transform
+            = new transform_t(K, N, in_pack_type, in_ld, out_ld, in_dt, out_dt);
     return status::success;
 }
 

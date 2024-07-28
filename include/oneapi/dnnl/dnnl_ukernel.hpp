@@ -258,6 +258,8 @@ struct transform : public handle<dnnl_transform_t> {
     ///
     /// @param K Dimension K.
     /// @param N Dimension N.
+    /// @param in_pack_type Input packing type. Must be one of
+    ///     `pack_type::no_trans`, or `pack_type::trans`.
     /// @param in_ld Input leading dimension.
     /// @param out_ld Output leading dimension. Specifies a block by N dimension
     ///     during data packing.
@@ -267,14 +269,14 @@ struct transform : public handle<dnnl_transform_t> {
     ///     allowed to fail without throwing an exception. In this case an
     ///     empty object will be produced. This flag is optional and
     ///     defaults to false.
-    transform(memory::dim K, memory::dim N, memory::dim in_ld,
-            memory::dim out_ld, memory::data_type in_dt,
+    transform(memory::dim K, memory::dim N, pack_type in_pack_type,
+            memory::dim in_ld, memory::dim out_ld, memory::data_type in_dt,
             memory::data_type out_dt, bool allow_empty = false) {
 
         dnnl_transform_t transform = nullptr;
-        dnnl_status_t status = dnnl_transform_create(&transform, K, N, in_ld,
-                out_ld, memory::convert_to_c(in_dt),
-                memory::convert_to_c(out_dt));
+        dnnl_status_t status = dnnl_transform_create(&transform, K, N,
+                static_cast<dnnl_pack_type_t>(in_pack_type), in_ld, out_ld,
+                memory::convert_to_c(in_dt), memory::convert_to_c(out_dt));
 
         if (!allow_empty)
             error::wrap_c_api(status,

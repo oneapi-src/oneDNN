@@ -34,7 +34,6 @@ No attribute is supported for transform ukernel.
 
 ## Implementation limitations
 
-- Source leading dimension must be equal to N to return the correct result.
 - Destination leading dimension only supported values are: 16, 32, 48, or 64.
 
 ## Examples

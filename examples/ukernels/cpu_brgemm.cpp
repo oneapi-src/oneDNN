@@ -237,7 +237,7 @@ void brgemm_example() {
         // constructor as it can be either incorporated into `K` dimension, or
         // manually iterated over in a for-loop on the user side.
         transform pack_B(/* K = */ K_k * n_calls, /* N = */ N,
-                /* in_ld = */ N,
+                /* in_pack_type = */ pack_type::no_trans, /* in_ld = */ N,
                 /* out_ld = */ ldb, /* in_dt = */ b_dt, /* out_dt = */ b_dt);
 
         // Size of the packed tensor.
