@@ -21,8 +21,6 @@
 #include "gpu/intel/jit/v2/conv/kernel_desc.hpp"
 #include "gpu/intel/jit/v2/conv/model.hpp"
 
-#include <unordered_map>
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -33,20 +31,30 @@ namespace conv {
 
 class plan_registry_t {
 public:
+    struct entry_t {
+        kernel_desc_t desc;
+        model_t model;
+
+        entry_t() = default;
+        entry_t(const kernel_desc_t &desc, const model_t &model)
+            : desc(desc), model(model) {}
+        void stringify(std::ostream &out) const;
+        void parse(std::istream &in);
+    };
+
+    plan_registry_t() = default;
+    plan_registry_t(const char **entries);
+
     void set(const kernel_desc_t &desc, const model_t &model) {
-        entries_[desc] = model;
+        entries_.emplace_back(desc, model);
     }
     void merge(const plan_registry_t &other);
     kernel_desc_t find_best(const problem_t &prb) const;
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(entries_, out);
-    }
-    void deserialize(std::istream &in) { ir_utils::deserialize(entries_, in); }
+    void stringify(std::ostream &out) const;
+    void parse(std::istream &out);
 
-private:
-    std::unordered_map<kernel_desc_t, model_t,
-            ir_utils::hasher_t<kernel_desc_t>>
-            entries_;
+public:
+    std::vector<entry_t> entries_;
 };
 
 const plan_registry_t &const_plan_registry();

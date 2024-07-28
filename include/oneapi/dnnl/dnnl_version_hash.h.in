@@ -14,31 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/jit/ir/hw.hpp"
+#ifndef ONEAPI_DNNL_DNNL_VERSION_HASH_H
+#define ONEAPI_DNNL_DNNL_VERSION_HASH_H
 
-namespace dnnl {
-namespace impl {
-namespace gpu {
-namespace intel {
-namespace jit {
+// clang-format off
 
-int hw_t::cache_line_size() const {
-    switch (hw_) {
-        case ngen::HW::Gen9:
-        case ngen::HW::Gen10:
-        case ngen::HW::Gen11:
-        case ngen::HW::XeLP:
-        case ngen::HW::XeHP:
-        case ngen::HW::XeHPG:
-        case ngen::HW::XeHPC:
-        case ngen::HW::Xe2: return 64;
-        default: ir_error_not_expected();
-    }
-    return 0;
-}
+/// Note: this macro and header file were moved to a separate instance to avoid
+/// incremental build issues as moving from commit to commit would trigger a
+/// complete library rebuild. Including a generated header file in a single
+/// translation unit makes this problem go away.
+/// Git commit hash
+#define DNNL_VERSION_HASH  "@DNNL_VERSION_HASH@"
 
-} // namespace jit
-} // namespace intel
-} // namespace gpu
-} // namespace impl
-} // namespace dnnl
+// clang-format on
+
+#endif

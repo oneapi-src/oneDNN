@@ -30,6 +30,7 @@
 #include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl_debug.h"
 #include "oneapi/dnnl/dnnl_version.h"
+#include "oneapi/dnnl/dnnl_version_hash.h"
 
 #include "c_types_map.hpp"
 #include "verbose.hpp"
