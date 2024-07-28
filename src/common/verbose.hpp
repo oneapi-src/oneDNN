@@ -190,6 +190,7 @@ struct component_t {
         group_normalization = 1 << 21,
         graph = 1 << 22,
         gemm_api = 1 << 23,
+        ukernel = 1 << 24,
         all = (uint32_t)-1,
     };
 };
@@ -379,6 +380,8 @@ std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
 std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
         const memory_desc_t *wei_md, const memory_desc_t *bia_md,
         const memory_desc_t *dst_md);
+// Returns a verbose string for primitive attributes. Used in ukernel API.
+std::string attr2str(const primitive_attr_t *attr);
 
 } // namespace impl
 } // namespace dnnl

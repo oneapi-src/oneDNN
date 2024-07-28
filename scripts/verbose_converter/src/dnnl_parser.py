@@ -433,7 +433,7 @@ class LogParser:
                 if l_raw[1] == "graph":
                     continue
                 # Remove a component from the line if presented
-                if l_raw[1] == "primitive":
+                if l_raw[1] == "primitive" or l_raw[1] == "ukernel":
                     l_raw.pop(1)
 
                 event = l_raw[1].split(":")[0]

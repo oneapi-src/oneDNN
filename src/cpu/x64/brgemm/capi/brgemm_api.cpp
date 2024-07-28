@@ -37,11 +37,11 @@ using brgemm_t = dnnl_brgemm;
 using transform_t = dnnl_transform;
 
 #define VCHECK_BRGEMM(cond, msg, ...) \
-    VCONDCHECK(primitive, create, check, brgemm, (cond), \
+    VCONDCHECK(ukernel, create, check, brgemm, (cond), \
             status::invalid_arguments, msg, ##__VA_ARGS__)
 
 #define VCHECK_BRGEMM_STATUS(status, cond, msg, ...) \
-    VCONDCHECK(primitive, create, check, brgemm, (cond), (status), msg, \
+    VCONDCHECK(ukernel, create, check, brgemm, (cond), (status), msg, \
             ##__VA_ARGS__)
 
 dnnl_brgemm::~dnnl_brgemm() {
@@ -142,6 +142,10 @@ status_t brgemm_t::generate() {
     VCHECK_BRGEMM_STATUS(
             status, status == status::success, "brgemm_kernel_create failed");
 
+    // Generate a verbose info string at the point where configuration is done.
+    if (get_verbose(verbose_t::exec_profile, component_t::ukernel)) {
+        create_verbose_info();
+    }
     return status::success;
 }
 
@@ -154,9 +158,22 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
         v_batch_element[i].offset.B = A_B_offsets[2 * i + 1];
     }
 
-    brgemm_kernel_execute(brgemm_kernel_, batch_size, A_ptr, B_ptr,
-            v_batch_element.data(), C_ptr, scratchpad_ptr,
-            /* dynamic_values = */ nullptr);
+    if (get_verbose(verbose_t::exec_profile, component_t::ukernel)) {
+        double start_ms = get_msec();
+        brgemm_kernel_execute(brgemm_kernel_, batch_size, A_ptr, B_ptr,
+                v_batch_element.data(), C_ptr, scratchpad_ptr,
+                /* dynamic_values = */ nullptr);
+        double duration_ms = get_msec() - start_ms;
+
+        std::stringstream ss;
+        ss << "cpu,brgemm,,undef," << verbose_info_;
+        VPROF(start_ms, ukernel, exec, VERBOSE_profile, ss.str().c_str(),
+                duration_ms);
+    } else {
+        brgemm_kernel_execute(brgemm_kernel_, batch_size, A_ptr, B_ptr,
+                v_batch_element.data(), C_ptr, scratchpad_ptr,
+                /* dynamic_values = */ nullptr);
+    }
     return status::success;
 }
 
@@ -183,10 +200,54 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
         C_ptr = D_ptr;
     }
 
-    brgemm_kernel_execute_postops(brgemm_kernel_, batch_size, A_ptr, B_ptr,
-            v_batch_element.data(), const_cast<void *>(C_ptr), D_ptr,
-            post_ops_data, scratchpad_ptr,
-            /* dynamic_values = */ nullptr);
+    if (get_verbose(verbose_t::exec_profile, component_t::ukernel)) {
+        double start_ms = get_msec();
+        brgemm_kernel_execute_postops(brgemm_kernel_, batch_size, A_ptr, B_ptr,
+                v_batch_element.data(), const_cast<void *>(C_ptr), D_ptr,
+                post_ops_data, scratchpad_ptr,
+                /* dynamic_values = */ nullptr);
+        double duration_ms = get_msec() - start_ms;
+
+        std::stringstream ss;
+        ss << "cpu,brgemm,,undef," << verbose_info_;
+        VPROF(start_ms, ukernel, exec, VERBOSE_profile, ss.str().c_str(),
+                duration_ms);
+    } else {
+        brgemm_kernel_execute_postops(brgemm_kernel_, batch_size, A_ptr, B_ptr,
+                v_batch_element.data(), const_cast<void *>(C_ptr), D_ptr,
+                post_ops_data, scratchpad_ptr,
+                /* dynamic_values = */ nullptr);
+    }
+    return status::success;
+}
+
+status_t brgemm_t::create_verbose_info() {
+    const auto &d = brgemm_desc_;
+    std::stringstream ss;
+
+    memory_desc_t src_md;
+    const dims_t src_dims = {M_, K_};
+    const dims_t src_strides = {lda_, 1};
+    CHECK(memory_desc_init_by_strides(src_md, 2, src_dims, a_dt_, src_strides));
+
+    memory_desc_t wei_md;
+    const dims_t wei_dims = {K_, N_};
+    const dims_t wei_strides = {ldb_, 1};
+    CHECK(memory_desc_init_by_strides(wei_md, 2, wei_dims, b_dt_, wei_strides));
+
+    memory_desc_t dst_md;
+    const dims_t dst_dims = {M_, N_};
+    const dims_t dst_strides = {ldd_, 1};
+    CHECK(memory_desc_init_by_strides(dst_md, 2, dst_dims, d_dt_, dst_strides));
+
+    ss << "src_" << md2fmt_str(&src_md, format_kind::undef);
+    ss << " wei_" << md2fmt_str(&wei_md, format_kind::undef);
+    ss << " dst_" << md2fmt_str(&dst_md, format_kind::undef);
+    ss << "," << attr2str(&attr_) << ",";
+    ss << "bs:" << d.brgattr.max_bs << " beta:" << beta_;
+    ss << "," << md2dim_str(&src_md) << ":" << md2dim_str(&wei_md);
+
+    verbose_info_ = ss.str();
     return status::success;
 }
 
@@ -227,10 +288,19 @@ status_t transform_t::generate() {
     if (pack_B_kernel_ != nullptr) return status::success;
 
     CHECK(matmul::create_brgemm_matmul_copy_b(pack_B_kernel_, &bmc_));
+
+    // Generate a verbose info string at the point where configuration is done.
+    if (get_verbose(verbose_t::exec_profile, component_t::ukernel)) {
+        CHECK(create_verbose_info());
+    }
     return status::success;
 }
 
 status_t transform_t::execute(const void *src, void *dst) const {
+    double start_ms = 0;
+    if (get_verbose(verbose_t::exec_profile, component_t::ukernel))
+        start_ms = get_msec();
+
     const uint8_t *src_ptr = reinterpret_cast<const uint8_t *>(src);
     uint8_t *dst_ptr = reinterpret_cast<uint8_t *>(dst);
 
@@ -276,6 +346,33 @@ status_t transform_t::execute(const void *src, void *dst) const {
         }
     }
 
+    if (get_verbose(verbose_t::exec_profile, component_t::ukernel)) {
+        double duration_ms = get_msec() - start_ms;
+
+        std::stringstream ss;
+        ss << "cpu,transform,pack_B,undef," << verbose_info_;
+        VPROF(start_ms, ukernel, exec, VERBOSE_profile, ss.str().c_str(),
+                duration_ms);
+    }
+    return status::success;
+}
+
+status_t transform_t::create_verbose_info() {
+    std::stringstream ss;
+
+    memory_desc_t src_md;
+    const dims_t dims = {K_, N_};
+    CHECK(memory_desc_init_by_strides(src_md, 2, dims, in_dt_, strides_));
+
+    memory_desc_t dst_md;
+    const dims_t dst_strides = {out_ld_, 1};
+    CHECK(memory_desc_init_by_strides(dst_md, 2, dims, out_dt_, dst_strides));
+
+    ss << "src_" << md2fmt_str(&src_md, format_kind::undef);
+    ss << " dst_" << md2fmt_str(&dst_md, format_kind::undef);
+    ss << ",,," << md2dim_str(&src_md);
+
+    verbose_info_ = ss.str();
     return status::success;
 }
 

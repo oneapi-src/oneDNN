@@ -45,6 +45,7 @@ def convert_driver(prop_kind):
     driver = {
         "batch_normalization": "bnorm",
         "binary": "binary",
+        "brgemm": "brgemm",
         "concat": "concat",
         "convolution": "conv",
         "deconvolution": "deconv",
@@ -194,6 +195,10 @@ def convert_aux(entry):
                 else ""
             )
             return f"--runtime-dim-mask={runtime_dim_mask}"
+        elif pk == "brgemm":
+            bs = entry["aux"]["bs"] if entry["aux"].get("bs") != None else ""
+            beta = entry["aux"]["beta"] if entry["aux"].get("beta") != None else ""
+            return f"--bs={bs} --beta={beta}"
         else:
             alg = alg_remove_primitive(alg)
             if alg != "":
@@ -336,6 +341,7 @@ def convert_dts(mds, prim_kind):
     convert_dts = {
         "batch_normalization": convert_dts_common,
         "binary": convert_dts_multiple_src,
+        "brgemm": convert_dts_multiple,
         "concat": convert_dts_all,
         "convolution": convert_dts_multiple,
         "deconvolution": convert_dts_multiple,

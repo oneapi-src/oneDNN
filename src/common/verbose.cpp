@@ -235,6 +235,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
                 REGEX_SEARCH(k, group_normalization, regexp, filter_status);
                 REGEX_SEARCH(k, graph, regexp, filter_status);
                 REGEX_SEARCH(k, gemm_api, regexp, filter_status);
+                REGEX_SEARCH(k, ukernel, regexp, filter_status);
 #undef REGEX_SEARCH
             } catch (const std::exception &e) {
                 filter_status.status = filter_status_t::flags::invalid;
@@ -814,6 +815,12 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         }
     }
     return ss;
+}
+
+std::string attr2str(const primitive_attr_t *attr) {
+    std::stringstream ss;
+    ss << attr;
+    return ss.str();
 }
 
 /* init_info section */

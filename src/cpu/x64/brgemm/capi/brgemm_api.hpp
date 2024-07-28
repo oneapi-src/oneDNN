@@ -103,6 +103,11 @@ private:
     // A main kernel.
     dnnl::impl::cpu::x64::brgemm_desc_t brgemm_desc_;
     dnnl::impl::cpu::x64::brgemm_kernel_t *brgemm_kernel_;
+
+    // Creates a `verbose_info_` string once during `generate()` call, and calls
+    // it during execute(). This is done to avoid string re-creation.
+    dnnl::impl::status_t create_verbose_info();
+    std::string verbose_info_;
 };
 
 struct dnnl_transform : public dnnl::impl::c_compatible {
@@ -133,6 +138,11 @@ private:
     // `unique_ptr` is required by API that generates a kernel.
     std::unique_ptr<dnnl::impl::cpu::x64::matmul::jit_brgemm_matmul_copy_b_t>
             pack_B_kernel_;
+
+    // Creates a `verbose_info_` string once during `generate()` call, and calls
+    // it during execute(). This is done to avoid string re-creation.
+    dnnl::impl::status_t create_verbose_info();
+    std::string verbose_info_;
 };
 
 #endif
