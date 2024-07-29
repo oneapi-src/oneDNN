@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,6 +110,95 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
+    compute::kernel_t kernel_;
+};
+
+struct simple_layer_normalization_bwd_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
+    struct pd_t : public gpu_layer_normalization_bwd_pd_t {
+        using gpu_layer_normalization_bwd_pd_t::
+                gpu_layer_normalization_bwd_pd_t;
+
+        DECLARE_COMMON_PD_T(
+                "lnorm_simple:any", simple_layer_normalization_bwd_t);
+
+        status_t init(impl::engine_t *engine) {
+            using namespace data_type;
+
+            const auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+
+            auto src_dt = src_md()->data_type;
+            auto diff_dst_dt = diff_dst_md()->data_type;
+            auto diff_src_dt = diff_src_md()->data_type;
+
+            bool uses_f16
+                    = utils::one_of(f16, src_dt, diff_dst_dt, diff_src_dt);
+            bool uses_f64
+                    = utils::one_of(f64, src_dt, diff_dst_dt, diff_src_dt);
+
+            VDISPATCH_LNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_LNORM(IMPLICATION(uses_f16,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp16))
+                            && IMPLICATION(uses_f64,
+                                    compute_engine->mayiuse(
+                                            compute::device_ext_t::khr_fp64)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_LNORM(
+                    stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_LNORM(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_LNORM(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+
+            VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
+            init_scratchpad();
+            return status::success;
+        }
+
+        status_t init_conf(impl::engine_t *engine);
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        void init_scratchpad();
+
+        lnorm_conf_t conf;
+    };
+
+    status_t init(impl::engine_t *engine) override {
+        if (pd()->has_zero_dim_memory()) return status::success;
+
+        compute::kernel_ctx_t kernel_ctx;
+
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
+        CHECK(status);
+
+        CHECK(create_kernel(engine, &kernel_, "simple_lnorm_bwd", kernel_ctx));
+        if (!kernel_) return status::runtime_error;
+
+        if (pd()->conf.use_scale || pd()->conf.use_shift) {
+            CHECK(create_kernel(engine, &kernel_scaleshift_,
+                    "simple_lnorm_bwd_scaleshift", kernel_ctx));
+            if (!kernel_scaleshift_) return status::runtime_error;
+            CHECK(create_kernel(engine, &kernel_scaleshift_finalize_,
+                    "simple_lnorm_bwd_scaleshift_final", kernel_ctx));
+            if (!kernel_scaleshift_finalize_) return status::runtime_error;
+        }
+
+        return status::success;
+    }
+
+    status_t execute(const exec_ctx_t &ctx) const override {
+        return execute_backward(ctx);
+    }
+
+private:
+    status_t execute_backward(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    compute::kernel_t kernel_scaleshift_;
+    compute::kernel_t kernel_scaleshift_finalize_;
     compute::kernel_t kernel_;
 };
 

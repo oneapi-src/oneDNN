@@ -14,9 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/c_types_map.hpp"
 #include "gpu/intel/ocl/simple_layer_normalization.hpp"
-
+#include "common/c_types_map.hpp"
 #include "common/primitive_exec_types.hpp"
 #include "common/scratchpad.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
@@ -43,14 +42,24 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.dst_dt = dst_mdw.data_type();
     conf.ndims = ndims;
     conf.norm_axis = pd->norm_axis();
-
     conf.src_md_info = memory_desc_info_t::create(src_mdw);
     conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
     conf.stat_md_info = memory_desc_info_t::create(stat_mdw);
-
+    conf.use_scale = pd->use_scale();
+    conf.use_shift = pd->use_shift();
+    conf.calculate_stats = !pd->stats_are_src();
+    conf.save_stats = pd->is_training();
+    conf.eps = pd->desc()->layer_norm_epsilon;
     conf.is_fwd = pd->is_fwd();
     conf.vect_dt_n = 1;
     conf.sub_group_size = 1;
+
+    if (conf.use_scale || conf.use_shift) {
+        memory_desc_wrapper weights_mdw(
+                pd->is_fwd() ? pd->weights_md() : pd->diff_weights_md());
+        conf.weights_data_type = weights_mdw.data_type();
+    }
+
     int c_block = 1;
     bool c_is_last_physical = false;
 
@@ -118,23 +127,106 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                         utils::format("X%d", i), md_hint_idx, dim);
             }
         }
+    } else {
+        conf.vectorize_bwd = false;
+        const int sg_size = [&]() {
+            int size = desired_sg_size;
+            while (size > 1) {
+                const bool fit_to_shape = conf.norm_axis % size == 0
+                        && (src_mdw.matches_one_of_tag(ab, abc, abcd, abcde)
+                                || (ndims == 2 && c_block % size == 0));
+                if (mayiuse_sg(size) && fit_to_shape) return size;
+                size -= 16;
+            }
+            return size;
+        }();
+        if (src_mdw.is_dense() && c_is_last_physical && sg_size > 1
+                && utils::one_of(data_type::f64, conf.src_dt, conf.dst_dt)) {
+            conf.vectorize_bwd = true;
+            conf.sub_group_size = sg_size;
+            conf.vect_dt_n = 8;
+            while (conf.norm_axis % (conf.sub_group_size * conf.vect_dt_n)
+                    != 0) {
+                conf.vect_dt_n /= 2;
+            }
+            while (src_mdw.blocking_desc().inner_nblks > 0
+                    && c_block % (conf.sub_group_size * conf.vect_dt_n) != 0) {
+                conf.vect_dt_n /= 2;
+            }
+        }
+        for (int i = 0; i < 4; i++) {
+            int md_hint_idx = nstl::min(i, ndims - 1);
+            int dim = (i < ndims - 1) ? dims[i] : 1;
+            if (conf.vectorize_bwd && (i == ndims - 1)) {
+                conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx,
+                        conf.sub_group_size);
+                CHECK(conf.dispatch.vectorize_dim(
+                        utils::format("X%d", i), conf.sub_group_size));
+            } else {
+                conf.dispatch.define_dim(
+                        utils::format("X%d", i), md_hint_idx, dim);
+            }
+        }
+
+        int n_block = 1;
+        conf.n_chunk_size = 1;
+        conf.vector_size_scaleshift = 1;
+        conf.n_chunks = dims[0] / conf.n_chunk_size;
+        if (src_mdw.blocking_desc().inner_nblks == 2
+                && src_mdw.blocking_desc().inner_idxs[0] == 0) {
+            n_block = src_mdw.blocking_desc().inner_blks[0];
+        }
+        // Scaleshift vectorization is supported for tensors
+        // with shapes AxB, 1xBxC
+        conf.vectorize_bwd_scaleshift = conf.vectorize_bwd
+                && stat_mdw.matches_one_of_tag(a, ab)
+                && ((ndims == 2
+                            && (c_block == sg_size || src_mdw.matches_tag(ab)))
+                        || (ndims == 3 && src_mdw.matches_tag(abc)
+                                && dims[0] == 1))
+                && utils::one_of(data_type::f64, conf.src_dt, conf.dst_dt);
+        if (!conf.vectorize_bwd_scaleshift) { return status::unimplemented; }
+        // Use partial reduction in order to increase number of used threads
+        conf.vector_size_scaleshift = c_block == sg_size ? 8 : 1;
+        const int first_dim = ndims == 2 ? dims[0] : dims[1];
+        while (n_block % conf.vector_size_scaleshift != 0
+                || first_dim % conf.vector_size_scaleshift != 0) {
+            conf.vector_size_scaleshift /= 2;
+        }
+        // Experimentally selected values
+        const int max_first_dim_elems_per_wi = 32;
+        int desired_first_dim_block_reads
+                = max_first_dim_elems_per_wi / conf.vector_size_scaleshift;
+        while (first_dim
+                        % (desired_first_dim_block_reads
+                                * conf.vector_size_scaleshift)
+                != 0) {
+            desired_first_dim_block_reads /= 2;
+        }
+        while (first_dim
+                        % (desired_first_dim_block_reads
+                                * conf.vector_size_scaleshift)
+                != 0) {
+            conf.vector_size_scaleshift /= 2;
+        }
+        conf.n_chunk_size
+                = desired_first_dim_block_reads * conf.vector_size_scaleshift;
+        conf.n_chunks = first_dim / conf.n_chunk_size;
+        // Scaleshift kernel does partial reduction of N
+        conf.dispatch_scaleshift.define_dim("N", conf.n_chunks);
+        conf.dispatch_scaleshift.define_dim("C", pd->norm_axis());
+        CHECK(conf.dispatch_scaleshift.vectorize_dim("C", conf.sub_group_size));
+        conf.dispatch_scaleshift.set_kernel_attr_suffix("SCALESHIFT");
+        conf.dispatch_scaleshift.generate();
+        // Scaleshift finalize kernel reduces results of scaleshift kernel
+        conf.dispatch_scaleshift_finalize.define_dim(
+                "C_finalize", pd->norm_axis());
+        conf.dispatch_scaleshift_finalize.set_kernel_attr_suffix(
+                "SCALESHIFT_FINALIZE");
+        conf.dispatch_scaleshift_finalize.generate();
     }
 
     conf.dispatch.generate();
-
-    conf.use_scale = pd->use_scale();
-    conf.use_shift = pd->use_shift();
-
-    if (conf.use_scale || conf.use_shift) {
-        memory_desc_wrapper weights_mdw(
-                pd->is_fwd() ? pd->weights_md() : pd->diff_weights_md());
-        conf.weights_data_type = weights_mdw.data_type();
-    }
-
-    conf.calculate_stats = !pd->stats_are_src();
-    conf.save_stats = pd->is_training();
-    conf.eps = pd->desc()->layer_norm_epsilon;
-
     return status::success;
 }
 
@@ -152,8 +244,6 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("IS_FWD", conf.is_fwd);
     kernel_ctx.define_int("IS_BWD", !conf.is_fwd);
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
-    kernel_ctx.define_int("VECTORIZE_CALC_STATS", conf.vectorize_calc_stats);
-    kernel_ctx.define_int("VECTORIZE_BWD", conf.vectorize_bwd);
     kernel_ctx.define_int(
             "VECTORIZE_BWD_SCALESHIFT", conf.vectorize_bwd_scaleshift);
     kernel_ctx.define_int("VECT_DT_N", conf.vect_dt_n);
@@ -169,8 +259,7 @@ static status_t init_kernel_ctx_common(
     def_dispatch(kernel_ctx, conf.dispatch);
     if (!conf.is_fwd) {
         def_dispatch(kernel_ctx, conf.dispatch_scaleshift);
-        if (conf.vectorize_bwd_scaleshift)
-            def_dispatch(kernel_ctx, conf.dispatch_scaleshift_finalize);
+        def_dispatch(kernel_ctx, conf.dispatch_scaleshift_finalize);
     }
 
     return status::success;
@@ -216,6 +305,86 @@ status_t simple_layer_normalization_fwd_t::execute_forward(
     arg_list.set(6, conf.eps);
     arg_list.set(7, src_scale);
     arg_list.set(8, dst_scale);
+
+    auto nd_range_kernel = conf.dispatch.nd_range();
+
+    status = parallel_for(ctx, nd_range_kernel, kernel_, arg_list);
+
+    return status;
+}
+
+status_t simple_layer_normalization_bwd_t::pd_t::init_conf(
+        impl::engine_t *engine) {
+    return init_conf_common(conf, this, engine);
+}
+
+status_t simple_layer_normalization_bwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf);
+}
+
+void simple_layer_normalization_bwd_t::pd_t::init_scratchpad() {
+    const size_t size = conf.n_chunks * conf.norm_axis * 2;
+    auto scratchpad = scratchpad_registry().registrar();
+    scratchpad.book(memory_tracking::names::key_lnorm_reduction, size,
+            types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
+}
+
+status_t simple_layer_normalization_bwd_t::execute_backward(
+        const exec_ctx_t &ctx) const {
+    if (pd()->has_zero_dim_memory()) return status::success;
+
+    status_t status = status::success;
+
+    const auto &conf = pd()->conf;
+
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
+    auto &variance = CTX_IN_STORAGE(DNNL_ARG_VARIANCE);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &scale = CTX_IN_STORAGE(DNNL_ARG_SCALE);
+
+    auto &diff_src = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DIFF_SRC, status);
+    CHECK(status);
+    auto &diff_scale = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE);
+    auto &diff_shift = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SHIFT);
+
+    if (conf.use_scale || conf.use_shift) {
+        std::unique_ptr<memory_storage_t> temp_reduce;
+        compute::kernel_arg_list_t arg_list;
+        temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
+                memory_tracking::names::key_lnorm_reduction);
+        arg_list.set(0, src);
+        arg_list.set(1, mean);
+        arg_list.set(2, variance);
+        arg_list.set(3, diff_dst);
+        arg_list.set(4, *temp_reduce);
+        arg_list.set(5, *temp_reduce);
+        arg_list.set(6, conf.eps);
+
+        auto nd_range = conf.dispatch_scaleshift.nd_range();
+        status = parallel_for(ctx, nd_range, kernel_scaleshift_, arg_list);
+        if (status != status::success) return status;
+
+        compute::kernel_arg_list_t arg_list_final;
+        arg_list_final.set(0, *temp_reduce);
+        arg_list_final.set(1, diff_scale);
+        arg_list_final.set(2, diff_shift);
+
+        auto nd_range_finalize = conf.dispatch_scaleshift_finalize.nd_range();
+        status = parallel_for(ctx, nd_range_finalize,
+                kernel_scaleshift_finalize_, arg_list_final);
+        if (status != status::success) return status;
+    }
+
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, mean);
+    arg_list.set(2, variance);
+    arg_list.set(3, diff_dst);
+    arg_list.set(4, scale);
+    arg_list.set(5, diff_src);
+    arg_list.set(6, conf.eps);
 
     auto nd_range_kernel = conf.dispatch.nd_range();
 

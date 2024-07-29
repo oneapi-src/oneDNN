@@ -49,6 +49,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     }},
     {{backward}, REG_BWD_PK({
         GPU_INSTANCE_INTEL(intel::ocl::vectorized_lnorm_bwd_t)
+        GPU_INSTANCE_INTEL(intel::ocl::simple_layer_normalization_bwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_layer_normalization_bwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::reusable_layer_normalization_bwd_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_layer_normalization_bwd_t)

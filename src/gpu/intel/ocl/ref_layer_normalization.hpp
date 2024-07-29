@@ -155,13 +155,11 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
             VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
-            if (conf.vectorize_bwd_scaleshift) { init_scratchpad(); }
             return status::success;
         }
 
         status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
-        void init_scratchpad();
 
         lnorm_conf_t conf;
     };
@@ -179,11 +177,6 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
             CHECK(create_kernel(engine, &kernel_scaleshift_,
                     "ref_lnorm_bwd_scaleshift", kernel_ctx));
             if (!kernel_scaleshift_) return status::runtime_error;
-            if (pd()->conf.vectorize_bwd_scaleshift) {
-                CHECK(create_kernel(engine, &kernel_scaleshift_finalize_,
-                        "ref_lnorm_bwd_scaleshift_final", kernel_ctx));
-                if (!kernel_scaleshift_finalize_) return status::runtime_error;
-            }
         }
         if (!kernel_) return status::runtime_error;
 
@@ -199,7 +192,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     compute::kernel_t kernel_scaleshift_;
-    compute::kernel_t kernel_scaleshift_finalize_;
     compute::kernel_t kernel_;
 };
 
