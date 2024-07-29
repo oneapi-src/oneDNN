@@ -23,11 +23,43 @@
 
 //******* Always-available load/writes *********//
 
+#define BLOCK_READ_FUNC_1 intel_sub_group_block_read_uc
+#define BLOCK_READ_FUNC_2 intel_sub_group_block_read_us
+#define BLOCK_READ_FUNC_4 intel_sub_group_block_read
+#define BLOCK_READ_FUNC_8 intel_sub_group_block_read_ul
+
+#define BLOCK_DT_1 uchar
+#define BLOCK_DT_2 ushort
+#define BLOCK_DT_4 uint
+#define BLOCK_DT_8 ulong
+
+#define SIZE_char 1
+#define SIZE_uchar 1
+#define SIZE_f8_e5m2 1
+#define SIZE_f8_e4m3 1
+#define SIZE_bf16 2
+#define SIZE_half 2
+#define SIZE_int 4
+#define SIZE_float 4
+#define SIZE_double 8
+
+#define SIZE(dt) CONCAT2(SIZE_, dt)
+#define BLOCK_DT(dt) CONCAT2(BLOCK_DT_, SIZE(dt))
+#define BLOCK_READ_FUNC(dt) CONCAT2(BLOCK_READ_FUNC_, SIZE(dt))
+
 #define DEF_load(dst_dt, src_dt) \
     void __attribute__((overloadable)) \
             load(__private dst_dt *dst, __global src_dt *val) { \
         *dst = CONCAT2(into_, dst_dt)(*val); \
+    } \
+    __attribute__((overloadable)) void block_load( \
+            __private dst_dt *dst, __global src_dt *src) { \
+        __global BLOCK_DT(src_dt) *data = (__global BLOCK_DT(src_dt) *)(src); \
+        BLOCK_DT(src_dt) block_val = BLOCK_READ_FUNC(src_dt)(data); \
+        src_dt src_val = CONCAT2(as_, src_dt)(block_val); \
+        *dst = CONCAT2(into_, dst_dt)(src_val); \
     }
+
 #define DEF_write(dst_dt, src_dt) \
     void __attribute__((overloadable)) \
             write(__global dst_dt *dst, __private src_dt *val) { \
@@ -35,6 +67,7 @@
     }
 
 // Loads
+DEF_load(float, int);
 DEF_load(float, float);
 DEF_load(float, char);
 DEF_load(float, uchar);

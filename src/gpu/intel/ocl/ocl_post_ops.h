@@ -26,6 +26,7 @@
 
 #include "gpu/intel/ocl/ocl_conversion.h"
 #include "gpu/intel/ocl/ocl_eltwise.h"
+#include "gpu/intel/ocl/ocl_io.h"
 
 float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         float alpha, float beta, float scale) {
@@ -127,46 +128,17 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         } \
     }
 
-// explicitly define sub group reads and data type with post fix "1" which are
-// required in FILL_WITH_BLOCK_READ macro. In that function number of elements
-// is appended to it so it works for 2,4 but for 1 there is no such name.
-#define intel_sub_group_block_read_uc1 intel_sub_group_block_read_uc
-#define intel_sub_group_block_read_us1 intel_sub_group_block_read_us
-#define intel_sub_group_block_read1 intel_sub_group_block_read
-#define uchar1 uchar
-#define ushort1 ushort
-#define uint1 uint
-
-#define FILL_WITH_BLOCK_READ(idx, src_ptr, dst_ptr, nelem, data_type) \
-    { \
-        data_type tmp_storage[nelem]; \
-        if (sizeof(data_type) == 1) { \
-            *((CONCAT2(uchar, nelem) *)(&tmp_storage)) \
-                    = (CONCAT2(intel_sub_group_block_read_uc, nelem)( \
-                            (__global uchar *)(src_ptr))); \
-        } \
-        if (sizeof(data_type) == 2) { \
-            *((CONCAT2(ushort, nelem) *)(&tmp_storage)) \
-                    = CONCAT2(intel_sub_group_block_read_us, nelem)( \
-                            (__global ushort *)(src_ptr)); \
-        } \
-        if (sizeof(data_type) == 4) { \
-            *((CONCAT2(uint, nelem) *)(&tmp_storage)) \
-                    = CONCAT2(intel_sub_group_block_read, nelem)( \
-                            (__global uint *)(src_ptr)); \
-        } \
-        unroll_for(typeof(nelem + 0) s_index = 0; s_index < nelem; \
-                   ++s_index) { \
-            dst_ptr[s_index] = into_float(tmp_storage[s_index]); \
-        } \
+#define FILL_WITH_BLOCK_READ(src_ptr, dst_ptr, nelem) \
+    unroll_for(typeof(nelem + 0) load_idx = 0; load_idx < nelem; ++load_idx) { \
+        block_load(&dst_ptr[load_idx], \
+                src_ptr + load_idx * get_sub_group_size()); \
     }
 
 #define X_NELEMS(x) ({ x / get_sub_group_size(); })
 
-#define CONDITIONAL_FILL( \
-        idx, blocked_coord, nelem, src_ptr, dst_ptr, data_type) \
+#define CONDITIONAL_FILL(blocked_coord, nelem, src_ptr, dst_ptr) \
     if (blocked_coord / get_sub_group_size() == nelem) \
-        FILL_WITH_BLOCK_READ(idx, src_ptr, dst_ptr, nelem, data_type);
+        FILL_WITH_BLOCK_READ(src_ptr, dst_ptr, nelem);
 
 #define FILL_BIN_ARG_TRY_BLOCK(idx, dest_ptr, dest_size, x0, x0_s, x1, x1_s, \
         x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s) \
@@ -181,12 +153,12 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
                     x4 % CONCAT3(PO_, idx, _BIN_ARG_D4), \
                     x5 % CONCAT3(PO_, idx, _BIN_ARG_D5)); \
 \
-            CONDITIONAL_FILL(idx, x1_s, 1, (po_buf(idx) + bin_arg_glob_off), \
-                    (dest_ptr + arg_off), po_dt(idx)); \
-            CONDITIONAL_FILL(idx, x1_s, 2, (po_buf(idx) + bin_arg_glob_off), \
-                    (dest_ptr + arg_off), po_dt(idx)); \
-            CONDITIONAL_FILL(idx, x1_s, 4, (po_buf(idx) + bin_arg_glob_off), \
-                    (dest_ptr + arg_off), po_dt(idx)); \
+            CONDITIONAL_FILL(x1_s, 1, (po_buf(idx) + bin_arg_glob_off), \
+                    (dest_ptr + arg_off)); \
+            CONDITIONAL_FILL(x1_s, 2, (po_buf(idx) + bin_arg_glob_off), \
+                    (dest_ptr + arg_off)); \
+            CONDITIONAL_FILL(x1_s, 4, (po_buf(idx) + bin_arg_glob_off), \
+                    (dest_ptr + arg_off)); \
         } \
     }
 
@@ -234,7 +206,7 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         const unsigned bin_arg_size \
                 = sizeof(accumulator) / sizeof(acc_elem_dt); \
         float bin_arg[sizeof(accumulator) / sizeof(acc_elem_dt)]; \
-        float *bin_arg_ptr = &bin_arg[0]; \
+        __private float *bin_arg_ptr = &bin_arg[0]; \
         const bool use_burst_read = IS_BURSTABLE(idx, x0, x0_s, x1, x1_s, x2, \
                 x2_s, x3, x3_s, x4, x4_s, x5, x5_s, is_burst); \
         if (use_burst_read) { \
