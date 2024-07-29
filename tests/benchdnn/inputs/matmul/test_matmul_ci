@@ -1,6 +1,6 @@
 # Plain cases
 --reset
---dt=f64,f32,bf16,f16,f8_e5m2,f8_e4m3,u8:s8:s8,s8:s8:f32
+--dt=f64,f32,bf16,f16,f8_e5m2,f8_e4m3,f8_e5m2:f8_e4m3:f32,u8:s8:s8,s8:s8:f32
 --bia_dt=f32
 --bia_mask=2
 --batch=shapes_2d_ci
