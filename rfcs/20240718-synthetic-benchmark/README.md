@@ -61,61 +61,97 @@ sense, meaningless. Because of this, specific workload A vs B comparisons cannot
 be used to justify spending developer effort on optimizations. This story
 changes when we can look at a large class of problems. In particular, when
 developers can demonstrate a gap across a significant class of workloads, and
-that class of workloads is related to some known workloads. In this case, it is
-reasonable to infer that more development is justified. More relevant data can
-be generated creating a weighting from KPIs workloads, but methods to create
-such method are outside the scope of this RFC.
+that class of workloads is related to some known workloads.
 
-The second issue is that it is too computationally expensive to collect high
-fidelity benchmarks across synthetic data. In particular, for GPU, KPI
-benchmarks already take on the order of hours. To perform an analysis of similar
-problems across all important data types, data layout, and reasonable problem
-modifications would be computationally prohibitive. To see why, consider the
-matmul operation which effectively takes 4 dimension: batch, m, k, and n. In
-order to obtain a broad overview of performance, at minimum we should be
-collecting an average of 30 samples spread across each dimension. This results
-in 30^4 samples, which is just shy of 1,000,000. Even if we can collect 10
-performance samples per second (which is optimistic), collecting this
-performance would take over a day (and we aren't including all the supported
-data types, layouts, and attributes yet). This is too long for effective
-development, and nearly prohibitive for data tracking.
+To consider a specific examples, recently, there has been a lot of work to
+optimize int4 LLM workloads. For optimization purposes, this largely equates to
+optimizing well-aligned GEMM operations. In particular for this workload, the
+`m` dimension of the GEMM operation is variable and is generally proportional to
+the prompt length for the first iteration, i.e. something like `m = 3k` where
+`k` is the number of words in the prompt, and then `m = 1` for later tokens. On
+the other hand, `n` and `k` only vary across LLM models and are relatively large.
 
-The final reason is targeted for developers. Implementation performance is hard
-to model, and as such, it is extremely difficult to generate good heuristics to
-dispatch oneDNN implementations. Because of this, developer need more data than
-KPIs provide and better tools to for analyzing such data. Adding synthetic data
-collection and some standard reports is a fist step in this direction for
-enabling developers to more effectively improve the oneDNN dispatching.
+If we take the restrictions from the first iteration and generate some synthetic
+data on a Flex Series GPU, we can generated a performance relative efficiency
+metric by calculating
+
+```C++
+sample_compute_efficiency = flops/max_sample_flops;
+sample_memory_efficiency = bandwidth/max_sample_bandwidth
+```
+
+For demonstration purposes, we can visualize this efficiency with a 3D heatmap
+and split the data by whether is mainly memory bound or compute bound.
 
 
-## What Data to Collect and How to Analyze
-One key problems with synthetic data is that it unclear what data should be
-collected and how it should be analyzed. The key metrics propose for this tool
-are intended to address the comparisons current developers are receiving. In
+![image](llm_atsm_memory.png)
+
+![image](llm_atsm_compute.png)
+
+After collecting data the above data, there are a few ways we intend to use it:
+
+1. Build tests suites for tracking performance across supported platforms.
+
+    * We may also consider appropriate generalizations. For example in this
+      case, the use of transposed memory layout it largely an artifact that the
+      initial XeTLA implementations provided better performance on that layout,
+      so development has been focused on that layout.
+
+2. Identify gaps and clarify requirements with users. For example in this case,
+   most first token requests focus on compute bound workloads.
+   * Does the lower efficiency drop associated with the memory bound scenario
+   when 16 < m < 64 relevant? Should we be measuring cold cache behavior instead?
+
+3. Generate visualizations/analysis developers can use to root cause issues
+
+   * From the above heatmap, the fact that no compute bound cases maximize
+     compute throughput or that the "easy" case of large `m`, `k`, and `n` has
+     lower efficiency is concerning.
+   * The memory bound outlier point may represent a useful point for identifying
+     implementation issues.
+
+4. Build developer tools for dispatch tuning.
+   * The general process being adopted for reusable kernels is to manually
+     generate a kernel database which contains a performance model used for
+     picking the kernel to run.
+     * This does not scale as it requires developer intervention to gain the
+       benefit of new optimizations on a per platform,type, and data layout
+       basis.
+     * Metrics for replacing old strategies is often unclear as it is often unknown
+       exactly why a strategy was chosen.
+     * Many of the issues noted from the visualization above are likely just
+       artifacts of the fact that a developer has not specifically analyzed that
+       range of problem sizes and picked an optimized kernel.
+   * This process can be replaced with tool that can automatically search for and
+     generate an optimal set of kernels covering the workspace.
+     * This requires significantly higher benchmarking throughput than
+       is currently provided by benchdnn. By my estimate, this requires the
+       ability to collect millions to hundreds of millions of performance data
+       points in a reasonable time.
+
+
+## How to Analyze
+Since synthetic data performance is, in some sense, meaningless, the proposal is
+to provide relative metrics for data analysis. The key proposed metrics are
+intended to address common analysis developers are currently receiving. In
 particular, these are
 
 * Performance relative to other oneDNN builds
 * Performance of data type A vs the equivalent f32 operations
 * Performance of data layout configuration A vs the "ideal" layout
 * Performance relative to a hardware independent efficiency proxy, such as
-  _flops/max\_measured\_flops_ for compute bound workloads,
-  _bandwidth/max\_measured\_bandwidth_ for memory bound workloads, or a maximum
-  of the two for a mixed workload. For many sample sets, this metric this will
-  be quite effective.
+  was used in the int4 example above.
 
-For what data should be collected, the proposal is to use psuedo-random sampling
-to generate a statistically significant distribution. We can then use simple
-metrics for analyzing the distribution for a passing state, for example by
-requiring mean performance to not regress and limiting tail performance
-regression. Because of this, we only need to benchmark a limited number of
-workloads, and the number of workloads can change based on accuracy
-requirements. Benchmarking in the range of 1,000 - 100,000 workloads should be
-sufficient for developers. In addition, since accuracy on a single workload is
-not relevant, each problem only needs to be executed a few times depending on
-caching assumptions and run to run variation requirements, allowing for
-significant benchmarking throughput relative to higher fidelity performance
-benchmarking. As such, a statistically significant distribution should be
-collectible within a few minutes.
+From this data, we can then use simple metrics to analyze the performance
+distribution for a passing state. For example, with a regression test we could
+require the mean performance to not regress and have some bound on tail
+performance regressions. For many analysis, we will only need to benchmark a
+limited number of workloads (around 1,000-10,000) to achieve enough statistical
+significance. In addition, since performance on specific workloads is not
+relevant, lower fidelity performance benchmarking can be used speed up testing.
+As such, a statistically significant sample can be collected relatively quickly.
+This throughput increase will be important to enable the automated tuning tools
+use case from above.
 
 ## Collecting Relevant Data For Developers
 One of the biggest issues for synthetic data is making sure it is relevant to
@@ -199,7 +235,7 @@ use in benchdnn:
 
 
 To provide a maintainable and correct implementation, `dnnl_primitive_get_id` is
-expected to provide a has of the primitive JIT generated function binary and any
+expected to provide a hash of the primitive JIT generated function binary and any
 performance related function arguments. As getting the hash of runtime kernel
 arguments will need to be invasive to each implementation, a special value
 `hash_id_unsupported = 0` will also exist for unsupported implementations,
@@ -257,10 +293,11 @@ project performance. This PR proposes adding a few starter methods:
   different machine architectures based on average and expected behaviors for a
   given architecture.
 
-* Scatter Plot Tool - This tool will provide an interactive scatter plot of
-  performance across a range of problems. The intended usage is for developers
-  to explore the problem space to help identify general problem trends and
-  problematic scenarios.
+* Scatter Plot or Heatmap Tool - This tool will provide an interactive plot of
+  performance across a range of problems sizes. The intended usage is for
+  developers to explore the problem space to help identify general problem
+  trends and problematic scenarios.
+
 
 As a demonstration for how this can work, a prototype scatter plot
 implementation can be found at `rjoursle/scatter`. To use this prototype, build
@@ -274,6 +311,6 @@ ssh <machine> "source <environment.sh>; python3 <dnnl_machine>/tests/synthdnn/co
 This should create a locally interactive 3D plot (even during data collection)
 of the memory throughput of `1xkxn` memory bound int4 and int8 GEMM workloads.
 Once data collection is complete, there should be a plot like the following
-collected on an Arc GPU:
+collected on an Flex Series GPU:
 
 ![image](Arc_u4_vs_s8_1xkxn_GEMM.png)
