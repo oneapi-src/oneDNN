@@ -26,12 +26,14 @@ set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
 
 add_subdirectory(generic)
 
-if(DNNL_GPU_VENDOR STREQUAL "INTEL")
-    add_definitions_with_host_compiler(-DNGEN_CPP11)
-    add_definitions_with_host_compiler(-DNGEN_SAFE)
-    add_definitions_with_host_compiler(-DNGEN_NEO_INTERFACE)
-    add_definitions_with_host_compiler(-DNGEN_NO_OP_NAMES)
-    add_definitions_with_host_compiler(-DNGEN_WINDOWS_COMPAT)
+if(DNNL_WITH_OCL)
+    if(DNNL_GPU_VENDOR STREQUAL "INTEL")
+	add_definitions_with_host_compiler(-DNGEN_CPP11)
+	add_definitions_with_host_compiler(-DNGEN_SAFE)
+	add_definitions_with_host_compiler(-DNGEN_NEO_INTERFACE)
+	add_definitions_with_host_compiler(-DNGEN_NO_OP_NAMES)
+	add_definitions_with_host_compiler(-DNGEN_WINDOWS_COMPAT)
+    endif()
     add_subdirectory(intel)
 endif()
 

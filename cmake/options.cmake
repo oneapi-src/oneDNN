@@ -328,6 +328,12 @@ else()
     set(DNNL_WITH_SYCL false)
 endif()
 
+if(DNNL_GPU_RUNTIME STREQUAL "OCL") # ... OR DNNL_CPU_RUNTIME STREQUAL "OCL")
+    set(DNNL_WITH_OCL true)
+else()
+    set(DNNL_WITH_OCL false)
+endif()
+
 # =============
 # Miscellaneous
 # =============
