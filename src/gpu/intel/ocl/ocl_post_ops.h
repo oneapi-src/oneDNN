@@ -55,13 +55,12 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
     }
 }
 
-#define FWD_XNARY_GENERIC_DT(po_kind, algorithm, result, result_elem_dt, \
-        arg0_ptr, arg0_len, arg1_ptr, arg1_len, alpha, beta, scale) \
+#define FWD_XNARY_GENERIC_DT(po_kind, algorithm, res_ptr, arg0_ptr, arg0_len, \
+        arg1_ptr, arg1_len, alpha, beta, scale) \
     { \
         auto ty = arg0_len + arg1_len; \
         const typeof(ty) out_len \
                 = max((typeof(ty))arg0_len, (typeof(ty))arg1_len); \
-        result_elem_dt *res_ptr = (result_elem_dt *)(&result); \
         unroll_for(typeof(out_len + 0) idx = 0; idx < out_len; ++idx) { \
             const int arg0_idx = arg0_len == 1 ? 0 : idx; \
             const int arg1_idx = arg1_len == 1 ? 0 : idx; \
@@ -82,11 +81,10 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
                 a_conv, b, *((CONCAT2(acc_elem_dt, block_size) *)acc_ptr)); \
     }
 
-#define FMA_MIXED(acc_nof_elems, a, a_elem_dt, b, acc, acc_elem_dt) \
+#define FMA_MIXED(acc_nof_elems, a, a_elem_dt, b, acc_ptr, acc_elem_dt) \
     { \
         auto nof_elems = acc_nof_elems; \
         a_elem_dt *a_ptr = (a_elem_dt *)(&a); \
-        acc_elem_dt *acc_ptr = (acc_elem_dt *)(&acc); \
         FMA_BLOCK(8, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b); \
         FMA_BLOCK(4, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b); \
         FMA_BLOCK(2, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b); \
@@ -134,7 +132,7 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
                 src_ptr + load_idx * get_sub_group_size()); \
     }
 
-#define X_NELEMS(x) ({ x / get_sub_group_size(); })
+#define X_NELEMS(x) (x / get_sub_group_size())
 
 #define CONDITIONAL_FILL(blocked_coord, nelem, src_ptr, dst_ptr) \
     if (blocked_coord / get_sub_group_size() == nelem) \
@@ -200,12 +198,10 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         is_burstable; \
     })
 
-#define APPLY_PO_BINARY(idx, accumulator, acc_elem_dt, x0, x0_s, x1, x1_s, \
-        x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, is_burst) \
+#define APPLY_PO_BINARY(idx, accumulator, x0, x0_s, x1, x1_s, x1_incr, x2, \
+        x2_s, x3, x3_s, x4, x4_s, x5, x5_s, is_burst, bin_arg_size) \
     { \
-        const unsigned bin_arg_size \
-                = sizeof(accumulator) / sizeof(acc_elem_dt); \
-        float bin_arg[sizeof(accumulator) / sizeof(acc_elem_dt)]; \
+        float bin_arg[bin_arg_size]; \
         __private float *bin_arg_ptr = &bin_arg[0]; \
         const bool use_burst_read = IS_BURSTABLE(idx, x0, x0_s, x1, x1_s, x2, \
                 x2_s, x3, x3_s, x4, x4_s, x5, x5_s, is_burst); \
@@ -224,43 +220,33 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
                     x3_s, x4_s, x5_s); \
         } \
         FWD_XNARY_GENERIC_DT(PO_BINARY, CONCAT3(PO_, idx, _ALG), accumulator, \
-                acc_elem_dt, ((acc_elem_dt *)(&accumulator)), \
-                (sizeof(accumulator) / sizeof(acc_elem_dt)), bin_arg_ptr, \
-                bin_arg_size, 0.0f, 0.0f, 1.0f); \
+                accumulator, bin_arg_size, bin_arg_ptr, bin_arg_size, 0.0f, \
+                0.0f, 1.0f); \
     }
 
-#define APPLY_PO_SUM(idx, accumulator, acc_elem_dt, sum_src, sum_elem_dt) \
-    { \
-        unsigned acc_size = sizeof(accumulator) / sizeof(acc_elem_dt); \
-        FMA_MIXED(acc_size, sum_src, sum_elem_dt, \
-                CONCAT3(PO_, idx, _SUM_SCALE), accumulator, acc_elem_dt); \
-    }
+#define APPLY_PO_SUM( \
+        idx, accumulator, acc_size, acc_elem_dt, sum_src, sum_elem_dt) \
+    FMA_MIXED(acc_size, sum_src, sum_elem_dt, CONCAT3(PO_, idx, _SUM_SCALE), \
+            accumulator, acc_elem_dt);
 
-#define APPLY_PO_ELTWISE(idx, accumulator, acc_elem_dt) \
-    { \
-        FWD_XNARY_GENERIC_DT(PO_ELTWISE, CONCAT3(PO_, idx, _ALG), accumulator, \
-                acc_elem_dt, ((acc_elem_dt *)(&accumulator)), \
-                (sizeof(accumulator) / sizeof(acc_elem_dt)), \
-                ((acc_elem_dt *)(&accumulator)), \
-                (sizeof(accumulator) / sizeof(acc_elem_dt)), \
-                CONCAT3(PO_, idx, _ELTWISE_ALPHA), \
-                CONCAT3(PO_, idx, _ELTWISE_BETA), \
-                CONCAT3(PO_, idx, _ELTWISE_SCALE)); \
-    }
+#define APPLY_PO_ELTWISE(idx, accumulator, nelems) \
+    FWD_XNARY_GENERIC_DT(PO_ELTWISE, CONCAT3(PO_, idx, _ALG), accumulator, \
+            accumulator, nelems, accumulator, nelems, \
+            CONCAT3(PO_, idx, _ELTWISE_ALPHA), \
+            CONCAT3(PO_, idx, _ELTWISE_BETA), \
+            CONCAT3(PO_, idx, _ELTWISE_SCALE));
 
-#define APPLY_PO_STAGE(idx, accumulator, acc_elem_dt, sum_src, sum_elem_dt, \
+#define APPLY_PO_STAGE(idx, acc, acc_elem_dt, nelems, sum_src, sum_elem_dt, \
         x0, x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
         is_burst) \
     switch (CONCAT3(PO_, idx, _KIND)) { \
         case PO_BINARY: \
-            APPLY_PO_BINARY(idx, accumulator, acc_elem_dt, x0, x0_s, x1, x1_s, \
-                    x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-                    is_burst); \
+            APPLY_PO_BINARY(idx, acc, x0, x0_s, x1, x1_s, x1_incr, x2, x2_s, \
+                    x3, x3_s, x4, x4_s, x5, x5_s, is_burst, nelems); \
             break; \
-        case PO_ELTWISE: APPLY_PO_ELTWISE(idx, accumulator, acc_elem_dt); \
-                break; \
+        case PO_ELTWISE: APPLY_PO_ELTWISE(idx, acc, nelems); break; \
         case PO_SUM: \
-            APPLY_PO_SUM(idx, accumulator, acc_elem_dt, sum_src, sum_elem_dt); \
+            APPLY_PO_SUM(idx, acc, nelems, acc_elem_dt, sum_src, sum_elem_dt); \
             break; \
     }
 
@@ -300,8 +286,13 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
 #define APPLY_PO_STAGE_32(...) APPLY_PO_STAGE_31(__VA_ARGS__) APPLY_PO_STAGE(31, __VA_ARGS__)
 // clang-format on
 
-#define APPLY_ALL_PO_STAGES(...) \
-    { CONCAT2(APPLY_PO_STAGE_, POST_OP_CHAIN_LENGTH)(__VA_ARGS__) }
+#define APPLY_ALL_PO_STAGES(accumulator, acc_elem_dt, ...) \
+    { \
+        const int nelems = sizeof(accumulator) / sizeof(acc_elem_dt); \
+        acc_elem_dt *acc = &accumulator; \
+        CONCAT2(APPLY_PO_STAGE_, POST_OP_CHAIN_LENGTH) \
+        (acc, acc_elem_dt, nelems, __VA_ARGS__) \
+    }
 
 #define APPLY_POST_OPS_BL(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
         x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
