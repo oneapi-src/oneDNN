@@ -712,6 +712,7 @@ struct reorder_conf_t {
     reorder_kernel_t implementation;
     int ndims;
     size_t nelems;
+    bool subbyte_pack = false;
 
     compute::dispatch_t dispatch;
 

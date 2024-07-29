@@ -128,9 +128,11 @@ struct ref_reorder_t : public gpu_primitive_t {
 
         const auto &conf = pd()->conf;
         if (conf.nelems == 0) return status::success;
+        kernels_.resize(2);
 
-        CHECK(create_kernel(engine, &kernel_, "ref_reorder", kernel_ctx));
-        if (!kernel_) return status::runtime_error;
+        CHECK(create_kernels(engine, &kernels_, {"ref_reorder", "subbyte_pack"},
+                kernel_ctx));
+        if (!kernels_[0]) return status::runtime_error;
         return status::success;
     }
 
@@ -138,7 +140,7 @@ struct ref_reorder_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
+    std::vector<compute::kernel_t> kernels_;
 };
 
 } // namespace ocl
