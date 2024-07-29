@@ -264,534 +264,51 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
             break; \
     }
 
-#if POST_OP_CHAIN_LENGTH == 0
-#define EMPTY_POST_OPS(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    {}
-#endif
+// clang-format off
+#define APPLY_PO_STAGE_0(...)
+#define APPLY_PO_STAGE_1(...) APPLY_PO_STAGE(0, __VA_ARGS__)
+#define APPLY_PO_STAGE_2(...) APPLY_PO_STAGE_1(__VA_ARGS__) APPLY_PO_STAGE(1, __VA_ARGS__)
+#define APPLY_PO_STAGE_3(...) APPLY_PO_STAGE_2(__VA_ARGS__) APPLY_PO_STAGE(2, __VA_ARGS__)
+#define APPLY_PO_STAGE_4(...) APPLY_PO_STAGE_3(__VA_ARGS__) APPLY_PO_STAGE(3, __VA_ARGS__)
+#define APPLY_PO_STAGE_5(...) APPLY_PO_STAGE_4(__VA_ARGS__) APPLY_PO_STAGE(4, __VA_ARGS__)
+#define APPLY_PO_STAGE_6(...) APPLY_PO_STAGE_5(__VA_ARGS__) APPLY_PO_STAGE(5, __VA_ARGS__)
+#define APPLY_PO_STAGE_7(...) APPLY_PO_STAGE_6(__VA_ARGS__) APPLY_PO_STAGE(6, __VA_ARGS__)
+#define APPLY_PO_STAGE_8(...) APPLY_PO_STAGE_7(__VA_ARGS__) APPLY_PO_STAGE(7, __VA_ARGS__)
+#define APPLY_PO_STAGE_9(...) APPLY_PO_STAGE_8(__VA_ARGS__) APPLY_PO_STAGE(8, __VA_ARGS__)
+#define APPLY_PO_STAGE_10(...) APPLY_PO_STAGE_9(__VA_ARGS__) APPLY_PO_STAGE(9, __VA_ARGS__)
+#define APPLY_PO_STAGE_11(...) APPLY_PO_STAGE_10(__VA_ARGS__) APPLY_PO_STAGE(10, __VA_ARGS__)
+#define APPLY_PO_STAGE_12(...) APPLY_PO_STAGE_11(__VA_ARGS__) APPLY_PO_STAGE(11, __VA_ARGS__)
+#define APPLY_PO_STAGE_13(...) APPLY_PO_STAGE_12(__VA_ARGS__) APPLY_PO_STAGE(12, __VA_ARGS__)
+#define APPLY_PO_STAGE_14(...) APPLY_PO_STAGE_13(__VA_ARGS__) APPLY_PO_STAGE(13, __VA_ARGS__)
+#define APPLY_PO_STAGE_15(...) APPLY_PO_STAGE_14(__VA_ARGS__) APPLY_PO_STAGE(14, __VA_ARGS__)
+#define APPLY_PO_STAGE_16(...) APPLY_PO_STAGE_15(__VA_ARGS__) APPLY_PO_STAGE(15, __VA_ARGS__)
+#define APPLY_PO_STAGE_17(...) APPLY_PO_STAGE_16(__VA_ARGS__) APPLY_PO_STAGE(16, __VA_ARGS__)
+#define APPLY_PO_STAGE_18(...) APPLY_PO_STAGE_17(__VA_ARGS__) APPLY_PO_STAGE(17, __VA_ARGS__)
+#define APPLY_PO_STAGE_19(...) APPLY_PO_STAGE_18(__VA_ARGS__) APPLY_PO_STAGE(18, __VA_ARGS__)
+#define APPLY_PO_STAGE_20(...) APPLY_PO_STAGE_19(__VA_ARGS__) APPLY_PO_STAGE(19, __VA_ARGS__)
+#define APPLY_PO_STAGE_21(...) APPLY_PO_STAGE_20(__VA_ARGS__) APPLY_PO_STAGE(20, __VA_ARGS__)
+#define APPLY_PO_STAGE_22(...) APPLY_PO_STAGE_21(__VA_ARGS__) APPLY_PO_STAGE(21, __VA_ARGS__)
+#define APPLY_PO_STAGE_23(...) APPLY_PO_STAGE_22(__VA_ARGS__) APPLY_PO_STAGE(22, __VA_ARGS__)
+#define APPLY_PO_STAGE_24(...) APPLY_PO_STAGE_23(__VA_ARGS__) APPLY_PO_STAGE(23, __VA_ARGS__)
+#define APPLY_PO_STAGE_25(...) APPLY_PO_STAGE_24(__VA_ARGS__) APPLY_PO_STAGE(24, __VA_ARGS__)
+#define APPLY_PO_STAGE_26(...) APPLY_PO_STAGE_25(__VA_ARGS__) APPLY_PO_STAGE(25, __VA_ARGS__)
+#define APPLY_PO_STAGE_27(...) APPLY_PO_STAGE_26(__VA_ARGS__) APPLY_PO_STAGE(26, __VA_ARGS__)
+#define APPLY_PO_STAGE_28(...) APPLY_PO_STAGE_27(__VA_ARGS__) APPLY_PO_STAGE(27, __VA_ARGS__)
+#define APPLY_PO_STAGE_29(...) APPLY_PO_STAGE_28(__VA_ARGS__) APPLY_PO_STAGE(28, __VA_ARGS__)
+#define APPLY_PO_STAGE_30(...) APPLY_PO_STAGE_29(__VA_ARGS__) APPLY_PO_STAGE(29, __VA_ARGS__)
+#define APPLY_PO_STAGE_31(...) APPLY_PO_STAGE_30(__VA_ARGS__) APPLY_PO_STAGE(30, __VA_ARGS__)
+#define APPLY_PO_STAGE_32(...) APPLY_PO_STAGE_31(__VA_ARGS__) APPLY_PO_STAGE(31, __VA_ARGS__)
+// clang-format on
 
-#if POST_OP_CHAIN_LENGTH > 0
-#define APPLY_1_PO_STAGE(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_PO_STAGE(0, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 1
-#define APPLY_2_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_1_PO_STAGE(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(1, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 2
-#define APPLY_3_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_2_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(2, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 3
-#define APPLY_4_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_3_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(3, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 4
-#define APPLY_5_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_4_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(4, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 5
-#define APPLY_6_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_5_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(5, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 6
-#define APPLY_7_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_6_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(6, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 7
-#define APPLY_8_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_7_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(7, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 8
-#define APPLY_9_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_8_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(8, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 9
-#define APPLY_10_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_9_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(9, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 10
-#define APPLY_11_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_10_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(10, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 11
-#define APPLY_12_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_11_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(11, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 12
-#define APPLY_13_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_12_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(12, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 13
-#define APPLY_14_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_13_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(13, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 14
-#define APPLY_15_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_14_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(14, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 15
-#define APPLY_16_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_15_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(15, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 16
-#define APPLY_17_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_16_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(16, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 17
-#define APPLY_18_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_17_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(17, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 18
-#define APPLY_19_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_18_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(18, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 19
-#define APPLY_20_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_19_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(19, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 20
-#define APPLY_21_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_20_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(20, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 21
-#define APPLY_22_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_21_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(21, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 22
-#define APPLY_23_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_22_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(22, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 23
-#define APPLY_24_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_23_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(23, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 24
-#define APPLY_25_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_24_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(24, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 25
-#define APPLY_26_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_25_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(25, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 26
-#define APPLY_27_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_26_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(26, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 27
-#define APPLY_28_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_27_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(27, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 28
-#define APPLY_29_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_28_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(28, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 29
-#define APPLY_30_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_29_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(29, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 30
-#define APPLY_31_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_30_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(30, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH > 31
-#define APPLY_32_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-        x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
-        is_burst) \
-    { \
-        APPLY_31_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-        APPLY_PO_STAGE(31, accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
-                x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
-#endif
-
-#if POST_OP_CHAIN_LENGTH == 0
-#define APPLY_ALL_PO_STAGES EMPTY_POST_OPS
-#elif POST_OP_CHAIN_LENGTH == 1
-#define APPLY_ALL_PO_STAGES APPLY_1_PO_STAGE
-#elif POST_OP_CHAIN_LENGTH == 2
-#define APPLY_ALL_PO_STAGES APPLY_2_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 3
-#define APPLY_ALL_PO_STAGES APPLY_3_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 4
-#define APPLY_ALL_PO_STAGES APPLY_4_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 5
-#define APPLY_ALL_PO_STAGES APPLY_5_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 6
-#define APPLY_ALL_PO_STAGES APPLY_6_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 7
-#define APPLY_ALL_PO_STAGES APPLY_7_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 8
-#define APPLY_ALL_PO_STAGES APPLY_8_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 9
-#define APPLY_ALL_PO_STAGES APPLY_9_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 10
-#define APPLY_ALL_PO_STAGES APPLY_10_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 11
-#define APPLY_ALL_PO_STAGES APPLY_11_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 12
-#define APPLY_ALL_PO_STAGES APPLY_12_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 13
-#define APPLY_ALL_PO_STAGES APPLY_13_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 14
-#define APPLY_ALL_PO_STAGES APPLY_14_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 15
-#define APPLY_ALL_PO_STAGES APPLY_15_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 16
-#define APPLY_ALL_PO_STAGES APPLY_16_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 17
-#define APPLY_ALL_PO_STAGES APPLY_17_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 18
-#define APPLY_ALL_PO_STAGES APPLY_18_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 19
-#define APPLY_ALL_PO_STAGES APPLY_19_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 20
-#define APPLY_ALL_PO_STAGES APPLY_20_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 21
-#define APPLY_ALL_PO_STAGES APPLY_21_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 22
-#define APPLY_ALL_PO_STAGES APPLY_22_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 23
-#define APPLY_ALL_PO_STAGES APPLY_23_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 24
-#define APPLY_ALL_PO_STAGES APPLY_24_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 25
-#define APPLY_ALL_PO_STAGES APPLY_25_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 26
-#define APPLY_ALL_PO_STAGES APPLY_26_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 27
-#define APPLY_ALL_PO_STAGES APPLY_27_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 28
-#define APPLY_ALL_PO_STAGES APPLY_28_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 29
-#define APPLY_ALL_PO_STAGES APPLY_29_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 30
-#define APPLY_ALL_PO_STAGES APPLY_30_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 31
-#define APPLY_ALL_PO_STAGES APPLY_31_PO_STAGES
-#elif POST_OP_CHAIN_LENGTH == 32
-#define APPLY_ALL_PO_STAGES APPLY_32_PO_STAGES
-#endif
+#define APPLY_ALL_PO_STAGES(...) \
+    { CONCAT2(APPLY_PO_STAGE_, POST_OP_CHAIN_LENGTH)(__VA_ARGS__) }
 
 #define APPLY_POST_OPS_BL(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
         x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
         is_burst) \
-    { \
-        APPLY_ALL_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, \
-                x0, x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, \
-                x5_s, is_burst); \
-    }
+    APPLY_ALL_PO_STAGES(accumulator, acc_elem_dt, sum_src, sum_elem_dt, x0, \
+            x0_s, x1, x1_s, x1_incr, x2, x2_s, x3, x3_s, x4, x4_s, x5, x5_s, \
+            is_burst);
 
 #define APPLY_POST_OPS_TRY_BURST(accumulator, acc_elem_dt, sum_src, \
         sum_elem_dt, mb_start, mb_size, oc_start, oc_size, oc_serial_incr) \
@@ -813,18 +330,9 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
             false)
 #else
 
-#define APPLY_POST_OPS_SERIAL(accumulator, acc_elem_dt, sum_src, sum_elem_dt, \
-        mb_start, mb_size, oc_start, oc_size, d2_start, d2_size, d3_start, \
-        d3_size, d4_start, d4_size, d5_start, d5_size) \
-    {}
-
-#define APPLY_POST_OPS_SERIAL_BINARY_2D(accumulator, acc_elem_dt, sum_src, \
-        sum_elem_dt, mb_start, mb_size, oc_start, oc_size) \
-    {}
-
-#define APPLY_POST_OPS_TRY_BURST(accumulator, acc_elem_dt, sum_src, \
-        sum_elem_dt, mb_start, mb_size, oc_start, oc_size, oc_serial_incr) \
-    {}
+#define APPLY_POST_OPS_SERIAL(...)
+#define APPLY_POST_OPS_SERIAL_BINARY_2D(...)
+#define APPLY_POST_OPS_TRY_BURST(...)
 
 #endif // WITH_POST_OP
 
