@@ -312,7 +312,6 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
             = this->desc()->weights_iter_desc.data_type;
     const data_type_t weights_layer_dt
             = this->desc()->weights_layer_desc.data_type;
-    return status::unimplemented;
     bool is_f32 = everyone_is(
             data_type::f32, src_layer_dt, weights_iter_dt, weights_layer_dt);
     bool is_impl_bf16 = everyone_is(data_type::bf16, src_type, weights_type);
