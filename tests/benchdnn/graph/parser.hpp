@@ -20,6 +20,12 @@
 #include <map>
 #include <string>
 
+#include "allocator.hpp"
+#include "dnnl_common.hpp"
+#include "oneapi/dnnl/dnnl_graph.hpp"
+
+extern dnnl_engine_kind_t engine_tgt_kind;
+
 namespace graph {
 
 bool parse_input_shapes(
