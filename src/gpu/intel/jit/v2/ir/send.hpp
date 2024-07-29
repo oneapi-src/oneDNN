@@ -82,7 +82,7 @@ struct addr_t {
         for (int i = 1; i < slots; i++) {
             it.next(elems_per_slot);
             slot_incs[i] = simplify_rewrite(
-                    layout.offset_in_bytes(it.block_offset()));
+                    layout.shift_in_bytes(it.block_offset()));
         }
     }
 
@@ -406,7 +406,7 @@ struct send_1d_plan_t : public base_plan_t {
             int reg_off, const prover_t &prover) {
         auto &layout = it.parent();
         auto &off = it.block_offset();
-        expr_t addr_inc = layout.offset_in_bytes(off);
+        expr_t addr_inc = layout.shift_in_bytes(off);
         if (!desc.base_alignment_ok(addr_inc, prover)) return false;
         std::vector<expr_t> mask_incs(nmasks());
         auto coord = it.coord();
