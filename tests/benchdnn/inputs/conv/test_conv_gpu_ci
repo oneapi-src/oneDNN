@@ -66,7 +66,7 @@
 
 # f8
 --reset
---dt=f8_e5m2,f8_e4m3
+--dt=f8_e5m2,f8_e4m3,f8_e5m2:f8_e4m3:f32
 --mb=2,16
 --dir=FWD_B,FWD_D
 --attr-post-ops=, \
@@ -77,7 +77,7 @@
 --batch=shapes_basic_gpu
 
 --reset
---dt=f8_e5m2,f8_e4m3
+--dt=f8_e5m2,f8_e4m3,f8_e5m2:f8_e4m3:f32
 --mb=2,16
 --dir=BWD_D,BWD_W
 --batch=shapes_basic_gpu
