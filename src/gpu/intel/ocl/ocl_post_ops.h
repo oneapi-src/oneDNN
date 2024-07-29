@@ -24,9 +24,8 @@
 #define WITH_ELTWISE 1
 #endif
 
+#include "gpu/intel/ocl/ocl_conversion.h"
 #include "gpu/intel/ocl/ocl_eltwise.h"
-#include "gpu/intel/ocl/ocl_math_utils.h"
-#include "gpu/intel/ocl/ocl_types.h"
 
 float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         float alpha, float beta, float scale) {
@@ -55,21 +54,6 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
     }
 }
 
-#define CONV_BIN_ARG_TO_FLOAT(idx, bin_arg_val) \
-    ({ \
-        float ret_val; \
-        if (CONCAT3(PO_, idx, _BIN_ARG_DT_IS_BF16)) { \
-            ret_val = cvt_bf16_to_f32(bin_arg_val); \
-        } else if (CONCAT3(PO_, idx, _BIN_ARG_DT_IS_BF8)) { \
-            ret_val = convert_float(cvt_f8_e5m2_to_hf(bin_arg_val)); \
-        } else if (CONCAT3(PO_, idx, _BIN_ARG_DT_IS_HF8)) { \
-            ret_val = convert_float(cvt_f8_e4m3_to_hf(bin_arg_val)); \
-        } else \
-            ret_val = convert_float(bin_arg_val); \
-\
-        ret_val; \
-    })
-
 #define FWD_XNARY_GENERIC_DT(po_kind, algorithm, result, result_elem_dt, \
         arg0_ptr, arg0_len, arg1_ptr, arg1_len, alpha, beta, scale) \
     { \
@@ -81,8 +65,8 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
             const int arg0_idx = arg0_len == 1 ? 0 : idx; \
             const int arg1_idx = arg1_len == 1 ? 0 : idx; \
             res_ptr[arg0_len == 1 && arg1_len == 1 ? 0 : idx] = fwd_Xnary( \
-                    po_kind, algorithm, convert_float(arg0_ptr[arg0_idx]), \
-                    convert_float(arg1_ptr[arg1_idx]), alpha, beta, scale); \
+                    po_kind, algorithm, into_float(arg0_ptr[arg0_idx]), \
+                    into_float(arg1_ptr[arg1_idx]), alpha, beta, scale); \
         } \
     }
 
@@ -108,6 +92,9 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         if (nof_elems == 1) { *acc_ptr += (*a_ptr) * b; } \
     }
 
+#define po_dt(idx) CONCAT3(PO_, idx, _BIN_ARG_ACTUAL_DATA_T)
+#define po_buf(idx) ((__global po_dt(idx) *)(CONCAT3(po_, idx, _binary_arg)))
+
 #define FILL_BIN_ARG_SERIAL(idx, dest_ptr, x0, x0_s, x1, x1_s, x1_incr, x2, \
         x2_s, x3, x3_s, x4, x4_s, x5, x5_s) \
     unroll_for(typeof(x0 + x0_s) x0_idx = x0, bin_arg_offset = 0; \
@@ -131,10 +118,8 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
                                     x3_idx % CONCAT3(PO_, idx, _BIN_ARG_D3), \
                                     x4_idx % CONCAT3(PO_, idx, _BIN_ARG_D4), \
                                     x5_idx % CONCAT3(PO_, idx, _BIN_ARG_D5)); \
-                            dest_ptr[bin_arg_offset] = CONV_BIN_ARG_TO_FLOAT( \
-                                    idx, \
-                                    CONCAT3(po_, idx, \
-                                            _binary_arg)[bin_arg_glob_off]); \
+                            dest_ptr[bin_arg_offset] = into_float( \
+                                    po_buf(idx)[bin_arg_glob_off]); \
                         } \
                     } \
                 } \
@@ -172,8 +157,7 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
         } \
         unroll_for(typeof(nelem + 0) s_index = 0; s_index < nelem; \
                    ++s_index) { \
-            dst_ptr[s_index] \
-                    = CONV_BIN_ARG_TO_FLOAT(idx, tmp_storage[s_index]); \
+            dst_ptr[s_index] = into_float(tmp_storage[s_index]); \
         } \
     }
 
@@ -197,15 +181,12 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
                     x4 % CONCAT3(PO_, idx, _BIN_ARG_D4), \
                     x5 % CONCAT3(PO_, idx, _BIN_ARG_D5)); \
 \
-            CONDITIONAL_FILL(idx, x1_s, 1, \
-                    (CONCAT3(po_, idx, _binary_arg) + bin_arg_glob_off), \
-                    (dest_ptr + arg_off), CONCAT3(PO_, idx, _BIN_ARG_DATA_T)); \
-            CONDITIONAL_FILL(idx, x1_s, 2, \
-                    (CONCAT3(po_, idx, _binary_arg) + bin_arg_glob_off), \
-                    (dest_ptr + arg_off), CONCAT3(PO_, idx, _BIN_ARG_DATA_T)); \
-            CONDITIONAL_FILL(idx, x1_s, 4, \
-                    (CONCAT3(po_, idx, _binary_arg) + bin_arg_glob_off), \
-                    (dest_ptr + arg_off), CONCAT3(PO_, idx, _BIN_ARG_DATA_T)); \
+            CONDITIONAL_FILL(idx, x1_s, 1, (po_buf(idx) + bin_arg_glob_off), \
+                    (dest_ptr + arg_off), po_dt(idx)); \
+            CONDITIONAL_FILL(idx, x1_s, 2, (po_buf(idx) + bin_arg_glob_off), \
+                    (dest_ptr + arg_off), po_dt(idx)); \
+            CONDITIONAL_FILL(idx, x1_s, 4, (po_buf(idx) + bin_arg_glob_off), \
+                    (dest_ptr + arg_off), po_dt(idx)); \
         } \
     }
 

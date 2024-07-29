@@ -986,16 +986,22 @@ inline void def_block_offsets(const block_layout_t &layout,
     }
 }
 
-inline void def_data_type(
-        compute::kernel_ctx_t &kernel_ctx, data_type_t dt, const char *str) {
+inline void def_data_type(compute::kernel_ctx_t &kernel_ctx, data_type_t dt,
+        const char *str, bool with_punning = true) {
+    const char *bf16_name = with_punning ? "ushort" : "bf16";
+    const char *bf8_name = with_punning ? "uchar" : "f8_e5m2";
+    const char *hf8_name = with_punning ? "uchar" : "f8_e4m3";
+    const char *u4_name = with_punning ? "uchar" : "u4";
+    const char *s4_name = with_punning ? "uchar" : "s4";
+
     switch (dt) {
         case data_type::undef:
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=void -D%s_DT_UNDEF", str, str));
             break;
         case data_type::bf16:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=ushort -D%s_DT_BF16", str, str));
+            kernel_ctx.add_option(utils::format(
+                    "-D%s_DATA_T=%s -D%s_DT_BF16", str, bf16_name, str));
             break;
         case data_type::f16:
             kernel_ctx.add_option(
@@ -1018,20 +1024,20 @@ inline void def_data_type(
                     utils::format("-D%s_DATA_T=uchar -D%s_DT_U8", str, str));
             break;
         case data_type::f8_e4m3:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=uchar -D%s_DT_HF8", str, str));
+            kernel_ctx.add_option(utils::format(
+                    "-D%s_DATA_T=%s -D%s_DT_HF8", str, hf8_name, str));
             break;
         case data_type::f8_e5m2:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=uchar -D%s_DT_BF8", str, str));
+            kernel_ctx.add_option(utils::format(
+                    "-D%s_DATA_T=%s -D%s_DT_BF8", str, bf8_name, str));
             break;
         case data_type::s4:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=char -D%s_DT_S4", str, str));
+            kernel_ctx.add_option(utils::format(
+                    "-D%s_DATA_T=%s -D%s_DT_S4", str, s4_name, str));
             break;
         case data_type::u4:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=uchar -D%s_DT_U4", str, str));
+            kernel_ctx.add_option(utils::format(
+                    "-D%s_DATA_T=%s -D%s_DT_U4", str, u4_name, str));
             break;
         case data_type::s32:
             kernel_ctx.add_option(
@@ -1202,20 +1208,19 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
     std::string po_kernel_args = "-DPOST_OP_ARGS=\"";
     int nof_supported_post_ops = 0;
 
-    auto define_bin_types = [&](bool bf16, bool bf8, bool hf8, int idx) {
-        kernel_ctx.define_int(
-                "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", bf16);
-        kernel_ctx.define_int(
-                "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_HF8", hf8);
-        kernel_ctx.define_int(
-                "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF8", bf8);
-    };
+    bool post_op_uses_bf16 = false;
+    bool post_op_uses_bf8 = false;
+    bool post_op_uses_hf8 = false;
 
     auto add_po_defines = [&](const std::string &bin_arg_name,
                                   const post_ops_t::entry_t &e, int idx) {
-        bool bin_arg_bf16 = false;
-        bool bin_arg_bf8 = false;
-        bool bin_arg_hf8 = false;
+        auto define_binary_po_type = [&](data_type_t type) {
+            def_data_type(kernel_ctx, type,
+                    utils::format("%s_ACTUAL", bin_arg_name).c_str(), false);
+            post_op_uses_bf16 |= (type == data_type::bf16);
+            post_op_uses_bf8 |= (type == data_type::f8_e5m2);
+            post_op_uses_hf8 |= (type == data_type::f8_e4m3);
+        };
         if (e.is_binary()) {
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_binary_id);
@@ -1225,10 +1230,7 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             const memory_desc_wrapper src1_mdw(e.binary.src1_desc);
             const auto mdi = memory_desc_info_t::create(src1_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
-            bin_arg_bf16 |= mdi.data_type == data_type::bf16;
-            bin_arg_bf8 |= mdi.data_type == data_type::f8_e5m2;
-            bin_arg_hf8 |= mdi.data_type == data_type::f8_e4m3;
-            define_bin_types(bin_arg_bf16, bin_arg_bf8, bin_arg_hf8, idx);
+            define_binary_po_type(mdi.data_type);
         } else if (e.is_prelu()) {
             // binary && eltwise relu = prelu post op
             kernel_ctx.define_int(
@@ -1245,7 +1247,7 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
 
             // prelu weights are assumed to be f32
-            define_bin_types(bin_arg_bf16, bin_arg_bf8, bin_arg_hf8, idx);
+            define_binary_po_type(data_type::f32);
         } else {
             memory_desc_t empty_mem_desc;
             dnnl_dims_t empty_dims = {1, 1, 1, 1};
@@ -1254,7 +1256,9 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             const memory_desc_wrapper src1_mdw(empty_mem_desc);
             const auto mdi = memory_desc_info_t::create(src1_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
-            define_bin_types(bin_arg_bf16, bin_arg_bf8, bin_arg_hf8, idx);
+
+            // unused - just need any type that's convertible to float
+            define_binary_po_type(data_type::f32);
         }
         if (e.is_eltwise(false)) {
             kernel_ctx.define_int(
@@ -1315,13 +1319,10 @@ inline status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
     }
 
     kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", nof_supported_post_ops);
-    if (post_ops.len() > 0) {
-        // due to C macro limitations on which post op service is build always
-        // load bf16 conversion functions
-        kernel_ctx.define_int("POST_OP_USING_BF16", 1);
-        kernel_ctx.define_int("POST_OP_USING_HF8", 1);
-        kernel_ctx.define_int("POST_OP_USING_BF8", 1);
-    }
+    if (post_op_uses_bf16) kernel_ctx.define_int("POST_OP_USING_BF16", 1);
+    if (post_op_uses_bf8) kernel_ctx.define_int("POST_OP_USING_BF8", 1);
+    if (post_op_uses_hf8) kernel_ctx.define_int("POST_OP_USING_HF8", 1);
+
     po_kernel_args += "\"";
     kernel_ctx.add_option(po_kernel_args);
     return status::success;
