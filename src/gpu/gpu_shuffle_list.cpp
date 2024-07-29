@@ -31,8 +31,8 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_SHUFFLE_P({
-        GPU_INSTANCE_INTEL(intel::ocl::shuffle_by_reorder_t)
-        GPU_INSTANCE_INTEL(intel::ocl::ref_shuffle_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::shuffle_by_reorder_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::ref_shuffle_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_shuffle_t)
         nullptr,
 });

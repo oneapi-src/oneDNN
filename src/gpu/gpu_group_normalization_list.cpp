@@ -28,12 +28,12 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
 impl_list_map REG_GNORM_P({
     {{forward}, {
-        GPU_INSTANCE_INTEL(intel::ocl::ref_group_normalization_fwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::ref_group_normalization_fwd_t)
         nullptr,
         }
     },
     {{backward}, REG_BWD_PK({
-        GPU_INSTANCE_INTEL(intel::ocl::ref_group_normalization_bwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::ref_group_normalization_bwd_t)
         nullptr,
         })
     },

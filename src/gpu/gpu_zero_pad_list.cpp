@@ -25,7 +25,7 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = {
-        GPU_INSTANCE_INTEL(intel::ocl::simple_zero_pad_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::simple_zero_pad_t)
         nullptr,
 };
 // clang-format on
