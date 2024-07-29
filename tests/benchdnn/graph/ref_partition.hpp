@@ -49,6 +49,14 @@ public:
     int check_partition_correctness(
             partition_mem_map_t &partition_mem_map, res_t *res);
 
+    // check the partition memory footprint of graph path
+    int check_partition_total_size(const deserialized_op &op, res_t *res);
+
+    // check the partition memory footprint of reference path
+    int check_partition_total_size(
+            const check_mem_size_args_t &check_mem_size_args, bool is_output_op,
+            res_t *res);
+
     // get the reference of ops of the partition
     const op_ref_list_t &get_partition_ops() const {
         return partition_ops_ref_;
@@ -69,6 +77,10 @@ private:
     // function returns `true`.
     bool need_unfusable_output_crop(
             const deserialized_op &op, dnnl_data_type_t &dt) const;
+
+    bool is_input_op(const deserialized_op &op) const;
+    bool is_output_op(const deserialized_op &op) const;
+    std::vector<size_t> get_in_out_lt_ids(const deserialized_op &op) const;
 
     const deserialized_graph *dg_;
     // Objects below are constructed.

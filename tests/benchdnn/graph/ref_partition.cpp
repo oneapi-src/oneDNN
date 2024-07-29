@@ -17,9 +17,26 @@
 #include "ref_partition.hpp"
 #include "cpu/platform.hpp"
 #include "dnnl_common.hpp"
+
 #include "utils/compare.hpp"
 
 namespace graph {
+
+namespace {
+
+void check_memory_fit(
+        bool fits_ram, size_t mem_req, size_t mem_limit, res_t *res) {
+    if (!fits_ram) {
+        BENCHDNN_PRINT(2,
+                "[CHECK_MEM]: Not enough %s RAM for a problem. Allocation of "
+                "size %g GB doesn't fit allocation limit of %g GB. \n",
+                (is_cpu() ? "CPU" : "GPU"), GB(mem_req), GB(mem_limit));
+        res->state = SKIPPED;
+        res->reason = skip_reason::not_enough_ram;
+    }
+}
+
+} // namespace
 
 ref_partition_t::ref_partition_t(const deserialized_graph &dg,
         const dnnl::graph::partition &par,
@@ -55,6 +72,7 @@ ref_partition_t::ref_partition_t(const deserialized_graph &dg,
 
 int ref_partition_t::init_ref(const std::vector<size_t> &graph_in_ports,
         partition_mem_map_t &partition_mem_map, res_t *res) {
+
     for (const auto &par_op_ref : partition_ops_ref_) {
         // res should be independent from op to op
         res->state = UNTESTED;
@@ -65,6 +83,19 @@ int ref_partition_t::init_ref(const std::vector<size_t> &graph_in_ports,
         SAFE(ref_prim->init_prb(res), WARN);
 
         SAFE_V(ref_prim->init_prim(::get_test_engine(), res));
+
+        // Check whether the op has any output logical tensor that is the
+        // output of the partition. If so, the driver need to allocate memory
+        // for correctness check.
+        const auto check_mem_sizes_args = res->mem_size_args;
+        const auto is_output = is_output_op(par_op_ref.get());
+        SAFE_V(check_partition_total_size(
+                check_mem_sizes_args, is_output, res));
+        if (res->state == SKIPPED) return OK;
+
+        SAFE_V(check_partition_total_size(par_op_ref.get(), res));
+        if (res->state == SKIPPED) return OK;
+
         ref_prim->init_memory_args(::get_test_engine());
         SAFE_V(ref_prim->init_ref_memory_args(::get_test_engine(), res));
 
@@ -379,6 +410,141 @@ bool ref_partition_t::need_unfusable_output_crop(
     // this case is the output dt of the child op.
     dt = convert_dt(child_op->out_lts_[0].get_data_type());
     return true;
+}
+
+bool ref_partition_t::is_output_op(const deserialized_op &op) const {
+    return std::any_of(op.out_lts_.begin(), op.out_lts_.end(),
+            [this](const deserialized_lt &lt) {
+                return std::find(partition_out_ids_.begin(),
+                               partition_out_ids_.end(), lt.id_)
+                        != partition_out_ids_.end();
+            });
+}
+
+// check the partition memory footprint of the graph path
+int ref_partition_t::check_partition_total_size(
+        const deserialized_op &op, res_t *res) {
+
+    // Prepare the memory limit for benchdnn graph
+    static size_t benchdnn_cpu_limit = get_benchdnn_cpu_limit();
+    static size_t benchdnn_device_limit = get_benchdnn_device_limit();
+    auto &graph_mem_req = graph_memory_req_args_t::get_instance();
+
+    size_t new_mem_req = 0;
+    // Step 1. Add input/output tensors if they are partition input/outputs.
+    const auto partition_in_out_lts = get_in_out_lt_ids(op);
+    for (const auto &lt_id : partition_in_out_lts) {
+        if (lt_id_2_lt_.find(lt_id) == lt_id_2_lt_.end()) return FAIL;
+        new_mem_req += lt_id_2_lt_.at(lt_id).create().get_mem_size();
+    }
+
+    // Step 2. Check whether the memory is enough
+    if (is_gpu()) {
+        size_t total_gpu_req = graph_mem_req.get_mem_req(GPU_REQ) + new_mem_req;
+        const bool fits_device_ram = total_gpu_req <= benchdnn_device_limit;
+        check_memory_fit(
+                fits_device_ram, total_gpu_req, benchdnn_device_limit, res);
+
+        graph_mem_req.increase_mem_req(GPU_REQ, GRAPH_USER, new_mem_req);
+    } else {
+        size_t total_cpu_req = graph_mem_req.get_mem_req(CPU_REQ) + new_mem_req;
+        bool fits_cpu_ram = total_cpu_req <= benchdnn_cpu_limit;
+        check_memory_fit(fits_cpu_ram, total_cpu_req, benchdnn_cpu_limit, res);
+
+        graph_mem_req.increase_mem_req(CPU_REQ, GRAPH_USER, new_mem_req);
+    }
+
+    return res->state == FAILED ? FAIL : OK;
+}
+
+// check the partition memory footprint of the reference path
+int ref_partition_t::check_partition_total_size(
+        const check_mem_size_args_t &check_mem_size_args, bool is_output_op,
+        res_t *res) {
+
+    // Prepare the memory limit for benchdnn graph
+    static size_t benchdnn_cpu_limit = get_benchdnn_cpu_limit();
+    static size_t benchdnn_device_limit = get_benchdnn_device_limit();
+    auto &graph_mem_req = graph_memory_req_args_t::get_instance();
+
+    const bool is_corr = has_bench_mode_bit(mode_bit_t::corr);
+    const bool is_bitwise = has_bench_mode_bit(mode_bit_t::bitwise);
+
+    // The size of reference memory with tag abx and f32.
+    size_t input_ref_mem_size = 0, output_ref_mem_size = 0;
+    if (is_corr || is_bitwise) {
+        input_ref_mem_size = check_mem_size_args.total_ref_md_size[0];
+        output_ref_mem_size = check_mem_size_args.total_ref_md_size[1];
+    }
+
+    // total size cpu includes:
+    // 1. Memory allocated for a test obj( such as the memory for input and outputs, saved in total_size_device )
+    // 2. Memory allocated for reference computation, which will be released
+    // after reference path data filling(`C` mode only)
+    // 3. Memory to be allocated for comparing results(`C` mode only)
+    // 4. Memory to be allocated for mapping device memory(GPU backend only)
+    size_t new_cpu_req = check_mem_size_args.total_size_cpu;
+    size_t new_gpu_req = check_mem_size_args.total_size_device;
+
+    // STEP 1: Memory allocation stage for the reference path
+    if (is_cpu()) new_cpu_req += check_mem_size_args.total_size_device;
+    if (is_corr) {
+        // If the op is not output, no need to allocate memory for correctness
+        // check.
+        if (!is_output_op) {
+            new_cpu_req -= output_ref_mem_size;
+            if (is_bitwise) new_cpu_req -= output_ref_mem_size;
+        }
+    }
+
+    // STEP 2: Check whether the memory is enough
+    size_t total_cpu_req = graph_mem_req.get_mem_req(CPU_REQ) + new_cpu_req;
+    bool fits_cpu_ram = total_cpu_req <= benchdnn_cpu_limit;
+    check_memory_fit(fits_cpu_ram, total_cpu_req, benchdnn_cpu_limit, res);
+
+    // GPU mem size check.
+    if (is_gpu()) {
+        size_t total_gpu_req = graph_mem_req.get_mem_req(GPU_REQ) + new_gpu_req;
+
+        const bool fits_device_ram = total_gpu_req <= benchdnn_device_limit;
+        check_memory_fit(
+                fits_device_ram, total_gpu_req, benchdnn_device_limit, res);
+        graph_mem_req.increase_mem_req(GPU_REQ, REF, new_gpu_req);
+    }
+
+    // STEP 3: Temprorary memory release stage
+    if (is_corr) {
+        // Release reference path memory for `C` mode
+        total_cpu_req -= input_ref_mem_size;
+        total_cpu_req -= output_ref_mem_size;
+    }
+
+    // Update the required memory size
+    graph_mem_req.increase_mem_req(CPU_REQ, REF, new_cpu_req);
+
+    return res->state == FAILED ? FAIL : OK;
+}
+
+// Return the logical tensor ids of the given op which is the input/output of
+// the partition.
+std::vector<size_t> ref_partition_t::get_in_out_lt_ids(
+        const deserialized_op &op) const {
+    std::vector<size_t> in_out_lt_ids;
+    std::for_each(op.in_lts_.begin(), op.in_lts_.end(),
+            [&in_out_lt_ids, this](const deserialized_lt &lt) {
+                if (std::find(partition_in_ids_.begin(),
+                            partition_in_ids_.end(), lt.id_)
+                        != partition_in_ids_.end())
+                    in_out_lt_ids.emplace_back(lt.id_);
+            });
+    std::for_each(op.out_lts_.begin(), op.out_lts_.end(),
+            [&in_out_lt_ids, this](const deserialized_lt &lt) {
+                if (std::find(partition_out_ids_.begin(),
+                            partition_out_ids_.end(), lt.id_)
+                        != partition_out_ids_.end())
+                    in_out_lt_ids.emplace_back(lt.id_);
+            });
+    return in_out_lt_ids;
 }
 
 } // namespace graph

@@ -21,6 +21,7 @@
 #include <vector>
 #include <unordered_map>
 
+#include "allocator.hpp"
 #include "dnnl_common.hpp"
 #include "graph.hpp"
 #include "ref_partition.hpp"
@@ -620,6 +621,7 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(ref_partition.init_ref(
                      graph_in_ports, partition_mem_map_v[i], res),
                 WARN);
+        if (res->state == SKIPPED) return OK;
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
             // correctness mode, run ref partition
@@ -666,19 +668,29 @@ int doit(const prb_t *prb, res_t *res) {
                     i);
             return res->state = FAILED, FAIL;
         }
-
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
         input_ts_all.emplace_back(input_ts);
         output_ts_all.emplace_back(output_ts);
 
+        auto &graph_mem_mgr = graph_mem_manager_t::get_instance();
+        graph_mem_mgr.start_graph_mem_check();
         BENCHDNN_PRINT(3, "[INFO]: Start execution of partition #%zd.\n", i);
-        c_partitions[i - idx_offset].execute(strm, input_ts, output_ts);
-        strm.wait();
+        // Need following clean-up steps as the memories have been mappped to
+        // device. Otherwise the deconstruction will fail.
+        DNN_GRAPH_SAFE(
+                c_partitions[i - idx_offset].execute(strm, input_ts, output_ts),
+                (WARN | NEED_CLEANUP), res);
+        DNN_GRAPH_SAFE(strm.wait(), WARN, res);
+        graph_mem_mgr.stop_graph_mem_check();
 
         // map memory from device back to host
         map_unmap_partition_mem(partition_mem_map_v[i], inputs, MAP, res);
         map_unmap_partition_mem(partition_mem_map_v[i], outputs, MAP, res);
+
+        // If the device is out-of-memory due to graph path execution, skip the
+        // case.
+        if (res->state == SKIPPED) return OK;
         if (res->state == FAIL) {
             BENCHDNN_PRINT(0,
                     "FAIL: Fail to map memories back to host for partition "
@@ -686,7 +698,6 @@ int doit(const prb_t *prb, res_t *res) {
                     i);
             return FAIL;
         }
-
         res->state = EXECUTED;
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {
@@ -695,6 +706,15 @@ int doit(const prb_t *prb, res_t *res) {
                          partition_mem_map_v[i], res),
                     WARN);
         }
+
+        auto &graph_mem_req = graph_memory_req_args_t::get_instance();
+        // release the memory assigned for the reference path of the partition,
+        // while the memory for the graph path needs to be kept for the
+        // performance mode if needed.
+        graph_mem_req.reset_path(REF);
+        if (!has_bench_mode_bit(mode_bit_t::perf)) {
+            graph_mem_req.reset_path(GRAPH_USER);
+        }
     }
 
     if (has_bench_mode_bit(mode_bit_t::perf)) {
@@ -702,6 +722,7 @@ int doit(const prb_t *prb, res_t *res) {
                      input_ts_all, output_ts_all, res),
                 WARN);
     }
+
     return OK;
 }
 } // namespace graph
