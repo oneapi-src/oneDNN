@@ -15,12 +15,12 @@
 *******************************************************************************/
 
 #include "gpu/gpu_impl_list.hpp"
+#include "gpu/intel/ocl/ref_convolution.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/jit/binary_format.hpp"
 #include "gpu/intel/jit/conv/gen_convolution.hpp"
 #include "gpu/intel/ocl/gen9_wino_convolution.hpp"
-#include "gpu/intel/ocl/ref_convolution.hpp"
 
 #ifdef DNNL_DEV_MODE
 #include "gpu/intel/jit/v2/conv/gen_convolution.hpp"

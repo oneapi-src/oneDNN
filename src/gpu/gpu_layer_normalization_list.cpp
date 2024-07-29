@@ -16,12 +16,10 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/ref_layer_normalization.hpp"
 #include "gpu/intel/ocl/reusable_lnorm.hpp"
 #include "gpu/intel/ocl/reusable_vectorized_lnorm.hpp"
 #include "gpu/intel/ocl/vectorized_lnorm.hpp"
-#endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
 #include "gpu/generic/sycl/ref_layer_normalizations.hpp"

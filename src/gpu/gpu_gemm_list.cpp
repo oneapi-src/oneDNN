@@ -17,14 +17,14 @@
 #include "common/compiler_workarounds.hpp"
 
 #include "gpu/gpu_impl_list.hpp"
+#include "gpu/intel/ocl/gemm/gemm_with_post_ops.hpp"
+#include "gpu/intel/ocl/gemm/ref_gemm.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/jit/binary_format.hpp"
 
 #include "gpu/intel/jit/gemm/gen_gemm.hpp"
 #include "gpu/intel/jit/gemm/xe_hp_systolic_gemm.hpp"
-#include "gpu/intel/ocl/gemm/gemm_with_post_ops.hpp"
-#include "gpu/intel/ocl/gemm/ref_gemm.hpp"
 
 #ifdef DNNL_DEV_MODE
 #include "gpu/intel/ocl/gemm/conv_gemm.hpp"

@@ -16,12 +16,13 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
-#include "gpu/intel/ocl/bnorm/gen9_batch_normalization.hpp"
-#include "gpu/intel/ocl/bnorm/nhwc_batch_normalization.hpp"
 #include "gpu/intel/ocl/bnorm/ref_batch_normalization.hpp"
 #include "gpu/intel/ocl/bnorm/reusable_bnorm.hpp"
 #include "gpu/intel/ocl/bnorm/simple_bnorm.hpp"
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+#include "gpu/intel/ocl/bnorm/gen9_batch_normalization.hpp"
+#include "gpu/intel/ocl/bnorm/nhwc_batch_normalization.hpp"
 
 #ifdef DNNL_DEV_MODE
 #include "gpu/intel/ocl/bnorm/nhwc_reusable.hpp"

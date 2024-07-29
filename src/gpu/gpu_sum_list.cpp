@@ -20,13 +20,13 @@
 #include "gpu/gpu_sum_pd.hpp"
 
 #include "gpu/generic/ref_sum.hpp"
+#include "gpu/intel/ocl/many_inputs_sum.hpp"
+#include "gpu/intel/ocl/multi_po_reorder_sum.hpp"
+#include "gpu/intel/ocl/simple_sum.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/jit/gen9_simple_sum.hpp"
 #include "gpu/intel/ocl/gen9_sum.hpp"
-#include "gpu/intel/ocl/many_inputs_sum.hpp"
-#include "gpu/intel/ocl/multi_po_reorder_sum.hpp"
-#include "gpu/intel/ocl/simple_sum.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA

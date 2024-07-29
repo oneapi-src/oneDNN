@@ -16,11 +16,12 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/reduction/atomic_reduction.hpp"
 #include "gpu/intel/ocl/reduction/combined_reduction.hpp"
 #include "gpu/intel/ocl/reduction/ref_reduction.hpp"
 #include "gpu/intel/ocl/reduction/reusable_ref_reduction.hpp"
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 
 #ifdef DNNL_DEV_MODE
 #include "gpu/intel/jit/jit_reduction.hpp"

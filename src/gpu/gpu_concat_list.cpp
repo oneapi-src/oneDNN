@@ -17,12 +17,12 @@
 #include "gpu/gpu_impl_list.hpp"
 
 #include "gpu/generic/ref_concat.hpp"
-
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
-#include "gpu/intel/ocl/gen9_concat.hpp"
 #include "gpu/intel/ocl/multi_concat.hpp"
 #include "gpu/intel/ocl/reusable_simple_concat.hpp"
 #include "gpu/intel/ocl/simple_concat.hpp"
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+#include "gpu/intel/ocl/gen9_concat.hpp"
 #endif
 
 namespace dnnl {

@@ -18,13 +18,13 @@
 
 #include "gpu/generic/cross_engine_reorder.hpp"
 #include "gpu/generic/direct_copy.hpp"
-
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
-#include "gpu/intel/jit/reorder/gen_reorder.hpp"
 #include "gpu/intel/ocl/custom_reorder.hpp"
 #include "gpu/intel/ocl/generic_reorder.hpp"
 #include "gpu/intel/ocl/ref_reorder.hpp"
 #include "gpu/intel/ocl/rnn/rnn_reorders.hpp"
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+#include "gpu/intel/jit/reorder/gen_reorder.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA

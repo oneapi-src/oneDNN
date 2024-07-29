@@ -15,10 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/gpu_impl_list.hpp"
-
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/convolution_deconvolution.hpp"
-#endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
 #include "gpu/nvidia/cudnn_deconvolution.hpp"

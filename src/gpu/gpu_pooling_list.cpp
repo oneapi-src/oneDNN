@@ -17,12 +17,12 @@
 #include "common/compiler_workarounds.hpp"
 
 #include "gpu/gpu_impl_list.hpp"
+#include "gpu/intel/ocl/ref_pooling.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/jit/pooling/gen_pooling.hpp"
 #include "gpu/intel/ocl/gen9_global_pooling.hpp"
 #include "gpu/intel/ocl/gen9_pooling.hpp"
-#include "gpu/intel/ocl/ref_pooling.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
