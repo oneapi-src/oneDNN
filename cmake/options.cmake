@@ -373,6 +373,10 @@ option(DNNL_ENABLE_STACK_CHECKER "enables stack checker that can be used to get
     Note: This option requires enabling concurrent scratchpad
     (DNNL_ENABLE_CONCURRENT_EXEC)." OFF)
 
+option(DNNL_DISABLE_GPU_REF_KERNELS
+        "builds oneDNN with only optimized kernels for GPU compute
+        primitives" OFF)
+
 # =============================
 # External BLAS library options
 # =============================
@@ -380,19 +384,16 @@ option(DNNL_ENABLE_STACK_CHECKER "enables stack checker that can be used to get
 set(DNNL_BLAS_VENDOR "NONE" CACHE STRING
     "Use an external BLAS library. Valid values:
       - NONE (default)
-        Use in-house implementation.
-      - MKL
-        Intel oneAPI Math Kernel Library (Intel oneMKL)
-        (https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html)
-      - OPENBLAS
-        (https://www.openblas.net)
+        Use internal BLAS implementation. Recommended in most situations.
       - ACCELERATE
         (https://developer.apple.com/documentation/accelerate/blas)
       - ARMPL
         Arm Performance Libraries
         (https://developer.arm.com/tools-and-software/server-and-hpc/downloads/arm-performance-libraries)
       - ANY
-        FindBLAS will search default library paths for a known BLAS installation.")
+        FindBLAS will search default library paths for a known BLAS
+        installation. This vendor is supported for performance analysis
+        purposes only.")
 
 # ==============================================
 # AArch64 optimizations with Arm Compute Library
