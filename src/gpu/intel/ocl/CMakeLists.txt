@@ -26,6 +26,11 @@ include("${PROJECT_SOURCE_DIR}/cmake/gen_gpu_kernel_list.cmake")
 file(GLOB_RECURSE CL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.cl)
 file(GLOB_RECURSE CL_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
 
+if(NOT DNNL_GPU_VENDOR STREQUAL "INTEL")
+	list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/micro_sdpa.cpp")
+	list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/ocl_gpu_hw_info.cpp")
+endif()
+
 set(kernel_list_templ "${PROJECT_SOURCE_DIR}/src/gpu/intel/ocl/ocl_kernel_list.cpp.in")
 set(kernel_list_src "${PROJECT_BINARY_DIR}/src/gpu/intel/ocl/ocl_kernel_list.cpp")
 

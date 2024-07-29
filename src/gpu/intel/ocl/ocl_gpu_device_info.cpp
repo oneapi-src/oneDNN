@@ -42,9 +42,11 @@ status_t ocl_gpu_device_info_t::init_arch(impl::engine_t *engine) {
             = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
     OCL_CHECK(err);
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
     init_gpu_hw_info(engine, device, context, ip_version_, gpu_arch_,
             gpu_product_family_, stepping_id_, native_extensions_,
             mayiuse_systolic_, mayiuse_ngen_kernels_);
+#endif
 
     err = clReleaseContext(context);
     OCL_CHECK(err);
