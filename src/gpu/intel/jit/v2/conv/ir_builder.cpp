@@ -926,37 +926,31 @@ private:
         }
     }
 
-    void build_x2r_x_load(const std::string &prefix, const send_plan_t &load,
-            const reorder_plan_t &reorder, const expr_t &mem_buf) {
+    void build_x2r(const x2r_plan_t &plan) {
+        auto prefix = to_string(plan.tensor_kind);
         expr_t load_buf;
         expr_t mul_buf;
-        if (reorder) {
-            load_buf = buf_mgr_.get(prefix + "_tmp", load.reg_layout().size());
-            mul_buf = buf_mgr_.get(prefix, reorder.dst.size());
+        if (plan.reorder) {
+            load_buf = buf_mgr_.get(
+                    prefix + "_tmp", plan.load.reg_layout().size());
+            mul_buf = buf_mgr_.get(prefix, plan.reorder.dst.size());
         } else {
-            load_buf = buf_mgr_.get(prefix, load.reg_layout().size());
+            load_buf = buf_mgr_.get(prefix, plan.load.reg_layout().size());
             mul_buf = load_buf;
         }
-        auto load_stmt = create_stmt(load, mem_buf, load_buf, off_ctx_);
-        auto reorder_stmt = create_stmt(reorder, load_buf, mul_buf);
+        auto load_stmt = create_stmt(
+                plan.load, mem_buf(plan.tensor_kind), load_buf, off_ctx_);
+        auto reorder_stmt = create_stmt(plan.reorder, load_buf, mul_buf);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(load_stmt);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(reorder_stmt);
     }
 
-    void build_x2r() {
-        auto &x2r = plan_.x2r;
-        build_x2r_x_load("a", x2r.a_load, x2r.a_reorder, a_mem_buf());
-        build_x2r_x_load("b", x2r.b_load, x2r.b_reorder, b_mem_buf());
-    }
-
-    void build_mul() {
-        auto &fma = plan_.fma;
+    void build_mul(const fma_plan_t &fma, const expr_t &c_buf) {
         auto &a_layout = fma.a_layout;
         auto &b_layout = fma.b_layout;
         auto &c_layout = fma.c_layout;
         auto a_buf = buf_mgr_.get("a");
         auto b_buf = buf_mgr_.get("b");
-        auto c_buf = buf_mgr_.get("c", c_layout.size());
 
         for (auto &d : a_layout.dims())
             ir_assert(fma.inst_tile.has(d)) << d;
@@ -1030,24 +1024,31 @@ private:
     }
 
     void build_x2r_mul() {
-        build_x2r();
-        build_mul();
+        auto &x2r_fma = plan_.x2r_fma;
+        auto c_buf = buf_mgr_.get("c", x2r_fma.c_layout.size());
+        for (auto &s : x2r_fma.stages) {
+            if (s.is_fma()) {
+                build_mul(s.fma, c_buf);
+            } else if (s.is_x2r()) {
+                build_x2r(s.x2r);
+            }
+        }
     }
 
     void build_c_store() {
-        auto &fma = plan_.fma;
+        auto &c_layout = plan_.x2r_fma.c_layout;
         auto &epilogue = plan_.epilogue;
         auto &store = epilogue.c_store;
         auto c_tile = store.reg_layout().int_dim_sizes();
         auto &c_buf = buf_mgr_.find_buf("c");
         for_each(c_tile, epilogue.tile, [&](const prb_coord_t<int> &coord) {
             auto payload_buf = c_buf;
-            auto payload_layout = fma.c_layout;
+            auto payload_layout = c_layout;
             auto payload_coord = coord;
             if (epilogue.reorder) {
                 auto c_tmp_buf
                         = buf_mgr_.get("c_tmp", epilogue.reorder.dst.size());
-                int src_off = fma.c_layout.offset_in_bytes(coord);
+                int src_off = c_layout.offset_in_bytes(coord);
                 auto stmt = create_stmt(
                         epilogue.reorder, c_buf + src_off, c_tmp_buf);
                 c_store_stmt_ = c_store_stmt_.append(stmt);
