@@ -57,22 +57,6 @@ struct acl_conv_conf_t {
     arm_compute::TensorInfo gemm_pretranspose_info;
 
     arm_compute::TensorInfo conv_permuted_weights_info;
-    arm_compute::TensorInfo gemm_tmp_asm_buffer_info;
-    arm_compute::TensorInfo gemm_pretranspose_b_info;
-
-    // Gemm kernel
-    arm_compute::TensorInfo gemm_interleaved_lhs_info;
-    arm_compute::TensorInfo gemm_pretransposed_rhs_info;
-    arm_compute::TensorInfo gemm_transposed_1xwrhs_info;
-
-    // GemmLowP
-    arm_compute::TensorInfo gemm_mm_result_s32_info;
-    arm_compute::TensorInfo gemm_mm_signed_a_info;
-    arm_compute::TensorInfo gemm_mm_signed_output_info;
-
-    arm_compute::TensorInfo conv_im2col_output_info;
-    arm_compute::TensorInfo conv_gemm_output_info;
-
     arm_compute::PadStrideInfo padstride_info;
     arm_compute::Size2D dilation_info;
     // Additional information about the weights not included in wei_tensor_info
@@ -83,7 +67,7 @@ struct acl_conv_conf_t {
 
 namespace acl_convolution_utils {
 
-status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
+status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr);
