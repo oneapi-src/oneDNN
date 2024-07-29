@@ -1042,7 +1042,7 @@ private:
         auto &c_buf = buf_mgr_.find_buf("c");
         for_each(c_tile, epilogue.tile, [&](const prb_coord_t<int> &coord) {
             auto payload_buf = c_buf;
-            auto payload_layout = store.reg_layout();
+            auto payload_layout = fma.c_layout;
             auto payload_coord = coord;
             if (epilogue.reorder) {
                 auto c_tmp_buf
