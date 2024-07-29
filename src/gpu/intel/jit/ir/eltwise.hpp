@@ -38,18 +38,6 @@ public:
         return func_t(new eltwise_t(alg_kind, scale, alpha, beta));
     }
 
-    bool is_equal(const object_impl_t &obj) const override {
-        if (!obj.is<self_type>()) return false;
-        auto &other = obj.as<self_type>();
-
-        return (alg_kind == other.alg_kind) && (scale == other.scale)
-                && (alpha == other.alpha) && (beta == other.beta);
-    }
-
-    size_t get_hash() const override {
-        return ir_utils::get_hash(alg_kind, scale, alpha, beta);
-    }
-
     std::string str() const override {
         switch (alg_kind) {
             case alg_kind::eltwise_relu: return "relu";

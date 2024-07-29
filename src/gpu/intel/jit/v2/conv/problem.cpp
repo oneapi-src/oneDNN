@@ -124,24 +124,6 @@ std::string problem_t::desc_str() const {
     return oss.str();
 }
 
-void problem_t::serialize(std::ostream &out) const {
-    ir_utils::serialize(hw_, out);
-    ir_utils::serialize(prop_, out);
-    ir_utils::serialize(src_tag_, out);
-    ir_utils::serialize(wei_tag_, out);
-    ir_utils::serialize(dst_tag_, out);
-    ir_utils::serialize(shape_, out);
-}
-
-void problem_t::deserialize(std::istream &in) {
-    ir_utils::deserialize(hw_, in);
-    ir_utils::deserialize(prop_, in);
-    ir_utils::deserialize(src_tag_, in);
-    ir_utils::deserialize(wei_tag_, in);
-    ir_utils::deserialize(dst_tag_, in);
-    ir_utils::deserialize(shape_, in);
-}
-
 std::string problem_t::str() const {
     std::ostringstream oss;
     oss << "Conv problem" << std::endl;

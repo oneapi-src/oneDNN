@@ -65,20 +65,6 @@ public:
                 && (iter_ == other.iter_);
     }
 
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(simd_, out);
-        loop_.serialize(out);
-        thread_group_.serialize(out);
-        iter_.serialize(out);
-    }
-
-    void deserialize(std::istream &in) {
-        simd_ = ir_utils::deserialize<int>(in);
-        loop_.deserialize(in);
-        thread_group_.deserialize(in);
-        iter_.deserialize(in);
-    }
-
     void stringify(std::ostream &out) const {
         out << "simd=" << simd_;
         out << " l=";
@@ -499,21 +485,6 @@ public:
     bool is_empty() const { return blocking_.is_empty(); }
     const blocking_t &blocking() const { return blocking_; }
     void set_id(int id) { id_ = id; }
-
-    void serialize(std::ostream &out) const {
-        blocking_.serialize(out);
-        ir_utils::serialize(bufs_hint_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        blocking_.deserialize(in);
-        bufs_hint_ = ir_utils::deserialize<int>(in);
-    }
-
-    bool operator==(const blocking_params_t &other) const {
-        return (id_ == other.id_) && (blocking_ == other.blocking_)
-                && (bufs_hint_ == other.bufs_hint_);
-    }
 
     void stringify(std::ostream &out) const {
         blocking_.stringify(out);

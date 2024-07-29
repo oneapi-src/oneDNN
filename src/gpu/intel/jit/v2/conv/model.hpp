@@ -32,16 +32,14 @@ namespace conv {
 class model_t {
 public:
     model_t() = default;
-    model_t(const kernel_desc_t &kernel_desc, const ml_model_t &ml_model)
-        : kernel_desc_(kernel_desc), ml_model_(ml_model) {}
-    float predict(const problem_t &prb) const;
-    float eff(const problem_t &prb) const;
+    model_t(const ml_model_t &ml_model) : ml_model_(ml_model) {}
+    float predict(const problem_t &prb, const kernel_desc_t &desc) const;
+    float eff(const problem_t &prb, const kernel_desc_t &desc) const;
     void score(const bench_data_t &bd);
-    void serialize(std::ostream &out) const;
-    void deserialize(std::istream &in);
+    void stringify(std::ostream &out) const;
+    void parse(std::istream &in);
 
 private:
-    kernel_desc_t kernel_desc_;
     ml_model_t ml_model_;
 };
 

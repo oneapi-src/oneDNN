@@ -22,27 +22,6 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-std::string to_string(fma_kind_t kind) {
-    switch (kind) {
-        case fma_kind_t::undef: return "undef";
-        case fma_kind_t::mad: return "mad";
-        case fma_kind_t::dp4a: return "dp4a";
-        case fma_kind_t::dpas: return "dpas";
-        case fma_kind_t::dpasw: return "dpasw";
-        default: ir_error_not_expected(); return "undef";
-    }
-}
-
-fma_kind_t str_to_fma_kind(const std::string &s) {
-    for (int enum_int = static_cast<int>(fma_kind_t::undef);
-            enum_int < static_cast<int>(fma_kind_t::_max); enum_int++) {
-        fma_kind_t enum_val = static_cast<fma_kind_t>(enum_int);
-        if (to_string(enum_val).compare(s) == 0) return enum_val;
-    }
-    ir_error_not_expected();
-    return fma_kind_t::undef;
-}
-
 fma_kind_t get_supported_fma_kind(
         const hw_t &hw, const type_t &a, const type_t &b, const type_t &c) {
     if (hw >= ngen::HW::XeHP && hw.systolic_support()

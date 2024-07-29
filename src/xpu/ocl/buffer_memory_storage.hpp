@@ -37,8 +37,8 @@ public:
         : memory_storage_base_t(engine), mem_object_(nullptr) {}
 
     buffer_memory_storage_t(
-            impl::engine_t *engine, const memory_storage_t *parent_storage)
-        : memory_storage_base_t(engine, parent_storage) {}
+            impl::engine_t *engine, const memory_storage_t *root_storage)
+        : memory_storage_base_t(engine, root_storage) {}
 
     status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(mem_object_.get());

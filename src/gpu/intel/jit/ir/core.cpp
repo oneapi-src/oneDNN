@@ -30,38 +30,6 @@ namespace jit {
 expr_t const_fold_non_recursive(const expr_t &expr);
 object_t const_fold(const object_t &obj);
 
-std::string to_string(type_kind_t kind) {
-#define CASE(_kind) \
-    case type_kind_t::_kind: return #_kind
-    switch (kind) {
-        CASE(undef);
-        CASE(u8);
-        CASE(s8);
-        CASE(u16);
-        CASE(s16);
-        CASE(u32);
-        CASE(s32);
-        CASE(u64);
-        CASE(s64);
-        CASE(bf8);
-        CASE(hf8);
-        CASE(bf16);
-        CASE(f16);
-        CASE(tf32);
-        CASE(f32);
-        CASE(f64);
-        CASE(byte);
-        CASE(dword);
-        CASE(qword);
-        CASE(oword);
-        CASE(hword);
-        case type_kind_t::_bool: return "bool";
-        default: ir_error_not_expected();
-    }
-#undef CASE
-    return {};
-}
-
 int type_t::size() const {
     if (is_ptr()) return sizeof(uint64_t);
 

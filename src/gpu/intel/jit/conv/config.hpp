@@ -129,7 +129,7 @@ public:
     bool is_default() const override { return false; }
 
     void set_from_str(const std::string &s) override {
-        value_ = str_to_fma_kind(s);
+        value_ = to_enum<fma_kind_t>(s);
     }
 
     std::string str() const override {

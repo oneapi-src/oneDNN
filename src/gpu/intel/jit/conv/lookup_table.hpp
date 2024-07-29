@@ -35,10 +35,6 @@ public:
 
         void stringify(std::ostream &out) const;
         void parse(std::istream &in);
-
-        bool operator==(const entry_t &other) const {
-            return key == other.key && params == other.params;
-        }
     };
 
     conv_lookup_table_t() = default;

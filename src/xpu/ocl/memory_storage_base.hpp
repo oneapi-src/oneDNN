@@ -30,8 +30,8 @@ class memory_storage_base_t : public impl::memory_storage_t {
 public:
     // Explicitly define ctors due to a "circular dependencies" bug in ICC.
     memory_storage_base_t(
-            impl::engine_t *engine, const memory_storage_t *parent_storage)
-        : impl::memory_storage_t(engine, parent_storage) {}
+            impl::engine_t *engine, const memory_storage_t *root_storage)
+        : impl::memory_storage_t(engine, root_storage) {}
     memory_storage_base_t(impl::engine_t *engine)
         : memory_storage_base_t(engine, this) {}
 

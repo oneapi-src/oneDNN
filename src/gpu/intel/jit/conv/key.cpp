@@ -33,77 +33,6 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-namespace {
-
-template <typename KindT>
-struct key_kind_traits_t {
-    static bool matches(KindT a, KindT b) { return a == b; }
-};
-
-enum class key_fma_kind_t {
-    undef,
-    mad,
-    dp4a,
-    dpas,
-    _max,
-};
-
-std::string to_string(key_fma_kind_t kind) {
-#define CASE(name) \
-    case key_fma_kind_t::name: return #name
-    switch (kind) {
-        CASE(undef);
-        CASE(mad);
-        CASE(dp4a);
-        CASE(dpas);
-        default: ir_error_not_expected();
-    }
-#undef CASE
-    return {};
-}
-
-key_fma_kind_t to_fma_kind(fma_kind_t fma) {
-    switch (fma) {
-        case fma_kind_t::mad: return key_fma_kind_t::mad;
-        case fma_kind_t::dp4a: return key_fma_kind_t::dp4a;
-        case fma_kind_t::dpas:
-        case fma_kind_t::dpasw: return key_fma_kind_t::dpas;
-        default: ir_error_not_expected(); return key_fma_kind_t::undef;
-    }
-}
-
-enum class key_prop_kind_t {
-    undef,
-    fwd,
-    bwd_d,
-    bwd_w,
-    _max,
-};
-
-std::string to_string(key_prop_kind_t kind) {
-#define CASE(name) \
-    case key_prop_kind_t::name: return #name
-    switch (kind) {
-        CASE(undef);
-        CASE(fwd);
-        CASE(bwd_d);
-        CASE(bwd_w);
-        default: ir_error_not_expected();
-    }
-#undef CASE
-    return {};
-}
-
-key_prop_kind_t to_prop_kind(prop_kind_t kind) {
-    switch (kind) {
-        case prop_kind::forward_inference:
-        case prop_kind::forward_training: return key_prop_kind_t::fwd;
-        case prop_kind::backward_data: return key_prop_kind_t::bwd_d;
-        case prop_kind::backward_weights: return key_prop_kind_t::bwd_w;
-        default: ir_error_not_expected(); return key_prop_kind_t::undef;
-    }
-}
-
 enum class key_type_kind_t {
     undef,
     any,
@@ -125,29 +54,41 @@ enum class key_type_kind_t {
     _max,
 };
 
-std::string to_string(key_type_kind_t kind) {
-#define CASE(name) \
-    case key_type_kind_t::name: return #name
-    switch (kind) {
-        CASE(undef);
-        CASE(any);
-        CASE(s8);
-        CASE(u8);
-        CASE(x8);
-        CASE(bf16);
-        CASE(f16);
-        CASE(x16);
-        CASE(bf8);
-        CASE(hf8);
-        CASE(xf8);
-        CASE(f32);
-        CASE(s32);
-        CASE(tf32);
-        CASE(f64);
-        default: ir_error_not_expected();
+static auto key_type_kind_names = nstl::to_array({
+        make_enum_name(key_type_kind_t::undef, "undef"),
+        make_enum_name(key_type_kind_t::any, "any"),
+        make_enum_name(key_type_kind_t::s8, "s8"),
+        make_enum_name(key_type_kind_t::u8, "u8"),
+        make_enum_name(key_type_kind_t::x8, "x8"),
+        make_enum_name(key_type_kind_t::bf16, "bf16"),
+        make_enum_name(key_type_kind_t::f16, "f16"),
+        make_enum_name(key_type_kind_t::x16, "x16"),
+        make_enum_name(key_type_kind_t::bf8, "bf8"),
+        make_enum_name(key_type_kind_t::hf8, "hf8"),
+        make_enum_name(key_type_kind_t::xf8, "xf8"),
+        make_enum_name(key_type_kind_t::f32, "f32"),
+        make_enum_name(key_type_kind_t::s32, "s32"),
+        make_enum_name(key_type_kind_t::tf32, "tf32"),
+        make_enum_name(key_type_kind_t::f64, "f64"),
+});
+
+GPU_DEFINE_PARSE_ENUM(key_type_kind_t, key_type_kind_names)
+
+namespace {
+
+template <typename KindT>
+struct key_kind_traits_t {
+    static bool matches(KindT a, KindT b) { return a == b; }
+};
+
+fma_kind_t to_key(fma_kind_t fma) {
+    switch (fma) {
+        case fma_kind_t::mad:
+        case fma_kind_t::dp4a:
+        case fma_kind_t::dpas: return fma;
+        case fma_kind_t::dpasw: return fma_kind_t::dpas;
+        default: ir_error_not_expected(); return fma_kind_t::undef;
     }
-#undef CASE
-    return {};
 }
 
 key_type_kind_t to_type_kind(data_type_t dt) {
@@ -229,8 +170,8 @@ struct subkey_t {
     IR_DEFINE_DUMP()
 };
 
-using key_fma_t = subkey_t<key_fma_kind_t>;
-using key_prop_t = subkey_t<key_prop_kind_t>;
+using key_fma_t = subkey_t<fma_kind_t>;
+using key_prop_t = subkey_t<prop_kind_t>;
 using key_type_t = subkey_t<key_type_kind_t>;
 
 struct key_hw_t {
@@ -265,8 +206,8 @@ struct key_hw_t {
         auto s = stream_parse<std::string>(in);
         auto parts = gpu_utils::split(s, ":");
         ir_assert(parts.size() <= 2);
-        hw = str_to_ngen_hw(parts[0]);
-        family = (parts.size() > 1 ? str_to_ngen_product_family(parts[1])
+        hw = to_enum<ngen::HW>(parts[0]);
+        family = (parts.size() > 1 ? to_enum<ngen::ProductFamily>(parts[1])
                                    : ngen::ProductFamily::Unknown);
     }
 
@@ -298,16 +239,16 @@ struct key_type_info_t {
         dst = to_type_kind(dst_type);
     }
 
-    key_type_info_t to_filter(key_prop_kind_t prop) const {
+    key_type_info_t to_filter(prop_kind_t prop) const {
         auto ret = *this;
         ret.src = key_type_t(jit::to_filter(src.kind));
         ret.wei = key_type_t(jit::to_filter(wei.kind));
         ret.dst = key_type_t(jit::to_filter(dst.kind));
         auto any_type = key_type_t(key_type_kind_t::any);
         switch (prop) {
-            case key_prop_kind_t::fwd: ret.dst = any_type; break;
-            case key_prop_kind_t::bwd_d: ret.src = any_type; break;
-            case key_prop_kind_t::bwd_w: ret.wei = any_type; break;
+            case prop_kind::forward: ret.dst = any_type; break;
+            case prop_kind::backward_data: ret.src = any_type; break;
+            case prop_kind::backward_weights: ret.wei = any_type; break;
             default: ir_error_not_expected();
         }
         return ret;
@@ -365,15 +306,15 @@ struct key_mb_t {
     int value = 0;
 
     key_mb_t() = default;
-    key_mb_t(const conv_config_t &cfg, key_prop_kind_t prop) {
+    key_mb_t(const conv_config_t &cfg, prop_kind_t prop) {
         auto &prb = cfg.prb();
         auto src_blocked = is_mb_blocked(cfg.src_layout().compute());
         auto dst_blocked = is_mb_blocked(cfg.dst_layout().compute());
         value = prb.mb;
         switch (prop) {
-            case key_prop_kind_t::fwd: is_blocked = src_blocked; break;
-            case key_prop_kind_t::bwd_d: is_blocked = dst_blocked; break;
-            case key_prop_kind_t::bwd_w:
+            case prop_kind::forward: is_blocked = src_blocked; break;
+            case prop_kind::backward_data: is_blocked = dst_blocked; break;
+            case prop_kind::backward_weights:
                 is_blocked = src_blocked && dst_blocked;
                 break;
             default: ir_error_not_expected();
@@ -551,8 +492,8 @@ private:
 conv_key_t::conv_key_t(const conv_config_t &cfg, bool make_filter) {
     auto &prb = cfg.prb();
     auto hw = key_hw_t(cfg.hw().to_ngen(), cfg.hw().product_family());
-    auto fma = key_fma_t(to_fma_kind(cfg.fma_kind()));
-    auto prop = key_prop_t(to_prop_kind(prb.prop_kind()));
+    auto fma = key_fma_t(to_key(cfg.fma_kind()));
+    auto prop = key_prop_t(prb.prop_kind());
     auto type_info = key_type_info_t(cfg);
     auto mb = key_mb_t(cfg, prop.kind);
     auto desc = key_desc_t(prb.desc_str(/*print_mb=*/false));

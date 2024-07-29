@@ -47,7 +47,6 @@ public:
     virtual status_t create_kernel(compute::kernel_t &kernel,
             gpu_primitive_t *primitive, impl::engine_t *engine) const = 0;
     virtual serialized_t serialize() const = 0;
-    hw_t hw() const { return exec_cfg().hw(); }
 };
 
 class kernel_params_base_t {

@@ -227,7 +227,31 @@ enum class type_kind_t {
     hword
 };
 
-std::string to_string(type_kind_t kind);
+static auto type_kind_names = nstl::to_array({
+        make_enum_name(type_kind_t::undef, "undef"),
+        make_enum_name(type_kind_t::u8, "u8"),
+        make_enum_name(type_kind_t::s8, "s8"),
+        make_enum_name(type_kind_t::u16, "u16"),
+        make_enum_name(type_kind_t::s16, "s16"),
+        make_enum_name(type_kind_t::u32, "u32"),
+        make_enum_name(type_kind_t::s32, "s32"),
+        make_enum_name(type_kind_t::u64, "u64"),
+        make_enum_name(type_kind_t::s64, "s64"),
+        make_enum_name(type_kind_t::bf8, "bf8"),
+        make_enum_name(type_kind_t::hf8, "hf8"),
+        make_enum_name(type_kind_t::bf16, "bf16"),
+        make_enum_name(type_kind_t::f16, "f16"),
+        make_enum_name(type_kind_t::tf32, "tf32"),
+        make_enum_name(type_kind_t::f32, "f32"),
+        make_enum_name(type_kind_t::f64, "f64"),
+        make_enum_name(type_kind_t::byte, "byte"),
+        make_enum_name(type_kind_t::dword, "dword"),
+        make_enum_name(type_kind_t::qword, "qword"),
+        make_enum_name(type_kind_t::oword, "oword"),
+        make_enum_name(type_kind_t::hword, "hword"),
+        make_enum_name(type_kind_t::_bool, "bool"),
+});
+GPU_DEFINE_PARSE_ENUM(type_kind_t, type_kind_names)
 
 class type_t {
 public:
@@ -426,16 +450,12 @@ public:
         return ir_utils::get_hash(kind(), elems(), is_ptr());
     }
 
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(kind_, out);
-        ir_utils::serialize(elems_, out);
-        ir_utils::serialize(is_ptr_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(kind_, in);
-        ir_utils::deserialize(elems_, in);
-        ir_utils::deserialize(is_ptr_, in);
+    static void init_parse_iface(parse_iface_t<type_t> *iface) {
+        iface->add<type_kind_t, &type_t::kind_>();
+        iface->set_pre_stringify_func([](const type_t &type) {
+            ir_assert(!type.is_ptr() && type.is_scalar())
+                    << "Cannot stringify pointer/non-scalar type.";
+        });
     }
 
     bool is_undef() const { return kind() == type_kind_t::undef; }
@@ -2517,6 +2537,16 @@ public:
 
     func_impl_t(type_info_t type_info) : object_impl_t(type_info) {}
 
+    size_t get_hash() const override {
+        ir_error_not_expected() << "get_hash() is not implemented.";
+        return 0;
+    }
+
+    bool is_equal(const object_impl_t &obj) const override {
+        ir_error_not_expected() << "is_equal() is not implemented.";
+        return false;
+    }
+
     stmt_t call(const std::vector<expr_t> &args,
             const func_call_attr_t &attr = {}) const;
 
@@ -2572,9 +2602,7 @@ public:
                 && attr.is_equal(other.attr);
     }
 
-    size_t get_hash() const override {
-        return ir_utils::get_hash(func, args, attr);
-    }
+    size_t get_hash() const override { return ir_utils::get_hash(args, attr); }
 
     IR_DECLARE_TRAVERSERS()
 
@@ -2624,8 +2652,6 @@ public:
 
         return name == other.name;
     }
-
-    size_t get_hash() const override { return ir_utils::get_hash(name); }
 
     std::string str() const override { return name; }
 

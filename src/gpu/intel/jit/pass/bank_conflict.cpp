@@ -82,7 +82,7 @@ public:
             bufs_.insert(src1_buf);
             bufs_.insert(src2_buf);
 
-            instructions_.insert(obj);
+            instructions_.push_back(obj);
         } else if (is_load) {
             // Returns minimal 2^B so that there is x such that:
             //   x * 2^B <= a <= b < (x + 1) * 2^B
@@ -112,10 +112,6 @@ private:
         if (!attr_.is_empty()) return;
 
         is_frozen = true;
-        std::vector<stmt_t> instructions;
-        for (auto &s : instructions_)
-            instructions.push_back(s);
-
         std::vector<expr_t> buf_vec;
         std::vector<int> buf_sizes;
         std::vector<int> buf_min_block_sizes;
@@ -128,7 +124,7 @@ private:
             buf_min_block_sizes.push_back(min_block_size);
         }
         attr_ = bank_conflict_attr_t::make(
-                buf_vec, buf_sizes, buf_min_block_sizes, instructions);
+                buf_vec, buf_sizes, buf_min_block_sizes, instructions_);
     }
 
     static expr_t ptr_base(const expr_t &e) {
@@ -141,7 +137,7 @@ private:
     object_map_t<expr_t, int> all_buf_sizes_;
     object_map_t<expr_t, int> all_buf_min_block_sizes;
     object_eq_set_t<expr_t> bufs_;
-    object_eq_set_t<stmt_t> instructions_;
+    std::vector<stmt_t> instructions_;
     bool is_frozen = false;
 
     alloc_attr_t attr_;

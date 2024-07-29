@@ -25,7 +25,29 @@ namespace ir_utils {
 
 thread_local int ir_check_log_level_t::level_ = LOG_CHECK_DEFAULT;
 
+} // namespace ir_utils
+
+void stringify_to_cpp_file(const std::string &file_name,
+        const std::string &var_name, const std::vector<std::string> &namespaces,
+        const std::vector<std::string> &lines) {
+    std::ofstream out(file_name);
+    for (auto &ns : namespaces)
+        out << "namespace " << ns << " {\n";
+    out << "\n// clang-format off\n";
+    out << "const char** get_" << var_name << "() {\n";
+    out << "    static const char *entries[] = {\n";
+    for (auto &l : lines) {
+        out << "        \"" << l << "\",\n";
+    }
+    out << "        nullptr,\n";
+    out << "\n    };";
+    out << "\n    return entries;";
+    out << "\n};";
+    out << "\n// clang-format on\n\n";
+    for (auto it = namespaces.rbegin(); it != namespaces.rend(); it++)
+        out << "} // namespace " << *it << "\n";
 }
+
 } // namespace jit
 } // namespace intel
 } // namespace gpu

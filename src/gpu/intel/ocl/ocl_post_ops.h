@@ -25,6 +25,7 @@
 #endif
 
 #include "gpu/intel/ocl/ocl_eltwise.h"
+#include "gpu/intel/ocl/ocl_math_utils.h"
 #include "gpu/intel/ocl/ocl_types.h"
 
 float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
@@ -57,9 +58,13 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
 #define CONV_BIN_ARG_TO_FLOAT(idx, bin_arg_val) \
     ({ \
         float ret_val; \
-        if (CONCAT3(PO_, idx, _BIN_ARG_DT_IS_BF16)) \
+        if (CONCAT3(PO_, idx, _BIN_ARG_DT_IS_BF16)) { \
             ret_val = cvt_bf16_to_f32(bin_arg_val); \
-        else \
+        } else if (CONCAT3(PO_, idx, _BIN_ARG_DT_IS_BF8)) { \
+            ret_val = convert_float(cvt_f8_e5m2_to_hf(bin_arg_val)); \
+        } else if (CONCAT3(PO_, idx, _BIN_ARG_DT_IS_HF8)) { \
+            ret_val = convert_float(cvt_f8_e4m3_to_hf(bin_arg_val)); \
+        } else \
             ret_val = convert_float(bin_arg_val); \
 \
         ret_val; \

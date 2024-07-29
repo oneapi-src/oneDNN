@@ -21,6 +21,7 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include <array>
 #include <cassert>
 #include <cstdlib>
 #include <map>
@@ -366,6 +367,30 @@ struct make_index_sequence_helper<0, Next...> {
 // Generator of compile-time sequence of indices
 template <size_t N>
 using make_index_sequence = typename make_index_sequence_helper<N>::type;
+
+template <class T, std::size_t N, std::size_t... I>
+constexpr std::array<typename std::remove_cv<T>::type, N> to_array_impl(
+        T (&a)[N], index_sequence<I...>) {
+    return {{a[I]...}};
+}
+
+// Creates a std::array from the one dimensional built-in array.
+template <class T, std::size_t N>
+constexpr std::array<typename std::remove_cv<T>::type, N> to_array(T (&a)[N]) {
+    return to_array_impl(a, make_index_sequence<N> {});
+}
+
+template <class T, std::size_t N, std::size_t... I>
+constexpr std::array<typename std::remove_cv<T>::type, N> to_array_impl(
+        T(&&a)[N], index_sequence<I...>) {
+    return {{std::move(a[I])...}};
+}
+
+template <class T, std::size_t N>
+constexpr std::array<typename std::remove_cv<T>::type, N> to_array(T(&&a)[N]) {
+    return to_array_impl(std::move(a), make_index_sequence<N> {});
+}
+
 } // namespace nstl
 } // namespace impl
 } // namespace dnnl

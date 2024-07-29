@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,8 +36,8 @@ status_t memory_storage_t::init(unsigned flags, size_t size, void *handle) {
 }
 
 memory_storage_t::memory_storage_t(
-        engine_t *engine, const memory_storage_t *parent_storage)
-    : engine_(engine), parent_storage_(parent_storage) {
+        engine_t *engine, const memory_storage_t *root_storage)
+    : engine_(engine), root_storage_(root_storage) {
     if (engine_) engine_->retain();
 }
 

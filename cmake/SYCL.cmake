@@ -33,7 +33,7 @@ include("cmake/dpcpp_driver_check.cmake")
 if(WIN32 AND CMAKE_BASE_NAME STREQUAL "clang++")
     # TODO: we can drop this workaround once an open-source release
     # for Windows has a fix for the issue.
-    foreach(sycl_lib_version 7 6 "")
+    foreach(sycl_lib_version 8 7 6 "")
         if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
             set(SYCL_LIBRARY_NAME "sycl${sycl_lib_version}d")
         else()

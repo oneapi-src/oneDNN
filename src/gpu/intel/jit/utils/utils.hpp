@@ -31,6 +31,7 @@
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
+#include "gpu/intel/jit/ngen/ngen.hpp"
 #include "gpu/intel/utils.hpp"
 
 #ifdef DNNL_DEV_MODE
@@ -901,46 +902,6 @@ void deserialize(T &t, const std::string &path) {
     t = deserialize<T>(in);
 }
 
-template <typename T>
-void serialize_to_file(const T &t, const std::string &file_name,
-        const std::string &var_name,
-        const std::vector<std::string> &namespaces = {}) {
-    std::ostringstream t_oss;
-    serialize(t, t_oss);
-    auto str = t_oss.str();
-    auto data = std::vector<uint8_t>(str.begin(), str.end());
-    std::ostringstream oss;
-    oss << "#include <cstdint>\n";
-    oss << "#include <vector>\n\n";
-    for (auto &ns : namespaces)
-        oss << "namespace " << ns << " {\n";
-    oss << "\n// clang-format off\n";
-    oss << "const std::vector<uint64_t> &get_" << var_name << "() {\n";
-    oss << "    static std::vector<uint64_t> data = {\n";
-    oss << "        ";
-    size_t bytes = data.size();
-    size_t u64_bytes = sizeof(uint64_t);
-    for (size_t i = 0; i < bytes; i += u64_bytes) {
-        uint64_t v = 0;
-        size_t len = std::min(bytes - i, u64_bytes);
-        std::memcpy(&v, &data[i], len);
-        oss << "0x" << std::setfill('0') << std::setw(16) << std::hex << v;
-        if (i + u64_bytes < bytes) {
-            bool eol = ((i / u64_bytes + 1) % 8 == 0);
-            oss << ",";
-            oss << (eol ? "\n        " : " ");
-        }
-    }
-    oss << "\n    };";
-    oss << "\n    return data;";
-    oss << "\n};";
-    oss << "\n// clang-format on\n\n";
-    for (auto it = namespaces.rbegin(); it != namespaces.rend(); it++)
-        oss << "} // namespace " << *it << "\n";
-    std::ofstream out(file_name);
-    out << oss.str();
-}
-
 inline bool str_to_bool(const std::string &s) {
     if (utils::one_of(s, "1", "true", "True")) return true;
     return false;
@@ -948,31 +909,6 @@ inline bool str_to_bool(const std::string &s) {
 
 inline int str_to_int(const std::string &s) {
     return std::stoi(s);
-}
-
-inline std::string to_string(prop_kind_t prop) {
-    switch (prop) {
-#define CASE(value, name) \
-    case prop_kind::value: return #name
-        CASE(undef, undef);
-        CASE(forward, fwd);
-        CASE(backward_data, bwd_d);
-        CASE(backward_weights, bwd_w);
-#undef CASE
-        default: ir_error_not_expected();
-    }
-    return {};
-}
-
-inline prop_kind_t str_to_prop_kind(const std::string &s) {
-#define CASE(value) \
-    if (to_string(prop_kind::value) == s) return prop_kind::value
-    CASE(forward);
-    CASE(backward_data);
-    CASE(backward_weights);
-#undef CASE
-    ir_error_not_expected();
-    return prop_kind::undef;
 }
 
 inline bool is_big_endian() {
@@ -1025,99 +961,6 @@ public:
 
 private:
     int32_t seed_;
-};
-
-template <typename T>
-class cli_iface_t {
-public:
-    using get_func_t = std::string (&)(const T *);
-    using set_func_t = void (&)(T *, const std::string &);
-
-    void add_arg(const std::string &key, const std::string &help,
-            get_func_t getter, set_func_t setter) {
-        args_.emplace_back((int)args_.size(), key, help, getter, setter);
-    }
-
-    void parse(const std::string &s, T *obj) {
-        bool is_help = (s.find("--help") != std::string::npos);
-        if (is_help) {
-            for (auto &a : args_) {
-                std::cout << "  ";
-                std::cout << std::left << std::setw(22) << a.key;
-                std::cout << a.help << std::endl;
-            }
-            exit(0);
-            return;
-        }
-        std::vector<bool> seen(args_.size());
-        auto parse_part = [&](const std::string &key,
-                                  const std::string &value) {
-            for (auto &a : args_) {
-                if (a.key == key) {
-                    if (seen[a.idx]) {
-                        std::cout << "Error: argument set twice: " << key
-                                  << std::endl;
-                        ir_error_not_expected();
-                    }
-                    a.setter(obj, value);
-                    seen[a.idx] = true;
-                    return;
-                }
-            }
-            std::cout << "Error: unknown argument: " << key << std::endl;
-            ir_error_not_expected();
-        };
-        std::vector<std::string> parts;
-        for (auto &p : gpu_utils::split(s, " ")) {
-            if (p.empty()) continue;
-            parts.push_back(p);
-        }
-        int nparts = (int)parts.size();
-        for (int i = 0; i < nparts; i += 2) {
-            if (i + 1 >= nparts) {
-                std::cout << "Error: value is missing for argument: "
-                          << parts[i] << std::endl;
-                ir_error_not_expected();
-            }
-            parse_part(parts[i], parts[i + 1]);
-        }
-    }
-
-    std::string cmd_str(const T *obj) const {
-        std::vector<std::string> parts;
-        auto add = [&](const std::string &key, const std::string &value) {
-            if (value.empty()) return;
-            parts.push_back(key);
-            parts.push_back(value);
-        };
-        for (auto &a : args_) {
-            add(a.key, a.getter(obj));
-        }
-        std::ostringstream oss;
-        bool is_first = true;
-        for (auto &p : parts) {
-            if (!is_first) oss << " ";
-            oss << p;
-            is_first = false;
-        }
-        return oss.str();
-    }
-
-private:
-    struct arg_t {
-        arg_t(int idx, const std::string &key, const std::string &help,
-                get_func_t getter, set_func_t setter)
-            : idx(idx), key(key), help(help), getter(getter), setter(setter) {}
-
-        int idx = -1;
-        std::string key;
-        std::string help;
-        get_func_t getter;
-        set_func_t setter;
-        bool is_parsed = false;
-    };
-
-    std::vector<arg_t> args_;
 };
 
 inline std::vector<std::pair<std::string, int>> to_string_int_pairs(
@@ -1183,16 +1026,6 @@ inline int max_unique_pad_states(int O, int I, int KD, int P, int S, bool lim) {
 } // namespace ir_utils
 
 template <typename T>
-T to_enum(const std::string &s) {
-    for (int id = 0; id < static_cast<int>(T::_max); id++) {
-        auto value = static_cast<T>(id);
-        if (to_string(value) == s) return value;
-    }
-    ir_error_not_expected() << s;
-    return T::_max;
-}
-
-template <typename T>
 T stream_parse(std::istream &in) {
     T t;
     in >> t;
@@ -1233,6 +1066,443 @@ inline bool stream_try_match(std::istream &in, const std::string &s) {
     }
     return ok;
 }
+
+template <typename T>
+using enum_name_t = std::pair<T, const char *>;
+
+template <typename T>
+std::pair<T, const char *> make_enum_name(const T &value, const char *name) {
+    return std::make_pair(value, name);
+}
+
+template <typename E, size_t N>
+std::string to_string_impl(
+        E e, const std::array<enum_name_t<E>, N> &enum_names);
+
+template <typename E, size_t N>
+void to_enum_templ_impl(const std::string &s, E &e,
+        const std::array<enum_name_t<E>, N> &enum_names);
+
+template <typename E, size_t N>
+bool is_enum_name_templ_impl(
+        const std::string &s, const std::array<enum_name_t<E>, N> &enum_names);
+
+#define GPU_DEFINE_PARSE_ENUM(enum_type, enum_names) \
+    inline std::string to_string(enum_type e) { \
+        return to_string_impl(e, enum_names); \
+    } \
+    inline void to_enum_impl(const std::string &s, enum_type &e) { \
+        to_enum_templ_impl(s, e, enum_names); \
+    } \
+    inline bool is_enum_name_impl(const std::string &s, const enum_type *) { \
+        return is_enum_name_templ_impl(s, enum_names); \
+    }
+
+static auto hw_names = nstl::to_array({
+        make_enum_name(ngen::Core::Unknown, "unknown"),
+        make_enum_name(ngen::Core::Gen9, "gen9"),
+        make_enum_name(ngen::Core::Gen10, "gen10"),
+        make_enum_name(ngen::Core::Gen11, "gen11"),
+        make_enum_name(ngen::Core::XeLP, "xelp"),
+        make_enum_name(ngen::Core::XeHP, "xehp"),
+        make_enum_name(ngen::Core::XeHPG, "xehpg"),
+        make_enum_name(ngen::Core::XeHPC, "xehpc"),
+        make_enum_name(ngen::Core::Xe2, "xe2"),
+});
+GPU_DEFINE_PARSE_ENUM(ngen::HW, hw_names)
+
+static auto product_family_names = nstl::to_array({
+        make_enum_name(ngen::ProductFamily::Unknown, "unknown"),
+        make_enum_name(ngen::ProductFamily::GenericGen9, "gen9"),
+        make_enum_name(ngen::ProductFamily::GenericGen10, "gen10"),
+        make_enum_name(ngen::ProductFamily::GenericGen11, "gen11"),
+        make_enum_name(ngen::ProductFamily::GenericXeLP, "xelp"),
+        make_enum_name(ngen::ProductFamily::GenericXeHP, "xehp"),
+        make_enum_name(ngen::ProductFamily::GenericXeHPG, "xehpg"),
+        make_enum_name(ngen::ProductFamily::DG2, "dg2"),
+        make_enum_name(ngen::ProductFamily::MTL, "mtl"),
+        make_enum_name(ngen::ProductFamily::ARL, "arl"),
+        make_enum_name(ngen::ProductFamily::GenericXeHPC, "xehpc"),
+        make_enum_name(ngen::ProductFamily::PVC, "pvc"),
+        make_enum_name(ngen::ProductFamily::GenericXe2, "xe2"),
+});
+GPU_DEFINE_PARSE_ENUM(ngen::ProductFamily, product_family_names)
+
+static auto prop_kind_names = nstl::to_array({
+        make_enum_name(prop_kind::undef, "undef"),
+        make_enum_name(prop_kind::forward, "fwd"),
+        make_enum_name(prop_kind::backward_data, "bwd_d"),
+        make_enum_name(prop_kind::backward_weights, "bwd_w"),
+});
+GPU_DEFINE_PARSE_ENUM(prop_kind_t, prop_kind_names)
+
+template <typename T>
+class parse_iface_t;
+
+template <typename E>
+void parse_enum(std::istream &in, E &e);
+
+template <typename T, typename = void>
+struct has_parse_iface_t {
+    static const bool value = false;
+};
+
+template <typename T>
+struct has_parse_iface_t<T, decltype(T::init_parse_iface(nullptr), void())> {
+    static const bool value = true;
+};
+
+template <typename T, typename = void>
+struct has_parse_t {
+    static const bool value = false;
+};
+
+template <typename T>
+struct has_parse_t<T,
+        decltype(std::declval<T>().parse(std::declval<std::istream &>()),
+                void())> {
+    static const bool value = true;
+};
+
+template <typename T, typename = void>
+struct has_stringify_t {
+    static const bool value = false;
+};
+
+template <typename T>
+struct has_stringify_t<T,
+        decltype(std::declval<T>().stringify(std::declval<std::ostream &>()),
+                void())> {
+    static const bool value = true;
+};
+
+template <typename T>
+struct parse_iface_helper_t {
+    static const parse_iface_t<T> &get() {
+        static parse_iface_t<T> _iface = []() {
+            parse_iface_t<T> iface;
+            T::init_parse_iface(&iface);
+            return iface;
+        }();
+        return _iface;
+    }
+};
+
+template <typename T>
+const parse_iface_t<T> &get_parse_iface() {
+    return parse_iface_helper_t<T>::get();
+}
+
+template <typename T, typename = void>
+struct stringify_impl_t {
+    static void call(std::ostream &out, const T &t) { out << t; }
+};
+
+template <typename T>
+struct stringify_impl_t<T,
+        typename std::enable_if<has_parse_iface_t<T>::value>::type> {
+    static void call(std::ostream &out, const T &t) {
+        get_parse_iface<T>().stringify(out, t);
+    }
+};
+
+template <typename T>
+struct stringify_impl_t<T,
+        typename std::enable_if<!has_parse_iface_t<T>::value
+                && has_stringify_t<T>::value>::type> {
+    static void call(std::ostream &out, const T &t) { t.stringify(out); }
+};
+
+template <typename T>
+struct stringify_impl_t<T,
+        typename std::enable_if<std::is_enum<T>::value>::type> {
+    static void call(std::ostream &out, const T &t) { out << to_string(t); }
+};
+
+template <typename T, typename = void>
+struct parse_impl_t {
+    static void call(std::istream &in, T &t) { t = stream_parse<T>(in); }
+};
+
+template <typename T>
+struct parse_impl_t<T,
+        typename std::enable_if<has_parse_iface_t<T>::value>::type> {
+    static void call(std::istream &in, T &t) {
+        get_parse_iface<T>().parse(in, t);
+    }
+};
+
+template <typename T>
+struct parse_impl_t<T,
+        typename std::enable_if<!has_parse_iface_t<T>::value
+                && has_parse_t<T>::value>::type> {
+    static void call(std::istream &in, T &t) { t.parse(in); }
+};
+
+template <typename T>
+struct parse_impl_t<T, typename std::enable_if<std::is_enum<T>::value>::type> {
+    static void call(std::istream &in, T &t) { parse_enum(in, t); }
+};
+
+template <typename T>
+void stringify(std::ostream &out, const T &t) {
+    stringify_impl_t<T>::call(out, t);
+}
+
+template <typename T>
+std::string stringify(const T &t) {
+    std::ostringstream oss;
+    stringify_impl_t<T>::call(oss, t);
+    return oss.str();
+}
+
+template <typename T>
+void parse(std::istream &in, T &t) {
+    parse_impl_t<T>::call(in, t);
+}
+
+template <typename T>
+void parse(const std::string &s, T &t) {
+    std::istringstream iss(s);
+    parse(iss, t);
+}
+
+template <typename T>
+T parse(std::istream &in) {
+    T t;
+    parse(in, t);
+    return t;
+}
+
+template <typename T>
+T parse(const std::string &s) {
+    T t;
+    parse(s, t);
+    return t;
+}
+
+template <typename T>
+class parse_iface_t {
+public:
+    using base_type = T;
+
+    parse_iface_t(bool cli = false) : cli_(cli) {}
+
+    template <typename U, U T::*ptr>
+    void add(const std::string &name = {}, const std::string &help = {},
+            bool cli_required = false) {
+        entry_t e;
+        e.name = name;
+        e.help = help;
+        e.cli_required = cli_required;
+        e.stringify = [](std::ostream &out, const T &parent) {
+            jit::stringify(out, parent.*ptr);
+        };
+        e.parse = [](std::istream &in, T &parent) {
+            jit::parse(in, parent.*ptr);
+        };
+        if (cli_) {
+            ir_assert(!e.name.empty())
+                    << "CLI support requires non-empty name.";
+            ir_assert(!e.help.empty())
+                    << "CLI support requires non-empty help.";
+        }
+        entries_.push_back(e);
+    }
+
+    template <typename Func>
+    void set_pre_stringify_func(const Func &func) {
+        pre_stringify_func_ = static_cast<void (*)(const T &)>(func);
+    }
+
+    template <typename Func>
+    void set_post_parse_func(const Func &func) {
+        post_parse_func_ = static_cast<void (*)(T &)>(func);
+    }
+
+    void stringify(std::ostream &out, const T &parent) const {
+        if (pre_stringify_func_) pre_stringify_func_(parent);
+        bool is_first = true;
+        for (auto &e : entries_) {
+            if (!is_first) out << " ";
+            e.prefix(out, cli_);
+            e.stringify(out, parent);
+            is_first = false;
+        }
+    }
+
+    void parse(std::istream &in, T &parent) const {
+        parent = T();
+        if (cli_) {
+            parse_cli(in, parent);
+        } else {
+            for (auto &e : entries_) {
+                if (!e.name.empty()) {
+                    stream_match(in, e.name);
+                    stream_match(in, "=");
+                }
+                e.parse(in, parent);
+            }
+        }
+        if (post_parse_func_) post_parse_func_(parent);
+    }
+
+    void parse(const std::string &s, T &parent) const {
+        std::istringstream iss(s);
+        parse(iss, parent);
+    }
+
+    int size() const { return static_cast<int>(entries_.size()); }
+
+    std::string cmd_str(const T &parent) const {
+        std::ostringstream oss;
+        bool is_first = true;
+        for (auto &e : entries_) {
+            if (!is_first) oss << " ";
+            oss << "--" << e.name << " ";
+            e.stringify(oss, parent);
+            is_first = false;
+        }
+        return oss.str();
+    }
+
+    void print_help() const {
+        for (auto &e : entries_) {
+            std::cout << "  ";
+            std::cout << std::left << std::setw(22) << e.name;
+            std::cout << e.help << std::endl;
+        }
+    }
+
+private:
+    struct entry_t {
+        std::string name;
+        std::string help;
+        bool cli_required = false;
+        std::function<void(std::ostream &, const T &)> stringify;
+        std::function<void(std::istream &, T &)> parse;
+
+        void prefix(std::ostream &out, bool cli) const {
+            if (cli) {
+                out << "--" << name;
+                return;
+            }
+            if (!name.empty()) out << name << "=";
+        }
+
+        bool matches_cli(const std::string &_s) const {
+            auto s = (_s.find("--") == 0 ? _s.substr(2) : _s);
+            if (s.length() != name.length()) return false;
+            for (size_t i = 0; i < s.length(); i++) {
+                if (s[i] == name[i]) continue;
+                if (s[i] == '-' && name[i] == '_') continue;
+                return false;
+            }
+            return true;
+        }
+    };
+
+    void parse_cli(std::istream &in, T &parent) const {
+        std::vector<bool> seen(entries_.size());
+        auto find_entry_index = [&](const std::string name) {
+            for (int i = 0; i < (int)entries_.size(); i++) {
+                if (entries_[i].matches_cli(name)) return i;
+            }
+            return -1;
+        };
+        while (!in.eof()) {
+            auto name = stream_parse<std::string>(in);
+            if (name == "--help") {
+                print_help();
+                exit(0);
+            }
+            auto idx = find_entry_index(name);
+            if (idx == -1) {
+                std::cout << "Error: unknown argument: " << name << std::endl;
+                ir_error_not_expected();
+                exit(1);
+            }
+            if (seen[idx]) {
+                std::cout << "Error: argument set twice: " << name << std::endl;
+                ir_error_not_expected();
+                exit(1);
+            }
+            entries_[idx].parse(in, parent);
+            seen[idx] = true;
+        }
+        for (size_t i = 0; i < entries_.size(); i++) {
+            if (entries_[i].cli_required && !seen[i]) {
+                std::cout << "Error: missing required argument: "
+                          << entries_[i].name << std::endl;
+                ir_error_not_expected();
+                exit(1);
+            }
+        }
+    }
+
+    // Whether to handle command-line interface style parse/stringify.
+    // Default: param=value and parameter order is fixed
+    // CLI:     --param value and parameter order is flexible
+    bool cli_ = false;
+
+    std::vector<entry_t> entries_;
+    void (*pre_stringify_func_)(const T &) = nullptr;
+    void (*post_parse_func_)(T &) = nullptr;
+};
+
+template <typename E, size_t N>
+std::string to_string_impl(
+        E e, const std::array<enum_name_t<E>, N> &enum_names) {
+    for (auto &p : enum_names)
+        if (p.first == e) return p.second;
+    ir_error_not_expected();
+    return {};
+}
+
+template <typename E, size_t N>
+void to_enum_templ_impl(const std::string &s, E &e,
+        const std::array<enum_name_t<E>, N> &enum_names) {
+    for (auto &p : enum_names) {
+        if (p.second == s) {
+            e = p.first;
+            return;
+        }
+    }
+    ir_error_not_expected();
+}
+
+template <typename E>
+E to_enum(const std::string &s) {
+    E e;
+    to_enum_impl(s, e);
+    return e;
+}
+
+template <typename E, size_t N>
+bool is_enum_name_templ_impl(
+        const std::string &s, const std::array<enum_name_t<E>, N> &enum_names) {
+    for (auto &p : enum_names) {
+        if (p.second == s) return true;
+    }
+    return false;
+}
+
+template <typename E>
+bool is_enum_name(const std::string &s) {
+    E dummy;
+    return is_enum_name_impl(s, &dummy);
+}
+
+template <typename E>
+void parse_enum(std::istream &in, E &e) {
+    std::string name;
+    in >> name;
+    e = to_enum<E>(name);
+}
+
+void stringify_to_cpp_file(const std::string &file_name,
+        const std::string &var_name, const std::vector<std::string> &namespaces,
+        const std::vector<std::string> &lines);
 
 } // namespace jit
 } // namespace intel

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ namespace impl {
 // Memory storage is engine-specific and has different implementations for
 // different engines.
 struct memory_storage_t : public c_compatible {
-    memory_storage_t(engine_t *engine, const memory_storage_t *parent_storage);
+    memory_storage_t(engine_t *engine, const memory_storage_t *root_storage);
     memory_storage_t(engine_t *engine) : memory_storage_t(engine, this) {}
 
     virtual ~memory_storage_t();
@@ -88,16 +88,16 @@ struct memory_storage_t : public c_compatible {
 
     static memory_storage_t &empty_storage();
 
+    const memory_storage_t *root_storage() const { return root_storage_; }
+
 protected:
     virtual status_t init_allocate(size_t size) = 0;
-
-    const memory_storage_t *parent_storage() const { return parent_storage_; }
 
 private:
     engine_t *engine_;
     size_t offset_ = 0;
 
-    const memory_storage_t *parent_storage_;
+    const memory_storage_t *root_storage_;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(memory_storage_t);
 };

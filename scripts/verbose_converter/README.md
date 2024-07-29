@@ -13,7 +13,7 @@ produce other types of output by adding generators.
 The script is compatible with the specific oneDNN version with which it is distributed.
 Compatibility with other oneDNN versions is not guaranteed.
 To get an appropriate version of the script:
- - Identify `DNNL_VERSION_HASH` located in `include/oneapi/dnnl/dnnl_config.h`.
+ - Identify `DNNL_VERSION_HASH` located in `include/oneapi/dnnl/dnnl_version_hash.h`.
  - Download the script from oneDNN repository with that particular hash.
 
 ## Usage

@@ -79,7 +79,7 @@ model_t model_fit(const bench_data_t &bd) {
     vec1d y;
     to_model_xy(bd, X, y);
     auto ml_model = ml_model_fit(ml_model_kind_t::linear_regression, X, y);
-    return model_t(bd.kernel_desc, ml_model);
+    return model_t(ml_model);
 }
 
 } // namespace planner

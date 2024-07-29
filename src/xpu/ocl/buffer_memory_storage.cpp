@@ -131,7 +131,7 @@ std::unique_ptr<memory_storage_t> buffer_memory_storage_t::get_sub_storage(
     if (err != CL_SUCCESS) return nullptr;
 
     auto sub_storage
-            = new buffer_memory_storage_t(this->engine(), parent_storage());
+            = new buffer_memory_storage_t(this->engine(), root_storage());
     if (sub_storage) {
         sub_storage->init(memory_flags_t::use_runtime_ptr, size, sub_buffer);
         sub_storage->base_offset_ = base_offset_ + offset;
@@ -146,7 +146,7 @@ std::unique_ptr<memory_storage_t> buffer_memory_storage_t::clone() const {
 }
 
 cl_mem buffer_memory_storage_t::parent_mem_object() const {
-    return utils::downcast<const buffer_memory_storage_t *>(parent_storage())
+    return utils::downcast<const buffer_memory_storage_t *>(root_storage())
             ->mem_object();
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,9 +27,6 @@
 
 /// Patch version
 #define DNNL_VERSION_PATCH @DNNL_VERSION_PATCH@
-
-/// Git commit hash
-#define DNNL_VERSION_HASH  "@DNNL_VERSION_HASH@"
 
 // clang-format on
 

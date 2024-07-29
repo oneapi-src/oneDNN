@@ -26,29 +26,84 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-const std::vector<uint64_t> &get_plan_registry_data();
+const char **get_plan_registry_entries();
+
+plan_registry_t::plan_registry_t(const char **entries) {
+    while (*entries) {
+        plan_registry_t::entry_t e;
+        std::istringstream iss(*entries);
+        e.parse(iss);
+#ifdef DNNL_DEV_MODE
+        {
+            std::ostringstream oss;
+            e.stringify(oss);
+            ir_assert(oss.str() == *entries)
+                    << "parsed from:\n  " << *entries << "\nstringified to\n  "
+                    << oss.str();
+        }
+#endif
+        entries_.push_back(e);
+        entries++;
+    }
+}
 
 void plan_registry_t::merge(const plan_registry_t &other) {
-    for (auto &kv : other.entries_) {
-        set(kv.first, kv.second);
+    std::unordered_map<std::string, entry_t> new_entries;
+    auto *const_this = const_cast<const plan_registry_t *>(this);
+    for (auto *entries_ptr : {&const_this->entries_, &other.entries_}) {
+        for (auto &e : *entries_ptr) {
+            auto key = jit::stringify(e);
+            new_entries[key] = e;
+        }
+    }
+    entries_.clear();
+    for (auto &kv : new_entries) {
+        entries_.push_back(kv.second);
     }
 }
 
 kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
     kernel_desc_t best;
     float best_eff = 0;
-    for (auto &kv : entries_) {
-        auto &desc = kv.first;
-        auto &model = kv.second;
-        if (!desc.fits(prb)) continue;
-        float eff = model.eff(prb);
+    for (auto &e : entries_) {
+        if (!e.desc.fits(prb)) continue;
+        float eff = e.model.eff(prb, e.desc);
         if (eff > best_eff) {
             best_eff = eff;
-            best = desc;
+            best = e.desc;
             best.set_defaults();
         }
     }
+    best.hw = prb.hw();
     return best;
+}
+
+void plan_registry_t::stringify(std::ostream &out) const {
+    for (auto &e : entries_) {
+        e.stringify(out);
+        out << "\n";
+    }
+}
+
+void plan_registry_t::parse(std::istream &in) {
+    entries_.clear();
+    std::string line;
+    while (std::getline(in, line)) {
+        entries_.emplace_back();
+        jit::parse(line, entries_.back());
+    }
+}
+
+void plan_registry_t::entry_t::stringify(std::ostream &out) const {
+    jit::stringify(out, desc);
+    out << " model=";
+    jit::stringify(out, model);
+}
+
+void plan_registry_t::entry_t::parse(std::istream &in) {
+    jit::parse(in, desc);
+    stream_match(in, "model=");
+    jit::parse(in, model);
 }
 
 struct plan_registry_instance_t {
@@ -58,15 +113,14 @@ struct plan_registry_instance_t {
     }
 
     plan_registry_instance_t() {
-        registry = ir_utils::deserialize_from_data<plan_registry_t>(
-                get_plan_registry_data());
+        registry = plan_registry_t(get_plan_registry_entries());
 #ifdef DNNL_DEV_MODE
         registry_path = getenv_string_user(env_registry_path_name);
         if (!registry_path.empty()) {
-            std::ifstream in(registry_path, std::ios::binary);
+            std::ifstream in(registry_path);
             if (!in.good()) return;
             plan_registry_t file_registry;
-            file_registry.deserialize(in);
+            file_registry.parse(in);
             registry.merge(file_registry);
         }
 #endif
@@ -74,16 +128,25 @@ struct plan_registry_instance_t {
 
     void dump() const {
         if (registry_path.empty()) return;
-        ir_utils::serialize(registry, registry_path);
+        // Serialize to a text file.
+        std::ostringstream oss;
+        jit::stringify(oss, registry);
+
+        std::ofstream out(registry_path);
+        out << oss.str();
+
+        // Serialize to a .cpp file.
+        auto cpp_path = registry_path + ".cpp";
         std::vector<std::string> nses;
         nses.emplace_back("dnnl");
         nses.emplace_back("impl");
         nses.emplace_back("gpu");
+        nses.emplace_back("intel");
         nses.emplace_back("jit");
         nses.emplace_back("v2");
         nses.emplace_back("conv");
-        ir_utils::serialize_to_file(
-                registry, registry_path + ".cpp", "plan_registry_data", nses);
+        auto lines = gpu_utils::split(oss.str(), "\n");
+        stringify_to_cpp_file(cpp_path, "plan_registry_entries", nses, lines);
     }
 
     static const char *env_registry_path_name;

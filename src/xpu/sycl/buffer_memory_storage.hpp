@@ -36,7 +36,7 @@ public:
     buffer_memory_storage_t(engine_t *engine);
 
     buffer_memory_storage_t(
-            engine_t *engine, const memory_storage_t *parent_storage);
+            engine_t *engine, const memory_storage_t *root_storage);
 
     xpu::sycl::buffer_u8_t &buffer() const { return *buffer_; }
 
