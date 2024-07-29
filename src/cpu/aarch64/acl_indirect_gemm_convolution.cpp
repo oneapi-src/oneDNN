@@ -24,6 +24,17 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
+namespace {
+// Keys are anonymous. So deduce the type automagically.
+using conv_key_t = decltype(memory_tracking::names::key_gemm_tmp_buffer);
+
+// Map: [slot , key]
+const std::map<int, conv_key_t> indirect_conv_keys
+        = {{0, conv_key_t::key_gemm_tmp_buffer},
+                {2, conv_key_t::key_gemm_pretranspose},
+                {3, conv_key_t::key_conv_permuted_weights}};
+} // namespace
+
 status_t acl_indirect_gemm_convolution_fwd_t::init(engine_t *engine) {
     auto acp_ = pd()->acp_;
     acl_obj_->conv.configure(&acp_.src_tensor_info, &acp_.wei_tensor_info,
@@ -85,35 +96,22 @@ status_t acl_indirect_gemm_convolution_fwd_t::execute_forward(
                     {arm_compute::TensorType::ACL_SRC_2, &bia_tensor},
                     {arm_compute::TensorType::ACL_DST, &dst_tensor}};
 
-    // Temp workspaces.
+    // Get temp workspaces.
     const auto aux_mem = acl_obj_->aux_mem_req;
-    arm_compute::Tensor gemm_tmp_buffer_tensor;
-    arm_compute::Tensor conv_permuted_weights_tensor;
-    arm_compute::Tensor gemm_pretranspose_tensor;
 
-    if (aux_mem[0].size > 0) {
-        gemm_tmp_buffer_tensor.allocator()->init(
-                acp.gemm_tmp_buffer_info, aux_mem[0].alignment);
-        auto buffer = scratchpad.get<void>(
-                memory_tracking::names::key_gemm_tmp_buffer);
-        gemm_tmp_buffer_tensor.allocator()->import_memory(buffer);
-        pack.add_tensor(aux_mem[0].slot, &gemm_tmp_buffer_tensor);
-    }
-    if (aux_mem[2].size > 0) {
-        gemm_pretranspose_tensor.allocator()->init(
-                acp.gemm_pretranspose_info, aux_mem[2].alignment);
-        auto buffer = scratchpad.get<void>(
-                memory_tracking::names::key_gemm_pretranspose);
-        gemm_tmp_buffer_tensor.allocator()->import_memory(buffer);
-        pack.add_tensor(aux_mem[2].slot, &gemm_pretranspose_tensor);
-    }
-    if (aux_mem[3].size > 0) {
-        conv_permuted_weights_tensor.allocator()->init(
-                acp.conv_permuted_weights_info, aux_mem[3].alignment);
-        auto buffer = scratchpad.get<void>(
-                memory_tracking::names::key_conv_permuted_weights);
-        conv_permuted_weights_tensor.allocator()->import_memory(buffer);
-        pack.add_tensor(aux_mem[3].slot, &conv_permuted_weights_tensor);
+    // Hold onto tmp tensors while we need pack.
+    std::vector<arm_compute::Tensor> tmp_tensors(aux_mem.size());
+    for (const auto &key : indirect_conv_keys) {
+        const auto id = key.first;
+        if (aux_mem[id].size > 0) {
+            const auto info = arm_compute::TensorInfo(
+                    arm_compute::TensorShape(aux_mem[id].size), 1,
+                    arm_compute::DataType::U8);
+            auto buffer = scratchpad.get<void>(key.second);
+            tmp_tensors[id].allocator()->init(info, aux_mem[id].alignment);
+            tmp_tensors[id].allocator()->import_memory(buffer);
+            pack.add_tensor(aux_mem[id].slot, &tmp_tensors[id]);
+        }
     }
 
     acl_obj_->conv.run(pack);
@@ -168,32 +166,6 @@ status_t acl_indirect_gemm_convolution_fwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-void acl_indirect_gemm_convolution_fwd_t::pd_t::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad,
-        const std::vector<arm_compute::experimental::MemoryInfo> &aux_mem) {
-    if (aux_mem[0].size > 0) {
-        scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer,
-                aux_mem[0].size, 1, aux_mem[0].alignment, aux_mem[0].alignment);
-        acp_.gemm_tmp_buffer_info = arm_compute::TensorInfo(
-                arm_compute::TensorShape(aux_mem[0].size), 1,
-                arm_compute::DataType::U8);
-    }
-    if (aux_mem[2].size > 0) {
-        scratchpad.book(memory_tracking::names::key_gemm_pretranspose,
-                aux_mem[2].size, 1, aux_mem[2].alignment, aux_mem[2].alignment);
-        acp_.gemm_pretranspose_info = arm_compute::TensorInfo(
-                arm_compute::TensorShape(aux_mem[2].size), 1,
-                arm_compute::DataType::U8);
-    }
-    if (aux_mem[3].size > 0) {
-        scratchpad.book(memory_tracking::names::key_conv_permuted_weights,
-                aux_mem[3].size, 1, aux_mem[3].alignment, aux_mem[3].alignment);
-        acp_.conv_permuted_weights_info = arm_compute::TensorInfo(
-                arm_compute::TensorShape(aux_mem[3].size), 1,
-                arm_compute::DataType::U8);
-    }
-}
-
 status_t acl_indirect_gemm_convolution_fwd_t::pd_t::init(engine_t *engine) {
     using namespace data_type;
     using smask_t = primitive_attr_t::skip_mask_t;
@@ -219,7 +191,15 @@ status_t acl_indirect_gemm_convolution_fwd_t::pd_t::init(engine_t *engine) {
                     acp_.act_info, acp_.fast_math, 1, acp_.weights_info));
     const auto aux_mem_req = conv.workspace();
     auto scratchpad = scratchpad_registry().registrar();
-    init_scratchpad(scratchpad, aux_mem_req);
+
+    // Book temp mem.
+    for (const auto &key : indirect_conv_keys) {
+        const auto id = key.first;
+        if (aux_mem_req[id].size > 0) {
+            scratchpad.book(key.second, aux_mem_req[id].size, 1,
+                    aux_mem_req[id].alignment, aux_mem_req[id].alignment);
+        }
+    }
 
     CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_, acp_.act_info));
     acp_.use_dst_acc_for_sum = post_ops.has_sum();

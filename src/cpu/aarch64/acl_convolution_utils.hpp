@@ -17,11 +17,9 @@
 #ifndef CPU_AARCH64_ACL_CONVOLUTION_UTILS_HPP
 #define CPU_AARCH64_ACL_CONVOLUTION_UTILS_HPP
 
+#include "acl_post_ops.hpp"
+#include "acl_utils.hpp"
 #include "cpu/cpu_convolution_pd.hpp"
-
-#include "cpu/aarch64/acl_post_ops.hpp"
-#include "cpu/aarch64/acl_utils.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -52,11 +50,6 @@ struct acl_conv_conf_t {
     arm_compute::TensorInfo bia_tensor_info;
     arm_compute::TensorInfo dst_tensor_info;
 
-    // Asm GEMM kernel
-    arm_compute::TensorInfo gemm_tmp_buffer_info;
-    arm_compute::TensorInfo gemm_pretranspose_info;
-
-    arm_compute::TensorInfo conv_permuted_weights_info;
     arm_compute::PadStrideInfo padstride_info;
     arm_compute::Size2D dilation_info;
     // Additional information about the weights not included in wei_tensor_info

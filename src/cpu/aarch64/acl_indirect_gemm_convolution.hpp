@@ -49,9 +49,6 @@ struct acl_indirect_gemm_convolution_fwd_t : public primitive_t {
 
     private:
         status_t init_conf();
-        void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-                const std::vector<arm_compute::experimental::MemoryInfo>
-                        &aux_mem);
     };
 
     acl_indirect_gemm_convolution_fwd_t(const pd_t *apd)
