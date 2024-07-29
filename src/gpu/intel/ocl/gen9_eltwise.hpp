@@ -29,7 +29,8 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-struct gen9_eltwise_jit_params_t {
+struct gen9_eltwise_jit_params_t
+    : public trivially_serializable_t<gen9_eltwise_jit_params_t> {
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_bundle_t &bundle) const {
         return engine.create_kernel_bundle(
@@ -40,22 +41,6 @@ struct gen9_eltwise_jit_params_t {
         static const std::vector<const char *> names {
                 "gen9_eltwise_fwd", "gen9_eltwise_bwd"};
         return names;
-    }
-
-#if __cplusplus >= 202002L
-    bool operator==(const gen9_eltwise_jit_params_t &) const = default;
-#endif
-    serialized_t serialize() const {
-        // Explicitly maintain zero padding to keep the implementation simple and
-        // robust
-        return serialized_t(*this);
-    }
-
-    static gen9_eltwise_jit_params_t deserialize(const serialized_t &s) {
-        gen9_eltwise_jit_params_t t {};
-        deserializer_t d(s);
-        d.pop(t);
-        return t;
     }
 
     status_t init(impl::engine_t *engine, const memory_desc_wrapper data_d,
