@@ -71,6 +71,14 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
     adjustStrategy(hw_, problem_, strategy_, tags);
     modifyStrategy(strategy_, aux_params_);
 
+    // Align k slice size and quantization group size
+    if (strategy_.kParallelLocal) {
+        if (problem_.quantized2DA())
+            aux_params_.k0 = utils::rnd_up(aux_params_.k0, problem_.aqGroupK);
+        if (problem_.quantized2DB())
+            aux_params_.k0 = utils::rnd_up(aux_params_.k0, problem_.bqGroupK);
+    }
+
     if (hw_ == ngen::HW::Xe2) {
         // Temporary hack to use XeHPC register banking on Xe2, in order
         //   to successfully reuse XeHPC strategies.
