@@ -596,12 +596,12 @@ public:
         return ret;
     }
 
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(buckets_, out);
-    }
+    void serialize(serialized_data_t &s) const { s.append(buckets_); }
 
-    void deserialize(std::istream &in) {
-        buckets_ = ir_utils::deserialize<vec2d<float>>(in);
+    static histogram_t deserialize(deserializer_t &d) {
+        histogram_t h;
+        d.pop(h.buckets_);
+        return h;
     }
 
 private:
@@ -727,25 +727,28 @@ public:
         std::cout << "  Nodes:      " << node_count() << std::endl;
     }
 
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(nfeatures_, out);
-        ir_utils::serialize(max_depth_, out);
-        ir_utils::serialize(subsamples_, out);
-        ir_utils::serialize(metric_, out);
+    void serialize(serialized_data_t &s) const {
+        s.append(nfeatures_);
+        s.append(max_depth_);
+        s.append(subsamples_);
+        s.append(metric_);
 
         std::vector<uint8_t> node_data;
         serialize_node(node_data);
 
-        ir_utils::serialize(node_data, out);
+        s.append(node_data);
     }
 
-    void deserialize(std::istream &in) {
-        nfeatures_ = ir_utils::deserialize<int>(in);
-        max_depth_ = ir_utils::deserialize<int>(in);
-        subsamples_ = ir_utils::deserialize<int>(in);
-        metric_ = ir_utils::deserialize<metric_t>(in);
-        auto node_data = ir_utils::deserialize<std::vector<uint8_t>>(in);
-        deserialize_node(node_data);
+    static tree_t deserialize(deserializer_t &d) {
+        tree_t t;
+        d.pop(t.nfeatures_);
+        d.pop(t.max_depth_);
+        d.pop(t.subsamples_);
+        d.pop(t.metric_);
+        std::vector<uint8_t> node_data;
+        d.pop(node_data);
+        t.deserialize_node(node_data);
+        return t;
     }
 
 private:
@@ -1066,23 +1069,25 @@ public:
     }
 
     int serialized_size() const {
-        std::ostringstream oss;
-        serialize(oss);
-        return (int)oss.str().size();
+        serialized_data_t s;
+        serialize(s);
+        return (int)s.get_data().size();
     }
 
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(learning_rate_, out);
-        hist_.serialize(out);
-        ir_utils::serialize(f0_, out);
-        ir_utils::serialize(trees_, out);
+    void serialize(serialized_data_t &s) const {
+        s.append(learning_rate_);
+        s.append(hist_);
+        s.append(f0_);
+        s.append(trees_);
     }
 
-    void deserialize(std::istream &in) {
-        learning_rate_ = ir_utils::deserialize<float>(in);
-        hist_.deserialize(in);
-        f0_ = ir_utils::deserialize<float>(in);
-        trees_ = ir_utils::deserialize<std::vector<tree_t<tree_type_t>>>(in);
+    static gradient_boost_regressor_t deserialize(deserializer_t &d) {
+        gradient_boost_regressor_t r;
+        d.pop(r.learning_rate_);
+        d.pop(r.hist_);
+        d.pop(r.f0_);
+        d.pop(r.trees_);
+        return r;
     }
 
 private:

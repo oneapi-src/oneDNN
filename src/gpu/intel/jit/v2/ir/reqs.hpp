@@ -51,7 +51,6 @@ public:
     virtual ir_type_id_t expr_kind() const = 0;
     virtual int64_t to_int(const prb_tile_t &sizes) const = 0;
     virtual expr_t to_ir() const = 0;
-    virtual void serialize(std::ostream &out) const = 0;
 };
 
 // Requirement expression, supports a subset of IR expressions.
@@ -80,8 +79,6 @@ public:
 #if __cplusplus >= 202002L
     bool operator==(const req_expr_t &other) const = default;
 #endif
-    void serialize(std::ostream &out) const { return impl_->serialize(out); }
-    void deserialize(std::istream &in);
 
 private:
     std::shared_ptr<req_expr_impl_t> impl_;
@@ -109,8 +106,6 @@ public:
     // Checks if other prb_reqs_t object is fully implied from the requirements
     // of this object.
     bool implies(const prb_reqs_t &other) const;
-    void serialize(std::ostream &out) const;
-    void deserialize(std::istream &in);
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
     std::string str() const;
@@ -131,8 +126,6 @@ private:
         // Checks if the condition is an implication of the current
         // requirement.
         bool can_prove(const expr_t &expr_to_prove) const;
-        void serialize(std::ostream &out) const;
-        void deserialize(std::istream &in);
         void stringify(std::ostream &out) const;
         void parse(std::istream &in);
         std::string str() const;

@@ -21,6 +21,8 @@
 #include <memory>
 #include <vector>
 
+#include "gpu/intel/serialization.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -41,8 +43,6 @@ class ml_model_impl_t {
 public:
     virtual ml_model_kind_t kind() const = 0;
     virtual float predict(const vec1d &x) const = 0;
-    virtual void serialize(std::ostream &out) const = 0;
-    virtual void deserialize(std::istream &in) = 0;
 };
 
 class linear_model_t final : public ml_model_impl_t {
@@ -53,8 +53,8 @@ public:
         return ml_model_kind_t::linear_regression;
     }
     float predict(const vec1d &x) const override;
-    void serialize(std::ostream &out) const override;
-    void deserialize(std::istream &in) override;
+    void serialize(serialized_data_t &s) const;
+    static linear_model_t deserialize(deserializer_t &d);
 
 private:
     vec1d coef_;
@@ -72,8 +72,8 @@ public:
         return impl_ ? impl_->kind() : ml_model_kind_t::undef;
     }
     float predict(const vec1d &x) const { return impl_->predict(x); }
-    void serialize(std::ostream &out) const;
-    void deserialize(std::istream &in);
+    void serialize(serialized_data_t &s) const;
+    ml_model_t deserialize(deserializer_t &d);
 
 private:
     std::shared_ptr<ml_model_impl_t> impl_;
