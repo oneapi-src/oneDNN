@@ -107,7 +107,7 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     // masked_score = scaled_score + mask
     // All combined in a single matmul primitive.
     auto query_md = memory::desc(qv_sz, dt, tag::abcd);
-    auto key_md = memory::desc(k_sz, dt, tag::abcd);
+    auto key_md = memory::desc(k_sz, dt, tag::abdc);
     auto score_md = memory::desc(score_sz, dt, tag::abcd);
     auto scale_md = memory::desc(scale_sz, dt, tag::abcd);
     auto mask_md = memory::desc(mask_sz, dt, tag::abcd);
@@ -263,8 +263,10 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     const bool quick_test = (time_limit == 0.);
     print_test_case(dt, p);
 
+    allocator alloc = create_allocator(ekind);
+
     // Create execution dnnl::engine.
-    dnnl::engine eng(ekind, 0);
+    dnnl::engine eng = make_engine_with_allocator(ekind, 0, alloc);
     // Create dnnl::stream.
     dnnl::stream strm(eng);
 
@@ -424,6 +426,7 @@ void bench(api_kind api, engine::kind ekind, dnnl_data_type_t dt,
             // api == api_kind::graph
             bench_sdpa(ekind, static_cast<logical_tensor::data_type>(dt), p,
                     time_limit);
+            get_mem_pool().clear();
         }
     } catch (dnnl::error &e) {
         // Catch and report unimplemented cases.

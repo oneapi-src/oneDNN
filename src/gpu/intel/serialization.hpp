@@ -252,7 +252,8 @@ struct deserializer_t {
 
 template <typename T>
 struct trivially_serializable_t {
-    bool operator==(const trivially_serializable_t &) const { return true; }
+    static constexpr bool is_trivially_validatable = true;
+
     serialized_t serialize() const {
         assert_trivially_serializable(T);
         return serialized_t(*static_cast<const T *>(this));
