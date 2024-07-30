@@ -76,6 +76,13 @@ struct dnnl_api_traits<dnnl_transform_t> {
     }
 };
 
+template <>
+struct dnnl_api_traits<dnnl_ukernel_attr_params_t> {
+    static void destroy(dnnl_ukernel_attr_params_t t) {
+        DNN_SAFE_V(dnnl_ukernel_attr_params_destroy(t));
+    }
+};
+
 #endif
 
 #endif // DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
@@ -381,6 +388,7 @@ int init_kernel(kernel_args_t &kernel_args) {
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
+    auto dnnl_post_ops = query_post_ops(dnnl_attr);
 
     dnnl_status_t st = dnnl_success;
     auto &brgemm = kernel_args.brgemm_;
@@ -392,7 +400,7 @@ int init_kernel(kernel_args_t &kernel_args) {
     // Only `beta` equal to `0.f` and `1.f` works.
     DNN_SAFE(dnnl_brgemm_set_add_C(brgemm, static_cast<int>(prb->beta)), WARN);
     DNN_SAFE(dnnl_brgemm_set_post_ops(
-                     brgemm, prb->get_ldd(), prb->dst_dt(), dnnl_attr),
+                     brgemm, prb->get_ldd(), prb->dst_dt(), dnnl_post_ops),
             WARN);
     // This call is responsible whether the final configuration is supported
     // or not.
@@ -1017,7 +1025,7 @@ int scales_post_processing(dnn_mem_map_t &mem_map) {
 }
 
 int binary_post_op_preprocessing(
-        std::vector<void *> &binary_po_v, const dnn_mem_map_t &mem_map) {
+        std::vector<const void *> &binary_po_v, const dnn_mem_map_t &mem_map) {
     // Preprocessing must happen in two stages:
     // 1. Collect all arguments values and sort them.
     // 2. Insert memory pointers correspondent to arguments in order to satisfy
@@ -1109,7 +1117,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     SAFE(scales_post_processing(mem_map), WARN);
 
-    std::vector<void *> binary_po_v;
+    std::vector<const void *> binary_po_v;
     SAFE(binary_post_op_preprocessing(binary_po_v, mem_map), WARN);
 
 #if !defined(DNNL_EXPERIMENTAL_UKERNEL)
@@ -1209,6 +1217,12 @@ int doit(const prb_t *prb, res_t *res) {
         offsets[2 * i + 0] = i * prb->get_src_batch_offset();
         offsets[2 * i + 1] = i * prb->get_wei_batch_offset();
     }
+
+    dnnl_ukernel_attr_params_t attr_params;
+    DNN_SAFE(dnnl_ukernel_attr_params_create(&attr_params), WARN);
+    DNN_SAFE(dnnl_ukernel_attr_params_set_post_ops_args(
+                     attr_params, binary_po_v.data()),
+            WARN);
 #endif
 
     SAFE(init_hw_config(kernel_args), WARN);
@@ -1229,10 +1243,9 @@ int doit(const prb_t *prb, res_t *res) {
                          offsets.data(), dst_ptr, scratchpad_ptr),
                 WARN);
     } else {
-        assert(binary_po_v.size() <= 1);
         DNN_SAFE(dnnl_brgemm_execute_postops(brgemm, src_ptr, wei_packed_ptr,
                          offsets.data(), acc_ptr, dst_ptr, scratchpad_ptr,
-                         binary_po_v.empty() ? nullptr : binary_po_v[0]),
+                         attr_params),
                 WARN);
     }
 #endif

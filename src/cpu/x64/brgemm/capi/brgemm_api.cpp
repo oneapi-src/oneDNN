@@ -44,6 +44,11 @@ using transform_t = dnnl_transform;
     VCONDCHECK(ukernel, create, check, brgemm, (cond), (status), msg, \
             ##__VA_ARGS__)
 
+status_t attr_params_t::set_post_ops_args(const void **post_ops_args) {
+    post_ops_args_ = post_ops_args;
+    return status::success;
+}
+
 dnnl_brgemm::~dnnl_brgemm() {
     brgemm_kernel_destroy(brgemm_kernel_);
 }
@@ -59,10 +64,10 @@ status_t brgemm_t::set_add_C(int add_C) {
 }
 
 status_t brgemm_t::set_post_ops(
-        dim_t ldd, data_type_t d_dt, const primitive_attr_t *attr) {
+        dim_t ldd, data_type_t d_dt, const post_ops_t *post_ops) {
     ldd_ = ldd;
     d_dt_ = d_dt;
-    CHECK(attr_.copy_from(*attr));
+    CHECK(attr_.set_post_ops(*post_ops));
     return status::success;
 }
 
@@ -179,7 +184,9 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
 
 status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
         const dim_t *A_B_offsets, const void *C_ptr, void *D_ptr,
-        void *scratchpad_ptr, const void *binary_po_ptr) const {
+        void *scratchpad_ptr, const attr_params_t *attr_params) const {
+    if (attr_params == nullptr) return status::invalid_arguments;
+
     const auto batch_size = brgemm_desc_.brgattr.max_bs;
     std::vector<brgemm_batch_element_t> v_batch_element(batch_size);
     for (int i = 0; i < batch_size; i++) {
@@ -192,7 +199,8 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
     // Thus, it's not a C buffer that should be passed, but D buffer.
     post_ops_data.data_C_ptr_ = reinterpret_cast<const char *>(D_ptr);
     // This member expects a pointer to a vector of pointers to binary_po args.
-    post_ops_data.binary_post_ops_rhs = &binary_po_ptr;
+    // It's exactly what `attr_params` stores when gets a pointer from the user.
+    post_ops_data.binary_post_ops_rhs = attr_params->get_post_ops_args();
 
     if (D_ptr && c_dt_ == d_dt_
             && attr_.has_default_values(
@@ -380,6 +388,28 @@ status_t transform_t::create_verbose_info() {
 // Public API //
 ////////////////
 
+/////////////////////////
+// Attribute arguments //
+/////////////////////////
+
+status_t dnnl_ukernel_attr_params_create(attr_params_t **attr_params) {
+    *attr_params = new attr_params_t();
+    return status::success;
+}
+
+status_t dnnl_ukernel_attr_params_set_post_ops_args(
+        attr_params_t *attr_params, const void **post_ops_args) {
+    if (attr_params == nullptr) return status::invalid_arguments;
+
+    CHECK(attr_params->set_post_ops_args(post_ops_args));
+    return status::success;
+}
+
+status_t dnnl_ukernel_attr_params_destroy(attr_params_t *attr_params) {
+    delete attr_params;
+    return status::success;
+}
+
 ////////////
 // BRGeMM //
 ////////////
@@ -405,10 +435,10 @@ status_t dnnl_brgemm_set_add_C(brgemm_t *brgemm, int add_C) {
 }
 
 status_t dnnl_brgemm_set_post_ops(brgemm_t *brgemm, dim_t ldd, data_type_t d_dt,
-        const primitive_attr_t *attr) {
+        const post_ops_t *post_ops) {
     if (brgemm == nullptr) return invalid_arguments;
 
-    CHECK(brgemm->set_post_ops(ldd, d_dt, attr));
+    CHECK(brgemm->set_post_ops(ldd, d_dt, post_ops));
     return status::success;
 }
 
@@ -466,9 +496,9 @@ status_t dnnl_brgemm_execute(const brgemm_t *brgemm, const void *A_ptr,
 
 status_t dnnl_brgemm_execute_postops(const brgemm_t *brgemm, const void *A_ptr,
         const void *B_ptr, const dim_t *A_B_offsets, const void *C_ptr,
-        void *D_ptr, void *scratchpad_ptr, const void *binary_po_ptr) {
+        void *D_ptr, void *scratchpad_ptr, const attr_params_t *attr_params) {
     CHECK(brgemm->execute(A_ptr, B_ptr, A_B_offsets, C_ptr, D_ptr,
-            scratchpad_ptr, binary_po_ptr));
+            scratchpad_ptr, attr_params));
     return status::success;
 }
 

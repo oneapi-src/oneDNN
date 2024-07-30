@@ -40,10 +40,22 @@ const pack_type_t trans = dnnl_pack_type_trans;
 const pack_type_t pack32 = dnnl_pack_type_pack32;
 } // namespace pack_type
 
+using attr_params_t = dnnl_ukernel_attr_params;
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+
+struct dnnl_ukernel_attr_params : public dnnl::impl::c_compatible {
+    dnnl_ukernel_attr_params() = default;
+
+    dnnl::impl::status_t set_post_ops_args(const void **post_ops_args);
+    const void *get_post_ops_args() const { return post_ops_args_; }
+
+private:
+    const void *post_ops_args_;
+};
 
 struct dnnl_brgemm : public dnnl::impl::c_compatible {
     dnnl_brgemm(dnnl::impl::dim_t M, dnnl::impl::dim_t N, dnnl::impl::dim_t K,
@@ -72,7 +84,7 @@ struct dnnl_brgemm : public dnnl::impl::c_compatible {
 
     dnnl::impl::status_t set_post_ops(dnnl::impl::dim_t ldd,
             dnnl::impl::data_type_t d_dt,
-            const dnnl::impl::primitive_attr_t *attr);
+            const dnnl::impl::post_ops_t *post_ops);
 
     dnnl::impl::status_t finalize();
 
@@ -89,7 +101,8 @@ struct dnnl_brgemm : public dnnl::impl::c_compatible {
             void *scratchpad_ptr) const;
     dnnl::impl::status_t execute(const void *A_ptr, const void *B_ptr,
             const dnnl::impl::dim_t *A_B_offsets, const void *C_ptr,
-            void *D_ptr, void *scratchpad_ptr, const void *binary_po_ptr) const;
+            void *D_ptr, void *scratchpad_ptr,
+            const dnnl::impl::cpu::x64::attr_params_t *attr_params) const;
 
 private:
     // User's inputs.

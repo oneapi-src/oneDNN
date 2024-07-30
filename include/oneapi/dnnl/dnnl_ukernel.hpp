@@ -48,6 +48,13 @@ struct handle_traits<dnnl_transform_t> {
     }
 };
 
+template <>
+struct handle_traits<dnnl_ukernel_attr_params_t> {
+    static dnnl_status_t destructor(dnnl_ukernel_attr_params_t p) {
+        return dnnl_ukernel_attr_params_destroy(p);
+    }
+};
+
 /// @endcond
 
 /// @} dnnl_api_utils
@@ -71,6 +78,30 @@ enum class pack_type {
     trans = dnnl_pack_type_trans,
     /// Packed by 32 bits along K dimension layout.
     pack32 = dnnl_pack_type_pack32,
+};
+
+/// Ukernel attributes memory storage
+struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
+    /// Constructs a ukernel attributes memory storage.
+    attr_params() {
+        dnnl_ukernel_attr_params_t c_params = nullptr;
+        dnnl_status_t status = dnnl_ukernel_attr_params_create(&c_params);
+        error::wrap_c_api(
+                status, "could not create an attributes memory storage");
+        reset(c_params);
+    }
+
+    /// Sets post-operations arguments to a storage.
+    ///
+    /// @param post_ops_args Pointer to pointers of post_ops storages.
+    ///     Expected to be packed together.
+    void set_post_ops_args(const void **post_ops_args) {
+        dnnl_status_t status = dnnl_ukernel_attr_params_set_post_ops_args(
+                get(), post_ops_args);
+        if (status != dnnl_success)
+            error::wrap_c_api(
+                    status, "could not set post operations arguments");
+    }
 };
 
 /// @addtogroup dnnl_api_ukernel_brgemm BRGeMM ukernel
@@ -130,17 +161,18 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     /// `D = post-operations(C)`.
     ///
     /// Post-operations applies if one of the following holds:
-    /// * Non-empty attributes are specified.
+    /// * Non-empty post-operations are specified.
     /// * Output data type `d_dt` is different from accumulation data type
     ///     `c_dt`.
     ///
     /// @param ldd Leading dimension of tensor D.
     /// @param d_dt Data type of tensor D.
-    /// @param attr Primitive attributes to extend the kernel operations.
+    /// @param post_ops Primitive post-operation attributes to extend the kernel
+    ///     operations.
     void set_post_ops(memory::dim ldd, memory::data_type d_dt,
-            const primitive_attr &attr = primitive_attr()) {
+            const post_ops &po = default_post_ops()) {
         dnnl_status_t status = dnnl_brgemm_set_post_ops(
-                get(), ldd, memory::convert_to_c(d_dt), attr.get());
+                get(), ldd, memory::convert_to_c(d_dt), po.get());
         if (status != dnnl_success)
             error::wrap_c_api(status, "could not set post operations");
     }
@@ -238,15 +270,29 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     void execute(const void *A, const void *B,
             const std::vector<std::pair<memory::dim, memory::dim>> &A_B_offsets,
             void *C, void *D, void *scratchpad,
-            const void *binary_po = nullptr) const {
+            const attr_params &params = default_attr_params()) const {
         // TODO: export batch_element to C API later for user to fill it and
         // pass directly to the call.
         dnnl_status_t status = dnnl_brgemm_execute_postops(get(), A, B,
                 (const dnnl_dim_t *)A_B_offsets.data(), C, D, scratchpad,
-                binary_po);
+                params.get());
         if (status != dnnl_success)
             error::wrap_c_api(
                     status, "could not execute a BRGeMM ukernel object");
+    }
+
+    /// Returns a constant reference to a static instance of default constructed
+    /// primitive post-operations attribute.
+    static const post_ops &default_post_ops() {
+        static const post_ops po;
+        return po;
+    }
+
+    /// Returns a constant reference to a static instance of default constructed
+    /// ukernel attributes parameters.
+    static const attr_params &default_attr_params() {
+        static const attr_params ap;
+        return ap;
     }
 };
 

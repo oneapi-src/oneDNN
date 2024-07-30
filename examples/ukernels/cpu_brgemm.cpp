@@ -158,8 +158,6 @@ void brgemm_example() {
     brgemm_ops.append_eltwise(
             algorithm::eltwise_relu, /* alpha = */ 0.f, /* beta = */ 0.f);
     brgemm_ops.append_binary(algorithm::binary_add, binary_add_md);
-    primitive_attr brgemm_attr;
-    brgemm_attr.set_post_ops(brgemm_ops);
 
     // Create BRGeMM ukernel objects.
     // There are two objects:
@@ -199,7 +197,7 @@ void brgemm_example() {
         // Instruct the kernel to append the result to C tensor.
         brg_po.set_add_C(true);
         // Specify post-ops for the brgemm object.
-        brg_po.set_post_ops(ldd, d_dt, brgemm_attr);
+        brg_po.set_post_ops(ldd, d_dt, brgemm_ops);
         // Finalize the initialization.
         brg_po.finalize();
         // Generate the executable JIT code for the objects.
@@ -286,12 +284,20 @@ void brgemm_example() {
     // This object also requires this call.
     brg_po.set_hw_context();
 
+    // Prepare post-ops arguments and put them in a vector to make sure pointers
+    // are sitting side by side.
+    std::vector<const void *> bin_po_ptrs;
+    bin_po_ptrs.push_back(binary_add_mem.get_data_handle());
+
+    // Setting post-ops arguments into an attributes arguments storage.
+    attr_params params;
+    params.set_post_ops_args(bin_po_ptrs.data());
+
     // An execute call. The difference here is an additional D tensor pointer
     // to store final output result after finishing accumulation and post-ops
     // application.
     brg_po.execute(A_ptr, B_base_ptr, A_B_po_offsets, C_ptr,
-            D_mem.get_data_handle(), scratchpad.data(),
-            binary_add_mem.get_data_handle());
+            D_mem.get_data_handle(), scratchpad.data(), params);
 
     // Once all computations are done, need to release HW context.
     brgemm::release_hw_context();

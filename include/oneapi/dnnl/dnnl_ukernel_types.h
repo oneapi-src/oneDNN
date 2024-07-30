@@ -46,6 +46,16 @@ typedef enum {
     dnnl_pack_type_pack32,
 } dnnl_pack_type_t;
 
+/// @struct dnnl_ukernel_attr_params
+/// An opaque structure to describe ukernel attributes memory storage.
+struct dnnl_ukernel_attr_params;
+
+/// A ukernel attributes memory storage handle.
+typedef struct dnnl_ukernel_attr_params *dnnl_ukernel_attr_params_t;
+
+/// A constant ukernel attributes memory storage handle.
+typedef const struct dnnl_ukernel_attr_params *const_dnnl_ukernel_attr_params_t;
+
 /// @addtogroup dnnl_api_ukernel_brgemm
 /// @{
 

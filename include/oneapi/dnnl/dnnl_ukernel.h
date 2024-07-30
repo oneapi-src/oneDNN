@@ -35,6 +35,32 @@ extern "C" {
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
 
+/// Creates a ukernel attributes memory storage.
+///
+/// @param attr_params Output ukernel attributes memory storage.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ukernel_attr_params_create(
+        dnnl_ukernel_attr_params_t *attr_params);
+
+/// Sets post-operations arguments to a storage.
+///
+/// @param attr_params Memory pointers storage object.
+/// @param post_ops_args A pointer to pointers of post_ops storages. Expected to
+///     be packed together.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ukernel_attr_params_set_post_ops_args(
+        dnnl_ukernel_attr_params_t attr_params, const void **post_ops_args);
+
+/// Destroys a ukernel attributes memory storage.
+///
+/// @param attr_params Memory pointers storage object to destroy.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ukernel_attr_params_destroy(
+        dnnl_ukernel_attr_params_t attr_params);
+
 /// @addtogroup dnnl_api_ukernel_brgemm
 /// @{
 
@@ -81,12 +107,12 @@ dnnl_status_t DNNL_API dnnl_brgemm_set_add_C(dnnl_brgemm_t brgemm, int add_C);
 /// @param brgemm BRGeMM ukernel object.
 /// @param ldd Leading dimension of tensor D.
 /// @param d_dt Data type of tensor D.
-/// @param attr Primitive attributes to extend the kernel operations.
+/// @param post_ops Primitive post operations attribute to extend the kernel
+///     operations.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_brgemm_set_post_ops(dnnl_brgemm_t brgemm,
-        dnnl_dim_t ldd, dnnl_data_type_t d_dt,
-        const_dnnl_primitive_attr_t attr);
+        dnnl_dim_t ldd, dnnl_data_type_t d_dt, const_dnnl_post_ops_t post_ops);
 
 /// Finalizes initialization of a BRGeMM ukernel object.
 ///
@@ -168,13 +194,13 @@ dnnl_status_t DNNL_API dnnl_brgemm_execute(const_dnnl_brgemm_t brgemm,
 /// @param C_ptr Pointer to a tensor C (accumulation buffer).
 /// @param D_ptr Pointer to a tensor D (output buffer).
 /// @param scratchpad_ptr Pointer to a scratchpad buffer.
-/// @param binary_po_ptr Pointer to binary post-op data.
+/// @param attr_params Ukernel attributes memory storage.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_brgemm_execute_postops(const_dnnl_brgemm_t brgemm,
         const void *A, const void *B, const dnnl_dim_t *A_B_offsets,
         const void *C_ptr, void *D_ptr, void *scratchpad_ptr,
-        const void *binary_po_ptr);
+        const_dnnl_ukernel_attr_params_t attr_params);
 
 /// Destroys a BRGeMM ukernel object.
 ///
