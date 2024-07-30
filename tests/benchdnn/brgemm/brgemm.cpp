@@ -1018,8 +1018,11 @@ int scales_post_processing(dnn_mem_map_t &mem_map) {
 
 int binary_post_op_preprocessing(
         std::vector<void *> &binary_po_v, const dnn_mem_map_t &mem_map) {
-    binary_po_v.reserve(mem_map.size());
-
+    // Preprocessing must happen in two stages:
+    // 1. Collect all arguments values and sort them.
+    // 2. Insert memory pointers correspondent to arguments in order to satisfy
+    //    the kernel expectations.
+    std::set<int> arg_vals;
     for (const auto &map_entry : mem_map) {
         const int exec_arg = map_entry.first;
 
@@ -1028,9 +1031,12 @@ int binary_post_op_preprocessing(
         const bool is_post_ops_arg = (exec_arg & post_ops_range);
         if (!is_post_ops_arg) continue;
 
-        const auto &mem = map_entry.second;
-        void *handle;
-        DNN_SAFE(dnnl_memory_get_data_handle(mem.m_, &handle), WARN);
+        arg_vals.insert(exec_arg);
+    }
+
+    binary_po_v.reserve(arg_vals.size());
+    for (const auto &set_entry : arg_vals) {
+        void *handle = mem_map.at(set_entry).get_mapped_pointer<void>();
         binary_po_v.push_back(handle);
     }
 
