@@ -284,32 +284,6 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     return status::success;
 }
 
-status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
-        memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const convolution_desc_t &cd,
-        const primitive_attr_t &attr) {
-    if (weights_md.ndims != 4) return status::unimplemented;
-
-    // General Compute Library checks, memory tags are also set there
-    CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
-
-    // clang-format off
-    // Validate convolution manually to check for return status
-    ACL_CHECK_VALID(arm_compute::NEGEMMConvolutionLayer::validate(
-        &acp.src_tensor_info,
-        &acp.wei_tensor_info,
-        acp.with_bias ? &acp.bia_tensor_info : nullptr,
-        &acp.dst_tensor_info,
-        acp.padstride_info,
-        acp.weights_info,
-        acp.dilation_info,
-        acp.act_info,
-        acp.fast_math));
-    // clang-format on
-
-    return status::success;
-}
-
 status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
