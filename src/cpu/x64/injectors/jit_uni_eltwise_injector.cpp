@@ -390,10 +390,12 @@ void jit_uni_eltwise_injector<isa, Wmm>::exp_compute_vector_fwd(
     // = 2^n * exp(r) // simplify the exp(n*ln(2)) expression
 
     // get mask of values lower than log(FLT_MIN) to zero them in the output
-    compute_cmp_mask(vmm_src, table_val(exp_ln_flt_min_f), _cmp_lt_os);
+    h->uni_vmovups(vmm_aux(0), table_val(exp_ln_flt_min_f));
+
+    compute_cmp_mask(vmm_src, vmm_aux(0), _cmp_lt_os);
 
     h->uni_vminps(vmm_src, vmm_src, table_val(exp_ln_flt_max_f));
-    h->uni_vmaxps(vmm_src, vmm_src, table_val(exp_ln_flt_min_f));
+    h->uni_vmaxps(vmm_src, vmm_src, vmm_aux(0));
     h->uni_vmovups(vmm_aux(0), vmm_src);
 
     // calculate exp(x)
@@ -954,15 +956,15 @@ void jit_uni_eltwise_injector<isa, Wmm>::logistic_compute_vector_fwd(
 template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector<isa, Wmm>::swish_compute_vector_fwd(
         const Vmm &vmm_src) {
-    // Save src data on stack for later usage
-    h->uni_vmovups(h->ptr[reg_vmm_stack_ptr_], vmm_src);
+    // Save src data for later usage
+    h->uni_vmovups(vmm_aux(3), vmm_src);
+
     // x*alpha
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
     // sigmoid(x*alpha)
     logistic_compute_vector_fwd(vmm_src);
     // x*sigmoid(alpha*x)
-    h->uni_vmovups(vmm_aux(0), h->ptr[reg_vmm_stack_ptr_]);
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(0));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(3));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -991,7 +993,7 @@ void jit_uni_eltwise_injector<isa, Wmm>::log_compute_vector_fwd(
     }
 
     // save source on stack to check neg and zero values at the end
-    h->uni_vmovups(h->ptr[reg_vmm_stack_ptr_], vmm_src);
+    h->uni_vmovups(vmm_aux(4), vmm_src);
 
     // compute i
     const int approx_order = 5;
@@ -1114,7 +1116,7 @@ void jit_uni_eltwise_injector<isa, Wmm>::log_compute_vector_fwd(
 
     // Check original source for zero and neg values. skip blend w/ extreme
     // values if all src values were positive.
-    h->uni_vmovups(vmm_aux(1), h->ptr[reg_vmm_stack_ptr_]);
+    h->uni_vmovups(vmm_aux(1), vmm_aux(4));
 
     Xbyak::Label end_log_zero_label;
     compute_cmp_mask(vmm_aux(1), table_val(zero), _cmp_le_os);
@@ -1474,12 +1476,12 @@ void jit_uni_eltwise_injector<isa, Wmm>::gelu_tanh_compute_vector_bwd(
     h->uni_vmulps(vmm_aux(2), vmm_aux(2), vmm_aux(0));
 
     // save G2 on stack as tanh uses all available registers
-    h->uni_vmovups(h->ptr[reg_vmm_stack_ptr_], vmm_aux(2));
+    h->uni_vmovups(vmm_aux(4), vmm_aux(2));
 
     // T = tanh(G1(x))
     tanh_compute_vector_fwd(vmm_src);
 
-    h->uni_vmovups(vmm_aux(2), h->ptr[reg_vmm_stack_ptr_]);
+    h->uni_vmovups(vmm_aux(2), vmm_aux(4));
 
     // compute 0.5 * (1 + T) * (1 + G2 * (1 - T))
     if (isa == sse41 || isa == avx) {
@@ -1606,22 +1608,21 @@ void jit_uni_eltwise_injector<isa, Wmm>::swish_compute_vector_bwd(
     // R = alpha * s
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
     // Save R on stack for later usage
-    h->uni_vmovups(h->ptr[reg_vmm_stack_ptr_], vmm_src);
+    h->uni_vmovups(vmm_aux(3), vmm_src);
     // Q = sigmoid(alpha * s)
     logistic_compute_vector_fwd(vmm_src);
-    h->uni_vmovups(vmm_aux(0), h->ptr[reg_vmm_stack_ptr_]);
     // compute Q * (1 + R * (1 - Q))
     if (utils::one_of(isa, sse41, avx)) {
         h->uni_vmovups(vmm_aux(1), table_val(one));
         h->uni_vsubps(vmm_aux(1), vmm_aux(1), vmm_src);
-        h->uni_vmulps(vmm_aux(1), vmm_aux(1), vmm_aux(0));
+        h->uni_vmulps(vmm_aux(1), vmm_aux(1), vmm_aux(3));
         h->uni_vaddps(vmm_aux(1), vmm_aux(1), table_val(one));
         h->uni_vmulps(vmm_src, vmm_src, vmm_aux(1));
     } else {
         // T = R * (1 - Q) = R - R * Q
-        h->uni_vfnmadd231ps(vmm_aux(0), vmm_aux(0), vmm_src);
+        h->uni_vfnmadd231ps(vmm_aux(3), vmm_aux(3), vmm_src);
         // Q * (1 + T) = Q + Q * T
-        h->uni_vfmadd231ps(vmm_src, vmm_src, vmm_aux(0));
+        h->uni_vfmadd231ps(vmm_src, vmm_src, vmm_aux(3));
     }
 }
 
@@ -1663,14 +1664,12 @@ void jit_uni_eltwise_injector<isa, Wmm>::pow_compute_vector_bwd(
     } else if (beta_ == 1) { // alpha
         h->uni_vmovups(vmm_src, table_val(alpha));
     } else {
-        // Save `s` on stack for later usage
-        h->uni_vmovups(h->ptr[reg_vmm_stack_ptr_], vmm_src);
-        h->add(reg_vmm_stack_ptr_, vlen_);
+        // Save `s` for later usage
+        h->uni_vmovups(vmm_aux(1), vmm_src);
         // R = alpha * pow(s, beta)
         pow_compute_vector_fwd(vmm_src);
-        h->sub(reg_vmm_stack_ptr_, vlen_);
-        // Restore `s` from stack
-        h->uni_vmovups(vmm_aux(0), h->ptr[reg_vmm_stack_ptr_]);
+        // Restore `s`
+        h->uni_vmovups(vmm_aux(0), vmm_aux(1));
         // Save mask of zero elements to convert them into zeros at the end
         if (beta_ >= 1)
             compute_cmp_mask(vmm_aux(0), table_val(zero), _cmp_eq_oq);
@@ -1692,7 +1691,7 @@ void jit_uni_eltwise_injector<isa, Wmm>::gelu_erf_compute_vector_bwd(
             table_val(gelu_erf_Abramowitz_Stegun_one_over_sqrt_two));
 
     // Save R on stack for later usage
-    h->uni_vmovups(h->ptr[reg_vmm_stack_ptr_], vmm_src);
+    h->uni_vmovups(vmm_aux(5), vmm_src);
 
     // Q = exp(-R*R)
     h->uni_vmulps(vmm_src, vmm_src, vmm_src);
@@ -1700,7 +1699,7 @@ void jit_uni_eltwise_injector<isa, Wmm>::gelu_erf_compute_vector_bwd(
     exp_compute_vector_fwd(vmm_src);
 
     // T = R / sqrt(pi) * Q
-    h->uni_vmovups(vmm_aux(2), h->ptr[reg_vmm_stack_ptr_]);
+    h->uni_vmovups(vmm_aux(2), vmm_aux(5));
     h->uni_vmulps(vmm_aux(2), vmm_aux(2),
             table_val(gelu_erf_Abramowitz_Stegun_one_over_sqrt_pi));
     h->uni_vmulps(vmm_aux(2), vmm_aux(2), vmm_src);
@@ -1709,11 +1708,11 @@ void jit_uni_eltwise_injector<isa, Wmm>::gelu_erf_compute_vector_bwd(
     h->uni_vxorps(vmm_src, vmm_src, table_val(sign_mask));
 
     // get sign
-    h->uni_vmovups(vmm_aux(0), h->ptr[reg_vmm_stack_ptr_]);
+    h->uni_vmovups(vmm_aux(0), vmm_aux(5));
     h->uni_vandps(vmm_aux(0), vmm_aux(0), table_val(sign_mask));
 
     // abs(x)
-    h->uni_vmovups(vmm_aux(1), h->ptr[reg_vmm_stack_ptr_]);
+    h->uni_vmovups(vmm_aux(1), vmm_aux(5));
     abs_compute_vector_fwd(vmm_aux(1));
 
     // W = 1 / (p * s + 1)
@@ -1815,17 +1814,13 @@ size_t jit_uni_eltwise_injector<isa, Wmm>::op_vecs_count(
     int ret = 0;
     if (is_fwd) {
         switch (alg) {
-            case eltwise_gelu_tanh:
-            case eltwise_swish: ret = 1; break;
+            case eltwise_gelu_tanh: ret = 1; break;
             case eltwise_log: ret = 1 + utils::one_of(isa, sse41, avx); break;
             case eltwise_pow: ret = n_vregs_ + 2; break;
             default: ret = 0;
         }
     } else {
         switch (alg) {
-            case eltwise_gelu_tanh:
-            case eltwise_swish:
-            case eltwise_gelu_erf: ret = 1; break;
             case eltwise_pow: ret = 1 + (n_vregs_ + 2 /*calls fwd*/); break;
             default: ret = 0;
         }
@@ -1862,8 +1857,8 @@ size_t jit_uni_eltwise_injector<isa, Wmm>::aux_vecs_count(
             case eltwise_exp_use_dst_for_bwd:
             case eltwise_exp: n_vmms = 2 + extra_avx_vmm; break;
             case eltwise_gelu_tanh: n_vmms = 4 + extra_avx_vmm; break;
-            case eltwise_swish: n_vmms = 3 + extra_avx_vmm; break;
-            case eltwise_log: n_vmms = 4; break;
+            case eltwise_swish: n_vmms = 4 + extra_avx_vmm; break;
+            case eltwise_log: n_vmms = 5; break;
             case eltwise_clip:
             case eltwise_clip_v2_use_dst_for_bwd:
             case eltwise_clip_v2: n_vmms = 0; break;
@@ -1899,14 +1894,14 @@ size_t jit_uni_eltwise_injector<isa, Wmm>::aux_vecs_count(
             case eltwise_logistic: n_vmms = 3 + extra_avx_vmm; break;
             case eltwise_exp_use_dst_for_bwd: n_vmms = 0 + extra_avx_vmm; break;
             case eltwise_exp: n_vmms = 2 + extra_avx_vmm; break;
-            case eltwise_gelu_tanh: n_vmms = 4 + extra_avx_vmm; break;
-            case eltwise_swish: n_vmms = 3 + extra_avx_vmm; break;
+            case eltwise_gelu_tanh: n_vmms = 5 + extra_avx_vmm; break;
+            case eltwise_swish: n_vmms = 4 + extra_avx_vmm; break;
             case eltwise_log: n_vmms = 1; break;
             case eltwise_clip:
             case eltwise_clip_v2_use_dst_for_bwd:
             case eltwise_clip_v2: n_vmms = 1; break;
-            case eltwise_pow: n_vmms = 1; break;
-            case eltwise_gelu_erf: n_vmms = 5 + extra_avx_vmm; break;
+            case eltwise_pow: n_vmms = 2; break;
+            case eltwise_gelu_erf: n_vmms = 6 + extra_avx_vmm; break;
             case eltwise_hardswish: n_vmms = 1; break;
             case eltwise_hardsigmoid: n_vmms = 1; break;
             default: assert(!"unsupported eltwise algorithm");
