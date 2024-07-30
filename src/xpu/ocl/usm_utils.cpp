@@ -15,8 +15,6 @@
 *******************************************************************************/
 
 #include "xpu/ocl/usm_utils.hpp"
-
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/usm_utils.hpp"
 
 #define HANDLE_USM_CALL_V(e, ...) \
@@ -26,10 +24,6 @@
 #define HANDLE_USM_CALL(e, ...) \
     assert(e->kind() == engine_kind::gpu); \
     return gpu::intel::ocl::usm::__VA_ARGS__
-
-#else
-#error "Unsupported vendor"
-#endif
 
 namespace dnnl {
 namespace impl {
