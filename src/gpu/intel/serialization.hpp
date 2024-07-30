@@ -107,13 +107,6 @@ struct serialized_data_t {
         append(a2, args...);
     }
 
-    template <typename T>
-    void append(const std::vector<T> &v) {
-        append(v.size());
-        for (const T &d : v)
-            append(d);
-    }
-
     template <typename T,
             gpu_utils::enable_if_t<is_trivially_serialized<T>::value,
                     bool> = true>
