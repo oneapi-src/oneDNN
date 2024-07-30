@@ -18,6 +18,11 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#ifdef DNNL_DEV_MODE
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#endif
 
 #include "gpu/intel/ocl/kernel_utils.hpp"
 
@@ -33,6 +38,42 @@ namespace ocl {
 const char *get_kernel_source(const char *name) {
     static const std::unordered_map<std::string, const char *> kernel_list
             = { @KER_LIST_ENTRIES@ };
+
+#ifdef DNNL_DEV_MODE
+    static std::unordered_map<std::string, std::string> custom_kernels;
+    const std::string runtime_kernel_overrides
+            = dnnl::impl::gpu::intel::gpu_utils::dev_getenv(
+                    "runtime_kernel_overrides", std::string());
+    if (!runtime_kernel_overrides.empty()) {
+        std::istringstream paths_stream(runtime_kernel_overrides);
+        std::string name_path_pair;
+
+        while (std::getline(paths_stream, name_path_pair, ':')) {
+            std::size_t comma_pos = name_path_pair.find(',');
+            if (comma_pos == std::string::npos) continue;
+
+            std::string kernel_name = name_path_pair.substr(0, comma_pos);
+            std::string kernel_path = name_path_pair.substr(comma_pos + 1);
+
+            if (kernel_name != name) continue;
+
+            auto it = custom_kernels.find(kernel_name);
+            if (it == custom_kernels.end()) {
+                VDEBUGINFO(1, common, kernel_list,
+                        "loading kernel %s from file %s\n", kernel_name.c_str(),
+                        kernel_path.c_str());
+                std::ifstream file(kernel_path, std::ios::binary);
+                gpu_assert(file) << "Could not open runtime_kernel_path file "
+                                 << kernel_path << "\n";
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                custom_kernels[kernel_name] = buffer.str();
+            }
+
+            return custom_kernels[kernel_name].c_str();
+        }
+    }
+#endif
 
     if (!name) return nullptr;
 
