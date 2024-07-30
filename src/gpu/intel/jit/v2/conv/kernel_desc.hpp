@@ -353,9 +353,11 @@ class kernel_desc_t : public kernel_desc_base_t {
 public:
     prop_kind_t prop = prop_kind::undef;
     bool is_dw = false;
+    bool with_bias = false;
     layout_tag_t src_tag;
     layout_tag_t wei_tag;
     layout_tag_t dst_tag;
+    layout_tag_t bia_tag;
     spec_reqs_t spec_reqs;
     hw_desc_t hw_desc;
     fma_kind_t fma = fma_kind_t::undef;
@@ -394,6 +396,8 @@ public:
         }
         ir_check(prb.is_depthwise() == is_dw)
                 << "Mixing depthwise/non-depthwise descriptor and problem";
+        ir_check(prb.with_bias() == with_bias)
+                << "Problem and descriptor 'with_bias' field mismatch";
         ir_check(reqs.fits(prb.shape()));
         return true;
     }
@@ -429,6 +433,7 @@ public:
             case send_op_t::store:
                 switch (tensor) {
                     case tensor_kind_t::c: return store.c;
+                    case tensor_kind_t::bia: return send_kind_t::undef;
                     default: ir_error_not_expected();
                 }
                 break;

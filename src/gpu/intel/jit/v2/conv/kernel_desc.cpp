@@ -125,6 +125,7 @@ layout_desc_t make_conv_algo_layout_desc(
         prop_kind_t prop, tensor_kind_t tensor_kind) {
     auto desc = make_conv_layout_desc(tensor_kind, /*src_dst_with_group=*/true);
     switch (tensor_kind) {
+        case tensor_kind_t::bia:
         case tensor_kind_t::wei: return desc;
         case tensor_kind_t::src:
             if (prop == prop_kind::backward_data) return desc;
@@ -349,6 +350,11 @@ void kernel_desc_t::set_defaults() {
         spec_reqs.set(prb_dims::ic, 1);
         spec_reqs.set(prb_dims::oc, 1);
     }
+    if (prop == prop_kind::backward_weights && with_bias) {
+        bia_tag = make_conv_layout_tag(tensor_kind_t::bia, "a");
+        bia_tag = layout_tag_t(
+                bia_tag.desc(), dst_tag.type(), bia_tag.raw_tag());
+    }
 }
 
 void kernel_desc_t::finalize(const plan_t &plan) {
@@ -364,6 +370,8 @@ std::string kernel_desc_t::str() const {
     std::ostringstream oss;
     oss << "Propagation:            " << jit::to_string(prop) << std::endl;
     oss << "Depthwise:              " << ir_utils::to_string(is_dw)
+        << std::endl;
+    oss << "With bias:          " << ir_utils::to_string(with_bias)
         << std::endl;
     oss << "Source tag:             " << src_tag << std::endl;
     oss << "Weights tag:            " << wei_tag << std::endl;
@@ -393,6 +401,8 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             /*required=*/true);
     iface->add<PACK(is_dw)>(
             "dw", "Whether the problem is a depthwise convolution (0 or 1).");
+    iface->add<PACK(with_bias)>(
+            "with_bias", "Whether the problem has bias (0 or 1).");
     iface->add<PACK(src_tag)>("src",
             "Source layout tag. Examples: axb:f32, aBx16b:f16).",
             /*required=*/true);
@@ -467,7 +477,7 @@ void init_dispatch_kernel_info_div_magic(
 }
 
 status_t kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info) const {
-    auto tensor_config = get_tensor_config(prop);
+    auto tensor_config = get_tensor_config(prop, with_bias);
     for (auto &t : tensor_config.tensors()) {
         auto buf = make_buffer(t.name);
         kernel_info.register_user_arg(buf, t.arg_key, t.is_input);

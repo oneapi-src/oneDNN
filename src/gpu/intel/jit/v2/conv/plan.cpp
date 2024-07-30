@@ -62,7 +62,8 @@ layout_tag_t append_groups(
         tensor_kind_t tensor_kind, const layout_tag_t &layout_tag, bool is_dw) {
     bool is_src = (tensor_kind == tensor_kind_t::src);
     bool is_dst = (tensor_kind == tensor_kind_t::dst);
-    if (!is_src && !is_dst) return layout_tag;
+    bool is_bia = (tensor_kind == tensor_kind_t::bia);
+    if (!is_src && !is_dst && !is_bia) return layout_tag;
     auto xc_dim = (is_src ? prb_dims::ic : prb_dims::oc);
     auto xc_letter = 'a' + layout_tag.desc().dim_index(xc_dim);
     auto new_g_letter = xc_letter;
@@ -128,6 +129,7 @@ public:
         src_mapper_ = init_src_mapper();
         wei_mapper_ = init_wei_mapper();
         dst_mapper_ = init_dst_mapper();
+        bia_mapper_ = init_bia_mapper();
     }
 
     const dim_mapper_t &mapper(tensor_kind_t tensor) const {
@@ -144,6 +146,7 @@ public:
             case tensor_kind_t::c:
                 return mapper(pick_c(prop_, tensor_kind_t::src,
                         tensor_kind_t::wei, tensor_kind_t::dst));
+            case tensor_kind_t::bia: return bia_mapper_;
             default: ir_error_not_expected();
         }
         return src_mapper_;
@@ -214,6 +217,15 @@ private:
         return mapper;
     }
 
+    dim_mapper_t init_bia_mapper() const {
+        dim_mapper_t mapper;
+        mapper.set_dim(prb_dims::g);
+        mapper.set_dim(prb_dims::oc);
+        mapper.set_layout_desc(
+                make_conv_algo_layout_desc(prop_, tensor_kind_t::bia));
+        return mapper;
+    }
+
     dim_mapper_t init_dst_mapper() const {
         dim_mapper_t mapper;
         mapper.set_dim(prb_dims::mb);
@@ -259,6 +271,7 @@ private:
     dim_mapper_t src_mapper_;
     dim_mapper_t wei_mapper_;
     dim_mapper_t dst_mapper_;
+    dim_mapper_t bia_mapper_;
 };
 
 class multiply_info_t {
@@ -385,6 +398,18 @@ public:
             acc.add_block(b.dim, b.size);
         }
         acc.block_by(c_inner_.blocks());
+        return acc;
+    }
+
+    layout_t bia_layout(
+            const layout_t &b_layout, const layout_t &bia_layout) const {
+        ir_assert(b_layout.has_const_sizes());
+        layout_t acc(bia_layout.desc(), acc_type());
+
+        for (auto &b : b_layout.blocks()) {
+            if (is_k(b.dim)) continue;
+            acc.add_block(b.dim, b.size);
+        }
         return acc;
     }
 
@@ -580,6 +605,9 @@ private:
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
+        if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
+            bia_layout_ = make_conv_layout(tensor_kind_t::bia, desc_.bia_tag,
+                    desc_.is_dw, desc_.spec_reqs);
     }
 
     dim_map_t<prb_dim_t, prb_dim_kind_t> to_bmnk_map() const {
@@ -628,6 +656,8 @@ private:
         ir_check(init_prefetch_plan(
                 plan.x2r_fma, plan.virt_grid, plan.prefetch));
         ir_check(init_epilogue_plan(plan.x2r_fma.c_layout, plan.epilogue));
+        if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
+            ir_check(init_epilogue_bia(plan.x2r_fma.bia_layout, plan.epilogue));
         return true;
     }
 
@@ -701,6 +731,10 @@ private:
         plan.load = load;
         plan.reorder = reorder;
         plan.layout = reg_layout;
+        if (abc == tensor_kind_t::b) {
+            auto bia_layout = mul_info_.bia_layout(plan.layout, bia_layout_);
+            plan.bia_layout = bia_layout;
+        }
         return true;
     }
 
@@ -731,7 +765,9 @@ private:
         layout_t a_prev_layout;
         layout_t b_prev_layout;
         layout_t c_prev_layout;
+        layout_t bia_prev_layout;
         int c_off_elems = 0;
+        int bia_off_elems = 0;
         auto &a_mapper = dim_mapper_manager_.mapper(tensor_kind_t::a);
         auto &b_mapper = dim_mapper_manager_.mapper(tensor_kind_t::b);
         for (int i = 0; i < outer_size; i++) {
@@ -752,8 +788,12 @@ private:
                         = view_t(b_mapper, b_layout_, sub_coord, sub_tile);
                 x2r_plan_t b;
                 ir_check(init_x2r_plan(tensor_kind_t::b, b_sub_view, b));
-                plan.add_stage(b);
                 b_prev_layout = b.layout;
+                bia_prev_layout = b.bia_layout;
+                b.bia_layout.set_base(bia_off_elems);
+                bia_off_elems += ir_utils::safe_div(
+                        b.bia_layout.size(), b.bia_layout.type().size());
+                plan.add_stage(b);
             }
 
             fma_plan_t fma;
@@ -768,10 +808,48 @@ private:
             plan.add_stage(fma);
         }
         plan.c_layout = c_prev_layout;
+        plan.bia_layout = bia_prev_layout;
+        auto &bia_mapper = dim_mapper_manager_.mapper(tensor_kind_t::bia);
         if (!outer_dim.is_undef()) {
             int stride = ir_utils::safe_div(
                     c_prev_layout.size(), c_prev_layout.type().size());
             plan.c_layout.add_block(outer_dim, outer_size, stride);
+            if (bia_mapper.has(outer_dim)) {
+                int bia_stride = ir_utils::safe_div(
+                        bia_prev_layout.size(), bia_prev_layout.type().size());
+                plan.bia_layout.add_block(outer_dim, outer_size, bia_stride);
+            }
+        }
+        return true;
+    }
+
+    bool init_epilogue_bia(
+            const layout_t &bia_layout, epilogue_plan_t &plan) const {
+        auto &bia_mapper = dim_mapper_manager_.mapper(tensor_kind_t::bia);
+        auto bia_iter_view
+                = view_t(dim_mapper_manager_.mapper(tensor_kind_t::bia),
+                        bia_layout_, coord_info_.iter_coord(), desc_.iter_tile);
+        auto reduce_cond = expr_t(true);
+        for (int i = 0; i < c_layout_.desc().ndims(); i++) {
+            auto dim = c_layout_.desc().prb_dim(i);
+            if (!bia_mapper.has(dim))
+                reduce_cond
+                        = reduce_cond & (coord_info_.iter_coord()[dim] == 0);
+        }
+        plan.reduce_cond = reduce_cond;
+        auto bia_params = get_send_params(
+                tensor_kind_t::bia, send_op_t::store, bia_iter_view);
+        auto bia_store = create_send_plan(bia_params, bia_iter_view);
+        auto tile = plan.tile;
+        plan.bia_store = bia_store;
+        if (bia_layout != bia_store.reg_layout()) {
+            auto fma_layout = bia_layout.map(tile);
+            auto store_layout = bia_store.reg_layout().map(tile);
+            if (fma_layout != store_layout) {
+                plan.bia_reorder = reorder_plan_t(desc_.hw);
+                plan.bia_reorder.src = fma_layout;
+                plan.bia_reorder.dst = store_layout;
+            }
         }
         return true;
     }
@@ -867,6 +945,7 @@ private:
     layout_t a_layout_;
     layout_t b_layout_;
     layout_t c_layout_;
+    layout_t bia_layout_;
     prb_reqs_t reqs_;
 };
 
