@@ -866,6 +866,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                             && utils::one_of(rd.cell_kind,
                                     alg_kind::vanilla_gru,
                                     alg_kind::vanilla_augru));
+#else
+            && !rnn.is_cell_dt_f32() && !rnn.is_cell_dt_int8();
 #endif
 
     /* Decide which gemm implementation to use: packed/nonpacked jit/cblas
