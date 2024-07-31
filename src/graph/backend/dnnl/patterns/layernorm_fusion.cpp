@@ -54,6 +54,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, layernorm_post_ops_fusion_cpu)
                                     1>);
                     layernorm_base->append_decision_function(
                             check_begin_norm_axis_attr);
+                    // primitive only support 2-5D data tensor for layernorm
+                    layernorm_base->append_decision_function(
+                            check_input_ndim_from_offset<0, 2, 5>);
 
                     // optional typecast
                     auto tc_graph = std::make_shared<pb_graph_t>();

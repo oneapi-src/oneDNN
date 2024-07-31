@@ -53,6 +53,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     const bool is_f32 = everyone_is(f32, src_dt, wei_dt, dst_dt);
     const bool is_int8 = one_of(src_dt, u8, s8) && wei_dt == s8
             && one_of(dst_dt, u8, s8, s32, f32, bf16);
+    const bool is_f8 = one_of(src_dt, f8_e5m2, f8_e4m3)
+            && one_of(wei_dt, f8_e5m2, f8_e4m3)
+            && one_of(dst_dt, f32, f16, bf16, f8_e5m2, f8_e4m3);
     const bool is_bf16
             = everyone_is(bf16, src_dt, wei_dt) && one_of(dst_dt, bf16, f32);
     const bool is_f16
@@ -86,8 +89,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
     auto check_attr_zero_points
             = [&]() -> bool { return attr()->zero_points_.common(); };
-    const bool problem_dt_correct = one_of(
-            true, is_int8, is_bf16, is_f32, is_f16, is_bf16_with_int_wei);
+    const bool problem_dt_correct = one_of(true, is_int8, is_f8, is_bf16,
+            is_f32, is_f16, is_bf16_with_int_wei);
 
     auto src_d = memory_desc_wrapper(src_md_);
     auto weights_d = memory_desc_wrapper(weights_md_);

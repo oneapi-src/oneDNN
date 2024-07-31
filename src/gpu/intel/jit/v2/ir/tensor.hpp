@@ -108,18 +108,6 @@ public:
         return !operator==(other);
     }
 
-    size_t get_hash() const { return ir_utils::get_hash(letter_map_); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(letter_map_, out);
-        ir_utils::serialize(canonical_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(letter_map_, in);
-        ir_utils::deserialize(canonical_, in);
-    }
-
     std::string str() const;
     IR_DEFINE_DUMP()
 
@@ -192,39 +180,19 @@ struct layout_raw_tag_entry_t {
     bool operator!=(const layout_raw_tag_entry_t &other) const {
         return !operator==(other);
     }
-
-    size_t get_hash() const {
-        return ir_utils::get_hash(letter, block, is_blocked);
-    }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(letter, out);
-        ir_utils::serialize(block, out);
-        ir_utils::serialize(is_blocked, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(letter, in);
-        ir_utils::deserialize(block, in);
-        ir_utils::deserialize(is_blocked, in);
-    }
 };
 
 class layout_raw_tag_t {
 public:
-    static layout_raw_tag_t any() {
-        layout_raw_tag_t ret;
-        ret.is_any_ = true;
-        return ret;
-    }
+    static layout_raw_tag_t any() { return layout_raw_tag_t("any"); }
 
     layout_raw_tag_t() = default;
-    explicit layout_raw_tag_t(const std::string &s, int ndims = 0) {
-        init_entries(s);
-        normalize(ndims);
+    explicit layout_raw_tag_t(const std::string &tag, int ndims = 0)
+        : is_any_(tag == "any"), entries_(to_entries(tag)) {
+        expand_x(ndims);
     }
 
-    bool is_empty() const { return entries_.empty(); }
+    bool is_empty() const { return !is_any_ && entries_.empty(); }
     bool is_any() const { return is_any_; }
     const std::vector<layout_raw_tag_entry_t> &entries() const {
         return entries_;
@@ -251,26 +219,29 @@ public:
         return !operator==(other);
     }
 
-    size_t get_hash() const { return ir_utils::get_hash(is_any_, entries_); }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(is_any_, out);
-        ir_utils::serialize(entries_, out);
+    void stringify(std::ostream &out) const {
+        jit::stringify(out, to_tag(collapse_x().entries()));
     }
 
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(is_any_, in);
-        ir_utils::deserialize(entries_, in);
+    void parse(std::istream &in) {
+        auto tag = jit::parse<std::string>(in);
+        is_any_ = (tag == "any");
+        entries_ = to_entries(tag);
     }
 
 private:
     void init_entries(const std::string &s);
     bool has_x() const;
-    void normalize(int ndims);
+    void expand_x(int ndims);
+    layout_raw_tag_t collapse_x() const;
     std::vector<bool> skip_mask(
             const layout_desc_t &desc, const prb_tile_t &sizes) const;
     static std::vector<std::pair<char, int>> parse_letter_blocks(
             const std::string &tag);
+    static std::vector<layout_raw_tag_entry_t> to_entries(
+            const std::string &tag);
+    static std::string to_tag(
+            const std::vector<layout_raw_tag_entry_t> &entries);
 
     bool is_any_ = false;
     std::vector<layout_raw_tag_entry_t> entries_;
@@ -298,29 +269,23 @@ public:
     std::string str() const;
     IR_DEFINE_DUMP()
 
-    bool operator==(const layout_tag_t &other) const {
-        return (desc_ == other.desc_) && (type_ == other.type_)
-                && (raw_tag_ == other.raw_tag_);
+#if __cplusplus >= 202002L
+    bool operator==(const layout_tag_t &other) const = default;
+#endif
+
+    void stringify(std::ostream &out) const {
+        jit::stringify(out, raw_tag_);
+        out << ":";
+        jit::stringify(out, type_);
     }
 
-    bool operator!=(const layout_tag_t &other) const {
-        return !operator==(other);
-    }
-
-    size_t get_hash() const {
-        return ir_utils::get_hash(desc_, type_, raw_tag_);
-    }
-
-    void serialize(std::ostream &out) const {
-        ir_utils::serialize(desc_, out);
-        ir_utils::serialize(type_, out);
-        ir_utils::serialize(raw_tag_, out);
-    }
-
-    void deserialize(std::istream &in) {
-        ir_utils::deserialize(desc_, in);
-        ir_utils::deserialize(type_, in);
-        ir_utils::deserialize(raw_tag_, in);
+    void parse(std::istream &in) {
+        desc_ = layout_desc_t();
+        auto s = stream_parse<std::string>(in);
+        auto parts = gpu_utils::split(s, ":");
+        ir_assert(parts.size() == 2);
+        jit::parse(parts[0], raw_tag_);
+        jit::parse(parts[1], type_);
     }
 
 private:

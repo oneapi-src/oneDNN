@@ -428,13 +428,13 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     p.beta = sum_idx == -1 ? 0.f : attr->post_ops_.entry_[sum_idx].sum.scale;
 
     DEBUG({
-        printf("init : ");
+        verbose_printf(verbose_t::debuginfo, "init : ");
         prb_dump(p);
     });
 
     prb_normalize(p);
     DEBUG({
-        printf("norm : ");
+        verbose_printf(verbose_t::debuginfo, "norm : ");
         prb_dump(p);
     });
 
@@ -443,7 +443,7 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     prb_simplify(p);
     DEBUG({
-        printf("smpl : ");
+        verbose_printf(verbose_t::debuginfo, "smpl : ");
         prb_dump(p);
     });
 
@@ -597,17 +597,18 @@ void prb_node_move(prb_t &p, int d0, int d1) {
 }
 
 void prb_dump(const prb_t &p) {
-    printf("@@@ type:%s:%s ndims:%d ", dnnl_dt2str(p.itype),
-            dnnl_dt2str(p.otype), p.ndims);
+    verbose_printf(verbose_t::debuginfo, "@@@ type:%s:%s ndims:%d ",
+            dnnl_dt2str(p.itype), dnnl_dt2str(p.otype), p.ndims);
     for (int d = 0; d < p.ndims; ++d) {
-        if (d != 0) printf("x");
-        printf("[%zu:%zu:%d:%d:%s:%td:%td:%td:%td]", p.nodes[d].n,
+        if (d != 0) verbose_printf(verbose_t::debuginfo, "x");
+        verbose_printf(verbose_t::debuginfo,
+                "[%zu:%zu:%d:%d:%s:%td:%td:%td:%td]", p.nodes[d].n,
                 p.nodes[d].tail_size, p.nodes[d].dim_id,
                 p.nodes[d].parent_node_id,
                 p.nodes[d].is_zero_pad_needed ? "true" : "false", p.nodes[d].is,
                 p.nodes[d].os, p.nodes[d].ss, p.nodes[d].cs);
     }
-    printf(" off:%zu:%zu\n", p.ioff, p.ooff);
+    verbose_printf(verbose_t::debuginfo, " off:%zu:%zu\n", p.ioff, p.ooff);
 }
 
 } // namespace tr

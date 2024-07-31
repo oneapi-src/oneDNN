@@ -22,6 +22,10 @@ where *conv-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--dtag={any [default], ...}` -- physical dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
+ - `--strides=SRC_STRIDES:WEI_STRIDES:DST_STRIDES` -- physical memory layout
+            specification for `src`, `weights`, and `dst` tensors through
+            strides values. Refer to [option documentation](knob_strides.md)
+            for details.
  - `--alg={DIRECT [default], WINO, AUTO}` -- convolution algorithm. `WINO` is
             Winograd-based convolution. `AUTO` will pick one of `DIRECT` or
             `WINO` automatically, library-based decision.

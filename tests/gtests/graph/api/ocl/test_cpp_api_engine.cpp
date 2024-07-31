@@ -55,7 +55,7 @@ static void *ocl_malloc_shared(
 }
 
 static void ocl_free(
-        void *ptr, cl_device_id dev, const cl_context ctx, cl_event event) {
+        void *ptr, cl_device_id dev, cl_context ctx, cl_event event) {
     if (event != nullptr) clWaitForEvents(1, &event);
     if (nullptr == ptr) return;
     using F = cl_int (*)(cl_context, void *);
@@ -74,11 +74,11 @@ TEST(OCLApi, Engine) {
     SKIP_IF(ekind != dnnl::engine::kind::gpu,
             "skip ocl api test for non-gpu engine.");
     cl_uint num_platforms = 0;
-    GRAPH_TEST_OCL_CHECK(clGetPlatformIDs(0, NULL, &num_platforms));
+    GRAPH_TEST_OCL_CHECK(clGetPlatformIDs(0, nullptr, &num_platforms));
     std::vector<cl_platform_id> platforms(num_platforms);
     if (num_platforms > 0) {
         GRAPH_TEST_OCL_CHECK(
-                clGetPlatformIDs(num_platforms, platforms.data(), NULL));
+                clGetPlatformIDs(num_platforms, platforms.data(), nullptr));
     } else {
         throw "Cannot find openCL platform!";
     }
@@ -86,11 +86,11 @@ TEST(OCLApi, Engine) {
     std::vector<cl_device_id> gpu_device_ids;
     for (cl_platform_id &platform_id : platforms) {
         cl_uint num_devices;
-        if (!clGetDeviceIDs(
-                    platform_id, CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices)) {
+        if (!clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 0, nullptr,
+                    &num_devices)) {
             std::vector<cl_device_id> device_ids(num_devices);
             GRAPH_TEST_OCL_CHECK(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU,
-                    num_devices, device_ids.data(), NULL));
+                    num_devices, device_ids.data(), nullptr));
             gpu_device_ids.insert(
                     gpu_device_ids.end(), device_ids.begin(), device_ids.end());
         }
@@ -99,7 +99,7 @@ TEST(OCLApi, Engine) {
 
     cl_device_id device_id = gpu_device_ids[0]; // select a device
     cl_int err = 0;
-    auto ctx = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
+    auto ctx = clCreateContext(nullptr, 1, &device_id, nullptr, nullptr, &err);
     GRAPH_TEST_OCL_CHECK(err);
 
     EXPECT_NO_THROW({

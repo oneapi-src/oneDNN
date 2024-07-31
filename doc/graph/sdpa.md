@@ -46,17 +46,17 @@ optional.
    is given by users as an input of SDPA. \f$\sqrt{d_k}\f$ in the formula is not
    considered as part of the SDPA pattern as it is constant.
 3. The Mask node is optional and is used to apply an attention mask to the
-   output of the previous Scale node. It can be constructed by [Add](@ref
-   dev_guide_op_add) or [Select](@ref dev_guide_op_select) operation in Graph
-   API for different mask policies (eg. causal mask or padding mask). When Add
-   operation is used to apply the mask, the input mask is usually an upper
-   triangular matrix with all the elements above the diagonal filled with `-inf`
-   and zeroes elsewhere. The `-inf` entries will become zero probability after
-   Softmax is applied in the next step. Alternately, a Select operation may be
-   used. In this case, the input is a boolean tensor (for example, with `true`
-   on and below the diagonal, and `false` above the diagonal). A `false` element
-   in the mask forces the corresponding element of the scaled output to `-inf`,
-   while a `true` element leaves it unchanged.
+   output of the previous Scale node. It can be constructed by [Add](@ref dev_guide_op_add)
+   or [Select](@ref dev_guide_op_select) operation in Graph API for different
+   mask policies (eg. causal mask or padding mask). When Add operation is used
+   to apply the mask, the input mask is usually an upper triangular matrix with
+   all the elements above the diagonal filled with `-inf` and zeroes elsewhere.
+   The `-inf` entries will become zero probability after Softmax is applied in
+   the next step. Alternately, a Select operation may be used. In this case, the
+   input is a boolean tensor (for example, with `true` on and below the
+   diagonal, and `false` above the diagonal). A `false` element in the mask
+   forces the corresponding element of the scaled output to `-inf`, while a
+   `true` element leaves it unchanged.
 
    ![SDPA-mask-1](images/sdpa-mask-1.png) ![SDPA-mask-2](images/sdpa-mask-2.png)
 
@@ -72,6 +72,7 @@ optional.
    [StaticReshape](@ref dev_guide_op_staticreshape) operation in Graph API.
 
    ![SDPA-Reorder](images/sdpa-reorder.png)
+
 
 ## Data types
 

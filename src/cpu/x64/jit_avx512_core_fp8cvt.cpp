@@ -26,6 +26,13 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+void fp8_emulation_base_t::bcst_f8_to_f32(
+        const Xbyak::Xmm &xmm_out, const Xbyak::Operand &op_in) {
+    const Xbyak::Xmm tmp_xmm(xmm_out.getIdx());
+    host_->vpbroadcastb(tmp_xmm, op_in);
+    vcvt_f8_to_f32(xmm_out, tmp_xmm);
+}
+
 void fp8_emulation_e5m2_t::prepare_table() {
     host_->align(64);
     host_->L(label_table_to_f8_);

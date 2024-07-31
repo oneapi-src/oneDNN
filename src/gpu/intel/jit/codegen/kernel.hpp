@@ -58,7 +58,7 @@ struct ir_generator_t : public jit_generator_base {
         KernelT<ngen::HW::hw> kernel(kernel_desc_, kernel_info); \
         return kernel.getBinary(context, device); \
     }
-            switch (kernel_desc_.hw().to_ngen()) {
+            switch (kernel_desc_.exec_cfg().hw().to_ngen()) {
                 REG_GEN9_ISA(CASE(Gen9));
                 REG_GEN11_ISA(CASE(Gen11));
                 REG_XELP_ISA(CASE(XeLP));

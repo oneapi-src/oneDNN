@@ -23,6 +23,7 @@
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_layer_normalization_pd.hpp"
 #include "xpu/sycl/types.hpp"
 
@@ -60,7 +61,8 @@ struct ref_layer_normalization_fwd_t : public gpu::generic::sycl::primitive_t {
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type({f32, bf16, f16})
                     && attr()->has_default_values(sm::scales_runtime)
-                    && attr_scales_ok() && set_default_formats_common();
+                    && attr_scales_ok() && set_default_formats_common()
+                    && md_dims_in_range(src_md());
             if (!ok) return status::unimplemented;
             return init_conf();
         }
@@ -109,7 +111,8 @@ struct ref_layer_normalization_bwd_t : public gpu::generic::sycl::primitive_t {
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type({f32, bf16, f16})
                     && attr()->has_default_values()
-                    && set_default_formats_common();
+                    && set_default_formats_common()
+                    && md_dims_in_range(diff_dst_md());
 
             if (!ok) return status::unimplemented;
             return init_conf();

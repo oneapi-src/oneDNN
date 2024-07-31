@@ -27,10 +27,10 @@ namespace graph {
 namespace utils {
 namespace ocl {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-void *malloc_shared(const cl_device_id dev, const cl_context ctx, size_t size,
-        size_t alignment = 0);
+void *malloc_shared(
+        cl_device_id dev, cl_context ctx, size_t size, size_t alignment = 0);
 
-void free(void *ptr, const cl_device_id dev, const cl_context ctx);
+void free(void *ptr, cl_device_id dev, cl_context ctx);
 #endif
 
 } // namespace ocl
