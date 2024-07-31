@@ -85,7 +85,6 @@ struct sycl_prelu_conf_t {
     dim_t work_amount_wei;
     dim_t work_amount_src;
     dim_t work_load;
-    bool reduce_diff_weights = 0;
     int mask;
     float sum;
     broadcasting_strategy_t bcast_type;
