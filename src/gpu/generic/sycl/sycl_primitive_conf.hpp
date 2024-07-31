@@ -291,6 +291,7 @@ struct sycl_batch_normalization_conf_t {
 struct sycl_softmax_conf_t {
     prop_kind_t prop_kind;
     xpu::sycl::md_t src_md;
+    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
     xpu::sycl::md_t dst_md;
 
     xpu::sycl::md_t diff_md;
@@ -301,6 +302,7 @@ struct sycl_softmax_conf_t {
     dim_t wg_size;
     dim_t wk_size;
 
+    int po_len;
     dim_t axis;
     dim_t axis_size;
     dim_t inner_size;
@@ -308,6 +310,8 @@ struct sycl_softmax_conf_t {
     dim_t channels;
     bool do_scale_src;
     bool do_scale_dst;
+
+    sycl_post_ops_t post_ops;
 };
 
 struct sycl_lrn_conf_t {
