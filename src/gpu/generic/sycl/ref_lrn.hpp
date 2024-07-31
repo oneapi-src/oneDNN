@@ -18,6 +18,7 @@
 
 #include "gpu/generic/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_lrn_pd.hpp"
 #include "xpu/sycl/types.hpp"
 
@@ -48,7 +49,8 @@ struct ref_sycl_lrn_fwd_t : public gpu::generic::sycl::primitive_t {
                             src_md()->data_type, dst_md()->data_type)
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && attr()->has_default_values()
-                    && set_default_formats_common() && src_d == dst_d;
+                    && set_default_formats_common() && src_d == dst_d
+                    && md_dims_in_range(src_md());
 
             if (!ok) return status::unimplemented;
             dat_tag_ = memory_desc_matches_one_of_tag(*src_md(), nchw, nhwc);
@@ -93,7 +95,8 @@ struct ref_sycl_lrn_bwd_t : public gpu::generic::sycl::primitive_t {
                     && utils::everyone_is(src_md()->data_type,
                             diff_src_md()->data_type, diff_dst_md()->data_type)
                     && attr()->has_default_values()
-                    && set_default_formats_common() && diff_dst_d == diff_src_d;
+                    && set_default_formats_common() && diff_dst_d == diff_src_d
+                    && md_dims_in_range(diff_dst_md());
 
             if (!ok) return status::unimplemented;
 
