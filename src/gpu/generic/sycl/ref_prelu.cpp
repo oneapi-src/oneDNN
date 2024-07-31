@@ -161,12 +161,13 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
                 new memory_t(ctx.stream()->engine(), &pd()->scratch_md_,
                         std::move(scratchpad_storage))));
     }
-    
+
     auto status = parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
         int tot_work = nelems_A;
 
-        prelu_bwd_kernel_vec_t prelu_bwd_kernel(pd()->conf_, cgh, ctx, pd()->reduce_diff_weights_, scratch_mem);
+        prelu_bwd_kernel_vec_t prelu_bwd_kernel(
+                pd()->conf_, cgh, ctx, pd()->reduce_diff_weights_, scratch_mem);
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;
         int work_per_wg = wg_size * block_size;

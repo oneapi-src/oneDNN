@@ -32,39 +32,43 @@ namespace sycl {
 struct convolution_kernel_fwd_t {
     static constexpr int max_supported_ndims = 6;
 
-    convolution_kernel_fwd_t(const sycl_convolution_conf_t &conf, ::sycl::handler &cgh,
-            const exec_ctx_t &ctx)
+    convolution_kernel_fwd_t(const sycl_convolution_conf_t &conf,
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
         , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0))
         , weights_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS))
         , bias_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_BIAS))
         , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
         , data_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
         , weights_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS))
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS))
         , dst_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
         , data_zeropoints_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0))
+                  DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0))
         , dst_zeropoints_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST))
+                  DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST))
         , scales_data_dt_(conf_.do_scale_data
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32)
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
         , scales_weights_dt_(conf_.do_scale_weights
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
-                          .data_type()
-                : data_type_t::dnnl_f32)
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
         , zeropoints_data_dt_(conf_.use_data_zeropoints
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32)
+                          ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS
+                                       | DNNL_ARG_SRC_0)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
         , zeropoints_dst_dt_(conf_.use_dst_zeropoints
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
-                          .data_type()
-                : data_type_t::dnnl_f32) {}
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
+                                    .data_type()
+                          : data_type_t::dnnl_f32) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();
@@ -267,31 +271,35 @@ struct convolution_kernel_bwd_data_t {
         , bias_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_BIAS))
         , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
         , data_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
         , weights_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS))
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS))
         , dst_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
         , data_zeropoints_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0))
+                  DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0))
         , dst_zeropoints_(CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST))
+                  DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST))
         , scales_data_dt_(conf_.do_scale_data
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32)
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
         , scales_weights_dt_(conf_.do_scale_weights
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
-                          .data_type()
-                : data_type_t::dnnl_f32)
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
         , zeropoints_data_dt_(conf_.use_data_zeropoints
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32)
+                          ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS
+                                       | DNNL_ARG_SRC_0)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
         , zeropoints_dst_dt_(conf_.use_dst_zeropoints
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
-                          .data_type()
-                : data_type_t::dnnl_f32) {}
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
+                                    .data_type()
+                          : data_type_t::dnnl_f32) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         const float sm_data = (conf_.do_scale_data

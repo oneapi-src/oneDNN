@@ -149,8 +149,7 @@ status_t ref_convolution_bwd_data_t::init(impl::engine_t *engine) {
 
 status_t ref_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        convolution_kernel_bwd_data_t convolution_kernel(pd()->conf_,
-                cgh, ctx);
+        convolution_kernel_bwd_data_t convolution_kernel(pd()->conf_, cgh, ctx);
 
         const int wg_size = pd()->conf_.wg_size;
 
@@ -222,9 +221,8 @@ status_t ref_convolution_bwd_weights_t::init(impl::engine_t *engine) {
 status_t ref_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
 
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-
-        convolution_kernel_bwd_weights_t convolution_kernel(pd()->conf_,
-                cgh, ctx);
+        convolution_kernel_bwd_weights_t convolution_kernel(
+                pd()->conf_, cgh, ctx);
 
         const int wg_size = pd()->conf_.wg_size;
 

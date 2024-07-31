@@ -157,7 +157,8 @@ struct prelu_bwd_kernel_vec_t {
     static constexpr int vec_len = 8;
 
     prelu_bwd_kernel_vec_t(const sycl_prelu_conf_t &conf, ::sycl::handler &cgh,
-            const exec_ctx_t &ctx, bool reduce_diff_weights, std::unique_ptr<memory_t>& scratch_mem)
+            const exec_ctx_t &ctx, bool reduce_diff_weights,
+            std::unique_ptr<memory_t> &scratch_mem)
         : conf_(conf)
         , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
         , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
@@ -165,11 +166,12 @@ struct prelu_bwd_kernel_vec_t {
         , diff_weights_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_WEIGHTS))
         , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
         , scratchpad_(reduce_diff_weights
-                ? utils::downcast<const xpu::sycl::memory_storage_base_t *>(
-                        scratch_mem->memory_storage())
-                          ->get_out_memory_arg(ctx.stream(), cgh)
-                : xpu::sycl::memory_storage_base_t::empty_out_memory_arg(
-                        ctx.stream(), cgh)) {}
+                          ? utils::downcast<
+                                  const xpu::sycl::memory_storage_base_t *>(
+                                  scratch_mem->memory_storage())
+                                    ->get_out_memory_arg(ctx.stream(), cgh)
+                          : xpu::sycl::memory_storage_base_t::
+                                  empty_out_memory_arg(ctx.stream(), cgh)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();

@@ -39,15 +39,15 @@ struct softmax_fwd_kernel_vec_t {
                   DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
         , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
         , po1_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1)))
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1)))
         , po2_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1)))
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1)))
         , po3_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1)))
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1)))
         , po4_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1)))
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1)))
         , po5_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1))) {}
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1))) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();

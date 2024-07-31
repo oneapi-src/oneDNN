@@ -18,8 +18,8 @@
 #include "common/dnnl_traits.hpp"
 #include "xpu/sycl/types.hpp"
 
-#include "gpu/generic/sycl/ref_batch_normalization.hpp"
 #include "gpu/generic/sycl/batch_normalizations_kernels.hpp"
+#include "gpu/generic/sycl/ref_batch_normalization.hpp"
 
 namespace dnnl {
 namespace impl {
