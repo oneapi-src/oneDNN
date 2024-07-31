@@ -183,6 +183,8 @@ struct sycl_layer_normalization_conf_t {
     xpu::sycl::md_t shift;
     xpu::sycl::md_t stat_md;
     data_type_t var_dt;
+    data_type_t scales_src_dt;
+    data_type_t scales_dst_dt;
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t diff_dst_md;
     dim_t wk_size;
