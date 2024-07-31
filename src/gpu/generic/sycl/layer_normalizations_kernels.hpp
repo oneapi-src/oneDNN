@@ -237,14 +237,12 @@ private:
                         data_md().data_type(), data_ptr(), src_off);
                 float d = sm * (s - v_mean) + sv;
 
-                float sr = conf_.src_def
-                        ? 1.f
-                        : load_float_value(data_scaleshift_md().data_type(),
-                                rt_oscale_ptr(), 0);
-                float ds = conf_.dst_def
-                        ? 1.f
-                        : load_float_value(data_scaleshift_md().data_type(),
-                                dst_oscale_ptr(), 0);
+                float sr = conf_.src_def ? 1.f
+                                         : load_float_value(conf_.scales_src_dt,
+                                                 rt_oscale_ptr(), 0);
+                float ds = conf_.dst_def ? 1.f
+                                         : load_float_value(conf_.scales_dst_dt,
+                                                 dst_oscale_ptr(), 0);
                 d = (d * sr * (1.f / ds));
 
                 store_float_value(dst_md().data_type(), d, dst_ptr(), d_off);

@@ -36,11 +36,22 @@ status_t ref_sycl_softmax_fwd_t::pd_t::init_conf() {
     conf_.outer_size = outer_size();
     conf_.channels = axis_size();
     conf_.wk_size = inner_size() * outer_size();
+
     conf_.do_scale_src
             = !attr()->scales_.get(DNNL_ARG_SRC).has_default_values();
     conf_.do_scale_dst
             = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
 
+    conf_.post_ops = sycl_post_ops_t(attr());
+    conf_.po_len = attr()->post_ops_.len();
+
+    for (auto i = 0; i < conf_.post_ops.get_post_op(); ++i) {
+        const auto &e = attr()->post_ops_.entry_[i];
+        if (e.is_binary()) {
+            conf_.src1_md[i] = xpu::sycl::md_t(
+                    arg_md(DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1));
+        }
+    }
     return status::success;
 }
 

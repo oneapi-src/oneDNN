@@ -157,14 +157,19 @@ struct prelu_bwd_kernel_vec_t {
     static constexpr int vec_len = 8;
 
     prelu_bwd_kernel_vec_t(const sycl_prelu_conf_t &conf, ::sycl::handler &cgh,
-            const exec_ctx_t &ctx)
+            const exec_ctx_t &ctx, bool reduce_diff_weights, std::unique_ptr<memory_t>& scratch_mem)
         : conf_(conf)
         , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
         , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
         , weights_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS))
         , diff_weights_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_WEIGHTS))
         , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
-        , scratchpad_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_SCRATCHPAD)) {}
+        , scratchpad_(reduce_diff_weights
+                ? utils::downcast<const xpu::sycl::memory_storage_base_t *>(
+                        scratch_mem->memory_storage())
+                          ->get_out_memory_arg(ctx.stream(), cgh)
+                : xpu::sycl::memory_storage_base_t::empty_out_memory_arg(
+                        ctx.stream(), cgh)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
@@ -172,7 +177,6 @@ struct prelu_bwd_kernel_vec_t {
             case broadcasting_strategy_t::scalar:
                 calculate_scalar(data_ptr(), weights_ptr(), diff_weights_ptr(),
                         diff_dst_ptr(), diff_data_ptr(), ithr);
-                reduce_scalar(diff_weights_ptr(), ithr);
                 break;
             case broadcasting_strategy_t::no_broadcast:
                 calculate_no_broadcast(data_ptr(), weights_ptr(),
@@ -203,28 +207,6 @@ struct prelu_bwd_kernel_vec_t {
         store_float_value(
                 data_md().data_type(), diff_src_res, diff_src, data_off);
         return diff_weight_res;
-    }
-
-    void reduce_scalar(float *diff_weights, size_t i) const {
-        const size_t nthr = conf_.n_thr;
-        const dim_t work_amount = conf_.work_amount_src;
-        const int thread_count = nstl::min((dim_t)nthr, work_amount);
-        double s = 0;
-        int c = 0;
-        for (dim_t a = 0; a < thread_count; a++) {
-            auto la = load_float_value(
-                    weights_md().data_type(), scratchpad_ptr(), i);
-            if (!std::isnan(la)) c = c + 1;
-        }
-        if (c == (thread_count)) {
-            for (dim_t j = 0; j < thread_count; j++) {
-                auto la = load_float_value(
-                        weights_md().data_type(), scratchpad_ptr(), j);
-                s = s + la;
-            }
-            store_float_value(
-                    weights_md().data_type(), s, diff_weights_ptr(), 0);
-        }
     }
 
     void set_reduction_buffers(
@@ -293,7 +275,6 @@ private:
         }
 
         balance211(work_amount, nthr, ithr, start, end);
-        const dim_t workload = end - start;
 
         if (conf_.ndims == 1) {
             utils::nd_iterator_init(start, off[0], dims_d[0]);
@@ -315,11 +296,6 @@ private:
                     off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
         }
 
-        dim_t group_size, buf_size;
-        set_reduction_buffers(workload, group_size, buf_size);
-        dim_t offset_buf {0}, group_off {0}, data_size {buf_size};
-        float s = 0;
-        float r = 0;
         for (dim_t iwork = start; iwork < end; ++iwork) {
             const auto data_off = offset(data_md(), off);
             const auto weight_off = 0;
@@ -334,17 +310,9 @@ private:
             float diff_weight_res = src_val > 0 ? 0 : (diff_dst_val * src_val);
             store_float_value(
                     data_md().data_type(), diff_src_res, diff_src, data_off);
+            store_float_value(diff_weights_md().data_type(), diff_weight_res,
+                    scratchpad_ptr(), data_off);
 
-            s = s + diff_weight_res;
-            if (++offset_buf == data_size) {
-                r = r + s;
-                offset_buf = 0;
-                group_off++;
-                s = 0;
-                data_size = ((group_off + 1) * buf_size <= workload)
-                        ? buf_size
-                        : workload - (group_off * buf_size);
-            }
             if (conf_.ndims == 1) {
                 utils::nd_iterator_step(off[0], dims_d[0]);
             }
@@ -365,7 +333,6 @@ private:
                         dims_d[4]);
             }
         }
-        store_float_value(weights_md().data_type(), r, scratchpad_ptr(), ithr);
     }
 
     void calculate_no_broadcast(const float *src, const float *weights,

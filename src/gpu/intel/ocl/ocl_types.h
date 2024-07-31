@@ -188,8 +188,8 @@
 #define DATA16_T double16
 #define DATA_MAX DBL_MAX
 #define DATA_MIN -DATA_MAX
-#define DATA_ZERO 0.0d
-#define DATA_ONE 1.0d
+#define DATA_ZERO 0.0
+#define DATA_ONE 1.0
 #define DEF_ACC_DATA_T double
 #define DEF_ACC_DATA2_T double2
 #define DEF_ACC_DATA4_T double4

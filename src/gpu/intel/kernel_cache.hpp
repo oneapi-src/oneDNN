@@ -34,13 +34,42 @@ namespace intel {
 
 template <typename T>
 struct trivial_key_validator_t {
-    static bool is_valid(const T &t) {
+
+    template <typename V>
+    struct is_trivially_validatable {
+        using yes_t = uint8_t;
+        using no_t = uint16_t;
+
+        template <typename U>
+        static yes_t test(bool value = V::is_trivially_validatable);
+        template <typename U>
+        static no_t test(...);
+
+        static const bool value = sizeof(test<V>(false)) == sizeof(yes_t);
+    };
+
+    template <typename U,
+            gpu_utils::enable_if_t<is_trivially_validatable<U>::value,
+                    bool> = true>
+    static bool is_valid(const U &t) {
+        static_assert(std::is_same<T, U>::value,
+                "key validation is not intended for comparing different types");
+        return true;
+    }
+
+    template <typename U,
+            gpu_utils::enable_if_t<!is_trivially_validatable<U>::value,
+                    bool> = true>
+    static bool is_valid(const U &t) {
         // Runtime validation only occurs in C++20 as default comparisons
         // significantly improves the reliability of this check.
         static_assert(
                 std::is_same<T, decltype(T::deserialize(t.serialize()))>::value,
                 "serialization and deserialization must be supported for "
                 "validation in C++20 builds");
+        static_assert(std::is_same<T, U>::value,
+                "key validation is not intended for comparing different types");
+
 #if __cplusplus >= 202002L
         return t == T::deserialize(t.serialize());
 #else

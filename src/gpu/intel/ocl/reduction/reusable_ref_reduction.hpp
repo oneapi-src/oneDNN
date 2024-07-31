@@ -50,10 +50,6 @@ struct ref_reduction_key_params_t
         return kernel_names;
     }
 
-#if __cplusplus >= 202002L
-    bool operator==(const ref_reduction_key_params_t &) const = default;
-#endif
-
     status_t get_kernel_ctx(compute::kernel_ctx_t &) const;
 
     reduction_alg_kind_t alg;

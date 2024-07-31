@@ -197,8 +197,9 @@ public:
 
         if (status != status::success) {
             if (get_verbose(verbose_t::create_dispatch, component_t::graph)) {
-                printf("onednn_verbose,graph,create:dispatch,sdpa,could not "
-                       "create primitive, falling back\n");
+                verbose_printf(
+                        "onednn_verbose,graph,create:dispatch,sdpa,could not "
+                        "create primitive, falling back\n");
             }
         }
 

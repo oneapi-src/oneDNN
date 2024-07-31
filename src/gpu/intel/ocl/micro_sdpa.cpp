@@ -41,7 +41,28 @@ struct sdpa_config_t {
 //  h<N> -- maximum head size = N
 //  s<M> -- target sequence length = M
 //   2nd -- second token (thin Q)
-sdpa_config_t xehpg_h64 = {16, 32, 16, 16, 8, 4, 4, 8};
+sdpa_config_t xehpg_h32 = {32, 16, 16, 16, 2, 16, 2, 16};
+sdpa_config_t xehpg_h32_s256 = {16, 16, 16, 16, 2, 8, 2, 8};
+sdpa_config_t xehpg_h32_s64 = {16, 16, 16, 8, 4, 4, 2, 8};
+sdpa_config_t xehpg_h32_s32 = {8, 8, 8, 8, 4, 4, 4, 4};
+sdpa_config_t xehpg_h32_2nd = {8, 32, 16, 8, 8, 1, 2, 4};
+
+sdpa_config_t xehpg_h64 = {32, 16, 16, 16, 4, 8, 4, 8};
+sdpa_config_t xehpg_h64_s128 = {16, 16, 16, 16, 4, 8, 4, 8};
+sdpa_config_t xehpg_h64_s64 = {32, 16, 16, 8, 8, 4, 4, 8};
+sdpa_config_t xehpg_h64_2nd = {8, 16, 16, 8, 8, 1, 4, 2};
+
+sdpa_config_t xehpg_h128 = {16, 16, 32, 8, 8, 4, 4, 8};
+sdpa_config_t xehpg_h128_s32 = {16, 16, 16, 8, 16, 2, 8, 4};
+sdpa_config_t xehpg_h128_2nd = {8, 16, 16, 8, 16, 1, 8, 2};
+sdpa_config_t xehpg_h128_s256_2nd = {8, 16, 32, 8, 8, 1, 4, 2};
+
+sdpa_config_t xehpg_h256 = {16, 16, 32, 8, 16, 2, 8, 4};
+sdpa_config_t xehpg_h256_s128 = {8, 16, 32, 16, 8, 4, 8, 4};
+sdpa_config_t xehpg_h256_s32 = {8, 16, 32, 8, 16, 2, 8, 4};
+sdpa_config_t xehpg_h256_2nd = {8, 8, 16, 8, 16, 1, 16, 1};
+sdpa_config_t xehpg_h256_s64_2nd = {16, 8, 16, 8, 16, 1, 16, 1};
+sdpa_config_t xehpg_h256_s32_2nd = {16, 16, 32, 8, 16, 1, 8, 2};
 
 sdpa_config_t xehpc_h32 = {16, 64, 32, 16, 4, 2, 1, 8};
 sdpa_config_t xehpc_h32_s32 = {16, 16, 16, 16, 2, 4, 2, 4};
@@ -63,7 +84,34 @@ sdpa_config_t xehpc_h256_s64 = {16, 32, 32, 32, 8, 1, 8, 1};
 sdpa_config_t xehpc_h256_2nd = {16, 16, 16, 16, 16, 1, 16, 1};
 
 sdpa_config_t *choose_config_xehpg(int head_size, int seq, bool thin_q) {
-    if (head_size <= 64) return &xehpg_h64;
+    if (head_size <= 32) {
+        if (thin_q) return &xehpg_h32_2nd;
+        if (seq <= 32) return &xehpg_h32_s32;
+        if (seq <= 64) return &xehpg_h32_s64;
+        if (seq <= 256) return &xehpg_h32_s256;
+        return &xehpg_h32;
+    } else if (head_size <= 64) {
+        if (thin_q) return &xehpg_h64_2nd;
+        if (seq <= 64) return &xehpg_h64_s64;
+        if (seq <= 128) return &xehpg_h64_s128;
+        return &xehpg_h64;
+    } else if (head_size <= 128) {
+        if (thin_q) {
+            if (seq <= 256) return &xehpg_h128_s256_2nd;
+            return &xehpg_h128_2nd;
+        }
+        if (seq <= 32) return &xehpg_h128_s32;
+        return &xehpg_h128;
+    } else if (head_size <= 256) {
+        if (thin_q) {
+            if (seq <= 32) return &xehpg_h256_s32_2nd;
+            if (seq <= 64) return &xehpg_h256_s64_2nd;
+            return &xehpg_h256_2nd;
+        }
+        if (seq <= 32) return &xehpg_h256_s32;
+        if (seq <= 128) return &xehpg_h256_s128;
+        return &xehpg_h256;
+    }
     return nullptr;
 }
 

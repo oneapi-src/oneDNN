@@ -34,7 +34,7 @@ struct ref_eltwise_fwd_t {
         : alg_(alg), alpha_(alpha), beta_(beta), scale_(scale) {
         using namespace alg_kind;
         assert(utils::one_of(alg_, eltwise_relu, eltwise_linear, eltwise_clip,
-                eltwise_clip_v2));
+                eltwise_clip_v2, eltwise_hardswish));
     }
 
     ref_eltwise_fwd_t(const post_ops_t::entry_t::eltwise_t &eltwise)
@@ -78,6 +78,9 @@ struct ref_eltwise_fwd_t {
             case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
             case eltwise_clip: d = clip_fwd(s, alpha, beta); break;
             case eltwise_clip_v2: d = clip_v2_fwd(s, alpha, beta); break;
+            case eltwise_hardswish:
+                d = dnnl::impl::math::hardswish_fwd(s, alpha, beta);
+                break;
             default: d = ::sycl::nan(0u);
         }
         return d;
@@ -145,14 +148,15 @@ struct sycl_post_ops_t {
         const auto &attr_po = attr->post_ops_;
         assert(attr_po.len() <= max_post_ops);
 
-        int sum_idx = 0;
         int eltwise_idx = 0;
         int binary_idx = 0;
 
         for (auto i = 0; i < attr_po.len(); ++i) {
             if (attr_po.contain(sum, i)) {
                 post_op_kinds_[i] = sum;
-                sum_scales_[sum_idx++] = attr_po.entry_[i].sum.scale;
+                sum_scales_[i] = attr_po.entry_[i].sum.scale;
+                sum_zeropoints_[i] = attr_po.entry_[i].sum.zero_point;
+                sum_dt_ = attr_po.entry_[i].sum.dt;
             } else if (attr_po.contain(eltwise, i)) {
                 post_op_kinds_[i] = eltwise;
                 eltwise_post_ops_[eltwise_idx++]
@@ -174,14 +178,12 @@ struct sycl_post_ops_t {
 
         if (n_post_ops_ == 0) return acc;
 
-        int sum_idx = 0;
         int eltwise_idx = 0;
 
         for (auto i = 0; i < n_post_ops_; ++i) {
             switch (post_op_kinds_[i]) {
                 case sum: {
-                    const ::sycl::vec<float, width> sum_scale(
-                            sum_scales_[sum_idx++]);
+                    const ::sycl::vec<float, width> sum_scale(sum_scales_[i]);
                     acc += sum_scale * dst;
                     break;
                 }
@@ -199,12 +201,13 @@ struct sycl_post_ops_t {
 
         if (n_post_ops_ == 0) return acc;
 
-        int sum_idx = 0;
         int eltwise_idx = 0;
 
         for (auto i = 0; i < n_post_ops_; ++i) {
             switch (post_op_kinds_[i]) {
-                case sum: acc += sum_scales_[sum_idx++] * dst; break;
+                case sum:
+                    acc += sum_scales_[i] * (dst - sum_zeropoints_[i]);
+                    break;
                 case eltwise:
                     acc = eltwise_post_ops_[eltwise_idx++].compute(acc);
                     break;
@@ -221,7 +224,6 @@ struct sycl_post_ops_t {
         if (n_post_ops_ == 0) return acc;
 
         int binary_idx = 0;
-        int sum_idx = 0;
         int eltwise_idx = 0;
         for (auto i = 0; i < n_post_ops_; ++i) {
             switch (post_op_kinds_[i]) {
@@ -231,7 +233,9 @@ struct sycl_post_ops_t {
                 case binary:
                     acc = binary_post_ops_[binary_idx++].compute(acc, dst[i]);
                     break;
-                case sum: acc += sum_scales_[sum_idx++] * dst_sum; break;
+                case sum:
+                    acc += sum_scales_[i] * (dst_sum - sum_zeropoints_[i]);
+                    break;
                 default: acc = ::sycl::nan(0u);
             }
         }
@@ -270,8 +274,12 @@ struct sycl_post_ops_t {
         return binary_post_ops_[i];
     }
 
+    //there can be at most one sum type
+    dnnl::impl::data_type_t sum_dt_;
+
 private:
     float sum_scales_[max_post_ops];
+    int sum_zeropoints_[max_post_ops];
     ref_binary_op_t binary_post_ops_[max_post_ops];
     ref_eltwise_fwd_t eltwise_post_ops_[max_post_ops];
     primitive_kind_t post_op_kinds_[max_post_ops];

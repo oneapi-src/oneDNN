@@ -87,7 +87,7 @@ struct write_info_t get_write_info(const idx_t src_idx,
         idx_t zero_pad_start = zero_pad_offset - concat_axis + thread_offset;
         bool write_zeropad = zero_pad_start + concat_idx < zero_pad_concat_axis;
 
-        write_offset = write_value ? concat_offset : zero_pad_offset;
+        write_offset = write_value ? concat_offset : zero_pad_start;
         info.write = write_value || write_zeropad;
     } else {
         write_offset = concat_offset;
@@ -141,8 +141,8 @@ reusable_simple_concat(__global DATA_T *dst, const ulong dst_offset0,
 #define WRITE_INFO(idx) \
     get_write_info(block_offset + (idx), src_ext_offset, input_offset, \
             dst_ext_offset, input_padded_offset, concat_axis_size, \
-            REDUCE(N_INPUTS, RIGHT, CONCAT_AXIS), zero_pad_concat_axis, \
-            zero_pad_offset, inner_offset, must_compute_ext_idx)
+            REDUCE(N_INPUTS, RIGHT, CONCAT_AXIS), zero_pad_offset, \
+            zero_pad_concat_axis, inner_offset, must_compute_ext_idx)
 
 #if SIMD == 1
     dst += dst_offset0 + read_overlap * get_global_id(1) * dst_ext_offset;
