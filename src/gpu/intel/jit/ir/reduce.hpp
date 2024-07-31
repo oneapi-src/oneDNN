@@ -36,18 +36,6 @@ public:
         return func_t(new reduce_t(src_layout, dst_layout));
     }
 
-    bool is_equal(const object_impl_t &obj) const override {
-        if (!obj.is<self_type>()) return false;
-        auto &other = obj.as<self_type>();
-
-        return (src_layout == other.src_layout)
-                && (dst_layout == other.dst_layout);
-    }
-
-    size_t get_hash() const override {
-        return ir_utils::get_hash(src_layout, dst_layout);
-    }
-
     std::string str() const override {
         std::ostringstream oss;
         oss << "reduce[" << src_layout << ", " << dst_layout << "]";

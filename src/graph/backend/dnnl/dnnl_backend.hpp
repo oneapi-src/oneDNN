@@ -214,16 +214,14 @@ public:
         std::string pass_config_json = "dnnl_graph_passes.json";
         std::ifstream fs(pass_config_json.c_str());
         if (fs) {
-            printf("onednn_graph_verbose,info,pattern,load,%s\n",
+            verbose_printf("onednn_graph_verbose,info,pattern,load,%s\n",
                     pass_config_json.c_str());
-            fflush(stdout);
         } else {
             if (getenv_int_user("GRAPH_DUMP", 0) > 0
                     || graph::utils::check_verbose_string_user(
                             "GRAPH_DUMP", "pattern")) {
-                printf("onednn_graph_verbose,info,pattern,dump,%s\n",
+                verbose_printf("onednn_graph_verbose,info,pattern,dump,%s\n",
                         pass_config_json.c_str());
-                fflush(stdout);
                 pm.print_passes(pass_config_json);
             }
         }

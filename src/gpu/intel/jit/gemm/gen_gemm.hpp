@@ -118,7 +118,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                         | smask_t::zero_points_runtime_groups;
             }
 
-            bool wei_zp = false, wei_zp_2d = false;
+            bool wei_zp_2d = false;
             auto wei_scales_type = data_type::undef;
             auto src_scales_type = data_type::undef;
             int wei_q2d_group_k = 0;
@@ -203,7 +203,6 @@ struct gen_gemm_t : public gpu_gemm_t {
                 CHECK(attr_zps.get(DNNL_ARG_B, &cmask_b));
                 CHECK(attr_zps.get(DNNL_ARG_C, &cmask_c));
 
-                wei_zp = a_zp;
                 wei_zp_2d = attr_zps.get_groups_ndims(DNNL_ARG_A) > 1;
                 VDISPATCH_GEMM(
                         (utils::one_of(cmask_a, 0, 1 << 1, 1 << 2) || wei_zp_2d)
@@ -228,7 +227,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto &src_scales = attr()->scales_.get(DNNL_ARG_SRC);
 
             if (quant_enabled_ && wei_scales.ndims_ > 1) wei_scales_2d_ = true;
-
             if (quant_enabled_ && src_scales.ndims_ > 1) src_scales_2d_ = true;
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
@@ -245,9 +243,6 @@ struct gen_gemm_t : public gpu_gemm_t {
                 if (scales_group_k >= d->k()) {
                     wei_scales_2d_ = false;
                 } else {
-                    VDISPATCH_GEMM(
-                            !(wei_zp && (ao_dims_ == 1 || bo_dims_ == 1)),
-                            VERBOSE_UNSUPPORTED_ZP_CFG);
                     wei_scales_type = wei_scales.data_type_;
                     if (!wei_zp_2d)
                         wei_q2d_group_k = scales_group_k;
@@ -640,14 +635,15 @@ struct gen_gemm_t : public gpu_gemm_t {
         using namespace data_type;
 
         auto kd = pd()->kernel_desc();
-        CHECK(create_kernel(engine, nocopy_kernel_, "gemm_kernel", *kd));
-
-        scalar_type_ = kd->scalar_type();
-        const auto *info = nocopy_info();
 
         if (get_verbose(verbose_t::debuginfo) >= 2) {
             printf("onednn_verbose,info,gpu,%s\n", kd->entry().str().c_str());
         }
+
+        CHECK(create_kernel(engine, nocopy_kernel_, "gemm_kernel", *kd));
+
+        scalar_type_ = kd->scalar_type();
+        const auto *info = nocopy_info();
 
         if (info->fusedBeta() || info->fusedPostOps()) {
             auto *compute_engine

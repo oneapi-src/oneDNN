@@ -1,5 +1,6 @@
 # *******************************************************************************
 # Copyright 2020-2021 Arm Limited and affiliates.
+# Copyright 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,6 +33,11 @@ endif()
 
 if (NOT "${DNNL_BLAS_VENDOR}" MATCHES "^(NONE|MKL|OPENBLAS|ARMPL|ACCELERATE|ANY)$")
     message(FATAL_ERROR "Unsupported DNNL_BLAS_VENDOR: ${DNNL_BLAS_VENDOR}.")
+endif()
+
+if (NOT "${DNNL_BLAS_VENDOR}" MATCHES "^(NONE|ARMPL|ACCELERATE)$")
+    message(WARNING "Use of DNNL_BLAS_VENDOR=${DNNL_BLAS_VENDOR} is not "
+    "recommended. This vendor is supported for performance analysis purposes only.")
 endif()
 
 macro(expect_arch_or_generic arch)

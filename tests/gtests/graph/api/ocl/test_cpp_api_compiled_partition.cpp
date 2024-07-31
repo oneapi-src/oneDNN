@@ -76,11 +76,11 @@ TEST(OCLApi, CompiledPartition) {
     inputs_ts.reserve(inputs.size());
     outputs_ts.reserve(outputs.size());
     for (const auto &in : inputs) {
-        inputs_ts.push_back(tensor {in, eng});
+        inputs_ts.emplace_back(in, eng);
     }
 
     for (const auto &out : outputs) {
-        outputs_ts.push_back(tensor {out, eng});
+        outputs_ts.emplace_back(out, eng);
     }
 
     EXPECT_NO_THROW({

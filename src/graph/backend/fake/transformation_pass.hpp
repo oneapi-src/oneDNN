@@ -54,8 +54,9 @@ public:
         // for each pattern. match it
         std::vector<op_t *> matched_op_list;
         if (get_verbose(verbose_t::create_dispatch, component_t::graph)) {
-            printf("onednn_verbose,graph,create:dispatch,pattern_"
-                   "matcher,%s,fake_backend\n",
+            verbose_printf(
+                    "onednn_verbose,graph,create:dispatch,pattern_matcher,%s,"
+                    "fake_backend\n",
                     get_pass_name().c_str());
         }
         pu.match(agraph, pgraph, matched_op_list);
@@ -64,9 +65,8 @@ public:
             if (getenv_int_user("GRAPH_DUMP", 0) > 0
                     || utils::check_verbose_string_user(
                             "GRAPH_DUMP", "pattern")) {
-                printf("onednn_graph_verbose,info,pattern,hit,%s\n",
+                verbose_printf("onednn_graph_verbose,info,pattern,hit,%s\n",
                         get_pass_name().c_str());
-                fflush(stdout);
             }
 
             // Only fuse not rewrite. Will remove the fuse once dnnl

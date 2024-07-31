@@ -81,7 +81,7 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo,
     auto stepping = hwInfo.gmdid & 0xFF;
 
     /* Create catalog matcher */
-    MatchParams matchParams(hw, problem);
+    MatchParams matchParams(hw, hwInfo.systolicAvailable, problem);
 
     matchParams.sizes = sizes;
     matchParams.stepping = stepping;
@@ -93,7 +93,6 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo,
         tags++;
     *tags++ = kcatalog::ReqBlock2DA;
     *tags++ = kcatalog::ReqBlock2DB;
-    if (hwInfo.systolicAvailable) *tags++ = kcatalog::ReqSystolic;
 
     /* Provide information for kernel selection */
     EvaluateParams evalParams;
