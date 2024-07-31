@@ -16,12 +16,10 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/ref_layer_normalization.hpp"
 #include "gpu/intel/ocl/reusable_lnorm.hpp"
 #include "gpu/intel/ocl/reusable_vectorized_lnorm.hpp"
 #include "gpu/intel/ocl/vectorized_lnorm.hpp"
-#endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
 #include "gpu/generic/sycl/ref_layer_normalizations.hpp"
@@ -38,17 +36,17 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_LNORM_P({
     {{forward}, {
-        GPU_INSTANCE_INTEL(intel::ocl::reusable_vectorized_layer_normalization_fwd_t)
-        GPU_INSTANCE_INTEL(intel::ocl::vectorized_lnorm_fwd_t)
-        GPU_INSTANCE_INTEL(intel::ocl::ref_layer_normalization_fwd_t)
-        GPU_INSTANCE_INTEL(intel::ocl::reusable_layer_normalization_fwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::reusable_vectorized_layer_normalization_fwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::vectorized_lnorm_fwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::ref_layer_normalization_fwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::reusable_layer_normalization_fwd_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_layer_normalization_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        GPU_INSTANCE_INTEL(intel::ocl::vectorized_lnorm_bwd_t)
-        GPU_INSTANCE_INTEL(intel::ocl::ref_layer_normalization_bwd_t)
-        GPU_INSTANCE_INTEL(intel::ocl::reusable_layer_normalization_bwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::vectorized_lnorm_bwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::ref_layer_normalization_bwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::reusable_layer_normalization_bwd_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_layer_normalization_bwd_t)
         nullptr,
     })},

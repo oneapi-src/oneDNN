@@ -15,10 +15,10 @@
 *******************************************************************************/
 
 #include "gpu/gpu_impl_list.hpp"
+#include "gpu/intel/ocl/ref_matmul.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/gemm_matmul.hpp"
-#include "gpu/intel/ocl/ref_matmul.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
@@ -38,7 +38,7 @@ namespace {
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
         GPU_INSTANCE_INTEL(intel::ocl::gemm_matmul_t)
-        GPU_INSTANCE_INTEL_REF(intel::ocl::ref_matmul_t)
+        GPU_INSTANCE_REF(intel::ocl::ref_matmul_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_matmul_t)
         GPU_INSTANCE_AMD(amd::miopen_matmul_t)
         nullptr,

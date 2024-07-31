@@ -30,7 +30,7 @@ namespace {
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_SDPA_P({
         GPU_INSTANCE_INTEL(intel::ocl::micro_sdpa_t)
-        GPU_INSTANCE_INTEL_DEVMODE(intel::ocl::ref_sdpa_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::ref_sdpa_t)
         nullptr,
 });
 // clang-format on

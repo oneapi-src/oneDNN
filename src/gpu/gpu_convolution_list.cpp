@@ -15,12 +15,12 @@
 *******************************************************************************/
 
 #include "gpu/gpu_impl_list.hpp"
+#include "gpu/intel/ocl/ref_convolution.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/jit/binary_format.hpp"
 #include "gpu/intel/jit/conv/gen_convolution.hpp"
 #include "gpu/intel/ocl/gen9_wino_convolution.hpp"
-#include "gpu/intel/ocl/ref_convolution.hpp"
 
 #ifdef DNNL_DEV_MODE
 #include "gpu/intel/jit/v2/conv/gen_convolution.hpp"
@@ -51,7 +51,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_INTEL_DEVMODE(intel::jit::v2::conv::gen_convolution_fwd_t)
         GPU_INSTANCE_INTEL(intel::jit::gen_convolution_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::gen9_wino_convolution_fwd_t)
-        GPU_INSTANCE_INTEL_REF(intel::ocl::ref_convolution_fwd_t)
+        GPU_INSTANCE_REF(intel::ocl::ref_convolution_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_convolution_fwd_t)
         GPU_INSTANCE_AMD(amd::miopen_convolution_fwd_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_convolution_fwd_t)
@@ -60,7 +60,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{backward_data}, REG_BWD_D_PK({
         GPU_INSTANCE_INTEL_DEVMODE(intel::jit::v2::conv::gen_convolution_bwd_data_t)
         GPU_INSTANCE_INTEL(intel::jit::gen_convolution_bwd_data_t)
-        GPU_INSTANCE_INTEL_REF(intel::ocl::ref_convolution_bwd_data_t)
+        GPU_INSTANCE_REF(intel::ocl::ref_convolution_bwd_data_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_convolution_bwd_data_t)
         GPU_INSTANCE_AMD(amd::miopen_convolution_bwd_data_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_convolution_bwd_data_t)
@@ -69,7 +69,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     {{backward_weights}, REG_BWD_PK({
         GPU_INSTANCE_INTEL_DEVMODE(intel::jit::v2::conv::gen_convolution_bwd_weights_t)
         GPU_INSTANCE_INTEL(intel::jit::gen_convolution_bwd_weights_t)
-        GPU_INSTANCE_INTEL_REF(intel::ocl::ref_convolution_bwd_weights_t)
+        GPU_INSTANCE_REF(intel::ocl::ref_convolution_bwd_weights_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_convolution_bwd_weights_t)
         GPU_INSTANCE_AMD(amd::miopen_convolution_bwd_weights_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_convolution_bwd_weights_t)

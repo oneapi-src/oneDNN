@@ -25,7 +25,7 @@ if(DNNL_WITH_SYCL)
     add_subdirectory(sycl)
 endif()
 
-if(DNNL_GPU_VENDOR STREQUAL "INTEL")
+if(DNNL_WITH_OCL)
     add_subdirectory(ocl)
 endif()
 

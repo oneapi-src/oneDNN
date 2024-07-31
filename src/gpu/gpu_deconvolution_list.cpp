@@ -15,10 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/gpu_impl_list.hpp"
-
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/convolution_deconvolution.hpp"
-#endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
 #include "gpu/nvidia/cudnn_deconvolution.hpp"
@@ -39,14 +36,14 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_DECONV_P({
     {{forward}, {
-        GPU_INSTANCE_INTEL(intel::ocl::convolution_deconvolution_fwd_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::convolution_deconvolution_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_deconvolution_fwd_t)
         GPU_INSTANCE_AMD(amd::miopen_deconvolution_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
-        GPU_INSTANCE_INTEL(intel::ocl::convolution_deconvolution_bwd_data_t)
-        GPU_INSTANCE_INTEL(intel::ocl::convolution_deconvolution_bwd_weights_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::convolution_deconvolution_bwd_data_t)
+        GPU_INSTANCE_GENERIC(intel::ocl::convolution_deconvolution_bwd_weights_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_deconvolution_bwd_data_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_deconvolution_bwd_weights_t)
         GPU_INSTANCE_AMD(amd::miopen_deconvolution_bwd_data_t)

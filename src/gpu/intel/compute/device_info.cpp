@@ -20,7 +20,9 @@
 
 #include "common/type_helpers.hpp"
 #include "gpu/intel/compute/device_info.hpp"
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
+#endif
 #include "gpu/intel/utils.hpp"
 
 #ifdef DNNL_WITH_SYCL
@@ -129,8 +131,12 @@ int device_info_t::max_subgroup_size(gpu_arch_t gpu_arch) {
 }
 
 int device_info_t::grf_size(gpu_arch_t gpu_arch) {
+    int size = 0;
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
     ngen::HW hw = jit::convert_dnnl_arch_to_ngen(gpu_arch);
-    return ngen::GRF::bytes(hw);
+    size = ngen::GRF::bytes(hw);
+#endif
+    return size;
 }
 
 int device_info_t::min_subgroup_size() const {
