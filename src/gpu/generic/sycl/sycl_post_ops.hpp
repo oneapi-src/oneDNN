@@ -136,19 +136,18 @@ private:
 
 struct ref_sum_op_t {
     ref_sum_op_t() = default;
-    ref_sum_op_t(float scale, float zeropoint) :
-        scale_(scale), zeropoint_(zeropoint) {} 
-    
+    ref_sum_op_t(float scale, float zeropoint)
+        : scale_(scale), zeropoint_(zeropoint) {}
+
     float compute(float acc, float dst) const {
         return acc + scale_ * (dst - zeropoint_);
     }
-    
+
     template <int width>
-    ::sycl::vec<float, width> compute(::sycl::vec<float, width> acc, ::sycl::vec<float, width> dst) const {
-        const ::sycl::vec<float, width> scale_vec(
-                            scale_);
-        const ::sycl::vec<float, width> zeropoint_vec(
-                            zeropoint_);
+    ::sycl::vec<float, width> compute(::sycl::vec<float, width> acc,
+            ::sycl::vec<float, width> dst) const {
+        const ::sycl::vec<float, width> scale_vec(scale_);
+        const ::sycl::vec<float, width> zeropoint_vec(zeropoint_);
         return acc + scale_vec * (dst - zeropoint_vec);
     }
 
@@ -183,7 +182,8 @@ struct sycl_post_ops_t {
         for (auto i = 0; i < attr_po.len(); ++i) {
             if (attr_po.contain(sum, i)) {
                 ops_[i].kind_ = sum;
-                ops_[i].sum_ = ref_sum_op_t(attr_po.entry_[i].sum.scale, attr_po.entry_[i].sum.zero_point);
+                ops_[i].sum_ = ref_sum_op_t(attr_po.entry_[i].sum.scale,
+                        attr_po.entry_[i].sum.zero_point);
             } else if (attr_po.contain(eltwise, i)) {
                 ops_[i].kind_ = eltwise;
                 ops_[i].eltwise_ = ref_eltwise_fwd_t(attr_po.entry_[i].eltwise);
