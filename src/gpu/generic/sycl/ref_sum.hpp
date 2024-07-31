@@ -49,7 +49,7 @@ struct ref_sum_t : public gpu::generic::sycl::primitive_t {
                 return status::unimplemented;
             // Block formats are not yet supported
             // Dimensions can not be > 6
-            if (!dst_d.is_plain() || dst_d.ndims() > MAX_NDIMS)
+            if (!dst_d.is_plain() || dst_d.ndims() > xpu::sycl::md_t::max_dims)
                 return status::unimplemented;
 
             const int n = n_inputs();
@@ -59,7 +59,7 @@ struct ref_sum_t : public gpu::generic::sycl::primitive_t {
                     return status::unimplemented;
                 // Block formats are not yet supported
                 // Dimensions can not be > 6
-                if (!src_d.is_plain() || src_d.ndims() > MAX_NDIMS)
+                if (!src_d.is_plain() || src_d.ndims() > xpu::sycl::md_t::max_dims)
                     return status::unimplemented;
             }
 

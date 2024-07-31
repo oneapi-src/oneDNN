@@ -27,8 +27,6 @@ namespace gpu {
 namespace generic {
 namespace sycl {
 
-#define MAX_NDIMS 6
-
 struct sycl_binary_conf_t {
     xpu::sycl::md_t src0_md;
     xpu::sycl::md_t src1_md;
@@ -380,6 +378,8 @@ struct sycl_pooling_fwd_conf_t : public sycl_pooling_base_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+#define DNNL_REF_SUM_MAX_NUM_TENSORS 16
+
 struct sycl_sum_conf_t {
     xpu::sycl::md_t src_md[DNNL_REF_SUM_MAX_NUM_TENSORS];
     xpu::sycl::md_t dst_md;
@@ -389,25 +389,26 @@ struct sycl_sum_conf_t {
     int wg_size;
     int wk_size;
 
-    struct sycl_pooling_bwd_conf_t : public sycl_pooling_base_conf_t {
-        xpu::sycl::md_t diff_src_md;
-        xpu::sycl::md_t diff_dst_md;
-    };
+};
 
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_resampling_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_batch_normalization_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_softmax_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_layer_normalization_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_eltwise_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_lrn_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_sum_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_base_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_fwd_conf_t);
-    CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_bwd_conf_t);
+struct sycl_pooling_bwd_conf_t : public sycl_pooling_base_conf_t {
+    xpu::sycl::md_t diff_src_md;
+    xpu::sycl::md_t diff_dst_md;
+};
+
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_resampling_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_batch_normalization_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_softmax_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_layer_normalization_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_eltwise_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_lrn_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_sum_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_base_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_fwd_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_bwd_conf_t);
 
 } // namespace sycl
 } // namespace generic

@@ -30,21 +30,6 @@ namespace impl {
 namespace xpu {
 namespace sycl {
 
-#define DNNL_ARG_SRC_4 5
-#define DNNL_ARG_SRC_5 6
-#define DNNL_ARG_SRC_6 7
-#define DNNL_ARG_SRC_7 8
-#define DNNL_ARG_SRC_8 9
-#define DNNL_ARG_SRC_9 10
-#define DNNL_ARG_SRC_10 11
-#define DNNL_ARG_SRC_11 12
-#define DNNL_ARG_SRC_12 13
-#define DNNL_ARG_SRC_13 14
-#define DNNL_ARG_SRC_14 15
-#define DNNL_ARG_SRC_15 16
-
-#define DNNL_REF_SUM_MAX_NUM_TENSORS 16
-
 // The macros are expected to be called within a command group function object
 // that is passed to `parallel_for`.
 #define CTX_IN_SYCL_KERNEL_MEMORY(arg) \
