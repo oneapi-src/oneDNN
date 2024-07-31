@@ -54,18 +54,17 @@ struct ref_pooling_fwd_t : public gpu::generic::sycl::primitive_t {
 
             const bool ok = is_fwd() && set_default_params() == status::success
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && (utils::everyone_is(
-                                s8, src_md(0)->data_type, dst_md(0)->data_type)
-                            || utils::everyone_is(u8, src_md(0)->data_type,
-                                    dst_md(0)->data_type)
-                            || utils::everyone_is(f32, src_md(0)->data_type,
-                                    dst_md(0)->data_type)
-                            || utils::everyone_is(bf16, src_md(0)->data_type,
-                                    dst_md(0)->data_type)
-                            || utils::everyone_is(f16, src_md(0)->data_type,
-                                    dst_md(0)->data_type)
-                            || utils::everyone_is(s32, src_md(0)->data_type,
-                                    dst_md(0)->data_type))
+                    && (!utils::one_of(
+                            f64, src_md(0)->data_type, dst_md(0)->data_type))
+                    && (IMPLICATION(src_md(0)->data_type == bf16,
+                            dst_md(0)->data_type == bf16))
+                    && (IMPLICATION(src_md(0)->data_type == s8,
+                            dst_md(0)->data_type != u8))
+                    && (IMPLICATION(src_md(0)->data_type == u8,
+                            dst_md(0)->data_type != s8))
+                    && (IMPLICATION(
+                            src_md(0)->data_type != dst_md(0)->data_type,
+                            desc()->prop_kind == forward_inference))
                     && attr()->has_default_values(sm::post_ops)
                     && attr_.set_default_formats(dst_md(0)) == status::success
                     && md_dims_in_range(src_md());
