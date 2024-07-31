@@ -46,7 +46,10 @@ struct ref_reorder_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper dst_d(dst_md());
 
-            const bool ok = check_data_types(src_d, dst_d)
+            const bool ok = src_engine == dst_engine
+                    && !src_d.has_runtime_dims_or_strides()
+                    && !dst_d.has_runtime_dims_or_strides()
+                    && check_data_types(src_d, dst_d)
                     && check_formats(src_d, dst_d)
                     && attr()->has_default_values(
                             sm::scales_runtime | sm::post_ops)
