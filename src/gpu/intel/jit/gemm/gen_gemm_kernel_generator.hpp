@@ -993,19 +993,28 @@ struct GEMMProblem : public CommonProblem {
     bool backward() const { return false; }
 
     bool needsASums() const {
-        return (bOffset == ABOffset::Calc && boPtrDims < 2 && !quantized2DB())
-                || sumA;
+        return sumA || (bOffset == ABOffset::Calc && !earlyDequantizeB());
     }
     bool needsBSums() const {
-        return (aOffset == ABOffset::Calc && aoPtrDims < 2 && !quantized2DA())
-                || sumB;
+        return sumB || (aOffset == ABOffset::Calc && !earlyDequantizeA());
     }
+
     bool usesCO() const { return (cOffset != COffset::None) || sumA || sumB; }
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
 
     bool quantized2DA() const { return (aoPtrDims == 2) || aScale2D; }
     bool quantized2DB() const { return (boPtrDims == 2) || bScale2D; }
 
+    bool earlyDequantizeA() const {
+        return (aOffset == ABOffset::Calc && Tao.asSigned().isSubsetOf(Ta))
+                || (aScale2D && Ta_scale.isSubsetOf(Ta));
+    }
+    bool earlyDequantizeB() const {
+        return (bOffset == ABOffset::Calc && Tbo.asSigned().isSubsetOf(Tb))
+                || (bScale2D && Tb_scale.isSubsetOf(Tb));
+    }
+
+    inline void autoTypeConversions(ngen::HW hw, bool systolicAvailable);
     void transpose();
 
     /* Kernel cache helpers. */
@@ -1588,7 +1597,7 @@ struct GEMMState : public CommonState {
     bool broadcast;
     bool repackA = false, repackB = false;
     bool repackARem = false, repackBRem = false;
-    int ka_repackRem, kb_repackRem;
+    int ka_repack, ka_repackRem, kb_repackRem;
     bool remActiveA, remActiveB, remActiveSLM;
     std::vector<MaskAssignment> kMasksA, kMasksB, kMasksAi, kMasksBi;
     int initSLMKOffset = 0;
@@ -2723,25 +2732,28 @@ protected:
             const GRFMultirange &src, const GRFMultirange &dst,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
-    bool dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
+    void dequantizeInt4Shift(
+            Type Tsrc, GRFMultirange src, const CommonStrategy &strategy);
+    void dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
             const std::vector<RegisterBlock> &layoutSrc,
             const std::vector<RegisterBlock> &layoutDst,
             const std::vector<RegisterBlock> &layoutOffset,
             const std::vector<RegisterBlock> &layoutScale, GRFMultirange src,
             GRFMultirange dst, GRFMultirange offset, GRFMultirange scale,
             Type Tscale, int offR, int offC, const GEMMProblem *problem,
-            const CommonStrategy &strategy, CommonState &state);
-    void gemm2DDequantizeOperation(bool doA, Type T, Type To, BinaryOp op,
+            const CommonStrategy &strategy, CommonState &state,
+            bool do_shift = true);
+    void gemmDequantizeOperation(bool doA, Type T, Type To, BinaryOp op,
             const std::vector<RegisterBlock> &layout,
             const std::vector<RegisterBlock> &qlayout,
             const GRFMultirange &regs, const GRFMultirange &qregs, int hq,
             const GEMMProblem &problem);
-    void gemm2DDequantizeAB(bool doA, Type Tsrc, Type Tdst,
+    void gemmDequantizeAB(bool doA, Type Tsrc, Type Tdst,
             const std::vector<RegisterBlock> &layoutSrc,
             const std::vector<RegisterBlock> &layoutDst,
             const GRFMultirange &src, const GRFMultirange &dst, int hab,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
-            GEMMState &state);
+            GEMMState &state, bool do_shift = true);
 
     void gemmCalcKLoopBarrierCount(ngen::Subregister &count,
             const ngen::Subregister &k, int cooldown,
@@ -2901,8 +2913,6 @@ protected:
             GEMMState &state, bool inSK = false);
     void gemmInitState(GEMMProblem &problem, GEMMStrategy &strategy,
             GEMMState &state, bool inSK = false);
-    static void gemmAutoTypeConversions(
-            GEMMProblem &problem, const GEMMStrategy &strategy);
     void gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
 
     void gemmSuperkernelInitState(GEMMSuperkernelProblem &problem,
@@ -2987,7 +2997,7 @@ protected:
             const std::vector<RegisterBlock> &layoutDst,
             const GRFMultirange &src, const GRFMultirange &dst, int dOffR,
             int dOffC, bool conjugate, const CommonStrategy &strategy,
-            CommonState &state, bool preserveSrc = false);
+            CommonState &state, bool preserveSrc = false, bool do_shift = true);
     bool copyRegisters(Type Ts, Type Td,
             const std::vector<RegisterBlock> &layoutSrc,
             const std::vector<RegisterBlock> &layoutDst,
@@ -2995,7 +3005,7 @@ protected:
             int dOffC, const Scalar &alpha, const SubregisterPair &alpha_real,
             const SubregisterPair &alpha_imag, bool conjugate,
             const CommonStrategy &strategy, CommonState &state,
-            bool preserveSrc = false);
+            bool preserveSrc = false, bool do_shift = true);
     void overlappedCopy(const GRFMultirange &src, const GRFMultirange &dst,
             CommonState &state);
 
@@ -3027,6 +3037,36 @@ protected:
     void initState(const CommonProblem &problem, const CommonStrategy &strategy,
             CommonState &state);
 };
+
+// Apply automatic internal type conversions to a problem.
+void GEMMProblem::autoTypeConversions(ngen::HW hw, bool systolicAvailable) {
+    using namespace ngen;
+
+    // Weights decompression
+    if ((Ta.isInt8() || Ta.isInt4()) && Tb.isFP() && Tc.isFP()) Ta = Tb;
+    if ((Tb.isInt8() || Tb.isInt4()) && Ta.isFP() && Tc.isFP()) Tb = Ta;
+
+    if (Ta == Ta_ext.asSigned()) Ta = Ta_ext;
+    if (Tb == Tb_ext.asSigned()) Tb = Tb_ext;
+
+    if (Ta.isF8()) Ta = Type::f16;
+    if (Tb.isF8()) Tb = Type::f16;
+
+    if (hw > HW::Gen9 && !systolicAvailable && Tc == Type::f32) {
+        if (Ta == Type::f16) Ta = Type::f32;
+        if (Tb == Type::f16) Tb = Type::f32;
+    }
+
+    if (hw < HW::XeHP || (hw > HW::XeHP && !systolicAvailable)) {
+        if (Ta == Type::bf16) Ta = Type::f32;
+        if (Tb == Type::bf16) Tb = Type::f32;
+    }
+
+    if (hw == HW::Gen11) {
+        if (utils::one_of(Ta, Type::s8, Type::u8)) Ta = Type::s16;
+        if (utils::one_of(Tb, Type::s8, Type::u8)) Tb = Type::s16;
+    }
+}
 
 inline char precisionChar(Type T) {
     switch (T.baseType()) {

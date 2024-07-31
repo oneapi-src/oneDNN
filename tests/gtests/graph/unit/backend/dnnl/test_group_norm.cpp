@@ -28,9 +28,9 @@ TEST(test_group_norm_execute, GroupnormTraining) {
     graph::engine_t *eng = get_engine();
 
     // src shape: (2, 2, 2, 3) nxc
-    std::vector<float> src;
-    for (int i = 0; i < 24; i++) {
-        src.push_back(i * i);
+    std::vector<float> src(24);
+    for (size_t i = 0; i < src.size(); i++) {
+        src[i] = i * i;
     }
     std::vector<float> scale {1.0, 2.0, 3.0};
     std::vector<float> shift {0.0, 1.0, 2.0};
@@ -126,9 +126,9 @@ TEST(test_group_norm_execute, GroupnormInference) {
     graph::engine_t *eng = get_engine();
 
     // src shape: (2, 3, 2, 2) ncx
-    std::vector<float> src;
-    for (int i = 0; i < 24; i++) {
-        src.push_back(i * i);
+    std::vector<float> src(24);
+    for (size_t i = 0; i < src.size(); i++) {
+        src[i] = i * i;
     }
     std::vector<float> scale {1.0, 2.0, 3.0};
     std::vector<float> shift {0.0, 1.0, 2.0};
@@ -207,9 +207,9 @@ TEST(test_group_norm_execute, GroupnormSwishTypecastQuant) {
             "Skip bf16 tests for systems that do not support avx512_core.");
 
     // src shape: (2, 3, 2, 2) ncx
-    std::vector<bfloat16_t> src;
-    for (int i = 0; i < 24; i++) {
-        src.push_back(i * i);
+    std::vector<bfloat16_t> src(24);
+    for (size_t i = 0; i < src.size(); i++) {
+        src[i] = i * i;
     }
     std::vector<float> scale {1.0, 2.0, 3.0};
     std::vector<float> shift {0.0, 1.0, 2.0};

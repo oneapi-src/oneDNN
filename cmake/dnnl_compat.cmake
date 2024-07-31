@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ set(COMPAT_CACHE_BOOL_VARS
     "ENABLE_MEM_DEBUG"
     "ENABLE_STACK_CHECKER"
     "AARCH64_USE_ACL"
+    "DISABLE_GPU_REF_KERNELS"
     )
 
 set(COMPAT_CACHE_STRING_VARS

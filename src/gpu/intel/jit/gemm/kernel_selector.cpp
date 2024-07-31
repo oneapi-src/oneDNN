@@ -282,8 +282,11 @@ const kcatalog::Entry *upper_bound(
     return upper_lower_bound<true>(catalog, selector);
 }
 
-MatchParamsBase::MatchParamsBase(ngen::HW hw, const GEMMProblem &problem) {
+MatchParamsBase::MatchParamsBase(
+        ngen::HW hw, bool systolicAvailable, const GEMMProblem &problem_) {
     using namespace kcatalog;
+
+    auto problem = problem_;
 
     switch (hw) {
         default: assert(!"Unknown architecture");
@@ -349,11 +352,14 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, const GEMMProblem &problem) {
 
     tags = tagPtr;
 
+    if (systolicAvailable) *tagPtr++ = ReqSystolic;
+
     if (problem.batch != BatchMode::None) {
         *tagPtr++ = ReqBatch;
         if (problem.batchDims > 1) *tagPtr++ = ReqBatchMultiDim;
     }
 
+    problem.autoTypeConversions(hw, systolicAvailable);
     if (problem.needsASums() && !problem.sumA) *tagPtr++ = ReqSumA;
     if (problem.needsBSums() && !problem.sumB) *tagPtr++ = ReqSumB;
 

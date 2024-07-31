@@ -15,10 +15,12 @@
 *******************************************************************************/
 
 #include <algorithm>
+#include <iostream>
 #include <set>
 #include <vector>
 
 #include "cpu/platform.hpp"
+#include "memory_pool.hpp"
 #include "utils.hpp"
 #include "utils/timer.hpp"
 
@@ -249,45 +251,11 @@ int measure_perf(timer::timer_t &t,
 }
 
 #ifdef DNNL_WITH_SYCL
-void *scratchpad_mm_mgr::sycl_alloc_mm(
-        size_t size, size_t alignment, const void *dev, const void *ctx) {
-    // fake malloc for 0 size
-    if (size == 0) return nullptr;
 
-    void *ptr {nullptr};
-    bool need_alloc_new_mm = true;
-    // find alloc mm with same size
-    const auto cnt = map_size_ptr_.count(size);
-    if (cnt > 0) {
-        const auto Iter = map_size_ptr_.equal_range(size);
-        for (auto it = Iter.first; it != Iter.second; ++it) {
-            // check if same size mm is free
-            if (free_ptr_.find(it->second.get()) != free_ptr_.end()) {
-                ptr = it->second.get();
-                free_ptr_.erase(ptr);
-                need_alloc_new_mm = false;
-            }
-        }
-    }
-
-    if (need_alloc_new_mm) {
-        auto sh_ptr = std::shared_ptr<void> {
-                malloc_shared(size, *static_cast<const sycl::device *>(dev),
-                        *static_cast<const sycl::context *>(ctx)),
-                sycl_deletor {*static_cast<const sycl::context *>(ctx)}};
-        ptr = sh_ptr.get();
-        // record the map of mm size and its ptr for reuse
-        map_size_ptr_.emplace(std::make_pair(size, sh_ptr));
-    }
-    return ptr;
+simple_memory_pool_t &get_mem_pool() {
+    static simple_memory_pool_t mem_pool;
+    return mem_pool;
 }
-
-void scratchpad_mm_mgr::sycl_free_mm(
-        void *ptr, const void *device, const void *context, void *event) {
-    free_ptr_.insert(ptr);
-}
-
-static scratchpad_mm_mgr s_mm_mgr;
 
 void *test_sycl_malloc_wrapper(
         size_t n, size_t alignment, const void *dev, const void *ctx) {
@@ -308,19 +276,19 @@ void *sycl_malloc_wrapper(
         size_t size, size_t alignment, const void *dev, const void *ctx) {
     void *ptr = has_bench_mode_bit(mode_bit_t::corr) || is_cpu()
             ? test_sycl_malloc_wrapper(size, alignment, dev, ctx)
-            : s_mm_mgr.sycl_alloc_mm(size, alignment, dev, ctx);
+            : get_mem_pool().allocate(size, alignment, dev, ctx);
 
     return ptr;
 }
 
-// perf mode, mem will be finally released in s_mm_mgr ~shared_ptr when
+// perf mode, mem will be finally released in mem_pool ~shared_ptr when
 // test finished.
 void sycl_free_wrapper(
         void *ptr, const void *device, const void *context, void *event) {
     if (has_bench_mode_bit(mode_bit_t::corr) || is_cpu()) {
         test_sycl_free_wrapper(ptr, device, context, event);
     } else {
-        s_mm_mgr.sycl_free_mm(ptr, device, context, event);
+        get_mem_pool().deallocate(ptr, device, context, event);
     }
 }
 

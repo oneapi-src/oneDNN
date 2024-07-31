@@ -191,13 +191,13 @@ struct sample_t {
     }
 };
 
-float model_t::predict(const problem_t &prb) const {
-    sample_t s(prb, kernel_desc_);
+float model_t::predict(const problem_t &prb, const kernel_desc_t &desc) const {
+    sample_t s(prb, desc);
     return ml_model_.predict(s.to_x());
 }
 
-float model_t::eff(const problem_t &prb) const {
-    sample_t s(prb, kernel_desc_);
+float model_t::eff(const problem_t &prb, const kernel_desc_t &desc) const {
+    sample_t s(prb, desc);
     float raw_eff = ml_model_.predict(s.to_x());
     return raw_eff * s.pad_eff;
 }
@@ -210,18 +210,32 @@ void model_t::score(const bench_data_t &bd) {
     for (int i = 0; i < bd.size(); i++) {
         sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i]);
         y_test.push_back(s.to_y());
-        y_pred.push_back(predict(bd.prbs[i]));
+        y_pred.push_back(predict(bd.prbs[i], bd.kernel_desc));
     }
 }
 
-void model_t::serialize(std::ostream &out) const {
-    ir_utils::serialize(kernel_desc_, out);
-    ir_utils::serialize(ml_model_, out);
+void model_t::stringify(std::ostream &out) const {
+    std::ostringstream oss_bin;
+    std::ostringstream oss;
+    ir_utils::serialize(ml_model_, oss_bin);
+    auto str = oss_bin.str();
+    auto data = std::vector<uint8_t>(str.begin(), str.end());
+    for (uint8_t d : data) {
+        oss << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+            << (int)d;
+    }
+    out << oss.str();
 }
 
-void model_t::deserialize(std::istream &in) {
-    ir_utils::deserialize(kernel_desc_, in);
-    ir_utils::deserialize(ml_model_, in);
+void model_t::parse(std::istream &in) {
+    std::vector<uint8_t> data;
+    auto s_data = stream_parse<std::string>(in);
+    for (size_t i = 0; i < s_data.size(); i += 2) {
+        data.push_back(std::stoi(s_data.substr(i, 2), 0, 16));
+    }
+    std::string str(data.begin(), data.end());
+    std::istringstream iss_bin(str);
+    ir_utils::deserialize(ml_model_, iss_bin);
 }
 
 void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y) {

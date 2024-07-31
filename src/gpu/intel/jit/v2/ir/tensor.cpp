@@ -206,7 +206,7 @@ bool layout_raw_tag_t::is_blocked(char letter) const {
 }
 
 int layout_raw_tag_t::ndims() const {
-    ir_assert(!is_any());
+    ir_assert(!is_any() && !has_x());
     int max_index = 0;
     for (auto &e : entries_) {
         max_index = std::max(max_index, e.index());
@@ -257,31 +257,13 @@ bool layout_raw_tag_t::matches(const layout_raw_tag_t &other,
     return i0 == n0 && i1 == n1;
 }
 
-void layout_raw_tag_t::init_entries(const std::string &s) {
-    ir_assert(is_abx_tag(s)) << s;
-    std::array<bool, 'z' - 'a' + 1> is_blocked;
-    is_blocked.fill(false);
-    auto letter_blocks = parse_letter_blocks(s);
-    for (auto &p : letter_blocks) {
-        if (p.second != 0) is_blocked[std::tolower(p.first) - 'a'] = true;
-    }
-    for (auto &p : letter_blocks) {
-        char letter = std::tolower(p.first);
-        entries_.emplace_back();
-        auto &e = entries_.back();
-        e.letter = letter;
-        e.block = p.second;
-        e.is_blocked = is_blocked[letter - 'a'];
-    }
-}
-
 bool layout_raw_tag_t::has_x() const {
     for (auto &e : entries_)
         if (e.is_x()) return true;
     return false;
 }
 
-void layout_raw_tag_t::normalize(int ndims) {
+void layout_raw_tag_t::expand_x(int ndims) {
     if (!has_x() || ndims == 0) return;
     std::vector<layout_raw_tag_entry_t> new_entries;
     for (auto &e : entries_) {
@@ -296,6 +278,62 @@ void layout_raw_tag_t::normalize(int ndims) {
         }
     }
     entries_ = new_entries;
+}
+
+layout_raw_tag_t layout_raw_tag_t::collapse_x() const {
+    if (has_x()) return *this;
+    auto tag = to_tag(entries_);
+    for (int i = 2; i < ndims() - 1; i++) {
+        std::string x_expanded;
+        bool ok = true;
+        for (int j = i; j < ndims(); j++) {
+            for (auto &e : entries_) {
+                if (e.index() == j && e.is_blocked) {
+                    ok = false;
+                    break;
+                }
+            }
+            x_expanded += 'a' + j;
+        }
+        if (!ok) continue;
+        auto pos = tag.find(x_expanded);
+        if (pos == std::string::npos) continue;
+        tag.replace(pos, x_expanded.length(), "x");
+        return layout_raw_tag_t(tag);
+    }
+    return *this;
+}
+
+std::vector<layout_raw_tag_entry_t> layout_raw_tag_t::to_entries(
+        const std::string &tag) {
+    if (tag == "any") return {};
+    ir_assert(is_abx_tag(tag)) << tag;
+    std::array<bool, 'z' - 'a' + 1> is_blocked;
+    is_blocked.fill(false);
+    auto letter_blocks = parse_letter_blocks(tag);
+    for (auto &p : letter_blocks) {
+        if (p.second != 0) is_blocked[std::tolower(p.first) - 'a'] = true;
+    }
+    std::vector<layout_raw_tag_entry_t> entries;
+    for (auto &p : letter_blocks) {
+        char letter = std::tolower(p.first);
+        entries.emplace_back();
+        auto &e = entries.back();
+        e.letter = letter;
+        e.block = p.second;
+        e.is_blocked = is_blocked[letter - 'a'];
+    }
+    return entries;
+}
+
+std::string layout_raw_tag_t::to_tag(
+        const std::vector<layout_raw_tag_entry_t> &entries) {
+    std::string tag;
+    for (auto &e : entries) {
+        if (e.is_blocked) { tag += std::to_string(e.block); }
+        tag += e.letter;
+    }
+    return tag;
 }
 
 std::vector<bool> layout_raw_tag_t::skip_mask(
@@ -381,6 +419,7 @@ bool layout_tag_t::matches(
 }
 
 std::string layout_tag_t::str() const {
+    if (is_empty()) return "x";
     std::ostringstream oss;
     oss << raw_tag_ << ":" << type_;
     return oss.str();

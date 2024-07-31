@@ -34,7 +34,7 @@ struct ref_eltwise_fwd_t {
         : alg_(alg), alpha_(alpha), beta_(beta), scale_(scale) {
         using namespace alg_kind;
         assert(utils::one_of(alg_, eltwise_relu, eltwise_linear, eltwise_clip,
-                eltwise_clip_v2));
+                eltwise_clip_v2, eltwise_hardswish));
     }
 
     ref_eltwise_fwd_t(const post_ops_t::entry_t::eltwise_t &eltwise)
@@ -78,6 +78,9 @@ struct ref_eltwise_fwd_t {
             case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
             case eltwise_clip: d = clip_fwd(s, alpha, beta); break;
             case eltwise_clip_v2: d = clip_v2_fwd(s, alpha, beta); break;
+            case eltwise_hardswish:
+                d = dnnl::impl::math::hardswish_fwd(s, alpha, beta);
+                break;
             default: d = ::sycl::nan(0u);
         }
         return d;
@@ -131,12 +134,35 @@ private:
     alg_kind_t alg_;
 };
 
+struct ref_sum_op_t {
+    ref_sum_op_t() = default;
+    ref_sum_op_t(float scale, float zeropoint) :
+        scale_(scale), zeropoint_(zeropoint) {} 
+    
+    float compute(float acc, float dst) const {
+        return acc + scale_ * (dst - zeropoint_);
+    }
+    
+    template <int width>
+    ::sycl::vec<float, width> compute(::sycl::vec<float, width> acc, ::sycl::vec<float, width> dst) const {
+        const ::sycl::vec<float, width> scale_vec(
+                            scale_);
+        const ::sycl::vec<float, width> zeropoint_vec(
+                            zeropoint_);
+        return acc + scale_vec * (dst - zeropoint_vec);
+    }
+
+private:
+    float scale_;
+    float zeropoint_;
+};
+
 struct sycl_post_op_t {
     primitive_kind_t kind_;
     union {
         ref_binary_op_t binary_;
         ref_eltwise_fwd_t eltwise_;
-        float sum_scale_;
+        ref_sum_op_t sum_;
     };
 };
 
@@ -157,7 +183,7 @@ struct sycl_post_ops_t {
         for (auto i = 0; i < attr_po.len(); ++i) {
             if (attr_po.contain(sum, i)) {
                 ops_[i].kind_ = sum;
-                ops_[i].sum_scale_ = attr_po.entry_[i].sum.scale;
+                ops_[i].sum_ = ref_sum_op_t(attr_po.entry_[i].sum.scale, attr_po.entry_[i].sum.zero_point);
             } else if (attr_po.contain(eltwise, i)) {
                 ops_[i].kind_ = eltwise;
                 ops_[i].eltwise_ = ref_eltwise_fwd_t(attr_po.entry_[i].eltwise);
@@ -177,12 +203,7 @@ struct sycl_post_ops_t {
 
         for (auto i = 0; i < n_post_ops_; ++i) {
             switch (ops_[i].kind_) {
-                case sum: {
-                    const ::sycl::vec<float, width> sum_scale(
-                            ops_[i].sum_scale_);
-                    acc += sum_scale * dst;
-                    break;
-                }
+                case sum: acc = ops_[i].sum_.compute(acc, dst); break;
                 case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
                 default: acc = nan_vec;
             }
@@ -195,7 +216,7 @@ struct sycl_post_ops_t {
 
         for (auto i = 0; i < n_post_ops_; ++i) {
             switch (ops_[i].kind_) {
-                case sum: acc += ops_[i].sum_scale_ * dst; break;
+                case sum: acc = ops_[i].sum_.compute(acc, dst); break;
                 case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
                 default: acc = ::sycl::nan(0u);
             }
@@ -211,7 +232,7 @@ struct sycl_post_ops_t {
             switch (ops_[i].kind_) {
                 case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
                 case binary: acc = ops_[i].binary_.compute(acc, dst[i]); break;
-                case sum: acc += ops_[i].sum_scale_ * dst_sum; break;
+                case sum: acc = ops_[i].sum_.compute(acc, dst_sum); break;
                 default: acc = ::sycl::nan(0u);
             }
         }
@@ -241,6 +262,9 @@ struct sycl_post_ops_t {
     inline ref_binary_op_t get_binary_post_op(int i) const {
         return ops_[i].binary_;
     }
+
+    //there can be at most one sum type
+    dnnl::impl::data_type_t sum_dt_;
 
 private:
     sycl_post_op_t ops_[max_post_ops];

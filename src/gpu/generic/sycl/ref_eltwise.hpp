@@ -20,6 +20,7 @@
 #include "gpu/generic/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_eltwise_pd.hpp"
 #include "xpu/sycl/types.hpp"
 
@@ -50,7 +51,7 @@ struct ref_sycl_eltwise_fwd_t : public gpu::generic::sycl::primitive_t {
                     && attr()->has_default_values(sm::post_ops)
                     && set_default_formats_common() && src_d == dst_d
                     && attr_.set_default_formats(dst_md(0)) == status::success
-                    && post_ops_ok();
+                    && post_ops_ok() && md_dims_in_range(src_md());
 
             if (!ok) return status::unimplemented;
             return init_conf();

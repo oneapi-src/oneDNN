@@ -48,7 +48,7 @@ status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
         float alpha, float beta, const primitive_attr_t *attr) {
     if (brgemm == nullptr) return invalid_arguments;
 
-    auto _brgemm = new brgemm_t();
+    auto _brgemm = utils::make_unique<brgemm_t>();
     auto &brgemm_desc = _brgemm->brgemm_desc_;
 
     brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_offs;
@@ -58,7 +58,6 @@ status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
             brgemm_row_major, alpha, beta, lda, ldb, ldc, M, N, K,
             /* strides = */ nullptr);
     if (status != status::success) {
-        delete _brgemm;
         VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_init failed");
     }
 
@@ -68,19 +67,16 @@ status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
     status = memory_desc_init_by_strides(
             D_md, /* ndims = */ 2, dims, d_dt, strides);
     if (status != status::success) {
-        delete _brgemm;
         VCHECK_BRGEMM_STATUS(status, false, "D_md creation failed");
     }
 
     status = brgemm_desc_set_postops(
             &brgemm_desc, attr, &D_md, ldd, data_type::undef);
     if (status != status::success) {
-        delete _brgemm;
         VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_set_postops failed");
     }
 
     if (batch_size <= 0) {
-        delete _brgemm;
         VCHECK_BRGEMM_STATUS(
                 status::invalid_arguments, false, "batch size is non-positive");
     }
@@ -95,7 +91,6 @@ status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
 
     status = brgemm_desc_set_attr(&brgemm_desc, brgemm_attr);
     if (status != status::success) {
-        delete _brgemm;
         VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_set_attr failed");
     }
 
@@ -103,7 +98,7 @@ status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
     // compensation on their own as a binary post-op.
     brgemm_desc.req_s8s8_compensation = false;
 
-    *brgemm = _brgemm;
+    *brgemm = _brgemm.release();
     return status::success;
 }
 

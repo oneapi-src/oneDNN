@@ -174,15 +174,15 @@ public:
             auto &eltwise_func = func.as<eltwise_t>();
             auto arg_ops = eval(obj.args, scope);
             eltwise(scope, eltwise_func, arg_ops);
-        } else if (func.is_equal(funcs::barrier_func())) {
+        } else if (func.is_same(funcs::barrier_func())) {
             barrier(obj.attr);
-        } else if (func.is_equal(funcs::barrier_wait_func())) {
+        } else if (func.is_same(funcs::barrier_wait_func())) {
             barrier_wait();
-        } else if (func.is_equal(funcs::signal_func())) {
+        } else if (func.is_same(funcs::signal_func())) {
             signal(obj.attr);
-        } else if (func.is_equal(funcs::slm_fence_func())) {
+        } else if (func.is_same(funcs::slm_fence_func())) {
             slm_fence(obj.attr);
-        } else if (func.is_equal(funcs::zero_out_func())) {
+        } else if (func.is_same(funcs::zero_out_func())) {
             auto buf_op = eval(obj.args[0], scope);
             zero_out(buf_op.reg_buf_data(), to_cpp<int>(obj.args[1]));
         } else {

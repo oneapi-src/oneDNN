@@ -36,9 +36,6 @@ namespace ocl {
 
 struct reusable_vectorized_lnorm_params_t
     : trivially_serializable_t<reusable_vectorized_lnorm_params_t> {
-#if __cplusplus >= 202002L
-    bool operator==(const reusable_vectorized_lnorm_params_t &) const = default;
-#endif
 
     const std::vector<const char *> &get_kernel_names() const {
         static const std::vector<const char *> kernel_names
