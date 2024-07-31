@@ -73,34 +73,7 @@ status_t ref_binary_t::init(impl::engine_t *engine) {
 status_t ref_binary_t::execute(const exec_ctx_t &ctx) const {
 
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto src0_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0);
-        auto src1_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_1);
-        auto src0_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0);
-        auto src1_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1);
-        auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
-
-        auto scales_dt = (pd()->conf_.do_scale_src0)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-
-        auto src_mem_po_1 = CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1));
-        auto src_mem_po_2 = CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1));
-        auto src_mem_po_3 = CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1));
-        auto src_mem_po_4 = CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1));
-        auto src_mem_po_5 = CTX_IN_SYCL_KERNEL_MEMORY(
-                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1));
-
-        binary_kernel_vec_t binary_kernel(pd()->conf_, src0_mem_arg,
-                src1_mem_arg, dst_mem_arg, src0_scale_mem_arg,
-                src1_scale_mem_arg, scales_dt, src_mem_po_1, src_mem_po_2,
-                src_mem_po_3, src_mem_po_4, src_mem_po_5);
+        binary_kernel_vec_t binary_kernel(pd()->conf_, cgh, ctx);
 
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;

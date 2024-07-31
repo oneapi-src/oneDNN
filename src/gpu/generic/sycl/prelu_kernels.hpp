@@ -22,6 +22,7 @@
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
 #include "common/memory_storage.hpp"
+#include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
 
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
@@ -29,6 +30,7 @@
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 #include "xpu/sycl/types.hpp"
 
 namespace dnnl {
@@ -42,11 +44,12 @@ static constexpr int max_supported_ndims = 5;
 struct prelu_fwd_kernel_vec_t {
     static constexpr int vec_len = 8;
 
-    prelu_fwd_kernel_vec_t(const sycl_prelu_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data,
-            xpu::sycl::in_memory_arg_t &weights,
-            xpu::sycl::out_memory_arg_t &dst)
-        : conf_(conf), data_(data), weights_(weights), dst_(dst) {}
+    prelu_fwd_kernel_vec_t(const sycl_prelu_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
+        : conf_(conf)
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , weights_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
 
@@ -153,20 +156,22 @@ private:
 struct prelu_bwd_kernel_vec_t {
     static constexpr int vec_len = 8;
 
-    prelu_bwd_kernel_vec_t(const sycl_prelu_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data,
-            xpu::sycl::out_memory_arg_t &diff_data,
-            xpu::sycl::in_memory_arg_t &weights,
-            xpu::sycl::out_memory_arg_t &diff_weights,
-            xpu::sycl::in_memory_arg_t &diff_dst,
-            xpu::sycl::out_memory_arg_t &scratchpad)
+    prelu_bwd_kernel_vec_t(const sycl_prelu_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx, bool reduce_diff_weights,
+            std::unique_ptr<memory_t> &scratch_mem)
         : conf_(conf)
-        , data_(data)
-        , diff_data_(diff_data)
-        , weights_(weights)
-        , diff_weights_(diff_weights)
-        , diff_dst_(diff_dst)
-        , scratchpad_(scratchpad) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
+        , weights_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS))
+        , diff_weights_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_WEIGHTS))
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
+        , scratchpad_(reduce_diff_weights
+                          ? utils::downcast<
+                                  const xpu::sycl::memory_storage_base_t *>(
+                                  scratch_mem->memory_storage())
+                                    ->get_out_memory_arg(ctx.stream(), cgh)
+                          : xpu::sycl::memory_storage_base_t::
+                                  empty_out_memory_arg(ctx.stream(), cgh)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();

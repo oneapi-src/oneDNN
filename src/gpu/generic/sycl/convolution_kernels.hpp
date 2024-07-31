@@ -33,30 +33,42 @@ struct convolution_kernel_fwd_t {
     static constexpr int max_supported_ndims = 6;
 
     convolution_kernel_fwd_t(const sycl_convolution_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data,
-            xpu::sycl::in_memory_arg_t &weights,
-            xpu::sycl::in_memory_arg_t &bias, xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::in_memory_arg_t &data_scale,
-            xpu::sycl::in_memory_arg_t &weights_scale,
-            xpu::sycl::in_memory_arg_t &dst_scale,
-            xpu::sycl::in_memory_arg_t &data_zeropoints,
-            xpu::sycl::in_memory_arg_t &dst_zeropoints,
-            data_type_t scales_data_dt, data_type_t scales_weights_dt,
-            data_type_t zeropoints_data_dt, data_type_t zeropoints_dst_dt)
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
-        , data_(data)
-        , weights_(weights)
-        , bias_(bias)
-        , dst_(dst)
-        , data_scale_(data_scale)
-        , weights_scale_(weights_scale)
-        , dst_scale_(dst_scale)
-        , data_zeropoints_(data_zeropoints)
-        , dst_zeropoints_(dst_zeropoints)
-        , scales_data_dt_(scales_data_dt)
-        , scales_weights_dt_(scales_weights_dt)
-        , zeropoints_data_dt_(zeropoints_data_dt)
-        , zeropoints_dst_dt_(zeropoints_dst_dt) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0))
+        , weights_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS))
+        , bias_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_BIAS))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , data_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
+        , weights_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS))
+        , dst_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
+        , data_zeropoints_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0))
+        , dst_zeropoints_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST))
+        , scales_data_dt_(conf_.do_scale_data
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
+        , scales_weights_dt_(conf_.do_scale_weights
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
+        , zeropoints_data_dt_(conf_.use_data_zeropoints
+                          ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS
+                                       | DNNL_ARG_SRC_0)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
+        , zeropoints_dst_dt_(conf_.use_dst_zeropoints
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
+                                    .data_type()
+                          : data_type_t::dnnl_f32) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();
@@ -252,31 +264,42 @@ struct convolution_kernel_bwd_data_t {
     static constexpr int max_supported_ndims = 6;
 
     convolution_kernel_bwd_data_t(const sycl_convolution_conf_t &conf,
-            xpu::sycl::out_memory_arg_t &diff_data,
-            xpu::sycl::in_memory_arg_t &weights,
-            xpu::sycl::in_memory_arg_t &bias,
-            xpu::sycl::in_memory_arg_t &diff_dst,
-            xpu::sycl::in_memory_arg_t &data_scale,
-            xpu::sycl::in_memory_arg_t &weights_scale,
-            xpu::sycl::in_memory_arg_t &dst_scale,
-            xpu::sycl::in_memory_arg_t &data_zeropoints,
-            xpu::sycl::in_memory_arg_t &dst_zeropoints,
-            data_type_t scales_data_dt, data_type_t scales_weights_dt,
-            data_type_t zeropoints_data_dt, data_type_t zeropoints_dst_dt)
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
-        , diff_data_(diff_data)
-        , weights_(weights)
-        , bias_(bias)
-        , diff_dst_(diff_dst)
-        , data_scale_(data_scale)
-        , weights_scale_(weights_scale)
-        , dst_scale_(dst_scale)
-        , data_zeropoints_(data_zeropoints)
-        , dst_zeropoints_(dst_zeropoints)
-        , scales_data_dt_(scales_data_dt)
-        , scales_weights_dt_(scales_weights_dt)
-        , zeropoints_data_dt_(zeropoints_data_dt)
-        , zeropoints_dst_dt_(zeropoints_dst_dt) {}
+        , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
+        , weights_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS))
+        , bias_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_BIAS))
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
+        , data_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
+        , weights_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS))
+        , dst_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
+        , data_zeropoints_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0))
+        , dst_zeropoints_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST))
+        , scales_data_dt_(conf_.do_scale_data
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
+        , scales_weights_dt_(conf_.do_scale_weights
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
+        , zeropoints_data_dt_(conf_.use_data_zeropoints
+                          ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS
+                                       | DNNL_ARG_SRC_0)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
+        , zeropoints_dst_dt_(conf_.use_dst_zeropoints
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
+                                    .data_type()
+                          : data_type_t::dnnl_f32) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         const float sm_data = (conf_.do_scale_data
@@ -473,15 +496,12 @@ struct convolution_kernel_bwd_weights_t {
     static constexpr int max_supported_ndims = 6;
 
     convolution_kernel_bwd_weights_t(const sycl_convolution_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data,
-            xpu::sycl::out_memory_arg_t &diff_weights,
-            xpu::sycl::out_memory_arg_t &diff_bias,
-            xpu::sycl::in_memory_arg_t &diff_dst)
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
-        , data_(data)
-        , diff_weights_(diff_weights)
-        , diff_bias_(diff_bias)
-        , diff_dst_(diff_dst) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , diff_weights_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_WEIGHTS))
+        , diff_bias_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_BIAS))
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         dims_t data_dims, weights_dims, dst_dims, weights_strides, off;
