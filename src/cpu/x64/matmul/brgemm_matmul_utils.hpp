@@ -287,6 +287,8 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_f16() const { return f16_dt; }
 
+    inline bool is_f8() const { return f8_dt; }
+
     inline bool is_int8() const { return int8_dt; }
 
     inline bool is_bf32() const { return bf32_dt; }
@@ -326,8 +328,9 @@ struct brgemm_matmul_conf_utils_t {
 private:
     brgemm_matmul_conf_t &bgmmc;
 
-    const bool f32_dt, bf16_dt, f16_dt, int8_dt, bf32_dt;
+    const bool f32_dt, bf16_dt, f16_dt, f8_dt, int8_dt, bf32_dt;
     const bool weights_decompression_support, bf16_with_int_wei_dt;
+
     const bool A_any_layout;
     const bool B_any_layout;
     const bool C_any_layout;

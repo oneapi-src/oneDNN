@@ -108,7 +108,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(impl::engine_t *engine) {
             VERBOSE_UNSUPPORTED_FEATURE, "bias reduction");
     VDISPATCH_GEMM(IMPLICATION(with_bias(),
                            utils::one_of(d->bias_type(), d->a_type(), f32)
-                                   && utils::one_of(bias_cmask(), 0, 1, 2, 3)),
+                                   && d->bias_mask() < 8),
             VERBOSE_UNSUPPORTED_BIAS_CFG);
 
     VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
@@ -511,7 +511,7 @@ status_t xe_hp_systolic_gemm_t::init(impl::engine_t *engine) {
     }
 
     if (get_verbose(verbose_t::debuginfo) >= 2) {
-        printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
+        verbose_printf("onednn_verbose,info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
                 pd()->unroll_m(), pd()->unroll_n(), compute_info_.wg[LoopM],
                 compute_info_.wg[LoopN], compute_info_.wg[LoopK]);
     }

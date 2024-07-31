@@ -148,6 +148,14 @@ namespace gpu {
 #define GPU_INSTANCE_INTEL_DEVMODE(...)
 #endif
 
+// Instance macros that are enabled only when REF is disabled
+#ifdef DNNL_DISABLE_GPU_REF_KERNELS
+#define GPU_INSTANCE_INTEL_REF(...)
+#else
+#define GPU_INSTANCE_INTEL_REF(...) \
+    DNNL_GPU_INTEL_ONLY(GPU_INSTANCE(__VA_ARGS__))
+#endif
+
 #define DECLARE_IMPL_LIST(kind) \
     const impl_list_item_t *get_##kind##_impl_list(const kind##_desc_t *desc);
 

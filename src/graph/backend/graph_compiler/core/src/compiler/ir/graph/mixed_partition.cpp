@@ -3005,7 +3005,7 @@ static bool check_repartition(const mixed_parti_t::ptr &parti) {
             if (parti->is_parti_out(out)) check_parti_out_tptr(out);
         }
         // 2. check reorder
-        if (auto reo = op->isa<reorder_op_t>()) {
+        if (op->isa<reorder_op_t>()) {
             if (!op->dyn_cast<reorder_op_t>()->support_output_loop()
                     || op->get_inputs()[0]->uses_.size() == 1) {
                 continue;

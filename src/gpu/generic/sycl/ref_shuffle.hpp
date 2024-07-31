@@ -22,6 +22,7 @@
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_shuffle_pd.hpp"
 #include "xpu/sycl/types.hpp"
 
@@ -42,18 +43,19 @@ struct ref_shuffle_t : public gpu::generic::sycl::primitive_t {
         status_t init(impl::engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
-            const memory_desc_wrapper data_d(src_md(0));
-            const memory_desc_wrapper dst_d(dst_md(0));
+            auto src_data_md = invariant_src_md();
+            auto dst_data_md = invariant_dst_md();
 
-            const bool ok = src_md()->data_type == dst_md()->data_type
-                    && (src_md()->data_type == bf16 || src_md()->data_type == s8
-                            || src_md()->data_type == f16
-                            || src_md()->data_type == f32)
-                    && (src_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && attr()->has_default_values()
+            const bool ok = src_data_md->data_type == dst_data_md->data_type
+                    && (utils::one_of(src_data_md->data_type, bf16, f16, f32)
+                            || (is_fwd()
+                                    && utils::one_of(src_data_md->data_type,
+                                            s32, s8, u8)))
                     && set_default_formats_common()
-
-                    && IMPLICATION(!is_fwd(), set_default_formats_common());
+                    && IMPLICATION(is_fwd(),
+                            src_md(0)->format_desc.blocking.inner_nblks == 0)
+                    && attr()->has_default_values()
+                    && md_dims_in_range(src_md());
             if (!ok) return status::unimplemented;
             return init_conf();
         }

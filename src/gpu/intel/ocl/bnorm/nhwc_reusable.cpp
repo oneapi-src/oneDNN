@@ -82,9 +82,8 @@ static status_t final_set_rt_params(nhwc_bnorm_params_t &bn_conf,
 
     // Switchers between kernels with or without private buffers.
     // Currently used for performance experiments/tuning
-    // TODO: make it as part of perf model
-    rt_conf.use_buffers_calc = dev_getenv("USE_BUFFERS_CALC", 0);
-    rt_conf.use_buffers_norm = dev_getenv("USE_BUFFERS_NORM", 0);
+    rt_conf.use_buffers_calc = dev_getenv("use_buffers_calc", 0);
+    rt_conf.use_buffers_norm = dev_getenv("use_buffers_norm", 1);
 
     return status::success;
 }
@@ -116,8 +115,6 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     auto *compute_engine = downcast<compute::compute_engine_t *>(engine);
     auto gpu_arch = compute_engine->device_info()->gpu_arch();
 
-    // TODO: switch between reusable-nhwc and nhwc version, based on perf data
-
     // nhwc-optimized implemntation does not support ic tail processing yet
     // and was tuned for XeHPG+ only
     bool nhwc_optimized = bn_conf.ic % 16 == 0
@@ -147,9 +144,8 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     if (bn_conf.ic % 8 == 0 && bn_conf.ic % 16 && cmpl_conf.use_stats_one_pass)
         cmpl_conf.use_stats_one_pass = false;
 
-    // Temporary for performance tuning. TODO: consider adding it to a perf model
-    bn_conf.sub_group_size = dev_getenv("SG", 16);
-    bn_conf.max_ic_block = dev_getenv("MAX_IC_BLOCK", 128);
+    bn_conf.sub_group_size = dev_getenv("sg", 16);
+    bn_conf.max_ic_block = dev_getenv("max_ic_block", 128);
 
     // reshape to xc
     bn_conf.sp = bn_conf.mb * bn_conf.id * bn_conf.ih * bn_conf.iw;

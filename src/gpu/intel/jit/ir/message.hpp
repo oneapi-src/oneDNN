@@ -35,33 +35,13 @@ enum class send_kind_t {
     scattered,
 };
 
-inline std::string to_string(send_kind_t kind) {
-    switch (kind) {
-#define CASE(name) \
-    case send_kind_t::name: return #name
-        CASE(undef);
-        CASE(_2d);
-        CASE(block);
-        CASE(scattered);
-        default: ir_error_not_expected(); return "undef";
-#undef CASE
-    }
-}
-
-inline send_kind_t str_to_send_kind(const std::string &s) {
-    if (s == "2d") return send_kind_t::_2d;
-#define CASE(name) \
-    do { \
-        if (s == to_string(send_kind_t::name)) return send_kind_t::name; \
-    } while (false)
-    CASE(undef);
-    CASE(_2d);
-    CASE(block);
-    CASE(scattered);
-#undef CASE
-    ir_error_not_expected();
-    return send_kind_t::undef;
-}
+static auto send_kind_names = nstl::to_array({
+        make_enum_name(send_kind_t::undef, "undef"),
+        make_enum_name(send_kind_t::_2d, "2d"),
+        make_enum_name(send_kind_t::block, "block"),
+        make_enum_name(send_kind_t::scattered, "scattered"),
+});
+GPU_DEFINE_PARSE_ENUM(send_kind_t, send_kind_names)
 
 // Send operation kind.
 enum class send_op_t {
@@ -89,18 +69,12 @@ enum class send_cache_hint_t {
     load_once,
 };
 
-inline std::string to_string(send_cache_hint_t hint) {
-    switch (hint) {
-        case send_cache_hint_t::undef: return "cache:undef";
-        case send_cache_hint_t::load_once: return "cache:load_once";
-        default: return "cache:error";
-    }
-}
+static auto send_cache_hint_names = nstl::to_array({
+        make_enum_name(send_cache_hint_t::undef, "cache:undef"),
+        make_enum_name(send_cache_hint_t::load_once, "cache:load_once"),
+});
 
-inline std::ostream &operator<<(std::ostream &out, send_cache_hint_t hint) {
-    out << to_string(hint);
-    return out;
-}
+GPU_DEFINE_PARSE_ENUM(send_cache_hint_t, send_cache_hint_names)
 
 struct block_2d_info_t {
     bool is_empty() const { return surface_width == 0; }
@@ -114,12 +88,6 @@ struct block_2d_info_t {
                 && (width == other.width) && (height == other.height)
                 && (count == other.count) && (vnni == other.vnni)
                 && (transpose == other.transpose);
-    }
-
-    size_t get_hash() const {
-        if (is_empty()) return 0;
-        return ir_utils::get_hash(surface_width, surface_height, surface_pitch,
-                width, height, count, vnni, transpose);
     }
 
     std::string str() const {
@@ -210,19 +178,14 @@ public:
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return (hw == other.hw) && (op == other.op)
-                && (address == other.address) && (type == other.type)
-                && (slots == other.slots) && (slot_mask == other.slot_mask)
-                && (is_lsc == other.is_lsc) && (zero_out == other.zero_out)
+        // hw is not compared as cross-hardware IR operations are not expected.
+        return (op == other.op) && (address == other.address)
+                && (type == other.type) && (slots == other.slots)
+                && (slot_mask == other.slot_mask) && (is_lsc == other.is_lsc)
+                && (zero_out == other.zero_out)
                 && (block_2d_info == other.block_2d_info)
                 && (cache_hint == other.cache_hint);
     }
-
-    size_t get_hash() const override {
-        return ir_utils::get_hash(hw, op, address, type, slots, slot_mask,
-                is_lsc, zero_out, block_2d_info, cache_hint);
-    }
-
     std::string str() const override {
         std::ostringstream oss;
         oss << op;
@@ -231,7 +194,8 @@ public:
         if (is_scattered()) oss << "x" << slots;
         if (is_2d()) oss << "." << block_2d_info.str();
         if (!zero_out) oss << ".nzo";
-        if (cache_hint != send_cache_hint_t::undef) oss << "." << cache_hint;
+        if (cache_hint != send_cache_hint_t::undef)
+            oss << "." << to_string(cache_hint);
         return oss.str();
     }
 

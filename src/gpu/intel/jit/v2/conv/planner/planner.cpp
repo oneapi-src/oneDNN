@@ -119,7 +119,7 @@ void init_params(
 
     if (params.mode != planner_mode_t::auto_search) {
         auto iface = params.desc.cli_iface();
-        iface.parse(cmd_args, &params.desc);
+        iface.parse(cmd_args, params.desc);
         params.desc.set_defaults();
         params.desc.hw = hw_t(bench_mger.get_engine().get());
         problem_t prb;

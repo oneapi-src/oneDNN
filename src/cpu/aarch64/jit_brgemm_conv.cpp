@@ -634,7 +634,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_po_kernel(
     bcfg->alpha = !is_init && IMPLICATION(jcp.with_sum, jcp.use_buffer);
     bcfg->beta = is_init ? 0 : 1;
     CHECK(safe_ptr_assign(kernels_po_[ker_idx],
-            new jit_brgemm_kernel_post_ops(jcp, *bcfg, *_pd->attr())));
+            new jit_brgemm_kernel_post_ops<isa>(jcp, *bcfg, *_pd->attr())));
     kernels_po_[ker_idx]->create_kernel();
     return status::success;
 }
@@ -810,7 +810,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::init(engine_t *engine) {
 
     if (jcp.req_cal_comp_pad) {
         CHECK(safe_ptr_assign(comp_vpad_pbuffer_,
-                new jit_uni_brgemm_conv_comp_pad_kernel_t(jcp)));
+                new jit_uni_brgemm_conv_comp_pad_kernel_t<isa>(jcp)));
         CHECK(comp_vpad_pbuffer_->create_kernel());
     }
 
@@ -2025,6 +2025,7 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 
 #undef BRGEMM_CONV_KER_HEADER
 template struct brgemm_convolution_fwd_t<sve_512>;
+template struct brgemm_convolution_fwd_t<sve_256>;
 
 } // namespace aarch64
 

@@ -59,8 +59,10 @@ public:
         , ocl_e_(nullptr)
 #endif
     {
-        buffer_ = reinterpret_cast<char *>(dnnl_allocator_t::malloc(
-                size, eng, &alloc, allocator_t::mem_type_t::temp));
+        if (size > 0) {
+            buffer_ = reinterpret_cast<char *>(dnnl_allocator_t::malloc(
+                    size, eng, &alloc, allocator_t::mem_type_t::temp));
+        }
         if (!buffer_) { size_ = 0; }
     }
 

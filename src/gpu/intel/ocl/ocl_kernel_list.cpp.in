@@ -16,10 +16,10 @@
 
 #include <cassert>
 #include <string>
-#include <unordered_map>
 #include <vector>
+#include <unordered_map>
 
-#include   "gpu/intel/ocl/kernel_utils.hpp"
+#include "gpu/intel/ocl/kernel_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,22 +31,25 @@ namespace ocl {
 @KER_HEADERS_EXTERN@
 
 const char *get_kernel_source(const char *name) {
-    static const std::unordered_map<std::string, const char *> kernel_list = {
-        @KER_LIST_ENTRIES@
-    };
+    static const std::unordered_map<std::string, const char *> kernel_list
+            = { @KER_LIST_ENTRIES@ };
 
     if (!name) return nullptr;
 
-    assert(kernel_list.count(name) == 1);
+    gpu_assert(kernel_list.count(name) == 1)
+            << "Found " << kernel_list.count(name) << " kernels with the name "
+            << name << ". Expected 1";
     return kernel_list.at(name);
 }
 
 const char *get_kernel_header(const std::string &name) {
-    static const std::unordered_map<std::string, const char *> kernel_header_list ={
-        @KER_HEADER_LIST_ENTRIES@
-    };
+    static const std::unordered_map<std::string, const char *>
+            kernel_header_list
+            = { @KER_HEADER_LIST_ENTRIES@ };
 
-    assert(kernel_header_list.count(name) == 1);
+    gpu_assert(kernel_header_list.count(name) == 1)
+            << "Found " << kernel_header_list.count(name)
+            << " headers with the name " << name << ". Expected 1";
     return kernel_header_list.at(name);
 }
 

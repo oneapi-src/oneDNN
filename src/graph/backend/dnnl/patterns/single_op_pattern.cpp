@@ -194,6 +194,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, ln_pass)
                                     1>);
                     p_layernorm->append_decision_function(
                             check_begin_norm_axis_attr);
+                    // primitive only support 2-5D data tensor for layernorm
+                    p_layernorm->append_decision_function(
+                            check_input_ndim_from_offset<0, 2, 5>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<layernorm_fwd_t>();
@@ -212,6 +215,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, ln_bw_pass)
                                     2>);
                     p_layernorm_bwd->append_decision_function(
                             check_begin_norm_axis_attr);
+                    // primitive only support 2-5D data tensor for layernorm
+                    p_layernorm_bwd->append_decision_function(
+                            check_input_ndim_from_offset<0, 2, 5>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<layernorm_bwd_t>();
@@ -286,6 +292,8 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(softmax_pass, SoftMax, softmax_fwd_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         softmax_bwd_pass, SoftMaxBackward, softmax_bwd_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, Reorder, float_reorder)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, StaticTranspose, float_reorder)
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(reorder_pass, StaticReshape, float_reorder)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(select_pass, Select, select_t)
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gn_pass)
         .set_priority(DEFAULT_P)

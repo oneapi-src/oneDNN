@@ -53,6 +53,40 @@ struct sycl_binary_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+struct sycl_convolution_conf_t {
+    xpu::sycl::md_t data_md;
+    xpu::sycl::md_t dst_md;
+    xpu::sycl::md_t weights_md;
+    xpu::sycl::md_t bias_md;
+    xpu::sycl::md_t diff_data_md;
+    xpu::sycl::md_t diff_dst_md;
+    xpu::sycl::md_t diff_weights_md;
+    xpu::sycl::md_t diff_bias_md;
+
+    int padding[3];
+    int strides[3];
+    int dilation[3];
+
+    bool do_scale_data;
+    bool do_scale_weights;
+    bool do_scale_dst;
+    bool single_weight_scale;
+
+    bool use_data_zeropoints;
+    bool use_dst_zeropoints;
+    bool single_data_zeropoint;
+    bool single_dst_zeropoint;
+
+    int ndims;
+
+    int block_size;
+    int wg_size;
+    int wk_size;
+    bool has_groups;
+
+    sycl_post_ops_t post_ops;
+};
+
 struct sycl_eltwise_conf_t {
     prop_kind_t prop_kind;
     xpu::sycl::md_t src_md;
@@ -71,7 +105,7 @@ struct sycl_eltwise_conf_t {
     dim_t wg_size;
     dim_t wk_size;
     dim_t post_po_len;
-    xpu::sycl::md_t binary_src_arr[8];
+    xpu::sycl::md_t binary_src_arr[sycl::sycl_post_ops_t::max_post_ops];
     sycl_post_ops_t post_ops;
 };
 
@@ -87,7 +121,6 @@ struct sycl_prelu_conf_t {
     dim_t work_amount_wei;
     dim_t work_amount_src;
     dim_t work_load;
-    bool reduce_diff_weights = 0;
     int mask;
     float sum;
     broadcasting_strategy_t bcast_type;
@@ -185,6 +218,8 @@ struct sycl_layer_normalization_conf_t {
     xpu::sycl::md_t shift;
     xpu::sycl::md_t stat_md;
     data_type_t var_dt;
+    data_type_t scales_src_dt;
+    data_type_t scales_dst_dt;
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t diff_dst_md;
     dim_t wk_size;
@@ -258,6 +293,7 @@ struct sycl_batch_normalization_conf_t {
 struct sycl_softmax_conf_t {
     prop_kind_t prop_kind;
     xpu::sycl::md_t src_md;
+    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
     xpu::sycl::md_t dst_md;
 
     xpu::sycl::md_t diff_md;
@@ -268,6 +304,7 @@ struct sycl_softmax_conf_t {
     dim_t wg_size;
     dim_t wk_size;
 
+    int po_len;
     dim_t axis;
     dim_t axis_size;
     dim_t inner_size;
@@ -275,6 +312,8 @@ struct sycl_softmax_conf_t {
     dim_t channels;
     bool do_scale_src;
     bool do_scale_dst;
+
+    sycl_post_ops_t post_ops;
 };
 
 struct sycl_lrn_conf_t {

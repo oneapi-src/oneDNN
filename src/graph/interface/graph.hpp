@@ -397,7 +397,8 @@ public:
 
     // This function is used to serialize graph to a JSON file
     graph::status_t serialize(const std::string &filename) const {
-        printf("onednn_graph_verbose,info,serialize graph to a json file %s\n",
+        dnnl::impl::verbose_printf(
+                "onednn_graph_verbose,info,serialize graph to a json file %s\n",
                 filename.c_str());
         std::ofstream of(filename);
         graph::utils::json::json_writer_t writer(&of);

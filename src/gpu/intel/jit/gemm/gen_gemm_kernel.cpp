@@ -362,8 +362,10 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         }
     }
 
-    if (problem_.Ta_ext.isInt4() && ao_dims >= 2) problem_.Ta = Type::s8;
-    if (problem_.Tb_ext.isInt4() && bo_dims >= 2) problem_.Tb = Type::s8;
+    if (problem_.Ta_ext.isInt4() && problem_.Tb_ext.isInt8() && ao_dims >= 0)
+        problem_.Ta = Type::s8;
+    if (problem_.Tb_ext.isInt4() && problem_.Ta_ext.isInt8() && bo_dims >= 0)
+        problem_.Tb = Type::s8;
 
     if (problem_.Ta.isInteger()) problem_.Ts = Type::f32;
 
@@ -389,7 +391,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     MatchParams match_params[3];
     int npatterns = 1;
 
-    match_params[0] = MatchParams(hw_, problem_);
+    match_params[0] = MatchParams(hw_, has_systolic, problem_);
 
     match_params[0].sizes.m = m;
     match_params[0].sizes.n = n;
@@ -403,7 +405,6 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     if (can_2d_a) *tags++ = kcatalog::ReqBlock2DA;
     if (can_2d_b) *tags++ = kcatalog::ReqBlock2DB;
     if (can_2d_c) *tags++ = kcatalog::ReqBlock2DC;
-    if (has_systolic) *tags++ = kcatalog::ReqSystolic;
 
     if ((mode & mode_tf32)
             && utils::everyone_is(Type::f32, problem_.Ta, problem_.Tb)) {
@@ -491,34 +492,20 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     if (!entry_) return status::unimplemented;
 
-    if (mode & mode_tf32) {
-        if (entry_->selector.precisions[0][0] == 'T')
-            problem_.Ta = problem_.Ta_ext = Type::tf32;
-        if (entry_->selector.precisions[1][0] == 'T')
-            problem_.Tb = problem_.Tb_ext = Type::tf32;
-    }
+    // Update A/B types from entry.
+    Type Ta_new, Ta_ext_new, Tb_new, Tb_ext_new;
+    parsePrecisions(entry_->selector.precisions[0], Ta_ext_new, Ta_new);
+    parsePrecisions(entry_->selector.precisions[1], Tb_ext_new, Tb_new);
 
-    if (mode & mode_bf16x1) {
-        if (utils::one_of(entry_->selector.precisions[0][0], 'B', '['))
-            problem_.Ta = Type::bf16;
-        if (utils::one_of(entry_->selector.precisions[1][0], 'B', '['))
-            problem_.Tb = Type::bf16;
-    }
-
-    if (mode & mode_f16x1) {
-        if (utils::one_of(entry_->selector.precisions[0][0], 'H', '['))
-            problem_.Ta = Type::f16;
-        if (utils::one_of(entry_->selector.precisions[1][0], 'H', '['))
-            problem_.Tb = Type::f16;
-    }
-
-    if (problem_.Ta.isInt4()) {
-        if (entry_->selector.precisions[0][0] == '[') problem_.Ta = Type::s8;
-    }
-
-    if (problem_.Tb.isInt4()) {
-        if (entry_->selector.precisions[1][0] == '[') problem_.Tb = Type::s8;
-    }
+    auto update_type = [](Type &T, Type T_new, bool sz_change = false) {
+        if ((T.bits() != T_new.bits()) && !sz_change) return;
+        if (T.isF8() && T_new.isF8()) return;
+        T = T.isSigned() ? T_new.asSigned() : T_new.asUnsigned();
+    };
+    update_type(problem_.Ta, Ta_new, true);
+    update_type(problem_.Tb, Tb_new, true);
+    update_type(problem_.Ta_ext, Ta_ext_new);
+    update_type(problem_.Tb_ext, Tb_ext_new);
 
     auto block_k = entry_->driverInfo.blocking[LoopK];
     if (block_k > 0 && k > block_k && beta != 1.0f) problem_.beta = Scalar();
@@ -612,7 +599,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     }
 
     // Find it in the catalog.
-    MatchParams match_params(hw_, problem_);
+    MatchParams match_params(hw_, true, problem_);
 
     match_params.sizes.m = m;
     match_params.sizes.n = n;

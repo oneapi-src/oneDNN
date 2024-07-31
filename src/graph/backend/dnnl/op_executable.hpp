@@ -27,7 +27,6 @@
 #include "oneapi/dnnl/dnnl.hpp"
 #ifdef DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.hpp"
-#include <CL/sycl.hpp>
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
@@ -224,20 +223,35 @@ struct memory_reparser_t : public dummy_impl_t {
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override {
-        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
-                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
-                "memory reparser must be inplaced");
-        dummy_impl_t::execute(stream, args);
+        if (args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                == args.find(DNNL_ARG_TO)->second.get_data_handle())
+            dummy_impl_t::execute(stream, args);
+        else {
+            const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
+            const memory &src_mem = args.find(DNNL_ARG_FROM)->second;
+            const memory temp_mem = make_dnnl_memory(dst_mem.get_desc(),
+                    src_mem.get_engine(), src_mem.get_data_handle());
+            dnnl::reorder(temp_mem, dst_mem)
+                    .execute(stream, const_cast<memory &>(temp_mem),
+                            const_cast<memory &>(dst_mem));
+        }
     }
 
 #ifdef DNNL_WITH_SYCL
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
-        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
-                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
-                "memory reparser must be inplaced");
-        return dummy_impl_t::execute_sycl(stream, args, deps);
+        if (args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                == args.find(DNNL_ARG_TO)->second.get_data_handle())
+            return dummy_impl_t::execute_sycl(stream, args, deps);
+        else {
+            const memory &src_mem = args.find(DNNL_ARG_FROM)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
+            auto sycl_queue = dnnl::sycl_interop::get_queue(stream);
+            auto e = sycl_queue.memcpy(dst_mem.get_data_handle(),
+                    src_mem.get_data_handle(), dst_mem.get_desc().get_size());
+            return e;
+        }
     }
 #endif
 
@@ -245,10 +259,23 @@ struct memory_reparser_t : public dummy_impl_t {
     cl_event execute_ocl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<cl_event> &deps = {}) const override {
-        assertm(args.find(DNNL_ARG_FROM)->second.get_data_handle()
-                        == args.find(DNNL_ARG_TO)->second.get_data_handle(),
-                "memory reparser must be inplaced");
-        return dummy_impl_t::execute_ocl(stream, args, deps);
+        if (args.find(DNNL_ARG_FROM)->second.get_data_handle()
+                == args.find(DNNL_ARG_TO)->second.get_data_handle())
+            return dummy_impl_t::execute_ocl(stream, args, deps);
+        else {
+            const memory &src_mem = args.find(DNNL_ARG_FROM)->second;
+            const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
+            assert(deps.size() <= 1);
+            // Passing the empty event to memcpy below causes failure.
+            const bool empty = deps.size() == 0 || deps[0] == 0;
+            const cl_uint num = empty ? 0 : static_cast<cl_uint>(deps.size());
+            cl_event e;
+            UNUSED_STATUS(xpu::ocl::usm::memcpy(stream.get(),
+                    dst_mem.get_data_handle(), src_mem.get_data_handle(),
+                    dst_mem.get_desc().get_size(), num,
+                    empty ? nullptr : deps.data(), &e));
+            return e;
+        }
     }
 #endif
 };

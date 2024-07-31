@@ -42,7 +42,6 @@ using FCreatePattern = graph::pass::FCreatePattern;
 //            [Quantize]*
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(groupnorm_fusion)
 
-#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, groupnorm_post_ops_fusion)
         .set_priority(8.4f)
         .set_kind(graph::partition_kind_t::misc_post_ops)
@@ -98,7 +97,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, groupnorm_post_ops_fusion)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<groupnorm_fwd_t>();
         });
-#endif
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern

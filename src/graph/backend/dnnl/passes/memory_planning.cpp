@@ -143,6 +143,9 @@ std::vector<op_inplace_pair_t> get_op_inplace_pairs(
         const bool can_inplace = make_dnnl_memory_desc(diff_dst)
                 == make_dnnl_memory_desc(diff_src);
         if (can_inplace) { pairs.emplace_back(1, 0); }
+    } else if (op.get_kind() == op_kind::dnnl_transpose
+            || op.get_kind() == op_kind::dnnl_reshape) {
+        pairs.emplace_back(0, 0);
     } else {
         // Do nothing
     }
@@ -399,16 +402,21 @@ status_t memory_planner_t::assign_external_outputs_buffer(
                     // push the alias to queue for next visit
                     auto aliases = alias_analyzer_.get_all_aliases(cur_val);
                     for (const value_t *alias : aliases) {
+                        if (buffer_assignments_[alias].kind_ == external_input)
+                            continue;
                         q.push(alias);
                     }
 
                     // push the inplaced input to queue for next visit
+                    if (!cur_val->has_producer()) continue;
                     auto &producer = cur_val->get_producer();
                     auto op_inplace_pairs = get_op_inplace_pairs(producer, mgr);
                     for (auto &pair : op_inplace_pairs) {
                         if (pair.out_idx_ != cur_val->get_offset()) continue;
                         auto in_val = producer.get_input_value(pair.in_idx_);
-                        if (buffer_assignments_.at(in_val.get()) != orig_info)
+                        if (buffer_assignments_.at(in_val.get()) != orig_info
+                                || buffer_assignments_.at(in_val.get()).kind_
+                                        == external_input)
                             continue;
                         q.push(in_val.get());
                     }

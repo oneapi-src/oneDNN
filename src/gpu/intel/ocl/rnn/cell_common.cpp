@@ -16,7 +16,7 @@
 
 // Common for RNN and LSTM cell execution
 
-#include "gpu/intel/ocl/rnn/ref_rnn.hpp"
+#include "gpu/intel/ocl/rnn/rnn_grid.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -120,7 +120,7 @@ status_t compute_cell_fwd(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
+cell_execution_sig((_simple_rnn_common_t<aprop>::cell_execution)) {
     const conf_t &rnn = this->pd()->rnn_conf;
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
     const rnn_offsets_t &offsets = this->pd()->off;
@@ -226,8 +226,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     }
     return status::success;
 }
-template cell_execution_sig(ref_rnn_fwd_t::cell_execution);
-template cell_execution_sig(ref_rnn_bwd_t::cell_execution);
+template cell_execution_sig(simple_rnn_fwd_t::cell_execution);
+template cell_execution_sig(simple_rnn_bwd_t::cell_execution);
 } // namespace ocl
 } // namespace intel
 } // namespace gpu

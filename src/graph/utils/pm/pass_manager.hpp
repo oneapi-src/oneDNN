@@ -104,11 +104,11 @@ public:
     impl::status_t run_passes(graph_t &agraph,
             const std::string &pass_config_json,
             partition_policy_t policy = partition_policy::fusion,
-            pass_filter_fn filter_fn = default_pass_filter);
+            const pass_filter_fn &filter_fn = default_pass_filter);
 
     impl::status_t run_passes(graph_t &agraph, std::istream *fs,
             partition_policy_t policy = partition_policy::fusion,
-            pass_filter_fn filter_fn = default_pass_filter);
+            const pass_filter_fn &filter_fn = default_pass_filter);
 };
 
 } // namespace pass

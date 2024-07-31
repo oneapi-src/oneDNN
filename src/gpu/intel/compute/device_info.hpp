@@ -221,6 +221,8 @@ public:
             gpu_arch_t gpu_arch, int tg_size, bool large_grf_mode = false);
     size_t l3_cache_size() const { return l3_cache_size_; }
     size_t icache_size() const;
+    size_t max_kernel_param_size() const { return max_kernel_param_size_; }
+    uint32_t device_address_bits() const { return device_address_bits_; }
 
     const xpu::runtime_version_t &runtime_version() const {
         return runtime_version_;
@@ -290,6 +292,8 @@ protected:
     int max_exec_size_ = 0;
     size_t max_wg_size_ = 0;
     size_t l3_cache_size_ = 0;
+    size_t max_kernel_param_size_ = 1024;
+    uint32_t device_address_bits_ = 64;
 
     // extensions_ and gpu_arch_ describe effective extensions and GPU architecture.
     uint64_t extensions_ = 0;
