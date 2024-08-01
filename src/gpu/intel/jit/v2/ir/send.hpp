@@ -42,20 +42,15 @@ enum class send_op_t {
     store,
 };
 
-inline std::string to_string(send_op_t kind) {
-    switch (kind) {
-#define CASE(name) \
-    case send_op_t::name: return #name
-        CASE(undef);
-        CASE(atomic_fadd);
-        CASE(load);
-        CASE(prefetch);
-        CASE(store);
-#undef CASE
-        default: ir_error_not_expected();
-    }
-    return {};
-}
+static auto send_op_names = nstl::to_array({
+        make_enum_name(send_op_t::undef, "undef"),
+        make_enum_name(send_op_t::atomic_fadd, "atomic_fadd"),
+        make_enum_name(send_op_t::load, "load"),
+        make_enum_name(send_op_t::prefetch, "prefetch"),
+        make_enum_name(send_op_t::store, "store"),
+});
+
+GPU_DEFINE_PARSE_ENUM(send_op_t, send_op_names)
 
 enum class send_kind_t {
     undef,
@@ -65,34 +60,15 @@ enum class send_kind_t {
     compressed_prefetch,
 };
 
-inline std::string to_string(send_kind_t kind) {
-    switch (kind) {
-#define CASE(name) \
-    case send_kind_t::name: return #name
-        CASE(undef);
-        CASE(block);
-        CASE(scattered);
-        CASE(compressed_prefetch);
-        case send_kind_t::_2d: return "2d";
-        default: ir_error_not_expected(); return "undef";
-#undef CASE
-    }
-}
+static auto send_kind_names = nstl::to_array({
+        make_enum_name(send_kind_t::undef, "undef"),
+        make_enum_name(send_kind_t::_2d, "2d"),
+        make_enum_name(send_kind_t::block, "block"),
+        make_enum_name(send_kind_t::scattered, "scattered"),
+        make_enum_name(send_kind_t::compressed_prefetch, "compressed_prefetch"),
+});
 
-inline send_kind_t str_to_send_kind(const std::string &s) {
-    if (s == "2d") return send_kind_t::_2d;
-#define CASE(name) \
-    do { \
-        if (s == to_string(send_kind_t::name)) return send_kind_t::name; \
-    } while (false)
-    CASE(undef);
-    CASE(block);
-    CASE(scattered);
-    CASE(compressed_prefetch);
-#undef CASE
-    ir_error_not_expected();
-    return send_kind_t::undef;
-}
+GPU_DEFINE_PARSE_ENUM(send_kind_t, send_kind_names)
 
 struct addr_t {
     expr_t base;

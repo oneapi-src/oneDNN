@@ -178,7 +178,6 @@ struct prelu_bwd_kernel_vec_t {
             case broadcasting_strategy_t::scalar:
                 calculate_scalar(data_mem, weights_mem, scratchpad_mem,
                         diff_dst_mem, diff_data_mem, ithr);
-                reduce_scalar(scratchpad_mem, diff_weights_mem, ithr);
                 break;
             case broadcasting_strategy_t::no_broadcast:
                 calculate_no_broadcast(data_mem, weights_mem, diff_weights_mem,
@@ -206,26 +205,6 @@ struct prelu_bwd_kernel_vec_t {
         float diff_weight_res = src_val > 0 ? 0 : (diff_dst_val * src_val);
         diff_src_mem.store(diff_src_res, data_off);
         return diff_weight_res;
-    }
-
-    void reduce_scalar(out_memory_plain_t &scratchpad_mem,
-            out_memory_tensor_t &diff_weights_mem, size_t i) const {
-        const size_t nthr = conf_.n_thr;
-        const dim_t work_amount = conf_.work_amount_src;
-        const int thread_count = nstl::min((dim_t)nthr, work_amount);
-        double s = 0;
-        int c = 0;
-        for (dim_t a = 0; a < thread_count; a++) {
-            auto la = scratchpad_mem.load(i);
-            if (!std::isnan(la)) c = c + 1;
-        }
-        if (c == (thread_count)) {
-            for (dim_t j = 0; j < thread_count; j++) {
-                auto la = scratchpad_mem.load(j);
-                s = s + la;
-            }
-            diff_weights_mem.store(s, 0);
-        }
     }
 
     void set_reduction_buffers(
@@ -285,7 +264,6 @@ private:
         }
 
         balance211(work_amount, nthr, ithr, start, end);
-        const dim_t workload = end - start;
 
         if (conf_.ndims == 1) {
             utils::nd_iterator_init(start, off[0], dims_d[0]);
@@ -307,11 +285,6 @@ private:
                     off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
         }
 
-        dim_t group_size, buf_size;
-        set_reduction_buffers(workload, group_size, buf_size);
-        dim_t offset_buf {0}, group_off {0}, data_size {buf_size};
-        float s = 0;
-        float r = 0;
         for (dim_t iwork = start; iwork < end; ++iwork) {
             const auto data_off = offset(data_md(), off);
             const auto weight_off = 0;
@@ -322,17 +295,8 @@ private:
                     diff_dst_val, src_val, weights_val);
             float diff_weight_res = src_val > 0 ? 0 : (diff_dst_val * src_val);
             diff_src_mem.store(diff_src_res, data_off);
+            scratchpad_mem.store(diff_weight_res, data_off);
 
-            s = s + diff_weight_res;
-            if (++offset_buf == data_size) {
-                r = r + s;
-                offset_buf = 0;
-                group_off++;
-                s = 0;
-                data_size = ((group_off + 1) * buf_size <= workload)
-                        ? buf_size
-                        : workload - (group_off * buf_size);
-            }
             if (conf_.ndims == 1) {
                 utils::nd_iterator_step(off[0], dims_d[0]);
             }
@@ -353,7 +317,6 @@ private:
                         dims_d[4]);
             }
         }
-        scratchpad_mem.store(r, ithr);
     }
 
     void calculate_no_broadcast(const in_memory_tensor_t &data_mem,

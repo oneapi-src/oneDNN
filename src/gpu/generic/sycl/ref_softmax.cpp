@@ -36,11 +36,22 @@ status_t ref_sycl_softmax_fwd_t::pd_t::init_conf() {
     conf_.outer_size = outer_size();
     conf_.channels = axis_size();
     conf_.wk_size = inner_size() * outer_size();
+
     conf_.do_scale_src
             = !attr()->scales_.get(DNNL_ARG_SRC).has_default_values();
     conf_.do_scale_dst
             = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
 
+    conf_.post_ops = sycl_post_ops_t(attr());
+    conf_.po_len = attr()->post_ops_.len();
+
+    for (auto i = 0; i < conf_.post_ops.get_post_op(); ++i) {
+        const auto &e = attr()->post_ops_.entry_[i];
+        if (e.is_binary()) {
+            conf_.src1_md[i] = xpu::sycl::md_t(
+                    arg_md(DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1));
+        }
+    }
     return status::success;
 }
 
@@ -58,6 +69,17 @@ status_t ref_sycl_softmax_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         auto dst_scales = CTX_IN_SYCL_KERNEL_MEMORY(
                 DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
+        auto src_mem_po_1 = CTX_IN_SYCL_KERNEL_MEMORY(
+                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1));
+        auto src_mem_po_2 = CTX_IN_SYCL_KERNEL_MEMORY(
+                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1));
+        auto src_mem_po_3 = CTX_IN_SYCL_KERNEL_MEMORY(
+                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1));
+        auto src_mem_po_4 = CTX_IN_SYCL_KERNEL_MEMORY(
+                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1));
+        auto src_mem_po_5 = CTX_IN_SYCL_KERNEL_MEMORY(
+                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1));
+
         const auto block_size = pd()->conf_.block_size;
         const auto wg_size = pd()->conf_.wg_size;
         const auto t_work = pd()->conf_.wk_size;
@@ -66,8 +88,9 @@ status_t ref_sycl_softmax_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         auto n_thr = wg_cnt * wg_size;
         n_thr = n_thr < 1 ? 1 : n_thr;
 
-        softmax_fwd_kernel_vec_t softmax_fwd_kernel_(
-                pd()->conf_, src_mem_arg, src_scales, dst_scales, dst_mem_arg);
+        softmax_fwd_kernel_vec_t softmax_fwd_kernel_(pd()->conf_, src_mem_arg,
+                src_scales, dst_scales, dst_mem_arg, src_mem_po_1, src_mem_po_2,
+                src_mem_po_3, src_mem_po_4, src_mem_po_5);
 
         cgh.parallel_for(
                 ::sycl::nd_range<1>(n_thr, wg_size), softmax_fwd_kernel_);

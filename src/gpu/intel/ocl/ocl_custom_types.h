@@ -19,6 +19,9 @@
 
 #define dim_t long // 64 bit per the OpenCL specification
 
+// include to get the MATH_UTILS_* macros
+#include "gpu/intel/ocl/ocl_math_utils.h"
+
 typedef struct {
     short data;
 } bf16;
@@ -45,7 +48,7 @@ f8_e5m2 as_f8_e5m2(char data) {
 
 /*****************************/
 
-#ifdef MATH_UTILS_DECLARE_BF8
+#ifdef MATH_UTILS_DECLARE_HF8
 typedef struct {
     char data;
 } f8_e4m3;

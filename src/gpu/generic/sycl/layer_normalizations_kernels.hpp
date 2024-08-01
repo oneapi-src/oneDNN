@@ -88,8 +88,8 @@ private:
         memory_tensor_t data_mem(data_, conf_.data_md);
         memory_tensor_t scale_mem(scale_, conf_.data_scaleshift_md);
         memory_tensor_t shift_mem(shift_, conf_.data_scaleshift_md);
-        memory_tensor_t rt_scale_mem(rt_scale_, conf_.data_scaleshift_md);
-        memory_tensor_t dst_scale_mem(dst_scale_, conf_.data_scaleshift_md);
+        memory_plain_t rt_scale_mem(rt_scale_, conf_.scales_src_dt);
+        memory_plain_t dst_scale_mem(dst_scale_, conf_.scales_dst_dt);
         memory_tensor_t stat_mem(stat_, conf_.stat_md);
         memory_plain_t var_mem(var_, conf_.var_dt);
         memory_tensor_t dst_mem(dst_, conf_.dst_md);
@@ -190,8 +190,8 @@ private:
         memory_tensor_t data_mem(data_, conf_.data_md);
         memory_tensor_t scale_mem(scale_, conf_.data_scaleshift_md);
         memory_tensor_t shift_mem(shift_, conf_.data_scaleshift_md);
-        memory_tensor_t rt_scale_mem(rt_scale_, conf_.data_scaleshift_md);
-        memory_tensor_t dst_scale_mem(dst_scale_, conf_.data_scaleshift_md);
+        memory_plain_t rt_scale_mem(rt_scale_, conf_.scales_src_dt);
+        memory_plain_t dst_scale_mem(dst_scale_, conf_.scales_dst_dt);
         memory_tensor_t stat_out_mem(mean_out_, conf_.stat_md);
         memory_plain_t var_out_mem(var_out_, conf_.var_dt);
         memory_tensor_t dst_mem(dst_, conf_.dst_md);

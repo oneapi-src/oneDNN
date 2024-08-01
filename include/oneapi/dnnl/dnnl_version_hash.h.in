@@ -14,29 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GRAPH_UTILS_OCL_USM_UTILS_HPP
-#define GRAPH_UTILS_OCL_USM_UTILS_HPP
+#ifndef ONEAPI_DNNL_DNNL_VERSION_HASH_H
+#define ONEAPI_DNNL_DNNL_VERSION_HASH_H
 
-#include "oneapi/dnnl/dnnl_config.h"
+// clang-format off
 
-#include "graph/utils/ocl_check.hpp"
+/// Note: this macro and header file were moved to a separate instance to avoid
+/// incremental build issues as moving from commit to commit would trigger a
+/// complete library rebuild. Including a generated header file in a single
+/// translation unit makes this problem go away.
+/// Git commit hash
+#define DNNL_VERSION_HASH  "@DNNL_VERSION_HASH@"
 
-namespace dnnl {
-namespace impl {
-namespace graph {
-namespace utils {
-namespace ocl {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-void *malloc_shared(
-        cl_device_id dev, cl_context ctx, size_t size, size_t alignment = 0);
-
-void free(void *ptr, cl_device_id dev, cl_context ctx);
-#endif
-
-} // namespace ocl
-} // namespace utils
-} // namespace graph
-} // namespace impl
-} // namespace dnnl
+// clang-format on
 
 #endif

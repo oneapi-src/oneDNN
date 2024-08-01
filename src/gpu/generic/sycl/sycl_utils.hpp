@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,28 +14,30 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GRAPH_UTILS_OCL_USM_UTILS_HPP
-#define GRAPH_UTILS_OCL_USM_UTILS_HPP
+#ifndef GPU_GENERIC_SYCL_SYCL_UTILS_HPP
+#define GPU_GENERIC_SYCL_SYCL_UTILS_HPP
 
-#include "oneapi/dnnl/dnnl_config.h"
-
-#include "graph/utils/ocl_check.hpp"
+#include "common/memory_desc.hpp"
+#include "common/memory_desc_wrapper.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace graph {
-namespace utils {
-namespace ocl {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-void *malloc_shared(
-        cl_device_id dev, cl_context ctx, size_t size, size_t alignment = 0);
+namespace gpu {
+namespace generic {
+namespace sycl {
 
-void free(void *ptr, cl_device_id dev, cl_context ctx);
-#endif
+inline bool md_dims_in_range(const dnnl::impl::memory_desc_t *desc) {
+    auto wrap = dnnl::impl::memory_desc_wrapper(desc);
+    for (int i = 0; i < wrap.ndims(); i++) {
+        if (wrap.dims()[i] > INT_MAX) { return false; }
+    }
 
-} // namespace ocl
-} // namespace utils
-} // namespace graph
+    return true;
+}
+
+} // namespace sycl
+} // namespace generic
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

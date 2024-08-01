@@ -13922,25 +13922,52 @@ void gemm_kernel_generator_t<hw>::gemmDequantizeOperation(bool doA, Type T,
     }
 }
 
-// Optimized int4 -> f16/f32 dequantization sequence. Returns true if successful.
 template <HW hw>
-bool gemm_kernel_generator_t<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
+void gemm_kernel_generator_t<hw>::dequantizeInt4Shift(
+        Type Tsrc, GRFMultirange src, const CommonStrategy &strategy) {
+    if (Tsrc.isSigned())
+        map(hw, Type::u16, src, src, strategy,
+                [&](int esize, RegData r, RegData _) {
+                    xor_(esize, r, r, 0x8888);
+                });
+}
+
+bool canDequantizeInt4(Type Tsrc, Type Tdst,
+        const vector<RegisterBlock> &layoutSrc,
+        const vector<RegisterBlock> &layoutDst,
+        const vector<RegisterBlock> layoutOffset,
+        const vector<RegisterBlock> layoutScale) {
+    if (!Tsrc.isInt4() || !one_of(Tdst, Type::f16, Type::bf16, Type::f32))
+        return false;
+
+    if (layoutOffset.empty() || layoutScale.empty()) {
+        int m, n, md, nd;
+        getLayoutDims(layoutSrc, m, n);
+        getLayoutDims(layoutDst, md, nd);
+
+        if (m < md || n < nd) return false;
+    }
+
+    return true;
+}
+
+// Optimized int4 -> f16/bf16/f32 dequantization sequence.
+template <HW hw>
+void gemm_kernel_generator_t<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
         const vector<RegisterBlock> &layoutSrc,
         const vector<RegisterBlock> &layoutDst,
         const vector<RegisterBlock> &layoutOffset,
         const vector<RegisterBlock> &layoutScale, GRFMultirange src,
         GRFMultirange dst, GRFMultirange offset, GRFMultirange scale,
         Type Tscale, int offR, int offC, const GEMMProblem *problem,
-        const CommonStrategy &strategy, CommonState &state) {
-    if (!Tsrc.isInt4() || !one_of(Tdst, Type::f16, Type::bf16, Type::f32))
-        return false;
+        const CommonStrategy &strategy, CommonState &state, bool do_shift) {
+    if (!canDequantizeInt4(
+                Tsrc, Tdst, layoutSrc, layoutDst, layoutOffset, layoutScale))
+        stub("Cannot perform dequantizeInt4");
 
     int m, n, md, nd;
     getLayoutDims(layoutSrc, m, n);
     getLayoutDims(layoutDst, md, nd);
-
-    if (layoutOffset.empty() || layoutScale.empty())
-        if (m < md || n < nd) return false;
 
     bool s4 = Tsrc.isSigned();
     bool f32 = (Tdst == Type::f32);
@@ -13962,11 +13989,7 @@ bool gemm_kernel_generator_t<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
     }
 
     // 1) Shift s4 data to u4 data by adding 8.
-    if (s4)
-        map(hw, Type::u16, src, src, strategy,
-                [&](int esize, RegData r, RegData _) {
-                    xor_(esize, r, r, 0x8888);
-                });
+    if (s4 && do_shift) dequantizeInt4Shift(Tsrc, src, strategy);
 
     // 2) Copy u4 -> u16 data.
     copyRegisters(Type::u4, Type::u16, layoutSrc, *effLayoutDst, src, *effDst,
@@ -14009,8 +14032,6 @@ bool gemm_kernel_generator_t<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
                 offR0, offC0, false, strategy, state);
         safeReleaseRanges(dstF16, state);
     }
-
-    return true;
 }
 
 // Dequantize A/B, given 2D grouped quantization data.
@@ -14019,7 +14040,7 @@ void gemm_kernel_generator_t<hw>::gemmDequantizeAB(bool doA, Type Tsrc,
         Type Tdst, const vector<RegisterBlock> &layoutSrc,
         const vector<RegisterBlock> &layoutDst0, const GRFMultirange &src,
         const GRFMultirange &dst0, int hab, const GEMMProblem &problem,
-        const GEMMStrategy &strategy, GEMMState &state) {
+        const GEMMStrategy &strategy, GEMMState &state, bool do_shift) {
     auto Txo_int = doA ? state.Tao_int : state.Tbo_int;
     auto Tx_scaleInt = doA ? state.Ta_scaleInt : state.Tb_scaleInt;
     auto Tx_scaleOp = doA ? state.Ta_scaleOp : state.Tb_scaleOp;
@@ -14066,10 +14087,11 @@ void gemm_kernel_generator_t<hw>::gemmDequantizeAB(bool doA, Type Tsrc,
         offR = offC = 0;
     }
 
-    bool int4OK = dequantizeInt4(doA, Tsrc, Tdst, layoutSrc, layoutDst, oLayout,
-            sLayout, src, dst, oRegs, sRegs, Tx_scaleOp, offR, offC, &problem,
-            strategy, state);
-    if (!int4OK) {
+    if (canDequantizeInt4(Tsrc, Tdst, layoutSrc, layoutDst, oLayout, sLayout)) {
+        dequantizeInt4(doA, Tsrc, Tdst, layoutSrc, layoutDst, oLayout, sLayout,
+                src, dst, oRegs, sRegs, Tx_scaleOp, offR, offC, &problem,
+                strategy, state, do_shift);
+    } else {
         if (copy)
             copyRegisters(Tsrc, Tx1_int, layoutSrc, layoutDst, src, dst, offR,
                     offC, false, strategy, state);
@@ -14429,7 +14451,7 @@ bool gemm_kernel_generator_t<hw>::kLoopSetup(const GEMMProblem &problem,
 
     repackARem = repackA;
     repackBRem = repackB;
-    ka_repackRem = repackA ? ka_loadRem : 0;
+    ka_repackRem = repackA ? std::min(ka_loadRem, state.ka_repack) : 0;
     kb_repackRem = repackB ? kb_loadRem : 0;
     if (minOPCount > 1) {
         if (ka_loadRem < minOPCount) {
@@ -14815,6 +14837,8 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     auto slmBuffers = strategy.slmBuffers;
     auto ka_loadMain = strategy.ka_load, ka_loadRem = state.ka_loadRem;
     auto kb_loadMain = strategy.kb_load, kb_loadRem = state.kb_loadRem;
+    auto ka_repackMain = state.ka_repack;
+    auto ka_repackRem = state.ka_repackRem;
     auto ka_pfStride = strategy.ka_pfStride;
     auto kb_pfStride = strategy.kb_pfStride;
     auto kInterleaveChunk = strategy.kInterleaveChunk(problem);
@@ -15085,6 +15109,10 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
     };
     auto kb_load = [&](Iteration h) {
         return B_remActive(h) ? kb_loadRem : kb_loadMain;
+    };
+    auto ka_repack = [&](Iteration h) {
+        if (!state.repackA) return ka_load(h);
+        return A_remActive(h) ? ka_repackRem : ka_repackMain;
     };
     auto A_copy = [&](Iteration h) { return (h / ka_load(h)) % A_copies; };
     auto B_copy = [&](Iteration h) { return (h / kb_load(h)) % B_copies; };
@@ -15816,20 +15844,52 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         });
 
     // A/B repacking.
-    auto reqRepackA = every(ka_loadMain) | variants(A_copies);
-    auto reqRepackARem = every(ka_loadRem) | variants(A_copies);
+    auto reqRepackA = every(ka_repackMain) | variants(A_copies);
+    auto reqRepackARem
+            = every(std::min(ka_loadRem, ka_repackRem)) | variants(A_copies);
     bool convertA = (Ta != Ta_load) && (Ta.bits() == Ta_load.bits());
     bool scheduleRepackA
             = state.repackA || state.repackARem || convertA || dequantizeA;
 
     auto doRepackA = [&](vector<RegisterBlock> &layout, GRFMultirange &regs,
-                             bool repackA, int ha) {
+                             bool repackA, int h, int k_load, int k_repack) {
+        if (k_repack <= 0) k_repack = 1;
+        int ha = h % k_load, har = (h % k_repack);
+
+        vector<RegisterBlock> sublayout = layout;
+        auto Ar_sublayout = state.Ar_layout;
+        bool do_shift = true;
+        if (repackA) {
+            auto layout_copy = layout;
+            unlinkFromMemory(layout_copy);
+
+            if (!getSubblocks(Ta_load, sublayout, layout_copy, true, ha,
+                        ha + k_repack, false, {}, {}))
+                stub();
+            for (auto &l : Ar_sublayout) {
+                l.offsetC += ha;
+            }
+
+            // Int4 data is commonly expanded from partial registers as a 64
+            // byte register expands to 128 elements. To avoid emitting extra
+            // instructions, perform element-wise operations here.
+            bool can_dequantize = canDequantizeInt4(
+                    Ta_load, Ta, layout, state.Ar_layout, {}, {});
+            if (can_dequantize) {
+                if (ha == 0) { dequantizeInt4Shift(Ta_load, regs, strategy); }
+                do_shift = false;
+            }
+        } else if (dequantize2DA) {
+            stub("dequantize2DA is assumed to imply repackA");
+        }
+
         if (dequantizeA)
-            gemmDequantizeAB(true, Ta_load, Ta, layout, state.Ar_layout, regs,
-                    state.Ar_regs, ha, problem, strategy, state);
+            gemmDequantizeAB(true, Ta_load, Ta, sublayout, Ar_sublayout, regs,
+                    state.Ar_regs, har, problem, strategy, state, do_shift);
         else if (repackA)
-            copyRegisters(Ta_load, Ta, layout, state.Ar_layout, regs,
-                    state.Ar_regs, 0, ha, false, strategy, state);
+            copyRegisters(Ta_load, Ta, sublayout, Ar_sublayout, regs,
+                    state.Ar_regs, 0, har, false, strategy, state, false,
+                    do_shift);
         else if (convertA)
             convert(regs, Ta_load, Ta, strategy, state);
     };
@@ -15838,11 +15898,12 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         ls.schedule({{reqRepackA,
                              [&](Iteration h) {
                                  doRepackA(state.A_layout, A_regs(h),
-                                         state.repackA, 0);
+                                         state.repackA, h, ka_loadMain,
+                                         ka_repackMain);
                              }},
                 {reqRepackARem, [&](Iteration h) {
                      doRepackA(state.A_layoutRem, A_regs(h), state.repackARem,
-                             h % std::max(state.ka_repackRem, 1));
+                             h, ka_loadRem, ka_repackRem);
                  }}});
 
     auto reqRepackB = every(kb_loadMain) | variants(B_copies);
@@ -15934,11 +15995,12 @@ void gemm_kernel_generator_t<hw>::kLoop(KLoop type, const GEMMProblem &problem,
         auto hNext = h + minOPCount;
         if (hNext % oc != 0) return;
 
-        int ka = ka_load(h), kb = kb_load(h);
-        int ha = h % ka;
+        int kar = ka_repack(h);
+        int kb = kb_load(h);
+        int ha = h % kar;
         int hb = h % kb;
         if (problem.backward()) {
-            ha = ka - 1 - ha;
+            ha = kar - 1 - ha;
             hb = kb - 1 - hb;
         }
 
@@ -17269,10 +17331,20 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
 
     bool splitA = false, splitB = false;
 
-    if (state.repackA)
-        makeUnbackedRegLayout(Ta, state.Ar_layout, unrollM, strategy.ka_load,
+    state.ka_repack = strategy.ka_load;
+    if (state.repackA) {
+        // Repacked data can use significantly more registers than the loaded
+        // data. Lazy repacking can reduce register utilization and improve load
+        // pipelining at (in some cases) the expense of more work.
+        bool lazy_repack = state.Ta_load.isInt4()
+                && Ta == Type::f16; // Other cases are unimplemented
+        state.ka_repack = lazy_repack
+                ? std::min(strategy.ka_load, strategy.kb_load)
+                : strategy.ka_load;
+        makeUnbackedRegLayout(Ta, state.Ar_layout, unrollM, state.ka_repack,
                 isLayoutColMajor(state.A_layout), crosspackA, tileM_A, tileK_A,
                 true, splitA);
+    }
     if (state.repackB)
         makeUnbackedRegLayout(Tb, state.Br_layout, strategy.kb_load, unrollN,
                 isLayoutColMajor(state.B_layout), crosspackB, tileK_B, tileN_B,
@@ -27543,10 +27615,11 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
         const vector<RegisterBlock> &layoutSrc,
         const vector<RegisterBlock> &layoutDst, const GRFMultirange &src,
         const GRFMultirange &dst, int dOffR, int dOffC, bool conjugate,
-        const CommonStrategy &strategy, CommonState &state, bool preserveSrc) {
+        const CommonStrategy &strategy, CommonState &state, bool preserveSrc,
+        bool do_shift) {
     return copyRegisters(Ts, Td, layoutSrc, layoutDst, src, dst, dOffR, dOffC,
             Scalar {1}, SubregisterPair(), SubregisterPair(), conjugate,
-            strategy, state, preserveSrc);
+            strategy, state, preserveSrc, do_shift);
 }
 
 // Register-to-register copy, with scaling.
@@ -27557,7 +27630,7 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
         const GRFMultirange &dst, int dOffR, int dOffC, const Scalar &alpha,
         const SubregisterPair &alpha_real, const SubregisterPair &alpha_imag,
         bool conjugate, const CommonStrategy &strategy, CommonState &state,
-        bool preserveSrc) {
+        bool preserveSrc, bool do_shift) {
     auto Ts_real = Ts.real(), Td_real = Td.real();
     auto nes_real = elementsPerGRF(hw, Ts_real);
     auto ned_real = elementsPerGRF(hw, Td_real);
@@ -27568,10 +27641,13 @@ bool gemm_kernel_generator_t<hw>::copyRegisters(Type Ts, Type Td,
     if (alpha == 1 && !conjugate && !preserveSrc) {
         vector<RegisterBlock> emptyLayout;
         GRFMultirange emptyRegs;
-        bool int4OK = dequantizeInt4(true, Ts, Td, layoutSrc, layoutDst,
-                emptyLayout, emptyLayout, src, dst, emptyRegs, emptyRegs, Td,
-                dOffR, dOffC, nullptr, strategy, state);
-        if (int4OK) return true;
+        if (canDequantizeInt4(
+                    Ts, Td, layoutSrc, layoutDst, emptyLayout, emptyLayout)) {
+            dequantizeInt4(true, Ts, Td, layoutSrc, layoutDst, emptyLayout,
+                    emptyLayout, src, dst, emptyRegs, emptyRegs, Td, dOffR,
+                    dOffC, nullptr, strategy, state, do_shift);
+            return true;
+        }
     }
 
     Subregister saveF0, saveF1, saveF2;

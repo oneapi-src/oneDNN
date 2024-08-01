@@ -29,7 +29,7 @@
 #ifdef DNNL_ENABLE_MEM_DEBUG
 #define TEST_OCL_CHECK(x) \
     do { \
-        dnnl_status_t s = dnnl::impl::gpu::intel::ocl::convert_to_dnnl(x); \
+        dnnl_status_t s = dnnl::impl::xpu::ocl::convert_to_dnnl(x); \
         dnnl::error::wrap_c_api(s, dnnl_status2str(s)); \
     } while (0)
 #else

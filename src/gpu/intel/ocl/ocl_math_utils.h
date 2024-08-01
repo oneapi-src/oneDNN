@@ -37,27 +37,28 @@ int rnd_down(int a, unsigned int b) {
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 #if DT_BF8 || SRC_DT_BF8 || WEI_DT_BF8 || DST_DT_BF8 || BIA_DT_BF8 || A_DT_BF8 \
-        || B_DT_BF8 || C_DT_BF8
+        || B_DT_BF8 || C_DT_BF8 || DATA_DT_BF8 || POST_OP_USING_BF8
 #define MATH_UTILS_DECLARE_BF8 1
 #endif
 
 #if DT_HF8 || SRC_DT_HF8 || WEI_DT_HF8 || DST_DT_HF8 || BIA_DT_HF8 || A_DT_HF8 \
-        || A_DT_HF8 || B_DT_HF8 || C_DT_HF8
+        || A_DT_HF8 || B_DT_HF8 || C_DT_HF8 || DATA_DT_HF8 \
+        || POST_OP_USING_HF8
 #define MATH_UTILS_DECLARE_HF8 1
 #endif
 
 #if DT_S4 || SRC_DT_S4 || WEI_DT_S4 || DST_DT_S4 || BIA_DT_S4 || A_DT_S4 \
-        || B_DT_S4 || C_DT_S4
+        || B_DT_S4 || C_DT_S4 || DATA_DT_S4
 #define MATH_UTILS_DECLARE_S4 1
 #endif
 
 #if DT_U4 || SRC_DT_U4 || WEI_DT_U4 || DST_DT_U4 || BIA_DT_U4 || A_DT_U4 \
-        || A_DT_U4 || B_DT_U4 || C_DT_U4
+        || A_DT_U4 || B_DT_U4 || C_DT_U4 || DATA_DT_U4
 #define MATH_UTILS_DECLARE_U4 1
 #endif
 
 #if DT_BF16 || SRC_DT_BF16 || WEI_DT_BF16 || DST_DT_BF16 || BIA_DT_BF16 \
-        || A_DT_BF16 || B_DT_BF16 || C_DT_BF16 || SUM_DT_BF16 \
+        || A_DT_BF16 || B_DT_BF16 || C_DT_BF16 || SUM_DT_BF16 || DATA_DT_BF16 \
         || POST_OP_USING_BF16
 #define MATH_UTILS_DECLARE_BF16 1
 #endif

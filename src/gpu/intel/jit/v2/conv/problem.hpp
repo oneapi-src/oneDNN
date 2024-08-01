@@ -59,8 +59,6 @@ public:
 
     void set_shape(const std::string &s);
     std::string desc_str() const;
-    void serialize(std::ostream &out) const;
-    void deserialize(std::istream &in);
     std::string str() const;
     std::string csv_str() const;
 

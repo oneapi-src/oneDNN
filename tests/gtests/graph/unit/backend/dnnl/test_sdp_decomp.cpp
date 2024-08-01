@@ -516,6 +516,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecomp_CPU) {
             graph::stream_t *strm;
             dnnl_stream_create(&strm, eng, dnnl_stream_in_order);
             std::vector<test_tensor> outputs_ts;
+            outputs_ts.reserve(partition_outputs.size());
             for (auto &lt : partition_outputs) {
                 outputs_ts.emplace_back(lt, eng);
             }
@@ -1559,6 +1560,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecompCorr_CPU) {
             graph::stream_t *strm_eng;
             dnnl_stream_create(&strm_eng, eng, dnnl_stream_in_order);
             std::vector<test_tensor> outputs_ts;
+            outputs_ts.reserve(partition_outputs.size());
             for (auto &lt : partition_outputs) {
                 outputs_ts.emplace_back(lt, eng);
             }

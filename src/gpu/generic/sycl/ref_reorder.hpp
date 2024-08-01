@@ -22,6 +22,7 @@
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 
 namespace dnnl {
@@ -46,16 +47,15 @@ struct ref_reorder_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper dst_d(dst_md());
 
-            const bool ok = check_data_types(src_d, dst_d)
+            const bool ok = src_engine == dst_engine
+                    && !src_d.has_runtime_dims_or_strides()
+                    && !dst_d.has_runtime_dims_or_strides()
+                    && check_data_types(src_d, dst_d)
                     && check_formats(src_d, dst_d)
                     && attr()->has_default_values(
                             sm::scales_runtime | sm::post_ops)
-                    && post_ops_ok();
+                    && post_ops_ok() && md_dims_in_range(dst_md());
             if (!ok) return status::unimplemented;
-
-            for (int i = 0; i < dst_d.ndims(); i++) {
-                if (dst_d.dims()[i] > INT_MAX) { return status::unimplemented; }
-            }
 
             return init_conf();
         }

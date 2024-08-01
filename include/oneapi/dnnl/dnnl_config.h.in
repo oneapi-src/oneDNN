@@ -171,6 +171,8 @@
 
 // When defined, experimental logging capabilities are enabled.
 #cmakedefine DNNL_EXPERIMENTAL_LOGGING
+// When defined, it disables GPU compute reference kernels.
+#cmakedefine DNNL_DISABLE_GPU_REF_KERNELS
 
 // List of configurating build controls
 // Workload controls

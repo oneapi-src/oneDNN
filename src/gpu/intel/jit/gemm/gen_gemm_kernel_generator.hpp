@@ -1597,7 +1597,7 @@ struct GEMMState : public CommonState {
     bool broadcast;
     bool repackA = false, repackB = false;
     bool repackARem = false, repackBRem = false;
-    int ka_repackRem, kb_repackRem;
+    int ka_repack, ka_repackRem, kb_repackRem;
     bool remActiveA, remActiveB, remActiveSLM;
     std::vector<MaskAssignment> kMasksA, kMasksB, kMasksAi, kMasksBi;
     int initSLMKOffset = 0;
@@ -2732,14 +2732,17 @@ protected:
             const GRFMultirange &src, const GRFMultirange &dst,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
-    bool dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
+    void dequantizeInt4Shift(
+            Type Tsrc, GRFMultirange src, const CommonStrategy &strategy);
+    void dequantizeInt4(bool doA, Type Tsrc, Type Tdst,
             const std::vector<RegisterBlock> &layoutSrc,
             const std::vector<RegisterBlock> &layoutDst,
             const std::vector<RegisterBlock> &layoutOffset,
             const std::vector<RegisterBlock> &layoutScale, GRFMultirange src,
             GRFMultirange dst, GRFMultirange offset, GRFMultirange scale,
             Type Tscale, int offR, int offC, const GEMMProblem *problem,
-            const CommonStrategy &strategy, CommonState &state);
+            const CommonStrategy &strategy, CommonState &state,
+            bool do_shift = true);
     void gemmDequantizeOperation(bool doA, Type T, Type To, BinaryOp op,
             const std::vector<RegisterBlock> &layout,
             const std::vector<RegisterBlock> &qlayout,
@@ -2750,7 +2753,7 @@ protected:
             const std::vector<RegisterBlock> &layoutDst,
             const GRFMultirange &src, const GRFMultirange &dst, int hab,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
-            GEMMState &state);
+            GEMMState &state, bool do_shift = true);
 
     void gemmCalcKLoopBarrierCount(ngen::Subregister &count,
             const ngen::Subregister &k, int cooldown,
@@ -2994,7 +2997,7 @@ protected:
             const std::vector<RegisterBlock> &layoutDst,
             const GRFMultirange &src, const GRFMultirange &dst, int dOffR,
             int dOffC, bool conjugate, const CommonStrategy &strategy,
-            CommonState &state, bool preserveSrc = false);
+            CommonState &state, bool preserveSrc = false, bool do_shift = true);
     bool copyRegisters(Type Ts, Type Td,
             const std::vector<RegisterBlock> &layoutSrc,
             const std::vector<RegisterBlock> &layoutDst,
@@ -3002,7 +3005,7 @@ protected:
             int dOffC, const Scalar &alpha, const SubregisterPair &alpha_real,
             const SubregisterPair &alpha_imag, bool conjugate,
             const CommonStrategy &strategy, CommonState &state,
-            bool preserveSrc = false);
+            bool preserveSrc = false, bool do_shift = true);
     void overlappedCopy(const GRFMultirange &src, const GRFMultirange &dst,
             CommonState &state);
 
