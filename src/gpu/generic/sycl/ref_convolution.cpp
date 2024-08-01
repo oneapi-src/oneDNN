@@ -77,47 +77,8 @@ status_t ref_convolution_fwd_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
-
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto data_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0);
-        auto weights_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS);
-        auto bias_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_BIAS);
-        auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
-        auto data_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0);
-        auto weights_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-        auto dst_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-        auto scales_data_dt = (pd()->conf_.do_scale_data)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-        auto scales_weights_dt = (pd()->conf_.do_scale_weights)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-
-        auto data_zeropoints = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0);
-        auto dst_zeropoints = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
-
-        auto zeropoints_data_dt = (pd()->conf_.use_data_zeropoints)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-        auto zeropoints_dst_dt = (pd()->conf_.use_dst_zeropoints)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-
-        convolution_kernel_fwd_t convolution_kernel(pd()->conf_, data_mem_arg,
-                weights_mem_arg, bias_mem_arg, dst_mem_arg, data_scale_mem_arg,
-                weights_scale_mem_arg, dst_scale_mem_arg, data_zeropoints,
-                dst_zeropoints, scales_data_dt, scales_weights_dt,
-                zeropoints_data_dt, zeropoints_dst_dt);
+        convolution_kernel_fwd_t convolution_kernel(pd()->conf_, cgh, ctx);
 
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;
@@ -187,48 +148,8 @@ status_t ref_convolution_bwd_data_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
-
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto diff_data_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC);
-        auto weights_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS);
-        auto bias_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_BIAS);
-        auto diff_dst_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST);
-        auto data_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0);
-        auto weights_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
-        auto dst_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-        auto scales_data_dt = (pd()->conf_.do_scale_data)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-        auto scales_weights_dt = (pd()->conf_.do_scale_weights)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-
-        auto data_zeropoints = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0);
-        auto dst_zeropoints = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
-
-        auto zeropoints_data_dt = (pd()->conf_.use_data_zeropoints)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-        auto zeropoints_dst_dt = (pd()->conf_.use_dst_zeropoints)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-
-        convolution_kernel_bwd_data_t convolution_kernel(pd()->conf_,
-                diff_data_mem_arg, weights_mem_arg, bias_mem_arg,
-                diff_dst_mem_arg, data_scale_mem_arg, weights_scale_mem_arg,
-                dst_scale_mem_arg, data_zeropoints, dst_zeropoints,
-                scales_data_dt, scales_weights_dt, zeropoints_data_dt,
-                zeropoints_dst_dt);
+        convolution_kernel_bwd_data_t convolution_kernel(pd()->conf_, cgh, ctx);
 
         const int wg_size = pd()->conf_.wg_size;
 
@@ -300,15 +221,8 @@ status_t ref_convolution_bwd_weights_t::init(impl::engine_t *engine) {
 status_t ref_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
 
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto data_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC);
-        auto diff_weights_mem_arg
-                = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
-        auto diff_bias_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_BIAS);
-        auto diff_dst_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST);
-
-        convolution_kernel_bwd_weights_t convolution_kernel(pd()->conf_,
-                data_mem_arg, diff_weights_mem_arg, diff_bias_mem_arg,
-                diff_dst_mem_arg);
+        convolution_kernel_bwd_weights_t convolution_kernel(
+                pd()->conf_, cgh, ctx);
 
         const int wg_size = pd()->conf_.wg_size;
 

@@ -36,21 +36,21 @@ namespace sycl {
 using namespace nstl;
 struct pooling_fwd_kernel_vec_t {
     pooling_fwd_kernel_vec_t(const sycl_pooling_fwd_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &src, xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::out_memory_arg_t &ws, xpu::sycl::in_memory_arg_t &src_1,
-            xpu::sycl::in_memory_arg_t &src_2,
-            xpu::sycl::in_memory_arg_t &src_3,
-            xpu::sycl::in_memory_arg_t &src_4,
-            xpu::sycl::in_memory_arg_t &src_5)
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
-        , src_(src)
-        , dst_(dst)
-        , ws_(ws)
-        , src_1_(src_1)
-        , src_2_(src_2)
-        , src_3_(src_3)
-        , src_4_(src_4)
-        , src_5_(src_5) {}
+        , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , ws_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_WORKSPACE))
+        , src_1_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1))
+        , src_2_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1))
+        , src_3_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1))
+        , src_4_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1))
+        , src_5_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t src_mem(src_, conf_.src_md);
@@ -303,10 +303,11 @@ private:
 
 struct pooling_bwd_kernel_vec_t {
     pooling_bwd_kernel_vec_t(const sycl_pooling_bwd_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &diff_dst,
-            xpu::sycl::out_memory_arg_t &diff_src,
-            xpu::sycl::in_memory_arg_t &ws)
-        : conf_(conf), diff_dst_(diff_dst), diff_src_(diff_src), ws_(ws) {}
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
+        : conf_(conf)
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
+        , diff_src_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
+        , ws_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WORKSPACE)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);

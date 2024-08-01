@@ -108,6 +108,8 @@ opening a PR against MAINTAINERS.md file.
 
 ## Core (API, Architecture, Tests)
 
+Team: @oneapi-src/onednn-arch
+
 | Name               | Github ID             | Affiliation       | Role       |
 | -----------------  | --------------------- | ----------------- | ---------- |
 | Denis Samoilov     | @densamoilov          | Intel Corporation | Maintainer |
@@ -117,6 +119,8 @@ opening a PR against MAINTAINERS.md file.
 | Ankit Manerikar    | @avmanerikar          | Intel Corporation | Code Owner |
 
 ## Graph API
+
+Team: @oneapi-src/onednn-graph
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -135,6 +139,8 @@ opening a PR against MAINTAINERS.md file.
 
 ### x64
 
+Team: @oneapi-src/onednn-cpu-x64
+
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Andrey Kalinin     | @ankalinin            | Intel Corporation | Maintainer |
@@ -147,6 +153,8 @@ opening a PR against MAINTAINERS.md file.
 | Xuxin Zen          | @xuxinzen             | Intel Corporation | Code Owner |
 
 ### AArch64
+
+Team: @oneapi-src/onednn-cpu-aarch64
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -174,6 +182,8 @@ Vacant. Maintained by Core team.
 
 ### Intel
 
+Team: @oneapi-src/onednn-gpu-intel
+
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Eugene Chereshnev  | @echeresh             | Intel Corporation | Maintainer |
@@ -189,7 +199,12 @@ Vacant. Maintained by Core team.
 | Stefen Yurkevich   | @syurkevi             | Intel Corporation | Code Owner |
 | Umar Arshad        | @umar456              | Intel Corporation | Code Owner |
 
-### NVIDIA and AMD
+### NVIDIA, AMD, and generic GPU
+
+Teams:
+* @oneapi-src/onednn-gpu-nvidia
+* @oneapi-src/onednn-gpu-amd
+* @oneapi-src/onednn-gpu-generic
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -203,12 +218,16 @@ Vacant. Maintained by Core team.
 
 ### Documentation
 
+Team: @oneapi-src/onednn-doc
+
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Vadim Pirogov      | @vpirogov             | Intel Corporation | Maintainer |
 | Deb Taylor         | @deb-intel            | Intel Corporation | Code Owner |
 
 ### DevOps
+
+Team: @oneapi-src/onednn-devops
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |

@@ -14,8 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/binary_types.h"
-#include "gpu/intel/ocl/dispatch.h"
+#include "gpu/intel/ocl/binary_common.h"
 
 #if IS_PLAIN_LAYOUT
 KERNEL_ATTR

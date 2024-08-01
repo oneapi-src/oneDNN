@@ -104,6 +104,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
                 || check_output_num<n2>(graph_op); \
     })
 
+#if BUILD_TRAINING
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_bwd_relu_bwd_fusion)
         .set_priority(8.8f)
         .set_kind(partition_kind_t::misc_post_ops)
@@ -122,6 +123,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_bwd_relu_bwd_fusion)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<batchnorm_bwd_t>();
         });
+#endif
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

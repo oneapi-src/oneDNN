@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_REF_LAYER_NORMALIZATION_HPP
-#define GPU_INTEL_OCL_REF_LAYER_NORMALIZATION_HPP
+#ifndef GPU_INTEL_OCL_SIMPLE_LAYER_NORMALIZATION_HPP
+#define GPU_INTEL_OCL_SIMPLE_LAYER_NORMALIZATION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
@@ -30,13 +30,14 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
+struct simple_layer_normalization_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_layer_normalization_fwd_pd_t {
         using gpu_layer_normalization_fwd_pd_t::
                 gpu_layer_normalization_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_fwd_t);
+        DECLARE_COMMON_PD_T(
+                "lnorm_simple:any", simple_layer_normalization_fwd_t);
 
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
@@ -46,12 +47,11 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
 
             auto src_dt = src_md()->data_type;
             auto dst_dt = dst_md()->data_type;
-
+            memory_desc_wrapper src_mdw(src_md());
             using skip_mask_t = primitive_attr_t::skip_mask_t;
 
             bool uses_f16 = utils::one_of(f16, src_dt, dst_dt);
             bool uses_f64 = utils::one_of(f64, src_dt, dst_dt);
-
             VDISPATCH_LNORM(is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_LNORM(IMPLICATION(uses_f16,
                                     compute_engine->mayiuse(
@@ -73,7 +73,6 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
             VDISPATCH_LNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_LNORM(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
-
             VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
             return status::success;
         }
@@ -97,7 +96,7 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("WITH_DST_SCALES",
                 !pd()->attr()->scales_.get(DNNL_ARG_DST).has_default_values());
 
-        CHECK(create_kernel(engine, &kernel_, "ref_lnorm_fwd", kernel_ctx));
+        CHECK(create_kernel(engine, &kernel_, "simple_lnorm_fwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -114,13 +113,14 @@ private:
     compute::kernel_t kernel_;
 };
 
-struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
+struct simple_layer_normalization_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_layer_normalization_bwd_pd_t {
         using gpu_layer_normalization_bwd_pd_t::
                 gpu_layer_normalization_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_bwd_t);
+        DECLARE_COMMON_PD_T(
+                "lnorm_simple:any", simple_layer_normalization_bwd_t);
 
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
@@ -155,11 +155,13 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
 
             VDISPATCH_LNORM_SC(init_conf(engine), "init_conf()");
+            init_scratchpad();
             return status::success;
         }
 
         status_t init_conf(impl::engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        void init_scratchpad();
 
         lnorm_conf_t conf;
     };
@@ -172,13 +174,17 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        CHECK(create_kernel(engine, &kernel_, "ref_lnorm_bwd", kernel_ctx));
+        CHECK(create_kernel(engine, &kernel_, "simple_lnorm_bwd", kernel_ctx));
+        if (!kernel_) return status::runtime_error;
+
         if (pd()->conf.use_scale || pd()->conf.use_shift) {
             CHECK(create_kernel(engine, &kernel_scaleshift_,
-                    "ref_lnorm_bwd_scaleshift", kernel_ctx));
+                    "simple_lnorm_bwd_scaleshift", kernel_ctx));
             if (!kernel_scaleshift_) return status::runtime_error;
+            CHECK(create_kernel(engine, &kernel_scaleshift_finalize_,
+                    "simple_lnorm_bwd_scaleshift_final", kernel_ctx));
+            if (!kernel_scaleshift_finalize_) return status::runtime_error;
         }
-        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -192,6 +198,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     compute::kernel_t kernel_scaleshift_;
+    compute::kernel_t kernel_scaleshift_finalize_;
     compute::kernel_t kernel_;
 };
 

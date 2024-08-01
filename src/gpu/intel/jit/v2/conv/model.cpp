@@ -215,12 +215,10 @@ void model_t::score(const bench_data_t &bd) {
 }
 
 void model_t::stringify(std::ostream &out) const {
-    std::ostringstream oss_bin;
     std::ostringstream oss;
-    ir_utils::serialize(ml_model_, oss_bin);
-    auto str = oss_bin.str();
-    auto data = std::vector<uint8_t>(str.begin(), str.end());
-    for (uint8_t d : data) {
+    serialized_data_t s;
+    ml_model_.serialize(s);
+    for (uint8_t d : s.get_data()) {
         oss << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
             << (int)d;
     }
@@ -233,9 +231,9 @@ void model_t::parse(std::istream &in) {
     for (size_t i = 0; i < s_data.size(); i += 2) {
         data.push_back(std::stoi(s_data.substr(i, 2), 0, 16));
     }
-    std::string str(data.begin(), data.end());
-    std::istringstream iss_bin(str);
-    ir_utils::deserialize(ml_model_, iss_bin);
+    auto s = serialized_t::from_data(data);
+    deserializer_t d(s);
+    ml_model_.deserialize(d);
 }
 
 void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y) {

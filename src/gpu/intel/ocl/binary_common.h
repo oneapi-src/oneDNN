@@ -14,8 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_BINARY_TYPES_H
-#define GPU_INTEL_OCL_BINARY_TYPES_H
+#ifndef GPU_INTEL_OCL_BINARY_COMMON_H
+#define GPU_INTEL_OCL_BINARY_COMMON_H
+
+#include "gpu/intel/ocl/dispatch.h"
 #include "gpu/intel/ocl/ocl_post_ops.h"
 #include "gpu/intel/ocl/ocl_types.h"
 #include "gpu/intel/ocl/ocl_utils.h"

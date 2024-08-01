@@ -378,6 +378,19 @@ struct sycl_pooling_fwd_conf_t : public sycl_pooling_base_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+#define DNNL_REF_SUM_MAX_NUM_TENSORS 16
+
+struct sycl_sum_conf_t {
+    xpu::sycl::md_t src_md[DNNL_REF_SUM_MAX_NUM_TENSORS];
+    xpu::sycl::md_t dst_md;
+    float src_scales[DNNL_REF_SUM_MAX_NUM_TENSORS];
+    int n;
+    int block_size;
+    int wg_size;
+    int wk_size;
+
+};
+
 struct sycl_pooling_bwd_conf_t : public sycl_pooling_base_conf_t {
     xpu::sycl::md_t diff_src_md;
     xpu::sycl::md_t diff_dst_md;
@@ -392,6 +405,7 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_softmax_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_layer_normalization_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_eltwise_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_lrn_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_sum_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_base_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_fwd_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_bwd_conf_t);

@@ -33,28 +33,30 @@ struct binary_kernel_vec_t {
     static constexpr int vec_len = 8;
     static constexpr int max_supported_ndims = 6;
 
-    binary_kernel_vec_t(const sycl_binary_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &src0, xpu::sycl::in_memory_arg_t &src1,
-            xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::in_memory_arg_t &src0_scale,
-            xpu::sycl::in_memory_arg_t &src1_scale, data_type_t scales_dt,
-            xpu::sycl::in_memory_arg_t &po1_src,
-            xpu::sycl::in_memory_arg_t &po2_src,
-            xpu::sycl::in_memory_arg_t &po3_src,
-            xpu::sycl::in_memory_arg_t &po4_src,
-            xpu::sycl::in_memory_arg_t &po5_src)
+    binary_kernel_vec_t(const sycl_binary_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
         : conf_(conf)
-        , src0_(src0)
-        , src1_(src1)
-        , dst_(dst)
-        , src0_scale_(src0_scale)
-        , src1_scale_(src1_scale)
-        , scales_dt_(scales_dt)
-        , po1_src_(po1_src)
-        , po2_src_(po2_src)
-        , po3_src_(po3_src)
-        , po4_src_(po4_src)
-        , po5_src_(po5_src) {}
+        , src0_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0))
+        , src1_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_1))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , src0_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
+        , src1_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1))
+        , scales_dt_((conf_.do_scale_src0) ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES
+                                                        | DNNL_ARG_SRC_0)
+                                                     .data_type()
+                                           : data_type_t::dnnl_f32)
+        , po1_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1)))
+        , po2_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1)))
+        , po3_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1)))
+        , po4_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1)))
+        , po5_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1))) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t src0_mem(src0_, conf_.src0_md);

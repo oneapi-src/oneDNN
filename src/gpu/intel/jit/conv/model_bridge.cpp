@@ -151,6 +151,28 @@ conv_gbr_kind_t get_conv_gbr_kind(const conv_config_t &cfg) {
     return conv_gbr_kind_t::xehpg_common;
 }
 
+inline bool is_big_endian() {
+    uint32_t u = 0x01020304;
+    uint8_t a[4] = {};
+    std::memcpy(a, &u, sizeof(u));
+    return a[0] == 0x01;
+}
+
+std::vector<uint8_t> unpack_data(const std::vector<uint64_t> &data_u64) {
+    size_t size = data_u64.size() * sizeof(data_u64[0]);
+    std::vector<uint8_t> data_u8(size);
+    std::memcpy(data_u8.data(), data_u64.data(), size);
+    if (is_big_endian()) {
+        size_t elem_len = sizeof(data_u64[0]);
+        for (size_t i = 0; i < size; i += elem_len) {
+            for (size_t j = 0; j < elem_len / 2; j++) {
+                std::swap(data_u8[i + j], data_u8[i + elem_len - j]);
+            }
+        }
+    }
+    return data_u8;
+}
+
 gradient_boost_regressor_t &get_gbr(const conv_config_t &cfg) {
     // clang-format off
     static const std::unordered_map<conv_gbr_kind_t,
@@ -170,8 +192,9 @@ gradient_boost_regressor_t &get_gbr(const conv_config_t &cfg) {
         for (auto &kv : kind2data) {
             auto kind = kv.first;
             auto &data = *kv.second;
-            gbr_map[kind] = ir_utils::deserialize_from_data<
-                    gradient_boost_regressor_t>(data);
+            auto s = serialized_t::from_data(unpack_data(data));
+            deserializer_t d(s);
+            gbr_map[kind] = gradient_boost_regressor_t::deserialize(d);
         }
     });
     auto kind = get_conv_gbr_kind(cfg);

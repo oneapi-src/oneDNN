@@ -28,10 +28,12 @@ namespace generic {
 namespace sycl {
 
 struct lrn_fwd_kernel_vec_t {
-    lrn_fwd_kernel_vec_t(const sycl_lrn_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &src, xpu::sycl::out_memory_arg_t &dst,
-            const format_tag_t &tag)
-        : conf_(conf), src_(src), dst_(dst), tag_(tag) {}
+    lrn_fwd_kernel_vec_t(const sycl_lrn_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx, const format_tag_t &tag)
+        : conf_(conf)
+        , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , tag_(tag) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t src_mem(src_, conf_.src_md);
@@ -148,14 +150,12 @@ private:
 };
 
 struct lrn_bwd_kernel_vec_t {
-    lrn_bwd_kernel_vec_t(const sycl_lrn_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &src,
-            xpu::sycl::in_memory_arg_t &diff_dst,
-            xpu::sycl::out_memory_arg_t &diff_src, const format_tag_t &tag)
+    lrn_bwd_kernel_vec_t(const sycl_lrn_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx, const format_tag_t &tag)
         : conf_(conf)
-        , src_(src)
-        , diff_dst_(diff_dst)
-        , diff_src_(diff_src)
+        , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
+        , diff_src_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
         , tag_(tag) {}
 
     void operator()(::sycl::nd_item<1> item) const {

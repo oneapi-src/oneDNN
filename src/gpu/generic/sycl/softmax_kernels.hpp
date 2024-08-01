@@ -30,25 +30,24 @@ namespace sycl {
 
 struct softmax_fwd_kernel_vec_t {
     softmax_fwd_kernel_vec_t(const sycl_softmax_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &src,
-            xpu::sycl::in_memory_arg_t &scale_src,
-            xpu::sycl::in_memory_arg_t &scale_dst,
-            xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::in_memory_arg_t &po1_src,
-            xpu::sycl::in_memory_arg_t &po2_src,
-            xpu::sycl::in_memory_arg_t &po3_src,
-            xpu::sycl::in_memory_arg_t &po4_src,
-            xpu::sycl::in_memory_arg_t &po5_src)
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
-        , src_(src)
-        , scale_src_(scale_src)
-        , scale_dst_(scale_dst)
-        , dst_(dst)
-        , po1_src_(po1_src)
-        , po2_src_(po2_src)
-        , po3_src_(po3_src)
-        , po4_src_(po4_src)
-        , po5_src_(po5_src) {}
+        , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , scale_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC))
+        , scale_dst_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , po1_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1)))
+        , po2_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1)))
+        , po3_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1)))
+        , po4_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1)))
+        , po5_src_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1))) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t src_mem(src_, conf_.src_md);
@@ -233,10 +232,11 @@ private:
 
 struct softmax_bwd_kernel_vec_t {
     softmax_bwd_kernel_vec_t(const sycl_softmax_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &dst,
-            xpu::sycl::in_memory_arg_t &diff_dst,
-            xpu::sycl::out_memory_arg_t &diff_src)
-        : conf_(conf), dst_(dst), diff_dst_(diff_dst), diff_src_(diff_src) {}
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
+        : conf_(conf)
+        , dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
+        , diff_src_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t dst_mem(dst_, conf_.dst_md);

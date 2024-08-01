@@ -54,25 +54,7 @@ status_t ref_reorder_t::init(impl::engine_t *engine) {
 
 status_t ref_reorder_t::execute(const exec_ctx_t &ctx) const {
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        auto src_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0);
-        auto src_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0);
-        auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
-        auto dst_scale_mem_arg = CTX_IN_SYCL_KERNEL_MEMORY(
-                DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
-
-        auto scales_src_dt = (pd()->conf_.do_scale_src)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-        auto scales_dst_dt = (pd()->conf_.do_scale_dst)
-                ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
-                          .data_type()
-                : data_type_t::dnnl_f32;
-
-        reorder_kernel_t reorder_kernel(pd()->conf_, src_mem_arg, dst_mem_arg,
-                src_scale_mem_arg, dst_scale_mem_arg, scales_src_dt,
-                scales_dst_dt);
+        reorder_kernel_t reorder_kernel(pd()->conf_, cgh, ctx);
 
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;

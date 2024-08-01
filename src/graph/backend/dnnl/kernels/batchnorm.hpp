@@ -391,6 +391,7 @@ public:
 #endif
 };
 
+#if BUILD_TRAINING
 struct batchnorm_bwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
@@ -583,6 +584,7 @@ public:
     }
 #endif
 };
+#endif
 
 } // namespace dnnl_impl
 } // namespace graph
