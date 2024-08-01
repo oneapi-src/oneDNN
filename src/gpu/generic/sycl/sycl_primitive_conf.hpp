@@ -82,6 +82,8 @@ struct sycl_convolution_conf_t {
     int wk_size;
     bool has_groups;
 
+    bool is_deconvolution;
+
     sycl_post_ops_t post_ops;
 };
 
