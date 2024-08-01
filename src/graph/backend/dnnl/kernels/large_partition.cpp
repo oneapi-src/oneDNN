@@ -70,6 +70,10 @@ status_t larger_partition_kernel_t::compile_impl(
     return status::success;
 }
 
+kernel_ptr large_partition_kernel_creator() {
+    return std::make_shared<larger_partition_kernel_t>();
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

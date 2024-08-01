@@ -43,8 +43,6 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 
-class dnnl_partition_impl_t;
-
 // gcc4.8.5 can 't support enum class as key
 struct enum_hash_t {
     template <typename T>
@@ -52,81 +50,6 @@ struct enum_hash_t {
         return static_cast<size_t>(t);
     }
 };
-
-struct kernel_base_t {
-    virtual ~kernel_base_t() = default;
-
-    status_t compile(const dnnl_partition_impl_t *part, const engine_t *aengine,
-            const std::vector<logical_tensor_t> &inputs,
-            const std::vector<logical_tensor_t> &outputs) {
-        auto ret = compile_impl(part, aengine, inputs, outputs);
-        if (ret != status::success) return ret;
-        return prepare_inplace_pairs_impl();
-    }
-
-    status_t execute(const stream_t *astream,
-            const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs) {
-        return execute_impl(astream, inputs, outputs);
-    }
-
-#ifdef DNNL_WITH_SYCL
-    status_t execute_sycl(const stream_t *astream,
-            const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs,
-            const std::vector<::sycl::event> &sycl_deps,
-            ::sycl::event *sycl_event) {
-        return sycl_execute_impl(
-                astream, inputs, outputs, sycl_deps, sycl_event);
-    }
-
-    virtual status_t sycl_execute_impl(const stream_t *astream,
-            const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs,
-            const std::vector<::sycl::event> &sycl_deps,
-            ::sycl::event *sycl_event)
-            = 0;
-#endif
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    status_t execute_ocl(const stream_t *astream,
-            const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs,
-            const std::vector<cl_event> &ocl_deps, cl_event *ocl_event) {
-        return ocl_execute_impl(astream, inputs, outputs, ocl_deps, ocl_event);
-    }
-
-    virtual status_t ocl_execute_impl(const stream_t *astream,
-            const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs,
-            const std::vector<cl_event> &ocl_deps, cl_event *ocl_event)
-            = 0;
-#endif
-
-    virtual status_t compile_impl(const dnnl_partition_impl_t *part,
-            const engine_t *aengine,
-            const std::vector<logical_tensor_t> &inputs,
-            const std::vector<logical_tensor_t> &outputs)
-            = 0;
-
-    virtual status_t execute_impl(const stream_t *astream,
-            const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs)
-            = 0;
-
-    virtual status_t prepare_inplace_pairs_impl() { return status::success; };
-
-    bool enabled_constant_cache() const;
-
-    std::vector<inplace_pair_t> inplace_pairs_;
-    dnnl::engine p_engine_;
-};
-
-using kernel_ptr = std::shared_ptr<kernel_base_t>;
-using FCreateKernel = std::function<kernel_ptr(void)>;
-
-kernel_ptr large_partition_kernel_creator();
-kernel_ptr dummy_kernel_creator();
 
 class dnnl_backend : public backend_t {
     friend class dnnl_partition_impl_t;

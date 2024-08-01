@@ -33,7 +33,10 @@
 #include "graph/backend/dnnl/dnnl_backend.hpp"
 #include "graph/backend/dnnl/dnnl_partition_impl.hpp"
 #include "graph/backend/dnnl/op_executable.hpp"
+#include "graph/backend/dnnl/subgraph.hpp"
 #include "graph/backend/dnnl/thread_local_cache.hpp"
+
+#include "graph/backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -146,6 +149,8 @@ public:
     }
 #endif
 };
+
+kernel_ptr dummy_kernel_creator();
 
 } // namespace dnnl_impl
 } // namespace graph

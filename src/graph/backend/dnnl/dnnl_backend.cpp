@@ -31,12 +31,6 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 
-bool kernel_base_t::enabled_constant_cache() const {
-    if (!p_engine_.get(true)) { return false; }
-    bool enabled = is_constant_cache_enabled(p_engine_);
-    return enabled;
-}
-
 dnnl_backend::dnnl_backend(const std::string &name, float priority)
     : backend_t(name, priority) {
     register_op_schemas();
@@ -111,13 +105,6 @@ graph::utils::optional_t<memory::desc> dnnl_backend::get_mem_desc(
     return layout_id_manager_.get_mem_desc(layout_id);
 }
 
-kernel_ptr large_partition_kernel_creator() {
-    return std::make_shared<larger_partition_kernel_t>();
-}
-
-kernel_ptr dummy_kernel_creator() {
-    return std::make_shared<dummy_kernel_t>();
-}
 } // namespace dnnl_impl
 
 // This function should be called by backend_registry_t

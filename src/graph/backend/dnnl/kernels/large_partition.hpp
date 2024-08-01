@@ -464,6 +464,8 @@ public:
 #endif
 };
 
+kernel_ptr large_partition_kernel_creator();
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
