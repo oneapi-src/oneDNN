@@ -20,6 +20,8 @@
 #include "common/memory_desc_wrapper.hpp"
 #include "common/verbose.hpp"
 
+#include "cpu/ref_io_helper.hpp"
+
 #include "cpu/x64/amx_tile_configure.hpp"
 
 #include "cpu/x64/brgemm/brgemm.hpp"
@@ -49,6 +51,26 @@ status_t attr_params_t::set_post_ops_args(const void **post_ops_args) {
     return status::success;
 }
 
+status_t attr_params_t::set_scales(const void *scales, int arg) {
+    switch (arg) {
+        case DNNL_ARG_SRC: a_scales_ = scales; break;
+        case DNNL_ARG_WEIGHTS: b_scales_ = scales; break;
+        case DNNL_ARG_DST: d_scales_ = scales; break;
+        default: assert(!"unsupported arg");
+    }
+    return status::success;
+}
+
+const void *attr_params_t::get_scales(int arg) const {
+    switch (arg) {
+        case DNNL_ARG_SRC: return a_scales_;
+        case DNNL_ARG_WEIGHTS: return b_scales_;
+        case DNNL_ARG_DST: return d_scales_;
+        default: assert(!"unsupported arg");
+    }
+    return nullptr;
+}
+
 dnnl_brgemm::~dnnl_brgemm() {
     brgemm_kernel_destroy(brgemm_kernel_);
 }
@@ -68,6 +90,12 @@ status_t brgemm_t::set_post_ops(
     ldd_ = ldd;
     d_dt_ = d_dt;
     CHECK(attr_.set_post_ops(*post_ops));
+    return status::success;
+}
+
+status_t brgemm_t::set_scales(int mask, int arg) {
+    if (mask < 0) return status::invalid_arguments;
+    CHECK(attr_.scales_.set(arg, mask));
     return status::success;
 }
 
@@ -201,6 +229,66 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
     // This member expects a pointer to a vector of pointers to binary_po args.
     // It's exactly what `attr_params` stores when gets a pointer from the user.
     post_ops_data.binary_post_ops_rhs = attr_params->get_post_ops_args();
+
+    // Scales (quantization case, happens after accumulation). Require manual
+    // combining when both are present, and extending to full simd broadcast,
+    // when single values are provided.
+    // Note: this piece is pretty close to what `precompute_scales` does.
+    // TODO: switch to `precompute_scales` directly.
+    alignas(64) float scales_buf[16] = {0};
+    // TODO: delegate extra memory to scratchpad?
+    std::vector<float> wei_scales_v(N_);
+
+    const bool has_src_scales
+            = !attr_.scales_.get(DNNL_ARG_SRC).has_default_values();
+    const bool has_wei_scales
+            = !attr_.scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
+
+    // Save src scale value to re-use it.
+    float src_scale_val = 1.f;
+    if (has_src_scales) {
+        const void *src_scales_ptr = attr_params->get_scales(DNNL_ARG_SRC);
+        if (src_scales_ptr == nullptr) return status::invalid_arguments;
+
+        src_scale_val
+                = cpu::io::load_float_value(data_type::f32, src_scales_ptr, 0);
+    }
+    if (has_wei_scales) {
+        // Handle weights entirely here to avoid duplicating the logic.
+
+        const void *wei_scales_ptr = attr_params->get_scales(DNNL_ARG_WEIGHTS);
+        if (wei_scales_ptr == nullptr) return status::invalid_arguments;
+
+        int wei_mask = attr_.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+        if (wei_mask > 0) {
+            for (dim_t i = 0; i < N_; i++) {
+                const float wei_scale_val = cpu::io::load_float_value(
+                        data_type::f32, wei_scales_ptr, i);
+                wei_scales_v[i] = wei_scale_val * src_scale_val;
+            }
+            post_ops_data.scales = wei_scales_v.data();
+        } else {
+            const float s = cpu::io::load_float_value(
+                    data_type::f32, wei_scales_ptr, 0);
+            utils::array_set(scales_buf, s * src_scale_val, 16);
+            post_ops_data.scales = scales_buf;
+        }
+    } else if (has_src_scales) {
+        utils::array_set(scales_buf, src_scale_val, 16);
+        post_ops_data.scales = scales_buf;
+    }
+
+    // Destination scales. Require manual extending to full simd broadcast.
+    alignas(64) float dst_scales_buf[16] = {0};
+    if (!attr_.scales_.get(DNNL_ARG_DST).has_default_values()) {
+        const void *dst_scales_ptr = attr_params->get_scales(DNNL_ARG_DST);
+        if (dst_scales_ptr == nullptr) return status::invalid_arguments;
+
+        const float s
+                = cpu::io::load_float_value(data_type::f32, dst_scales_ptr, 0);
+        utils::array_set(dst_scales_buf, 1.f / s, 16);
+        post_ops_data.dst_scales = dst_scales_buf;
+    }
 
     if (D_ptr && c_dt_ == d_dt_
             && attr_.has_default_values(
@@ -405,6 +493,30 @@ status_t dnnl_ukernel_attr_params_set_post_ops_args(
     return status::success;
 }
 
+status_t dnnl_ukernel_attr_params_set_A_scales(
+        attr_params_t *attr_params, const void *a_scales) {
+    if (attr_params == nullptr) return status::invalid_arguments;
+
+    CHECK(attr_params->set_scales(a_scales, DNNL_ARG_SRC));
+    return status::success;
+}
+
+status_t dnnl_ukernel_attr_params_set_B_scales(
+        attr_params_t *attr_params, const void *b_scales) {
+    if (attr_params == nullptr) return status::invalid_arguments;
+
+    CHECK(attr_params->set_scales(b_scales, DNNL_ARG_WEIGHTS));
+    return status::success;
+}
+
+status_t dnnl_ukernel_attr_params_set_D_scales(
+        attr_params_t *attr_params, const void *d_scales) {
+    if (attr_params == nullptr) return status::invalid_arguments;
+
+    CHECK(attr_params->set_scales(d_scales, DNNL_ARG_DST));
+    return status::success;
+}
+
 status_t dnnl_ukernel_attr_params_destroy(attr_params_t *attr_params) {
     delete attr_params;
     return status::success;
@@ -439,6 +551,27 @@ status_t dnnl_brgemm_set_post_ops(brgemm_t *brgemm, dim_t ldd, data_type_t d_dt,
     if (brgemm == nullptr) return invalid_arguments;
 
     CHECK(brgemm->set_post_ops(ldd, d_dt, post_ops));
+    return status::success;
+}
+
+status_t dnnl_brgemm_set_A_scales(brgemm_t *brgemm, int a_scale_mask) {
+    if (brgemm == nullptr) return invalid_arguments;
+
+    CHECK(brgemm->set_scales(a_scale_mask, DNNL_ARG_SRC));
+    return status::success;
+}
+
+status_t dnnl_brgemm_set_B_scales(brgemm_t *brgemm, int b_scale_mask) {
+    if (brgemm == nullptr) return invalid_arguments;
+
+    CHECK(brgemm->set_scales(b_scale_mask, DNNL_ARG_WEIGHTS));
+    return status::success;
+}
+
+status_t dnnl_brgemm_set_D_scales(brgemm_t *brgemm, int d_scale_mask) {
+    if (brgemm == nullptr) return invalid_arguments;
+
+    CHECK(brgemm->set_scales(d_scale_mask, DNNL_ARG_DST));
     return status::success;
 }
 

@@ -53,8 +53,14 @@ struct dnnl_ukernel_attr_params : public dnnl::impl::c_compatible {
     dnnl::impl::status_t set_post_ops_args(const void **post_ops_args);
     const void *get_post_ops_args() const { return post_ops_args_; }
 
+    dnnl::impl::status_t set_scales(const void *scales, int arg);
+    const void *get_scales(int arg) const;
+
 private:
     const void *post_ops_args_;
+    const void *a_scales_;
+    const void *b_scales_;
+    const void *d_scales_;
 };
 
 struct dnnl_brgemm : public dnnl::impl::c_compatible {
@@ -85,6 +91,8 @@ struct dnnl_brgemm : public dnnl::impl::c_compatible {
     dnnl::impl::status_t set_post_ops(dnnl::impl::dim_t ldd,
             dnnl::impl::data_type_t d_dt,
             const dnnl::impl::post_ops_t *post_ops);
+
+    dnnl::impl::status_t set_scales(int mask, int arg);
 
     dnnl::impl::status_t finalize();
 

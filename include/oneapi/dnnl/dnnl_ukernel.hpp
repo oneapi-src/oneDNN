@@ -102,6 +102,39 @@ struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
             error::wrap_c_api(
                     status, "could not set post operations arguments");
     }
+
+    /// Sets tensor A scales arguments to a storage.
+    ///
+    /// @param a_scales Pointer to scales storage.
+    void set_A_scales(const void *a_scales) {
+        dnnl_status_t status
+                = dnnl_ukernel_attr_params_set_A_scales(get(), a_scales);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set A scales argument");
+    }
+
+    /// Sets tensor B scales arguments to a storage.
+    ///
+    /// If @ref brgemm::set_B_scales used mask of 2, then at least N values of
+    /// selected data type are expected.
+    ///
+    /// @param b_scales Pointer to scales storage.
+    void set_B_scales(const void *b_scales) {
+        dnnl_status_t status
+                = dnnl_ukernel_attr_params_set_B_scales(get(), b_scales);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set B scales argument");
+    }
+
+    /// Sets tensor D scales arguments to a storage.
+    ///
+    /// @param d_scales Pointer to scales storage.
+    void set_D_scales(const void *d_scales) {
+        dnnl_status_t status
+                = dnnl_ukernel_attr_params_set_D_scales(get(), d_scales);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set D scales argument");
+    }
 };
 
 /// @addtogroup dnnl_api_ukernel_brgemm BRGeMM ukernel
@@ -175,6 +208,42 @@ struct brgemm : public handle<dnnl_brgemm_t> {
                 get(), ldd, memory::convert_to_c(d_dt), po.get());
         if (status != dnnl_success)
             error::wrap_c_api(status, "could not set post operations");
+    }
+
+    /// Sets tensor A scales mask to a BRGeMM ukernel object.
+    ///
+    /// For quantization flavor tensor A scales apply to accumulation buffer
+    /// once C is ready.
+    ///
+    /// @param a_scale_mask Tensor A scale mask. Can be `0` only.
+    void set_A_scales(int a_scale_mask) {
+        dnnl_status_t status = dnnl_brgemm_set_A_scales(get(), a_scale_mask);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set A scales");
+    }
+
+    /// Sets tensor B scales mask to a BRGeMM ukernel object.
+    ///
+    /// For quantization flavor tensor B scales apply to accumulation buffer
+    /// once C is ready.
+    ///
+    /// @param b_scale_mask Tensor B scale mask. Can be `0` and `2` only.
+    void set_B_scales(int b_scale_mask) {
+        dnnl_status_t status = dnnl_brgemm_set_B_scales(get(), b_scale_mask);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set B scales");
+    }
+
+    /// Sets tensor D scales mask to a BRGeMM ukernel object.
+    ///
+    /// For quantization flavor tensor D scales apply after all post-ops are
+    /// applied.
+    ///
+    /// @param d_scale_mask Tensor D scale mask. Can be `0` only.
+    void set_D_scales(int d_scale_mask) {
+        dnnl_status_t status = dnnl_brgemm_set_D_scales(get(), d_scale_mask);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set D scales");
     }
 
     /// Finalizes initialization of a BRGeMM ukernel object.

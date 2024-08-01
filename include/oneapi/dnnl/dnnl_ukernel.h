@@ -53,6 +53,36 @@ dnnl_status_t DNNL_API dnnl_ukernel_attr_params_create(
 dnnl_status_t DNNL_API dnnl_ukernel_attr_params_set_post_ops_args(
         dnnl_ukernel_attr_params_t attr_params, const void **post_ops_args);
 
+/// Sets tensor A scales argument to a storage.
+///
+/// @param attr_params Memory pointers storage object.
+/// @param a_scales Pointer to the scales storage.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ukernel_attr_params_set_A_scales(
+        dnnl_ukernel_attr_params_t attr_params, const void *a_scales);
+
+/// Sets tensor B scales argument to a storage.
+///
+/// If `dnnl_brgemm_set_B_scales` used mask of 2, then at least N values of
+/// selected data type are expected.
+///
+/// @param attr_params Memory pointers storage object.
+/// @param b_scales Pointer to the scales storage.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ukernel_attr_params_set_B_scales(
+        dnnl_ukernel_attr_params_t attr_params, const void *b_scales);
+
+/// Sets tensor D scales argument to a storage.
+///
+/// @param attr_params Memory pointers storage object.
+/// @param d_scales Pointer to the scales storage.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ukernel_attr_params_set_D_scales(
+        dnnl_ukernel_attr_params_t attr_params, const void *d_scales);
+
 /// Destroys a ukernel attributes memory storage.
 ///
 /// @param attr_params Memory pointers storage object to destroy.
@@ -113,6 +143,36 @@ dnnl_status_t DNNL_API dnnl_brgemm_set_add_C(dnnl_brgemm_t brgemm, int add_C);
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_brgemm_set_post_ops(dnnl_brgemm_t brgemm,
         dnnl_dim_t ldd, dnnl_data_type_t d_dt, const_dnnl_post_ops_t post_ops);
+
+/// Sets tensor A scales mask to a BRGeMM ukernel object.
+///
+/// For quantization flavor tensor A scales apply to accumulation buffer once C
+/// is ready.
+///
+/// @param brgemm BRGeMM ukernel object.
+/// @param a_scale_mask Tensor A scale mask. Can be `0` only.
+dnnl_status_t DNNL_API dnnl_brgemm_set_A_scales(
+        dnnl_brgemm_t brgemm, int a_scale_mask);
+
+/// Sets tensor B scales mask to a BRGeMM ukernel object.
+///
+/// For quantization flavor tensor B scales apply to accumulation buffer once C
+/// is ready.
+///
+/// @param brgemm BRGeMM ukernel object.
+/// @param b_scale_mask Tensor B scale mask. Can be `0` and `2` only.
+dnnl_status_t DNNL_API dnnl_brgemm_set_B_scales(
+        dnnl_brgemm_t brgemm, int b_scale_mask);
+
+/// Sets tensor D scales mask to a BRGeMM ukernel object.
+///
+/// For quantization flavor tensor D scales apply after all post-ops are
+/// applied.
+///
+/// @param brgemm BRGeMM ukernel object.
+/// @param d_scale_mask Tensor D scale mask. Can be `0` only.
+dnnl_status_t DNNL_API dnnl_brgemm_set_D_scales(
+        dnnl_brgemm_t brgemm, int d_scale_mask);
 
 /// Finalizes initialization of a BRGeMM ukernel object.
 ///

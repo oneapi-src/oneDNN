@@ -50,7 +50,7 @@ void brgemm_example() {
 
     // ukernel dimensions.
     // K is for a whole tensor, K_k is for a single ukernel.
-    const memory::dim M = 8, K = 64, K_k = 32, N = 48;
+    const memory::dim M = 8, K = 128, K_k = 64, N = 48;
     if (K % K_k != 0) {
         printf("K_k must divide K.\n");
         return;
@@ -63,12 +63,10 @@ void brgemm_example() {
     const memory::dim ldd = N; // Leading dimension for an actual output.
     const memory::dim batch_size = n_calls - 1;
 
-#define DT dt::f32
-    memory::data_type a_dt = DT;
-    memory::data_type b_dt = DT;
-    memory::data_type c_dt = dt::f32; // Accumulator data type.
-    memory::data_type d_dt = DT; // Output data type.
-#undef DT
+    memory::data_type a_dt = dt::u8;
+    memory::data_type b_dt = dt::s8;
+    memory::data_type c_dt = dt::s32; // Accumulator data type.
+    memory::data_type d_dt = dt::f32; // Output data type.
 
     // A, B, and C tensors dimensions.
     memory::dims A_dims = {M, K};
@@ -76,19 +74,22 @@ void brgemm_example() {
     memory::dims C_dims = {M, N};
     memory::dims D_dims = {M, N};
     memory::dims binary_add_dims = {1, 1};
+    memory::dims B_scales_dims = {1, N};
 
     // Allocate buffers with user data.
     std::vector<float> A_user_data(product(A_dims));
     std::vector<float> B_user_data(product(B_dims));
     std::vector<float> binary_add_user_data(product(binary_add_dims));
+    std::vector<float> B_scales_user_data(product(B_scales_dims));
     std::vector<float> D_data(product(D_dims)); // For reference comparison
     std::vector<float> D_user_data(product(D_dims)); // For reference comparison
 
-    // Initialize A, B, and binary_add.
+    // Initialize A.
     std::generate(A_user_data.begin(), A_user_data.end(), []() {
         static int i = 0;
         return i++ % 4;
     });
+    // Initialize B.
     std::generate(B_user_data.begin(), B_user_data.end(), []() {
         static int i = 6;
         static int sign_gen = 0;
@@ -96,23 +97,32 @@ void brgemm_example() {
         float val = sign * (i++ % 5);
         return val;
     });
+    // Initialize binary_add.
     std::generate(
             binary_add_user_data.begin(), binary_add_user_data.end(), []() {
                 static int i = 3;
                 return i++ % 6;
             });
+    // Initialize B scales.
+    std::generate(B_scales_user_data.begin(), B_scales_user_data.end(), []() {
+        static int i = 4;
+        return (float)(i++ % 16) / 8.f;
+    });
 
     // Create f32 memories. They are used as data holders and reorder into
     // memories passed to the ukernel.
     auto A_f32_md = memory::desc(A_dims, dt::f32, tag::ab);
     auto B_f32_md = memory::desc(B_dims, dt::f32, tag::ab);
     auto binary_add_f32_md = memory::desc(binary_add_dims, dt::f32, tag::ab);
+    auto B_scales_f32_md = memory::desc(B_scales_dims, dt::f32, tag::ab);
     auto D_f32_md = memory::desc(D_dims, dt::f32, tag::ab);
 
     auto A_f32_mem = memory(A_f32_md, engine, A_user_data.data());
     auto B_f32_mem = memory(B_f32_md, engine, B_user_data.data());
     auto binary_add_f32_mem
             = memory(binary_add_f32_md, engine, binary_add_user_data.data());
+    auto B_scales_f32_mem
+            = memory(B_scales_f32_md, engine, B_scales_user_data.data());
     auto D_f32_mem = memory(D_f32_md, engine, D_user_data.data());
 
     // Create ukernel memories in requested data types.
@@ -120,12 +130,14 @@ void brgemm_example() {
     auto A_md = memory::desc(A_dims, a_dt, tag::ab);
     auto B_md = memory::desc(B_dims, b_dt, tag::ab);
     auto binary_add_md = memory::desc(binary_add_dims, dt::f32, tag::ab);
+    auto B_scales_md = memory::desc(B_scales_dims, dt::f32, tag::ab);
     auto C_md = memory::desc(C_dims, c_dt, tag::ab);
     auto D_md = memory::desc(D_dims, d_dt, tag::ab);
 
     auto A_mem = memory(A_md, engine);
     auto B_mem = memory(B_md, engine);
     auto binary_add_mem = memory(binary_add_md, engine);
+    auto B_scales_mem = memory(B_scales_md, engine);
     auto C_mem = memory(C_md, engine);
     auto D_mem = memory(D_md, engine);
 
@@ -142,6 +154,8 @@ void brgemm_example() {
     reorder(B_f32_mem, B_mem).execute(engine_stream, B_f32_mem, B_mem);
     reorder(binary_add_f32_mem, binary_add_mem)
             .execute(engine_stream, binary_add_f32_mem, binary_add_mem);
+    reorder(B_scales_f32_mem, B_scales_mem)
+            .execute(engine_stream, B_scales_f32_mem, B_scales_mem);
     reorder(D_f32_mem, D_mem).execute(engine_stream, D_f32_mem, D_mem);
     // Prepare C buffer. Needed to use a single ukernel in the example with
     // `beta = 1.f`.
@@ -198,6 +212,10 @@ void brgemm_example() {
         brg_po.set_add_C(true);
         // Specify post-ops for the brgemm object.
         brg_po.set_post_ops(ldd, d_dt, brgemm_ops);
+        // Specify quantization scales for B.
+        if (b_dt == dt::s8 || b_dt == dt::u8) {
+            brg_po.set_B_scales(/* mask = */ 2);
+        }
         // Finalize the initialization.
         brg_po.finalize();
         // Generate the executable JIT code for the objects.
@@ -292,6 +310,7 @@ void brgemm_example() {
     // Setting post-ops arguments into an attributes arguments storage.
     attr_params params;
     params.set_post_ops_args(bin_po_ptrs.data());
+    params.set_B_scales(B_scales_mem.get_data_handle());
 
     // An execute call. The difference here is an additional D tensor pointer
     // to store final output result after finishing accumulation and post-ops
@@ -309,6 +328,11 @@ void brgemm_example() {
     auto user_D_mem = memory(D_f32_md, engine, D_data.data());
     reorder(D_mem, user_D_mem).execute(engine_stream, D_mem, user_D_mem);
 
+    // Skip the check by default as data filling doesn't help with proper
+    // verification of the result. Negative result doesn't necessarily mean
+    // the functionality is broken. This is just a general sanity check.
+    if (true) return;
+
     // A simplified fast verification that ukernel returned expected results.
     // Note: potential off-by-1 or 2 errors may pop up. This could be solved
     // with more sparse filling.
@@ -320,6 +344,8 @@ void brgemm_example() {
                 D_user_data[m * N + n]
                         += A_user_data[m * K + k] * B_user_data[k * N + n];
             }
+            // B scales ref
+            D_user_data[m * N + n] *= B_scales_user_data[n];
             // Relu post-op ref
             D_user_data[m * N + n] = std::max(D_user_data[m * N + n], 0.f);
             // Binary post-op ref

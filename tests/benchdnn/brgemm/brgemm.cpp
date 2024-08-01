@@ -402,6 +402,21 @@ int init_kernel(kernel_args_t &kernel_args) {
     DNN_SAFE(dnnl_brgemm_set_post_ops(
                      brgemm, prb->get_ldd(), prb->dst_dt(), dnnl_post_ops),
             WARN);
+    if (!prb->attr.scales.is_def(DNNL_ARG_SRC)) {
+        DNN_SAFE(dnnl_brgemm_set_A_scales(
+                         brgemm, prb->attr.scales.get_mask(DNNL_ARG_SRC)),
+                WARN);
+    }
+    if (!prb->attr.scales.is_def(DNNL_ARG_WEIGHTS)) {
+        DNN_SAFE(dnnl_brgemm_set_B_scales(
+                         brgemm, prb->attr.scales.get_mask(DNNL_ARG_WEIGHTS)),
+                WARN);
+    }
+    if (!prb->attr.scales.is_def(DNNL_ARG_DST)) {
+        DNN_SAFE(dnnl_brgemm_set_D_scales(
+                         brgemm, prb->attr.scales.get_mask(DNNL_ARG_DST)),
+                WARN);
+    }
     // This call is responsible whether the final configuration is supported
     // or not.
     st = dnnl_brgemm_finalize(brgemm);
@@ -522,11 +537,9 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     }
 #else
     if (!prb->attr.is_def()) {
-        bool non_def_scales = !prb->attr.scales.is_def();
         bool non_def_zps = !prb->attr.zero_points.is_def();
-        bool non_def_po = !prb->attr.post_ops.is_def();
         bool non_def_fpmath = !prb->attr.fpmath_mode.is_def();
-        if (non_def_scales || non_def_zps || non_def_fpmath) {
+        if (non_def_zps || non_def_fpmath) {
             BENCHDNN_PRINT(2, "%s\n",
                     "Non-default scales/zero-points/fpmath attributes are not "
                     "supported");
@@ -534,6 +547,8 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
             res->reason = skip_reason::case_not_supported;
             return;
         }
+
+        bool non_def_po = !prb->attr.post_ops.is_def();
         if (non_def_po) {
             const auto &po = prb->attr.post_ops;
             bool has_sum = po.find(attr_t::post_ops_t::kind_t::SUM) != -1;
@@ -1120,6 +1135,11 @@ int doit(const prb_t *prb, res_t *res) {
     std::vector<const void *> binary_po_v;
     SAFE(binary_post_op_preprocessing(binary_po_v, mem_map), WARN);
 
+    const float *dst_scales_ptr
+            = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
+            ? (const float *)mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
+            : nullptr;
+
 #if !defined(DNNL_EXPERIMENTAL_UKERNEL)
     std::vector<namespace_impl::brgemm_batch_element_t> v_batch_element(
             prb->batch_size);
@@ -1135,13 +1155,10 @@ int doit(const prb_t *prb, res_t *res) {
         }
     }
 
+    // For internal API, scales are combined. See `scales_post_processing`.
     const float *scales_ptr
             = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
             ? (const float *)mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
-            : nullptr;
-    const float *dst_scales_ptr
-            = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
-            ? (const float *)mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
             : nullptr;
     const int32_t *dst_zp_ptr
             = mem_map.count(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
@@ -1222,6 +1239,21 @@ int doit(const prb_t *prb, res_t *res) {
     DNN_SAFE(dnnl_ukernel_attr_params_create(&attr_params), WARN);
     DNN_SAFE(dnnl_ukernel_attr_params_set_post_ops_args(
                      attr_params, binary_po_v.data()),
+            WARN);
+
+    const void *src_scales_ptr
+            = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC)
+            ? (const void *)mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC)
+            : nullptr;
+    const void *wei_scales_ptr
+            = mem_map.count(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
+            ? (const void *)mem_map.at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
+            : nullptr;
+    DNN_SAFE(dnnl_ukernel_attr_params_set_A_scales(attr_params, src_scales_ptr),
+            WARN);
+    DNN_SAFE(dnnl_ukernel_attr_params_set_B_scales(attr_params, wei_scales_ptr),
+            WARN);
+    DNN_SAFE(dnnl_ukernel_attr_params_set_D_scales(attr_params, dst_scales_ptr),
             WARN);
 #endif
 
