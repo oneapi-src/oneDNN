@@ -175,6 +175,7 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
         }
     }
 
+    acl_conv_obj->conv.prepare(pack);
     acl_conv_obj->conv.run(pack);
 
     void *dst = dst_tensor.buffer();

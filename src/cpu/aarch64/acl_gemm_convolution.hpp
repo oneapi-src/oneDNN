@@ -22,8 +22,7 @@
 
 #include "acl_convolution_utils.hpp"
 #include "acl_post_ops.hpp"
-#include "src/cpu/operators/CpuGemmConv2d.h"
-// #include "arm_compute/runtime/experimental/operators/CpuGemmConv2d.h"
+#include "arm_compute/runtime/experimental/operators/CpuGemmConv2d.h"
 
 namespace dnnl {
 namespace impl {
@@ -33,8 +32,9 @@ namespace aarch64 {
 template <data_type_t src_type, data_type_t wei_type = src_type,
         data_type_t dst_type = src_type, data_type_t bia_type = dst_type>
 struct acl_gemm_convolution_fwd_t : public primitive_t {
-    using Op = arm_compute::cpu::CpuGemmConv2d;
-    // using Op = arm_compute::experimental::op::CpuGemmConv2d;
+
+    using Op = arm_compute::experimental::op::CpuGemmConv2d;
+
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
