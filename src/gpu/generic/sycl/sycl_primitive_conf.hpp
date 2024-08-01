@@ -388,7 +388,6 @@ struct sycl_sum_conf_t {
     int block_size;
     int wg_size;
     int wk_size;
-
 };
 
 struct sycl_pooling_bwd_conf_t : public sycl_pooling_base_conf_t {
