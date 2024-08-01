@@ -105,8 +105,7 @@ struct softmax_fwd_kernel_vec_t {
 
                 float scale = 1.0f;
                 if (conf_.do_scale_src) {
-                    scale = conf_.do_scale_src ? src_scale_mem.load(0)
-                                               : scale;
+                    scale = conf_.do_scale_src ? src_scale_mem.load(0) : scale;
                     d = d * scale;
                 }
 
@@ -141,8 +140,7 @@ struct softmax_fwd_kernel_vec_t {
                 d = conf_.post_ops.apply(d, dst_arr);
 
                 if (conf_.do_scale_dst) {
-                    scale = conf_.do_scale_dst ? dst_scale_mem.load(0)
-                                               : scale;
+                    scale = conf_.do_scale_dst ? dst_scale_mem.load(0) : scale;
                     d = d / scale;
                 }
 
