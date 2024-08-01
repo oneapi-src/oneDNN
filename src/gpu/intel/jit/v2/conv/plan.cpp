@@ -577,15 +577,9 @@ private:
                 desc_.is_dw, desc_.spec_reqs);
         auto dst_layout = make_conv_layout(tensor_kind_t::dst, desc_.dst_tag,
                 desc_.is_dw, desc_.spec_reqs);
-        auto &a_mapper = dim_mapper_manager_.mapper(tensor_kind_t::a);
-        auto &b_mapper = dim_mapper_manager_.mapper(tensor_kind_t::b);
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
-        a_iter_view_ = view_t(
-                a_mapper, a_layout_, coord_info_.iter_coord(), desc_.iter_tile);
-        b_iter_view_ = view_t(
-                b_mapper, b_layout_, coord_info_.iter_coord(), desc_.iter_tile);
     }
 
     dim_map_t<prb_dim_t, prb_dim_kind_t> to_bmnk_map() const {
@@ -630,16 +624,16 @@ private:
         plan.thr_grid = thr_grid_;
         plan.virt_grid = virt_grid_;
         plan.coord_info = coord_info_;
-        ir_check(init_x2r_plan(plan.x2r));
-        ir_check(init_prefetch_plan(plan.x2r, plan.virt_grid, plan.prefetch));
-        ir_check(init_fma_plan(plan.x2r, plan.fma));
-        ir_check(init_epilogue_plan(plan.fma, plan.epilogue));
+        ir_check(init_x2r_fma_plan(plan.x2r_fma));
+        ir_check(init_prefetch_plan(
+                plan.x2r_fma, plan.virt_grid, plan.prefetch));
+        ir_check(init_epilogue_plan(plan.x2r_fma.c_layout, plan.epilogue));
         return true;
     }
 
     bool init_x_prefetch_plan(tensor_kind_t abc,
             const prb_coord_t<expr_t> &coord, const prb_tile_t &tile,
-            const x2r_plan_t &x2r, virt_grid_t &virt_grid,
+            const x2r_fma_plan_t &x2r_fma, virt_grid_t &virt_grid,
             send_plan_t &prefetch) const {
         auto &mapper = dim_mapper_manager_.mapper(abc);
         auto &layout = (abc == tensor_kind_t::a ? a_layout_ : b_layout_);
@@ -656,38 +650,42 @@ private:
         auto params = get_send_params(
                 abc, send_op_t::prefetch, view, send_kind_t::_2d);
         prefetch = create_send_plan(params, view, /*allow_fail=*/true);
-        if (!prefetch || !x2r.reqs().implies(prefetch.reqs())) {
+        if (!prefetch || !x2r_fma.reqs().implies(prefetch.reqs())) {
             // If 2D failed, try compressed prefetch.
             params = get_send_params(abc, send_op_t::prefetch, view,
                     send_kind_t::compressed_prefetch);
             prefetch = create_send_plan(params, view, /*allow_fail=*/true);
-            if (!prefetch) return false;
+            ir_check(prefetch)
+                    << "init_x_prefetch_plan: cannot create send plan"
+                    << std::endl
+                    << params << std::endl
+                    << ir_utils::add_tag("view", view.str());
         }
         return true;
     }
 
-    bool init_prefetch_plan(const x2r_plan_t &x2r, virt_grid_t &virt_grid,
-            prefetch_plan_t &plan) const {
+    bool init_prefetch_plan(const x2r_fma_plan_t &x2r_fma,
+            virt_grid_t &virt_grid, prefetch_plan_t &plan) const {
         if (desc_.prefetch.a) {
             ir_check(init_x_prefetch_plan(tensor_kind_t::a,
                     coord_info_.tg_iter_coord(), coord_info_.tg_iter_tile(),
-                    x2r, virt_grid, plan.a_prefetch));
+                    x2r_fma, virt_grid, plan.a_prefetch));
         }
         if (desc_.prefetch.b) {
             ir_check(init_x_prefetch_plan(tensor_kind_t::b,
                     coord_info_.tg_iter_coord(), coord_info_.tg_iter_tile(),
-                    x2r, virt_grid, plan.b_prefetch));
+                    x2r_fma, virt_grid, plan.b_prefetch));
         }
         return true;
     }
 
-    bool init_x_g2r_plan(tensor_kind_t abc, const view_t &view,
-            reorder_plan_t &reorder, layout_t &reg_layout,
-            send_plan_t &load) const {
+    bool init_x2r_plan(
+            tensor_kind_t abc, const view_t &view, x2r_plan_t &plan) const {
         auto params = get_send_params(abc, send_op_t::load, view);
-        load = create_send_plan(params, view, /*allow_fail=*/true);
-        ir_check(load) << "init_x_x2r_plan: cannot create send plan"
-                       << std::endl
+        auto load = create_send_plan(params, view, /*allow_fail=*/true);
+        reorder_plan_t reorder;
+        layout_t reg_layout;
+        ir_check(load) << "init_x2r_plan: cannot create send plan" << std::endl
                        << params << std::endl
                        << ir_utils::add_tag("view", view.str());
         if (mul_info_.is_compatible(abc, load.reg_layout())) {
@@ -698,23 +696,20 @@ private:
             reorder = reorder_plan_t(desc_.hw, src, dst);
             reg_layout = reorder.dst;
         }
+        plan = x2r_plan_t(desc_.hw);
+        plan.tensor_kind = abc;
+        plan.load = load;
+        plan.reorder = reorder;
+        plan.layout = reg_layout;
         return true;
     }
 
-    bool init_x2r_plan(x2r_plan_t &plan) const {
-        ir_check(init_x_g2r_plan(tensor_kind_t::a, a_iter_view_, plan.a_reorder,
-                plan.a_layout, plan.a_load));
-        ir_check(init_x_g2r_plan(tensor_kind_t::b, b_iter_view_, plan.b_reorder,
-                plan.b_layout, plan.b_load));
-        return true;
-    }
-
-    bool init_fma_plan(const x2r_plan_t &x2r, fma_plan_t &plan) const {
-        auto &a = x2r.a_layout;
-        auto &b = x2r.b_layout;
+    bool init_fma_plan(
+            const layout_t &a, const layout_t &b, fma_plan_t &plan) const {
         auto inst_tile = mul_info_.inst_tile();
         auto acc_layout = mul_info_.acc_layout(a, b, c_layout_);
         ir_check(!acc_layout.is_empty()) << "init_fma_plan: cannot vectorize.";
+        plan = fma_plan_t(desc_.hw);
         plan.simd = desc_.simd;
         plan.fma = desc_.fma;
         plan.a_layout = a;
@@ -724,8 +719,65 @@ private:
         return true;
     }
 
+    bool init_x2r_fma_plan(x2r_fma_plan_t &plan) const {
+        auto &outer = desc_.iter_outer_tile;
+        auto &tile = desc_.iter_tile;
+        ir_assert(outer.is_empty() || outer.size() == 1);
+        auto outer_dim = (outer.is_empty() ? prb_dims::undef : *outer.begin());
+        int outer_size = outer.get(outer_dim, 1);
+        auto sub_tile = tile;
+        if (!outer_dim.is_undef()) sub_tile[outer_dim] /= outer_size;
+        bool is_outer_m = mul_info_.is_m(outer_dim);
+        layout_t a_prev_layout;
+        layout_t b_prev_layout;
+        layout_t c_prev_layout;
+        int c_off_elems = 0;
+        auto &a_mapper = dim_mapper_manager_.mapper(tensor_kind_t::a);
+        auto &b_mapper = dim_mapper_manager_.mapper(tensor_kind_t::b);
+        for (int i = 0; i < outer_size; i++) {
+            auto sub_coord = coord_info_.iter_coord();
+            if (!outer_dim.is_undef()) {
+                sub_coord[outer_dim] += sub_tile[outer_dim] * i;
+            }
+            if (is_outer_m || i == 0) {
+                auto a_sub_view
+                        = view_t(a_mapper, a_layout_, sub_coord, sub_tile);
+                x2r_plan_t a;
+                ir_check(init_x2r_plan(tensor_kind_t::a, a_sub_view, a));
+                plan.add_stage(a);
+                a_prev_layout = a.layout;
+            }
+            if (!is_outer_m || i == 0) {
+                auto b_sub_view
+                        = view_t(b_mapper, b_layout_, sub_coord, sub_tile);
+                x2r_plan_t b;
+                ir_check(init_x2r_plan(tensor_kind_t::b, b_sub_view, b));
+                plan.add_stage(b);
+                b_prev_layout = b.layout;
+            }
+
+            fma_plan_t fma;
+            ir_check(init_fma_plan(a_prev_layout, b_prev_layout, fma));
+            ir_check(c_prev_layout.is_empty() || fma.c_layout == c_prev_layout)
+                    << "init_x2r_fma_plan: inconsistent C layout from "
+                       "subtiles.";
+            c_prev_layout = fma.c_layout;
+            fma.c_layout.set_base(c_off_elems);
+            c_off_elems += ir_utils::safe_div(
+                    fma.c_layout.size(), fma.c_layout.type().size());
+            plan.add_stage(fma);
+        }
+        plan.c_layout = c_prev_layout;
+        if (!outer_dim.is_undef()) {
+            int stride = ir_utils::safe_div(
+                    c_prev_layout.size(), c_prev_layout.type().size());
+            plan.c_layout.add_block(outer_dim, outer_size, stride);
+        }
+        return true;
+    }
+
     bool init_epilogue_plan(
-            const fma_plan_t &fma, epilogue_plan_t &plan) const {
+            const layout_t &c_layout, epilogue_plan_t &plan) const {
         auto &c_mapper = dim_mapper_manager_.mapper(tensor_kind_t::c);
         auto c_iter_view = view_t(
                 c_mapper, c_layout_, coord_info_.iter_coord(), desc_.iter_tile);
@@ -747,8 +799,8 @@ private:
         auto tile = c_store.entry_tile();
         plan.tile = tile;
         plan.c_store = c_store;
-        if (fma.c_layout != c_store.reg_layout()) {
-            auto fma_layout = fma.c_layout.map(tile);
+        if (c_layout != c_store.reg_layout()) {
+            auto fma_layout = c_layout.map(tile);
             auto store_layout = c_store.reg_layout().map(tile);
             if (fma_layout != store_layout) {
                 plan.reorder = reorder_plan_t(desc_.hw);
@@ -815,8 +867,6 @@ private:
     layout_t a_layout_;
     layout_t b_layout_;
     layout_t c_layout_;
-    view_t a_iter_view_;
-    view_t b_iter_view_;
     prb_reqs_t reqs_;
 };
 
@@ -824,7 +874,7 @@ prb_reqs_t plan_t::reqs() const {
     prb_reqs_t ret;
     ret.add(desc.spec_reqs.reqs());
     ret.add(prefetch.reqs());
-    ret.add(x2r.reqs());
+    ret.add(x2r_fma.reqs());
     ret.add(epilogue.c_store.reqs());
     ret.simplify();
     return ret;

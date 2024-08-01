@@ -30,20 +30,20 @@ namespace sycl {
 
 struct eltwise_fwd_kernel_vec_t {
     eltwise_fwd_kernel_vec_t(const sycl_eltwise_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &src, xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::in_memory_arg_t &srcOp1,
-            xpu::sycl::in_memory_arg_t &srcOp2,
-            xpu::sycl::in_memory_arg_t &srcOp3,
-            xpu::sycl::in_memory_arg_t &srcOp4,
-            xpu::sycl::in_memory_arg_t &srcOp5)
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
-        , src_(src)
-        , srcOp1_(srcOp1)
-        , srcOp2_(srcOp2)
-        , srcOp3_(srcOp3)
-        , srcOp4_(srcOp4)
-        , srcOp5_(srcOp5)
-        , dst_(dst) {}
+        , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , srcOp1_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1)))
+        , srcOp2_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1)))
+        , srcOp3_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1)))
+        , srcOp4_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1)))
+        , srcOp5_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1)))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();
@@ -308,10 +308,12 @@ private:
 
 struct eltwise_bwd_kernel_vec_t {
     eltwise_bwd_kernel_vec_t(const sycl_eltwise_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &diff_src,
-            xpu::sycl::in_memory_arg_t &src,
-            xpu::sycl::out_memory_arg_t &diff_dst)
-        : conf_(conf), src_(src), diff_src_(diff_src), diff_dst_(diff_dst) {}
+            ::sycl::handler &cgh, const exec_ctx_t &ctx, bool use_dst)
+        : conf_(conf)
+        , src_(use_dst ? CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)
+                       : CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , diff_src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
+        , diff_dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();

@@ -24,6 +24,7 @@
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_batch_normalization_pd.hpp"
 #include "xpu/sycl/types.hpp"
 
@@ -62,7 +63,8 @@ struct ref_batch_normalization_fwd_t : public gpu::generic::sycl::primitive_t {
                             || with_relu_post_op(is_training()))
                     && set_default_formats_common()
                     && memory_desc_wrapper(src_md(0))
-                            == memory_desc_wrapper(dst_md(0));
+                            == memory_desc_wrapper(dst_md(0))
+                    && md_dims_in_range(src_md());
             if (!ok) return status::unimplemented;
             if (src_md(0)->data_type == s8 && !stats_is_src())
                 return status::unimplemented;
@@ -121,7 +123,8 @@ struct ref_batch_normalization_bwd_t : public gpu::generic::sycl::primitive_t {
                     && attr()->has_default_values()
                     && set_default_formats_common()
                     && memory_desc_wrapper(diff_src_md())
-                            == memory_desc_wrapper(diff_dst_md());
+                            == memory_desc_wrapper(diff_dst_md())
+                    && md_dims_in_range(diff_src_md());
 
             if (!ok) return status::unimplemented;
             if (fuse_norm_relu() || fuse_norm_add_relu()) {

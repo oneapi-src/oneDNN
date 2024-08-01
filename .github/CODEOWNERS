@@ -15,42 +15,39 @@
 #===============================================================================
 
 # Default
-* @intel-innersource/dnn-arch
+* @oneapi-src/onednn-arch @intel-innersource/dnn-arch
+
+# Codeowners
+/.github/CODEOWNERS @oneapi-src/onednn-maintain
+/MAINTAINERS.md @oneapi-src/onednn-maintain
+
+# Github automation
+/.github/ @oneapi-src/onednn-devops
 
 # Documentation
-*.md  @intel-innersource/dnn-doc @intel-innersource/dnn-mgmt @intel-innersource/dnn-arch
-/doc/ @intel-innersource/dnn-doc @intel-innersource/dnn-arch
+*.md  @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
+/doc/ @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
 
-# CPU-specific optimizations
-/src/cpu/ @intel-innersource/dnn-cpu
+# CPU Engine
+/src/cpu/aarch64/ @oneapi-src/onednn-cpu-aarch64 @intel-innersource/dnn-arch
+/src/cpu/x64/ @oneapi-src/onednn-cpu-x64 @intel-innersource/dnn-cpu
+/src/cpu/rnn/ @oneapi-src/onednn-cpu-x64 @intel-innersource/dnn-cpu
 
-# CPU BLAS
-/src/cpu/gemm/ @intel-innersource/dnn-blas @intel-innersource/dnn-arch
-
-# CPU SYCL
-/src/cpu/sycl/ @intel-innersource/dnn-arch
-
-# GPU-specific optimizations
-/src/gpu/ @intel-innersource/dnn-gpu
-
-# NVIDIA and AMD vendors
-/src/gpu/nvidia @intel-innersource/dnn-gpu @intel-innersource/dnn-arch
-/src/gpu/amd @intel-innersource/dnn-gpu @intel-innersource/dnn-arch
-
-# Generic vendor
-/src/gpu/generic @intel-innersource/dnn-gpu @intel-innersource/dnn-arch
-
-# XPU-specific code
-/src/xpu/ @intel-innersource/dnn-arch
+# GPU Engine
+/src/gpu/amd/ @oneapi-src/onednn-gpu-amd @intel-innersource/dnn-arch
+/src/gpu/intel/ @oneapi-src/onednn-gpu-intel @intel-innersource/dnn-gpu
+/src/gpu/nvidia/ @oneapi-src/onednn-gpu-nvidia @intel-innersource/dnn-arch
+/src/gpu/generic/ @oneapi-src/onednn-arch @intel-innersource/dnn-arch @intel-innersource/dnn-gpu
+/src/gpu/generic/sycl/ @oneapi-src/onednn-gpu-generic @intel-innersource/dnn-arch @intel-innersource/dnn-gpu
 
 # Tests
-/tests/benchdnn/inputs/ @intel-innersource/dnn-arch @intel-innersource/dnn-cpu @intel-innersource/dnn-gpu
+/tests/benchdnn/inputs/ @oneapi-src/onednn-maintain @intel-innersource/dnn-arch @intel-innersource/dnn-cpu @intel-innersource/dnn-gpu
+/tests/benchdnn/graph/ @oneapi-src/onednn-graph @oneapi-src/onednn-arch @intel-innersource/dnn-graph @intel-innersource/dnn-arch
+/tests/benchdnn/inputs/graph/ @oneapi-src/onednn-graph @oneapi-src/onednn-arch @intel-innersource/dnn-graph @intel-innersource/dnn-arch
+/tests/gtests/graph/ @oneapi-src/onednn-graph @intel-innersource/dnn-graph
 
-# Graph
-/src/graph/ @intel-innersource/dnn-graph
-/tests/benchdnn/graph/ @intel-innersource/dnn-arch @intel-innersource/dnn-graph
-/tests/benchdnn/inputs/graph/ @intel-innersource/dnn-arch @intel-innersource/dnn-graph
-/tests/gtests/graph/ @intel-innersource/dnn-graph
+# Graph API
+/src/graph/ @oneapi-src/onednn-graph @intel-innersource/dnn-graph
 
 # Graph compiler
 /src/graph/backend/graph_compiler/ @intel-innersource/dnn-compiler

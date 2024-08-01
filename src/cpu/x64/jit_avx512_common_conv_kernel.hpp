@@ -17,6 +17,7 @@
 #ifndef CPU_X64_JIT_AVX512_COMMON_CONV_KERNEL_HPP
 #define CPU_X64_JIT_AVX512_COMMON_CONV_KERNEL_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
@@ -180,15 +181,18 @@ struct jit_avx512_common_conv_fwd_kernel {
         : kernel_(nullptr) {
         switch (ajcp.oc_block) {
             case 16:
-                kernel_ = new _jit_avx512_common_conv_fwd_kernel<Xbyak::Zmm>(
+                kernel_ = utils::make_unique<
+                        _jit_avx512_common_conv_fwd_kernel<Xbyak::Zmm>>(
                         ajcp, attr, dst_md);
                 return;
             case 8:
-                kernel_ = new _jit_avx512_common_conv_fwd_kernel<Xbyak::Ymm>(
+                kernel_ = utils::make_unique<
+                        _jit_avx512_common_conv_fwd_kernel<Xbyak::Ymm>>(
                         ajcp, attr, dst_md);
                 return;
             case 4:
-                kernel_ = new _jit_avx512_common_conv_fwd_kernel<Xbyak::Xmm>(
+                kernel_ = utils::make_unique<
+                        _jit_avx512_common_conv_fwd_kernel<Xbyak::Xmm>>(
                         ajcp, attr, dst_md);
                 return;
             default: assert(!"invalid channel blocking");
@@ -200,7 +204,7 @@ struct jit_avx512_common_conv_fwd_kernel {
         return status::out_of_memory;
     }
 
-    ~jit_avx512_common_conv_fwd_kernel() { delete kernel_; }
+    ~jit_avx512_common_conv_fwd_kernel() {}
 
     enum { typesize = sizeof(float) };
 
@@ -217,7 +221,7 @@ struct jit_avx512_common_conv_fwd_kernel {
 
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_common_conv_fwd_kernel);
-    jit_generator *kernel_;
+    std::unique_ptr<jit_generator> kernel_;
 };
 
 template <typename Vmm>
@@ -347,16 +351,19 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32 {
         : kernel_(nullptr) {
         switch (ajcp.ic_block) {
             case 16:
-                kernel_ = new _jit_avx512_common_conv_bwd_data_kernel_f32<
-                        Xbyak::Zmm>(ajcp);
+                kernel_ = utils::make_unique<
+                        _jit_avx512_common_conv_bwd_data_kernel_f32<
+                                Xbyak::Zmm>>(ajcp);
                 return;
             case 8:
-                kernel_ = new _jit_avx512_common_conv_bwd_data_kernel_f32<
-                        Xbyak::Ymm>(ajcp);
+                kernel_ = utils::make_unique<
+                        _jit_avx512_common_conv_bwd_data_kernel_f32<
+                                Xbyak::Ymm>>(ajcp);
                 return;
             case 4:
-                kernel_ = new _jit_avx512_common_conv_bwd_data_kernel_f32<
-                        Xbyak::Xmm>(ajcp);
+                kernel_ = utils::make_unique<
+                        _jit_avx512_common_conv_bwd_data_kernel_f32<
+                                Xbyak::Xmm>>(ajcp);
                 return;
             default: assert(!"invalid channel blocking");
         }
@@ -367,7 +374,7 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32 {
         return status::out_of_memory;
     }
 
-    ~jit_avx512_common_conv_bwd_data_kernel_f32() { delete kernel_; }
+    ~jit_avx512_common_conv_bwd_data_kernel_f32() {}
 
     enum { typesize = sizeof(float) };
 
@@ -382,7 +389,7 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32 {
 
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_common_conv_bwd_data_kernel_f32);
-    jit_generator *kernel_;
+    std::unique_ptr<jit_generator> kernel_;
 };
 
 struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {

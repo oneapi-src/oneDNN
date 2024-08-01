@@ -511,7 +511,7 @@ expr_t layout_t::stride(const prb_dim_t &dim, int dim_block_idx) const {
     return expr_t();
 }
 
-expr_t layout_t::offset_in_bytes(const std::vector<int> &block_off) const {
+expr_t layout_t::shift_in_bytes(const std::vector<int> &block_off) const {
     expr_t ret = 0;
     for (int i = 0; i < nblocks(); i++) {
         auto &b = blocks_[i];
@@ -522,8 +522,7 @@ expr_t layout_t::offset_in_bytes(const std::vector<int> &block_off) const {
 
 int layout_t::offset_in_bytes(prb_coord_t<int> coord) const {
     ir_assert(has_const_sizes() && has_const_strides());
-    ir_assert(has_zero_base());
-    int ret = 0;
+    int ret = to_cpp<int>(base_);
     for (int i = 0; i < nblocks(); i++) {
         auto &b = blocks_[i];
         int &rem_dim = coord[b.dim];

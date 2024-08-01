@@ -32,18 +32,24 @@ struct reorder_kernel_t {
     static constexpr int vec_len = 8;
     static constexpr int max_supported_ndims = 6;
 
-    reorder_kernel_t(const sycl_reorder_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &src, xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::in_memory_arg_t &src_scale,
-            xpu::sycl::in_memory_arg_t &dst_scale, data_type_t scales_src_dt,
-            data_type_t scales_dst_dt)
+    reorder_kernel_t(const sycl_reorder_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
         : conf_(conf)
-        , src_(src)
-        , dst_(dst)
-        , src_scale_(src_scale)
-        , dst_scale_(dst_scale)
-        , scales_src_dt_(scales_src_dt)
-        , scales_dst_dt_(scales_dst_dt) {}
+        , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , src_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
+        , dst_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
+        , scales_src_dt_(conf_.do_scale_src
+                          ? ctx.memory_mdw(
+                                       DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0)
+                                    .data_type()
+                          : data_type_t::dnnl_f32)
+        , scales_dst_dt_(conf_.do_scale_dst
+                          ? ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
+                                    .data_type()
+                          : data_type_t::dnnl_f32) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();

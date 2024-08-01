@@ -120,6 +120,9 @@ public:
     bool operator>=(ngen::HW rhs) const { return hw_ >= rhs; }
     bool operator==(ngen::HW rhs) const { return hw_ == rhs; }
     bool operator!=(ngen::HW rhs) const { return hw_ != rhs; }
+#if __cplusplus >= 202002L
+    bool operator==(const hw_t &other) const = default;
+#endif
 
 private:
     int max_wg_size(int regs = 128) const {

@@ -33,21 +33,19 @@ namespace sycl {
 
 struct layer_normalization_fwd_kernel_vec_t {
     layer_normalization_fwd_kernel_vec_t(
-            const sycl_layer_normalization_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data, xpu::sycl::in_memory_arg_t &scale,
-            xpu::sycl::in_memory_arg_t &shift, xpu::sycl::in_memory_arg_t &stat,
-            xpu::sycl::in_memory_arg_t &var, xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::in_memory_arg_t &rt_scale,
-            xpu::sycl::in_memory_arg_t &dst_scale)
+            const sycl_layer_normalization_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
         : conf_(conf)
-        , data_(data)
-        , scale_(scale)
-        , shift_(shift)
-        , stat_(stat)
-        , var_(var)
-        , dst_(dst)
-        , rt_scale_(rt_scale)
-        , dst_scale_(dst_scale) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , scale_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE))
+        , shift_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SHIFT))
+        , stat_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN))
+        , var_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , rt_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC))
+        , dst_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();
@@ -139,22 +137,19 @@ private:
 
 struct layer_normalization_fwd_kernel_vec1_t {
     layer_normalization_fwd_kernel_vec1_t(
-            const sycl_layer_normalization_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data, xpu::sycl::in_memory_arg_t &scale,
-            xpu::sycl::in_memory_arg_t &shift, xpu::sycl::out_memory_arg_t &dst,
-            xpu::sycl::out_memory_arg_t &mean_out,
-            xpu::sycl::out_memory_arg_t &var_out,
-            xpu::sycl::in_memory_arg_t &rt_scale,
-            xpu::sycl::in_memory_arg_t &dst_scale)
+            const sycl_layer_normalization_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
         : conf_(conf)
-        , data_(data)
-        , scale_(scale)
-        , shift_(shift)
-        , dst_(dst)
-        , mean_out_(mean_out)
-        , var_out_(var_out)
-        , rt_scale_(rt_scale)
-        , dst_scale_(dst_scale) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , scale_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE))
+        , shift_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SHIFT))
+        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , mean_out_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN))
+        , var_out_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE))
+        , rt_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC))
+        , dst_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
+                  DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         auto sg = item.get_sub_group();
@@ -242,14 +237,12 @@ private:
                         data_md().data_type(), data_ptr(), src_off);
                 float d = sm * (s - v_mean) + sv;
 
-                float sr = conf_.src_def
-                        ? 1.f
-                        : load_float_value(data_scaleshift_md().data_type(),
-                                rt_oscale_ptr(), 0);
-                float ds = conf_.dst_def
-                        ? 1.f
-                        : load_float_value(data_scaleshift_md().data_type(),
-                                dst_oscale_ptr(), 0);
+                float sr = conf_.src_def ? 1.f
+                                         : load_float_value(conf_.scales_src_dt,
+                                                 rt_oscale_ptr(), 0);
+                float ds = conf_.dst_def ? 1.f
+                                         : load_float_value(conf_.scales_dst_dt,
+                                                 dst_oscale_ptr(), 0);
                 d = (d * sr * (1.f / ds));
 
                 store_float_value(dst_md().data_type(), d, dst_ptr(), d_off);
@@ -276,23 +269,17 @@ private:
 
 struct layer_normalization_bwd_kernel_vec_t {
     layer_normalization_bwd_kernel_vec_t(
-            const sycl_layer_normalization_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data,
-            xpu::sycl::out_memory_arg_t &diff_data,
-            xpu::sycl::in_memory_arg_t &scale,
-            xpu::sycl::out_memory_arg_t &diff_scale,
-            xpu::sycl::out_memory_arg_t &diff_shift,
-            xpu::sycl::in_memory_arg_t &stat, xpu::sycl::in_memory_arg_t &var,
-            xpu::sycl::in_memory_arg_t &diff_dst)
+            const sycl_layer_normalization_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
         : conf_(conf)
-        , data_(data)
-        , diff_data_(diff_data)
-        , scale_(scale)
-        , diff_scale_(diff_scale)
-        , diff_shift_(diff_shift)
-        , stat_(stat)
-        , var_(var)
-        , diff_dst_(diff_dst) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
+        , scale_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE))
+        , diff_scale_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SCALE))
+        , diff_shift_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SHIFT))
+        , stat_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN))
+        , var_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE))
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
@@ -395,23 +382,17 @@ private:
 
 struct layer_normalization_bwd_kernel_vec2_t {
     layer_normalization_bwd_kernel_vec2_t(
-            const sycl_layer_normalization_conf_t &conf,
-            xpu::sycl::in_memory_arg_t &data,
-            xpu::sycl::out_memory_arg_t &diff_data,
-            xpu::sycl::in_memory_arg_t &scale,
-            xpu::sycl::out_memory_arg_t &diff_scale,
-            xpu::sycl::out_memory_arg_t &diff_shift,
-            xpu::sycl::in_memory_arg_t &stat, xpu::sycl::in_memory_arg_t &var,
-            xpu::sycl::in_memory_arg_t &diff_dst)
+            const sycl_layer_normalization_conf_t &conf, ::sycl::handler &cgh,
+            const exec_ctx_t &ctx)
         : conf_(conf)
-        , data_(data)
-        , diff_data_(diff_data)
-        , scale_(scale)
-        , diff_scale_(diff_scale)
-        , diff_shift_(diff_shift)
-        , stat_(stat)
-        , var_(var)
-        , diff_dst_(diff_dst) {}
+        , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
+        , scale_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE))
+        , diff_scale_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SCALE))
+        , diff_shift_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SHIFT))
+        , stat_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN))
+        , var_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE))
+        , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();

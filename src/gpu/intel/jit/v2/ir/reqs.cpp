@@ -108,14 +108,6 @@ bool prb_reqs_t::fits(const prb_tile_t &sizes) const {
     return true;
 }
 
-void prb_reqs_t::serialize(std::ostream &out) const {
-    ir_utils::serialize(reqs_, out);
-}
-
-void prb_reqs_t::deserialize(std::istream &in) {
-    ir_utils::deserialize(reqs_, in);
-}
-
 void prb_reqs_t::stringify(std::ostream &out) const {
     if (reqs_.empty()) {
         out << "x";
@@ -160,10 +152,6 @@ public:
     ir_type_id_t expr_kind() const override { return ir_type_id_t::int_imm_t; }
     int64_t to_int(const prb_tile_t &sizes) const override { return value; }
     expr_t to_ir() const override { return int_imm_t::make(value); }
-    void serialize(std::ostream &out) const override {
-        ir_utils::serialize(expr_kind(), out);
-        ir_utils::serialize(value, out);
-    }
 
     int64_t value;
 };
@@ -187,11 +175,6 @@ public:
     }
 
     expr_t to_ir() const override { return size_var(dim); }
-
-    void serialize(std::ostream &out) const override {
-        ir_utils::serialize(expr_kind(), out);
-        ir_utils::serialize(dim, out);
-    }
 
     prb_dim_t dim;
 };
@@ -217,12 +200,6 @@ public:
 
     expr_t to_ir() const override {
         return unary_op_t::make(op_kind, a.to_ir());
-    }
-
-    void serialize(std::ostream &out) const override {
-        ir_utils::serialize(expr_kind(), out);
-        ir_utils::serialize(op_kind, out);
-        ir_utils::serialize(a, out);
     }
 
     op_kind_t op_kind;
@@ -260,47 +237,10 @@ public:
         return binary_op_t::make(op_kind, a.to_ir(), b.to_ir());
     }
 
-    void serialize(std::ostream &out) const override {
-        ir_utils::serialize(ir_type_id_t::binary_op_t, out);
-        ir_utils::serialize(op_kind, out);
-        ir_utils::serialize(a, out);
-        ir_utils::serialize(b, out);
-    }
-
     op_kind_t op_kind;
     req_expr_t a;
     req_expr_t b;
 };
-
-void req_expr_t::deserialize(std::istream &in) {
-    auto id = ir_utils::deserialize<ir_type_id_t>(in);
-    switch (id) {
-        case ir_type_id_t::int_imm_t: {
-            auto value = ir_utils::deserialize<int64_t>(in);
-            *this = req_int_imm_t::make(value);
-            break;
-        }
-        case ir_type_id_t::const_var_t: {
-            auto dim = ir_utils::deserialize<prb_dim_t>(in);
-            *this = req_const_var_t::make(dim);
-            break;
-        }
-        case ir_type_id_t::unary_op_t: {
-            auto kind = ir_utils::deserialize<op_kind_t>(in);
-            auto a = ir_utils::deserialize<req_expr_t>(in);
-            *this = req_unary_op_t::make(kind, a);
-            break;
-        }
-        case ir_type_id_t::binary_op_t: {
-            auto kind = ir_utils::deserialize<op_kind_t>(in);
-            auto a = ir_utils::deserialize<req_expr_t>(in);
-            auto b = ir_utils::deserialize<req_expr_t>(in);
-            *this = req_binary_op_t::make(kind, a, b);
-            break;
-        }
-        default: ir_error_not_expected() << id;
-    }
-}
 
 req_expr_t to_req_expr(const expr_t &e) {
     if (auto *ptr = e.as_ptr<int_imm_t>()) {
@@ -420,14 +360,6 @@ bool prb_reqs_t::implies(const prb_reqs_t &other) const {
         if (!can_prove(req.expr.to_ir())) return false;
     }
     return true;
-}
-
-void prb_reqs_t::req_t::serialize(std::ostream &out) const {
-    expr.serialize(out);
-}
-
-void prb_reqs_t::req_t::deserialize(std::istream &in) {
-    expr.deserialize(in);
 }
 
 void stringify_var_mul(std::ostream &out, const expr_t &e) {

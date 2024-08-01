@@ -33,29 +33,41 @@ float linear_model_t::predict(const vec1d &x) const {
     return ret;
 }
 
-void linear_model_t::serialize(std::ostream &out) const {
-    ir_utils::serialize(coef_, out);
+void linear_model_t::serialize(serialized_data_t &s) const {
+    s.append(coef_);
 }
 
-void linear_model_t::deserialize(std::istream &in) {
-    coef_ = ir_utils::deserialize<std::vector<float>>(in);
+linear_model_t linear_model_t::deserialize(deserializer_t &d) {
+    linear_model_t m;
+    d.pop(m.coef_);
+    return m;
 }
 
-void ml_model_t::serialize(std::ostream &out) const {
-    ir_utils::serialize(kind(), out);
-    if (impl_) impl_->serialize(out);
-}
-
-void ml_model_t::deserialize(std::istream &in) {
-    auto kind = ir_utils::deserialize<ml_model_kind_t>(in);
-    switch (kind) {
-        case ml_model_kind_t::undef: impl_.reset(); break;
+void ml_model_t::serialize(serialized_data_t &s) const {
+    s.append(kind());
+    if (!impl_) return;
+    switch (impl_->kind()) {
         case ml_model_kind_t::linear_regression:
-            impl_ = std::make_shared<linear_model_t>();
+            static_cast<const linear_model_t *>(impl_.get())->serialize(s);
             break;
         default: ir_error_not_expected();
     }
-    if (impl_) impl_->deserialize(in);
+}
+
+ml_model_t ml_model_t::deserialize(deserializer_t &d) {
+    ml_model_kind_t kind;
+    d.pop(kind);
+    switch (kind) {
+        case ml_model_kind_t::undef: return ml_model_t();
+        case ml_model_kind_t::linear_regression: {
+            ml_model_t m;
+            m.impl_ = std::make_shared<linear_model_t>(
+                    linear_model_t::deserialize(d));
+            return m;
+        }
+        default: ir_error_not_expected();
+    }
+    return ml_model_t();
 }
 
 } // namespace conv

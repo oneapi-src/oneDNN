@@ -49,6 +49,9 @@ struct hw_desc_t {
 
     void stringify(std::ostream &out) const { jit::stringify(out, hw); }
     void parse(std::istream &in) { jit::parse(in, hw); }
+#if __cplusplus >= 202002L
+    bool operator==(const hw_desc_t &other) const = default;
+#endif
 };
 
 enum class spec_strategy_t { none, max, one_d, two_d };
@@ -71,6 +74,10 @@ public:
     spec_reqs_t(const prb_tile_t &spec_tile) : spec_tile_(spec_tile) {}
     spec_reqs_t(spec_strategy_t spec_strategy)
         : spec_strategy_(spec_strategy) {}
+
+#if __cplusplus >= 202002L
+    bool operator==(const spec_reqs_t &other) const = default;
+#endif
 
     void stringify(std::ostream &out) const {
         if (spec_strategy_ == spec_strategy_t::none && spec_tile_.is_empty()) {
@@ -191,6 +198,10 @@ struct loop_desc_entry_t {
     }
 
     IR_DEFINE_DUMP()
+
+#if __cplusplus >= 202002L
+    bool operator==(const loop_desc_entry_t &other) const = default;
+#endif
 };
 
 class loop_desc_t {
@@ -237,6 +248,10 @@ public:
 
     IR_DEFINE_DUMP()
 
+#if __cplusplus >= 202002L
+    bool operator==(const loop_desc_t &other) const = default;
+#endif
+
     void stringify(std::ostream &out) const { out << str(); }
 
     void parse(std::istream &in) {
@@ -273,6 +288,10 @@ struct load_desc_t {
 
     IR_DEFINE_DUMP()
 
+#if __cplusplus >= 202002L
+    bool operator==(const load_desc_t &other) const = default;
+#endif
+
     void stringify(std::ostream &out) const { out << str(); }
     void parse(std::istream &in);
 };
@@ -286,6 +305,10 @@ struct store_desc_t {
     }
 
     IR_DEFINE_DUMP()
+
+#if __cplusplus >= 202002L
+    bool operator==(const store_desc_t &other) const = default;
+#endif
 
     void stringify(std::ostream &out) const { out << str(); }
     void parse(std::istream &in);
@@ -306,6 +329,10 @@ struct prefetch_desc_t {
     }
 
     IR_DEFINE_DUMP()
+
+#if __cplusplus >= 202002L
+    bool operator==(const prefetch_desc_t &other) const = default;
+#endif
 
     void stringify(std::ostream &out) const { out << str(); }
     void parse(std::istream &in);
@@ -335,6 +362,7 @@ public:
     int simd = 0;
     int regs = 0;
     prb_tile_t iter_tile;
+    prb_tile_t iter_outer_tile;
     prb_tile_t thread_group_tile;
     loop_desc_t loop_desc;
     load_desc_t load;
@@ -528,6 +556,24 @@ public:
 } // namespace conv
 } // namespace v2
 } // namespace jit
+#if __cplusplus >= 202002L
+template <>
+struct trivial_key_validator_t<jit::v2::conv::kernel_desc_t> {
+    static bool is_valid(const jit::v2::conv::kernel_desc_t &t) {
+        auto tmp = jit::v2::conv::kernel_desc_t::deserialize(t.serialize());
+        return (t.prop == tmp.prop) && (t.is_dw == tmp.is_dw)
+                && (t.src_tag == tmp.src_tag) && (t.wei_tag == tmp.wei_tag)
+                && (t.dst_tag == tmp.dst_tag) && (t.spec_reqs == tmp.spec_reqs)
+                && (t.hw == tmp.hw) && (t.fma == tmp.fma)
+                && (t.simd == tmp.simd) && (t.regs == tmp.regs)
+                && (t.iter_tile == tmp.iter_tile)
+                && (t.thread_group_tile == tmp.thread_group_tile)
+                && (t.loop_desc == tmp.loop_desc) && (t.load == tmp.load)
+                && (t.prefetch == tmp.prefetch) && (t.store == tmp.store)
+                && (t.is_finalized == tmp.is_finalized);
+    }
+};
+#endif
 } // namespace intel
 } // namespace gpu
 } // namespace impl

@@ -423,6 +423,7 @@ public:
 using float_convtranspose_fwd = convtranspose_fwd_t</* quantized */ false>;
 using quantized_convtranspose = convtranspose_fwd_t</* quantized */ true>;
 
+#if BUILD_TRAINING
 struct convtranspose_bwd_data_t : public conv_base_t {
 public:
     status_t compile_impl(const dnnl_partition_impl_t *part,
@@ -548,6 +549,7 @@ public:
         return status::success;
     }
 };
+#endif
 
 } // namespace dnnl_impl
 } // namespace graph

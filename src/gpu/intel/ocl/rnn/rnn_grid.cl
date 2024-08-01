@@ -16,7 +16,7 @@
 
 #include "gpu/intel/ocl/rnn/cell_compute.h"
 #include "gpu/intel/ocl/rnn/cell_kind_utility.h"
-#include "gpu/intel/ocl/rnn/rnn_types.h"
+#include "gpu/intel/ocl/rnn/rnn_common.h"
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 simple_rnn_copy_init_layer(__global WS_STATE_DATA_T *dst_base,

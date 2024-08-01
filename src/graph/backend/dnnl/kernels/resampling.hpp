@@ -250,6 +250,7 @@ public:
 #endif
 };
 
+#if BUILD_TRAINING
 struct resampling_bwd_t : public kernel_base_t {
 private:
     dnnl::engine p_engine_;
@@ -437,6 +438,7 @@ public:
     }
 #endif
 };
+#endif
 
 using float_resampling_fwd = resampling_fwd_t;
 

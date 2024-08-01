@@ -106,8 +106,6 @@ public:
         return kind_ != other.kind_;
     }
     size_t get_hash() const { return ir_utils::get_hash(kind_); }
-    void serialize(std::ostream &out) const { ir_utils::serialize(kind_, out); }
-    void deserialize(std::istream &in) { ir_utils::deserialize(kind_, in); }
     std::string name() const { return str(); }
     std::string str() const { return to_string(kind_); }
 
@@ -383,6 +381,9 @@ public:
         value /= factor;
         return true;
     }
+#if __cplusplus >= 202002L
+    bool operator==(const tile_t &other) const = default;
+#endif
 
     std::string str() const override { return str_impl(/*multiline=*/false); }
 };
