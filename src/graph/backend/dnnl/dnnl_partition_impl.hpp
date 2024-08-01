@@ -37,7 +37,7 @@ namespace graph {
 namespace dnnl_impl {
 
 class dnnl_compiled_partition_impl_t : public compiled_partition_impl_t {
-    friend class dnnl_backend;
+    friend class dnnl_backend_t;
     friend class dnnl_partition_impl_t;
 
 public:
@@ -85,7 +85,7 @@ private:
 };
 
 class dnnl_partition_impl_t : public partition_impl_t {
-    friend class dnnl_backend;
+    friend class dnnl_backend_t;
 
 public:
     dnnl_partition_impl_t(engine_kind_t engine_kind, fpmath_mode_t fpmath_mode,

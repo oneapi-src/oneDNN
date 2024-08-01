@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@
 static inline dnnl::impl::graph::pass::pass_base_ptr get_pass(
         const std::string &pass_name) {
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     auto &passes = pm.get_passes();
@@ -47,7 +47,7 @@ static inline dnnl::impl::graph::pass::pass_base_ptr get_pass(
 
 static inline void run_all_passes(dnnl::impl::graph::graph_t &agraph) {
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "", dnnl::impl::graph::partition_policy::fusion);
@@ -55,7 +55,7 @@ static inline void run_all_passes(dnnl::impl::graph::graph_t &agraph) {
 
 static inline void run_all_single_passes(dnnl::impl::graph::graph_t &agraph) {
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     auto &passes = pm.get_passes();

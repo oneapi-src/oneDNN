@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -155,7 +155,7 @@ status_t subgraph_visualizer_t::run(const std::shared_ptr<subgraph_t> &sg,
 
     std::ofstream out;
 
-    std::string backend_name = dnnl_backend::get_singleton().get_name();
+    std::string backend_name = dnnl_backend_t::get_singleton().get_name();
     std::string partition_name = "partition_" + std::to_string(partition_id_);
     std::string index_str = std::to_string(index_++);
     const std::string &pass_name = name_suffix;

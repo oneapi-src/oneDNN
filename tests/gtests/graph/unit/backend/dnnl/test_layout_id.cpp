@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ TEST(test_layout_id_layout_id, OpaqueMdLayoutIdMapping) {
     using format_tag = dnnl_impl::format_tag;
 
     dnnl_impl::dnnl_layout_id_manager_t &mgr
-            = graph::dnnl_impl::dnnl_backend::get_singleton()
+            = graph::dnnl_impl::dnnl_backend_t::get_singleton()
                       .get_layout_id_manager();
 
     // opaque md should be cached and generate a layout id, and the later

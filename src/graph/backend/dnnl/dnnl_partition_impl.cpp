@@ -106,7 +106,7 @@ std::shared_ptr<partition_impl_t> dnnl_partition_impl_t::clone() const {
 }
 
 const backend_t *dnnl_partition_impl_t::get_assigned_backend() const {
-    return &dnnl_backend::get_singleton();
+    return &dnnl_backend_t::get_singleton();
 }
 
 status_t dnnl_partition_impl_t::compile(

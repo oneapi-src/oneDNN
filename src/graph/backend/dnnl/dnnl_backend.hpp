@@ -51,12 +51,12 @@ struct enum_hash_t {
     }
 };
 
-class dnnl_backend : public backend_t {
+class dnnl_backend_t : public backend_t {
     friend class dnnl_partition_impl_t;
 
 public:
-    static dnnl_backend &get_singleton() {
-        static dnnl_backend ins("dnnl_backend", /*priority*/ 1.f);
+    static dnnl_backend_t &get_singleton() {
+        static dnnl_backend_t ins("dnnl_backend", /*priority*/ 1.f);
         return ins;
     }
 
@@ -156,7 +156,7 @@ public:
     }
 
 private:
-    dnnl_backend(const std::string &name, float priority);
+    dnnl_backend_t(const std::string &name, float priority);
 
     static graph::pass::pass_registry_t register_passes();
     bool register_op_schemas();

@@ -50,7 +50,7 @@ using op_ptr = std::shared_ptr<dnnl::impl::graph::op_t>;
 namespace {
 dnnl::impl::graph::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     auto &passes = pm.get_passes();
@@ -2057,7 +2057,7 @@ TEST(test_subgraph_pass_subgraph_pass, CommonReorderElimination) {
 
 TEST(test_subgraph_pass_subgraph_pass, CombineBinaryPostOpScales) {
     namespace utils = dnnl::graph::tests::unit::utils;
-    dnnl_impl::dnnl_backend::get_singleton();
+    dnnl_impl::dnnl_backend_t::get_singleton();
     using dims = graph::dnnl_impl::dims;
     using config_t = std::tuple<graph::op_kind_t, bool>;
 
@@ -2185,7 +2185,7 @@ TEST(test_subgraph_pass_subgraph_pass, CombineBinaryPostOpScales) {
 TEST(test_subgraph_pass_subgraph_pass, FuseNCXConvolutionBinaryAddNC11PostSrc) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     namespace utils = dnnl::graph::tests::unit::utils;
-    dnnl_impl::dnnl_backend::get_singleton();
+    dnnl_impl::dnnl_backend_t::get_singleton();
     graph::engine_t &engine = *get_engine();
     dnnl::engine p_engine = graph::dnnl_impl::make_dnnl_engine(engine);
 
@@ -2339,7 +2339,7 @@ TEST(test_subgraph_pass_subgraph_pass, FuseNCXConvolutionBinaryAddNC11PostSrc) {
 TEST(test_subgraph_pass_subgraph_pass, FuseNXCConvolutionBinaryAddNC11PostSrc) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     namespace utils = dnnl::graph::tests::unit::utils;
-    dnnl_impl::dnnl_backend::get_singleton();
+    dnnl_impl::dnnl_backend_t::get_singleton();
     graph::engine_t &engine = *get_engine();
     dnnl::engine p_engine = graph::dnnl_impl::make_dnnl_engine(engine);
 

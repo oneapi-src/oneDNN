@@ -61,7 +61,7 @@ TEST(test_graph_graph, GetDnnlPartitions) {
     ASSERT_EQ(agraph.num_ops(), 3U);
 
     ASSERT_EQ(agraph.finalize(), status::success);
-    auto &dnnl_bkd = dnnl_impl::dnnl_backend::get_singleton();
+    auto &dnnl_bkd = dnnl_impl::dnnl_backend_t::get_singleton();
     dnnl_bkd.get_partitions(agraph, partition_policy::fusion);
     auto &fake_bkd = fake_impl::fake_backend_t::get_singleton();
     fake_bkd.get_partitions(agraph, partition_policy::fusion);
