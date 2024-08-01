@@ -19,9 +19,8 @@
 
 #include "cpu/cpu_convolution_pd.hpp"
 
-// #include "arm_compute/runtime/experimental/operators/CpuGemmDirectConv2d.h"
-#include "cpu/aarch64/acl_convolution_utils.hpp"
-#include "src/cpu/operators/CpuGemmDirectConv2d.h"
+#include "acl_convolution_utils.hpp"
+#include "arm_compute/runtime/experimental/operators/CpuGemmDirectConv2d.h"
 
 namespace dnnl {
 namespace impl {
@@ -30,8 +29,7 @@ namespace aarch64 {
 
 struct acl_indirect_gemm_convolution_fwd_t : public primitive_t {
 
-    using Op = arm_compute::cpu::CpuGemmDirectConv2d;
-    // using Op = arm_compute::experimental::op::CpuGemmDirectConv2d;
+    using Op = arm_compute::experimental::op::CpuGemmDirectConv2d;
 
     struct pd_t : public cpu_convolution_fwd_pd_t {
 
