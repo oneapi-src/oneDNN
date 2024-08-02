@@ -263,7 +263,7 @@ public:
     }
 
     const ValueT &operator[](const KeyT &key) const {
-        ir_assert(has(key));
+        ir_assert(has(key)) << "Key not found: " << key;
         return values_[key.id()];
     }
 

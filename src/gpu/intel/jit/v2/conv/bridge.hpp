@@ -32,6 +32,19 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
+inline jit::send_address_t to_ir(send_address_t address) {
+    jit::send_address_t ret = jit::send_address_t::a64;
+    switch (address) {
+#define CASE(name) \
+    case v2::send_address_t::name: ret = jit::send_address_t::name; break;
+        CASE(a64);
+        CASE(slm);
+#undef CASE
+        default: ir_error_not_expected();
+    }
+    return ret;
+}
+
 inline jit::send_op_t to_ir(send_op_t op, bool is_2d = false) {
     jit::send_op_t ret = jit::send_op_t::undef;
     switch (op) {

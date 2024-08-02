@@ -158,6 +158,33 @@ private:
     object_map_t<expr_t, expr_t> idxs_;
 };
 
+struct reduce_plan_t : public base_plan_t {
+    layout_t src;
+    layout_t dst;
+
+    using base_plan_t::base_plan_t;
+
+    reduce_plan_t() = default;
+    reduce_plan_t(const hw_t &hw, const layout_t &src, const layout_t &dst)
+        : base_plan_t(hw), src(src), dst(dst) {}
+
+    int grf_usage_bytes() const {
+        int ret = 0;
+        ret += utils::rnd_up(dst.size(), grf_size());
+        return ret;
+    }
+
+    std::string str() const {
+        if (!*this) return "(empty)";
+        std::ostringstream oss;
+        oss << "src_layout: " << src.str() << std::endl;
+        oss << "dst_layout: " << dst.str();
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
+};
+
 struct reorder_plan_t : public base_plan_t {
     layout_t src;
     layout_t dst;
@@ -355,22 +382,64 @@ struct x2r_fma_plan_t : public base_plan_t {
     }
 };
 
+struct slm_reduce_plan_t : public base_plan_t {
+    send_plan_t store;
+    send_plan_t load;
+    reduce_plan_t reduce;
+    // C layout and tile coordinate after reduction and redistribution in
+    // threadgroup.
+    layout_t c_layout;
+    prb_coord_t<expr_t> c_coord;
+
+    using base_plan_t::base_plan_t;
+
+    int grf_usage_bytes() const {
+        int ret = 0;
+        ret += utils::rnd_up(load.reg_layout().size(), grf_size());
+        return ret;
+    }
+
+    int slm_size() const {
+        if (!*this) return 0;
+        int k_local
+                = ir_utils::safe_div(reduce.src.elems(), reduce.dst.elems());
+        return utils::rnd_up(store.reg_layout().size(), grf_size()) * k_local;
+    }
+
+    std::string str() const {
+        if (!*this) return "(empty)";
+        std::ostringstream oss;
+        oss << ir_utils::add_tag("store", store.str()) << std::endl;
+        oss << ir_utils::add_tag("load", load.str()) << std::endl;
+        oss << ir_utils::add_tag("reduce", reduce.str()) << std::endl;
+        oss << "c_layout: " << c_layout << std::endl;
+        oss << "c_coord:  " << c_coord;
+        return oss.str();
+    }
+};
+
 struct epilogue_plan_t : public base_plan_t {
     prb_tile_t tile;
+    slm_reduce_plan_t slm_reduce;
     reorder_plan_t reorder;
     reorder_plan_t bia_reorder;
+    layout_t c_reg_layout;
     send_plan_t c_store;
     send_plan_t bia_store;
     expr_t reduce_cond;
 
-    epilogue_plan_t(const hw_t &hw) : base_plan_t(hw) {}
+    using base_plan_t::base_plan_t;
 
     int grf_usage_bytes() const { return 0; }
+    int slm_size() const { return slm_reduce.slm_size(); }
 
     std::string str() const {
         if (!*this) return "(empty)";
         std::ostringstream oss;
         oss << "tile: " << tile << std::endl;
+        if (slm_reduce)
+            oss << ir_utils::add_tag("slm_reduce", slm_reduce.str())
+                << std::endl;
         if (reorder)
             oss << ir_utils::add_tag("reorder", reorder.str()) << std::endl;
         if (bia_reorder)
@@ -402,6 +471,12 @@ struct plan_t : public base_plan_t {
         int ret = 0;
         ret += x2r_fma.grf_usage_bytes();
         ret += epilogue.grf_usage_bytes();
+        return ret;
+    }
+
+    int slm_size() const {
+        int ret = 0;
+        ret += epilogue.slm_size();
         return ret;
     }
 

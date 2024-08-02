@@ -610,6 +610,13 @@ int get_reg_off(const send_1d_plan_t &plan, const prb_coord_t<int> &coord) {
     return plan.reg_layout.offset_in_bytes(coord);
 }
 
+stmt_t create_stmt(const reduce_plan_t &plan, const expr_t &src_buf,
+        const expr_t &dst_buf) {
+    if (!plan) return stmt_t();
+    return create_reduce_stmt(
+            to_ir(plan.src), to_ir(plan.dst), src_buf, dst_buf);
+}
+
 stmt_t create_stmt(const reorder_plan_t &plan, const expr_t &src_buf,
         const expr_t &dst_buf) {
     if (!plan) return stmt_t();
@@ -625,7 +632,7 @@ stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
         ir_assert(tile.at(d) % plan.entry_tile.at(d) == 0);
     }
     auto op = to_ir(plan.desc.op);
-    auto address = send_address_t::a64;
+    auto address = to_ir(plan.desc.address);
     auto type = to_send_type(plan.desc);
     auto slots = plan.desc.slots;
     auto send_func = jit::send_t::make(
@@ -780,7 +787,7 @@ public:
     stmt_t build() {
         build_prefetch();
         build_x2r_mul();
-        build_c_store();
+        build_epilogue();
 
         stmt_t compute_stmt;
         compute_stmt = compute_stmt.append(zero_out_stmt());
@@ -790,7 +797,7 @@ public:
 
         stmt_t epilogue_stmt;
         epilogue_stmt = epilogue_stmt.append(epilogue_off_ctx_.init_stmt());
-        epilogue_stmt = epilogue_stmt.append(c_store_stmt_);
+        epilogue_stmt = epilogue_stmt.append(epilogue_stmt_);
 
         stmt_t stmt;
         stmt = stmt.append(compute_stmt);
@@ -1054,6 +1061,8 @@ private:
     }
 
     void build_bias_store() {
+        if (desc_.prop != prop_kind::backward_weights || !desc_.with_bias)
+            return;
         auto &fma = plan_.x2r_fma;
         auto &epilogue = plan_.epilogue;
         auto &bia_buf = buf_mgr_.find_buf("bia_buf");
@@ -1071,7 +1080,7 @@ private:
                 int src_off = fma.bia_layout.offset_in_bytes(coord);
                 auto stmt = create_stmt(
                         epilogue.bia_reorder, bia_buf + src_off, bia_tmp_buf);
-                c_store_stmt_ = c_store_stmt_.append(stmt);
+                epilogue_stmt_ = epilogue_stmt_.append(stmt);
                 bia_payload_buf = bia_tmp_buf;
                 bia_payload_layout = epilogue.bia_reorder.dst;
                 payload_coord = prb_coord_t<int>();
@@ -1080,8 +1089,29 @@ private:
                     bia_payload_buf, epilogue_off_ctx_, coord, epilogue_tile,
                     bia_payload_layout, payload_coord);
             bia_stmt = if_t::make(epilogue.reduce_cond, bia_stmt);
-            c_store_stmt_ = c_store_stmt_.append(bia_stmt);
+            epilogue_stmt_ = epilogue_stmt_.append(bia_stmt);
         });
+    }
+
+    void build_slm_reduce() {
+        auto &slm_reduce = plan_.epilogue.slm_reduce;
+        if (!slm_reduce) return;
+
+        auto &c_buf = buf_mgr_.find_buf("c");
+        auto c_tmp_buf
+                = buf_mgr_.get("c_reduce", slm_reduce.load.reg_layout().size());
+        auto c_slm_buf = buf_mgr_.get("slm", slm_reduce.slm_size());
+        auto store_stmt = create_stmt(
+                slm_reduce.store, c_slm_buf, c_buf, epilogue_off_ctx_);
+        auto load_stmt = create_stmt(
+                slm_reduce.load, c_slm_buf, c_tmp_buf, epilogue_off_ctx_);
+        auto reduce_stmt = create_stmt(slm_reduce.reduce, c_tmp_buf, c_buf);
+        epilogue_stmt_ = epilogue_stmt_.append(store_stmt);
+        epilogue_stmt_ = epilogue_stmt_.append(funcs::barrier());
+        epilogue_stmt_ = epilogue_stmt_.append(load_stmt);
+        epilogue_stmt_ = epilogue_stmt_.append(
+                funcs::zero_out(c_buf, slm_reduce.c_layout.size()));
+        epilogue_stmt_ = epilogue_stmt_.append(reduce_stmt);
     }
 
     void build_c_store() {
@@ -1100,7 +1130,7 @@ private:
                 int src_off = c_layout.offset_in_bytes(coord);
                 auto stmt = create_stmt(
                         epilogue.reorder, c_buf + src_off, c_tmp_buf);
-                c_store_stmt_ = c_store_stmt_.append(stmt);
+                epilogue_stmt_ = epilogue_stmt_.append(stmt);
                 payload_buf = c_tmp_buf;
                 payload_layout = epilogue.reorder.dst;
                 payload_coord = prb_coord_t<int>();
@@ -1108,10 +1138,14 @@ private:
             auto stmt = create_stmt(store, c_mem_buf(), payload_buf,
                     epilogue_off_ctx_, coord, epilogue.tile, payload_layout,
                     payload_coord);
-            c_store_stmt_ = c_store_stmt_.append(stmt);
+            epilogue_stmt_ = epilogue_stmt_.append(stmt);
         });
-        if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
-            build_bias_store();
+    }
+
+    void build_epilogue() {
+        build_slm_reduce();
+        build_c_store();
+        build_bias_store();
     }
 
     expr_t mem_buf(tensor_kind_t abc) const {
@@ -1154,7 +1188,7 @@ private:
 
     stmt_t prefetch_stmt_;
     stmt_t x2r_mul_stmt_;
-    stmt_t c_store_stmt_;
+    stmt_t epilogue_stmt_;
 };
 
 stmt_t build_ir(const kernel_desc_t &desc, const kernel_info_t &kernel_info,

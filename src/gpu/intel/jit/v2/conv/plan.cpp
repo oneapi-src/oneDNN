@@ -577,6 +577,19 @@ public:
     }
 
 private:
+    static send_plan_t try_create_send_plan(const std::string &tag,
+            const send_params_t &params, const view_t &view) {
+        auto plan = create_send_plan(params, view, /*allow_fail=*/true);
+        bool ok = [&]() {
+            ir_check(plan) << tag << ": cannot create send plan" << std::endl
+                           << params << std::endl
+                           << ir_utils::add_tag("view", view.str());
+            return true;
+        }();
+        if (!ok) return send_plan_t();
+        return plan;
+    }
+
     void init_dim_mapper_manager() {
         dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, desc_.spec_reqs);
     }
@@ -684,12 +697,8 @@ private:
             // If 2D failed, try compressed prefetch.
             params = get_send_params(abc, send_op_t::prefetch, view,
                     send_kind_t::compressed_prefetch);
-            prefetch = create_send_plan(params, view, /*allow_fail=*/true);
-            ir_check(prefetch)
-                    << "init_x_prefetch_plan: cannot create send plan"
-                    << std::endl
-                    << params << std::endl
-                    << ir_utils::add_tag("view", view.str());
+            prefetch = try_create_send_plan(__func__, params, view);
+            if (!prefetch) return false;
         }
         return true;
     }
@@ -712,12 +721,10 @@ private:
     bool init_x2r_plan(
             tensor_kind_t abc, const view_t &view, x2r_plan_t &plan) const {
         auto params = get_send_params(abc, send_op_t::load, view);
-        auto load = create_send_plan(params, view, /*allow_fail=*/true);
+        auto load = try_create_send_plan(__func__, params, view);
+        if (!load) return false;
         reorder_plan_t reorder;
         layout_t reg_layout;
-        ir_check(load) << "init_x2r_plan: cannot create send plan" << std::endl
-                       << params << std::endl
-                       << ir_utils::add_tag("view", view.str());
         if (mul_info_.is_compatible(abc, load.reg_layout())) {
             reg_layout = load.reg_layout();
         } else {
@@ -854,14 +861,94 @@ private:
         return true;
     }
 
+    bool init_slm_reduce_plan(
+            const layout_t &c_layout, slm_reduce_plan_t &plan) const {
+        prb_dim_t k_dim;
+        for (auto &d : desc_.thread_group_tile) {
+            if (to_gemm(d, desc_.prop) == prb_dim_kind_t::k) {
+                k_dim = d;
+                break;
+            }
+        }
+        if (k_dim.is_undef()) return true;
+
+        int k_tg = desc_.thread_group_tile.at(k_dim);
+        ir_assert(k_tg > 1);
+        ir_assert(desc_.thread_group_tile.elems() == k_tg)
+                << "Local k-slicing assumes no split by M/N.";
+        ir_check(c_layout.size() % desc_.hw.grf_size() == 0)
+                << "init_slm_reduce_plan: c_layout is not aligned to a "
+                   "reigster boundary.";
+
+        // Create SLM layout to store partial reductions.
+        auto mapper = extend_mapper(
+                dim_mapper_manager_.mapper(tensor_kind_t::c), k_dim, 'k');
+        layout_t slm_layout(mapper.layout_desc(), c_layout.type(),
+                c_layout.base(), c_layout.blocks());
+        slm_layout.add_block(k_dim, k_tg);
+        auto c_tile = c_layout.desc().filter_dim_map(desc_.iter_tile);
+
+        prb_coord_t<expr_t> store_coord;
+        store_coord[k_dim] = thr_grid_.index_var(k_dim);
+        prb_tile_t store_tile = c_tile;
+        store_tile.unset(k_dim);
+
+        // Store partial reductions.
+        auto store_view = view_t(mapper, slm_layout, store_coord, store_tile);
+        auto store_params = get_send_params(tensor_kind_t::c, send_op_t::store,
+                store_view, send_kind_t::block, send_address_t::slm);
+        store_params.skip_mask.push_back(k_dim);
+        auto store = try_create_send_plan(__func__, store_params, store_view);
+        if (!store) return false;
+
+        // Split the original tile evenly between k_tg threads.
+        grid_splitter_t grid_splitter;
+        grid_splitter.add(thr_grid_.index_var(k_dim), k_tg);
+        auto split_view = view_t::split(
+                mapper, c_layout, prb_coord_t<expr_t>(), c_tile, grid_splitter);
+        ir_assert(grid_splitter.virt_grid_idxs().empty());
+
+        auto load_coord = split_view.coord();
+        auto tile_with_k = split_view.tile();
+        tile_with_k[k_dim] = k_tg;
+
+        // Load partial sums and do the final reduction.
+        auto load_view = view_t(mapper, slm_layout, load_coord, tile_with_k);
+        auto load_params = get_send_params(tensor_kind_t::c, send_op_t::load,
+                load_view, send_kind_t::block, send_address_t::slm);
+        load_params.skip_mask.push_back(k_dim);
+        auto load = try_create_send_plan(__func__, load_params, load_view);
+        if (!load) return false;
+
+        auto load_layout = load.reg_layout();
+        auto reduced_layout = load_layout.map(split_view.tile());
+        auto reduce = reduce_plan_t(desc_.hw, load_layout, reduced_layout);
+        auto c_post_layout = reduced_layout;
+        c_post_layout.remove(k_dim);
+
+        plan = slm_reduce_plan_t(desc_.hw);
+        plan.store = store;
+        plan.load = load;
+        plan.reduce = reduce;
+        plan.c_layout = c_post_layout;
+        plan.c_coord = coord_info_.iter_coord() + load_coord;
+
+        return true;
+    }
+
     bool init_epilogue_plan(
-            const layout_t &c_layout, epilogue_plan_t &plan) const {
+            const layout_t &c_fma_layout, epilogue_plan_t &plan) const {
+        ir_check(init_slm_reduce_plan(c_fma_layout, plan.slm_reduce));
         auto &c_mapper = dim_mapper_manager_.mapper(tensor_kind_t::c);
-        auto c_iter_view = view_t(
-                c_mapper, c_layout_, coord_info_.iter_coord(), desc_.iter_tile);
+        auto c_reg_layout
+                = (plan.slm_reduce ? plan.slm_reduce.c_layout : c_fma_layout);
+        auto c_coord = (plan.slm_reduce ? plan.slm_reduce.c_coord
+                                        : coord_info_.iter_coord());
+        auto c_tile = c_reg_layout.int_dim_sizes();
+        auto c_mem_view = view_t(c_mapper, c_layout_, c_coord, c_tile);
         int target_elems = 128 / c_layout_.type().size();
-        auto it_beg = begin(c_iter_view.layout());
-        auto it_end = end(c_iter_view.layout());
+        auto it_beg = begin(c_mem_view.layout());
+        auto it_end = end(c_mem_view.layout());
         auto tile_last = it_beg;
         for (auto it = it_beg; it != it_end; ++it) {
             if (it.elems() > target_elems) break;
@@ -872,19 +959,17 @@ private:
             if (mul_info_.is_k(d)) full_tile.unset(d);
         }
         auto params = get_send_params(
-                tensor_kind_t::c, send_op_t::store, c_iter_view);
-        auto c_store = create_send_plan(params, c_iter_view);
+                tensor_kind_t::c, send_op_t::store, c_mem_view);
+        auto c_store = create_send_plan(params, c_mem_view);
         auto tile = c_store.entry_tile();
         plan.tile = tile;
         plan.c_store = c_store;
-        if (c_layout != c_store.reg_layout()) {
-            auto fma_layout = c_layout.map(tile);
-            auto store_layout = c_store.reg_layout().map(tile);
-            if (fma_layout != store_layout) {
-                plan.reorder = reorder_plan_t(desc_.hw);
-                plan.reorder.src = fma_layout;
-                plan.reorder.dst = store_layout;
-            }
+        auto c_reg_tile_layout = c_reg_layout.map(tile);
+        auto store_layout = c_store.reg_layout().map(tile);
+        if (c_reg_tile_layout != store_layout) {
+            plan.reorder = reorder_plan_t(desc_.hw);
+            plan.reorder.src = c_reg_tile_layout;
+            plan.reorder.dst = store_layout;
         }
         return true;
     }
@@ -897,13 +982,14 @@ private:
     }
 
     send_params_t get_send_params(tensor_kind_t abc, send_op_t op,
-            const view_t &view,
-            send_kind_t send_kind = send_kind_t::undef) const {
+            const view_t &view, send_kind_t send_kind = send_kind_t::undef,
+            send_address_t send_address = send_address_t::a64) const {
         send_params_t params;
         params.hw = desc_.hw;
         params.kind = (send_kind != send_kind_t::undef
                         ? send_kind
                         : desc_.access_kind(op, abc));
+        params.address = send_address;
         params.op = op;
         if (params.kind == send_kind_t::_2d)
             params.hint_2d = send_2d_hint_t(view, op, mul_info_.hint(abc));
@@ -932,6 +1018,18 @@ private:
             ret.push_back(dim);
         }
         return ret;
+    }
+
+    dim_mapper_t extend_mapper(const dim_mapper_t &mapper,
+            const prb_dim_t &extra_dim, char letter) const {
+        auto new_mapper = mapper;
+        new_mapper.set_dim(extra_dim);
+        auto &desc = mapper.layout_desc();
+        auto new_letter_map = desc.letter_map();
+        new_letter_map[extra_dim] = letter;
+        auto new_desc = layout_desc_t(new_letter_map);
+        new_mapper.set_layout_desc(new_desc);
+        return new_mapper;
     }
 
     kernel_desc_t desc_;

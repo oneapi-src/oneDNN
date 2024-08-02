@@ -579,6 +579,18 @@ void layout_t::add_block(
     blocks_.emplace_back(dim, size, stride);
 }
 
+void layout_t::remove(const prb_dim_t &dim) {
+    std::vector<block_t> new_blocks;
+    for (auto &b : blocks_) {
+        if (b.dim == dim) continue;
+        new_blocks.push_back(b);
+    }
+    auto new_letter_map = desc_.letter_map();
+    new_letter_map.unset(dim);
+    desc_ = layout_desc_t(new_letter_map);
+    blocks_ = std::move(new_blocks);
+}
+
 void layout_t::block_by(const std::vector<block_t> &inner_blocks) {
     ir_assert(has_zero_base());
     ir_assert(has_const_sizes());
@@ -1012,7 +1024,7 @@ dim_mask_desc_t dim_mask_desc_t::map(const prb_coord_t<expr_t> &coord) const {
     auto ret = *this;
     ret.base = simplify_rewrite(to_expr(coord));
     if (!is_identity()) return ret;
-    int x_div = linear_max_pow2_divisor(coord[x_dim]);
+    int x_div = linear_max_pow2_divisor(coord.get(x_dim, 0));
     ret.block = math::gcd(block, x_div);
     return ret;
 }
@@ -1196,7 +1208,7 @@ expr_t grid_splitter_t::index_t::pop(int &n) {
     if (n == 1) return 0;
     if (size >= n) {
         ir_assert(size % n == 0);
-        auto ret = expr % n;
+        auto ret = (size == n ? expr : expr % n);
         expr = (size == n ? 0 : expr / n);
         size /= n;
         n = 1;
@@ -1349,6 +1361,7 @@ view_t view_t::split(const dim_mapper_t &dim_mapper,
             int b_size = b.int_size();
             split_tile[b.dim]
                     = ir_utils::safe_div(split_tile.at(b.dim), b_size);
+            if (!split_coord.has(b.dim)) split_coord[b.dim] = expr_t(0);
             split_coord[b.dim]
                     += grid_splitter.pop(b_size) * inner_dims.at(b.dim);
             split_coord[b.dim] = simplify_rewrite(split_coord[b.dim]);
