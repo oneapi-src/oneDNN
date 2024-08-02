@@ -18,6 +18,7 @@
 #include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
+#include "common/primitive_attr.hpp"
 #include "common/primitive_desc_iface.hpp"
 #include "common/primitive_desc_iterator.hpp"
 #include "common/reorder.hpp"
@@ -75,6 +76,8 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_convolution(
     nspc_dst_md_ = *dst_md();
     CHECK(memory_desc_init_by_tag(nspc_src_md_, nspc_tag));
     CHECK(memory_desc_init_by_tag(nspc_dst_md_, nspc_tag));
+
+    CHECK(attr_.set_default_formats(&nspc_dst_md_));
 
     const convolution_desc_t *ncsp_conv_d = desc();
     CHECK(conv_desc_init(&nspc_conv_d, ncsp_conv_d->prop_kind,
@@ -144,9 +147,6 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
 status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
     using namespace data_type;
     using namespace utils;
-
-    // TODO: enable attributes (could be tricky for binary-like postops)
-    VCHECK_CONV(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
     VCHECK_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
 
@@ -255,11 +255,9 @@ status_t jit_uni_ncsp_convolution_fwd_t::execute_convolution(
 
     // execute nspc convolution
     const auto &args = ctx.args();
-    exec_args_t conv_args;
+    exec_args_t conv_args = args; // copy args to include postops mem.
     conv_args[DNNL_ARG_DST] = {&nspc_dst, false};
     conv_args[DNNL_ARG_SRC] = {&nspc_src, true};
-    conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
-    if (pd()->with_bias()) conv_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
 
     exec_ctx_t nspc_ctx(ctx, std::move(conv_args));
 
