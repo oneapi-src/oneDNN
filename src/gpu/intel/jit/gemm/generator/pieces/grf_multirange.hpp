@@ -1,0 +1,110 @@
+/*******************************************************************************
+* Copyright 2019-2024 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+#ifndef GEMMSTONE_GUARD_GRF_MULTIRANGE_HPP
+#define GEMMSTONE_GUARD_GRF_MULTIRANGE_HPP
+
+#include "internal/ngen_includes.hpp"
+#include "types.hpp"
+
+#include "internal/namespace_start.hxx"
+
+// GRFMultirange represents a sequence of GRF registers, not necessarily contiguous.
+// It is a generalization of nGEN's GRFRange, which represents a contiguous range of registers.
+struct GRFMultirange {
+    std::vector<ngen::GRFRange> ranges;
+
+    GRFMultirange() {}
+    GRFMultirange(ngen::GRFRange range) : ranges{1, range} {}
+
+    ngen::GRF operator[](int idx) const {
+        for (auto &r : ranges) {
+            if (idx < r.getLen())
+                return r[idx];
+            idx -= r.getLen();
+        }
+        stub("Index out of bounds");
+    }
+
+    ngen::Subregister sub(ngen::HW hw, int offset, ngen::DataType type) const {
+        const int lg2Len = ngen::GRF::log2Bytes(hw) - ngen::getLog2Bytes(type);
+        return (*this)[offset >> lg2Len].sub(offset - ((offset >> lg2Len) << lg2Len), type);
+    }
+
+    GRFMultirange subrange(int start, int count) const {
+        GRFMultirange result;
+        for (auto &r : ranges) {
+            if (start < r.getLen()) {
+                auto got = std::min(count, r.getLen() - start);
+                result.ranges.push_back(ngen::GRFRange{r.getBase() + start, got});
+                count -= got;
+                start = 0;
+                if (count <= 0) break;
+            } else
+                start -= r.getLen();
+        }
+        return result;
+    }
+
+    GRFMultirange subrange(ngen::HW hw, Type T, const RegisterBlock &block) const;
+
+    bool contiguous(int start, int count) const {
+        for (auto &r : ranges) {
+            if (start < r.getLen())
+                return (start + count) <= r.getLen();
+            start -= r.getLen();
+        }
+        return false;
+    }
+
+    void append(ngen::GRF r) {
+        append(r-r);
+    }
+
+    void append(ngen::GRFRange r) {
+        if (!ranges.empty()) {
+            auto &rend = ranges.back();
+            if (rend.getBase() + rend.getLen() == r.getBase()) {
+                rend = ngen::GRFRange(rend.getBase(), rend.getLen() + r.getLen());
+                return;
+            }
+        }
+        ranges.push_back(r);
+    }
+
+    void append(const GRFMultirange &r) {
+        for (auto &rr : r.ranges)
+            append(rr);
+    }
+
+    int getLen() const {
+        int len = 0;
+        for (auto &r : ranges) len += r.getLen();
+        return len;
+    }
+
+    bool empty() const {
+        for (auto &r: ranges)
+            if (r.getLen() > 0)
+                return false;
+        return true;
+    }
+    void clear()       { ranges.clear(); }
+};
+
+#include "internal/namespace_end.hxx"
+
+#endif /* header guard */

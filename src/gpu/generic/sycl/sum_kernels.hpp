@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace impl {
 namespace gpu {
 namespace generic {
 namespace sycl {
-    
+
 #define DNNL_ARG_SRC_4 5
 #define DNNL_ARG_SRC_5 6
 #define DNNL_ARG_SRC_6 7

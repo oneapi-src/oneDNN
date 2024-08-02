@@ -22,7 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/jit/gemm/gemm_walk_orders.hpp"
-#include "gpu/intel/jit/gemm/gen_gemm_kernel_common.hpp"
+#include "gpu/intel/jit/gemm/include/driver_info.hpp"
 
 namespace dnnl {
 namespace impl {
