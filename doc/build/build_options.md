@@ -24,7 +24,7 @@ oneDNN supports the following build-time options.
 | ONEDNN_ENABLE_WORKLOAD          | **TRAINING**, INFERENCE                             | Specifies a set of functionality to be available based on workload                              |
 | ONEDNN_ENABLE_PRIMITIVE         | **ALL**, PRIMITIVE_NAME                             | Specifies a set of functionality to be available based on primitives                            |
 | ONEDNN_ENABLE_PRIMITIVE_CPU_ISA | **ALL**, CPU_ISA_NAME                               | Specifies a set of functionality to be available for CPU backend based on CPU ISA               |
-| ONEDNN_ENABLE_PRIMITIVE_GPU_ISA | **ALL**, GPU_ISA_NAME                               | Specifies a set of functionality to be available for GPU backend based on GPU ISA               |
+| ONEDNN_ENABLE_PRIMITIVE_GPU_ISA | **ALL**, NONE, GPU_ISA_NAME                         | Specifies a set of functionality to be available for GPU backend based on GPU ISA               |
 | ONEDNN_ENABLE_GEMM_KERNELS_ISA  | **ALL**, NONE, ISA_NAME                             | Specifies a set of functionality to be available for GeMM kernels for CPU backend based on ISA  |
 | ONEDNN_EXPERIMENTAL             | ON, **OFF**                                         | Enables [experimental features](@ref dev_guide_experimental)                                    |
 | ONEDNN_VERBOSE                  | **ON**, OFF                                         | Enables [verbose mode](@ref dev_guide_verbose)                                                  |
