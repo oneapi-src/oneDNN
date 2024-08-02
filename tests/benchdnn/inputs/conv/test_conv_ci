@@ -17,6 +17,11 @@
                 prelu:per_oc, \
                 mul:s8:per_oc+sum:0.25+relu:0.5+add:f32:per_tensor
 --batch=shapes_basic
+#### f32 abx format
+--stag=abx
+--dtag=abx
+--dt=f32
+--batch=shapes_basic
 ### Wino
 --alg=wino
 --dt=f32
@@ -32,6 +37,11 @@
 --stag=any,axb
 --dtag=any,axb
 --batch=shapes_basic
+#### f32 abx format
+--stag=abx
+--dtag=abx
+--dt=f32
+--batch=shapes_basic
 ### Wino
 --alg=wino
 --dt=f32
@@ -45,7 +55,6 @@
 
 ## Direct
 --alg=direct
-
 ### All inference configs
 --dt=s8:s8:f32,s8:s8:bf16,s8:s8:f16,s8:s8:s32,s8:s8:s8,s8:s8:u8, \
       u8:s8:f32,u8:s8:bf16,u8:s8:f16,u8:s8:s32,u8:s8:s8,u8:s8:u8

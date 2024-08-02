@@ -8,3 +8,10 @@
 
 --dir=FWD_B
 --batch=set_topologies_inference_only
+
+--stag=abx --dtag=abx
+--dir=FWD_B,BWD_D,BWD_WB
+--batch=set_all_topologies
+
+--dir=FWD_B
+--batch=set_topologies_inference_only
