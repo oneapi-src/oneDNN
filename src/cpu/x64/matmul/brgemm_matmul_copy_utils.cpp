@@ -3301,8 +3301,7 @@ struct jit_brgemm_matmul_copy_b_f32_t : public jit_brgemm_matmul_copy_b_t,
     jit_brgemm_matmul_copy_b_f32_t(const brgemm_matmul_conf_t *conf)
         : jit_brgemm_matmul_copy_b_t(conf)
         , jit_generator(jit_name())
-        , dt_in_(conf->isa == avx512_core_fp16 ? data_type::f16
-                                               : data_type::f32)
+        , dt_in_(conf->orig_wei_dt)
         , simd_w_(vreg_traits<Vmm>::vlen / sizeof(float))
         , typesize_in_(types::data_type_size(dt_in_))
         , src_stride_(conf_->copy_B_wei_stride)
@@ -4480,7 +4479,7 @@ status_t create_brgemm_matmul_copy_b(
             = everyone_is(data_type::bf16, conf->src_dt, conf->wei_dt);
     const bool is_f32 = everyone_is(data_type::f32, conf->src_dt, conf->wei_dt);
     // Note: f16 support through avx512_core_fp16 sets src_dt and wei_dt as f32
-    // to imply upconverting. So, the assumption is `is_f1`6 below evaluates to
+    // to imply upconverting. So, the assumption is `is_f16` below evaluates to
     // `false` on avx512_core_fp16.
     const bool is_f16 = everyone_is(data_type::f16, conf->src_dt, conf->wei_dt);
     if (conf->transposed_B) {

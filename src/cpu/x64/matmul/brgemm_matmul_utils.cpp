@@ -1615,13 +1615,14 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
     const auto vnni_granularity = data_type_vnni_granularity(out_type);
     if (vnni_granularity <= 0) return status::invalid_arguments;
 
-    const bool is_f16 = utils::one_of(data_type::f16, in_type, out_type);
     const bool is_bf16_with_int_wei = out_type == data_type::bf16
             && utils::one_of(in_type, data_type::s8, data_type::u8);
     const bool with_wei_decompression = in_type != out_type
             && utils::one_of(in_type, data_type::s8, data_type::u8);
 
-    conf.blocked_B = !utils::one_of(in_tag, ab, abc);
+    conf.blocked_B = !utils::one_of(in_tag, ab, ba, abc, acb);
+    conf.transposed_B = utils::one_of(in_tag, ba, acb);
+    conf.is_bf32 = false;
     conf.is_bf16_with_int_wei = is_bf16_with_int_wei;
     conf.with_wei_decompression = with_wei_decompression;
     conf.orig_wei_dt = in_type;
@@ -1638,13 +1639,11 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
     conf.b_dt_sz = types::data_type_size(in_type);
     conf.tr_b_dt_sz = types::data_type_size(conf.wei_dt);
     conf.copy_B_wei_stride = conf.N * conf.b_dt_sz;
-    conf.transposed_B = false;
+    conf.N_chunk_elems = conf.N; // To match seems unneeded assert.
     conf.s8s8_comp_b_str = utils::rnd_up(conf.N, conf.wei_n_blk);
     conf.s8s8_comp_n_str = conf.wei_n_blk;
-    conf.isa = is_f16 && mayiuse(avx512_core_fp16) ? avx512_core_fp16
-            : mayiuse(avx2_vnni_2)                 ? avx2_vnni_2
-            : mayiuse(avx512_core)                 ? avx512_core
-                                                   : avx2;
+    conf.isa = get_max_cpu_isa(); // Just use the best ISA possible.
+
     // The following members are different from the upper level `init_conf()`
     // call from the reorder implementation due to lacking a memory descriptor
     // to tip on compensation.
@@ -1652,6 +1651,7 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
     conf.s8s8_compensation_required = false;
     conf.src_zp_type = brgemm_broadcast_t::none;
     conf.has_zero_point_a = false;
+    conf.has_zero_point_b = false;
 
     return status::success;
 }
