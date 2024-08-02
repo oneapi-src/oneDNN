@@ -403,6 +403,7 @@ public:
 
     IR_DEFINE_DUMP()
 
+    static const parse_iface_t<kernel_desc_t> &parse_iface();
     static void init_parse_iface(parse_iface_t<kernel_desc_t> *iface);
 
     // Helper methods.
@@ -457,7 +458,6 @@ public:
             compute::kernel_t &kernel) const;
     serialized_t serialize() const override;
     static kernel_desc_t deserialize(const serialized_t &s);
-    static parse_iface_t<kernel_desc_t> cli_iface();
     static void show_help();
 };
 

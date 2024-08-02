@@ -315,7 +315,7 @@ bool kernel_desc_t::is_supported() const {
 void kernel_desc_t::set(const std::string &s) {
     operator=(kernel_desc_t());
     if (s.empty()) return;
-    auto iface = cli_iface();
+    auto iface = parse_iface();
     iface.parse(s, *this);
     set_defaults();
 }
@@ -357,7 +357,7 @@ void kernel_desc_t::finalize(const plan_t &plan) {
 }
 
 std::string kernel_desc_t::cmd_str() const {
-    return cli_iface().cmd_str(*this);
+    return parse_iface().cmd_str(*this);
 }
 
 std::string kernel_desc_t::str() const {
@@ -387,31 +387,31 @@ std::string kernel_desc_t::str() const {
 }
 
 void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
+    iface->set_relaxed(true);
 #define PACK(member) decltype(kernel_desc_t::member), &kernel_desc_t::member
     iface->add<PACK(prop)>("prop", "Propagation kind (fwd, bwd_d or bwd_w).",
-            /*cli_required=*/true);
+            /*required=*/true);
     iface->add<PACK(is_dw)>(
             "dw", "Whether the problem is a depthwise convolution (0 or 1).");
     iface->add<PACK(src_tag)>("src",
             "Source layout tag. Examples: axb:f32, aBx16b:f16).",
-            /*cli_required=*/true);
+            /*required=*/true);
     iface->add<PACK(wei_tag)>("wei", "Weights layout tag (e.g. axcb:f32).",
-            /*cli_required=*/true);
+            /*required=*/true);
     iface->add<PACK(dst_tag)>("dst", "Destination layout tag (e.g. axb:f32).",
-            /*cli_required=*/true);
-    iface->add<PACK(hw_desc)>("hw", "Hardware (xehpc).", /*cli_required=*/true);
-    iface->add<PACK(fma)>("fma", "FMA kind (e.g. mad).", /*cli_required=*/true);
-    iface->add<PACK(simd)>(
-            "simd", "SIMD size (16 or 32).", /*cli_required=*/true);
+            /*required=*/true);
+    iface->add<PACK(hw_desc)>("hw", "Hardware (xehpc).", /*required=*/true);
+    iface->add<PACK(fma)>("fma", "FMA kind (e.g. mad).", /*required=*/true);
+    iface->add<PACK(simd)>("simd", "SIMD size (16 or 32).", /*required=*/true);
     iface->add<PACK(regs)>(
-            "regs", "Number of registers (128 or 256).", /*cli_required=*/true);
+            "regs", "Number of registers (128 or 256).", /*required=*/true);
     iface->add<PACK(iter_tile)>("iter", "Iteration tile (e.g. mb32ic16oc16).",
-            /*cli_required=*/true);
+            /*required=*/true);
     iface->add<PACK(iter_outer_tile)>("iter_outer",
             "Outer iteration tile (e.g. mb2).",
-            /*cli_required=*/false);
+            /*required=*/false);
     iface->add<PACK(thread_group_tile)>(
-            "tg", "Threadgroup tile (e.g. ow4oc4).", /*cli_required=*/true);
+            "tg", "Threadgroup tile (e.g. ow4oc4).", /*required=*/true);
     iface->add<PACK(loop_desc)>("loop_desc",
             "Loop description, variables ordered from innermost to outermost "
             "(e.g. kw,kh,kd,ic).");
@@ -510,14 +510,12 @@ kernel_desc_t kernel_desc_t::deserialize(const serialized_t &s) {
     return desc;
 }
 
-parse_iface_t<kernel_desc_t> kernel_desc_t::cli_iface() {
-    parse_iface_t<kernel_desc_t> iface(/*cli=*/true);
-    init_parse_iface(&iface);
-    return iface;
+const parse_iface_t<kernel_desc_t> &kernel_desc_t::parse_iface() {
+    return parse_iface_helper_t<kernel_desc_t>::get();
 }
 
 void kernel_desc_t::show_help() {
-    cli_iface().print_help();
+    parse_iface().print_help();
 }
 
 grid_t create_thread_group_grid(const kernel_desc_t &desc) {

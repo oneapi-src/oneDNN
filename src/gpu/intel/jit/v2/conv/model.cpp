@@ -233,7 +233,7 @@ void model_t::parse(std::istream &in) {
     }
     auto s = serialized_t::from_data(data);
     deserializer_t d(s);
-    ml_model_.deserialize(d);
+    ml_model_ = ml_model_t::deserialize(d);
 }
 
 void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y) {
