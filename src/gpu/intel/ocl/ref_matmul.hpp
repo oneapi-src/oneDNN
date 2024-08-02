@@ -85,11 +85,11 @@ struct ref_matmul_t : public gpu_primitive_t {
                                                     f16, src_dt_, wei_dt_)
                                                 && utils::one_of(
                                                         dst_dt_, u8, s8, f16))
-                                        || ((utils::everyone_is(
-                                                     f8_e5m2, src_dt_, wei_dt_)
+                                        || ((utils::one_of(
+                                                     src_dt_, f8_e5m2, f8_e4m3)
                                                     || utils::everyone_is(
-                                                            f8_e4m3, src_dt_,
-                                                            wei_dt_))
+                                                            wei_dt_, f8_e4m3,
+                                                            f8_e5m2))
                                                 && utils::one_of(dst_dt_, f32,
                                                         bf16, f16, src_dt_))
                                         || (utils::everyone_is(
