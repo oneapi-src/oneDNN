@@ -529,13 +529,11 @@ void BLASKernelGenerator<hw>::gemmCalcKLoopBarrierCount(Subregister &count, cons
         count = state.ra.alloc_sub<uint32_t>();
 
     if (barrierFreq > 0) {
-        if (!is_zero_or_pow2(barrierFreq)) stub();
-
         bool maySkipSplitBarrier = strategy.splitBarrier && (cooldown > 0) && !state.splitBarrierAlways;
         if (maySkipSplitBarrier)
             cmp(1 | ge | state.flagAP, k, cooldown);
         add(1 | sat, count, k, barrierFreq - cooldown - unrollK);
-        shr(1, count, count, uint16_t(ilog2(barrierFreq)));
+        divDown(count, count, barrierFreq, strategy, state);
         if (strategy.splitBarrier) {
             maySkipSplitBarrier ? add(1 | state.flagAP, count, count, 1)
                                 : add(1,                count, count, 1);
