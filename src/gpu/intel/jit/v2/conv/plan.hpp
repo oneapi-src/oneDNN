@@ -218,26 +218,23 @@ struct prefetch_plan_t : public base_plan_t {
 };
 
 struct x2r_plan_t : public base_plan_t {
-    send_plan_t a_load;
-    send_plan_t b_load;
-    reorder_plan_t a_reorder;
-    reorder_plan_t b_reorder;
-    layout_t a_layout;
-    layout_t b_layout;
+    tensor_kind_t tensor_kind;
+    send_plan_t load;
+    reorder_plan_t reorder;
+    layout_t layout;
 
     using base_plan_t::base_plan_t;
 
     int grf_usage_bytes() const {
         int ret = 0;
-        ret += a_load.grf_usage_bytes();
-        ret += b_load.grf_usage_bytes();
+        ret += load.grf_usage_bytes();
+        ret += reorder.grf_usage_bytes();
         return ret;
     }
 
     prb_reqs_t reqs() const {
         prb_reqs_t ret;
-        ret.add(a_load.reqs());
-        ret.add(b_load.reqs());
+        ret.add(load.reqs());
         ret.simplify();
         return ret;
     }
@@ -245,14 +242,12 @@ struct x2r_plan_t : public base_plan_t {
     std::string str() const {
         if (!*this) return "(empty)";
         std::ostringstream oss;
-        oss << "a_layout: " << a_layout.str() << std::endl;
-        oss << "b_layout: " << b_layout.str() << std::endl;
-        oss << ir_utils::add_tag("a_load", a_load.str()) << std::endl;
-        oss << ir_utils::add_tag("b_load", b_load.str()) << std::endl;
-        if (a_reorder)
-            oss << ir_utils::add_tag("a_reorder", a_reorder.str()) << std::endl;
-        if (b_reorder)
-            oss << ir_utils::add_tag("b_reorder", b_reorder.str()) << std::endl;
+        auto prefix = to_string(tensor_kind);
+        oss << prefix << "_layout: " << layout.str() << std::endl;
+        oss << ir_utils::add_tag(prefix + "_load", load.str()) << std::endl;
+        if (reorder)
+            oss << ir_utils::add_tag(prefix + "_reorder", reorder.str())
+                << std::endl;
         return oss.str();
     }
 
@@ -289,6 +284,75 @@ struct fma_plan_t : public base_plan_t {
     IR_DEFINE_DUMP()
 };
 
+struct x2r_fma_plan_t : public base_plan_t {
+    struct stage_t {
+        x2r_plan_t x2r;
+        fma_plan_t fma;
+
+        stage_t() = default;
+        stage_t(const x2r_plan_t &x2r) : x2r(x2r) {}
+        stage_t(const fma_plan_t &fma) : fma(fma) {}
+        bool is_x2r() const { return (bool)x2r; }
+        bool is_fma() const { return (bool)fma; }
+
+        prb_reqs_t reqs() const {
+            if (is_x2r()) return x2r.reqs();
+            return prb_reqs_t();
+        }
+
+        std::string str() const {
+            if (is_x2r()) return x2r.str();
+            return fma.str();
+        }
+    };
+
+    prb_tile_t outer;
+    layout_t c_layout;
+    std::vector<stage_t> stages;
+
+    x2r_fma_plan_t(const hw_t &hw) : base_plan_t(hw) {}
+    void add_stage(const x2r_plan_t &x2r) { stages.emplace_back(x2r); }
+    void add_stage(const fma_plan_t &fma) { stages.emplace_back(fma); }
+    int nstages() const { return (int)stages.size(); }
+
+    int grf_usage_bytes() const {
+        int ret = 0;
+        ret += utils::rnd_up(c_layout.size(), grf_size());
+        std::unordered_map<tensor_kind_t, int,
+                ir_utils::enum_hash_t<tensor_kind_t>>
+                tensor_usage;
+        for (auto &s : stages) {
+            if (!s.is_x2r()) continue;
+            auto &usage = tensor_usage[s.x2r.tensor_kind];
+            usage = std::max(usage, s.x2r.grf_usage_bytes());
+        }
+        for (auto &kv : tensor_usage)
+            ret += kv.second;
+        return ret;
+    }
+
+    prb_reqs_t reqs() const {
+        prb_reqs_t ret;
+        for (auto &s : stages)
+            ret.add(s.reqs());
+        ret.simplify();
+        return ret;
+    }
+
+    std::string str() const {
+        if (!*this) return "(empty)";
+        std::ostringstream oss;
+        if (!outer.is_empty()) oss << "outer: " << outer << std::endl;
+        for (int i = 0; i < nstages(); i++) {
+            auto &s = stages[i];
+            auto tag = (s.is_x2r() ? "x2r_" : "fma_") + std::to_string(i);
+            oss << ir_utils::add_tag(tag, s.str()) << std::endl;
+        }
+        oss << "c_layout: " << c_layout;
+        return oss.str();
+    }
+};
+
 struct epilogue_plan_t : public base_plan_t {
     prb_tile_t tile;
     reorder_plan_t reorder;
@@ -319,17 +383,15 @@ struct plan_t : public base_plan_t {
     virt_grid_t virt_grid;
 
     prefetch_plan_t prefetch;
-    x2r_plan_t x2r;
-    fma_plan_t fma;
+    x2r_fma_plan_t x2r_fma;
     epilogue_plan_t epilogue;
 
     plan_t(const hw_t &hw = hw_t())
-        : base_plan_t(hw), prefetch(hw), x2r(hw), fma(hw), epilogue(hw) {}
+        : base_plan_t(hw), prefetch(hw), x2r_fma(hw), epilogue(hw) {}
 
     int grf_usage_bytes() const {
         int ret = 0;
-        ret += x2r.grf_usage_bytes();
-        ret += fma.grf_usage_bytes();
+        ret += x2r_fma.grf_usage_bytes();
         ret += epilogue.grf_usage_bytes();
         return ret;
     }
@@ -340,8 +402,7 @@ struct plan_t : public base_plan_t {
         if (!*this) return "(empty)";
         std::ostringstream oss;
         oss << ir_utils::add_tag("prefetch", prefetch.str()) << std::endl;
-        oss << ir_utils::add_tag("x2r", x2r.str()) << std::endl;
-        oss << ir_utils::add_tag("fma", fma.str()) << std::endl;
+        oss << ir_utils::add_tag("x2r_fma", x2r_fma.str()) << std::endl;
         oss << ir_utils::add_tag("epilogue", epilogue.str());
         return ir_utils::add_tag("Plan", oss.str());
     }

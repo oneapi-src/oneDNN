@@ -20,7 +20,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/jit/gemm/gen_gemm_kernel.hpp"
-#include "gpu/intel/jit/gemm/microkernel_provider.hpp"
+#include "gpu/intel/jit/gemm/include/microkernel_provider.hpp"
 
 namespace dnnl {
 namespace impl {

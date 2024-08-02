@@ -266,6 +266,15 @@ int estimate_grf_usage_bytes(const kernel_desc_t &desc) {
     int a_elems = b_iter * m_iter * k_iter;
     int b_elems = b_iter * k_iter * n_iter;
     int c_elems = m_iter * n_iter;
+    auto iter_outer_dim
+            = (desc.iter_outer_tile.is_empty() ? prb_dims::undef
+                                               : *desc.iter_outer_tile.begin());
+    auto bmnk = to_gemm(iter_outer_dim, desc.prop);
+    if (bmnk == prb_dims::m) {
+        a_elems = utils::div_up(a_elems, desc.iter_outer_tile.elems());
+    } else if (bmnk == prb_dims::n) {
+        b_elems = utils::div_up(b_elems, desc.iter_outer_tile.elems());
+    }
     int a_size = a_elems * a_type_size;
     int a_reorder_size = 0;
     int b_size = b_elems * b_type_size;
@@ -353,24 +362,27 @@ std::string kernel_desc_t::cmd_str() const {
 
 std::string kernel_desc_t::str() const {
     std::ostringstream oss;
-    oss << "Propagation:        " << ir_utils::to_string(prop) << std::endl;
-    oss << "Depthwise:          " << ir_utils::to_string(is_dw) << std::endl;
-    oss << "Source tag:         " << src_tag << std::endl;
-    oss << "Weights tag:        " << wei_tag << std::endl;
-    oss << "Destination tag:    " << dst_tag << std::endl;
-    oss << "Specialization:     " << spec_reqs << std::endl;
-    oss << "HW:                 " << jit::to_string(hw.to_ngen()) << std::endl;
-    oss << "FMA kind:           " << to_string(fma) << std::endl;
-    oss << "SIMD:               " << simd << std::endl;
-    oss << "Registers:          " << regs << std::endl;
-    oss << "Iteration tile:     " << iter_tile << std::endl;
-    oss << "Thread group tile:  " << thread_group_tile << std::endl;
-    oss << "Loop desc:          " << loop_desc << std::endl;
-    oss << "Load:               " << load.str() << std::endl;
-    oss << "Prefetch:           " << prefetch.str() << std::endl;
-    oss << "Store:              " << store.str() << std::endl;
+    oss << "Propagation:            " << jit::to_string(prop) << std::endl;
+    oss << "Depthwise:              " << ir_utils::to_string(is_dw)
+        << std::endl;
+    oss << "Source tag:             " << src_tag << std::endl;
+    oss << "Weights tag:            " << wei_tag << std::endl;
+    oss << "Destination tag:        " << dst_tag << std::endl;
+    oss << "Specialization:         " << spec_reqs << std::endl;
+    oss << "HW:                     " << jit::to_string(hw.to_ngen())
+        << std::endl;
+    oss << "FMA kind:               " << to_string(fma) << std::endl;
+    oss << "SIMD:                   " << simd << std::endl;
+    oss << "Registers:              " << regs << std::endl;
+    oss << "Iteration tile:         " << iter_tile << std::endl;
+    oss << "Iteration outer tile:   " << iter_outer_tile << std::endl;
+    oss << "Thread group tile:      " << thread_group_tile << std::endl;
+    oss << "Loop desc:              " << loop_desc << std::endl;
+    oss << "Load:                   " << load.str() << std::endl;
+    oss << "Prefetch:               " << prefetch.str() << std::endl;
+    oss << "Store:                  " << store.str() << std::endl;
     if (reqs) oss << ir_utils::add_tag("Reqs", reqs.str()) << std::endl;
-    oss << "Command:            " << cmd_str();
+    oss << "Command:                " << cmd_str();
     return ir_utils::add_tag("Desc", oss.str());
 }
 
@@ -395,6 +407,9 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "regs", "Number of registers (128 or 256).", /*cli_required=*/true);
     iface->add<PACK(iter_tile)>("iter", "Iteration tile (e.g. mb32ic16oc16).",
             /*cli_required=*/true);
+    iface->add<PACK(iter_outer_tile)>("iter_outer",
+            "Outer iteration tile (e.g. mb2).",
+            /*cli_required=*/false);
     iface->add<PACK(thread_group_tile)>(
             "tg", "Threadgroup tile (e.g. ow4oc4).", /*cli_required=*/true);
     iface->add<PACK(loop_desc)>("loop_desc",

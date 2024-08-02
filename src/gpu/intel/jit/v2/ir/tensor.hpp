@@ -66,8 +66,8 @@ struct block_t {
     }
 
     bool operator==(const block_t &other) const {
-        return (dim == other.dim) && (size.is_same(other.size))
-                && (stride.is_same(other.stride));
+        return (dim == other.dim) && (size.is_equal(other.size))
+                && (stride.is_equal(other.stride));
     }
     bool operator!=(const block_t &other) const { return !operator==(other); }
     std::string brief_str() const;
@@ -308,6 +308,7 @@ public:
     const layout_desc_t &desc() const { return desc_; }
     const type_t &type() const { return type_; }
     const expr_t &base() const { return base_; }
+    void set_base(const expr_t &base) { base_ = base; }
     const std::vector<block_t> &blocks() const { return blocks_; }
     std::vector<prb_dim_t> dims() const {
         dim_map_t<prb_dim_t, int> seen;
@@ -318,7 +319,7 @@ public:
     bool operator==(const layout_t &other) const {
         if (desc_ != other.desc_) return false;
         if (type_ != other.type_) return false;
-        if (!base_.is_same(other.base_)) return false;
+        if (!base_.is_equal(other.base_)) return false;
         if (blocks_ != other.blocks_) return false;
         return true;
     }
@@ -338,7 +339,7 @@ public:
     int inner_block(const prb_dim_t &dim) const;
     int inner_stride() const;
     expr_t stride(const prb_dim_t &dim, int dim_block_idx = 0) const;
-    expr_t offset_in_bytes(const std::vector<int> &block_off) const;
+    expr_t shift_in_bytes(const std::vector<int> &block_off) const;
     int offset_in_bytes(prb_coord_t<int> coord) const;
     bool is_blocked_by(const prb_dim_t &dim, int block) const;
     bool is_blocked_by(const layout_t &other) const;

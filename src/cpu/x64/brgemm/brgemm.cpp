@@ -469,13 +469,11 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
     init_zp_type(brg->zp_type_b, DNNL_ARG_WEIGHTS);
     init_zp_type(brg->zp_type_c, DNNL_ARG_DST);
 
-    // src zero points require additional register in brgemm & brdgmm kernel
-    const bool is_zp_src = brg->zp_type_a != brgemm_broadcast_t::none;
-    if (brg->is_dgmm) {
-        const bool sum_needs_vmm = (!is_superset(brg->isa_impl, avx512_core))
-                && brg->with_sum && brg->sum_scale != 1.f;
-        if (is_zp_src || sum_needs_vmm) CHECK(brdgmm_blocking(brg));
-    } else if (is_zp_src || brg->is_bf16_emu)
+    // Post-ops may use vector registers so brgemm/brdgmm blocking may need to
+    // be updated
+    if (brg->is_dgmm)
+        CHECK(brdgmm_blocking(brg));
+    else
         CHECK(brgemm_blocking(brg));
 
     return status::success;

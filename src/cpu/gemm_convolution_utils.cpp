@@ -996,7 +996,8 @@ void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im,
 status_t init_conf(conv_gemm_conf_t &jcp,
         memory_tracking::registrar_t &scratchpad, const convolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, primitive_attr_t &attr, int max_threads) {
+        memory_desc_t &bias_md, primitive_attr_t &attr, int max_threads,
+        bool check_postops) {
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
@@ -1153,6 +1154,23 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             VERBOSE_UNSUPPORTED_DT);
 
     CHECK(attr.set_default_formats(&dst_md));
+
+#if DNNL_X64
+    // for x64 we need to check post-ops after tags init
+    if (check_postops) {
+        using namespace x64::injector;
+        static constexpr bool sum_at_pos_0_only = true;
+        static constexpr bool sum_requires_scale_one = true;
+        static constexpr bool sum_requires_zp_zero = true;
+
+        VDISPATCH_CONV_IC(
+                post_ops_ok(post_ops_ok_args_t(x64::avx512_core,
+                        {binary, eltwise, sum}, attr.post_ops_, &dst_d,
+                        sum_at_pos_0_only, sum_requires_scale_one,
+                        sum_requires_zp_zero)),
+                VERBOSE_UNSUPPORTED_POSTOP);
+    }
+#endif
 
     jcp.post_ops = attr.post_ops_;
 

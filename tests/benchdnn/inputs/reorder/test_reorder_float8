@@ -23,3 +23,11 @@
 --stag=aBCde2c4b2c 4x16x16x3x3 2x16x6x3x2 2x2x10x2x3
 --stag=aBCde4b8c2b 4x16x16x3x3 2x16x6x3x2 2x2x10x2x3
 --stag=aBCde4c8b2c 4x16x16x3x3 2x16x6x3x2 2x2x10x2x3
+
+--reset
+--sdt=f8_e5m2 --ddt=f8_e5m2
+--stag=abcd --dtag=acdb  1x2048x14x14
+
+--reset
+--sdt=f8_e4m3 --ddt=f8_e4m3
+--stag=abcd --dtag=acdb  1x2048x14x14

@@ -362,6 +362,7 @@ public:
     int simd = 0;
     int regs = 0;
     prb_tile_t iter_tile;
+    prb_tile_t iter_outer_tile;
     prb_tile_t thread_group_tile;
     loop_desc_t loop_desc;
     load_desc_t load;

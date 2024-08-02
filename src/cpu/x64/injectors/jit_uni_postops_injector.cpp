@@ -23,6 +23,31 @@ namespace cpu {
 namespace x64 {
 namespace injector {
 
+size_t aux_vec_count(const post_ops_t &post_ops, cpu_isa_t isa, bool is_fwd) {
+    size_t res = 0;
+#define CASE_ELTWISE_SUPERSET(_isa) \
+    if (is_superset(isa, _isa)) { \
+        res = nstl::max(res, \
+                jit_uni_eltwise_injector<_isa>::aux_vecs_count( \
+                        post_op.eltwise.alg, is_fwd, post_op.eltwise.alpha)); \
+        continue; \
+    }
+
+    for (int i = 0; i < post_ops.len(); i++) {
+        const auto &post_op = post_ops.entry_[i];
+        if (post_op.is_eltwise()) {
+            CASE_ELTWISE_SUPERSET(avx512_core);
+            CASE_ELTWISE_SUPERSET(avx2);
+            CASE_ELTWISE_SUPERSET(sse41);
+        }
+        // TODO: add support for other post-ops types. For now we assume that
+        // other post operations do not use vectors implicitly.
+    }
+#undef CASE_ELTWISE_SUPERSET
+
+    return res;
+}
+
 template <cpu_isa_t isa, typename Vmm>
 jit_uni_postops_injector_t<isa, Vmm>::jit_uni_postops_injector_t(
         jit_generator *host, const post_ops_t &post_ops,

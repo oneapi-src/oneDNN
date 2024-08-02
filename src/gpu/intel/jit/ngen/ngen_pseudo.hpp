@@ -574,7 +574,7 @@ void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127
     }
 }
 
-void loadargs(const GRF &base, int argGRFs, const GRF &temp = GRF(127))
+void loadargs(const GRF &base, int argGRFs, const GRF &temp = GRF(127), bool inPrologue = true)
 {
     if (hardware >= HW::XeHP) {
         if (argGRFs > 0) {

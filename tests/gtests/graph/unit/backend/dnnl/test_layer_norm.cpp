@@ -45,14 +45,13 @@ TEST(test_layer_norm_execute, LayernormNDimCheck) {
 
     // the last ndim is DNNL_GRAPH_UNKNOWN_NDIMS
     for (size_t i = 0; i < src_shapes.size() + 1; i++) {
-        const auto &src_shape = src_shapes[i];
         graph::logical_tensor_t src_lt;
         if (i == src_shapes.size())
             // ndim is DNNL_GRAPH_UNKNOWN_NDIMS
             src_lt = utils::logical_tensor_init(0, graph::data_type::f32);
         else
             src_lt = utils::logical_tensor_init(
-                    0, src_shape, graph::data_type::f32);
+                    0, src_shapes[i], graph::data_type::f32);
         graph::graph_t g(engine->kind());
 
         graph::op_t layernorm_op(graph::op_kind::LayerNorm);

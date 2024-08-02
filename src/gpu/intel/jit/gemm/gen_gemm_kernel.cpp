@@ -17,9 +17,8 @@
 #include "gpu/intel/jit/gemm/gen_gemm_kernel.hpp"
 #include "common/impl_registration.hpp"
 #include "gpu/intel/compute/device_info.hpp"
-#include "gpu/intel/jit/gemm/kernel_catalog.hpp"
-#include "gpu/intel/jit/gemm/kernel_selector.hpp"
-#include "gpu/intel/jit/gemm/strategy_parser.hpp"
+#include "gpu/intel/jit/gemm/include/generator.hpp"
+#include "gpu/intel/jit/gemm/include/strategy_parser.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
 
 namespace dnnl {
@@ -29,7 +28,7 @@ namespace intel {
 namespace jit {
 
 #define _CATALOG_ gemm_catalog
-#include "gpu/intel/jit/gemm/kernel.db"
+#include "selector/db/kernel.db"
 ;
 #undef _CATALOG_
 
@@ -38,6 +37,28 @@ status_t gen_gemm_kernel_desc_t::create_generator(
         compute::kernel_t &kernel) const {
     gen_gemm_kernel_t kd(*this);
     return engine.create_kernel(&kernel, &kd, cache_blob_t());
+}
+
+compute::scalar_type_t gen_gemm_kernel_desc_t::scalar_type() const {
+    switch (problem_.Ts) {
+        case Type::s4: return compute::scalar_type_t::_int4;
+        case Type::u4: return compute::scalar_type_t::_uint4;
+        case Type::s8: return compute::scalar_type_t::_char;
+        case Type::u8: return compute::scalar_type_t::_uchar;
+        case Type::s16: return compute::scalar_type_t::_short;
+        case Type::u16: return compute::scalar_type_t::_ushort;
+        case Type::s32: return compute::scalar_type_t::_int;
+        case Type::u32: return compute::scalar_type_t::_uint;
+        case Type::s64: return compute::scalar_type_t::_long;
+        case Type::u64: return compute::scalar_type_t::_ulong;
+        case Type::bf8: return compute::scalar_type_t::_bfloat8;
+        case Type::hf8: return compute::scalar_type_t::_hfloat8;
+        case Type::bf16: return compute::scalar_type_t::_bfloat16;
+        case Type::f16: return compute::scalar_type_t::_half;
+        case Type::f32: return compute::scalar_type_t::_float;
+        case Type::f64: return compute::scalar_type_t::_double;
+        default: return compute::scalar_type_t::undef;
+    }
 }
 
 status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
@@ -605,8 +626,11 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     match_params.sizes.n = n;
     match_params.sizes.k = k;
     match_params.sizes.batch = batch;
-    match_params.unroll[LoopM] = unroll_m;
-    match_params.unroll[LoopN] = unroll_n;
+
+    StrategyRequirement reqs[2] = {StrategyRequirement::UnrollM == unroll_m,
+            StrategyRequirement::UnrollN == unroll_n};
+    match_params.extraReqs = reqs;
+    match_params.nExtraReqs = 2;
 
     auto tags = const_cast<char *>(match_params.tags);
     while (*tags)

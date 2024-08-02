@@ -200,7 +200,12 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
         max_reg_count
                 = nstl::min(max_reg_count, max_isa_regs - max_bcst_regs - 5);
 
-    int max_bcast_block = max_reg_count - adj_ld_block2;
+    const int postops_regs = brg->attr()
+            ? injector::aux_vec_count(
+                    brg->attr()->post_ops_, brg->isa_impl, true)
+            : 0;
+    int max_bcast_block
+            = max_reg_count - nstl::max(adj_ld_block2, postops_regs);
 
     if (brg->is_bf16_emu) {
         // in theory, vmm bf16_emu register indices overlap with other vmm
@@ -770,8 +775,14 @@ status_t brdgmm_blocking(brgemm_desc_t *brg) {
     const int compute_vregs
             = jit_brdgmm_kernel_base_t<Xbyak::Zmm>::get_compute_vmm_count(*brg);
     const int bf16_emu_vregs = brg->is_bf16_emu * 4;
-    const int max_acc_vmms
-            = max_vregs - nstl::max(compute_vregs + aux_vregs, bf16_emu_vregs);
+    const int postops_regs = brg->attr()
+            ? injector::aux_vec_count(
+                    brg->attr()->post_ops_, brg->isa_impl, true)
+            : 0;
+
+    const int max_acc_vmms = max_vregs
+            - nstl::max(postops_regs,
+                    nstl::max(compute_vregs + aux_vregs, bf16_emu_vregs));
 
     if (brg->brgattr.hint_bs_group > 1) {
         // Check if we can actually apply bs grouping

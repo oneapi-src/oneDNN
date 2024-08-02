@@ -333,17 +333,9 @@ public:
 
     void search() {
         std::cout << "Starting kernel search" << std::endl;
-        auto &registry = plan_registry();
         auto descs = gen_descs();
         for (size_t i = 0; i < descs.size(); i++) {
-            auto &d = descs[i];
-            std::cout << "Running benchmark for descriptor: " << d.cmd_str()
-                      << std::endl;
-            auto bd = bench(bench_mger_, d);
-            if (!bd) std::cout << "Benchmarking failed" << std::endl;
-            if (!bd) continue;
-            auto model = model_fit(bd);
-            registry.set(d, model);
+            search_desc(descs[i]);
         }
         std::cout << "Kernel search completed" << std::endl;
     }
@@ -383,6 +375,40 @@ private:
         if (!plan) return false;
         desc.finalize(plan);
         return true;
+    }
+
+    static std::vector<prb_tile_t> generate_iter_outer_tiles(
+            const kernel_desc_t &desc) {
+        std::vector<prb_tile_t> tiles = {prb_tile_t()};
+        for (auto &d : desc.iter_tile) {
+            auto bmnk = to_gemm(d, desc.prop).kind();
+            if (!utils::one_of(bmnk, prb_dim_kind_t::m, prb_dim_kind_t::n))
+                continue;
+            for (int outer : {2, 4}) {
+                if (desc.iter_tile.at(d) % outer != 0) continue;
+                tiles.push_back(outer);
+            }
+        }
+        return tiles;
+    }
+
+    void search_desc(const kernel_desc_t &_desc) const {
+        auto iter_outer_tiles = generate_iter_outer_tiles(_desc);
+        auto &registry = plan_registry();
+        for (auto &iter_outer : iter_outer_tiles) {
+            auto desc = _desc;
+            desc.iter_outer_tile = iter_outer;
+            std::cout << "Running benchmark for descriptor: " << desc.cmd_str()
+                      << std::endl;
+            auto bd = bench(bench_mger_, desc);
+            if (!bd) {
+                std::cout << "Benchmarking failed" << std::endl;
+                continue;
+            }
+            auto model = model_fit(bd);
+            registry.set(desc, model);
+            return;
+        }
     }
 
     const bench_manager_t &bench_mger_;
