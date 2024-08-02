@@ -310,43 +310,6 @@ status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
     return status::success;
 }
 
-status_t init_conf_indirect_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
-        memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const convolution_desc_t &cd,
-        const primitive_attr_t &attr) {
-    if (weights_md.ndims != 4) return status::unimplemented;
-
-    // Indirect is slower for small convolution kernels, except when src, weight and dst are BF16
-    if (weights_md.dims[2] == 1 && weights_md.dims[3] == 1
-            && !everyone_is(data_type::bf16, src_md.data_type,
-                    weights_md.data_type, dst_md.data_type))
-        return status::unimplemented;
-
-    CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
-
-    // If we do not need to pad input channels for fast math mode then it would
-    // be faster to run convolution with im2row instead of using indirect kernel
-    int block_by = arm_compute::block_by(acp.weights_info.weight_format());
-    int ic = src_md.dims[1];
-    if (acp.fast_math && ic % block_by == 0) return status::unimplemented;
-
-    // clang-format off
-    // NOTE: indirect convolution method supports only nhwc layout.
-    ACL_CHECK_VALID(arm_compute::NEGEMMConv2d::validate(
-        &acp.src_tensor_info,
-        &acp.wei_tensor_info,
-        acp.with_bias ? &acp.bia_tensor_info : nullptr,
-        &acp.dst_tensor_info,
-        arm_compute::Conv2dInfo(acp.padstride_info,
-                                acp.dilation_info,
-                                acp.act_info,
-                                acp.fast_math,
-                                1, acp.weights_info)));
-    // clang-format on
-
-    return status::success;
-}
-
 status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
