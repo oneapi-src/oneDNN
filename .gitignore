@@ -1,5 +1,6 @@
 #===============================================================================
 # Copyright 2019-2021 Intel Corporation
+# Copyright 2024 Arm Limited and affiliates.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,4 +30,4 @@ compile_commands.json
 .git-blame-ignore-revs
 **/.DS_Store
 __pycache__
-
+.cache
