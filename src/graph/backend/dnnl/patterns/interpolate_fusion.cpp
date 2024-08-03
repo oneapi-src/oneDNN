@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, interpolate_post_ops_fusion)
                             in_edges_t {in_edge(0, interpolate, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<float_resampling_fwd>();
+            return std::make_shared<resampling_fwd_t>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END

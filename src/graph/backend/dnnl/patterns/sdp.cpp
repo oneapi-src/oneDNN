@@ -14,10 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "graph/backend/dnnl/kernels/sdp.hpp"
 #include "graph/backend/dnnl/kernels/large_partition.hpp"
 #include "graph/backend/dnnl/kernels/matmul.hpp"
-#include "graph/backend/dnnl/kernels/mqa_base.hpp"
-#include "graph/backend/dnnl/kernels/sdp_base.hpp"
+#include "graph/backend/dnnl/kernels/mqa.hpp"
+
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"
