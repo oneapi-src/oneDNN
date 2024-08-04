@@ -29,7 +29,6 @@
 #include "gpu/intel/jit/emulation.hpp"
 #include "gpu/intel/jit/jit_generator_base.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
-#include "gpu/intel/jit/utils/utils.hpp"
 #include "xpu/utils.hpp"
 
 #include "gpu/intel/jit/ngen/ngen_opencl.hpp"
@@ -171,18 +170,16 @@ void jit_generator<hw>::dbg_alloc(cl_context context) {
 }
 #endif
 
+void check_kernel_size(
+        const std::string &kernel_name, size_t kernel_size, size_t icache_size);
+
 template <template <ngen::HW> class KernelT, ngen::HW arch, typename... ArgsT>
 std::unique_ptr<jit::jit_generator_base> make_generator(
         const compute::device_info_t &device_info, ArgsT &&...args) {
 
     auto raw_kernel = new KernelT<arch>(std::forward<ArgsT>(args)...);
-    if (raw_kernel->getRootStreamLength() > device_info.icache_size()) {
-        ir_warning() << raw_kernel->kernel_name()
-                     << " larger than icache, kernel: "
-                     << raw_kernel->getRootStreamLength()
-                     << " bytes, icache: " << device_info.icache_size()
-                     << " bytes\n";
-    }
+    check_kernel_size(raw_kernel->kernel_name(),
+            raw_kernel->getRootStreamLength(), device_info.icache_size());
     return std::unique_ptr<jit::jit_generator_base>(raw_kernel);
 }
 

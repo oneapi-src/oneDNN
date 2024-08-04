@@ -43,3 +43,4 @@ g16mb1ic16id120ih200iw340oc16od60oh100ow170kd3kh3kw3sd2sh2sw2pd0ph0pw0
 --reset --dt=bf16 --dir=FWD_B,FWD_D --wtag=any,abcd --dtag=abcd mb3_ic1oc3_ih8oh8kh1sh1dh0ph0_iw9ow3kw3sw3dw0pw0
 
 --reset --dir=BWD_D --stag=abcd --wtag=abcde --dtag=abcd g768mb16ic768ih1iw16oc768oh1ow16kh1kw9ph0pw4
+--reset --dir=BWD_WB --stag=abcd --wtag=abcd --dtag=abcd ic3ih5oc3oh5kh1ph0
