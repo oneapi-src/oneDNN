@@ -38,7 +38,7 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 
-struct batchnorm_fwd_t : public kernel_base_t {
+struct batch_norm_fwd_t : public kernel_base_t {
 private:
     allocator_t *g_alloc_ = nullptr;
 
@@ -49,12 +49,12 @@ private:
     constant_cache_t::key_t constant_key_ = 0;
 
 public:
-    batchnorm_fwd_t() {
+    batch_norm_fwd_t() {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.retain();
     }
 
-    ~batchnorm_fwd_t() override {
+    ~batch_norm_fwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
         res_cache.release();
@@ -91,7 +91,7 @@ public:
 };
 
 #if BUILD_TRAINING
-struct batchnorm_bwd_t : public kernel_base_t {
+struct batch_norm_bwd_t : public kernel_base_t {
 private:
     allocator_t *g_alloc_ = nullptr;
 
@@ -101,12 +101,12 @@ private:
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
 
 public:
-    batchnorm_bwd_t() {
+    batch_norm_bwd_t() {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.retain();
     }
 
-    ~batchnorm_bwd_t() override {
+    ~batch_norm_bwd_t() override {
         thread_local_cache_t<execution_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
         res_cache.release();

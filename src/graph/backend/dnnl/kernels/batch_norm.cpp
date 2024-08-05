@@ -32,7 +32,7 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 
-void batchnorm_fwd_t::prepare_args_set(const execution_args_set_t *res,
+void batch_norm_fwd_t::prepare_args_set(const execution_args_set_t *res,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs, const scratchpad_t &scratchpad) {
     // update the data of partition in/outputs args
@@ -52,7 +52,7 @@ void batchnorm_fwd_t::prepare_args_set(const execution_args_set_t *res,
     }
 }
 
-status_t batchnorm_fwd_t::compile_impl(const dnnl_partition_impl_t *part,
+status_t batch_norm_fwd_t::compile_impl(const dnnl_partition_impl_t *part,
         const engine_t *g_engine, const std::vector<logical_tensor_t> &inputs,
         const std::vector<logical_tensor_t> &outputs) {
     p_engine_ = make_dnnl_engine(*g_engine);
@@ -115,7 +115,7 @@ status_t batchnorm_fwd_t::compile_impl(const dnnl_partition_impl_t *part,
     return status::success;
 }
 
-status_t batchnorm_fwd_t::execute_impl(const stream_t *g_stream,
+status_t batch_norm_fwd_t::execute_impl(const stream_t *g_stream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs) {
     dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
@@ -179,7 +179,7 @@ status_t batchnorm_fwd_t::execute_impl(const stream_t *g_stream,
 }
 
 #ifdef DNNL_WITH_SYCL
-status_t batchnorm_fwd_t::sycl_execute_impl(const stream_t *g_stream,
+status_t batch_norm_fwd_t::sycl_execute_impl(const stream_t *g_stream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
         const std::vector<::sycl::event> &sycl_deps,
@@ -255,7 +255,7 @@ status_t batchnorm_fwd_t::sycl_execute_impl(const stream_t *g_stream,
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-status_t batchnorm_fwd_t::ocl_execute_impl(const stream_t *g_stream,
+status_t batch_norm_fwd_t::ocl_execute_impl(const stream_t *g_stream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
         const std::vector<cl_event> &cl_deps, cl_event *ret_event) {
@@ -331,7 +331,7 @@ status_t batchnorm_fwd_t::ocl_execute_impl(const stream_t *g_stream,
 
 //// backward part
 #if BUILD_TRAINING
-status_t batchnorm_bwd_t::compile_impl(const dnnl_partition_impl_t *part,
+status_t batch_norm_bwd_t::compile_impl(const dnnl_partition_impl_t *part,
         const engine_t *g_engine, const std::vector<logical_tensor_t> &inputs,
         const std::vector<logical_tensor_t> &outputs) {
     p_engine_ = make_dnnl_engine(*g_engine);
@@ -377,7 +377,7 @@ status_t batchnorm_bwd_t::compile_impl(const dnnl_partition_impl_t *part,
     return status::success;
 }
 
-void batchnorm_bwd_t::prepare_args_set(const execution_args_set_t *res,
+void batch_norm_bwd_t::prepare_args_set(const execution_args_set_t *res,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs, const scratchpad_t &scratchpad) {
     // update the data of partition in/outputs args
@@ -397,7 +397,7 @@ void batchnorm_bwd_t::prepare_args_set(const execution_args_set_t *res,
     }
 }
 
-status_t batchnorm_bwd_t::execute_impl(const stream_t *g_stream,
+status_t batch_norm_bwd_t::execute_impl(const stream_t *g_stream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs) {
     dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
@@ -423,7 +423,7 @@ status_t batchnorm_bwd_t::execute_impl(const stream_t *g_stream,
 }
 
 #ifdef DNNL_WITH_SYCL
-status_t batchnorm_bwd_t::sycl_execute_impl(const stream_t *g_stream,
+status_t batch_norm_bwd_t::sycl_execute_impl(const stream_t *g_stream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
         const std::vector<::sycl::event> &sycl_deps,
@@ -460,7 +460,7 @@ status_t batchnorm_bwd_t::sycl_execute_impl(const stream_t *g_stream,
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-status_t batchnorm_bwd_t::ocl_execute_impl(const stream_t *g_stream,
+status_t batch_norm_bwd_t::ocl_execute_impl(const stream_t *g_stream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
         const std::vector<cl_event> &cl_deps, cl_event *ret_event) {

@@ -138,7 +138,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_pass)
                                     1>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<batchnorm_fwd_t>();
+            return std::make_shared<batch_norm_fwd_t>();
         });
 
 #define BATCHNORM_INPUT_NUM_CHECK(n1, n2) \
@@ -167,7 +167,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_fw_train_pass)
                     p_batchnorm_fwd_training->BATCHNORM_INPUT_NUM_CHECK(3, 5);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<batchnorm_fwd_t>();
+            return std::make_shared<batch_norm_fwd_t>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_bw_pass)
@@ -184,7 +184,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_bw_pass)
                     p_batchnorm_backprop->BATCHNORM_OUTPUT_NUM_CHECK(1, 3);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<batchnorm_bwd_t>();
+            return std::make_shared<batch_norm_bwd_t>();
         });
 #endif
 
