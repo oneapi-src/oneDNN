@@ -404,12 +404,11 @@ void mqa_decomp_config_t::memory_planning(registry_t &mqa_registry) {
 
 dnnl::primitive_attr mqa_decomp_config_t::make_primitive_attr(
         std::shared_ptr<op_t> &op, fusion_info_mgr_t &mgr) {
-    fusion_info_t fusion_info;
     dnnl::primitive_attr attr;
     if (op && op->has_attr(op_attr::fusion_info_key)
             && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
         int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
-        fusion_info = mgr.get_info(key);
+        const fusion_info_t &fusion_info = mgr.get_info(key);
         attr = make_dnnl_primitive_attr(op, fusion_info);
     }
     if (op && op->get_kind() == op_kind::dnnl_reorder) {
