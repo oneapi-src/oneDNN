@@ -399,8 +399,13 @@ expr_t simplify_linear_mod(const expr_t &e, int factor) {
         coefs.emplace_back(u);
     linear_coef_t common;
     for (auto &c : coefs) {
-        if (c.imm() % factor == 0) continue;
-        common.intersect(c);
+        auto add_args = op_split(op_kind_t::_add,
+                linear_normalize_expander_t().mutate(c.to_expr()));
+        for (auto &a : add_args) {
+            linear_coef_t ca(a);
+            if (ca.imm() % factor == 0) continue;
+            common.intersect(ca);
+        }
     }
     if (common.imm() == 0) return 0;
     int div = math::gcd(common.imm(), factor);
