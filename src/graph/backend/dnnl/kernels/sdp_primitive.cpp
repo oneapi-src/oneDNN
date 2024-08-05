@@ -132,7 +132,7 @@ void sdp_primitive_kernel_t::prepare_args_set(const execution_args_set_t *res,
 }
 
 status_t sdp_primitive_kernel_t::get_prim_exec_args(exec_args_t &args,
-        memory (&mem_storage)[6], const execution_args_set_t *res) {
+        memory (&mem_storage)[6], const execution_args_set_t *res) const {
     bool ok = res->find_value_mem_map(cfg_.q_.get(), mem_storage[0])
             && res->find_value_mem_map(cfg_.k_.get(), mem_storage[1])
             && res->find_value_mem_map(cfg_.v_.get(), mem_storage[2])

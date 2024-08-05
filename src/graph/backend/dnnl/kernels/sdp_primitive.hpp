@@ -73,7 +73,7 @@ public:
             const scratchpad_t &scratchpad);
 
     status_t get_prim_exec_args(exec_args_t &args, memory (&mem_storage)[6],
-            const execution_args_set_t *res);
+            const execution_args_set_t *res) const;
 
     status_t execute_impl(const stream_t *g_stream,
             const std::vector<tensor_t> &inputs,
