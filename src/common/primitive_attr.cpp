@@ -570,12 +570,19 @@ status_t dnnl_primitive_attr_set_scales_mask(
 status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
         int mask, int ndims, const dims_t group_dims, data_type_t data_type) {
     using namespace data_type;
-    bool ok = attr && mask >= 0 && arg >= 0 && ndims >= 0
-            && utils::one_of(data_type, f32, bf16, f16)
-            && IMPLICATION(!utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS),
-                    data_type == f32 && ndims == 0)
-            && IMPLICATION(ndims, validate_dims(ndims, group_dims));
-    if (!ok) return invalid_arguments;
+    VCHECK_ATTR(attr, VERBOSE_NULL_ARG);
+    VCHECK_ATTR(mask >= 0, VERBOSE_BAD_PARAM, "mask");
+    VCHECK_ATTR(arg >= 0, VERBOSE_BAD_PARAM, "arg");
+    VCHECK_ATTR(ndims >= 0, VERBOSE_BAD_PARAM, "ndims");
+    VCHECK_ATTR(utils::one_of(data_type, f32, bf16, f16, e8m0),
+            VERBOSE_INVALID_DATATYPE, "scales");
+    VCHECK_ATTR(IMPLICATION(!utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS),
+                        data_type == f32 && ndims == 0)
+                    || IMPLICATION(arg == DNNL_ARG_DST,
+                            utils::one_of(data_type, f32, e8m0)),
+            VERBOSE_INVALID_DATATYPE, "scales");
+    VCHECK_ATTR(IMPLICATION(ndims, validate_dims(ndims, group_dims)),
+            VERBOSE_BAD_PARAM, "group_dims");
     return attr->scales_.set(arg, mask, ndims, group_dims, data_type);
 }
 

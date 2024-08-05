@@ -27,6 +27,11 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+// Use `...` for `msg` and additional variables used in msg
+#define VCHECK_ATTR(cond, ...) \
+    VCONDCHECK(primitive, exec, check, primitive, (cond), \
+            status::invalid_arguments, __VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 

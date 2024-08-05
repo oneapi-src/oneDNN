@@ -24,6 +24,16 @@
 namespace dnnl {
 namespace impl {
 
+struct float8_e8m0_t {
+    uint8_t raw_bits_;
+    float8_e8m0_t() = default;
+    constexpr float8_e8m0_t(uint8_t r, bool) : raw_bits_(r) {}
+    float8_e8m0_t(float f) { (*this) = f; }
+    float8_e8m0_t DNNL_API &operator=(float f);
+    DNNL_API operator float() const;
+};
+static_assert(sizeof(float8_e8m0_t) == 1, "float8_e8m0_t must be 1 byte");
+
 struct float8_e5m2_t {
     uint8_t raw_bits_;
     float8_e5m2_t() = default;

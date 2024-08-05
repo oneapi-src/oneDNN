@@ -29,11 +29,6 @@
 
 #include "cpu/ref_io_helper.hpp"
 
-// Use `...` for `msg` and additional variables used in msg
-#define VCHECK_ATTR(cond, ...) \
-    VCONDCHECK(primitive, exec, check, primitive, (cond), \
-            status::invalid_arguments, __VA_ARGS__)
-
 #define DEFINE_SCALES_BUFFER_ATTR_ARG(attr, scales, arg) \
     alignas(16) float CONCAT2(scales, _buf16)[16] = {0}; \
     const float *scales {nullptr}; \

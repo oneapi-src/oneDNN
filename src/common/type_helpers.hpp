@@ -82,6 +82,7 @@ namespace types {
 inline size_t data_type_size(data_type_t data_type) {
     using namespace data_type;
     switch ((int)data_type) {
+        case e8m0: return sizeof(prec_traits<e8m0>::type);
         case f8_e5m2: return sizeof(prec_traits<f8_e5m2>::type);
         case f8_e4m3: return sizeof(prec_traits<f8_e4m3>::type);
         case f16: return sizeof(prec_traits<f16>::type);
@@ -126,6 +127,7 @@ inline T min_value(data_type_t data_type) {
     case x: \
         return static_cast<T>(nstl::numeric_limits<prec_traits<x>::type>::min())
     switch (data_type) {
+        CASE(e8m0);
         CASE(f8_e5m2);
         CASE(f8_e4m3);
         CASE(f16);
@@ -150,6 +152,7 @@ inline T max_value(data_type_t data_type) {
     case x: \
         return static_cast<T>(nstl::numeric_limits<prec_traits<x>::type>::max())
     switch (data_type) {
+        CASE(e8m0);
         CASE(f8_e5m2);
         CASE(f8_e4m3);
         CASE(f16);
@@ -176,6 +179,7 @@ inline float max_value(data_type_t data_type) {
         return static_cast<float>( \
                 nstl::numeric_limits<prec_traits<x>::type>::max())
     switch (data_type) {
+        CASE(e8m0);
         CASE(f8_e5m2);
         CASE(f8_e4m3);
         CASE(f16);
@@ -211,6 +215,7 @@ inline T lowest_value(data_type_t data_type) {
         return static_cast<T>( \
                 nstl::numeric_limits<prec_traits<x>::type>::lowest())
     switch (data_type) {
+        CASE(e8m0);
         CASE(f8_e5m2);
         CASE(f8_e4m3);
         CASE(f16);
@@ -236,6 +241,7 @@ inline T digits(data_type_t data_type) {
         return static_cast<T>( \
                 nstl::numeric_limits<prec_traits<x>::type>::digits)
     switch (data_type) {
+        CASE(e8m0);
         CASE(f8_e5m2);
         CASE(f8_e4m3);
         CASE(f16);

@@ -25,6 +25,22 @@
 namespace dnnl {
 namespace impl {
 
+float8_e8m0_t &float8_e8m0_t::operator=(float f) {
+    // we keep exponent bits and discard sign bit.
+    // - support only round to zero to simplify conversion.
+    // - no infinities in e8m0, so those become NaN essentially
+    uint32_t uf = utils::bit_cast<uint32_t>(f);
+    raw_bits_ = (uf >> 23) & 0xff;
+    return *this;
+}
+
+float8_e8m0_t::operator float() const {
+    // no inf, only NaN in e8m0
+    // we return Real Indefinite NaN
+    if (raw_bits_ == 0xff) return utils::bit_cast<float>(0xffc00000);
+    return utils::bit_cast<float>(raw_bits_ << 23);
+}
+
 float8_e5m2_t &float8_e5m2_t::operator=(float16_t f) {
     // we just need to apply rounding
     uint16_t fraw = f.raw;
