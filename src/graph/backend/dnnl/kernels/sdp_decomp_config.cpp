@@ -312,7 +312,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     ////////////////////////////////////////////////////////////////////////
 
     // memory planing for buffer sharing
-    memory_planning(sdp_registry, p_engine);
+    memory_planning(sdp_registry);
     // TODO: remove this when primitive new API ready
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
     omp_set_num_threads(nthr);
@@ -504,8 +504,7 @@ impl::status_t sdp_decomp_config_t::record_sdp_ops(
     return status::success;
 }
 
-void sdp_decomp_config_t::memory_planning(
-        registry_t &sdp_registry, dnnl::engine p_engine) {
+void sdp_decomp_config_t::memory_planning(registry_t &sdp_registry) {
     // Registry is used to do the memory planning for sdp decomposition
     // algorithm. We reused some internal memory to reduce the memory
     // footprint for better cache hit. And here the key in registar of each

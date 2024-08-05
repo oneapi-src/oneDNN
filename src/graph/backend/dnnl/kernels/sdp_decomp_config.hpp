@@ -166,7 +166,7 @@ private:
     impl::status_t record_sdp_ops(
             std::shared_ptr<subgraph_t> &sg, bool is_quantize);
 
-    void memory_planning(registry_t &sdp_registry, dnnl::engine p_engine);
+    void memory_planning(registry_t &sdp_registry);
 
     impl::status_t prepare_sdp_scales_zps(const fusion_info_mgr_t &mgr,
             std::shared_ptr<op_t> &op, int index,

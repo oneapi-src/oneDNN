@@ -142,7 +142,7 @@ private:
 
     status_t record_mqa_ops(std::shared_ptr<subgraph_t> &sg);
 
-    void memory_planning(registry_t &mqa_registry, dnnl::engine p_engine);
+    void memory_planning(registry_t &mqa_registry);
 
     template <typename attr_dt, typename target_dt>
     target_dt get_attr_value(

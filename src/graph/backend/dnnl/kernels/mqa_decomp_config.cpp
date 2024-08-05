@@ -295,7 +295,7 @@ status_t mqa_decomp_config_t::construct_params(std::shared_ptr<subgraph_t> &sg,
     ////////////////////////////////////////////////////////////////////////
 
     // memory planing for buffer sharing
-    memory_planning(mqa_registry, p_engine);
+    memory_planning(mqa_registry);
     return status::success;
 }
 
@@ -375,8 +375,7 @@ status_t mqa_decomp_config_t::record_mqa_ops(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
-void mqa_decomp_config_t::memory_planning(
-        registry_t &mqa_registry, dnnl::engine p_engine) {
+void mqa_decomp_config_t::memory_planning(registry_t &mqa_registry) {
     // Registry is used to do the memory planning for mqa decomposition
     // algorithm. We reused some internal memory to reduce the memory
     // footprint for better cache hit. And here the key in registar of each
