@@ -88,12 +88,14 @@ passing them into the MatMul operations.
 
 ### Option 1
 
-We can pre-process the Key and Value tensors following how they are
-pre-processed in the Huggingface Transformer code above. To achieve that, below
-two new operations need to be supported by oneDNN graph operation set:
+Add new ops and patterns. We can pre-process the Key and Value tensors following
+how they are pre-processed in the Huggingface Transformer code above. To achieve
+that, below two new operations need to be supported by oneDNN graph operation set:
 
 - Unsqueeze (see [sub-rfc document](./unsqueeze_and_expand.md))
 - Expand (see [sub-rfc document](./unsqueeze_and_expand.md))
+
+Then we would to support patterns like the above diagram.
 
 Pros:
 
@@ -109,10 +111,10 @@ Cons:
    `torch.repeat_interleave`). Once the implementation changes, the above pros
    will become invalid.
 
-### Option 2
+### Option 2 (recommended)
 
-We can reshape Query, Key and Values tensors from 4D to 5D and leverage the
-broadcasting semantics of MatMul operation to perform the dot-products.
+Add new patterns. We can reshape Query, Key and Values tensors from 4D to 5D and
+leverage the broadcasting semantics of MatMul operation to perform the dot-products.
   
 1. Reshape Query from 4D shape (N, H, S, D) to 5D shape (N, G, H / G, S, D).
 2. Reshape Key from 4D shape (H, G, S, D) to 5D shape (N, G, 1, S, D).
@@ -191,6 +193,13 @@ Cons.
 2. Same as option 2, still the pattern cannot be used to optimize a framework
    graph directly. Frameworks will have to implement GQA fusion by themselves
    and leverage this option to optimized the fused GQA.
+
+## Summary
+We would recommend to go with option 2, as it don't need to change the API and
+minimal changes to the library. It is simple enough for understanding. For the
+cons, it is releted to the integration in the framework. Actually framework have
+to implement GQA fusion by themselves for both option2 and option3, also option
+1 when the implementation in the community changes.
 
 ## References
 
