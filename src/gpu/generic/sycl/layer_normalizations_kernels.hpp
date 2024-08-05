@@ -17,12 +17,11 @@
 #ifndef GPU_GENERIC_SYCL_LAYER_NORMALIZATION_KERNELS_HPP
 #define GPU_GENERIC_SYCL_LAYER_NORMALIZATION_KERNELS_HPP
 
-#include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
-#include "common/dnnl_traits.hpp"
+#include "common/primitive_exec_types.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
-#include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 #include "xpu/sycl/types.hpp"
 
 namespace dnnl {

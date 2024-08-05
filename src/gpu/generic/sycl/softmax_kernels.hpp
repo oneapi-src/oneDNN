@@ -19,8 +19,12 @@
 
 #include "common/compiler_workarounds.hpp"
 
+#include "common/primitive_exec_types.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
+#include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
