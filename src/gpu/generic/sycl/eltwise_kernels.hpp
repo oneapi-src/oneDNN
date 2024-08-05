@@ -17,10 +17,13 @@
 #ifndef GPU_GENERIC_SYCL_ELTWISE_KERNELS_HPP
 #define GPU_GENERIC_SYCL_ELTWISE_KERNELS_HPP
 
+#include "common/primitive_exec_types.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_math_utils.hpp"
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
+#include "xpu/sycl/types.hpp"
 
 namespace dnnl {
 namespace impl {
