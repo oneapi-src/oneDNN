@@ -72,6 +72,19 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
     return func.call({dst_buf, src_buf});
 }
 
+stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
+        const expr_t &src_buf, const expr_t &dst_buf) {
+    ir_assert(src.ndims() == dst.ndims());
+    uint32_t reduction_mask = 0;
+    for (int i = 0; i < src.ndims(); i++) {
+        if (dst.dims()[i] != 1 || src.dims()[i] == 1) {
+            reduction_mask |= (1 << i);
+        }
+    }
+    return create_reduce_stmt(src, dst, src_buf, dst_buf, tensor_t(src.dims()),
+            reduction_mask, /*drop_dims=*/false);
+}
+
 } // namespace jit
 } // namespace intel
 } // namespace gpu
