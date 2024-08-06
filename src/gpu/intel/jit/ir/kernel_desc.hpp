@@ -18,6 +18,7 @@
 #define GPU_INTEL_JIT_IR_KERNEL_DESC_HPP
 
 #include "gpu/intel/compute/compute_engine.hpp"
+#include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/ir/hw.hpp"
 #include "gpu/intel/serialization.hpp"
@@ -43,6 +44,7 @@ public:
     virtual std::string kernel_name() const = 0;
     virtual exec_config_t exec_cfg() const = 0;
     virtual bool with_dpas() const = 0;
+    virtual compute::range_t local_range() const = 0;
     virtual status_t init_kernel_info(kernel_info_t &kernel_info) const = 0;
     virtual status_t create_kernel(compute::kernel_t &kernel,
             gpu_primitive_t *primitive, impl::engine_t *engine) const = 0;

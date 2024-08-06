@@ -41,7 +41,7 @@ public:
     pooling_kernel_t(pooling_config_t &cfg, const std::string &kernel_name,
             const kernel_info_t &kernel_info, const primitive_desc_t &pd)
         : ir_kernel_t<hw>(kernel_name, cfg.exec_cfg(), kernel_info,
-                kernel_info.nd_range(), /*require_dpas=*/false) {
+                kernel_info.nd_range().local_range(), /*require_dpas=*/false) {
         pooling_ir_builder_t builder(cfg, kernel_info, pd);
         stmt_t body = builder.stmt();
         setup_interface(body);

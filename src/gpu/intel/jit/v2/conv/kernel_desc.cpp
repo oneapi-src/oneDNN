@@ -476,6 +476,16 @@ void init_dispatch_kernel_info_div_magic(
     }
 }
 
+compute::range_t kernel_desc_t::local_range() const {
+    auto thr_grid = create_thread_grid(*this);
+    compute::range_t lws = compute::range_t::empty();
+    for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
+        size_t tg_dim = thr_grid.size(i, thread_group_tile);
+        lws[i] = tg_dim * (i == 0 ? gpu_utils::into<size_t>(simd) : 1);
+    }
+    return lws;
+}
+
 status_t kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info) const {
     auto tensor_config = get_tensor_config(prop, with_bias);
     for (auto &t : tensor_config.tensors()) {

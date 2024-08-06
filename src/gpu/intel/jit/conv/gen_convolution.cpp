@@ -202,7 +202,8 @@ public:
                         case kernel_id_t::convolution: {
                             tmp_kernels.push_back(make_kernel<conv_kernel_t>(
                                     primitive, /*register_kernel=*/false,
-                                    engine, cfg, info, nd_ranges_[i], zp_dst));
+                                    engine, cfg, info,
+                                    nd_ranges_[i].local_range(), zp_dst));
                             break;
                         }
                         case kernel_id_t::pre_reorder: {

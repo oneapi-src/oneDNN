@@ -452,6 +452,8 @@ public:
         return ret;
     }
 
+    compute::range_t local_range() const override;
+
     bool with_dpas() const override {
         return utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw);
     }
