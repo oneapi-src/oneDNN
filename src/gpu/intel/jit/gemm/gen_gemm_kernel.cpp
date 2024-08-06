@@ -64,20 +64,18 @@ compute::scalar_type_t gen_gemm_kernel_desc_t::scalar_type() const {
 status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
     // Update problem alignments to match catalog entry.
     if (!isPacked(problem_.A.layout)) {
-        problem_.A.setAlignment(
-                std::max(problem_.Ta.isInt4() ? 1 : problem_.Ta.size(),
-                        entry_->driverInfo.alignment[0]));
+        problem_.A.setAlignment(std::max(
+                problem_.Ta_ext.paddedSize(), entry_->driverInfo.alignment[0]));
     }
 
     if (!isPacked(problem_.B.layout)) {
-        problem_.B.setAlignment(
-                std::max(problem_.Ta.isInt4() ? 1 : problem_.Ta.size(),
-                        entry_->driverInfo.alignment[1]));
+        problem_.B.setAlignment(std::max(
+                problem_.Tb_ext.paddedSize(), entry_->driverInfo.alignment[1]));
     }
 
     if (!isPacked(problem_.C.layout)) {
-        problem_.C.setAlignment(std::max(
-                problem_.Tc_ext.size(), entry_->restrictions.alignment[2]));
+        problem_.C.setAlignment(std::max(problem_.Tc_ext.paddedSize(),
+                entry_->restrictions.alignment[2]));
     }
 
     problem_.CO.setAlignment(problem_.Tco.size());
