@@ -40,12 +40,6 @@ std::vector<const void *> prepare_binary_args(const post_ops_t &post_ops,
                     DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS);
             assert(arg);
             post_ops_binary_rhs_arg_vec.emplace_back(arg);
-            auto *scale = CTX_IN_MEM(const void *,
-                    DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SCALE);
-            post_ops_binary_rhs_arg_vec.emplace_back(scale);
-            auto *shift = CTX_IN_MEM(const void *,
-                    DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SHIFT);
-            post_ops_binary_rhs_arg_vec.emplace_back(shift);
         }
 #endif
         ++idx;

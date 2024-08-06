@@ -627,7 +627,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
     add(rsp, stack_space_needed);
     postamble();
 
-    if (postops_injector_)
+    if (jcp.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

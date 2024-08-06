@@ -1192,7 +1192,7 @@ void jit_pp_kernel_t<isa>::generate() {
     if (this->do_binary_ || this->do_prelu_) add(rsp, stack_space_needed_);
     postamble();
 
-    if (postops_injector_)
+    if (this->do_eltwise_)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

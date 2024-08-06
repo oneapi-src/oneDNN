@@ -556,7 +556,6 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
         struct prelu_t {
             int mask;
-            bool has_scaleshift; // when false = bare prelu, when true becomes dice
         };
 
         dnnl::impl::primitive_kind_t kind
@@ -645,8 +644,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                                     == rhs.binary.user_src1_desc;
                     break;
                 case primitive_kind::prelu:
-                    ret = prelu.mask == rhs.prelu.mask
-                            && prelu.has_scaleshift == rhs.prelu.has_scaleshift;
+                    ret = prelu.mask == rhs.prelu.mask;
                     break;
                 default: assert(!"unsupported post_op");
             }
@@ -671,7 +669,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::dim_t padding_l_size);
     dnnl::impl::status_t append_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *user_src1_desc);
-    dnnl::impl::status_t append_prelu(int mask, bool has_scaleshift);
+    dnnl::impl::status_t append_prelu(int mask);
 
     dnnl::impl::status_t prepend_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *user_src1_desc);

@@ -286,8 +286,6 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
             case primitive_kind::prelu:
                 seed = hash_combine(
                         seed, static_cast<size_t>(entry.prelu.mask));
-                seed = hash_combine(
-                        seed, static_cast<int>(entry.prelu.has_scaleshift));
                 break;
             default: assert(!"unknown post_op");
         }

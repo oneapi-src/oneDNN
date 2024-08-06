@@ -1629,7 +1629,7 @@ void jit_uni_pool_kernel<isa>::generate() {
 
     this->postamble();
 
-    if (postops_injector_)
+    if (jpp.with_eltwise && postops_injector_)
         postops_injector_->prepare_table(/* generate = */ true);
 
     if ((jpp.is_bf16 || jpp.is_f16) && isa != avx2_vnni_2) {

@@ -610,7 +610,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::generate() {
 
     postamble();
 
-    if (postops_injector_)
+    if (jcp.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

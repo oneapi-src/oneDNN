@@ -272,11 +272,6 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
                         "is not recognized.");
                 SAFE_V(FAIL);
             }
-            if (subs_pos == std::string::npos) continue;
-            CATCH_DANGLING_SYMBOL;
-
-            const auto scaleshift_str = get_substr(subs, subs_pos, ':');
-            e.prelu.has_scaleshift = str2bool(scaleshift_str.c_str());
         }
         if (subs_pos == std::string::npos) continue;
         CATCH_DANGLING_SYMBOL;

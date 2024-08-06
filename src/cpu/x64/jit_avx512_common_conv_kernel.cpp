@@ -771,7 +771,7 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::generate() {
     }
     postamble();
 
-    if (postops_injector_)
+    if (jcp.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

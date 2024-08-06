@@ -909,7 +909,7 @@ void jit_uni_resampling_kernel_t<isa, Vmm>::generate() {
 
     postamble();
 
-    if (postops_injector_)
+    if (conf_.with_eltwise && postops_injector_)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

@@ -2767,7 +2767,7 @@ void jit_brgemm_kernel_t<Wmm>::generate() {
         if (f8_e4m3_emulator_) f8_e4m3_emulator_->prepare_table();
     }
 
-    if (postops_injector_)
+    if (brg.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

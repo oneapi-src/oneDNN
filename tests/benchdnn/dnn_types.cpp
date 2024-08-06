@@ -560,14 +560,9 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks(
         int ndims, dnnl_primitive_kind_t prim_kind) const {
     std::vector<std::pair<int, int>> v_masks;
     for (int idx = 0; idx < len(); ++idx) {
-        auto emplace_mask = [&](int arg, int mask) {
-            assert(mask >= 0);
-            v_masks.emplace_back(std::make_pair(
-                    DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg, mask));
-        };
-
         const auto &e = this->entry[idx];
         int mask = -1;
+        int arg = DNNL_ARG_UNDEF;
         if (e.is_binary_kind()) {
             using mask_input_t = entry_t::binary_t::mask_input_t;
             auto mask_input = e.binary.mask_input;
@@ -575,16 +570,16 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks(
                     ? e.binary.mask
                     : policy2mask(
                             DNNL_ARG_SRC_1, e.binary.policy, prim_kind, ndims);
-            emplace_mask(DNNL_ARG_SRC_1, mask);
+            arg = DNNL_ARG_SRC_1;
         } else if (e.is_prelu_kind()) {
             mask = attr_t::get_default_mask(e.prelu.policy);
-            emplace_mask(DNNL_ARG_WEIGHTS, mask);
-            if (e.prelu.has_scaleshift) {
-                emplace_mask(DNNL_ARG_SCALE, mask);
-                emplace_mask(DNNL_ARG_SHIFT, mask);
-            }
+            arg = DNNL_ARG_WEIGHTS;
         } else
             continue;
+
+        assert(mask >= 0);
+        v_masks.emplace_back(std::make_pair(
+                DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg, mask));
     }
     return v_masks;
 }
@@ -740,12 +735,9 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
             }
             if (e.binary.tag != tag::any) s << ":" << e.binary.tag;
         } else if (e.is_prelu_kind()) {
-            if ((e.prelu.policy != policy_t::COMMON)
-                    || e.prelu.has_scaleshift) {
+            if (e.prelu.policy != policy_t::COMMON) {
                 s << ":" << e.prelu.policy;
             }
-            if (e.prelu.has_scaleshift) s << ":true";
-
         } else {
             assert(!"unknown kind");
             s << "unknown_kind";
@@ -1132,8 +1124,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
             } else if (e.is_prelu_kind()) {
                 const auto &policy = e.prelu.policy;
                 const auto mask = attr_t::get_default_mask(policy);
-                DNN_SAFE_V(dnnl_post_ops_append_prelu_v2(
-                        ops, mask, e.prelu.has_scaleshift));
+                DNN_SAFE_V(dnnl_post_ops_append_prelu(ops, mask));
             } else {
                 assert(!"unknown attr::post_ops::kind");
             }
@@ -1670,14 +1661,8 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
             val = compute_binary(e.kind, val, *it_po);
             it_po++;
         } else if (e.is_prelu_kind()) {
-            auto w = *(it_po++);
-            if (e.prelu.has_scaleshift) {
-                float scale = *(it_po++);
-                float shift = *(it_po++);
-                float control = logistic_fwd(val * scale + shift);
-                val = control * val + (1.0f - control) * w * val;
-            } else
-                val = val > 0 ? val : val * w;
+            val = val > 0 ? val : val * (*it_po);
+            it_po++;
         }
     }
 }

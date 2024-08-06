@@ -301,13 +301,12 @@ status_t post_ops_t::prepend_binary(
     return success;
 }
 
-status_t post_ops_t::append_prelu(int mask, bool has_scaleshift) {
+status_t post_ops_t::append_prelu(int mask) {
     if (len() == post_ops_limit) return out_of_memory;
 
     auto it_entry = entry_.emplace(entry_.end());
     it_entry->kind = primitive_kind::prelu;
     it_entry->prelu.mask = mask;
-    it_entry->prelu.has_scaleshift = has_scaleshift;
 
     return success;
 }
@@ -752,7 +751,7 @@ status_t dnnl_post_ops_get_params_binary(const post_ops_t *post_ops, int index,
 status_t dnnl_post_ops_append_prelu(post_ops_t *post_ops, int mask) {
     if (post_ops == nullptr) return invalid_arguments;
 
-    return post_ops->append_prelu(mask, false);
+    return post_ops->append_prelu(mask);
 }
 
 status_t dnnl_post_ops_get_params_prelu(
@@ -762,25 +761,6 @@ status_t dnnl_post_ops_get_params_prelu(
 
     const auto &prelu_entry = post_ops->entry_[index].prelu;
     if (mask) *mask = prelu_entry.mask;
-
-    return success;
-}
-
-status_t dnnl_post_ops_append_prelu_v2(
-        post_ops_t *post_ops, int mask, int has_scaleshift) {
-    if (post_ops == nullptr) return invalid_arguments;
-
-    return post_ops->append_prelu(mask, has_scaleshift);
-}
-
-status_t dnnl_post_ops_get_params_prelu_v2(
-        const post_ops_t *post_ops, int index, int *mask, int *has_scaleshift) {
-    if (post_ops == nullptr || index >= post_ops->len())
-        return invalid_arguments;
-
-    const auto &prelu_entry = post_ops->entry_[index].prelu;
-    if (mask) *mask = prelu_entry.mask;
-    if (has_scaleshift) *has_scaleshift = prelu_entry.has_scaleshift;
 
     return success;
 }

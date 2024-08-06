@@ -817,7 +817,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
 
     postamble();
 
-    if (postops_injector_)
+    if (jcp.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

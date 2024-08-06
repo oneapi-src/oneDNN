@@ -846,25 +846,14 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
 
         const auto ndims = query_md_ndims(dst_md);
         int mask = 0;
-        int has_scaleshift = 0;
-        dnnl_post_ops_get_params_prelu_v2(
-                const_po, idx, &mask, &has_scaleshift);
+        dnnl_post_ops_get_params_prelu(const_po, idx, &mask);
 
         // Deduce prelu weights dims based on input policy.
         dims_t dims = md2dims(dst_md, mask);
 
-        mem_map.emplace(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS,
+        int po_arg = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS;
+        mem_map.emplace(po_arg,
                 dnn_mem_t(ndims, dims.data(), dnnl_f32, tag::axb, test_engine));
-        if (has_scaleshift) {
-            mem_map.emplace(
-                    DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SCALE,
-                    dnn_mem_t(ndims, dims.data(), dnnl_f32, tag::axb,
-                            test_engine));
-            mem_map.emplace(
-                    DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SHIFT,
-                    dnn_mem_t(ndims, dims.data(), dnnl_f32, tag::axb,
-                            test_engine));
-        }
     }
 
     if (is_fwd_training(prop_kind) && !prb->attr.dropout.is_def()) {

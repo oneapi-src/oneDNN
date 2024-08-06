@@ -302,7 +302,6 @@ struct attr_t {
             } binary;
             struct {
                 policy_t policy = policy_t::COMMON;
-                bool has_scaleshift = false;
             } prelu;
 
             bool is_sum_kind() const;

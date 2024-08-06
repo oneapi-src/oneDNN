@@ -1172,7 +1172,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
 
     postamble();
 
-    if (postops_injector_)
+    if (jcp.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 
     if (jcp.prop_kind == backward_weights) {

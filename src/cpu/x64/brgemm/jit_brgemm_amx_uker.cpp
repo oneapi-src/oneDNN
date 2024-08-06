@@ -2637,7 +2637,7 @@ void jit_brgemm_amx_uker_base_t::generate() {
 
     postamble();
 
-    if (postops_injector_)
+    if (brg.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 
     if (brg.is_fp8_via_convert()) {

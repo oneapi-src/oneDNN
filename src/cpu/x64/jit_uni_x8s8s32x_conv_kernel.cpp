@@ -1231,7 +1231,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
 
     postamble();
 
-    if (postops_injector_)
+    if (jcp.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

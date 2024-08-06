@@ -2115,7 +2115,7 @@ void jit_avx512_core_amx_fwd_kernel_t::generate() {
 
     postamble();
 
-    if (postops_injector_)
+    if (jcp.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 
@@ -3642,7 +3642,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::generate() {
 
     postamble();
 
-    if (eltwise_injector_) eltwise_injector_->prepare_table();
+    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
 }
 
 bool jit_avx512_core_amx_bwd_data_kernel_t::post_ops_ok(

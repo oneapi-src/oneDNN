@@ -1151,8 +1151,7 @@ inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
             }
         }
         if (is_prelu(po_idx)) {
-            if ((p.entry_[po_idx].prelu.mask > prelu_mask_supported)
-                    || p.entry_[po_idx].prelu.has_scaleshift)
+            if (p.entry_[po_idx].prelu.mask > prelu_mask_supported)
                 is_po_ok = false;
         }
         if (is_sum(po_idx)) {

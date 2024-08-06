@@ -1640,28 +1640,6 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
                     = has_external_cfg ? (*it).second : def_prelu_fill_cfg;
             TIME_FILL(SAFE(
                     fill_random_real(mem, ref_mem, res, prelu_fill_cfg), WARN));
-        } else if (exec_arg & DNNL_ARG_SCALE) {
-            // Prelu post-op filling.
-            fill_cfg_t def_prelu_fill_cfg(mem.dt(), -2.f, 2.f, /* int = */ true,
-                    attr_t::post_ops_t::kind_t::PRELU,
-                    "def_prelu_post_op_scale");
-            const auto it = fill_cfg_map.find(DNNL_ARG_SCALE);
-            const bool has_external_cfg = it != fill_cfg_map.end();
-            const fill_cfg_t &prelu_fill_cfg
-                    = has_external_cfg ? (*it).second : def_prelu_fill_cfg;
-            TIME_FILL(SAFE(
-                    fill_random_real(mem, ref_mem, res, prelu_fill_cfg), WARN));
-        } else if (exec_arg & DNNL_ARG_SHIFT) {
-            // Prelu post-op filling.
-            fill_cfg_t def_prelu_fill_cfg(mem.dt(), -2.f, 2.f, /* int = */ true,
-                    attr_t::post_ops_t::kind_t::PRELU,
-                    "def_prelu_post_op_shift");
-            const auto it = fill_cfg_map.find(DNNL_ARG_SHIFT);
-            const bool has_external_cfg = it != fill_cfg_map.end();
-            const fill_cfg_t &prelu_fill_cfg
-                    = has_external_cfg ? (*it).second : def_prelu_fill_cfg;
-            TIME_FILL(SAFE(
-                    fill_random_real(mem, ref_mem, res, prelu_fill_cfg), WARN));
         }
     } else if (is_scales_arg) {
         int local_exec_arg = exec_arg ^ DNNL_ARG_ATTR_SCALES;

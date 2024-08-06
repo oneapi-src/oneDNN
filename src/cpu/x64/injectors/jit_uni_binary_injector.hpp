@@ -35,72 +35,10 @@
 #include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
-
-/* Utility class to help with managing allocation on stack */
-/* In particular, it is helpful:
-   - to place values during preamble and reuse it in injected code
-   - to avoid repeated push/pop, as each value has dedicated offset on
-     stack.
-   - to help when logic is split in various functions of injector
-     (e.g. precompute data in one spot, and reuse it in another spot.
-
-How to use stack manager:
-- each jit generator object (host code), has its own stack manager
-- the register function is used to reserve slots of a given size on
-  the stack. Each registered entry has its own label (string key).
-- once all registration are done, calling alloc will effectively
-  subtract the total of amount of managed stack from rsp (allocation).
-- one can get offset of a registered slot on the stack by using the
-  stack_manager_t::get(string) function by using the key associated to
-  a slot.
-- before returning from the function (or if no more calls to get
-  happen), stack can be freed using the stack_manager_t::free
-  function. It is important to call free in order to not mess the stack.
-
-Example:
-
- preamble();
- stack_manager_.register("some_float_vmm", vreg_traits<Vmm>::vlen );
- stack_manager_.register("some_pointer", sizof(float *));
- ...
- stack_manager_.allocate();
- ...
- // some precomputed value we put on stack
- vmovups(stack_manager_.get("some_float_vmm"), vmm0);
- ...
- // we then can reuse it many time in hot loop
- vfmadd123ps(dst, src, stack_manager_.get("some_float_vmm"));
-
-
-
-WARNING: when using stack manager, one has to be careful that rsp is
-not modified between the call to alloc and calls to get functions ( in
-other words, no calls to stack_manager_t::get between push/pop
-instructions or sub/add on rsp).
-*/
-struct stack_manager_t {
-    stack_manager_t(Xbyak::CodeGenerator *host)
-        : host_(host), is_allocated_(false), size_(0) {}
-    ~stack_manager_t() { assert(!is_allocated_); };
-    void register_(const std::string &tag, size_t size);
-
-    void allocate();
-    Xbyak::Address get(const std::string &tag);
-    void free();
-
-private:
-    Xbyak::CodeGenerator *host_;
-    std::unordered_map<std::string, size_t> entries_;
-    bool is_allocated_;
-    size_t size_;
-};
-
 namespace binary_injector {
 using dnnl::impl::cpu::binary_injector_utils::get_src1_desc;
 using dnnl::impl::cpu::binary_injector_utils::prepare_binary_args;
@@ -310,8 +248,7 @@ bool is_bcast_supported(const dnnl::impl::memory_desc_t &src1_desc,
  */
 bool is_supported(cpu_isa_t isa, const dnnl::impl::memory_desc_t &src1_desc,
         const memory_desc_wrapper &dst_d,
-        const bcast_set_t &supported_strategy_set,
-        bool is_prelu_with_scaleshift);
+        const bcast_set_t &supported_strategy_set);
 
 /*
  * Main mechanism responsible for injecting binary postops supporting various
@@ -323,11 +260,6 @@ class jit_uni_binary_injector_t {
 public:
     jit_uni_binary_injector_t(
             jit_generator *host, const static_params_t &static_params);
-
-    // when necessary prepares table for constant and eltwise
-    void prepare_table() {
-        if (logistic_injector_ != nullptr) logistic_injector_->prepare_table();
-    }
 
     /*
      * Generates code of binary post_op injected to host primitive. Applied to
@@ -597,8 +529,7 @@ private:
     void execute_binary(alg_kind_t binary_alg, const Vmm &dst, const Vmm &lhs,
             const T &rhs) const;
     void execute_prelu(const Vmm &dst, const Xbyak::Operand &rhs) const;
-    void execute_prelu_with_scaleshift(
-            const Vmm &dst, const Xbyak::Address &rhs) const;
+
     /*
      * Used in scalar broadcast strategy, broadcasting single value of given
      * data type over entire vector Vmm register.
@@ -656,8 +587,6 @@ private:
     jit_generator *host_;
     fp8_emulation_e5m2_t *f8_e5m2_emu_ {nullptr};
     fp8_emulation_e4m3_t *f8_e4m3_emu_ {nullptr};
-    std::unique_ptr<jit_uni_eltwise_injector<isa>> logistic_injector_;
-    mutable stack_manager_t sm_;
     const rhs_arg_static_params_t rhs_arg_static_params_;
     const Xbyak::Reg64 param1_;
     const bcast_set_t supported_strategy_set_;

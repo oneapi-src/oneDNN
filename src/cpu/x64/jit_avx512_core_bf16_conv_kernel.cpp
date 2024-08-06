@@ -803,7 +803,7 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
     if (jcp.ndims == 5) add(rsp, stack_space_needed_);
     postamble();
 
-    if (postops_injector_)
+    if (jcp.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

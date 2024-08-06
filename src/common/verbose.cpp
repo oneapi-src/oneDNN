@@ -788,7 +788,6 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                     const auto &ep = e.prelu;
                     ss << delim << "prelu"
                        << ":" << ep.mask;
-                    if (ep.has_scaleshift) ss << ":true";
                 } break;
                 default: assert(!"unsupported post op primitive kind!"); break;
             }

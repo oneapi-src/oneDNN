@@ -3857,9 +3857,8 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     ///     that a dedicated weights value is used for each index along that
     ///     dimension. Set the mask to 0 to use a common weights value
     ///     for the whole output tensor.
-    void append_prelu(int mask, bool has_scaleshift = false) {
-        error::wrap_c_api(
-                dnnl_post_ops_append_prelu_v2(get(), mask, has_scaleshift),
+    void append_prelu(int mask) {
+        error::wrap_c_api(dnnl_post_ops_append_prelu(get(), mask),
                 "could not append a prelu post-op");
     }
 
@@ -3867,23 +3866,9 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     ///
     /// @param index Index of the prelu post-op.
     /// @param mask Weights mask of prelu post-op.
-    /// @param has_scaleshift Boolean specifying if prelu post-op requires scale and shift arguments
     void get_params_prelu(int index, int &mask) const {
         error::wrap_c_api(dnnl_post_ops_get_params_prelu(get(), index, &mask),
-                "could not get parameters of a prelu post-op");
-    }
-
-    /// Returns the parameters of a prelu post-op.
-    ///
-    /// @param index Index of the prelu post-op.
-    /// @param mask Weights mask of prelu post-op.
-    /// @param has_scaleshift Boolean specifying if prelu post-op requires scale and shift arguments
-    void get_params_prelu(int index, int &mask, bool &has_scaleshift) const {
-        int c_has_scaleshift;
-        error::wrap_c_api(dnnl_post_ops_get_params_prelu_v2(
-                                  get(), index, &mask, &c_has_scaleshift),
-                "could not get parameters of a prelu post-op");
-        has_scaleshift = static_cast<bool>(c_has_scaleshift);
+                "could not get parameters of a binary post-op");
     }
 };
 

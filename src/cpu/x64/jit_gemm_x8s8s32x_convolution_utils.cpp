@@ -685,7 +685,7 @@ void jit_pp_ker_t::generate() {
 
     postamble();
 
-    if (postops_injector_)
+    if (jcp_.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
 }
 

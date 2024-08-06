@@ -160,10 +160,7 @@ void serialize_post_ops(
                 sstream.write(&entry.binary.alg);
                 serialize_md(sstream, entry.binary.user_src1_desc);
                 break;
-            case primitive_kind::prelu:
-                sstream.write(&entry.prelu.mask);
-                sstream.write(&entry.prelu.has_scaleshift);
-                break;
+            case primitive_kind::prelu: sstream.write(&entry.prelu.mask); break;
             default: assert(!"unknown post_op");
         }
     }

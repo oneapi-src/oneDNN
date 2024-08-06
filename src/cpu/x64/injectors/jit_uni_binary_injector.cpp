@@ -28,38 +28,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
-
-void stack_manager_t::register_(const std::string &tag, size_t size) {
-    assert(!is_allocated_
-            && "Cannot register new stack entry after allocation");
-    assert(entries_.find(tag) == entries_.end());
-    entries_[tag] = size;
-    size_ += size;
-}
-void stack_manager_t::allocate() {
-    size_t off = 0;
-    // we compute exclusive_scan of sizes to get offsets
-    for (auto &e : entries_) {
-        size_t tmp = e.second;
-        e.second = off;
-        off += tmp;
-    }
-    // this check implicitely catch if there are tag collisions
-    assert(off == size_);
-    is_allocated_ = true;
-    if (size_ > 0) host_->sub(host_->rsp, size_);
-}
-
-Xbyak::Address stack_manager_t::get(const std::string &tag) {
-    return host_->ptr[host_->rsp + entries_[tag]];
-}
-void stack_manager_t::free() {
-    if (size_ > 0) host_->add(host_->rsp, size_);
-    entries_.clear();
-    size_ = 0;
-    is_allocated_ = false;
-}
-
 namespace binary_injector {
 
 bcast_set_t get_all_strategies_supported_by_injector() {
@@ -130,10 +98,7 @@ bool is_bcast_supported(const dnnl::impl::memory_desc_t &src1_desc,
 
 bool is_supported(cpu_isa_t isa, const dnnl::impl::memory_desc_t &src1_desc,
         const memory_desc_wrapper &dst_d,
-        const bcast_set_t &supported_strategy_set,
-        bool is_prelu_with_scaleshift) {
-    if (is_prelu_with_scaleshift && !is_superset(isa, avx512_core))
-        return false;
+        const bcast_set_t &supported_strategy_set) {
     return is_data_supported(isa, src1_desc.data_type)
             && is_bcast_supported(src1_desc, dst_d, supported_strategy_set);
 }
@@ -299,13 +264,9 @@ jit_uni_binary_injector_t<isa, Vmm>::jit_uni_binary_injector_t(
     : host_(host)
     , f8_e5m2_emu_(static_params.f8_e5m2_emu_)
     , f8_e4m3_emu_(static_params.f8_e4m3_emu_)
-    , sm_(host)
     , rhs_arg_static_params_(static_params.rhs_arg_static_params)
     , param1_(static_params.param1)
-    , supported_strategy_set_(static_params.supported_strategy_set) {
-    logistic_injector_ = utils::make_unique<jit_uni_eltwise_injector<isa>>(
-            host_, alg_kind::eltwise_logistic, 0.0f, 0.0f, 1.0f);
-}
+    , supported_strategy_set_(static_params.supported_strategy_set) {}
 
 template <typename ParamsMap>
 static bool params_differ(ParamsMap &params,
@@ -531,18 +492,6 @@ void jit_uni_binary_injector_t<isa, Vmm>::compute_vector_range(
 
     bool vmm0_was_preserved = false;
     static const Vmm zero_vmm(0);
-    if (post_op.is_prelu() && post_op.prelu.has_scaleshift) {
-        // keep constant 1 involved in formula
-        sm_.register_("one", sizeof(float));
-        // need to keep prelu input on stack when scaleshift for later use
-        sm_.register_("prelu_x", vreg_traits<Vmm>::vlen);
-        // we put addresses offset of scale/shift to weights on stack.
-        // This allow to simplify addr computation
-        sm_.register_("prelu_scale", sizeof(void *));
-        sm_.register_("prelu_shift", sizeof(void *));
-    }
-    sm_.allocate();
-
     if (post_op.is_prelu() && is_avx512_) push_opmask(host_, get_aux_kmask());
 
     Xbyak::Address rhs_arg_addr(0);
@@ -585,7 +534,6 @@ void jit_uni_binary_injector_t<isa, Vmm>::compute_vector_range(
     // ...and restored afterwards
     if (vmm0_was_preserved) pop_vmm(host_, zero_vmm);
     if (post_op.is_prelu() && is_avx512_) pop_opmask(host_, get_aux_kmask());
-    sm_.free();
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -604,26 +552,9 @@ Xbyak::Address jit_uni_binary_injector_t<isa, Vmm>::prepare_rhs_arg_addr(
             get_src1_desc(post_op, rhs_arg_static_params_.dst_d).data_type);
 
     if (is_first) {
-        host_->mov(rhs_helper_reg, host_->ptr[param1_ + abi_param_offset]);
+        host_->mov(rhs_addr_reg, host_->ptr[param1_ + abi_param_offset]);
         host_->mov(rhs_addr_reg,
-                host_->ptr[rhs_helper_reg + rhs_arg_idx * rhs_arg_ptr_size]);
-        if (post_op.is_prelu() && post_op.prelu.has_scaleshift) {
-            // we store pointer arg offsets on stack
-            auto rax = host_->rax;
-            auto prelu_scale_addr = host_->ptr[rhs_helper_reg
-                    + (rhs_arg_idx + 1) * rhs_arg_ptr_size];
-            host_->mov(rax, prelu_scale_addr);
-            host_->sub(rax, rhs_addr_reg);
-            host_->mov(sm_.get("prelu_scale"), rax);
-            auto prelu_shift_addr = host_->ptr[rhs_helper_reg
-                    + (rhs_arg_idx + 2) * rhs_arg_ptr_size];
-            host_->mov(rax, prelu_shift_addr);
-            host_->sub(rax, rhs_addr_reg);
-            host_->mov(sm_.get("prelu_shift"), rax);
-            // we write the value 1.0f on stack
-            host_->mov(rax, float2int(1.0f));
-            host_->mov(sm_.get("one"), rax);
-        }
+                host_->ptr[rhs_addr_reg + rhs_arg_idx * rhs_arg_ptr_size]);
     }
 
     switch (rhs_broadcasting_strategy) {
@@ -2381,16 +2312,7 @@ void jit_uni_binary_injector_t<isa, Vmm>::inject_binary(
             || !binary_op_with_unaligned_mem_operand_allowed_
             || (cmp_op && !is_avx512_);
 
-    if (post_op.is_prelu() && post_op.prelu.has_scaleshift) {
-        if (with_tail) {
-            assert(isa_has_masks(isa));
-            assert(rhs_arg_static_params_.is_opmask_set()
-                    && "Opmask is not set for tail loading avx512");
-            const auto &tail_opmask = rhs_arg_static_params_.tail_opmask;
-            dst = dst | tail_opmask | host_->T_z;
-        }
-        execute_prelu_with_scaleshift(dst, rhs_addr);
-    } else if (process_rhs_arg_using_tmp_vmm) {
+    if (process_rhs_arg_using_tmp_vmm) {
 
         const Vmm tmp_vmm = Vmm(rhs_arg_static_params_.rhs_dt_helper_vmm_idx);
 
@@ -3512,63 +3434,6 @@ void jit_uni_binary_injector_t<isa, Vmm>::execute_prelu(
             if (aux_vmm.getIdx() != 0) pop_vmm(host_, vmm0);
         }
     }
-}
-
-template <cpu_isa_t isa, typename Vmm>
-void jit_uni_binary_injector_t<isa, Vmm>::execute_prelu_with_scaleshift(
-        const Vmm &dst, const Xbyak::Address &rhs) const {
-    // TODO add support for lower isa
-    assert(is_superset(isa, avx512_core));
-
-    Vmm tmp_vmm = Vmm(rhs_arg_static_params_.rhs_dt_helper_vmm_idx);
-    const auto &tail_opmask = Xbyak::Opmask(dst.getOpmaskIdx()) | host_->T_z;
-
-    auto rhs_helper_reg = rhs_arg_static_params_.rhs_helper_reg;
-    // Current limitations:
-    // - could use fma for x * scale + shift but requires extra vmm
-    //   to get scales/shift,
-    // - we need to compute their addresses from rhs so rhs has to be an
-    // address.
-
-    // use helper reg to compute rhs + sm.get("prelu_scale")
-    //
-
-    // change base register in regexp and return new address
-    auto update_addr = [&](Xbyak::Address a, const Xbyak::Reg64 &new_base) {
-        auto new_regexp = Xbyak::RegExp() + new_base + a.getDisp();
-        return Xbyak::Address(a.getBit(), a.isBroadcast(), new_regexp);
-    };
-
-    // TODO: for tail, should extract base reg from dst (without mask).
-    // keep dst on stack as it is needed for final computation.
-    // Note: can't pass dst directly as it has mask/zero flags
-    host_->uni_vmovups(sm_.get("prelu_x"), Vmm(dst.getIdx()));
-
-    // compute x * scale + shift in tmp_vmm
-    Xbyak::Address scaleshift_addr = update_addr(rhs, rhs_helper_reg);
-    host_->uni_vmovups(tmp_vmm | tail_opmask, Vmm(dst.getIdx()));
-
-    host_->lea(rhs_helper_reg, rhs);
-    host_->add(rhs_helper_reg, sm_.get("prelu_scale"));
-    host_->vmulps(tmp_vmm | tail_opmask, tmp_vmm, scaleshift_addr);
-
-    host_->lea(rhs_helper_reg, rhs);
-    host_->add(rhs_helper_reg, sm_.get("prelu_shift"));
-    host_->vaddps(tmp_vmm | tail_opmask, tmp_vmm, scaleshift_addr);
-
-    logistic_injector_->load_table_addr(); // constant table addr loaded in rax
-    logistic_injector_->compute_vector(tmp_vmm.getIdx());
-
-    // Now we compute p(x) * x + (1 - p(x)) * weights * x
-    // as x * [ p(x) + (1 - p(x)) * weights ]
-    host_->uni_vbroadcastss(dst, sm_.get("one"));
-    host_->vsubps(dst, Vmm(dst.getIdx()), tmp_vmm);
-    host_->vfmadd132ps(dst, tmp_vmm, rhs);
-    host_->vmulps(dst, Vmm(dst.getIdx()), sm_.get("prelu_x"));
-
-    //// Futur considerations requiring extra validation/evaluation.
-    // if we write t = x * scale + shift, we could then avoid logistic
-    // altogether and use [ weights + exp(t) ] / [ 1 + exp(t) ] * x
 }
 
 template <cpu_isa_t isa, typename Vmm>
