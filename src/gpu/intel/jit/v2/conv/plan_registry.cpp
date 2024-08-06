@@ -38,8 +38,9 @@ plan_registry_t::plan_registry_t(const char **entries) {
             std::ostringstream oss;
             e.stringify(oss);
             if (oss.str() != *entries) {
-                ir_warning() << "parsed from:\n  " << *entries
-                             << "\nstringified to\n  " << oss.str();
+                ir_warning()
+                        << "parsed from:\n  " << *entries
+                        << "\nstringified to\n  " << oss.str() << std::endl;
             }
         }
 #endif
