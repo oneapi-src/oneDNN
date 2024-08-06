@@ -298,7 +298,7 @@ template <cpu_isa_t isa, typename Vmm>
 void jit_uni_postops_injector_t<isa, Vmm>::prepare_table(bool gen_table) {
     for (auto &alg_elt_inject : alg_to_eltwise_injector_)
         alg_elt_inject.second.prepare_table(gen_table);
-    binary_injector_->prepare_table();
+    if (binary_injector_) { binary_injector_->prepare_table(); }
 }
 
 template <cpu_isa_t isa, typename Vmm>
