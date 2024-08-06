@@ -21,7 +21,7 @@
 #include <cstdint>
 
 #include "internal/ngen_includes.hpp"
-#include "types.hpp"
+#include "type.hpp"
 #include "allocators.hpp"
 
 #include "internal/namespace_start.hxx"

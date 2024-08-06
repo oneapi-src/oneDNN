@@ -18,7 +18,7 @@
 #ifndef GEMMSTONE_GUARD_STATE_UTILS_HPP
 #define GEMMSTONE_GUARD_STATE_UTILS_HPP
 
-#include "types.hpp"
+#include "type.hpp"
 #include "state.hpp"
 #include "alloc_utils.hpp"
 

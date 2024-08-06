@@ -40,7 +40,7 @@
 #include "config.hpp"
 #include "internal/ngen_includes.hpp"
 
-#include "types.hpp"
+#include "type.hpp"
 #include "problem.hpp"
 #include "strategy.hpp"
 #include "generator/pieces/register_block.hpp"

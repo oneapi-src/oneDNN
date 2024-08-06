@@ -19,7 +19,7 @@
 #define GEMMSTONE_GUARD_ALLOC_UTILS_HPP
 
 #include "internal/ngen_includes.hpp"
-#include "types.hpp"
+#include "type.hpp"
 #include "problem.hpp"
 #include "strategy.hpp"
 #include "state.hpp"
