@@ -87,7 +87,8 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         CHECK(create_ocl_program(ocl_program, sycl_engine->ocl_device(),
                 sycl_engine->ocl_context(), binary));
         cl_int err;
-        cl_kernel ocl_kernel = clCreateKernel(ocl_program, kernel_name, &err);
+        gpu::intel::ocl::ocl_wrapper_t<cl_kernel> ocl_kernel
+                = clCreateKernel(ocl_program, kernel_name, &err);
         OCL_CHECK(err);
         sycl_kernel = utils::make_unique<::sycl::kernel>(
                 ::sycl::make_kernel<::sycl::backend::opencl>(
