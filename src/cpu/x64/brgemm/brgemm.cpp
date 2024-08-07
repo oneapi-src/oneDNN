@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include <algorithm>
 #include "cpu/x64/brgemm/brgemm_utils.hpp"
 
 #include "common/c_types_map.hpp"
@@ -626,8 +627,7 @@ status_t brgemm_init_tiles(const brgemm_desc_t &brg, char palette[64]) {
 
     char *_tc = (char *)(buff);
     static constexpr int max_palette_size_in_bytes = 64;
-    for (int i = 0; i < max_palette_size_in_bytes; i++)
-        _tc[i] = 0;
+    std::fill_n(_tc, max_palette_size_in_bytes, 0);
 
     const int typesize_A
             = brg.is_input_convert() ? sizeof(int16_t) : brg.typesize_A;
