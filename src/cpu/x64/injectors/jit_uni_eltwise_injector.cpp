@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
@@ -140,12 +141,11 @@ void jit_uni_eltwise_injector<isa, Wmm>::injector_preamble(
     // to have legit generated code. This fact is saved through
     // `start_idx_tail_it` iterator and a second round of compute will happen.
     size_t n_vregs_not_preserved = n_vregs_to_preserve_ - n_vregs_preserved_;
-    for (size_t i = 0; i < n_vregs_not_preserved; i++) {
-        preserved_vmm_indices_[n_vregs_preserved_ - need_vmm_mask_register_]
-                = *start_idx_tail_it;
-        n_vregs_preserved_++;
-        start_idx_tail_it++;
-    }
+    std::copy_n(start_idx_tail_it, n_vregs_not_preserved,
+            preserved_vmm_indices_ + n_vregs_preserved_
+                    - need_vmm_mask_register_);
+    n_vregs_preserved_ += n_vregs_not_preserved;
+    std::advance(start_idx_tail_it, n_vregs_not_preserved);
     assert(n_vregs_preserved_ == n_vregs_to_preserve_);
 
     // Preserve GPRs.
@@ -240,9 +240,8 @@ void jit_uni_eltwise_injector<isa, Wmm>::injector_preamble_tail(
     // Update the rightmost indices. The injector uses vmms with indices coming
     // after compute vmm indices.
     // TODO: is it always a valid index?
-    for (size_t i = 0; i < n_vregs_not_preserved; ++i)
-        preserved_vmm_indices_[idx_off + i - need_vmm_mask_register_]
-                += n_vregs_not_preserved;
+    std::fill_n(preserved_vmm_indices_ + idx_off - need_vmm_mask_register_,
+            n_vregs_not_preserved, n_vregs_not_preserved);
 
     if (save_state_ && preserve_vmm_) {
         for (size_t i = 0; i < n_vregs_not_preserved; ++i)
