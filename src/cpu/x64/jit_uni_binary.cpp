@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <functional>
 
 #include "common/dnnl_thread.hpp"
@@ -46,8 +47,7 @@ static bool compare_layouts(const memory_desc_wrapper &src0_md,
     if (is_bcast) return true;
 
     bool same_layouts = true;
-    for (int d = 0; d < ndims; ++d)
-        same_layouts = same_layouts && strides0[d] == strides1[d];
+    same_layouts = std::equal(strides0, strides0 + ndims, strides1);
     return same_layouts;
 }
 
@@ -346,8 +346,7 @@ bool jit_uni_binary_t::pd_t::is_different_layouts_allowed(
     const int ndims = src0_d.ndims();
 
     bool without_bcast = true;
-    for (int d = 0; d < ndims; d++)
-        without_bcast = without_bcast && src0_dims[d] == src1_dims[d];
+    without_bcast = std::equal(src0_dims, src0_dims + ndims, src1_dims);
     if (!without_bcast) return false;
 
     // allow nchw:nhwc and nhwc:nchw and disable for blocked layouts
@@ -390,8 +389,7 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
         bool same_dims = true;
         const auto &src0_dims = src0_d.dims();
         const auto &src1_dims = src1_d.dims();
-        for (int d = 0; d < ndims; d++)
-            same_dims = same_dims && src0_dims[d] == src1_dims[d];
+        same_dims = std::equal(src0_dims, src0_dims + ndims, src1_dims);
         if (same_dims
                 && IMPLICATION(
                         is_src_different_layouts, different_layouts_allowed))
