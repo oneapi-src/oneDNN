@@ -82,43 +82,38 @@ private:
     void *dst_oscale_ptr() const { return dst_scale_.get_pointer(); }
 
     inline void compute_alg_n(int idx) const {
+        memory_tensor_t data_mem(data_, conf_.data_md);
+        memory_tensor_t scale_mem(scale_, conf_.data_scaleshift_md);
+        memory_tensor_t shift_mem(shift_, conf_.data_scaleshift_md);
+        memory_plain_t rt_scale_mem(rt_scale_, conf_.scales_src_dt);
+        memory_plain_t dst_scale_mem(dst_scale_, conf_.scales_dst_dt);
+        memory_tensor_t stat_mem(stat_, conf_.stat_md);
+        memory_plain_t var_mem(var_, conf_.var_dt);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+
         float eps = epsilon();
         const size_t s_off = conf_.stat_md.off_l(idx);
-        auto v_mean
-                = load_float_value(stat_md().data_type(), stat_ptr(), s_off);
-        auto v_variance = load_float_value(var_dt(), var_ptr(), s_off);
+        auto v_mean = stat_mem.load(s_off);
+        auto v_variance = var_mem.load(s_off);
         dim_t C = conf_.C;
 
         float sqrt_variance = sqrtf(v_variance + eps);
 
         if (idx < conf_.N) {
             for (dim_t c = 0; c < C; ++c) {
-                const float sm = ((conf_.use_scale) ? load_float_value(
-                                          data_scaleshift_md().data_type(),
-                                          scale_ptr(), c)
-                                                    : 1.f)
+                const float sm = (conf_.use_scale ? scale_mem.load(c) : 1.f)
                         / sqrt_variance;
-                const float sv = conf_.use_shift
-                        ? load_float_value(data_scaleshift_md().data_type(),
-                                shift_ptr(), c)
-                        : 0;
+                const float sv = conf_.use_shift ? shift_mem.load(c) : 0;
                 dim_t index = idx * C + c;
                 const auto src_off = data_md().off_l(index);
                 const auto d_off = dst_md().off_l(index);
-                float s = load_float_value(
-                        data_md().data_type(), data_ptr(), src_off);
+                float s = data_mem.load(src_off);
                 float d = sm * (s - v_mean) + sv;
 
-                float sr = conf_.src_def
-                        ? 1.f
-                        : load_float_value(data_scaleshift_md().data_type(),
-                                rt_oscale_ptr(), 0);
-                float ds = conf_.dst_def
-                        ? 1.f
-                        : load_float_value(data_scaleshift_md().data_type(),
-                                dst_oscale_ptr(), 0);
+                float sr = conf_.src_def ? 1.f : rt_scale_mem.load(0);
+                float ds = conf_.dst_def ? 1.f : dst_scale_mem.load(0);
                 d = (d * sr * (1.f / ds));
-                store_float_value(dst_md().data_type(), d, dst_ptr(), d_off);
+                dst_mem.store(d, d_off);
             }
         }
     }
@@ -186,9 +181,18 @@ private:
     void *dst_oscale_ptr() const { return dst_scale_.get_pointer(); }
 
     inline void compute_alg_n(int idx) const {
+        memory_tensor_t data_mem(data_, conf_.data_md);
+        memory_tensor_t scale_mem(scale_, conf_.data_scaleshift_md);
+        memory_tensor_t shift_mem(shift_, conf_.data_scaleshift_md);
+        memory_plain_t rt_scale_mem(rt_scale_, conf_.scales_src_dt);
+        memory_plain_t dst_scale_mem(dst_scale_, conf_.scales_dst_dt);
+        memory_tensor_t stat_out_mem(mean_out_, conf_.stat_md);
+        memory_plain_t var_out_mem(var_out_, conf_.var_dt);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+
         if (conf_.zero_dims && conf_.calculate_stats && conf_.save_stats) {
-            store_float_value(stat_md().data_type(), 0, stat_out_ptr(), idx);
-            store_float_value(var_dt(), 0, var_out_ptr(), idx);
+            stat_out_mem.store(0, idx);
+            var_out_mem.store(0, idx);
         }
         float eps = epsilon();
         const size_t s_off = conf_.stat_md.off_l(idx);
@@ -200,16 +204,14 @@ private:
             for (dim_t c = 0; c < C; ++c) {
                 dim_t index = idx * C + c;
                 const auto sd_off = data_md().off_l(index);
-                float s = load_float_value(
-                        data_md().data_type(), data_ptr(), sd_off);
+                float s = data_mem.load(sd_off);
                 v_mean += s;
             }
             v_mean /= C;
             for (dim_t c = 0; c < C; ++c) {
                 dim_t index = idx * C + c;
                 const auto s_off = data_md().off_l(index);
-                float sc = load_float_value(
-                        data_md().data_type(), data_ptr(), s_off);
+                float sc = data_mem.load(s_off);
                 float m = sc - v_mean;
                 v_variance += m * m;
             }
@@ -220,38 +222,26 @@ private:
 
         if (idx < conf_.N) {
             for (dim_t c = 0; c < C; ++c) {
-                const float sm = ((conf_.use_scale) ? load_float_value(
-                                          data_scaleshift_md().data_type(),
-                                          scale_ptr(), c)
-                                                    : 1.f)
+                const float sm = (conf_.use_scale ? scale_mem.load(c) : 1.f)
                         / sqrt_variance;
-                const float sv = conf_.use_shift
-                        ? load_float_value(data_scaleshift_md().data_type(),
-                                shift_ptr(), c)
-                        : 0;
+                const float sv = conf_.use_shift ? shift_mem.load(c) : 0;
                 dim_t index = idx * C + c;
                 const auto src_off = data_md().off_l(index);
                 const auto d_off = dst_md().off_l(index);
-                float s = load_float_value(
-                        data_md().data_type(), data_ptr(), src_off);
+                float s = data_mem.load(src_off);
                 float d = sm * (s - v_mean) + sv;
 
-                float sr = conf_.src_def ? 1.f
-                                         : load_float_value(conf_.scales_src_dt,
-                                                 rt_oscale_ptr(), 0);
-                float ds = conf_.dst_def ? 1.f
-                                         : load_float_value(conf_.scales_dst_dt,
-                                                 dst_oscale_ptr(), 0);
+                float sr = conf_.src_def ? 1.f : rt_scale_mem.load(0);
+                float ds = conf_.dst_def ? 1.f : dst_scale_mem.load(0);
                 d = (d * sr * (1.f / ds));
 
-                store_float_value(dst_md().data_type(), d, dst_ptr(), d_off);
+                dst_mem.store(d, d_off);
             }
         }
 
         if (conf_.calculate_stats && conf_.save_stats) {
-            store_float_value(
-                    stat_md().data_type(), v_mean, stat_out_ptr(), s_off);
-            store_float_value(var_dt(), v_variance, var_out_ptr(), s_off);
+            stat_out_mem.store(v_mean, s_off);
+            var_out_mem.store(v_variance, s_off);
         }
     }
 
@@ -313,19 +303,27 @@ private:
     void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
 
     inline void compute_alg_bwd(dim_t start_c, dim_t end_c, size_t ithr) const {
+        memory_tensor_t data_mem(data_, conf_.data_md);
+        memory_tensor_t scale_mem(scale_, conf_.data_scaleshift_md);
+        memory_tensor_t diff_scale_mem(
+                diff_scale_, conf_.diff_data_scaleshift_md);
+        memory_tensor_t diff_shift_mem(
+                diff_shift_, conf_.diff_data_scaleshift_md);
+        memory_tensor_t stat_mem(stat_, conf_.stat_md);
+        memory_plain_t var_mem(var_, conf_.var_dt);
+        memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
+
         if ((dim_t)ithr >= conf_.C) return;
         float eps = epsilon();
         if (conf_.zero_dims) {
             if (conf_.use_scale) {
                 for (dim_t c = start_c; c < end_c; ++c) {
-                    store_float_value(diff_data_scaleshift_md().data_type(), 0,
-                            diff_scale_ptr(), diff_data_scaleshift_md().off(c));
+                    diff_scale_mem.store(0, diff_scale_mem.md().off(c));
                 }
             }
             if (conf_.use_shift) {
                 for (dim_t c = end_c; c < end_c; ++c) {
-                    store_float_value(diff_data_scaleshift_md().data_type(), 0,
-                            diff_shift_ptr(), diff_data_scaleshift_md().off(c));
+                    diff_shift_mem.store(0, diff_shift_mem.md().off(c));
                 }
             }
         }
@@ -341,27 +339,20 @@ private:
                                diff_dst_off = diff_dst_md().off_l(index),
                                s_off = stat_md().off_l(n);
 
-                    float inv_sqrt_variance = 1.f
-                            / sqrtf(load_float_value(var_dt(), var_ptr(), s_off)
-                                    + eps); //stat
-                    float s = load_float_value(
-                            data_md().data_type(), data_ptr(), src_off);
-                    auto dd = load_float_value(diff_dst_md().data_type(),
-                            diff_dst_ptr(), diff_dst_off);
-                    auto stat_v = load_float_value(
-                            stat_md().data_type(), stat_ptr(), s_off);
+                    float inv_sqrt_variance
+                            = 1.f / sqrtf(var_mem.load(s_off) + eps); //stat
+                    float s = data_mem.load(src_off);
+                    auto dd = diff_dst_mem.load(diff_dst_off);
+                    auto stat_v = stat_mem.load(s_off);
                     diff_gamma += (s - stat_v) * dd * inv_sqrt_variance;
                     diff_beta += dd;
                 }
                 if (conf_.use_scale) {
-                    store_float_value(diff_data_scaleshift_md().data_type(),
-                            diff_gamma, diff_scale_ptr(),
-                            diff_data_scaleshift_md().off(c));
+                    diff_scale_mem.store(
+                            diff_gamma, diff_scale_mem.md().off(c));
                 }
                 if (conf_.use_shift) {
-                    store_float_value(diff_data_scaleshift_md().data_type(),
-                            diff_beta, diff_shift_ptr(),
-                            diff_data_scaleshift_md().off(c));
+                    diff_shift_mem.store(diff_beta, diff_shift_mem.md().off(c));
                 }
             }
         }

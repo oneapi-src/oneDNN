@@ -49,6 +49,9 @@ struct eltwise_fwd_kernel_vec_t {
         , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t src_mem(src_, conf_.src_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+
         auto sg = item.get_sub_group();
         size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
         size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
@@ -61,10 +64,8 @@ struct eltwise_fwd_kernel_vec_t {
                                  dim_t &w) {
             dim_t src_offset = data_offset(src_md(), n, c, d, h, w);
 
-            auto src = load_float_value(
-                    src_md().data_type(), src_ptr(), src_offset);
-            auto dst = load_float_value(
-                    dst_md().data_type(), dst_ptr(), src_offset);
+            auto src = src_mem.load(src_offset);
+            auto dst = dst_mem.load(src_offset);
 
             dim_t data_l_off = (((n * conf_.c + c) * conf_.d + d) * conf_.h + h)
                             * conf_.w
@@ -74,7 +75,7 @@ struct eltwise_fwd_kernel_vec_t {
 
             dst = compute_alg_n(src, conf_.alpha, conf_.beta, conf_.alg_kind);
             dst = conf_.post_ops.apply(dst, post_po_sr);
-            store_float_value(dst_md().data_type(), dst, dst_ptr(), src_offset);
+            dst_mem.store(dst, src_offset);
         };
 
         for (dim_t blk_idx = 0; blk_idx < conf_.block_size; blk_idx++) {
@@ -99,9 +100,6 @@ struct eltwise_fwd_kernel_vec_t {
 private:
     const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
-
-    void *src_ptr() const { return src_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
 
     float compute_alg_n(const float &s, const float &alpha, const float &beta,
             const alg_kind_t &alg) const {
@@ -319,6 +317,10 @@ struct eltwise_bwd_kernel_vec_t {
         , diff_dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t src_mem(src_, conf_.src_md);
+        memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);
+        memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
+
         auto sg = item.get_sub_group();
         size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
         size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
@@ -329,15 +331,12 @@ struct eltwise_bwd_kernel_vec_t {
         for (dim_t i = 0; i < conf_.block_size; i++) {
             dim_t idx = base_idx + i;
             if (idx < conf_.wk_size) {
-                auto diff_src = load_float_value(
-                        diff_src_md().data_type(), diff_src_ptr(), idx);
-                auto src = load_float_value(
-                        src_md().data_type(), src_ptr(), idx);
+                auto diff_src = diff_src_mem.load(idx);
+                auto src = src_mem.load(idx);
 
                 auto dst = compute_alg_n(
                         diff_src, src, conf_.alpha, conf_.beta, conf_.alg_kind);
-                store_float_value(
-                        diff_dst_md().data_type(), dst, diff_dst_ptr(), idx);
+                diff_dst_mem.store(dst, idx);
             }
         }
     }
@@ -346,10 +345,6 @@ private:
     const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
-
-    void *src_ptr() const { return src_.get_pointer(); }
-    void *diff_src_ptr() const { return diff_src_.get_pointer(); }
-    void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
 
     inline float compute_alg_n(const float &dd, const float &s,
             const float &alpha, const float &beta,
