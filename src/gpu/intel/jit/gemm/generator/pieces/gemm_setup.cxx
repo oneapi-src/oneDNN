@@ -1762,7 +1762,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
         }
         gemmRepack2DOffsetData(problem.Ta_ext, problem.Tao, state.Tao_int, A_offsetLayout, state.Ar_offsetLayout, aoLoad, state.Ar_offsetRegs, problem, strategy, state);
         state.ra.safeRelease(aoLoad);
-        state.ra.safeRelease(state.inputs.aoPtr);
+        if (!strategy.persistent) state.ra.safeRelease(state.inputs.aoPtr);
     }
     if (boTo2D) {
         std::vector<RegisterBlock> B_offsetLayout;
@@ -1783,7 +1783,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
         }
         gemmRepack2DOffsetData(problem.Tb_ext, problem.Tbo, state.Tbo_int, B_offsetLayout, state.Br_offsetLayout, boLoad, state.Br_offsetRegs, problem, strategy, state);
         state.ra.safeRelease(boLoad);
-        state.ra.safeRelease(state.inputs.boPtr);
+        if (!strategy.persistent) state.ra.safeRelease(state.inputs.boPtr);
     }
 
     // Free unneeded registers after address setup.
