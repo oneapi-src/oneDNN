@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
 #include "common/dnnl_thread.hpp"
@@ -2130,8 +2131,7 @@ void jit_avx512_core_amx_fwd_kernel_t::tile_configure(char *tcfg_buff) {
     // Accumulator tile dimensions
     const int c_col = 16;
 
-    for (size_t i = 0; i < 64; i++)
-        tcfg_buff[i] = 0;
+    std::fill_n(tcfg_buff, 64, 0);
 
     // Weights (W_BASE) Tensor Tiles
     for (int i = 0; i < jcp.nb_oc_blocking; i++)
@@ -2167,8 +2167,7 @@ void jit_avx512_core_amx_fwd_kernel_t::set_oh_blk_limits(jit_conv_conf_t &jcp) {
 
     constexpr int size = sizeof(jcp.h_blk_limits) / sizeof(jcp.h_blk_limits[0]);
     // set default values
-    for (int i = 0; i < size; i++)
-        jcp.h_blk_limits[i] = jcp.oh;
+    std::fill_n(jcp.h_blk_limits, size, jcp.oh);
 
     const bool calculate_oh_limits
             = jcp.t_pad_output > 0 || jcp.b_pad_output > 0;
