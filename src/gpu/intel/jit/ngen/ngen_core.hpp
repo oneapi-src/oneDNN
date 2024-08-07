@@ -297,30 +297,30 @@ enum {
     SteppingPVCXTB4 = 7,
 };
 
-// Data types. Bits[0:4] are the ID, bits[5:7] hold log2(width in bytes).
+// Data types. Bits[0:4] are the ID, bits[5:7] hold log2(width in bits).
 enum class DataType : uint8_t {
-    ud = 0x40,
-    d  = 0x41,
-    uw = 0x22,
-    w  = 0x23,
-    ub = 0x04,
-    b  = 0x05,
-    df = 0x66,
-    f  = 0x47,
-    uq = 0x68,
-    q  = 0x69,
-    hf = 0x2A,
-    bf = 0x2B,
-    uv = 0x4D,
-    v  = 0x4E,
-    vf = 0x4F,
-    bf8 = 0x0C,
-    tf32 = 0x50,
-    u4 = 0x1C,
-    s4 = 0x1D,
-    u2 = 0x1E,
-    s2 = 0x1F,
-    invalid = 0x00
+    ud = 0xA0,
+    d  = 0xA1,
+    uw = 0x82,
+    w  = 0x83,
+    ub = 0x64,
+    b  = 0x65,
+    df = 0xC6,
+    f  = 0xA7,
+    uq = 0xC8,
+    q  = 0xC9,
+    hf = 0x8A,
+    bf = 0x8B,
+    uv = 0xAD,
+    v  = 0xAE,
+    vf = 0xAF,
+    bf8 = 0x6C,
+    tf32 = 0xB0,
+    u4 = 0x5C,
+    s4 = 0x5D,
+    u2 = 0x3E,
+    s2 = 0x3F,
+    invalid = 0x60
 };
 
 #ifdef NGEN_ASM
@@ -333,14 +333,15 @@ static inline std::ostream &operator<<(std::ostream &str, DataType type)
 }
 #endif
 
-static inline constexpr   int getLog2Bytes(DataType type)              { return static_cast<int>(type) >> 5; }
-static inline constexpr   int getBytes(DataType type)                  { return 1 << getLog2Bytes(type); }
-static inline constexpr14 int getDwords(DataType type)                 { return std::max<int>(getBytes(type) >> 2, 1); }
-static inline constexpr   int elementsPerByte(DataType type)
-{
-    return (type == DataType::u2 || type == DataType::s2) ? 4 :
-           (type == DataType::u4 || type == DataType::s4) ? 2 : 1;
-}
+static inline constexpr   int getLog2Bits(DataType type)               { return static_cast<int>(type) >> 5; }
+static inline constexpr14 int getLog2Bytes(DataType type)              { return std::max<int>(getLog2Bits(type) - 3, 0); }
+static inline constexpr14 int getLog2Dwords(DataType type)             { return std::max<int>(getLog2Bits(type) - 5, 0); }
+static inline constexpr14 int log2ElementsPerByte(DataType type)       { return std::max<int>(3 - getLog2Bits(type), 0); }
+static inline constexpr   int getBits(DataType type)                   { return 1 << getLog2Bits(type); }
+static inline constexpr14 int getBytes(DataType type)                  { return 1 << getLog2Bytes(type); }
+static inline constexpr14 int getDwords(DataType type)                 { return 1 << getLog2Dwords(type); }
+static inline constexpr14 int elementsPerByte(DataType type)           { return 1 << log2ElementsPerByte(type); }
+
 static inline constexpr bool isSigned(DataType type)
 {
     return !(type == DataType::u2 || type == DataType::u4 || type == DataType::ub
@@ -632,29 +633,29 @@ public:
     constexpr RegData()
         : base(0), arf(0), off(0), mods(0), type(0), indirect(0), vs(0), width(0), hs(0), _pad2(0), invalid(1) {}
 
-    constexpr int getBase()          const { return base; }
-    constexpr bool isARF()           const { return arf; }
-    constexpr int getARFBase()       const { return base & 0xF; }
-    constexpr ARFType getARFType()   const { return static_cast<ARFType>(base >> 4); }
-    constexpr bool isIndirect()      const { return indirect; }
-    constexpr bool isVxIndirect()    const { return indirect && (vs == 0x7F); }
-    constexpr int getIndirectOff()   const { return base & 0xFF; }
-    constexpr bool isNull()          const { return isARF() && (getARFType() == ARFType::null); }
-    constexpr bool isInvalid()       const { return invalid; }
-    constexpr bool isValid()         const { return !invalid; }
-    constexpr int getOffset()        const { return off; }
-    constexpr int getByteOffset()    const { return off * getBytes(); }
-    constexpr int getLogicalOffset() const { return off * elementsPerByte(getType()); }
-    constexpr DataType getType()     const { return static_cast<DataType>(type); }
-    constexpr int getVS()            const { return vs; }
-    constexpr int getWidth()         const { return width; }
-    constexpr int getHS()            const { return hs; }
-    constexpr bool getNeg()          const { return mods & 2; }
-    constexpr bool getAbs()          const { return mods & 1; }
-    constexpr int getMods()          const { return mods; }
-    constexpr int getBytes()         const { return NGEN_NAMESPACE::getBytes(getType()); }
-    constexpr14 int getDwords()      const { return NGEN_NAMESPACE::getDwords(getType()); }
-    constexpr bool isScalar()        const { return hs == 0 && vs == 0 && width == 1; }
+    constexpr int getBase()            const { return base; }
+    constexpr bool isARF()             const { return arf; }
+    constexpr int getARFBase()         const { return base & 0xF; }
+    constexpr ARFType getARFType()     const { return static_cast<ARFType>(base >> 4); }
+    constexpr bool isIndirect()        const { return indirect; }
+    constexpr bool isVxIndirect()      const { return indirect && (vs == 0x7F); }
+    constexpr int getIndirectOff()     const { return base & 0xFF; }
+    constexpr bool isNull()            const { return isARF() && (getARFType() == ARFType::null); }
+    constexpr bool isInvalid()         const { return invalid; }
+    constexpr bool isValid()           const { return !invalid; }
+    constexpr int getOffset()          const { return off; }
+    constexpr14 int getByteOffset()    const { return off * getBytes(); }
+    constexpr14 int getLogicalOffset() const { return off * elementsPerByte(getType()); }
+    constexpr DataType getType()       const { return static_cast<DataType>(type); }
+    constexpr int getVS()              const { return vs; }
+    constexpr int getWidth()           const { return width; }
+    constexpr int getHS()              const { return hs; }
+    constexpr bool getNeg()            const { return mods & 2; }
+    constexpr bool getAbs()            const { return mods & 1; }
+    constexpr int getMods()            const { return mods; }
+    constexpr14 int getBytes()         const { return NGEN_NAMESPACE::getBytes(getType()); }
+    constexpr14 int getDwords()        const { return NGEN_NAMESPACE::getDwords(getType()); }
+    constexpr bool isScalar()          const { return hs == 0 && vs == 0 && width == 1; }
 
     inline constexpr14 RegData getIndirectReg() const;
 
