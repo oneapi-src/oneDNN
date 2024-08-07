@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
+#include <numeric>
 #include "common/c_types_map.hpp"
 #include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
@@ -33,8 +35,7 @@ namespace {
 status_t weights_axes_permutation(
         memory_desc_t *o_md, const memory_desc_t *i_md, bool with_groups) {
     int perm[DNNL_MAX_NDIMS] {}; // bwd conv to fwd conv weight permutation
-    for (int d = 0; d < DNNL_MAX_NDIMS; ++d)
-        perm[d] = d;
+    std::iota(perm, perm + DNNL_MAX_NDIMS, 0);
     nstl::swap(perm[0 + with_groups], perm[1 + with_groups]);
 
     return memory_desc_permute_axes(*o_md, *i_md, perm);
