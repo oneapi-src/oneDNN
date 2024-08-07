@@ -13,6 +13,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <functional>
 #include <new>
 
@@ -475,8 +476,8 @@ public:
                 + ithr * this->dst_slice_ * this->ind_dt_size_;
         for_(dim_t s = 0; s < this->dst_sp_; s++)
         for_(dim_t c = c_tail_; c < jpp.c_block; c++)
-        for (size_t i = 0; i < this->ind_dt_size_; i++)
-            ind_ptr[(s * jpp.c_block + c) * this->ind_dt_size_ + i] = 0;
+        std::fill_n(ind_ptr + (s * jpp.c_block + c) * this->ind_dt_size_,
+                this->ind_dt_size_, 0);
     }
 
 private:
