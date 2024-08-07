@@ -43,9 +43,6 @@ namespace gpu {
 namespace intel {
 namespace sycl {
 
-status_t func_zeKernelCreate(
-        ze_module_handle_t, const ze_kernel_desc_t *, ze_kernel_handle_t *);
-
 namespace compat {
 
 using namespace gpu::intel::compute;
