@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <cassert>
 #include <set>
 
@@ -537,8 +538,7 @@ void prb_node_split(prb_t &p, int dim, size_t new_node_size) {
     p.ndims += 1;
     p.full_ndims += 1;
 
-    for (int d = p.ndims; d > dim + 1; --d)
-        p.nodes[d] = p.nodes[d - 1];
+    std::copy(p.nodes + dim + 1, p.nodes + p.ndims, p.nodes + dim + 2);
 
     const size_t upper_node_size = p.nodes[dim].n / new_node_size;
     const size_t lower_node_size = new_node_size;
@@ -587,8 +587,7 @@ void prb_node_move(prb_t &p, int d0, int d1) {
     node_t node = p.nodes[d0];
 
     if (d0 < d1)
-        for (int d = d0; d < d1; ++d)
-            p.nodes[d] = p.nodes[d + 1];
+        std::copy(p.nodes + d0 + 1, p.nodes + d1, p.nodes + d0);
     else
         for (int d = d0; d > d1; --d)
             p.nodes[d] = p.nodes[d - 1];
