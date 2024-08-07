@@ -17,6 +17,7 @@
 #ifndef CPU_X64_IP_CONVOLUTION_HPP
 #define CPU_X64_IP_CONVOLUTION_HPP
 
+#include <algorithm>
 #include <string>
 
 #include "common/c_types_map.hpp"
@@ -40,8 +41,7 @@ status_t reshape_dst(memory_desc_t *o_md, const memory_desc_t *i_md) {
     dims_t reduce {};
     const int ndims = 2; // dst is always nc for inner product
     // conv to ip: remove spatial
-    for (int d = 0; d < ndims; ++d)
-        reduce[d] = i_md->dims[d];
+    std::copy_n(i_md->dims, ndims, reduce);
 
     return memory_desc_reshape(*o_md, *i_md, ndims, reduce);
 }
@@ -52,13 +52,12 @@ status_t maybe_reshape_weights(memory_desc_t *o_md, const memory_desc_t *i_md,
     const int ndims = i_md->ndims + (to_ip ? -1 : +1) * with_groups;
     if (to_ip) {
         // conv to ip: maybe remove groups
-        for (int d = 0; d < ndims; ++d)
-            reduce[d] = i_md->dims[d + with_groups];
+        std::copy(i_md->dims + with_groups, i_md->dims + with_groups + ndims,
+                reduce);
     } else {
         // ip to conv: maybe restore groups
         if (with_groups) reduce[0] = 1;
-        for (int d = 0; d < ndims; ++d)
-            reduce[d + with_groups] = i_md->dims[d];
+        std::copy(i_md->dims, i_md->dims + ndims, reduce + with_groups);
     }
 
     return memory_desc_reshape(*o_md, *i_md, ndims, reduce);
