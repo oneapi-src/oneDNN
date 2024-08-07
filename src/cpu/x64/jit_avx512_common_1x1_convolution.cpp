@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
@@ -1036,10 +1037,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
         assert(IMPLICATION(!is_ddst_layout_nxc, jcp.ngroups == 1));
         const int padded_stride = rnd_up(jcp.oc, jcp.oc_block);
         const int stride = jcp.oc_without_padding;
-        for (int g = 0; g < jcp.ngroups; ++g) {
-            utils::array_copy(diff_bias_in + g * stride,
-                    diff_bias + g * padded_stride, stride);
-        }
+        std::copy(diff_bias_in, diff_bias_in + jcp.ngroups * stride, diff_bias);
     }
 }
 
