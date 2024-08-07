@@ -23,6 +23,7 @@
 #include "loop_sequencer.hpp"
 #include "remask.hpp"
 #include "state_utils.hpp"
+#include "quantization.hpp"
 
 using namespace ngen;
 using std::vector;
@@ -1052,7 +1053,7 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
             gemmDequantizeAB(true, Ta_ext, Ta, Ai_layout(h), state.Ao_layout, Ai_regs(h), Ao_regs(h), 0, problem, strategy, state);
         else
         if (slmA && !aioShare(h) && !(slmRemActive(h) && Ai_remIncrCopy))
-            copyRegisters(Ta_ext, Ta, Ai_layout(h), state.Ao_layout, Ai_regs(h), Ao_regs(h), 0, 0, false, strategy, state);
+            copyRegisters(Ta_ext, Ta, Ai_layout(h), state.Ao_layout, Ai_regs(h), Ao_regs(h), strategy, state);
         else if (slmConvertA(h))
             convert(Ai_regs(h), Ta_ext, Ta, strategy, state);
 
@@ -1060,7 +1061,7 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
             gemmDequantizeAB(false, Tb_ext, Tb, Bi_layout(h), state.Bo_layout, Bi_regs(h), Bo_regs(h), 0, problem, strategy, state);
         else
         if (slmB && !bioShare(h) && !(slmRemActive(h) && Bi_remIncrCopy))
-            copyRegisters(Tb_ext, Tb, Bi_layout(h), state.Bo_layout, Bi_regs(h), Bo_regs(h), 0, 0, false, strategy, state);
+            copyRegisters(Tb_ext, Tb, Bi_layout(h), state.Bo_layout, Bi_regs(h), Bo_regs(h), strategy, state);
         else if (slmConvertB(h))
             convert(Bi_regs(h), Tb_ext, Tb, strategy, state);
 

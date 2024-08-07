@@ -62,6 +62,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
     // Set default parameters.
     block.colMajor = isColMajor(atype.layout);
     block.splitComplex = false;
+    block.byteGlue = false;
     block.cxComponent = RegisterBlock::Interleaved;
     block.crosspack = 1;
     block.rowMask = MaskInfo::None();
@@ -446,6 +447,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                             stub();
                     }
                     block.crosspack = npack / T.perByte();
+                    block.byteGlue = (T.bits() < 8);
                     npack = T.perByte();
                     (effCM ? cblock : rblock) = 1;
                 }
@@ -674,6 +676,10 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
             block.extra = T.bits();
             auto bytes = align_up((block.colMajor ? cblock : rblock) / count, block.crosspack) * block.ld * count * T;
             block.msgRegs = GRF::bytesToGRFs(hw, bytes);
+            if (vnni && (T.bits() < 8)) {
+                block.byteGlue = true;
+                block.crosspack /= T.perByte();
+            }
             break;
         }
         case AccessType::CacheLine: {
@@ -1079,6 +1085,7 @@ bool BLASKernelGenerator<hw>::add1DBlockToRegLayout(Type T, vector<RegisterBlock
             block.component = 0;
             block.colMajor = colMajor;
             block.splitComplex = false;
+            block.byteGlue = false;
             block.cxComponent = RegisterBlock::Interleaved;
 
             if (first) {
@@ -1303,6 +1310,7 @@ void BLASKernelGenerator<hw>::makeUnbackedRegLayout(Type T, vector<RegisterBlock
                     block.crosspack = crosspack;
                     block.offsetBytes = offsetBytes;
                     block.splitComplex = false;
+                    block.byteGlue = false;
                     block.cxComponent = qCX;
                     block.component = q;
                     block.remainderR = false;

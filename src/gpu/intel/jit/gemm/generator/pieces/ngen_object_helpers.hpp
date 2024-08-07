@@ -24,6 +24,37 @@
 
 #include "internal/namespace_start.hxx"
 
+// DataType queries and helpers.
+static inline bool is4(ngen::DataType dt) { return one_of(dt, ngen::DataType::u4, ngen::DataType::s4); }
+static inline bool isB(ngen::DataType dt) { return one_of(dt, ngen::DataType::ub, ngen::DataType::b); }
+static inline bool isW(ngen::DataType dt) { return one_of(dt, ngen::DataType::uw, ngen::DataType::w); }
+static inline bool isD(ngen::DataType dt) { return one_of(dt, ngen::DataType::ud, ngen::DataType::d); }
+static inline bool isQ(ngen::DataType dt) { return one_of(dt, ngen::DataType::uq, ngen::DataType::q); }
+static inline bool isFP8(ngen::DataType dt) { return one_of(dt, ngen::DataType::bf8, Type::ngen_hf8()); }
+
+static inline bool isFP(ngen::DataType dt) {
+    using namespace ngen;
+    return one_of(dt, DataType::bf8, Type::ngen_hf8(), DataType::bf, DataType::hf, DataType::tf32, DataType::f, DataType::df);
+}
+static inline bool isInt(ngen::DataType dt) { return !isFP(dt); }
+
+static inline ngen::DataType asSigned(ngen::DataType dt)
+{
+    using namespace ngen;
+    switch (dt) {
+        case DataType::u2: return DataType::s2;
+        case DataType::u4: return DataType::s4;
+        case DataType::ub: return DataType::b;
+        case DataType::uw: return DataType::w;
+        case DataType::ud: return DataType::d;
+        case DataType::uq: return DataType::q;
+        default: return dt;
+    }
+}
+
+static inline int elementsToBytes(int n, ngen::DataType dt) { return n * getBits(dt) >> 3; }
+static inline int bytesToElements(int b, ngen::DataType dt) { return (b * 8) >> getLog2Bits(dt); }
+
 // Move subregister to another pipe.
 void movePipes(ngen::Subregister &s, bool sizeCanChange = true);
 

@@ -218,7 +218,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         dpasw = true;
     }
 
-    dpasw &= fused;
+    dpasw &= systolic && fused;
 
     // Accumulator usage: 64-bit emulation, or k chaining, or extra C registers, or storage for r0 header.
     // Priority: k chaining > extra C registers > r0 header storage.

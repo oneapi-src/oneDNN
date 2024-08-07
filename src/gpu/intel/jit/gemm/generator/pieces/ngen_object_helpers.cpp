@@ -41,7 +41,9 @@ void movePipes(Subregister &s, bool sizeCanChange)
         case DataType::ud: type = DataType::f; break;
         case DataType::q:
         case DataType::uq: if (sizeCanChange) type = DataType::f; break;
-        default: break;
+        default:
+            if (type == Type::ngen_hf8()) type = DataType::ub;
+            break;
     }
 
     s = s.reinterpret(0, type);
@@ -60,7 +62,9 @@ void moveToIntPipe(Subregister &s)
         case DataType::f:
         case DataType::tf32:
         case DataType::df: type = DataType::ud; break;
-        default: break;
+        default:
+            if (type == Type::ngen_hf8()) type = DataType::ub;
+            break;
     }
 
     s = s.reinterpret(0, type);
@@ -80,7 +84,9 @@ void moveToIntPipe(int esize, RegData &s)
             s.setType(DataType::uq);
             EmulationImplementation::makeDWPair(s, esize);
             break;
-        default: break;
+        default:
+            if (s.getType() == Type::ngen_hf8()) s.setType(DataType::ub);
+            break;
     }
 }
 

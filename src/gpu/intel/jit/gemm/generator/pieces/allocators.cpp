@@ -107,6 +107,12 @@ bool VirtualFlagAllocator::canLock(int n) const
     return (unlocked != 0);
 }
 
+void VirtualFlagAllocator::freeUnlocked()
+{
+    uint8_t unlocked = ~locked & ((1 << nflag) - 1);
+    free &= ~unlocked;
+}
+
 TokenAllocator::TokenAllocator(HW hw, int grfCount)
 {
     free = (1ull << tokenCount(hw, grfCount)) - 1;

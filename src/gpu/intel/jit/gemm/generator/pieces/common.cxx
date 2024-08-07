@@ -453,7 +453,7 @@ GRFRange BLASKernelGenerator<hw>::loadVector(Type Tsrc, Type Tdst, Subregister p
         vector<RegisterBlock> nlayout;
         makeUnbackedRegLayout(Tdst, nlayout, n, 1, true);
         auto nregs = state.ra.alloc_range(getRegCount(nlayout));
-        copyRegisters(Tsrc, Tdst, layout, nlayout, regs, nregs, 0, 0, false, strategy, state, false);
+        copyRegisters(Tsrc, Tdst, layout, nlayout, regs, nregs, strategy, state, false);
 
         state.ra.safeRelease(regs);
         regs = std::move(nregs);

@@ -77,7 +77,8 @@ struct RegisterBlock {
     uint16_t offsetR, offsetC;  // Row and column offset within matrix block.
     uint8_t colMajor : 1;       // Is this block column-major? (columns stored consecutively inside each register)
     uint8_t splitComplex : 1;   // True if complex data split into successive real and imaginary parts.
-    uint8_t : 6;
+    uint8_t byteGlue : 1;       // True if strided sub-byte data is unit stride within each byte.
+    uint8_t : 5;
     uint8_t crosspack;          // Crosspack for this block (1 if none).
     uint8_t component;          // Component # for this block.
     int8_t cxComponent;         // Complex component # for this block (-1 if not complex or interleaved).
