@@ -30,12 +30,15 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
-#include "gpu/generic/sycl/ref_batch_normalization.hpp"
 #include "gpu/nvidia/cudnn_batch_normalization.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
 #include "gpu/amd/miopen_batch_normalization.hpp"
+#endif
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA || DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/generic/sycl/ref_batch_normalization.hpp"
 #endif
 
 namespace dnnl {

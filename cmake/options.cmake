@@ -159,6 +159,14 @@ set(ONEDNN_ENABLE_GEMM_KERNELS_ISA "ALL" CACHE STRING
       SSE41 < AVX2 < AVX512 < AMX (or ALL). It means that if user selects, e.g.
       AVX2 ISA, SSE41 kernels will also present at build time.")
 
+set(DNNL_AMD_SYCL_KERNELS_TARGET_ARCH "" CACHE STRING
+    "Specifies the target architecture (e.g. gfx90a when compiling on AMD MI210)
+    to be used for compiling generic SYCL kernels for AMD vendor.
+    When this option is set to a valid architecture (see LLVM target column in
+    https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html#supported-gpus
+    for supported architectures), the generic SYCL kernels will be enabled for AMD
+    vendor. If not set, the SYCL kernels will not be compiled.")
+
 # =============
 # Optimizations
 # =============
@@ -325,6 +333,11 @@ if(DNNL_CPU_SYCL OR DNNL_GPU_SYCL)
     set(DNNL_WITH_SYCL true)
 else()
     set(DNNL_WITH_SYCL false)
+endif()
+
+if(DNNL_SYCL_HIP AND NOT "${DNNL_AMD_SYCL_KERNELS_TARGET_ARCH}" STREQUAL "")
+    add_definitions(-DDNNL_AMD_ENABLE_SYCL_KERNELS=1)
+    set(DNNL_AMD_ENABLE_SYCL_KERNELS TRUE)
 endif()
 
 # =============
