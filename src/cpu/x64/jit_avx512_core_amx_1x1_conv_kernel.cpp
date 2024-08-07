@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"
@@ -901,8 +902,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::tile_configure(char *tcfg_buff) {
 
     auto cfg_tiles = [&](palette_config_t *buff, int Ac) {
         char *_tc = (char *)buff;
-        for (int i = 0; i < max_palette_size_in_bytes; i++)
-            _tc[i] = 0;
+        std::fill_n(_tc, max_palette_size_in_bytes, 0);
 
         int Ar = jcp.tile_width;
         int Br = Ac / jcp.typesize_acc;
