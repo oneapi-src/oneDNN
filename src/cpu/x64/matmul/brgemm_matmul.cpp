@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
@@ -993,8 +994,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             M_chunk_tail_ = bgmmc.num_M_blocks % get_M_chunk_size();
             M_chunk_tail_elements_ = M_ % bgmmc.M_chunk_elems;
             M_tail_block_start_ = bgmmc.num_M_blocks - (bgmmc.M_tail > 0);
-            for (int dim_idx = 0; dim_idx < 3; dim_idx++)
-                A_strides_[dim_idx] = bgmmc.A_strides[dim_idx];
+            std::copy_n(bgmmc.A_strides, 3, A_strides_);
             A_ptr_shift_b_ = bgmmc.A_ptr_shift_b;
         }
 
@@ -1050,8 +1050,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
             N_chunk_tail_ = bgmmc.num_N_blocks % bgmmc.N_chunk_size;
             N_chunk_tail_elems_ = N_ % bgmmc.N_chunk_elems;
             N_tail_block_start_ = bgmmc.num_N_blocks - (bgmmc.N_tail > 0);
-            for (int dim_idx = 0; dim_idx < 3; dim_idx++)
-                B_strides_[dim_idx] = bgmmc.B_strides[dim_idx];
+            std::copy(std::begin(bgmmc.B_strides),
+                    std::begin(bgmmc.B_strides) + 3, std::begin(B_strides_));
         }
 
         B_ptr_shift_b_ = bgmmc.B_ptr_shift_b;
@@ -1063,8 +1063,8 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
                 C_strides_[dim_idx] = bgmmc.c_dt_sz
                         * helper.get_c_stride(bgmmc.ndims - 1 - dim_idx);
         } else {
-            for (int dim_idx = 0; dim_idx < 3; dim_idx++)
-                C_strides_[dim_idx] = bgmmc.C_strides[dim_idx];
+            std::copy(std::begin(bgmmc.C_strides),
+                    std::begin(bgmmc.C_strides) + 3, C_strides_);
         }
         C_ptr_shift_b_ = bgmmc_.C_ptr_shift_b;
 
