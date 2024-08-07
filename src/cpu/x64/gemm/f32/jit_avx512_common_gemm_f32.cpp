@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <memory>
@@ -1766,8 +1767,7 @@ dnnl_status_t jit_avx512_common_gemm_f32(int nthrs, const char *transa,
         ompstatus = (unsigned char volatile *)ompstatus_;
         assert(ompstatus);
 
-        for (int i = 0; i < nthr_to_use; i++)
-            ompstatus[i * CACHE_LINE_SIZE] = 0;
+        std::fill_n(ompstatus, nthr_to_use * CACHE_LINE_SIZE, 0);
 
         c_buffers = (float *)malloc(
                 sizeof(*c_buffers) * nthr_m * nthr_n * (nthr_k - 1) * MB * NB,
