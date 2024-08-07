@@ -229,7 +229,7 @@ status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
     sdp_args_set_t *res = res_cache.get_or_add(
             reinterpret_cast<size_t>(this), resource_ctor_);
 
-    int MBO = sdp_cfg_.batch_size, MBI = sdp_cfg_.num_head;
+    int MBO = sdp_cfg_.batch_size, MBI = sdp_cfg_.num_head_q;
 
     char *src1_user_pointer = static_cast<char *>(
             inputs[sdp_cfg_.graph_inport[0]].get_data_handle());
@@ -324,11 +324,15 @@ status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
         const size_t sub_src1_offset = (bo * sdp_cfg_.src1_strides[0]
                                                + bi * sdp_cfg_.src1_strides[1])
                 * get_mem_dt_size(sub_src1_tid);
-        const size_t sub_wei1_offset = (bo * sdp_cfg_.wei1_strides[0]
-                                               + bi * sdp_cfg_.wei1_strides[1])
+        const size_t group_head = sdp_cfg_.num_head_q / sdp_cfg_.num_head_kv;
+        size_t wei_head_offset = bi / group_head;
+        const size_t sub_wei1_offset
+                = (bo * sdp_cfg_.wei1_strides[0]
+                          + wei_head_offset * sdp_cfg_.wei1_strides[1])
                 * get_mem_dt_size(sub_wei1_user_tid);
-        const size_t sub_wei2_offset = (bo * sdp_cfg_.wei2_strides[0]
-                                               + bi * sdp_cfg_.wei2_strides[1])
+        const size_t sub_wei2_offset
+                = (bo * sdp_cfg_.wei2_strides[0]
+                          + wei_head_offset * sdp_cfg_.wei2_strides[1])
                 * get_mem_dt_size(sub_wei2_user_tid);
         const size_t sub_dst_user_offset
                 = (bo * sdp_cfg_.dst_strides[0] + bi * sdp_cfg_.dst_strides[1])

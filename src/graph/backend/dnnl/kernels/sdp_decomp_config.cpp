@@ -32,25 +32,25 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
 
     // Initialize SDP input dimension according to the src of mm1
     batch_size = src1_user_dims[0];
-    num_head = src1_user_dims[1];
+    num_head_q = src1_user_dims[1];
     seq_len_q = src1_user_dims[2];
     size_per_head = src1_user_dims[3];
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
 // RATIO is an empirical value used to determine the numerical relationship
-// between batch_size, num_head and thread number to determine whether to use
+// between batch_size, num_head_q and thread number to determine whether to use
 // decompose kernel. The key to the decompose kernel is that we do parallel in
-// the batch_size and num_head dimensions. Therefore, if the batch_size or
-// num_head is too small, it will cause many idle threads and affect efficiency
-// which may even worse than the original sequential kernel. Here we set this
-// ratio based on the experimental value to ensure that users do not have any
-// regression when using the decompose kernel.
+// the batch_size and num_head_q dimensions. Therefore, if the batch_size or
+// num_head_q is too small, it will cause many idle threads and affect
+// efficiency which may even worse than the original sequential kernel. Here we
+// set this ratio based on the experimental value to ensure that users do not
+// have any regression when using the decompose kernel.
 // TODO: Refine the inequation based on the relationship of cache size and sdp
 // memory footprint requirements.
 #define RATIO 2
     // Initialize nthr with current threads num
     nthr = dnnl_get_current_num_threads();
-    return batch_size * num_head > RATIO * nthr;
+    return batch_size * num_head_q > RATIO * nthr;
 #else
     return true;
 #endif
@@ -70,6 +70,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     memory::dim seq_len_kv;
     const auto &lt_wei = sdp_op[1]->get_input_value(1)->get_logical_tensor();
     const ltw ltw_wei(lt_wei);
+    num_head_kv = ltw_wei.vdims()[1];
     seq_len_kv = ltw_wei.vdims()[3];
 
     // Acquire the data type from input param for later primitive creation.
