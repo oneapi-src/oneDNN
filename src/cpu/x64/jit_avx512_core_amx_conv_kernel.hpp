@@ -17,6 +17,7 @@
 #ifndef CPU_X64_JIT_AVX512_CORE_AMX_CONV_KERNEL_HPP
 #define CPU_X64_JIT_AVX512_CORE_AMX_CONV_KERNEL_HPP
 
+#include <memory>
 #include <queue>
 
 #include "common/c_types_map.hpp"
@@ -473,22 +474,21 @@ struct jit_avx512_core_amx_bwd_data_kernel_t : public jit_generator {
         : jit_generator(jit_name(), avx512_core_amx)
         , jcp(ajcp)
         , attr_(attr)
-        , eltwise_injector_(nullptr) {
+        , eltwise_injector_(nullptr)
+        , bwd_data_copy_kernel_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector<avx512_core>(
-                    this, jcp.eltwise);
-        bwd_data_copy_kernel_
-                = new jit_avx512_core_amx_bwd_data_copy_kernel_t(jcp);
+            eltwise_injector_
+                    = utils::make_unique<jit_uni_eltwise_injector<avx512_core>>(
+                            this, jcp.eltwise);
+        bwd_data_copy_kernel_ = utils::make_unique<
+                jit_avx512_core_amx_bwd_data_copy_kernel_t>(jcp);
     }
     status_t create_kernel() override {
         CHECK(jit_generator::create_kernel());
         CHECK(bwd_data_copy_kernel_->create_kernel());
         return status::success;
     }
-    ~jit_avx512_core_amx_bwd_data_kernel_t() {
-        delete eltwise_injector_;
-        delete bwd_data_copy_kernel_;
-    }
+    ~jit_avx512_core_amx_bwd_data_kernel_t() = default;
 
     static bool post_ops_ok(const jit_conv_conf_t &jcp, primitive_attr_t &attr);
 
@@ -510,8 +510,9 @@ struct jit_avx512_core_amx_bwd_data_kernel_t : public jit_generator {
     }
 
 private:
-    jit_uni_eltwise_injector<avx512_core> *eltwise_injector_;
-    jit_avx512_core_amx_bwd_data_copy_kernel_t *bwd_data_copy_kernel_;
+    std::unique_ptr<jit_uni_eltwise_injector<avx512_core>> eltwise_injector_;
+    std::unique_ptr<jit_avx512_core_amx_bwd_data_copy_kernel_t>
+            bwd_data_copy_kernel_;
 
     int prv_width_ = 0;
     int row_count_ = 0;
