@@ -58,13 +58,25 @@ bool attr_post_ops_ok(const primitive_attr_t *attr) {
     }
 }
 
-bool has_bf16_support(const ::sycl::device &dev) {
-    // This function checks compute capabilities of the given device.
-    // BF16 is supported starting with compute capabilities 8.0.
+cudaDeviceProp query_device_properties(const ::sycl::device &dev) {
     auto cuda_dev = compat::get_native<CUdevice>(dev);
     cudaDeviceProp prop {};
     cudaGetDeviceProperties(&prop, cuda_dev);
+    return prop;
+}
+
+bool has_bf16_support(const ::sycl::device &dev) {
+    // This function checks compute capabilities of the given device.
+    // BF16 is supported starting with compute capabilities 8.0.
+    auto prop = query_device_properties(dev);
     return prop.major >= 8;
+}
+
+bool has_imma_ampere_layout_support(const ::sycl::device &dev) {
+    // This function checks compute capabilities of the given device.
+    // Ampere blocked layouts are supported starting with compute capabilities 7.0.
+    auto prop = query_device_properties(dev);
+    return prop.major == 8;
 }
 
 } // namespace nvidia
