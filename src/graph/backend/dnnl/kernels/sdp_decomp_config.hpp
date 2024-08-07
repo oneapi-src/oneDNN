@@ -122,7 +122,7 @@ public:
     // shared memory
     memory sub_max_src1_src2, sub_max_dst1_wei2;
 
-    bool attention_mask = false, has_select = false;
+    bool has_scale = false, has_attention_mask = false, has_select = false;
     // Used to record the ops from select
     std::vector<op_ptr> select_op;
     std::vector<int> select_outop_index;

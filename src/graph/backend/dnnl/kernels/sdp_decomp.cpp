@@ -274,14 +274,16 @@ status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
                 = res->mem_map[sdp_cfg_.sub_wei1_user.get()][tid];
 
         // matmul1
-        auto &sub_mm1_post_scale_tid
-                = res->mem_map[sdp_cfg_.sub_mm1_post_mem[0].get()][tid];
-        sub_mm1_post_scale_tid.set_data_handle(
-                inputs[sdp_cfg_.graph_inport[2]].get_data_handle());
-
-        //The first post_op is post_scale, so it starts from 1.
-        size_t start_index = 1;
-        if (sdp_cfg_.attention_mask) {
+        //post op index offset.
+        size_t start_index = 0;
+        if (sdp_cfg_.has_scale) {
+            auto &sub_mm1_post_scale_tid
+                    = res->mem_map[sdp_cfg_.sub_mm1_post_mem[start_index++]
+                                           .get()][tid];
+            sub_mm1_post_scale_tid.set_data_handle(
+                    inputs[sdp_cfg_.graph_inport[2]].get_data_handle());
+        }
+        if (sdp_cfg_.has_attention_mask) {
             auto &sub_mm1_post_add_tid
                     = res->mem_map[sdp_cfg_.sub_mm1_post_mem[start_index++]
                                            .get()][tid];

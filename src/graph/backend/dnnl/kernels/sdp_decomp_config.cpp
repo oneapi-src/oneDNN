@@ -412,27 +412,40 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
         return -1;
     };
     op_ptr mm1, mm2, scale, add, select;
+    const std::unordered_set<graph::op_kind_t> post_op_kind
+            = {graph::op_kind::Divide, graph::op_kind::Multiply,
+                    graph::op_kind::Add, graph::op_kind::Select,
+                    graph::op_kind::SoftMax};
     for (const auto &cur_op : sg->get_ops()) {
         if (mm1 != nullptr && mm2 != nullptr) break;
         if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
         auto post_op = get_post_op(cur_op);
-        if (post_op
-                && (post_op->get_kind() == graph::op_kind::Divide
-                        || post_op->get_kind() == graph::op_kind::Multiply)) {
+        if (post_op && post_op_kind.count(post_op->get_kind())) {
             mm1 = cur_op;
-            scale = post_op;
-            const auto pop = get_post_op(post_op);
-            if (pop->get_kind() == graph::op_kind::Add) {
-                add = pop;
-                attention_mask = true;
-            } else if (pop->get_kind() == graph::op_kind::Select) {
-                select = pop;
+            if (post_op->get_kind() == graph::op_kind::Divide
+                    || post_op->get_kind() == graph::op_kind::Multiply) {
+                has_scale = true;
+                scale = post_op;
+                post_op = get_post_op(post_op);
+            }
+
+            if (post_op && post_op->get_kind() == graph::op_kind::Add) {
+                add = post_op;
+                has_attention_mask = true;
+            } else if (post_op
+                    && post_op->get_kind() == graph::op_kind::Select) {
+                select = post_op;
                 has_select = true;
             } else {
                 add = nullptr;
                 select = nullptr;
             }
-        } else if (post_op && (post_op->get_kind() == graph::op_kind::Select)) {
+        }
+        // Currently, decompose support select in p1 and doesn't support p2.
+        // TODO: support p2 if necessary
+        // p1: [matmul] --> [scale] --> [select] --> [mask] --> ...
+        // p2: [matmul] --> [select] --> [scale] --> [mask] --> ...
+        else if (post_op && (post_op->get_kind() == graph::op_kind::Select)) {
             return status::unimplemented;
         } else
             mm2 = cur_op;
@@ -444,10 +457,16 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
     int wei1_id = find_graph_inport(mm1->get_input_value(1));
     graph_inport.emplace_back(wei1_id);
     // for scale and add op. The input order is uncertain.
-    int scale_id = find_graph_inport(scale->get_input_value(1));
-    if (scale_id == -1) scale_id = find_graph_inport(scale->get_input_value(0));
-    graph_inport.emplace_back(scale_id);
-    if (add) {
+    if (has_scale) {
+        int scale_id = find_graph_inport(scale->get_input_value(1));
+        if (scale_id == -1)
+            scale_id = find_graph_inport(scale->get_input_value(0));
+        graph_inport.emplace_back(scale_id);
+    } else {
+        //placeholder
+        graph_inport.emplace_back(-1);
+    }
+    if (has_attention_mask) {
         int add_id = find_graph_inport(add->get_input_value(1));
         if (add_id == -1) add_id = find_graph_inport(add->get_input_value(0));
         graph_inport.emplace_back(add_id);
@@ -457,7 +476,7 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
     }
     int wei2_id = find_graph_inport(mm2->get_input_value(1));
     graph_inport.emplace_back(wei2_id);
-    if (select) {
+    if (has_select) {
         int cond_id = find_graph_inport(select->get_input_value(0));
         int src0_id = find_graph_inport(select->get_input_value(1));
         graph_inport.emplace_back(cond_id);
