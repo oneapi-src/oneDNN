@@ -33,7 +33,7 @@ add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
 
-target_include_directories(${OBJ_LIB} BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/../ngen)
+include_directories_with_host_compiler_before(${OBJ_LIB} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/../ngen)
 
 # Workaround for LTO bug in GCC 10, 11, 12 (possibly other versions)
 if(CMAKE_COMPILER_IS_GNUCC)

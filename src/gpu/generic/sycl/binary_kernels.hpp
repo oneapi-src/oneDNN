@@ -17,10 +17,11 @@
 #ifndef GPU_GENERIC_SYCL_BINARY_KERNELS_HPP
 #define GPU_GENERIC_SYCL_BINARY_KERNELS_HPP
 
+#include "common/primitive_exec_types.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
-#include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 #include "xpu/sycl/types.hpp"
 
 namespace dnnl {
@@ -59,6 +60,12 @@ struct binary_kernel_vec_t {
                   (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1))) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t src0_mem(src0_, conf_.src0_md);
+        memory_tensor_t src1_mem(src1_, conf_.src1_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+        memory_plain_t src0_scale_mem(src0_scale_, scales_dt_);
+        memory_plain_t src1_scale_mem(src1_scale_, scales_dt_);
+
         auto sg = item.get_sub_group();
         size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
         size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
@@ -70,13 +77,9 @@ struct binary_kernel_vec_t {
 
         size_t sg_base_idx = (wg_offset_t + sg_offset_t) * conf_.block_size;
 
-        const float sm_0 = (conf_.do_scale_src0
-                        ? load_float_value(scales_dt_, src0_scale_ptr(), 0)
-                        : 1.f);
+        const float sm_0 = (conf_.do_scale_src0 ? src0_scale_mem.load(0) : 1.f);
 
-        const float sm_1 = (conf_.do_scale_src1
-                        ? load_float_value(scales_dt_, src1_scale_ptr(), 0)
-                        : 1.f);
+        const float sm_1 = (conf_.do_scale_src1 ? src1_scale_mem.load(0) : 1.f);
 
         dims_t dims, strides, off_dst, off0, off1;
         bool any_broadcast = false;
@@ -101,12 +104,9 @@ struct binary_kernel_vec_t {
                         < conf_.wk_size
                 && is_same_tag) {
             for (int i = 0; i < conf_.block_size / vec_len; i++) {
-                auto src0_vec = load_float_vec<vec_len>(
-                        src0_md().data_type(), src0_ptr(), vec_base_idx + i);
-                auto src1_vec = load_float_vec<vec_len>(
-                        src1_md().data_type(), src1_ptr(), vec_base_idx + i);
-                auto dst_vec = load_float_vec<vec_len>(
-                        dst_md().data_type(), dst_ptr(), vec_base_idx + i);
+                auto src0_vec = src0_mem.load_vec<vec_len>(vec_base_idx + i);
+                auto src1_vec = src1_mem.load_vec<vec_len>(vec_base_idx + i);
+                auto dst_vec = dst_mem.load_vec<vec_len>(vec_base_idx + i);
 
                 if (conf_.do_scale_src0)
                     src0_vec *= ::sycl::vec<float, vec_len>(sm_0);
@@ -118,8 +118,7 @@ struct binary_kernel_vec_t {
                 // optimizations. Figure out how to make the compiler to generate
                 // the right code.
                 acc_vec = conf_.post_ops.apply(acc_vec, dst_vec);
-                store_float_vec(dst_md().data_type(), acc_vec, dst_ptr(),
-                        vec_base_idx + i);
+                dst_mem.store_vec(acc_vec, vec_base_idx + i);
             }
         } else {
             for (int i = 0; i < conf_.block_size; i++) {
@@ -134,15 +133,9 @@ struct binary_kernel_vec_t {
                         off1[i] = conf_.broadcast_dims1[i] ? 0 : off_dst[i];
                     }
 
-                    int idx0 = src0_md().off_v(off0);
-                    int idx1 = src1_md().off_v(off1);
-
-                    auto src0 = load_float_value(
-                            src0_md().data_type(), src0_ptr(), idx0);
-                    auto src1 = load_float_value(
-                            src1_md().data_type(), src1_ptr(), idx1);
-                    auto dst = load_float_value(
-                            dst_md().data_type(), dst_ptr(), idx);
+                    auto src0 = src0_mem.load_md(off0);
+                    auto src1 = src1_mem.load_md(off1);
+                    auto dst = dst_mem.load(idx);
 
                     if (conf_.do_scale_src0) src0 *= sm_0;
                     if (conf_.do_scale_src1) src1 *= sm_1;
@@ -151,8 +144,7 @@ struct binary_kernel_vec_t {
                     ::sycl::vec<float, 16> post_po_sr
                             = post_op_src_val(off_dst);
                     acc = conf_.post_ops.apply(acc, dst, post_po_sr);
-                    store_float_value(
-                            dst_md().data_type(), acc, dst_ptr(), idx);
+                    dst_mem.store(acc, idx);
                 }
             }
         }
@@ -162,16 +154,6 @@ private:
     const xpu::sycl::md_t &src0_md() const { return conf_.src0_md; }
     const xpu::sycl::md_t &src1_md() const { return conf_.src1_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
-
-    void *src0_ptr() const { return src0_.get_pointer(); }
-    void *src1_ptr() const { return src1_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
-    float *src0_scale_ptr() const {
-        return static_cast<float *>(src0_scale_.get_pointer());
-    }
-    float *src1_scale_ptr() const {
-        return static_cast<float *>(src1_scale_.get_pointer());
-    }
 
     inline ::sycl::vec<float, 16> post_op_src_val(dims_t data_off) const {
         ::sycl::vec<float, 16> post_po_sr;

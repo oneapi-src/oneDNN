@@ -104,12 +104,16 @@ const std::vector<prb_dim_t> &conv_layout_dims(
             prb_dims::od, prb_dims::oh, prb_dims::ow});
     static const std::vector<prb_dim_t> dst_g_dims({prb_dims::mb, prb_dims::g,
             prb_dims::oc, prb_dims::od, prb_dims::oh, prb_dims::ow});
+    static const std::vector<prb_dim_t> bia_g_dims({prb_dims::g, prb_dims::oc});
+    static const std::vector<prb_dim_t> bia_dims({prb_dims::oc});
     switch (tensor_kind) {
         case tensor_kind_t::src:
             return src_dst_with_group ? src_g_dims : src_dims;
         case tensor_kind_t::wei: return wei_dims;
         case tensor_kind_t::dst:
             return src_dst_with_group ? dst_g_dims : dst_dims;
+        case tensor_kind_t::bia:
+            return src_dst_with_group ? bia_g_dims : bia_dims;
         default: ir_error_not_expected();
     }
     return src_dims;

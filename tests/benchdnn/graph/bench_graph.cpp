@@ -19,6 +19,7 @@
 
 #include "flex_rewrite.hpp"
 #include "graph.hpp"
+#include "graph_memory.hpp"
 #include "parser.hpp"
 #include "utils/parser.hpp"
 
@@ -43,6 +44,9 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
         res_t res {};
         doit(&prb, &res);
+        // Reset the memory size args for the graph after testing.
+        reset_graph_mem_req();
+
         parse_result(res, pstr);
         if (has_bench_mode_bit(mode_bit_t::perf)) {
             perf_report_t pr(cpp_pstr, s.perf_template);
@@ -70,6 +74,7 @@ int bench(int argc, char **argv) {
             if (!parse_input_file(s.json_file, argv[0]))
                 catch_unknown_options(argv[0]);
             check_correctness(s);
+            flush_temp_memory();
         }
     }
     return OK;

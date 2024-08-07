@@ -34,6 +34,7 @@
 #include "src/common/z_magic.hpp"
 
 #include "utils/bench_mode.hpp"
+#include "utils/res.hpp"
 #include "utils/timer.hpp"
 
 #define ABS(a) ((a) > 0 ? (a) : (-(a)))
@@ -138,19 +139,6 @@ struct stat_t {
 };
 extern stat_t benchdnn_stat;
 
-/* result structure */
-enum res_state_t {
-    UNTESTED = 0,
-    PASSED,
-    SKIPPED,
-    MISTRUSTED,
-    UNIMPLEMENTED,
-    INVALID_ARGUMENTS,
-    FAILED,
-    LISTED,
-    INITIALIZED,
-    EXECUTED,
-};
 const char *state2str(res_state_t state);
 
 namespace skip_reason {
@@ -162,35 +150,7 @@ extern std::string skip_impl_hit;
 extern std::string skip_start;
 } // namespace skip_reason
 
-enum dir_t {
-    DIR_UNDEF = 0,
-    FLAG_DAT = 1,
-    FLAG_WEI = 2,
-    FLAG_BIA = 4,
-    FLAG_FWD = 32,
-    FLAG_BWD = 64,
-    FLAG_INF = 128,
-    FWD_D = FLAG_FWD + FLAG_DAT,
-    FWD_I = FLAG_FWD + FLAG_DAT + FLAG_INF,
-    FWD_B = FLAG_FWD + FLAG_DAT + FLAG_BIA,
-    BWD_D = FLAG_BWD + FLAG_DAT,
-    BWD_DW = FLAG_BWD + FLAG_DAT + FLAG_WEI,
-    BWD_W = FLAG_BWD + FLAG_WEI,
-    BWD_WB = FLAG_BWD + FLAG_WEI + FLAG_BIA,
-};
 dir_t str2dir(const char *str);
-
-struct res_t {
-    res_state_t state;
-    size_t errors, total;
-    timer::timer_map_t timer_map;
-    std::string impl_name;
-    std::string prim_ref_repro;
-    std::string reason;
-    size_t ibytes, obytes;
-    dir_t mem_check_dir = DIR_UNDEF;
-};
-
 void parse_result(res_t &res, const char *pstr);
 
 /* misc */

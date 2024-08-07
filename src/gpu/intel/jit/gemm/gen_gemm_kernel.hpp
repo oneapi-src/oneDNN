@@ -26,7 +26,7 @@
 #include "gpu/intel/jit/gemm/include/kernel_selector.hpp"
 #include "gpu/intel/jit/gemm/include/problem.hpp"
 #include "gpu/intel/jit/gemm/include/strategy.hpp"
-#include "gpu/intel/jit/gemm/include/types.hpp"
+#include "gpu/intel/jit/gemm/include/type.hpp"
 #include "gpu/intel/jit/jit_generator_base.hpp"
 #include "gpu/intel/kernel_cache.hpp"
 #include "xpu/utils.hpp"

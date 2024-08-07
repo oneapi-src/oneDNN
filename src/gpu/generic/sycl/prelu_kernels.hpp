@@ -19,17 +19,11 @@
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
-#include "common/dnnl_traits.hpp"
-#include "common/math_utils.hpp"
-#include "common/memory_storage.hpp"
 #include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
-
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_math_utils.hpp"
-#include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
-#include "gpu/generic/sycl/sycl_q10n.hpp"
 #include "xpu/sycl/memory_storage_base.hpp"
 #include "xpu/sycl/types.hpp"
 
@@ -52,6 +46,9 @@ struct prelu_fwd_kernel_vec_t {
         , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t data_mem(data_, conf_.data_md);
+        memory_tensor_t weights_mem(weights_, conf_.weights_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
 
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
 
@@ -87,14 +84,11 @@ struct prelu_fwd_kernel_vec_t {
 
         for (dim_t iwork = start; iwork < end; ++iwork) {
             dim_t data_off = offset(data_md(), off);
-            ;
             dim_t weight_off = weights_offset(mask, weights_md(), off);
-            auto src_val = load_float_value(
-                    data_md().data_type(), data_ptr(), data_off);
-            auto weights_val = load_float_value(
-                    weights_md().data_type(), weights_ptr(), weight_off);
+            auto src_val = data_mem.load(data_off);
+            auto weights_val = weights_mem.load(weight_off);
             auto res = math::relu_fwd(src_val, weights_val);
-            store_float_value(data_md().data_type(), res, dst_ptr(), data_off);
+            dst_mem.store(res, data_off);
             if (conf_.ndims == 1) {
                 utils::nd_iterator_step(off[0], dims_d[0]);
             }
@@ -121,10 +115,6 @@ private:
     const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
     const xpu::sycl::md_t &weights_md() const { return conf_.weights_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
-
-    void *data_ptr() const { return data_.get_pointer(); }
-    void *weights_ptr() const { return weights_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
 
     static dim_t offset(const xpu::sycl::md_t &mem, dims_t dims) {
         const int ndims = mem.ndims();
@@ -174,40 +164,45 @@ struct prelu_bwd_kernel_vec_t {
                                   empty_out_memory_arg(ctx.stream(), cgh)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t data_mem(data_, conf_.data_md);
+        memory_tensor_t diff_data_mem(diff_data_, conf_.diff_data_md);
+        memory_tensor_t weights_mem(weights_, conf_.weights_md);
+        memory_tensor_t diff_weights_mem(diff_weights_, conf_.diff_weights_md);
+        memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
+        memory_plain_t scratchpad_mem(
+                scratchpad_, conf_.weights_md.data_type());
+
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
         switch (conf_.bcast_type) {
             case broadcasting_strategy_t::scalar:
-                calculate_scalar(data_ptr(), weights_ptr(), diff_weights_ptr(),
-                        diff_dst_ptr(), diff_data_ptr(), ithr);
+                calculate_scalar(data_mem, weights_mem, scratchpad_mem,
+                        diff_dst_mem, diff_data_mem, ithr);
                 break;
             case broadcasting_strategy_t::no_broadcast:
-                calculate_no_broadcast(data_ptr(), weights_ptr(),
-                        diff_weights_ptr(), diff_dst_ptr(), diff_data_ptr(),
-                        ithr);
+                calculate_no_broadcast(data_mem, weights_mem, diff_weights_mem,
+                        diff_dst_mem, diff_data_mem, ithr);
                 break;
             default:
-                calculate_shared_axes(data_ptr(), weights_ptr(),
-                        diff_weights_ptr(), diff_dst_ptr(), diff_data_ptr(),
-                        ithr, item);
+                calculate_shared_axes(data_mem, weights_mem, diff_weights_mem,
+                        diff_dst_mem, diff_data_mem, ithr, item);
                 break;
         }
     }
 
-    float ker(const float *src, const float *weights, const float *diff_dst,
-            float *diff_src, dim_t data_off, dim_t weight_off) const {
+    float ker(const in_memory_tensor_t &data_mem,
+            const in_memory_tensor_t &weights_mem,
+            const in_memory_tensor_t &diff_dst_mem,
+            out_memory_tensor_t &diff_src_mem, dim_t data_off,
+            dim_t weight_off) const {
 
-        float src_val
-                = load_float_value(data_md().data_type(), data_ptr(), data_off);
-        float diff_dst_val = load_float_value(
-                diff_dst_md().data_type(), diff_dst_ptr(), data_off);
-        float weights_val = load_float_value(
-                weights_md().data_type(), weights_ptr(), weight_off);
+        float src_val = data_mem.load(data_off);
+        float diff_dst_val = diff_dst_mem.load(data_off);
+        float weights_val = weights_mem.load(weight_off);
 
         float diff_src_res = ::dnnl::impl::math::relu_bwd_use_dst(
                 diff_dst_val, src_val, weights_val);
         float diff_weight_res = src_val > 0 ? 0 : (diff_dst_val * src_val);
-        store_float_value(
-                data_md().data_type(), diff_src_res, diff_src, data_off);
+        diff_src_mem.store(diff_src_res, data_off);
         return diff_weight_res;
     }
 
@@ -227,17 +222,6 @@ private:
         return conf_.diff_weights_md;
     }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
-
-    float *data_ptr() const { return (float *)(data_.get_pointer()); }
-    float *weights_ptr() const { return (float *)(weights_.get_pointer()); }
-    float *diff_data_ptr() const { return (float *)(diff_data_.get_pointer()); }
-    float *diff_weights_ptr() const {
-        return (float *)(diff_weights_.get_pointer());
-    }
-    float *diff_dst_ptr() const { return (float *)(diff_dst_.get_pointer()); }
-    float *scratchpad_ptr() const {
-        return (float *)(scratchpad_.get_pointer());
-    }
 
     static dim_t offset(const xpu::sycl::md_t &mem, dims_t dims) {
         const int ndims = mem.ndims();
@@ -260,9 +244,11 @@ private:
         return offset(mem, dims_w);
     }
 
-    void calculate_scalar(const float *src, const float *weights,
-            float *diff_weights, const float *diff_dst, float *diff_src,
-            size_t ithr) const {
+    void calculate_scalar(const in_memory_tensor_t &data_mem,
+            const in_memory_tensor_t &weights_mem,
+            out_memory_plain_t &scratchpad_mem,
+            const in_memory_tensor_t &diff_dst_mem,
+            out_memory_tensor_t &diff_src_mem, size_t ithr) const {
 
         const size_t nthr = conf_.n_thr;
         const dim_t work_amount = conf_.work_amount_src;
@@ -301,19 +287,14 @@ private:
         for (dim_t iwork = start; iwork < end; ++iwork) {
             const auto data_off = offset(data_md(), off);
             const auto weight_off = 0;
-            float src_val = load_float_value(
-                    data_md().data_type(), data_ptr(), data_off);
-            float diff_dst_val = load_float_value(
-                    diff_dst_md().data_type(), diff_dst_ptr(), data_off);
-            float weights_val = load_float_value(
-                    weights_md().data_type(), weights_ptr(), weight_off);
+            float src_val = data_mem.load(data_off);
+            float diff_dst_val = diff_dst_mem.load(data_off);
+            float weights_val = weights_mem.load(weight_off);
             float diff_src_res = ::dnnl::impl::math::relu_bwd_use_dst(
                     diff_dst_val, src_val, weights_val);
             float diff_weight_res = src_val > 0 ? 0 : (diff_dst_val * src_val);
-            store_float_value(
-                    data_md().data_type(), diff_src_res, diff_src, data_off);
-            store_float_value(diff_weights_md().data_type(), diff_weight_res,
-                    scratchpad_ptr(), data_off);
+            diff_src_mem.store(diff_src_res, data_off);
+            scratchpad_mem.store(diff_weight_res, data_off);
 
             if (conf_.ndims == 1) {
                 utils::nd_iterator_step(off[0], dims_d[0]);
@@ -337,9 +318,11 @@ private:
         }
     }
 
-    void calculate_no_broadcast(const float *src, const float *weights,
-            float *diff_weights, const float *diff_dst, float *diff_src,
-            size_t ithr) const {
+    void calculate_no_broadcast(const in_memory_tensor_t &data_mem,
+            const in_memory_tensor_t &weights_mem,
+            out_memory_tensor_t &diff_weights_mem,
+            const in_memory_tensor_t &diff_dst_mem,
+            out_memory_tensor_t &diff_src_mem, size_t ithr) const {
         const size_t nthr = conf_.n_thr;
         const dim_t work_amount = conf_.work_amount_src;
         const int mask = conf_.mask;
@@ -377,11 +360,10 @@ private:
         for (dim_t iwork = start; iwork < end; ++iwork) {
             const auto data_off = offset(data_md(), off);
             const auto weight_off = weights_offset(mask, weights_md(), off);
-            const auto res = ker(
-                    src, weights, diff_dst, diff_src, data_off, weight_off);
+            const auto res = ker(data_mem, weights_mem, diff_dst_mem,
+                    diff_src_mem, data_off, weight_off);
 
-            store_float_value(
-                    weights_md().data_type(), res, diff_weights, weight_off);
+            diff_weights_mem.store(res, weight_off);
             if (conf_.ndims == 1) {
                 utils::nd_iterator_step(off[0], dims_d[0]);
             }
@@ -404,9 +386,12 @@ private:
         }
     }
 
-    void calculate_shared_axes(const float *src, const float *weights,
-            float *diff_weights, const float *diff_dst, float *diff_src,
-            size_t ith, ::sycl::nd_item<1> item) const {
+    void calculate_shared_axes(const in_memory_tensor_t &data_mem,
+            const in_memory_tensor_t &weights_mem,
+            out_memory_tensor_t &diff_weights_mem,
+            const in_memory_tensor_t &diff_dst_mem,
+            out_memory_tensor_t &diff_src_mem, size_t ith,
+            ::sycl::nd_item<1> item) const {
 
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
         dims_t dims_d, dims_w;
@@ -470,8 +455,8 @@ private:
             for_(off_d[3] = dims_start[3]; off_d[3] < dims_end[3]; ++off_d[3])
             for (off_d[4] = dims_start[4]; off_d[4] < dims_end[4]; ++off_d[4]) {
                 auto data_off = offset(data_md(), off_d);
-                const auto diff_weight = ker(
-                        src, weights, diff_dst, diff_src, data_off, weight_off);
+                const auto diff_weight = ker(data_mem, weights_mem,
+                        diff_dst_mem, diff_src_mem, data_off, weight_off);
                 st = st + diff_weight;
                 buf_off = buf_off + 1;
                 if (buf_off == data_size) {
@@ -486,8 +471,7 @@ private:
                 }
             }
 
-            store_float_value(weights_md().data_type(), res, diff_weights_ptr(),
-                    weight_off);
+            diff_weights_mem.store(res, weight_off);
             if (conf_.ndims == 1) {
                 utils::nd_iterator_step(off_w[0], dims_w[0]);
             }

@@ -222,6 +222,7 @@ struct x2r_plan_t : public base_plan_t {
     send_plan_t load;
     reorder_plan_t reorder;
     layout_t layout;
+    layout_t bia_layout;
 
     using base_plan_t::base_plan_t;
 
@@ -308,6 +309,7 @@ struct x2r_fma_plan_t : public base_plan_t {
 
     prb_tile_t outer;
     layout_t c_layout;
+    layout_t bia_layout;
     std::vector<stage_t> stages;
 
     x2r_fma_plan_t(const hw_t &hw) : base_plan_t(hw) {}
@@ -356,7 +358,10 @@ struct x2r_fma_plan_t : public base_plan_t {
 struct epilogue_plan_t : public base_plan_t {
     prb_tile_t tile;
     reorder_plan_t reorder;
+    reorder_plan_t bia_reorder;
     send_plan_t c_store;
+    send_plan_t bia_store;
+    expr_t reduce_cond;
 
     epilogue_plan_t(const hw_t &hw) : base_plan_t(hw) {}
 
@@ -368,7 +373,11 @@ struct epilogue_plan_t : public base_plan_t {
         oss << "tile: " << tile << std::endl;
         if (reorder)
             oss << ir_utils::add_tag("reorder", reorder.str()) << std::endl;
-        oss << ir_utils::add_tag("c_store", c_store.str());
+        if (bia_reorder)
+            oss << ir_utils::add_tag("bia_reorder", bia_reorder.str())
+                << std::endl;
+        oss << ir_utils::add_tag("c_store", c_store.str()) << std::endl;
+        oss << ir_utils::add_tag("bia_store", bia_store.str());
         return oss.str();
     }
 

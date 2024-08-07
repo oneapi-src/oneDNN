@@ -448,6 +448,65 @@ inline bool is_eltwise_ok(
     return eltwise_use_src || eltwise_use_dst;
 }
 
+inline uint32_t philox4x32(uint32_t idx, uint32_t seed) {
+    // Note 1: This impl computes 4 different int32_t rand
+    //   values. Even though this is redundundant for sequential ref,
+    //   keeping vector version to guide optimized implementations.
+    // Note 2: this can be used for 8x16 as well by changing indexing.
+
+    uint32_t x = (idx & ~3L);
+    uint32_t ctr[4] = {x + 0, x + 1, x + 2, x + 3};
+    uint32_t key[2] = {uint32_t(seed), uint32_t(seed)};
+
+    auto mulhilo32 = [&](uint32_t a, uint32_t b, uint32_t &hi, uint32_t &lo) {
+        const uint64_t product = static_cast<uint64_t>(a) * b;
+        lo = static_cast<uint32_t>(product);
+        hi = static_cast<uint32_t>(product >> 32);
+    };
+
+    auto philox4x32round = [&]() {
+        constexpr static uint32_t PHILOX_M4x32_0 = 0xD2511F53;
+        constexpr static uint32_t PHILOX_M4x32_1 = 0xCD9E8D57;
+        uint32_t hi0, lo0;
+        uint32_t hi1, lo1;
+        mulhilo32(PHILOX_M4x32_0, ctr[0], hi0, lo0);
+        mulhilo32(PHILOX_M4x32_1, ctr[2], hi1, lo1);
+        ctr[0] = hi1 ^ ctr[1] ^ key[0];
+        ctr[1] = lo1;
+        ctr[2] = hi0 ^ ctr[3] ^ key[1];
+        ctr[3] = lo0;
+    };
+
+    auto philox4x32bumpkey = [&]() {
+        constexpr static uint32_t PHILOX_W4x32_0 = 0x9E3779B9;
+        constexpr static uint32_t PHILOX_W4x32_1 = 0xBB67AE85;
+        key[0] += PHILOX_W4x32_0;
+        key[1] += PHILOX_W4x32_1;
+    };
+
+    philox4x32round();
+    philox4x32bumpkey();
+    philox4x32round();
+    philox4x32bumpkey();
+    philox4x32round();
+    philox4x32bumpkey();
+    philox4x32round();
+    philox4x32bumpkey();
+    philox4x32round();
+    philox4x32bumpkey();
+    philox4x32round();
+    philox4x32bumpkey();
+    philox4x32round();
+    philox4x32bumpkey();
+    philox4x32round();
+    philox4x32bumpkey();
+    philox4x32round();
+    philox4x32bumpkey();
+    philox4x32round();
+
+    return ctr[idx & 3L];
+}
+
 } // namespace math
 } // namespace impl
 } // namespace dnnl

@@ -18,7 +18,7 @@
 #define GEMMSTONE_GUARD_STATE_HPP
 
 #include "internal/ngen_includes.hpp"
-#include "types.hpp"
+#include "type.hpp"
 #include "register_block.hpp"
 #include "allocators.hpp"
 #include "emulation.hpp"

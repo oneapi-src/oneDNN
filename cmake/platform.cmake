@@ -172,6 +172,15 @@ if(MSVC)
             # The compiler may issue the corresponding remark.
             append(CMAKE_CCXX_FLAGS "-Rno-debug-disables-optimization")
         endif()
+
+        # Disabling OMP SIMD feature on Windows ICX debug builds and suppressing this warning:
+        # Using /MTd or /MDd with '#pragma omp simd' may lead to unexpected fails due
+        # to the debugging version of iterators that cannot be vectorized correctly.
+        if (UPPERCASE_CMAKE_BUILD_TYPE MATCHES "(DEBUG|RELWITHMDD)")
+            append(CMAKE_CCXX_FLAGS "/Qopenmp-simd-")
+            append(CMAKE_CCXX_FLAGS "/Wno-debug-option-simd")
+        endif()
+
         # Default fp-model in icx and dpcpp (unlike clang) may be precise or
         # fast=1 depending on the version.
         append(CMAKE_CCXX_FLAGS "/fp:precise")

@@ -188,7 +188,9 @@ status_t check_isa_with_datatype(
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
                     is_superset(isa, avx512_core) || isa == avx2_vnni_2)
             && IMPLICATION(bm_conf_utils.is_bf16_with_int_wei(),
-                    is_superset(isa, avx512_core_bf16));
+                    is_superset(isa, avx512_core_bf16))
+            && IMPLICATION(bm_conf_utils.is_f8(),
+                    is_superset(isa, avx512_core_amx_fp16));
     return ok ? status::success : status::unimplemented;
 }
 

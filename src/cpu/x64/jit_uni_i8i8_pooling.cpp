@@ -17,6 +17,7 @@
 #include <math.h>
 
 #include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 #include "common/utils.hpp"
 
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"

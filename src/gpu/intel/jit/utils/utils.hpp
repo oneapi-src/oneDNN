@@ -1078,29 +1078,29 @@ class parse_iface_t {
 public:
     using base_type = T;
 
-    parse_iface_t(bool cli = false) : cli_(cli) {}
-
     template <typename U, U T::*ptr>
     void add(const std::string &name = {}, const std::string &help = {},
-            bool cli_required = false) {
+            bool required = false) {
         entry_t e;
         e.name = name;
         e.help = help;
-        e.cli_required = cli_required;
+        e.required = required;
         e.stringify = [](std::ostream &out, const T &parent) {
             jit::stringify(out, parent.*ptr);
         };
         e.parse = [](std::istream &in, T &parent) {
             jit::parse(in, parent.*ptr);
         };
-        if (cli_) {
+        if (relaxed_) {
             ir_assert(!e.name.empty())
-                    << "CLI support requires non-empty name.";
+                    << "Relaxed support requires non-empty name.";
             ir_assert(!e.help.empty())
-                    << "CLI support requires non-empty help.";
+                    << "Relaxed support requires non-empty help.";
         }
         entries_.push_back(e);
     }
+
+    void set_relaxed(bool value) { relaxed_ = value; }
 
     template <typename Func>
     void set_pre_stringify_func(const Func &func) {
@@ -1112,21 +1112,30 @@ public:
         post_parse_func_ = static_cast<void (*)(T &)>(func);
     }
 
-    void stringify(std::ostream &out, const T &parent) const {
+    void stringify(std::ostream &out, const T &parent, bool cli = false) const {
         if (pre_stringify_func_) pre_stringify_func_(parent);
         bool is_first = true;
         for (auto &e : entries_) {
+            std::ostringstream e_oss;
+            e.stringify(e_oss, parent);
+            if (!e.required && e_oss.str() == "x") continue;
             if (!is_first) out << " ";
-            e.prefix(out, cli_);
-            e.stringify(out, parent);
+            if (!e.name.empty()) {
+                if (cli) {
+                    out << "--" << e.name << " ";
+                } else {
+                    out << e.name << "=";
+                }
+            }
+            out << e_oss.str();
             is_first = false;
         }
     }
 
     void parse(std::istream &in, T &parent) const {
         parent = T();
-        if (cli_) {
-            parse_cli(in, parent);
+        if (relaxed_) {
+            parse_relaxed(in, parent);
         } else {
             for (auto &e : entries_) {
                 if (!e.name.empty()) {
@@ -1148,13 +1157,7 @@ public:
 
     std::string cmd_str(const T &parent) const {
         std::ostringstream oss;
-        bool is_first = true;
-        for (auto &e : entries_) {
-            if (!is_first) oss << " ";
-            oss << "--" << e.name << " ";
-            e.stringify(oss, parent);
-            is_first = false;
-        }
+        stringify(oss, parent, /*cli=*/true);
         return oss.str();
     }
 
@@ -1170,19 +1173,11 @@ private:
     struct entry_t {
         std::string name;
         std::string help;
-        bool cli_required = false;
+        bool required = false;
         std::function<void(std::ostream &, const T &)> stringify;
         std::function<void(std::istream &, T &)> parse;
 
-        void prefix(std::ostream &out, bool cli) const {
-            if (cli) {
-                out << "--" << name;
-                return;
-            }
-            if (!name.empty()) out << name << "=";
-        }
-
-        bool matches_cli(const std::string &_s) const {
+        bool matches_relaxed(const std::string &_s) const {
             auto s = (_s.find("--") == 0 ? _s.substr(2) : _s);
             if (s.length() != name.length()) return false;
             for (size_t i = 0; i < s.length(); i++) {
@@ -1194,36 +1189,32 @@ private:
         }
     };
 
-    void parse_cli(std::istream &in, T &parent) const {
+    int find_entry_index(const std::string name) const {
+        for (int i = 0; i < (int)entries_.size(); i++) {
+            if (entries_[i].matches_relaxed(name)) return i;
+        }
+        return -1;
+    }
+
+    void parse_relaxed(std::istream &in, T &parent) const {
         std::vector<bool> seen(entries_.size());
-        auto find_entry_index = [&](const std::string name) {
-            for (int i = 0; i < (int)entries_.size(); i++) {
-                if (entries_[i].matches_cli(name)) return i;
-            }
-            return -1;
-        };
-        while (!in.eof()) {
-            auto name = stream_parse<std::string>(in);
-            if (name == "--help") {
-                print_help();
-                exit(0);
-            }
+        while (true) {
+            std::string name;
+            std::string value;
+            if (!try_parse_key_value(in, name, value)) break;
             auto idx = find_entry_index(name);
-            if (idx == -1) {
-                std::cout << "Error: unknown argument: " << name << std::endl;
-                ir_error_not_expected();
-                exit(1);
-            }
+            ir_assert(idx != -1);
             if (seen[idx]) {
                 std::cout << "Error: argument set twice: " << name << std::endl;
                 ir_error_not_expected();
                 exit(1);
             }
-            entries_[idx].parse(in, parent);
+            std::istringstream iss(value);
+            entries_[idx].parse(iss, parent);
             seen[idx] = true;
         }
         for (size_t i = 0; i < entries_.size(); i++) {
-            if (entries_[i].cli_required && !seen[i]) {
+            if (entries_[i].required && !seen[i]) {
                 std::cout << "Error: missing required argument: "
                           << entries_[i].name << std::endl;
                 ir_error_not_expected();
@@ -1232,10 +1223,44 @@ private:
         }
     }
 
-    // Whether to handle command-line interface style parse/stringify.
-    // Default: param=value and parameter order is fixed
-    // CLI:     --param value and parameter order is flexible
-    bool cli_ = false;
+    bool try_parse_key_value(
+            std::istream &in, std::string &key, std::string &value) const {
+        auto pos0 = in.tellg();
+        auto restore = [&]() {
+            in.clear();
+            in.seekg(pos0);
+        };
+        std::string s;
+        if (!(in >> s)) {
+            restore();
+            return false;
+        }
+        if (s == "--help") {
+            print_help();
+            exit(0);
+        }
+        auto eq_pos = s.find("=");
+        key = (eq_pos != std::string::npos) ? s.substr(0, eq_pos) : s;
+        if (find_entry_index(key) == -1) {
+            restore();
+            return false;
+        }
+        if (eq_pos != std::string::npos) {
+            value = s.substr(eq_pos + 1);
+        } else {
+            if (!(in >> value)) {
+                restore();
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Whether to handle relaxed (command-line interface) style parse/stringify
+    // when the parameter order is not fixed.
+    // Default:  param=value and parameter order is fixed
+    // Relaxed: --param value and parameter order is flexible
+    bool relaxed_ = false;
 
     std::vector<entry_t> entries_;
     void (*pre_stringify_func_)(const T &) = nullptr;

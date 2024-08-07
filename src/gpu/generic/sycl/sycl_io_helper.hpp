@@ -184,6 +184,70 @@ inline void store_float_vec(data_type_t dt, ::sycl::vec<float, width> vec_f32,
 #undef CASE
 }
 
+template <::sycl::access_mode mode>
+struct memory_plain_t {
+    memory_plain_t(xpu::sycl::memory_arg_t<mode> mem, data_type_t type)
+        : mem_(mem), type_(type) {}
+
+    inline float load(dim_t idx) const {
+        return load_float_value(type_, mem_.get_pointer(), idx);
+    }
+
+    inline void store(float val, dim_t idx) {
+        store_float_value(type_, val, mem_.get_pointer(), idx);
+    }
+
+private:
+    xpu::sycl::memory_arg_t<mode> mem_;
+    data_type_t type_;
+};
+
+using in_memory_plain_t = memory_plain_t<::sycl::access::mode::read>;
+using out_memory_plain_t = memory_plain_t<::sycl::access::mode::write>;
+using inout_memory_plain_t = memory_plain_t<::sycl::access::mode::read_write>;
+
+template <::sycl::access_mode mode>
+struct memory_tensor_t {
+    memory_tensor_t(xpu::sycl::memory_arg_t<mode> mem, xpu::sycl::md_t md)
+        : mem_(mem), md_(md) {}
+
+    inline xpu::sycl::md_t md() const { return md_; }
+
+    inline float load(dim_t idx) const {
+        return load_float_value(md_.data_type(), mem_.get_pointer(), idx);
+    }
+
+    inline void store(float val, dim_t idx) {
+        store_float_value(md_.data_type(), val, mem_.get_pointer(), idx);
+    }
+
+    template <int width>
+    inline ::sycl::vec<float, width> load_vec(dim_t idx) const {
+        return load_float_vec<width>(md_.data_type(), mem_.get_pointer(), idx);
+    }
+
+    template <int width>
+    inline void store_vec(::sycl::vec<float, width> val, dim_t idx) {
+        store_float_vec<width>(md_.data_type(), val, mem_.get_pointer(), idx);
+    }
+
+    inline float load_md(dims_t offsets) const {
+        return load(md_.off_v(offsets));
+    }
+
+    inline void store_md(float val, dims_t offsets) {
+        store(val, md_.off_v(offsets));
+    }
+
+private:
+    xpu::sycl::memory_arg_t<mode> mem_;
+    xpu::sycl::md_t md_;
+};
+
+using in_memory_tensor_t = memory_tensor_t<::sycl::access::mode::read>;
+using out_memory_tensor_t = memory_tensor_t<::sycl::access::mode::write>;
+using inout_memory_tensor_t = memory_tensor_t<::sycl::access::mode::read_write>;
+
 } // namespace sycl
 } // namespace generic
 } // namespace gpu

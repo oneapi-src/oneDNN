@@ -25,7 +25,7 @@
 #include "driver_info.hpp"
 #include "emulation.hpp"
 #include "problem.hpp"
-#include "types.hpp"
+#include "type.hpp"
 
 #include "internal/namespace_start.hxx"
 

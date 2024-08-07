@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/x64/jit_brgemm_inner_product_utils.hpp"
+#include "common/math_utils.hpp"
 
 #include "cpu/x64/brgemm/brgemm.hpp"
 

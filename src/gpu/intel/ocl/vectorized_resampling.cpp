@@ -16,6 +16,7 @@
 
 #include "gpu/intel/ocl/vectorized_resampling.hpp"
 #include "common/c_types_map.hpp"
+#include "common/math_utils.hpp"
 
 namespace dnnl {
 namespace impl {

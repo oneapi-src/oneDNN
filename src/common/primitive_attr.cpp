@@ -17,6 +17,7 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
+#include "math_utils.hpp"
 #include "primitive_attr.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"

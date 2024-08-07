@@ -94,6 +94,7 @@ public:
     // Displaces scale values in a memory object with scale values from `op`.
     int displace_scales() const;
     dnnl_data_type_t get_lt_dt(size_t id) const;
+    const_dnnl_primitive_desc_t get_pd() const { return query_pd(prim_); }
 
 private:
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(ref_primitive_t);

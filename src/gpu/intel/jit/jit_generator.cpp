@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,21 +14,27 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/intel/jit/jit_generator.hpp"
 
-#ifndef GEMMSTONE_GUARD_REMASK_HPP
-#define GEMMSTONE_GUARD_REMASK_HPP
+#include "gpu/intel/jit/utils/utils.hpp"
 
-#include "type.hpp"
-#include "register_block.hpp"
-#include "strategy.hpp"
+namespace dnnl {
+namespace impl {
+namespace gpu {
+namespace intel {
+namespace jit {
 
-#include "internal/namespace_start.hxx"
+void check_kernel_size(const std::string &kernel_name, size_t kernel_size,
+        size_t icache_size) {
+    if (kernel_size > icache_size) {
+        ir_warning() << kernel_name
+                     << " larger than icache, kernel: " << kernel_size
+                     << " bytes, icache: " << icache_size << " bytes\n";
+    }
+}
 
-// Check if a register block needs to be remasked to ensure out-of-bounds
-//  entries are zero.
-bool needsRemask(Type T, bool column, const std::vector<RegisterBlock> &layout,
-                 const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, bool ignoreMasks = false);
-
-#include "internal/namespace_end.hxx"
-
-#endif /* header guard */
+} // namespace jit
+} // namespace intel
+} // namespace gpu
+} // namespace impl
+} // namespace dnnl

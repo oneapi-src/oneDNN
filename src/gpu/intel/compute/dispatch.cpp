@@ -18,6 +18,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include "common/math_utils.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/dispatch.hpp"

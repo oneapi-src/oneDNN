@@ -19,7 +19,7 @@
 #define GEMMSTONE_GUARD_NGEN_OBJECT_HELPERS_HPP
 
 #include "internal/ngen_includes.hpp"
-#include "types.hpp"
+#include "type.hpp"
 #include "problem.hpp"
 
 #include "internal/namespace_start.hxx"

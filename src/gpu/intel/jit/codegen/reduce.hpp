@@ -135,9 +135,9 @@ private:
                 a = layout_t(a.type(), a.ndims(), 0, a_blocks);
                 return find_1d_tile(a, b);
             }
+            return tensor_t(std::vector<dim_t>(b.ndims(), 1));
         }
 
-        ir_assert(ok) << "Incompatible layouts for reduction.";
         ir_assert(dim_t(b0.stride) == 1)
                 << "Reduction is not supported for non-unit dst stride.";
 

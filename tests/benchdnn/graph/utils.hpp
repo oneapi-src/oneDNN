@@ -56,14 +56,38 @@ struct bdnn_state_t {
     std::string reason;
 };
 
+enum class dnnl_driver_t {
+    binary,
+    bnorm,
+    concat,
+    conv,
+    custom,
+    deconv,
+    eltwise,
+    lnorm,
+    matmul,
+    pool,
+    prelu,
+    reduction,
+    reorder,
+    resampling,
+    softmax,
+    gnorm,
+    others
+};
+
 extern bdnn_state_t convert_state(const dnnl_status_t &s);
+
+// Flags that controls the behavior for handling exceptions. The logic
+// relies on the fact that the values not intersect with each other.
+enum { CRIT = 0x001, WARN = 0x002, NEED_CLEANUP = 0x004 };
 
 #define DNN_GRAPH_SAFE(f, s, ss) \
     do { \
         try { \
             f; \
         } catch (const dnnl::error &e) { \
-            if (s == CRIT || s == WARN) { \
+            if ((s & CRIT) || (s & WARN)) { \
                 bdnn_state_t bs = convert_state(e.status); \
                 ss->state = bs.state; \
                 if (ss->state == res_state_t::SKIPPED) { \
@@ -73,9 +97,9 @@ extern bdnn_state_t convert_state(const dnnl_status_t &s);
                         "Error: Function '%s' at (%s:%d) returned '%s'\n", \
                         __FUNCTION__, __FILE__, __LINE__, e.what()); \
                 fflush(0); \
-                if (s == CRIT) exit(2); \
+                if (s & CRIT) exit(2); \
             } \
-            return FAIL; \
+            if (!(s & NEED_CLEANUP)) return FAIL; \
         } \
     } while (0)
 
@@ -83,30 +107,6 @@ typedef std::function<void(dnnl::stream &,
         const std::vector<dnnl::graph::tensor> &inputs,
         const std::vector<dnnl::graph::tensor> &outputs)>
         perf_function_t;
-
-#ifdef DNNL_WITH_SYCL
-struct sycl_deletor {
-    sycl::context ctx_;
-    sycl_deletor() = delete;
-    sycl_deletor(const sycl::context &ctx) : ctx_(ctx) {}
-    void operator()(void *ptr) {
-        if (ptr) sycl::free(ptr, ctx_);
-    }
-};
-
-struct scratchpad_mm_mgr {
-    void *sycl_alloc_mm(
-            size_t size, size_t alignment, const void *dev, const void *ctx);
-    void sycl_free_mm(
-            void *ptr, const void *device, const void *context, void *event);
-
-private:
-    std::unordered_multimap<size_t, std::shared_ptr<void>> map_size_ptr_;
-    std::unordered_set<void *> free_ptr_;
-};
-
-sycl::queue &get_queue();
-#endif // DNNL_WITH_SYCL
 
 void compiled_partition_executor(dnnl::graph::compiled_partition &cp,
         dnnl::stream &stream, const std::vector<dnnl::graph::tensor> &inputs,
@@ -141,26 +141,6 @@ inline bool is_plain(dnnl_format_tag_t fmt_tag) {
 dnnl::graph::op::kind opstr2kind(const std::string &kind);
 dnnl::graph::op::attr attrstr2kind(const std::string &attr_name);
 
-enum class dnnl_driver_t {
-    binary,
-    bnorm,
-    concat,
-    conv,
-    custom,
-    deconv,
-    eltwise,
-    lnorm,
-    matmul,
-    pool,
-    prelu,
-    reduction,
-    reorder,
-    resampling,
-    softmax,
-    gnorm,
-    others
-};
-
 dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind);
 
 // permute md based on permutation
@@ -189,6 +169,7 @@ void change_format_to_ncx(dims_t &dims);
 // every partition in format: `{N} {M} ...`.
 std::string verbose_partitions_n_ops(
         const std::vector<dnnl::graph::partition> &partitions);
+
 // Returns logical dims as a string object in dims_t format
 std::string lt_dims2str(const dnnl::graph::logical_tensor::dims &dims);
 
@@ -233,6 +214,10 @@ inline const cpp_engine_t &get_graph_engine() {
 bool is_gc_backend();
 
 dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt);
+
+inline double GB(double bytes) {
+    return bytes / powf(2, 30);
+}
 
 } // namespace graph
 #endif

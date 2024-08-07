@@ -56,6 +56,8 @@ public:
     void set_wei_tag(const layout_tag_t &tag) { wei_tag_ = tag; }
     void set_dst_tag(const layout_tag_t &tag) { dst_tag_ = tag; }
     void set_shape(const prb_tile_t &shape) { shape_ = shape; }
+    void set_bias(bool with_bias) { with_bias_ = with_bias; }
+    bool with_bias() const { return with_bias_; }
 
     void set_shape(const std::string &s);
     std::string desc_str() const;
@@ -69,13 +71,14 @@ public:
 private:
     hw_t hw_;
     prop_kind_t prop_ = prop_kind::undef;
+    bool with_bias_ = false;
     layout_tag_t src_tag_;
     layout_tag_t wei_tag_;
     layout_tag_t dst_tag_;
     prb_tile_t shape_;
 };
 
-tensor_config_t get_tensor_config(prop_kind_t prop);
+tensor_config_t get_tensor_config(prop_kind_t prop, bool with_bias);
 
 } // namespace conv
 } // namespace v2

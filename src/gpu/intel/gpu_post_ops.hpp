@@ -16,6 +16,7 @@
 #ifndef GPU_INTEL_GPU_POST_OPS_HPP
 #define GPU_INTEL_GPU_POST_OPS_HPP
 
+#include "common/math_utils.hpp"
 #include "common/primitive_attr.hpp"
 #include "gpu/intel/block_structure.hpp"
 #include "gpu/intel/primitive_conf.hpp"
