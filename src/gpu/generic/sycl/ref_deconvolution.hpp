@@ -51,6 +51,7 @@ struct ref_deconvolution_bwd_weights_t
 
             const bool ok = desc()->prop_kind == prop_kind::backward_weights
                     && check_convolution_work_amount(diff_weights_d, OC())
+                    && md_dims_in_range(src_md())
                     && set_default_formats()
                     && check_convolution_data_types(
                             data_d, diff_weights_d, diff_dst_d)
@@ -82,6 +83,7 @@ struct ref_deconvolution_bwd_weights_t
     do { \
         if ((f) != status::success) return false; \
     } while (0)
+    
             if (src_md.format_kind == format_kind::any
                     && !utils::one_of(src_tag, any, undef))
                 IS_OK(memory_desc_init_by_tag(src_md, src_tag));
