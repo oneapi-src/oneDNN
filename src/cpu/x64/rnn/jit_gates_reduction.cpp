@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/x64/rnn/jit_gates_reduction.hpp"
+#include <algorithm>
 
 #include <cmath>
 #include "cpu/rnn/rnn_utils.hpp"
@@ -66,8 +67,8 @@ std::vector<Xbyak::Zmm> jit_gates_reduction_t::reserve_acc_regs() {
     std::vector<Xbyak::Zmm> acc_regs;
     acc_regs.reserve(n_simd_w_blks_ + n_tail_);
 
-    for (int i = 0; i < n_simd_w_blks_; ++i)
-        acc_regs.emplace_back(Xbyak::Zmm(reserve_vmm()));
+    std::fill_n(std::back_inserter(acc_regs), n_simd_w_blks_,
+            Xbyak::Zmm(reserve_vmm()));
 
     if (n_tail_) acc_regs.emplace_back(Xbyak::Zmm(reserve_vmm()));
 
