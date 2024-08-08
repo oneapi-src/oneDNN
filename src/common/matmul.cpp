@@ -53,6 +53,7 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
             | smask_t::rounding_mode;
     // Matmul supports scales for floating point data types
     attr_mask |= smask_t::scales_runtime;
+    attr_mask |= smask_t::scales_runtime_data_type;
 
     const bool src_is_int8
             = utils::one_of(src_dt, data_type::s8, data_type::u8);
@@ -65,9 +66,9 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     if (wei_is_int) {
         attr_mask |= smask_t::zero_points_runtime_data_type;
         attr_mask |= smask_t::zero_points_runtime_groups;
-        attr_mask |= smask_t::scales_runtime_data_type;
         attr_mask |= smask_t::scales_runtime_groups;
     }
+
     // Matmul supports fpmath mode
     attr_mask |= smask_t::fpmath_mode;
 
