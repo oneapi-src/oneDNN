@@ -26,6 +26,7 @@
 --reset --case=complex_fusion/mha/MHA_forward-Bert_large-train-fp32-bs4.json
 --reset --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
 --reset --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
+--reset --case=complex_fusion/mha/sdpa-plain-wo-scale-f16-bs1.json
 --reset --case=complex_fusion/mha/sdpa-plain-wo-scale-bf16-bs1.json
 --reset --case=complex_fusion/mha/sdpa-plain-wo-scale-fp32-bs1.json
 --reset --case=complex_fusion/mha/sdpa-plain-wo-scale-int8-bs1.json
