@@ -48,25 +48,38 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
     };
 
     // Locate ops of interest: matmuls, scale, mask
-    op_ptr mm1, mm2, scale, add, final_op;
+    op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr, add = nullptr,
+           final_op = nullptr;
+    const std::unordered_set<op_kind_t> mm1_post_op_kind
+            = {op_kind::dnnl_binary, op_kind::dnnl_softmax};
     for (const auto &cur_op : sg->get_ops()) {
         if (in_tensor_list(cur_op->get_output_value(0).get(), outputs))
             final_op = cur_op;
         if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
         auto post_op = get_post_op(cur_op);
-        if (post_op && post_op->get_kind() == op_kind::dnnl_binary) {
+        if (post_op && mm1_post_op_kind.count(post_op->get_kind())) {
+            // Locate mm1 and all post ops(scale and mask) here.
+            // 1. locate mm1
             if (mm1) return status::unimplemented;
             mm1 = cur_op;
-            scale = post_op;
+            // At least one of scale and mask exists
+            if (post_op->get_kind() == op_kind::dnnl_binary) {
+                auto binary_alg = static_cast<alg_kind_t>(
+                        post_op->get_attr<int64_t>(op_attr::alg_kind));
+                // 2. locate scale if have
+                if (one_of(binary_alg, alg_kind::binary_mul,
+                            alg_kind::binary_div)) {
+                    scale = post_op;
+                    invert_scale_ = (binary_alg == alg_kind::binary_div);
+                    // Update `post_op` to the next op of scale
+                    post_op = get_post_op(post_op);
+                }
 
-            auto scale_alg = static_cast<alg_kind_t>(
-                    post_op->get_attr<int64_t>(op_attr::alg_kind));
-            if (!one_of(scale_alg, alg_kind::binary_mul, alg_kind::binary_div))
-                return status::unimplemented;
-            invert_scale_ = (scale_alg == alg_kind::binary_div);
-
-            if (get_post_op(post_op)->get_kind() == op_kind::dnnl_binary)
-                add = get_post_op(post_op);
+                // 3. locate mask if have
+                if (post_op->get_kind() == op_kind::dnnl_binary) {
+                    add = post_op;
+                }
+            }
         } else {
             if (mm2) return status::unimplemented;
             mm2 = cur_op;
