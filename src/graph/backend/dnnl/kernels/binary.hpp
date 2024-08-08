@@ -100,6 +100,8 @@ public:
             const std::vector<cl_event> &ocl_deps,
             cl_event *ocl_event) override;
 #endif
+
+    DEF_KERNEL_METHOD_STR(binary_t)
 };
 
 } // namespace dnnl_impl

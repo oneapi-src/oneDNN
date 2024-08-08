@@ -96,6 +96,8 @@ public:
         inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
         return status::success;
     }
+
+    DEF_KERNEL_METHOD_STR(reorder_t)
 };
 
 using float_reorder = reorder_t</* quantized */ false>;

@@ -101,6 +101,8 @@ public:
         return kernel->ocl_execute_impl(g_stream, inputs, outputs, deps, event);
     }
 #endif
+
+    std::string str() const override { return kernel->str(); }
 };
 } // namespace dnnl_impl
 } // namespace graph

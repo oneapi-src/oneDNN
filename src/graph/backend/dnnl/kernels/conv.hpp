@@ -33,6 +33,8 @@ public:
             const std::vector<logical_tensor_t> &outputs) override;
 
     status_t prepare_inplace_pairs_impl() override;
+
+    DEF_KERNEL_METHOD_STR(conv_fwd_t)
 };
 
 using float_conv_fwd = conv_fwd_t</* quantized */ false>;
@@ -45,6 +47,8 @@ public:
             const engine_t *g_engine,
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs) override;
+
+    DEF_KERNEL_METHOD_STR(conv_bwd_data_t)
 };
 
 struct conv_bwd_weights_t : public conv_base_t {
@@ -53,6 +57,8 @@ public:
             const engine_t *g_engine,
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs) override;
+
+    DEF_KERNEL_METHOD_STR(conv_bwd_weights_t)
 };
 #endif
 

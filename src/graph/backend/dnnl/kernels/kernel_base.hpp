@@ -98,6 +98,10 @@ struct kernel_base_t {
 
     virtual status_t prepare_inplace_pairs_impl() { return status::success; };
 
+    // A string identity used in verbose indicating which kernels is dispatched
+    // for a compiled partition.
+    virtual std::string str() const = 0;
+
     bool enabled_constant_cache() const;
 
     const std::vector<inplace_pair_t> &get_inplace_pairs() const;
@@ -109,6 +113,9 @@ protected:
 
 using kernel_ptr = std::shared_ptr<kernel_base_t>;
 using FCreateKernel = std::function<kernel_ptr(void)>;
+
+#define DEF_KERNEL_METHOD_STR(name) \
+    std::string str() const override { return #name; }
 
 } // namespace dnnl_impl
 } // namespace graph

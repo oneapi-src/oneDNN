@@ -94,6 +94,8 @@ public:
         inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
         return status::success;
     }
+
+    DEF_KERNEL_METHOD_STR(reduction_t)
 };
 
 using float_reduction = reduction_t</* quantized */ false>;

@@ -95,6 +95,8 @@ public:
         inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
         return status::success;
     }
+
+    DEF_KERNEL_METHOD_STR(select_t)
 };
 
 } // namespace dnnl_impl

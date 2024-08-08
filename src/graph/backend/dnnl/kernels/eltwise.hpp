@@ -98,6 +98,8 @@ public:
             const std::vector<tensor_t> &outputs,
             const std::vector<cl_event> &cl_deps, cl_event *ret_event) override;
 #endif
+
+    DEF_KERNEL_METHOD_STR(eltwise_fwd_t)
 };
 
 using float_eltwise_fwd = eltwise_fwd_t</* quantized */ false>;
@@ -153,6 +155,8 @@ public:
             const std::vector<tensor_t> &outputs,
             const std::vector<cl_event> &cl_deps, cl_event *ret_event) override;
 #endif
+
+    DEF_KERNEL_METHOD_STR(eltwise_bwd_t)
 };
 #endif
 

@@ -105,6 +105,8 @@ public:
             const std::vector<tensor_t> &outputs,
             const std::vector<cl_event> &ocl_deps, cl_event *event) override;
 #endif
+
+    DEF_KERNEL_METHOD_STR(larger_partition_kernel_t)
 };
 
 kernel_ptr large_partition_kernel_creator();

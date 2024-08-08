@@ -91,6 +91,8 @@ public:
             const std::vector<tensor_t> &outputs,
             const std::vector<cl_event> &cl_deps, cl_event *ret_event) override;
 #endif
+
+    DEF_KERNEL_METHOD_STR(logsoftmax_fwd_t)
 };
 
 #if BUILD_TRAINING
@@ -148,6 +150,8 @@ public:
         inplace_pairs_ = memory_planner_.get_subgraph_inplace_pairs();
         return status::success;
     }
+
+    DEF_KERNEL_METHOD_STR(logsoftmax_bwd_t)
 };
 #endif
 

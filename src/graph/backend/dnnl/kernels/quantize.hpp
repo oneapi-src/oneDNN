@@ -90,6 +90,8 @@ public:
             const std::vector<tensor_t> &outputs,
             const std::vector<cl_event> &cl_deps, cl_event *ret_event) override;
 #endif
+
+    DEF_KERNEL_METHOD_STR(quantize_dequantize_t)
 };
 
 } // namespace dnnl_impl
