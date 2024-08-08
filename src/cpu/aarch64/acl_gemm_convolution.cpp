@@ -28,6 +28,9 @@ namespace {
 using conv_key_t = decltype(memory_tracking::names::key_gemm_tmp_buffer);
 
 // Map: [slot , key]
+// These correspond to the information provided by Op::workspace, which
+// specifies a unique numbered slot (not necessarily in continous ascending
+// order) for each key.
 const std::map<int, conv_key_t> gemm_conv_keys
         = {{0, conv_key_t::key_gemm_asm_tmp_buffer},
                 {1, conv_key_t::key_gemm_pretranspose_b},
@@ -55,27 +58,6 @@ acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::create_resource(
 
 template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
         data_type_t bia_t>
-bool acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t,
-        bia_t>::pd_t::zero_points_ok() const {
-    using namespace data_type;
-    // TODO: add support for asymmetric quantization
-    return attr()->zero_points_.has_default_values();
-}
-
-template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
-        data_type_t bia_t>
-bool acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t,
-        bia_t>::pd_t::output_scales_mask_ok() const {
-    using namespace data_type;
-    const auto &mask = attr()->output_scales_.mask_;
-    return IMPLICATION(!utils::one_of(src_t, s8, u8),
-                   attr()->output_scales_.has_default_values())
-            // TODO: add support for per_channel quantization
-            && mask == 0;
-}
-
-template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
-        data_type_t bia_t>
 status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init(
         engine_t *engine) {
     using namespace data_type;
@@ -85,11 +67,20 @@ status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init(
             && expect_data_types(src_t, wei_t, bia_t, dst_t, undef)
             && !has_zero_dim_memory()
             && attr()->has_default_values(
-                    smask_t::post_ops | smask_t::fpmath_mode, dst_t)
-            && output_scales_mask_ok() && zero_points_ok();
+                    smask_t::post_ops | smask_t::fpmath_mode, dst_t);
     if (!ok) return status::unimplemented;
 
-    CHECK(init_conf());
+    if (weights_md_.ndims != 4) return status::unimplemented;
+
+    // General Compute Library checks, memory tags are also set there
+    CHECK(acl_convolution_utils::acl_init_conf(
+            acp_, src_md_, weights_md_, dst_md_, bias_md_, *desc(), *attr()));
+
+    // Validate convolution manually to check for return status
+    ACL_CHECK_VALID(Op::validate(&acp_.src_tensor_info, &acp_.wei_tensor_info,
+            acp_.with_bias ? &acp_.bia_tensor_info : nullptr,
+            &acp_.dst_tensor_info, acp_.padstride_info, acp_.weights_info,
+            acp_.dilation_info, acp_.act_info, acp_.fast_math));
 
     Op conv;
     conv.configure(&acp_.src_tensor_info, &acp_.wei_tensor_info,
@@ -123,33 +114,6 @@ acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::execute_forward(
         const exec_ctx_t &ctx) const {
     return execute_forward_conv_acl<acl_obj_t<Op>, pd_t, src_data_t, wei_data_t,
             dst_data_t, bia_data_t>(ctx, acl_obj_.get(), pd(), gemm_conv_keys);
-}
-
-template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
-        data_type_t bia_t>
-status_t
-acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init_conf() {
-    if (weights_md_.ndims != 4) return status::unimplemented;
-
-    // General Compute Library checks, memory tags are also set there
-    CHECK(acl_convolution_utils::acl_init_conf(
-            acp_, src_md_, weights_md_, dst_md_, bias_md_, *desc(), *attr()));
-
-    // clang-format off
-    // Validate convolution manually to check for return status
-    ACL_CHECK_VALID(Op::validate(
-        &acp_.src_tensor_info,
-        &acp_.wei_tensor_info,
-        acp_.with_bias ? &acp_.bia_tensor_info : nullptr,
-        &acp_.dst_tensor_info,
-        acp_.padstride_info,
-        acp_.weights_info,
-        acp_.dilation_info,
-        acp_.act_info,
-        acp_.fast_math));
-    // clang-format on
-
-    return status::success;
 }
 
 using namespace data_type;
