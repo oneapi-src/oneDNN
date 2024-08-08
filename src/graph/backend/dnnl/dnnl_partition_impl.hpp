@@ -80,6 +80,8 @@ public:
     }
 #endif
 
+    std::string str() const override { return kernel_->str(); }
+
 private:
     kernel_ptr kernel_;
 };
