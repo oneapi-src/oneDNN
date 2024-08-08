@@ -206,6 +206,9 @@ float dnn_mem_t::get_elem(int64_t idx, int buffer_index) const {
         case dnnl_bf16:
             elem = static_cast<dnnl::impl::bfloat16_t *>(data)[idx];
             break;
+        case dnnl_e8m0:
+            elem = static_cast<dnnl::impl::float8_e8m0_t *>(data)[idx];
+            break;
         case dnnl_f8_e5m2:
             elem = static_cast<dnnl::impl::float8_e5m2_t *>(data)[idx];
             break;
@@ -242,6 +245,7 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
         case dnnl_f64: ((double *)data)[idx] = value; break;
         case dnnl_f16: ((dnnl::impl::float16_t *)data)[idx] = value; break;
         case dnnl_bf16: ((dnnl::impl::bfloat16_t *)data)[idx] = value; break;
+        case dnnl_e8m0: ((dnnl::impl::float8_e8m0_t *)data)[idx] = value; break;
         case dnnl_f8_e5m2:
             ((dnnl::impl::float8_e5m2_t *)data)[idx] = value;
             break;
@@ -926,6 +930,7 @@ int check_zero_padding(
         case dnnl_data_type_undef:
             return OK;
 
+            CASE(dnnl_e8m0, dnnl::impl::float8_e8m0_t);
             CASE(dnnl_f8_e5m2, dnnl::impl::float8_e5m2_t);
             CASE(dnnl_f8_e4m3, dnnl::impl::float8_e4m3_t);
             CASE(dnnl_bf16, dnnl::impl::bfloat16_t);

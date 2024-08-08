@@ -104,6 +104,14 @@
 # Decompression flavors
 --batch=harness_matmul_decompression
 
+### dst scaling with e8m0
+--reset
+--dt=bf16,f16
+--attr-scales=dst:common:2:e8m0,dst:common:0.25:e8m0
+4x256:256x64
+6x256:256x100
+
+
 # Test bf32, tf32 data type configuration
 --reset
 --skip-impl=ref,x64:gemm
