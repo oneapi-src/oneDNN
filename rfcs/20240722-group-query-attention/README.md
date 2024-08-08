@@ -177,7 +177,7 @@ This rule looks uncommon and is not supported by the typical broadcasting rules
 [ONNX](https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md) and
 [NumPy](https://numpy.org/doc/stable/user/basics.broadcasting.html#general-broadcasting-rules).),
 but actually it's added to the MatMul operation of cuDNN in order to support
-GQA.
+GQA. [[#5]][5]
 
 Pros.
 
@@ -193,6 +193,10 @@ Cons.
 2. Same as option 2, still the pattern cannot be used to optimize a framework
    graph directly. Frameworks will have to implement GQA fusion by themselves
    and leverage this option to optimized the fused GQA.
+3. We rely on oneDNN matmul primitive kernels for reference implementation and
+   testing in benchdnn which do not support the new broadcasting rule. Extending
+   the broadcast semantics on graph side will also request additional effort for
+   reference implementation and testing. 
 
 ## Summary
 We would recommend to go with option 2, as it don't need to change the API and
@@ -208,8 +212,11 @@ to implement GQA fusion by themselves for both option2 and option3, also option
 3. [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head
    Checkpoints][3]
 4. [https://github.com/huggingface/transformers/blob/2782aadae2b0b0c313eac3ee70f84f0335577635/src/transformers/models/llama/modeling_llama.py#L203C1-L212C85][4]
+5. [https://docs.nvidia.com/deeplearning/cudnn/latest/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor][5]
 
 [1]: https://github.com/meta-llama/llama-models
 [2]: https://huggingface.co/models
 [3]: https://arxiv.org/pdf/2305.13245
-[4]: https://github.com/huggingface/transformers/blob/2782aadae2b0b0c313eac3ee70f84f0335577635/src/transformers/models/llama/modeling_llama.py#L203C1-L212C85 
+[4]:
+    https://github.com/huggingface/transformers/blob/2782aadae2b0b0c313eac3ee70f84f0335577635/src/transformers/models/llama/modeling_llama.py#L203C1-L212C85 
+[5]: https://docs.nvidia.com/deeplearning/cudnn/latest/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor
