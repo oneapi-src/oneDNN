@@ -43,9 +43,6 @@ namespace gpu {
 namespace intel {
 namespace sycl {
 
-status_t func_zeKernelCreate(
-        ze_module_handle_t, const ze_kernel_desc_t *, ze_kernel_handle_t *);
-
 namespace compat {
 
 using namespace gpu::intel::compute;
@@ -59,7 +56,8 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
         CHECK(xpu::ocl::create_program(ocl_program, sycl_engine->ocl_device(),
                 sycl_engine->ocl_context(), binary));
         cl_int err;
-        cl_kernel ocl_kernel = clCreateKernel(ocl_program, kernel_name, &err);
+        xpu::ocl::wrapper_t<cl_kernel> ocl_kernel
+                = clCreateKernel(ocl_program, kernel_name, &err);
         OCL_CHECK(err);
         sycl_kernel = utils::make_unique<::sycl::kernel>(
                 ::sycl::make_kernel<::sycl::backend::opencl>(

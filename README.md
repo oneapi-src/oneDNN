@@ -301,7 +301,6 @@ on Windows Server\* 2019 with
 
 on macOS 11 (Big Sur) with
 * Apple LLVM version 13.0
-* [Intel oneAPI DPC++/C++ Compiler] 2024.0
 
 on Ubuntu 20.04 AArch64 with
 * GNU Compiler Collection 7.0, 8.0, 9.0, 10.0
