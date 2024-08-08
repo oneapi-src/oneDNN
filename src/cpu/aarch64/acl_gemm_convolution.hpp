@@ -47,13 +47,6 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
 
         acl_conv_conf_t acp_;
         acl_post_ops_t post_ops;
-
-    protected:
-        bool output_scales_mask_ok() const;
-        bool zero_points_ok() const;
-
-    private:
-        status_t init_conf();
     };
 
     acl_gemm_convolution_fwd_t(const pd_t *apd)
