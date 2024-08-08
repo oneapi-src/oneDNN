@@ -23,6 +23,7 @@
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_deconvolution_pd.hpp"
 #include "xpu/sycl/types.hpp"
 
@@ -59,10 +60,7 @@ struct ref_deconvolution_bwd_weights_t
                             data_d, diff_weights_d, diff_dst_d)
                     && attr()->has_default_values(sm::scales_runtime
                             | sm::zero_points_runtime | sm::post_ops
-                            | sm::sum_dt)
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask())
-                    && post_ops_ok();
+                            | sm::sum_dt);
             if (!ok) return status::unimplemented;
 
             return init_conf();
@@ -109,30 +107,6 @@ struct ref_deconvolution_bwd_weights_t
             return set_default_formats_common_template(src_md_, dat_tag,
                     diff_weights_md_, wei_tag, diff_dst_md_, dat_tag,
                     diff_bias_md_);
-        }
-
-        bool check_scales_mask() const {
-            const std::vector<int> supported_args
-                    = {DNNL_ARG_SRC_0, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            return attr_scales_ok(supported_args);
-        }
-
-        bool post_ops_ok() const {
-            for (int i = 0; i < attr()->post_ops_.len(); i++) {
-                const auto &e = attr()->post_ops_.entry_[i];
-                if (!IMPLICATION(e.is_eltwise(),
-                            utils::one_of(e.eltwise.alg, alg_kind::eltwise_relu,
-                                    alg_kind::eltwise_linear,
-                                    alg_kind::eltwise_clip,
-                                    alg_kind::eltwise_clip_v2,
-                                    alg_kind::eltwise_hardswish))) {
-                    return false;
-                }
-            }
-            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
-                    && attr()->post_ops_.has_default_values(
-                            {primitive_kind::eltwise, primitive_kind::prelu,
-                                    primitive_kind::sum});
         }
     };
 

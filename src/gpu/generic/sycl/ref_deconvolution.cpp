@@ -69,24 +69,6 @@ status_t ref_deconvolution_bwd_weights_t::pd_t::init_conf() {
 
     conf_.wk_size = memory_desc_wrapper(diff_weights_md()).nelems();
 
-    conf_.do_scale_dst
-            = !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values();
-    conf_.do_scale_weights
-            = !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
-    conf_.do_scale_data
-            = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
-    conf_.single_weight_scale
-            = attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0;
-
-    conf_.use_dst_zeropoints
-            = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC_0);
-    conf_.use_data_zeropoints
-            = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
-    conf_.single_dst_zeropoint = attr()->zero_points_.common(DNNL_ARG_SRC_0);
-    conf_.single_data_zeropoint = attr()->zero_points_.common(DNNL_ARG_DST);
-
-    conf_.post_ops = sycl_post_ops_t(attr());
-
     conf_.padding[0] = static_cast<int>(desc()->padding[0][0]);
     conf_.padding[1] = static_cast<int>(desc()->padding[0][1]);
     conf_.padding[2] = static_cast<int>(desc()->padding[0][2]);
