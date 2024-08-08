@@ -218,12 +218,17 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 #endif
 
     /* Load scale */
+#if WITH_ATTN_SCALE
 #if INVERT_SCALE
     float iscale = convert_float(*scale_ptr);
     float scale = native_recip(iscale);
 #else
     float scale = convert_float(*scale_ptr);
     float iscale = native_recip(scale);
+#endif
+#else
+    float scale = 1.0;
+    float iscale = 1.0;
 #endif
     scale *= 1.442695f; // log2(e)
 
@@ -301,7 +306,9 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 #define unscale(x) ((x)*iscale)
         mask_tile_type_float mask_tile_float;
         tile_copy(mask_tile, mask_tile_float);
+#if WITH_ATTN_SCALE
         tile_elementwise(mask_tile_float, unscale);
+#endif
 #if BROADCAST_MASK_Q
         tile_hbroadcast_add(&S_tile, mask_tile_float);
 #else

@@ -314,6 +314,7 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
 
     def_data_type(kernel_ctx, d->scale_dt, "SCALE");
     kernel_ctx.define_int("INVERT_SCALE", d->invert_scale);
+    kernel_ctx.define_int("WITH_ATTN_SCALE", pd()->with_attn_scale());
 
     kernel_ctx.define_int("WITH_ATTN_MASK", pd()->with_attn_mask());
     kernel_ctx.define_int(

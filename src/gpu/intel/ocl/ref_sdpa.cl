@@ -26,11 +26,6 @@ __kernel void ref_sdpa(const __global QRY_DATA_T *Q,
     long q = get_global_id(0);
     long b0 = get_global_id(1);
     long b1 = get_global_id(2);
-    SCALE_DATA_T scale = *scale_ptr;
-
-#if INVERT_SCALE
-    scale = 1 / scale;
-#endif
 
     float s[SIZE_K];
 
@@ -48,8 +43,16 @@ __kernel void ref_sdpa(const __global QRY_DATA_T *Q,
 
     // Scale + shift + softmax
     float s_sum = 0;
+
+#if WITH_ATTN_SCALE
+    SCALE_DATA_T scale = *scale_ptr;
+#if INVERT_SCALE
+    scale = 1.f / scale;
+#endif
     for (long k = 0; k < SIZE_K; k++) {
         s[k] *= scale;
+#endif
+
 #if WITH_ATTN_MASK
         long msk_off = MSK_OFF(b1 % MSK_D0, b0 % MSK_D1, q, k);
         s[k] += convert_float(mask[msk_off]);

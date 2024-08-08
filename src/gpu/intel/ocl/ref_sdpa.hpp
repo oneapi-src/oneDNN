@@ -94,6 +94,7 @@ struct ref_sdpa_t : public gpu_primitive_t {
 
         kernel_ctx.define_int("SIZE_K", pd()->desc()->keys());
         kernel_ctx.define_int("INVERT_SCALE", pd()->desc()->invert_scale);
+        kernel_ctx.define_int("WITH_ATTN_SCALE", pd()->with_attn_scale());
         kernel_ctx.define_int("WITH_ATTN_MASK", pd()->with_attn_mask());
 
         def_data_type(kernel_ctx, pd()->qry_md()->data_type, "QRY");
