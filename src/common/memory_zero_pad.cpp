@@ -280,6 +280,7 @@ static status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
     switch (mdw.data_type()) {
         case f16: return typed_zero_pad<f16>(memory, ctx);
         case bf16: return typed_zero_pad<bf16>(memory, ctx);
+        case e8m0: return typed_zero_pad<e8m0>(memory, ctx);
         case f8_e5m2: return typed_zero_pad<f8_e5m2>(memory, ctx);
         case f8_e4m3: return typed_zero_pad<f8_e4m3>(memory, ctx);
         case f32: return typed_zero_pad<f32>(memory, ctx);
