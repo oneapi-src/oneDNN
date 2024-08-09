@@ -29,12 +29,15 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
-#include "gpu/generic/sycl/ref_convolution.hpp"
 #include "gpu/nvidia/cudnn_convolution.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
 #include "gpu/amd/miopen_convolution.hpp"
+#endif
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA || DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/generic/sycl/ref_convolution.hpp"
 #endif
 
 namespace dnnl {

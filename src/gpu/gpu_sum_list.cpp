@@ -30,9 +30,12 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/nvidia/cudnn_sum.hpp"
+#endif
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA || DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
 #include "gpu/generic/sycl/ref_sum.hpp"
 #include "gpu/generic/sycl/ref_sum_many_inputs.hpp"
-#include "gpu/nvidia/cudnn_sum.hpp"
 #endif
 
 namespace dnnl {

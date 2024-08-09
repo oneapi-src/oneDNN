@@ -28,7 +28,6 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
-#include "gpu/generic/sycl/ref_reorder.hpp"
 #include "gpu/nvidia/cudnn_reorder.hpp"
 #endif
 
@@ -36,6 +35,9 @@
 #include "gpu/amd/miopen_reorder.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA || DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/generic/sycl/ref_reorder.hpp"
+#endif
 namespace dnnl {
 namespace impl {
 namespace gpu {

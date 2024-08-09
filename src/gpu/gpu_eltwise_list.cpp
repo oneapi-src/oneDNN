@@ -22,12 +22,15 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
-#include "gpu/generic/sycl/ref_eltwise.hpp"
 #include "gpu/nvidia/cudnn_eltwise.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
 #include "gpu/amd/miopen_eltwise.hpp"
+#endif
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA || DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/generic/sycl/ref_eltwise.hpp"
 #endif
 
 namespace dnnl {

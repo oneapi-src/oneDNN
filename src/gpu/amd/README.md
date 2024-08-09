@@ -343,3 +343,8 @@ The `miopenTransform` function is the equivalent of oneDNN reorder function.
 * Per dimension scaling is not supported (a single alpha and beta value is
   accepted by the transform tensor function).
 * Supported data types: `f32`
+
+### Other Primitives
+
+Some missing primitives/features are supported through
+[generic SYCL kernels](../generic/sycl/README.md).
