@@ -17,6 +17,7 @@
 #ifndef CPU_X64_JIT_AVX512_CORE_X8S8S32X_1X1_CONV_KERNEL_HPP
 #define CPU_X64_JIT_AVX512_CORE_X8S8S32X_1X1_CONV_KERNEL_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
@@ -154,16 +155,19 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel {
         int ch_block = ajcp.ic_block;
         switch (ch_block) {
             case 16:
-                kernel_ = new _jit_avx512_core_x8s8s32x_1x1_conv_kernel<
-                        Xbyak::Zmm>(ajcp, attr, dst_md);
+                kernel_ = utils::make_unique<
+                        _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Zmm>>(
+                        ajcp, attr, dst_md);
                 return;
             case 8:
-                kernel_ = new _jit_avx512_core_x8s8s32x_1x1_conv_kernel<
-                        Xbyak::Ymm>(ajcp, attr, dst_md);
+                kernel_ = utils::make_unique<
+                        _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Ymm>>(
+                        ajcp, attr, dst_md);
                 return;
             case 4:
-                kernel_ = new _jit_avx512_core_x8s8s32x_1x1_conv_kernel<
-                        Xbyak::Xmm>(ajcp, attr, dst_md);
+                kernel_ = utils::make_unique<
+                        _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Xmm>>(
+                        ajcp, attr, dst_md);
                 return;
             default: assert(!"invalid channel blocking");
         }
@@ -174,7 +178,7 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel {
         return status::out_of_memory;
     }
 
-    ~jit_avx512_core_x8s8s32x_1x1_conv_kernel() { delete kernel_; }
+    ~jit_avx512_core_x8s8s32x_1x1_conv_kernel() = default;
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_t *&src_md,
@@ -190,7 +194,7 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel {
 
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_core_x8s8s32x_1x1_conv_kernel);
-    jit_generator *kernel_;
+    std::unique_ptr<jit_generator> kernel_;
 };
 
 } // namespace x64

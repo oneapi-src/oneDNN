@@ -17,6 +17,7 @@
 #ifndef CPU_X64_JIT_AVX512_CORE_X8S8S32X_CONV_KERNEL_HPP
 #define CPU_X64_JIT_AVX512_CORE_X8S8S32X_CONV_KERNEL_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
@@ -246,15 +247,18 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel {
         int ch_block = ajcp.is_depthwise ? ajcp.ch_block : ajcp.ic_block;
         switch (ch_block) {
             case 16:
-                kernel_ = new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm>(
+                kernel_ = utils::make_unique<
+                        _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm>>(
                         ajcp, attr, dst_md);
                 return;
             case 8:
-                kernel_ = new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Ymm>(
+                kernel_ = utils::make_unique<
+                        _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Ymm>>(
                         ajcp, attr, dst_md);
                 return;
             case 4:
-                kernel_ = new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Xmm>(
+                kernel_ = utils::make_unique<
+                        _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Xmm>>(
                         ajcp, attr, dst_md);
                 return;
             default: assert(!"invalid channel blocking");
@@ -266,7 +270,7 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel {
         return status::out_of_memory;
     }
 
-    ~jit_avx512_core_x8s8s32x_fwd_kernel() { delete kernel_; }
+    ~jit_avx512_core_x8s8s32x_fwd_kernel() = default;
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_pd,
@@ -278,7 +282,8 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel {
     const Xbyak::uint8 *jit_ker() const { return kernel_->jit_ker(); }
 
 private:
-    jit_generator *kernel_;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_core_x8s8s32x_fwd_kernel)
+    std::unique_ptr<jit_generator> kernel_;
 };
 
 } // namespace x64
