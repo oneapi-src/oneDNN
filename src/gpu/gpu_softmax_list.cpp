@@ -23,12 +23,15 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
-#include "gpu/generic/sycl/ref_softmax.hpp"
 #include "gpu/nvidia/cudnn_softmax.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
 #include "gpu/amd/miopen_softmax.hpp"
+#endif
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA || DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#include "gpu/generic/sycl/ref_softmax.hpp"
 #endif
 
 namespace dnnl {

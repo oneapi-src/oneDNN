@@ -27,6 +27,10 @@ if(DNNL_SYCL_CUDA)
     append(CMAKE_CXX_FLAGS "-Wno-linker-warnings")
 endif()
 
+if(DNNL_AMD_ENABLE_SYCL_KERNELS)
+    append(CMAKE_CXX_FLAGS "-fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=${DNNL_AMD_SYCL_KERNELS_TARGET_ARCH}")
+endif()
+
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_generic_sycl)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
