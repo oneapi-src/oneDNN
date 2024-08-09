@@ -55,9 +55,10 @@ void init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
     assert(ret == CL_SUCCESS);
     MAYBE_UNUSED(ret);
 
-    auto status
-            = jit::gpu_supports_binary_format(&mayiuse_ngen_kernels, engine);
-    if (status != status::success) mayiuse_ngen_kernels = false;
+    mayiuse_ngen_kernels = false;
+#if !BUILD_PRIMITIVE_GPU_ISA_NONE
+    jit::gpu_supports_binary_format(&mayiuse_ngen_kernels, engine);
+#endif
 
     ip_version = 0;
     if (clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL, sizeof(ip_version),

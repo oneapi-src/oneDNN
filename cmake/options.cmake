@@ -146,6 +146,7 @@ set(DNNL_ENABLE_PRIMITIVE_GPU_ISA "ALL" CACHE STRING
     at build time. Regardless of value chosen, reference OpenCL-based
     implementations will always be available. Valid values:
     - ALL (the default). Includes all ISA to be enabled.
+    - NONE: Disables the ISA-specific implementations.
     - <ISA_NAME>;<ISA_NAME>;... Includes only selected ISA to be enabled.
       Possible values are: GEN9, GEN11, XELP, XEHP, XEHPG, XEHPC, XE2.")
 

@@ -209,6 +209,7 @@
 #cmakedefine01 BUILD_AMX
 // Primitives GPU ISA controls
 #cmakedefine01 BUILD_PRIMITIVE_GPU_ISA_ALL
+#cmakedefine01 BUILD_PRIMITIVE_GPU_ISA_NONE
 #cmakedefine01 BUILD_GEN9
 #cmakedefine01 BUILD_GEN11
 #cmakedefine01 BUILD_XELP
