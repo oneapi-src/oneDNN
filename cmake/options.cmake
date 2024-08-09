@@ -165,7 +165,10 @@ set(DNNL_AMD_SYCL_KERNELS_TARGET_ARCH "" CACHE STRING
     When this option is set to a valid architecture (see LLVM target column in
     https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html#supported-gpus
     for supported architectures), the generic SYCL kernels will be enabled for AMD
-    vendor. If not set, the SYCL kernels will not be compiled.")
+    vendor. If not set, the SYCL kernels will not be compiled.
+    Warning: This option is temporary and will be removed as soon as the compiler
+    stops to require specifying the target architecture. After removing the option
+    the generic SYCL kernels will always be enabled for AMD vendor.")
 
 # =============
 # Optimizations
