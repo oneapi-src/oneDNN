@@ -176,6 +176,8 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
                 CHECK(init_dispatch_default_reusable(compute_engine));
             } else if (rt_conf.softmax_axis_size > 128) {
                 conf.algorithm_number = one_reduction_per_workgroup;
+
+                // select workgroup size/num works per reduction
                 int elements_per_worker;
                 if (nelems <= 64000)
                     elements_per_worker = 1;
@@ -183,10 +185,21 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
                     elements_per_worker = 4;
                 else
                     elements_per_worker = 15;
-                int num_workers_per_workgroup = dnnl::impl::utils::div_up(
-                        rt_conf.softmax_axis_size, elements_per_worker);
-                VDISPATCH_SOFTMAX(num_workers_per_workgroup <= 1024,
+                const size_t num_workers_per_workgroup
+                        = dnnl::impl::utils::div_up(
+                                rt_conf.softmax_axis_size, elements_per_worker);
+
+                // do not solve problems beyond hardware workgroup limit
+                auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+                        attr()->gpu_attr_.get());
+                const bool large_grf_mode
+                        = gpu_attr && gpu_attr->threads_per_eu() == 4;
+                const size_t max_wg_size
+                        = compute_engine->device_info()->max_wg_size(
+                                large_grf_mode);
+                VDISPATCH_SOFTMAX(num_workers_per_workgroup <= max_wg_size,
                         "softmax axis size too large");
+
                 CHECK(init_dispatch_workgroup_per_reduction(
                         compute_engine, num_workers_per_workgroup));
             } else { // rt_conf.softmax_axis_size <= 128
@@ -200,7 +213,7 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
 
         status_t init_dispatch_default_reusable(engine_t *engine);
         status_t init_dispatch_workgroup_per_reduction(
-                engine_t *engine, int num_workers_per_workgroup);
+                engine_t *engine, const size_t num_workers_per_workgroup);
 
         reusable_softmax_params_t conf;
         reusable_softmax_runtime_params_t rt_conf;

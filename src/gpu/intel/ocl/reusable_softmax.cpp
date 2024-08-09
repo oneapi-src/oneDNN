@@ -114,7 +114,7 @@ status_t reusable_softmax_fwd_t::pd_t::init_dispatch_default_reusable(
 }
 
 status_t reusable_softmax_fwd_t::pd_t::init_dispatch_workgroup_per_reduction(
-        engine_t *engine, int num_workers_per_workgroup) {
+        engine_t *engine, const size_t num_workers_per_workgroup) {
 
     const memory_desc_wrapper src_mdw(src_md());
     std::vector<compute::dim_id_t> dims_ids = get_dims(src_mdw.ndims());
@@ -177,8 +177,7 @@ status_t reusable_softmax_fwd_t::pd_t::init_dispatch_workgroup_per_reduction(
             = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
     compute::reusable_dispatch_t dispatch;
     auto lws_strat = softmax_lws_strategy_t(compute_engine, gpu_attr);
-    lws_strat.include(
-            softmax_dims_t::workers, into<size_t>(num_workers_per_workgroup));
+    lws_strat.include(softmax_dims_t::workers, num_workers_per_workgroup);
     CHECK(dispatch_config.generate(dispatch, lws_strat));
     conf.gws_params = dispatch.get_compile_params();
     rt_conf.gws_params = dispatch.get_runtime_params();
