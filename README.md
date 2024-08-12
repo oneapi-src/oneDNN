@@ -376,9 +376,12 @@ discussions.
 
 # Contributing
 
-We welcome community contributions to oneDNN. If you have an idea on how
-to improve the library:
+We welcome community contributions to oneDNN. You can find the oneDNN release
+schedule and work already in progress towards future milestones in Github's
+[Milestones] section. If you are looking for a specific task to start,
+consider selecting from issues that are marked with the [help wanted] label.
 
+If you have an idea on how to improve the library:
 * For changes impacting the public API or library overall, such as adding new
 primitives or changes to the architecture, submit an [RFC pull request].
 * Ensure that the changes are consistent with the [code contribution guidelines]
@@ -399,6 +402,8 @@ contributors are expected to adhere to the
 [code contribution guidelines]: CONTRIBUTING.md#code-contribution-guidelines
 [coding standards]: CONTRIBUTING.md#coding-standards
 [pull request]: https://github.com/oneapi-src/oneDNN/pulls
+[Milestones]: https://github.com/oneapi-src/oneDNN/milestones
+[help wanted]: https://github.com/oneapi-src/oneDNN/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22
 
 # License
 
