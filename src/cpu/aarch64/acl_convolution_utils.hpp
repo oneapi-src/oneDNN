@@ -20,7 +20,9 @@
 #include <map>
 #include "acl_post_ops.hpp"
 #include "acl_utils.hpp"
+#include "arm_compute/runtime/experimental/operators/CpuDepthwiseConv2d.h"
 #include "cpu/cpu_convolution_pd.hpp"
+#include <type_traits>
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -66,10 +68,6 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr);
 
-status_t init_conf_depthwise(acl_conv_conf_t &acp, memory_desc_t &src_md,
-        memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const convolution_desc_t &cd,
-        const primitive_attr_t &attr);
 } // namespace acl_convolution_utils
 
 // Keys are anonymous with local linkage. So deduce the type automagically.
@@ -146,11 +144,15 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
                 const_cast<bia_data_t *>(bia_base));
     }
 
-    arm_compute::ITensorPack pack
-            = {{arm_compute::TensorType::ACL_SRC_0, &src_tensor},
-                    {arm_compute::TensorType::ACL_SRC_1, &wei_tensor},
-                    {arm_compute::TensorType::ACL_SRC_2, &bia_tensor},
-                    {arm_compute::TensorType::ACL_DST, &dst_tensor}};
+    // Constness of the weight tensor matters for depthwise conv in ACL.
+    // Otherwise, it will package the weights more often than needed, as
+    // it will expect the weights to change within the duration of the run
+    // func.
+    arm_compute::ITensorPack pack;
+    pack.add_tensor(arm_compute::TensorType::ACL_SRC_0, &src_tensor);
+    pack.add_const_tensor(arm_compute::TensorType::ACL_SRC_1, &wei_tensor);
+    pack.add_const_tensor(arm_compute::TensorType::ACL_SRC_2, &bia_tensor);
+    pack.add_tensor(arm_compute::TensorType::ACL_DST, &dst_tensor);
 
     // Get temp workspaces.
     const auto aux_mem = acl_conv_obj->aux_mem_req;
@@ -170,7 +172,6 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
         }
     }
 
-    acl_conv_obj->conv.prepare(pack);
     acl_conv_obj->conv.run(pack);
 
     void *dst = dst_tensor.buffer();
