@@ -104,7 +104,7 @@ private:
 class nd_range_t {
 public:
     nd_range_t() = default;
-    nd_range_t(
+    explicit nd_range_t(
             const range_t &global_range, const range_t &local_range = range_t())
         : global_range_(global_range), local_range_(local_range) {
         if (local_range_) {

@@ -103,7 +103,7 @@ status_t jit_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
     dim_t outer_nelems = dst_nelems / inner_nelems;
     compute::range_t gws(into<size_t>(gws0), into<size_t>(outer_nelems));
     compute::range_t lws(into<size_t>(tg_size * elems_per_reg), 1);
-    nd_range = {gws, lws};
+    nd_range = compute::nd_range_t(gws, lws);
 
     return status::success;
 }
