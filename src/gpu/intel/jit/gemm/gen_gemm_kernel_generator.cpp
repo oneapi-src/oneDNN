@@ -13627,8 +13627,8 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
     auto &Tx_scaleOp = isA ? state.Ta_scaleOp : state.Tb_scaleOp;
     auto &lateScale = isA ? state.lateScale2DA : state.lateScale2DB;
 
-    bool Tx_bf = Tx == Type::bf16;
-    Tx_scaleOp = (Tx_bf ? Type(Tx_ext.isInt4() ? Type::f16 : Type::f32) : Txs);
+    bool Txs_bf = Txs == Type::bf16;
+    Tx_scaleOp = (Txs_bf ? Type(Tx_ext.isInt4() ? Type::f16 : Type::f32) : Txs);
     Txo_int = Tx.isInteger() ? sintType(Tx) : Tx;
     Txs_int = Tx;
 
@@ -13723,14 +13723,14 @@ bool gemm_kernel_generator_t<hw>::gemmMake2DQuantizationLayouts(bool isA,
     if (int4SpecialPath && Tx == Type::bf16) crosspack = 1;
     int cpo = div_up(crosspack, cpoDiv);
 
-    auto makeQRepack
-            = [&](Type Txq, Type Txq_int, vector<RegisterBlock> &repack,
-                      vector<RegisterBlock> &src, int m, int n, int cp) {
-                  if (cp > 1 || (cColMajor && (cp != src[0].crosspack))
-                          || Txq.bits() != Txq_int.bits())
-                      makeUnbackedRegLayout(Txq_int, repack, m, n, isA, cp,
-                              tileR, tileC, false);
-              };
+    auto makeQRepack = [&](Type Txq, Type Txq_int,
+                               vector<RegisterBlock> &repack,
+                               vector<RegisterBlock> &src, int m, int n,
+                               int cp) {
+        if (cp > 1 || (cColMajor && (cp != src[0].crosspack)) || Txq != Txq_int)
+            makeUnbackedRegLayout(
+                    Txq_int, repack, m, n, isA, cp, tileR, tileC, false);
+    };
 
     if (xo2D)
         makeQRepack(Txo, Txo_int, Xr_offsetLayout, X_offsetLayout, r, c, cpo);
