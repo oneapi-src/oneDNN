@@ -17183,7 +17183,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                 GRFRange(aoLoad.getBase(), 1), state.Ar_offsetRegs, problem,
                 strategy, state);
         state.ra.safeRelease(aoLoad);
-        state.ra.safeRelease(state.inputs.aoPtr);
+        if (!strategy.persistent) state.ra.safeRelease(state.inputs.aoPtr);
     }
     if (boTo2D) {
         if (problem.boPtrDims == 1) stub();
@@ -17196,7 +17196,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                 GRFRange(boLoad.getBase(), 1), state.Br_offsetRegs, problem,
                 strategy, state);
         state.ra.safeRelease(boLoad);
-        state.ra.safeRelease(state.inputs.boPtr);
+        if (!strategy.persistent) state.ra.safeRelease(state.inputs.boPtr);
     }
 
     // Free unneeded registers after address setup.
