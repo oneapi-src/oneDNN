@@ -954,7 +954,7 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
         ls.swapLast2();
 
     // A/B 2D quantization parameter loads.
-    auto reqLoadAq = every(kaq_load) | lookahead(ka_loadMain);
+    auto reqLoadAq = every(kaq_load) | lookahead(ka_repackMain);
     auto reqLoadBq = every(kbq_load) | lookahead(kb_loadMain);
     auto reqLoadAqLate = every(kaq_loadLate) | lookahead(ka_loadMain);
     auto reqLoadBqLate = every(kbq_loadLate) | lookahead(kb_loadMain);
