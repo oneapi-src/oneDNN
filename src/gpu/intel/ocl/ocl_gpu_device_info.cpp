@@ -139,6 +139,33 @@ status_t ocl_gpu_device_info_t::init_extensions(impl::engine_t *engine) {
     return status::success;
 }
 
+/// Tries to build a kernel with assembly instructions to check to see if the
+/// OpenCL compiler supports microkernels. Usually fails because the OpenCL
+/// driver is too old.
+bool try_building_with_microkernels(impl::engine_t *engine) {
+    const char *kernel_code = R""""(
+        kernel void igc_check() {
+            __asm__ volatile(
+                    ".decl AA0 v_type=G type=ud num_elts=1\n"
+                    ".decl AA1 v_type=G type=ud num_elts=1\n"
+                    ".implicit_PSEUDO_INPUT AA0 offset=256 size=4\n"
+                    ".implicit_PSEUDO_INPUT AA1 offset=256 size=4\n"
+                    "mov (M1_NM,1) AA0(0,0)<1> AA1(0,0)<0;1,0>\n"
+            );
+        }
+        )"""";
+    auto ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
+    cl_int err;
+    /// Not using existing build infrastructure to avoid error messages in the CI logs
+    xpu::ocl::wrapper_t<cl_program> program
+            = xpu::ocl::make_wrapper(clCreateProgramWithSource(
+                    ocl_engine->context(), 1, &kernel_code, nullptr, &err));
+    OCL_CHECK(err);
+    cl_device_id dev = ocl_engine->device();
+    err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
+    return err == CL_SUCCESS;
+}
+
 status_t ocl_gpu_device_info_t::init_attributes(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
     auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
@@ -181,6 +208,8 @@ status_t ocl_gpu_device_info_t::init_attributes(impl::engine_t *engine) {
     mayiuse_system_memory_allocators_ = system_memory_capabilities_intel
             & CL_UNIFIED_SHARED_MEMORY_ACCESS_INTEL;
 #endif
+
+    mayiuse_microkernels_ = try_building_with_microkernels(engine);
 
     return status::success;
 }

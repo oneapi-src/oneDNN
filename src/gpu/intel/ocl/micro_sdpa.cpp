@@ -153,6 +153,12 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     arch_ = dev_info->gpu_arch();
     auto *d = desc();
 
+    VCONDCHECK(primitive, create, check, sdpa,
+            (dev_info->mayiuse_microkernels()), status::unimplemented,
+            "Microkernel version of SDPA not used because micokernel "
+            "compilation is not supported by this version of the OpenCL "
+            "driver. Please update your GPU driver.");
+
     /* Retrieve pre-tuned kernel configuration */
     sdpa_config_t *config = nullptr;
     bool thin_q = (d->queries() <= 16);
