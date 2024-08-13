@@ -17597,7 +17597,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                 A_offsetLayout, state.Ar_offsetLayout, aoLoad,
                 state.Ar_offsetRegs, problem, strategy, state);
         state.ra.safeRelease(aoLoad);
-        state.ra.safeRelease(state.inputs.aoPtr);
+        if (!strategy.persistent) state.ra.safeRelease(state.inputs.aoPtr);
     }
     if (boTo2D) {
         std::vector<RegisterBlock> B_offsetLayout;
@@ -17624,7 +17624,7 @@ bool gemm_kernel_generator_t<hw>::gemmAccumulateCSetup(
                 B_offsetLayout, state.Br_offsetLayout, boLoad,
                 state.Br_offsetRegs, problem, strategy, state);
         state.ra.safeRelease(boLoad);
-        state.ra.safeRelease(state.inputs.boPtr);
+        if (!strategy.persistent) state.ra.safeRelease(state.inputs.boPtr);
     }
 
     // Free unneeded registers after address setup.
