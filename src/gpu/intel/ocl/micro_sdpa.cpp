@@ -157,7 +157,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
             (dev_info->mayiuse_microkernels()), status::unimplemented,
             "Microkernel version of SDPA not used because micokernel "
             "compilation is not supported by this version of the OpenCL "
-            "driver. Please update your GPU driver.");
+            "driver.");
 
     /* Retrieve pre-tuned kernel configuration */
     sdpa_config_t *config = nullptr;

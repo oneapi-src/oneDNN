@@ -231,8 +231,7 @@ public:
 
     bool mayiuse_ngen_kernels() const { return mayiuse_ngen_kernels_; }
 
-    /// Returns true if the OpenCL compiler supports microkernels. Usually false
-    /// because of an older driver.
+    /// Returns true if the OpenCL compiler supports microkernels.
     bool mayiuse_microkernels() const { return mayiuse_microkernels_; }
 
     bool mayiuse_systolic() const { return mayiuse_systolic_; }

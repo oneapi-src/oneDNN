@@ -140,8 +140,7 @@ status_t ocl_gpu_device_info_t::init_extensions(impl::engine_t *engine) {
 }
 
 /// Tries to build a kernel with assembly instructions to check to see if the
-/// OpenCL compiler supports microkernels. Usually fails because the OpenCL
-/// driver is too old.
+/// OpenCL compiler supports microkernels.
 bool try_building_with_microkernels(impl::engine_t *engine) {
     const char *kernel_code = R""""(
         kernel void igc_check() {
@@ -160,7 +159,7 @@ bool try_building_with_microkernels(impl::engine_t *engine) {
     xpu::ocl::wrapper_t<cl_program> program
             = xpu::ocl::make_wrapper(clCreateProgramWithSource(
                     ocl_engine->context(), 1, &kernel_code, nullptr, &err));
-    OCL_CHECK(err);
+    if (err != CL_SUCCESS) return false;
     cl_device_id dev = ocl_engine->device();
     err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
     return err == CL_SUCCESS;
