@@ -1977,12 +1977,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         return !input_d.has_runtime_dims_or_strides() && input_d.is_dense()
-                && output_d.is_dense()
-                && output_d.strides()[output_d.ndims() - 1] == 1
-                && simple_attr_check(attr, false, true);
+                && output_d.is_dense() && simple_attr_check(attr, false, true);
     }
 
-    GET_SCRATCHPAD_SIZE_ZERO();
+    static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        return input_d.size();
+    }
 
     static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
@@ -1990,6 +1991,31 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         input += input_d.blk_off(0);
         output += output_d.blk_off(0);
+
+        data_t<type_i> *wspace = scratchpad.template get<data_t<type_i>>(
+                memory_tracking::names::key_reorder_space);
+
+        // When formats of the input and the output are not identical, the idea
+        // is to reorder the data from the input format to the output format
+        // but within the same data type, and after the format reorder apply
+        // the compression into int4 as on `abx` format.
+        const bool need_transform
+                = output_d.strides()[output_d.ndims() - 1] != 1;
+        if (need_transform) {
+            const dim_t work_amount = input_d.nelems();
+            parallel(0, [&](const int ithr, const int nthr) {
+                dim_t start {0}, end {0};
+                balance211(work_amount, nthr, ithr, start, end);
+                PRAGMA_OMP_SIMD()
+                for (dim_t idx = start; idx < end; idx++) {
+                    const auto i_off = input_d.off_l(idx);
+                    const auto o_off = output_d.off_l(idx);
+                    wspace[o_off] = input[i_off];
+                }
+            });
+
+            input = wspace;
+        }
 
         // To avoid clashes between threads each byte (or 2 elements)
         // is handled by a single thread
@@ -2001,8 +2027,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             PRAGMA_OMP_SIMD()
             for_(dim_t idx = start; idx < end; idx++)
             for (int i = 0; i < 2; ++i) {
-                const auto i_off = input_d.off_l(2 * idx + i);
-                const auto o_off = output_d.off_l(2 * idx + i);
+                const auto i_off = need_transform ? 2 * idx + i
+                                                  : input_d.off_l(2 * idx + i);
+                const auto o_off = need_transform ? 2 * idx + i
+                                                  : output_d.off_l(2 * idx + i);
                 const auto shift = i % 2 ? int4_extract_t::high_half
                                          : int4_extract_t::low_half;
                 auto src_val = _qz_a1b0<data_type::f32, type_o>()(input[i_off]);
