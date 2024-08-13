@@ -371,7 +371,7 @@ std::string kernel_desc_t::str() const {
     oss << "Propagation:            " << jit::to_string(prop) << std::endl;
     oss << "Depthwise:              " << ir_utils::to_string(is_dw)
         << std::endl;
-    oss << "With bias:          " << ir_utils::to_string(with_bias)
+    oss << "With bias:              " << ir_utils::to_string(with_bias)
         << std::endl;
     oss << "Source tag:             " << src_tag << std::endl;
     oss << "Weights tag:            " << wei_tag << std::endl;
