@@ -501,7 +501,10 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     const auto wei_encoding
             = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
-    if (is_gpu() && !prb->sparse_options.is_def()) {
+    bool is_wei_sparse_undef = (wei_encoding == dnnl_sparse_encoding_undef);
+    bool is_src_coo_sparse
+            = (prb->sparse_options.get_encoding(DNNL_ARG_SRC) == dnnl_coo);
+    if (is_gpu() && !is_wei_sparse_undef && !is_src_coo_sparse) {
         BENCHDNN_PRINT(2,
                 "[SKIP][%s:%d]: GPU doesn't support sparse functionality.\n",
                 __FILE__, __LINE__);
