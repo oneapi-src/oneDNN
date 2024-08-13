@@ -827,6 +827,7 @@ void gen_gemm_kernel_t::init_interface() {
 xpu::binary_t gen_gemm_kernel_t::get_binary(
         cl_context context, cl_device_id device) {
     init_interface();
+    maybe_print_verbose();
 
 #define ARCH_DISPATCH(arch) \
     case ngen::HW::arch: { \
@@ -855,6 +856,28 @@ xpu::binary_t gen_gemm_kernel_t::get_binary(
     return {};
 
 #undef ARCH_DISPATCH
+}
+
+void gen_gemm_kernel_t::maybe_print_verbose() {
+    int level = get_verbose(verbose_t::debuginfo);
+    if (level < 2) return;
+
+    const auto &problem = desc()->problem_;
+    const auto &strategy = desc()->strategy_;
+
+    auto pstr = problem.toString();
+    auto astr = problem.scalarsToString();
+    auto sstr = unparseStrategy(desc()->hw_, problem, strategy);
+
+    if (!astr.empty()) astr += ' ';
+
+    if (level >= 10)
+        printf("onednn_verbose,info,gpu,gemm,catalog entry:%s\n",
+                desc()->entry().str().c_str());
+
+    printf("onednn_verbose,info,gpu,gemm,kernel:%s %d %d %s%s\n", pstr.c_str(),
+            strategy.unroll[LoopM], strategy.unroll[LoopN], astr.c_str(),
+            sstr.c_str());
 }
 
 } // namespace jit

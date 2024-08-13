@@ -641,10 +641,6 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         auto kd = pd()->kernel_desc();
 
-        if (get_verbose(verbose_t::debuginfo) >= 2) {
-            printf("onednn_verbose,info,gpu,%s\n", kd->entry().str().c_str());
-        }
-
         CHECK(create_kernel(engine, nocopy_kernel_, "gemm_kernel", *kd));
 
         scalar_type_ = kd->scalar_type();
