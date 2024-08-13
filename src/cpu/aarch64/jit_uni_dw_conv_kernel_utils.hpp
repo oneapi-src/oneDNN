@@ -18,6 +18,7 @@
 #ifndef CPU_AARCH64_JIT_UNI_DW_CONV_KERNEL_UTILS_HPP
 #define CPU_AARCH64_JIT_UNI_DW_CONV_KERNEL_UTILS_HPP
 
+#include <memory>
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
@@ -39,11 +40,11 @@ namespace aarch64 {
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_fwd_kernel {
 
-    jit_uni_dw_conv_fwd_kernel(jit_conv_conf_t ajcp) : ker_(nullptr) {
-        ker_ = new jit_uni_dw_conv_fwd_kernel_f32<isa>(ajcp);
-    }
+    jit_uni_dw_conv_fwd_kernel(jit_conv_conf_t ajcp)
+        : ker_(utils::make_unique<jit_uni_dw_conv_fwd_kernel_f32<isa>>(ajcp)) {}
+
     status_t create_kernel() { return ker_->create_kernel(); }
-    ~jit_uni_dw_conv_fwd_kernel() { delete ker_; }
+    ~jit_uni_dw_conv_fwd_kernel() = default;
 
     static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
@@ -55,11 +56,12 @@ struct jit_uni_dw_conv_fwd_kernel {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 
-    jit_generator *ker() const { return ker_; }
+    jit_generator *ker() const { return ker_.get(); }
     void operator()(const jit_conv_call_s *p) const { (*ker_)(p); }
 
 private:
-    jit_uni_dw_conv_fwd_kernel_f32<isa> *ker_;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_dw_conv_fwd_kernel)
+    std::unique_ptr<jit_uni_dw_conv_fwd_kernel_f32<isa>> ker_;
 };
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
@@ -287,12 +289,12 @@ template struct jit_uni_dw_conv_fwd_kernel<sve_256, data_type::f32>;
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_data_kernel {
 
-    jit_uni_dw_conv_bwd_data_kernel(jit_conv_conf_t ajcp) : ker_(nullptr) {
-        ker_ = new jit_uni_dw_conv_bwd_data_kernel_f32<isa>(ajcp);
-    }
+    jit_uni_dw_conv_bwd_data_kernel(jit_conv_conf_t ajcp)
+        : ker_(utils::make_unique<jit_uni_dw_conv_bwd_data_kernel_f32<isa>>(
+                ajcp)) {}
 
     status_t create_kernel() { return ker_->create_kernel(); }
-    ~jit_uni_dw_conv_bwd_data_kernel() { delete ker_; }
+    ~jit_uni_dw_conv_bwd_data_kernel() = default;
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
@@ -305,9 +307,8 @@ struct jit_uni_dw_conv_bwd_data_kernel {
     void operator()(const jit_conv_call_s *p) const { (*ker_)(p); }
 
 private:
-    jit_uni_dw_conv_bwd_data_kernel_f32<isa> *ker_;
-
-    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_dw_conv_bwd_data_kernel);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_dw_conv_bwd_data_kernel)
+    std::unique_ptr<jit_uni_dw_conv_bwd_data_kernel_f32<isa>> ker_;
 };
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
@@ -420,12 +421,12 @@ template struct jit_uni_dw_conv_bwd_data_kernel<sve_256, data_type::f32>;
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_weights_kernel {
 
-    jit_uni_dw_conv_bwd_weights_kernel(jit_conv_conf_t ajcp) : ker_(nullptr) {
-        ker_ = new jit_uni_dw_conv_bwd_weights_kernel_f32<isa>(ajcp);
-    }
+    jit_uni_dw_conv_bwd_weights_kernel(jit_conv_conf_t ajcp)
+        : ker_(utils::make_unique<jit_uni_dw_conv_bwd_weights_kernel_f32<isa>>(
+                ajcp)) {}
 
     status_t create_kernel() { return ker_->create_kernel(); }
-    ~jit_uni_dw_conv_bwd_weights_kernel() { delete ker_; }
+    ~jit_uni_dw_conv_bwd_weights_kernel() = default;
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -440,7 +441,8 @@ struct jit_uni_dw_conv_bwd_weights_kernel {
     void operator()(const jit_dw_conv_call_s *p) const { (*ker_)(p); }
 
 private:
-    jit_uni_dw_conv_bwd_weights_kernel_f32<isa> *ker_;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_dw_conv_bwd_weights_kernel)
+    std::unique_ptr<jit_uni_dw_conv_bwd_weights_kernel_f32<isa>> ker_;
 };
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
