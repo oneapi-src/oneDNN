@@ -162,11 +162,22 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
         if (k_parallel_start > 0 && k_parallel_start != group_count)
             k_parallel_start -= concurrent_tg;
 
-        auto k_padded = utils::rnd_up(k + info.kPadding(), info.unroll[LoopK]);
-        auto k_total = int64_t(k_padded) * (group_count - k_parallel_start);
+        int k_padding = info.kPadding(), old_k_padding = k_padding;
+        auto k_padded = k;
+        int64_t k_total = 0;
+        uint32_t k0 = k;
 
-        uint32_t k0 = utils::div_up(k_total, concurrent_tg);
-        k0 = utils::rnd_up(k0, info.unroll[LoopK]);
+        do {
+            k_padded = utils::rnd_up(k + k_padding, info.unroll[LoopK]);
+            k_total = int64_t(k_padded) * (group_count - k_parallel_start);
+            if (k_total == 0) break;
+
+            k0 = utils::div_up(k_total, concurrent_tg);
+            k0 = utils::rnd_up(k0, info.unroll[LoopK]);
+
+            old_k_padding = k_padding;
+            k_padding = std::min<int>(k_padding, 2 * k0);
+        } while (k_padding != old_k_padding);
 
         uint32_t k_recip = uint32_reciprocal(k_padded);
         uint32_t k0_recip = uint32_reciprocal(k0);
