@@ -31,10 +31,34 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
+/// Tries to build a kernel with assembly instructions to check to see if the
+/// OpenCL compiler supports microkernels.
+bool try_building_with_microkernels(cl_context context, cl_device_id device) {
+    const char *kernel_code = R""""(
+        kernel void igc_check() {
+            __asm__ volatile(
+                    ".decl AA0 v_type=G type=ud num_elts=1\n"
+                    ".decl AA1 v_type=G type=ud num_elts=1\n"
+                    ".implicit_PSEUDO_INPUT AA0 offset=256 size=4\n"
+                    ".implicit_PSEUDO_INPUT AA1 offset=256 size=4\n"
+                    "mov (M1_NM,1) AA0(0,0)<1> AA1(0,0)<0;1,0>\n"
+            );
+        }
+        )"""";
+    cl_int err;
+    /// Not using existing build infrastructure to avoid error messages in the CI logs
+    xpu::ocl::wrapper_t<cl_program> program = xpu::ocl::make_wrapper(
+            clCreateProgramWithSource(context, 1, &kernel_code, nullptr, &err));
+    if (err != CL_SUCCESS) return false;
+    err = clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
+    return err == CL_SUCCESS;
+}
+
 void init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
         cl_context context, uint32_t &ip_version, compute::gpu_arch_t &gpu_arch,
         int &gpu_product_family, int &stepping_id, uint64_t &native_extensions,
-        bool &mayiuse_systolic, bool &mayiuse_ngen_kernels) {
+        bool &mayiuse_systolic, bool &mayiuse_ngen_kernels,
+        bool &mayiuse_microkernels) {
     using namespace ngen;
     HW hw = HW::Unknown;
     Product product = {ProductFamily::Unknown, 0};
@@ -58,6 +82,8 @@ void init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
     auto status
             = jit::gpu_supports_binary_format(&mayiuse_ngen_kernels, engine);
     if (status != status::success) mayiuse_ngen_kernels = false;
+
+    mayiuse_microkernels = try_building_with_microkernels(context, device);
 
     ip_version = 0;
     if (clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL, sizeof(ip_version),
