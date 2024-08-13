@@ -444,6 +444,7 @@ double evaluateE(const kcatalog::Entry &e, const DerivedEvaluateParams &dp,
         bool tryKV = (tcount != dp.threadCount)
                 || (tcount % dp.hwThreadCapacity != 0);
 
+        tryKV &= (dp.sizes.k > e.driverInfo.unroll[LoopK]);
         if (dp.deterministic) tryKV &= (dp.threadCount > dp.hwThreadCapacity);
 
         if (tryKV) {
