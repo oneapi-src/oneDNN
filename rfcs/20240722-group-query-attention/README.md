@@ -34,8 +34,9 @@ This proposal aims to extend the support from SDPA to cover GQA.
 
 ## GQA in PyTorch
 
-Unlike SDPA, PyTorch does not support GQA as a fused operations. In Huggingface
-Transformers [[#4]][4], GQA is implemented in the following way.
+Pytorch support GQA as a fused operations like SDPA in the recent PR [[#4]][4].
+Before this PR, GQA is implemented in the following way in Huggingface
+Transformers[[#5]][5]. 
 
 1. Firstly, as the Query (in shape (N, H, S, D)) and Key/Value (in shape (N, G,
    S, D)) have different head number dimension and cannot perform dot-product
@@ -117,7 +118,7 @@ Add new patterns. We can reshape Query, Key and Values tensors from 4D to 5D and
 leverage the broadcasting semantics of MatMul operation to perform the dot-products.
   
 1. Reshape Query from 4D shape (N, H, S, D) to 5D shape (N, G, H / G, S, D).
-2. Reshape Key from 4D shape (H, G, S, D) to 5D shape (N, G, 1, S, D).
+2. Reshape Key from 4D shape (N, G, S, D) to 5D shape (N, G, 1, S, D).
 3. Performance 5D matmul between (N, G, H / G, S, D) and (N, G, 1, S, D). The
    third dimension will be broadcasted from 1 to `H / G` automatically per the
    broadcasting rule of MatMul operation.
@@ -177,7 +178,7 @@ This rule looks uncommon and is not supported by the typical broadcasting rules
 [ONNX](https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md) and
 [NumPy](https://numpy.org/doc/stable/user/basics.broadcasting.html#general-broadcasting-rules).),
 but actually it's added to the MatMul operation of cuDNN in order to support
-GQA. [[#5]][5]
+GQA. [[#6]][6]
 
 Pros.
 
@@ -211,12 +212,14 @@ to implement GQA fusion by themselves for both option2 and option3, also option
 2. [https://huggingface.co/models][2]
 3. [GQA: Training Generalized Multi-Query Transformer Models from Multi-Head
    Checkpoints][3]
-4. [https://github.com/huggingface/transformers/blob/2782aadae2b0b0c313eac3ee70f84f0335577635/src/transformers/models/llama/modeling_llama.py#L203C1-L212C85][4]
-5. [https://docs.nvidia.com/deeplearning/cudnn/latest/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor][5]
+4. [https://github.com/pytorch/pytorch/pull/132689][4]
+5. [https://github.com/huggingface/transformers/blob/2782aadae2b0b0c313eac3ee70f84f0335577635/src/transformers/models/llama/modeling_llama.py#L203C1-L212C85][5]
+6. [https://docs.nvidia.com/deeplearning/cudnn/latest/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor][6]
 
 [1]: https://github.com/meta-llama/llama-models
 [2]: https://huggingface.co/models
 [3]: https://arxiv.org/pdf/2305.13245
-[4]:
+[4]: https://github.com/pytorch/pytorch/pull/132689
+[5]:
     https://github.com/huggingface/transformers/blob/2782aadae2b0b0c313eac3ee70f84f0335577635/src/transformers/models/llama/modeling_llama.py#L203C1-L212C85 
-[5]: https://docs.nvidia.com/deeplearning/cudnn/latest/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor
+[6]: https://docs.nvidia.com/deeplearning/cudnn/latest/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor
