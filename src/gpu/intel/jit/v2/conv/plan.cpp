@@ -93,14 +93,14 @@ layout_tag_t append_groups(
 }
 
 layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
-        bool is_dw, const spec_reqs_t &spec_reqs) {
+        bool is_dw, const prb_reqs_t &reqs) {
     auto tag = append_groups(tensor_kind, _tag, is_dw);
     layout_t ret(tag.desc(), tag.type());
     dim_map_t<prb_dim_t, int> blocks;
     auto rem_size = [&](const prb_dim_t &dim,
                             const dim_map_t<prb_dim_t, int> &blocks) {
         auto dim_size = size_var(dim);
-        bool is_dim_1 = spec_reqs.is_equal(dim, 1);
+        bool is_dim_1 = reqs.is_equal(dim, 1);
         if (is_dim_1) return expr_t(1);
         if (!blocks.has(dim)) return dim_size;
         return binary_op_t::make(op_kind_t::_div_up, dim_size, blocks[dim]);
@@ -124,7 +124,7 @@ layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
 class dim_mapper_manager_t {
 public:
     dim_mapper_manager_t() = default;
-    dim_mapper_manager_t(prop_kind_t prop, const spec_reqs_t &reqs)
+    dim_mapper_manager_t(prop_kind_t prop, const prb_reqs_t &reqs)
         : prop_(prop), reqs_(reqs) {
         src_mapper_ = init_src_mapper();
         wei_mapper_ = init_wei_mapper();
@@ -267,7 +267,7 @@ private:
     }
 
     prop_kind_t prop_ = prop_kind::undef;
-    spec_reqs_t reqs_;
+    prb_reqs_t reqs_;
     dim_mapper_t src_mapper_;
     dim_mapper_t wei_mapper_;
     dim_mapper_t dst_mapper_;
@@ -591,7 +591,7 @@ private:
     }
 
     void init_dim_mapper_manager() {
-        dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, desc_.spec_reqs);
+        dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, desc_.reqs);
     }
 
     void init_tiles() {
@@ -604,23 +604,23 @@ private:
             int iter_tile = desc_.iter_tile.get(d, 1);
             auto thr_idx = thr_grid_.index_var(d);
             coord_info_.add_dim(d, is_loop, is_global_loop, tg_tile, thr_idx,
-                    iter_tile, desc_.spec_reqs);
+                    iter_tile, desc_.reqs);
         }
     }
 
     void init_layouts() {
-        auto src_layout = make_conv_layout(tensor_kind_t::src, desc_.src_tag,
-                desc_.is_dw, desc_.spec_reqs);
-        auto wei_layout = make_conv_layout(tensor_kind_t::wei, desc_.wei_tag,
-                desc_.is_dw, desc_.spec_reqs);
-        auto dst_layout = make_conv_layout(tensor_kind_t::dst, desc_.dst_tag,
-                desc_.is_dw, desc_.spec_reqs);
+        auto src_layout = make_conv_layout(
+                tensor_kind_t::src, desc_.src_tag, desc_.is_dw, desc_.reqs);
+        auto wei_layout = make_conv_layout(
+                tensor_kind_t::wei, desc_.wei_tag, desc_.is_dw, desc_.reqs);
+        auto dst_layout = make_conv_layout(
+                tensor_kind_t::dst, desc_.dst_tag, desc_.is_dw, desc_.reqs);
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
         if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
-            bia_layout_ = make_conv_layout(tensor_kind_t::bia, desc_.bia_tag,
-                    desc_.is_dw, desc_.spec_reqs);
+            bia_layout_ = make_conv_layout(
+                    tensor_kind_t::bia, desc_.bia_tag, desc_.is_dw, desc_.reqs);
     }
 
     dim_map_t<prb_dim_t, prb_dim_kind_t> to_bmnk_map() const {
@@ -1049,7 +1049,6 @@ private:
 
 prb_reqs_t plan_t::reqs() const {
     prb_reqs_t ret;
-    ret.add(desc.spec_reqs.reqs());
     ret.add(prefetch.reqs());
     ret.add(x2r_fma.reqs());
     ret.add(epilogue.c_store.reqs());
@@ -1059,7 +1058,7 @@ prb_reqs_t plan_t::reqs() const {
 
 plan_t create_conv_plan(const kernel_desc_t &desc) {
     if (!desc.is_supported()) return plan_t();
-    ir_assert(!desc.spec_reqs.has_strategy())
+    ir_assert(!desc.has_spec_strategy())
             << "Kernel descriptor strategies are required to be specialized "
                "before plan creation";
     plan_builder_t builder(desc);

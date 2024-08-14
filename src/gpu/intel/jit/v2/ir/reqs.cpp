@@ -88,6 +88,16 @@ void prb_reqs_t::add(const prb_reqs_t &other) {
         add_if_not_found(r.expr);
 }
 
+void prb_reqs_t::add(const prb_tile_t &tile) {
+    for (auto &d : tile) {
+        set(d, tile[d]);
+    }
+}
+
+void prb_reqs_t::set(const prb_dim_t &dim, int value) {
+    add(size_var(dim) == value);
+}
+
 void prb_reqs_t::add_if_not_found(const req_expr_t &re) {
     auto e = re.to_ir();
     for (auto &r : reqs_) {
@@ -355,11 +365,37 @@ bool prb_reqs_t::can_prove(const expr_t &_e) const {
     return false;
 }
 
+bool prb_reqs_t::get_value(const prb_dim_t &dim, int &value) const {
+    auto var = size_var(dim);
+    for (auto &r : reqs_) {
+        auto e = r.expr.to_ir();
+        if (auto *op = e.as_ptr<binary_op_t>()) {
+            if (op->op_kind == op_kind_t::_eq && op->a.is_equal(var)
+                    && is_const(op->b)) {
+                value = to_cpp<int>(op->b);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool prb_reqs_t::is_equal(const prb_dim_t &dim, int value) const {
+    int dim_value;
+    return get_value(dim, dim_value) && dim_value == value;
+}
+
 bool prb_reqs_t::implies(const prb_reqs_t &other) const {
     for (auto &req : other.reqs_) {
         if (!can_prove(req.expr.to_ir())) return false;
     }
     return true;
+}
+
+expr_t prb_reqs_t::to_expr(const prb_dim_t &dim) const {
+    int dim_value;
+    if (get_value(dim, dim_value)) return dim_value;
+    return size_var(dim);
 }
 
 void stringify_var_mul(std::ostream &out, const expr_t &e) {

@@ -347,8 +347,8 @@ void kernel_desc_t::set_defaults() {
         }
     }
     if (is_dw) {
-        spec_reqs.set(prb_dims::ic, 1);
-        spec_reqs.set(prb_dims::oc, 1);
+        reqs.set(prb_dims::ic, 1);
+        reqs.set(prb_dims::oc, 1);
     }
     if (prop == prop_kind::backward_weights && with_bias) {
         bia_tag = make_conv_layout_tag(tensor_kind_t::bia, "a");
@@ -376,7 +376,6 @@ std::string kernel_desc_t::str() const {
     oss << "Source tag:             " << src_tag << std::endl;
     oss << "Weights tag:            " << wei_tag << std::endl;
     oss << "Destination tag:        " << dst_tag << std::endl;
-    oss << "Specialization:         " << spec_reqs << std::endl;
     oss << "HW:                     " << jit::to_string(hw.to_ngen())
         << std::endl;
     oss << "FMA kind:               " << to_string(fma) << std::endl;
@@ -435,9 +434,9 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "prefetched. Examples: x3 (distance is 3, both A/B are "
             "prefetched), x2.a (distance is 2, only A is prefetched), x0 (no "
             "prefetch, default).");
-    iface->add<PACK(spec_reqs)>("spec",
-            "Specialization requirements for problem dimensions (e.g. "
-            "kd1kw1kh1 for convolution without filter).");
+    iface->add<PACK(spec_strategy)>("spec_strategy",
+            "Specialization strategy for problem dimensions (e.g. 1d for 1D "
+            "convolution).");
     iface->add<PACK(reqs)>("reqs",
             "Dimension requirements, colon-separated (e.g. kd=1:mb>=16).");
 #undef PACK

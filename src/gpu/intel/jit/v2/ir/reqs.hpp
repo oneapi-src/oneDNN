@@ -92,6 +92,8 @@ public:
 
     void add(const expr_t &e);
     void add(const prb_reqs_t &other);
+    void add(const prb_tile_t &tile);
+    void set(const prb_dim_t &dim, int value);
     prover_t prover(bool enable = true);
 
     explicit operator bool() const { return !reqs_.empty(); }
@@ -103,9 +105,12 @@ public:
     // For example: prb_reqs_t(oc % 64 == 0) implies (oc % 16) == 0 so the
     // latter can be proven from the original requirements.
     bool can_prove(const expr_t &e) const;
+    bool get_value(const prb_dim_t &dim, int &value) const;
+    bool is_equal(const prb_dim_t &dim, int value) const;
     // Checks if other prb_reqs_t object is fully implied from the requirements
     // of this object.
     bool implies(const prb_reqs_t &other) const;
+    expr_t to_expr(const prb_dim_t &dim) const;
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
     std::string str() const;

@@ -38,14 +38,14 @@ class coord_info_t {
 public:
     void add_dim(const prb_dim_t &dim, bool is_loop, bool is_global_loop,
             int tg_tile, const expr_t &thr_idx, int iter_tile,
-            const spec_reqs_t &spec_reqs) {
+            const prb_reqs_t &reqs) {
         auto &e = entries_[dim];
         e.dim = dim;
         e.tg_size = tg_tile;
         e.iter_size = iter_tile;
         e.loop_idx = expr_t(0);
         e.loop_size = expr_t(1);
-        bool is_dim_1 = spec_reqs.is_equal(dim, 1);
+        bool is_dim_1 = reqs.is_equal(dim, 1);
         if (is_loop && !is_dim_1) {
             e.loop_idx = var_t::make(type_t::s32(), e.dim.str() + "_loop_idx");
             if (is_global_loop) {

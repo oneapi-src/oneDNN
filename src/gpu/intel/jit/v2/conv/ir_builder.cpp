@@ -776,7 +776,6 @@ public:
         , kernel_info_(kernel_info)
         , grid_ctx_(grid_ctx)
         , plan_(plan)
-        , cset_(desc.spec_reqs.as_constraint_set(kernel_info))
         , ir_ctx_(desc.exec_cfg(), cset_)
         , buf_mgr_(ir_ctx_)
         , loop_nest_(make_loop_nest(desc_.loop_desc, plan_.coord_info))

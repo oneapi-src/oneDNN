@@ -137,7 +137,7 @@ private:
         if (plan_preset_t::instance().is_set()) {
             _desc = plan_preset_t::instance().get();
             _desc.hw = hw_t(engine);
-            _desc.spec_reqs.specialize(prb);
+            _desc.specialize(prb);
             {
                 ir_utils::ir_check_log_level_t check_level(ir_utils::LOG_FATAL);
                 auto plan = create_conv_plan_and_finalize_desc(_desc);
@@ -145,7 +145,7 @@ private:
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
-            _desc.spec_reqs.specialize(prb);
+            _desc.specialize(prb);
         }
         if (_desc.is_empty()) return status::unimplemented;
         ir_assert(ir_check_fatal(_desc.fits(prb)));
