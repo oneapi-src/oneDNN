@@ -88,7 +88,8 @@ inline void findDeviceBinary(const std::vector<uint8_t> &binary, const SElf64Sec
     if (sectionsAfterBinaryOut != nullptr) *sectionsAfterBinaryOut = sections_after_binary;
 }
 
-inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_t> &kernel, const std::vector<uint8_t> &patches = std::vector<uint8_t>())
+inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_t> &kernel,
+                          bool noInlineData = false, const std::vector<uint8_t> &patches = std::vector<uint8_t>())
 {
     auto elf_binary = binary.data();
     auto elf_size = binary.size();
@@ -148,10 +149,21 @@ inline void replaceKernel(std::vector<uint8_t> &binary, const std::vector<uint8_
     auto new_kheader = (SKernelBinaryHeader *)(((const unsigned char *)kheader - elf_binary) + new_elf);
     size_t new_end_xsum = before_kernel + kernel_padded_size + heap_plus_patches + patches_size;
 
-    new_kheader->CheckSum = neo_hash(new_elf + start_xsum, new_end_xsum - start_xsum);
     new_kheader->KernelHeapSize = uint32_t(kernel_padded_size);
     new_kheader->KernelUnpaddedSize = uint32_t(kernel_size);
     new_kheader->PatchListSize += uint32_t(patches_size);
+
+    // Disable inline data if requested.
+    if (noInlineData) {
+        auto patch    = (SPatchItemHeader *)(new_elf + new_end_xsum - new_kheader->PatchListSize);
+        auto patchEnd = (SPatchItemHeader *)(new_elf + new_end_xsum);
+        for (; patch < patchEnd && patch->Size > 0; patch = (SPatchItemHeader *)((unsigned char *) patch + patch->Size))
+            if (patch->Token == PatchTokenThreadPayload && patch->Size == sizeof(SPatchThreadPayload))
+                ((SPatchThreadPayload *) patch)->PassInlineData = false;
+    }
+
+    // Update checksum.
+    new_kheader->CheckSum = neo_hash(new_elf + start_xsum, new_end_xsum - start_xsum);
 
     // Copy remainder of ELF.
     utils::copy_into(new_binary, new_end_xsum, binary, end_xsum, elf_size - end_xsum);
