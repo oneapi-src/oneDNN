@@ -54,15 +54,14 @@ void print_verbose_header() {
                         eng_ptr);
         auto *dev_info = compute_engine->device_info();
         verbose_printf(
-                "onednn_verbose,info,gpu,engine,%d,name:%s,driver_version:%s,"
-                "binary_kernels:%s\n",
+                "info,gpu,engine,%d,name:%s,driver_version:%s,binary_kernels:%"
+                "s\n",
                 (int)i, s_name.c_str(), s_ver.c_str(),
                 dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
         return;
 #endif
-        verbose_printf(
-                "onednn_verbose,info,gpu,engine,%d,name:%s,driver_version:%s\n",
-                (int)i, s_name.c_str(), s_ver.c_str());
+        verbose_printf("info,gpu,engine,%d,name:%s,driver_version:%s\n", (int)i,
+                s_name.c_str(), s_ver.c_str());
         eng_ptr->release();
     }
 }

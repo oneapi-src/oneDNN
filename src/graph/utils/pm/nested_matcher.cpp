@@ -39,9 +39,7 @@ matcher and want to debug pattern matcher.
     do { \
         if (get_verbose(verbose_t::debuginfo, component_t::graph) \
                 >= debug_level) { \
-            verbose_printf( \
-                    "onednn_verbose,graph,debuginfo,pattern_" \
-                    "matcher," __VA_ARGS__); \
+            verbose_printf("graph,debuginfo,pattern_matcher," __VA_ARGS__); \
             verbose_printf("\n"); \
         } \
     } while (0)
@@ -61,8 +59,7 @@ export ONEDNN_VERBOSE=dispatch,filter=graph
     do { \
         if (get_verbose(verbose_t::create_dispatch, component_t::graph)) { \
             verbose_printf( \
-                    "onednn_verbose,graph,create:dispatch,pattern_" \
-                    "matcher," __VA_ARGS__); \
+                    "graph,create:dispatch,pattern_matcher," __VA_ARGS__); \
             verbose_printf("\n"); \
         } \
     } while (0)

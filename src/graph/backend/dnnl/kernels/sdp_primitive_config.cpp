@@ -132,8 +132,8 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
     if (status != status::success) {
         if (get_verbose(verbose_t::create_dispatch, component_t::graph)) {
             verbose_printf(
-                    "onednn_verbose,graph,create:dispatch,sdpa,could not "
-                    "create primitive, falling back\n");
+                    "graph,create:dispatch,sdpa,could not create primitive, "
+                    "falling back\n");
         }
     }
 

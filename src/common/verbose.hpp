@@ -77,9 +77,9 @@ struct const_expr_value {
     do { \
         std::string stamp_; \
         if (dnnl::impl::get_verbose_timestamp()) \
-            stamp_ = "," + std::to_string(stamp); \
+            stamp_ = std::to_string(stamp) + ","; \
         dnnl::impl::verbose_printf( \
-                "onednn_verbose%s," CONCAT2(VERBOSE_, apitype) "," CONCAT2( \
+                "%s" CONCAT2(VERBOSE_, apitype) "," CONCAT2( \
                         VERBOSE_, logtype) "%s," msg "\n", \
                 stamp_.c_str(), logsubtype, ##__VA_ARGS__); \
     } while (0)
@@ -270,8 +270,7 @@ inline std::string format_verbose_string(
         const char *fmt_str, str_args... args) {
     const int size = snprintf(nullptr, 0, fmt_str, args...) + 1;
     if (size == 0) {
-        return "onednn_verbose,info,error encountered while formatting verbose "
-               "message\n";
+        return "info,error encountered while formatting verbose message\n";
     }
     std::string msg(size, '\0');
     snprintf(&msg[0], size, fmt_str, args...);

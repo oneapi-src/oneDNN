@@ -200,7 +200,7 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns, c
             }
             if (verbose) {
                 const auto &info = it->driverInfo;
-                printf("onednn_verbose,info,gpu,gemm,consider:%dx%d,%dx%dx%d,score:%f\n",
+                verbose_printf("info,gpu,gemm,consider:%dx%d,%dx%dx%d,score:%f\n",
                         info.unroll[LoopM], info.unroll[LoopN], info.wg[LoopM],
                         info.wg[LoopN], info.wg[LoopK], score);
             }

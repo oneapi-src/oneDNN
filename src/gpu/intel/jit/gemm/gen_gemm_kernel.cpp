@@ -870,10 +870,10 @@ void gen_gemm_kernel_t::maybe_print_verbose() {
     if (!astr.empty()) astr += ' ';
 
     if (level >= 10)
-        printf("onednn_verbose,info,gpu,gemm,catalog entry:%s\n",
+        verbose_printf("info,gpu,gemm,catalog entry:%s\n",
                 desc()->entry().str().c_str());
 
-    printf("onednn_verbose,info,gpu,gemm,kernel:%s %d %d %s%s\n", pstr.c_str(),
+    verbose_printf("info,gpu,gemm,kernel:%s %d %d %s%s\n", pstr.c_str(),
             strategy.unroll[LoopM], strategy.unroll[LoopN], astr.c_str(),
             sstr.c_str());
 }
