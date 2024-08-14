@@ -1372,41 +1372,41 @@ std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
     if (!pd->is_fwd()) {
         ss << " diff_src_layer_"
            << md2fmt_str(pd->diff_src_md(0),
-                      pd->invariant_src_user_format_kind(0));
+                      pd->diff_src_md(0, true)->format_kind);
         if (pd->with_src_iter())
             ss << " diff_src_iter_"
                << md2fmt_str(pd->diff_src_md(1),
-                          pd->invariant_src_user_format_kind(1));
+                          pd->diff_src_md(1, true)->format_kind);
         ss << " diff_wei_layer_"
            << md2fmt_str(pd->diff_weights_md(0),
-                      pd->invariant_wei_user_format_kind(0));
+                      pd->diff_weights_md(0, true)->format_kind);
         ss << " diff_wei_iter_"
            << md2fmt_str(pd->diff_weights_md(1),
-                      pd->invariant_wei_user_format_kind(1));
+                      pd->diff_weights_md(1, true)->format_kind);
         if (pd->is_lstm_peephole())
             ss << " diff_wei_peephole_"
                << md2fmt_str(pd->diff_weights_md(2),
-                          pd->invariant_wei_user_format_kind(2));
+                          pd->diff_weights_md(2, true)->format_kind);
         if (pd->is_lstm_projection()) {
             auto proj_idx = 2 + pd->is_lstm_peephole();
             ss << " diff_wei_proj_"
                << md2fmt_str(pd->weights_md(proj_idx),
-                          pd->invariant_wei_user_format_kind(proj_idx));
+                          pd->weights_md(proj_idx, true)->format_kind);
         }
         if (pd->with_bias()) {
             auto bias_idx
                     = 2 + pd->is_lstm_peephole() + pd->is_lstm_projection();
             ss << " diff_bias_"
                << md2fmt_str(pd->weights_md(bias_idx),
-                          pd->invariant_wei_user_format_kind(bias_idx));
+                          pd->weights_md(bias_idx, true)->format_kind);
         }
         ss << " diff_dst_layer_"
            << md2fmt_str(pd->diff_dst_md(0),
-                      pd->invariant_dst_user_format_kind(0));
+                      pd->diff_dst_md(0, true)->format_kind);
         if (pd->with_dst_iter())
             ss << " diff_dst_iter_"
                << md2fmt_str(pd->diff_dst_md(1),
-                          pd->invariant_dst_user_format_kind(1));
+                          pd->diff_dst_md(1, true)->format_kind);
     }
 
     ss << "," << pd->attr() << ",";

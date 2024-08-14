@@ -497,17 +497,36 @@ def convert_tags(mds, prim_kind):
         with_proj = ""
         with_peep = ""
         skip_colon = True
+
+        # Tags for backward are driven by diff tensors, query them instead of
+        # forward tensors. Latter will always have `any` format.
+        has_diff_tensors = False
+        for md in mds:
+            if md["arg"].find("diff") != -1:
+                has_diff_tensors = True
+
         for md in mds:
             md_arg = md["arg"]
             md_tag = md["tag"]
-            if md_arg == "src_layer" or md_arg == "wei_layer" or md_arg == "dst_layer":
-                if not skip_colon:
-                    tags += f":"
-                if "a" in md["properties"]:
-                    tags += f"any"
-                else:
-                    tags += f"{md_tag}"
-                skip_colon = False
+            if has_diff_tensors == True:
+                if md_arg in ["diff_src_layer", "diff_wei_layer", "diff_dst_layer"]:
+                    if not skip_colon:
+                        tags += f":"
+                    if "a" in md["properties"]:
+                        tags += f"any"
+                    else:
+                        tags += f"{md_tag}"
+                    skip_colon = False
+            else:
+                if md_arg in ["src_layer", "wei_layer", "dst_layer"]:
+                    if not skip_colon:
+                        tags += f":"
+                    if "a" in md["properties"]:
+                        tags += f"any"
+                    else:
+                        tags += f"{md_tag}"
+                    skip_colon = False
+
             if md_arg == "wei_proj" and md_tag != "undef":
                 with_proj = " --with-projection=true"
             if md_arg == "wei_peephole" and md_tag != "undef":
