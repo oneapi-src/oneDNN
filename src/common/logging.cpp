@@ -90,9 +90,7 @@ void log_manager_t::log(const char *msg, log_level_t log_level) const {
     }
 }
 
-void log_manager_t::set_log_level(const std::string vmode_str) const {
-    const auto &dnnl_logger = spdlog::get(logger_name_);
-
+void log_manager_t::set_log_level(const std::string &vmode_str) const {
     // The logging level is determined from the verbose mode
     // with the following order of decreasing priority:
     // [trace, debug, info, error, critical, off]
