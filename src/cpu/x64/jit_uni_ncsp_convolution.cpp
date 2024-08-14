@@ -17,6 +17,7 @@
 #include "common/c_types_map.hpp"
 #include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
+#include "common/impl_list_item.hpp"
 #include "common/nstl.hpp"
 #include "common/primitive_attr.hpp"
 #include "common/primitive_desc_iface.hpp"
@@ -85,9 +86,13 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_convolution(
             &ncsp_conv_d->bias_desc, &nspc_dst_md_, ncsp_conv_d->strides,
             ncsp_conv_d->dilates, ncsp_conv_d->padding[0],
             ncsp_conv_d->padding[1]));
-
+    int skip_this_idx
+            = impl_list_item_t::find<jit_uni_ncsp_convolution_fwd_t::pd_t>(
+                    engine->get_implementation_list(
+                            reinterpret_cast<const op_desc_t *>(&nspc_conv_d)));
     primitive_desc_iterator_t it(engine,
-            reinterpret_cast<const op_desc_t *>(&nspc_conv_d), attr(), nullptr);
+            reinterpret_cast<const op_desc_t *>(&nspc_conv_d), attr(), nullptr,
+            skip_this_idx);
     if (!it.is_initialized()) return status::out_of_memory;
 
     if (++it == it.end()) return status::unimplemented;
@@ -350,14 +355,22 @@ status_t jit_uni_ncsp_convolution_bwd_weights_t::pd_t::init_convolution(
     nspc_diff_dst_md_ = *diff_dst_md();
     CHECK(memory_desc_init_by_tag(nspc_src_md_, nspc_tag));
     CHECK(memory_desc_init_by_tag(nspc_diff_dst_md_, nspc_tag));
-    const convolution_desc_t *ncsp_conv_d = desc();
-    primitive_desc_iface_t *conv_pdi;
-    CHECK(dnnl_convolution_backward_weights_primitive_desc_create(&conv_pdi,
-            engine, ncsp_conv_d->alg_kind, &nspc_src_md_, diff_weights_md(0),
-            diff_weights_md(1), &nspc_diff_dst_md_, ncsp_conv_d->strides,
-            ncsp_conv_d->dilates, ncsp_conv_d->padding[0],
-            ncsp_conv_d->padding[1], nullptr, attr()));
-    nspc_conv_pd_ = conv_pdi->impl();
+    convolution_desc_t nspc_conv_d = *desc();
+    CHECK(conv_desc_init(&nspc_conv_d, nspc_conv_d.prop_kind,
+            nspc_conv_d.alg_kind, &nspc_src_md_, &nspc_conv_d.diff_weights_desc,
+            &nspc_conv_d.diff_bias_desc, &nspc_diff_dst_md_,
+            nspc_conv_d.strides, nspc_conv_d.dilates, nspc_conv_d.padding[0],
+            nspc_conv_d.padding[1]));
+    int skip_this_idx = impl_list_item_t::find<
+            jit_uni_ncsp_convolution_bwd_weights_t::pd_t>(
+            engine->get_implementation_list(
+                    reinterpret_cast<const op_desc_t *>(&nspc_conv_d)));
+    primitive_desc_iterator_t it(engine,
+            reinterpret_cast<const op_desc_t *>(&nspc_conv_d), attr(), nullptr,
+            skip_this_idx);
+    if (!it.is_initialized()) return status::out_of_memory;
+    if (++it == it.end()) return status::unimplemented;
+    nspc_conv_pd_ = *it;
     diff_weights_md_ = *nspc_conv_pd_->diff_weights_md(0);
     diff_bias_md_ = *nspc_conv_pd_->diff_weights_md(1);
     CHECK(reorder_primitive_desc_create(
@@ -490,14 +503,25 @@ status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init_convolution(
     nspc_diff_dst_md_ = *diff_dst_md();
     CHECK(memory_desc_init_by_tag(nspc_diff_src_md_, nspc_tag));
     CHECK(memory_desc_init_by_tag(nspc_diff_dst_md_, nspc_tag));
-    const convolution_desc_t *ncsp_conv_d = desc();
-    primitive_desc_iface_t *conv_pdi;
+    convolution_desc_t nspc_conv_d = *desc();
+    CHECK(conv_desc_init(&nspc_conv_d, nspc_conv_d.prop_kind,
+            nspc_conv_d.alg_kind, &nspc_diff_src_md_, &nspc_conv_d.weights_desc,
+            &nspc_conv_d.bias_desc, &nspc_diff_dst_md_, nspc_conv_d.strides,
+            nspc_conv_d.dilates, nspc_conv_d.padding[0],
+            nspc_conv_d.padding[1]));
+    int skip_this_idx
+            = impl_list_item_t::find<jit_uni_ncsp_convolution_bwd_data_t::pd_t>(
+                    engine->get_implementation_list(
+                            reinterpret_cast<const op_desc_t *>(&nspc_conv_d)));
+    primitive_desc_iterator_t it(engine,
+            reinterpret_cast<const op_desc_t *>(&nspc_conv_d), attr(), nullptr,
+            skip_this_idx);
+    if (!it.is_initialized()) return status::out_of_memory;
 
-    CHECK(dnnl_convolution_backward_data_primitive_desc_create(&conv_pdi,
-            engine, ncsp_conv_d->alg_kind, &nspc_diff_src_md_, weights_md(0),
-            &nspc_diff_dst_md_, ncsp_conv_d->strides, ncsp_conv_d->dilates,
-            ncsp_conv_d->padding[0], ncsp_conv_d->padding[1], nullptr, attr()));
-    nspc_conv_pd_ = conv_pdi->impl();
+    if (++it == it.end()) return status::unimplemented;
+
+    nspc_conv_pd_ = *it;
+
     CHECK(reorder_primitive_desc_create(
             src_reorder_pd_, engine, &nspc_diff_src_md_, diff_src_md()));
     CHECK(reorder_primitive_desc_create(
