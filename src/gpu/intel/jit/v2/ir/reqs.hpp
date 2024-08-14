@@ -45,44 +45,7 @@ private:
     prb_reqs_t *parent_ = nullptr;
 };
 
-class req_expr_impl_t {
-public:
-    virtual ~req_expr_impl_t() = default;
-    virtual ir_type_id_t expr_kind() const = 0;
-    virtual int64_t to_int(const prb_tile_t &sizes) const = 0;
-    virtual expr_t to_ir() const = 0;
-};
-
-// Requirement expression, supports a subset of IR expressions.
-// req_expr_t::to_ir() and to_req_expr() can be used to convert req_expr_t to
-// expr_t and back. req_expr_t is mainly introduced to expose
-// serialization/deserialization functionality.
-class req_expr_t {
-public:
-    req_expr_t(req_expr_impl_t *impl = nullptr) : impl_(impl) {}
-    explicit operator bool() const { return (bool)impl_; }
-
-    template <typename T>
-    T *as_ptr() {
-        return static_cast<T *>(impl_.get());
-    }
-
-    template <typename T>
-    const T *as_ptr() const {
-        return static_cast<const T *>(impl_.get());
-    }
-
-    int64_t to_int(const prb_tile_t &sizes) const {
-        return impl_->to_int(sizes);
-    }
-    expr_t to_ir() const { return impl_->to_ir(); }
-#if __cplusplus >= 202002L
-    bool operator==(const req_expr_t &other) const = default;
-#endif
-
-private:
-    std::shared_ptr<req_expr_impl_t> impl_;
-};
+class req_impl_t;
 
 // Problem requirements: a list of expressions expressing a set of requirements
 // to the problem sizes.
@@ -104,7 +67,8 @@ public:
     // Checks if an expression/condition is an implication of the requirements.
     // For example: prb_reqs_t(oc % 64 == 0) implies (oc % 16) == 0 so the
     // latter can be proven from the original requirements.
-    bool can_prove(const expr_t &e) const;
+    bool can_prove(const expr_t &to_prove) const;
+    bool can_prove(const req_impl_t &to_prove) const;
     bool get_value(const prb_dim_t &dim, int &value) const;
     bool is_equal(const prb_dim_t &dim, int value) const;
     // Checks if other prb_reqs_t object is fully implied from the requirements
@@ -114,33 +78,23 @@ public:
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
     std::string str() const;
-#if __cplusplus >= 202002L
-    bool operator==(const prb_reqs_t &other) const = default;
-#endif
 
     IR_DEFINE_DUMP()
 
 private:
     // Single requirement, represented as an expression.
-    struct req_t {
-        req_expr_t expr;
+    class req_t {
+    public:
+        req_t();
+        req_t(const req_impl_t &impl);
+        const req_impl_t &impl() const { return *impl_; }
+        req_impl_t &impl() { return *impl_; }
 
-        req_t() = default;
-        req_t(const req_expr_t &expr) : expr(expr) {}
-        bool fits(const prb_tile_t &sizes) const;
-        // Checks if the condition is an implication of the current
-        // requirement.
-        bool can_prove(const expr_t &expr_to_prove) const;
-        void stringify(std::ostream &out) const;
-        void parse(std::istream &in);
-        std::string str() const;
-#if __cplusplus >= 202002L
-        bool operator==(const req_t &other) const = default;
-#endif
-        IR_DEFINE_DUMP()
+    private:
+        std::shared_ptr<req_impl_t> impl_;
     };
 
-    void add_if_not_found(const req_expr_t &e);
+    void add_if_not_found(const req_impl_t &new_req);
 
     std::vector<req_t> reqs_;
 };
