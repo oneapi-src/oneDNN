@@ -636,6 +636,7 @@ def convert_scale_policy(value, prim_kind):
             3: "per_ocic",
             4: "per_oc",
             6: "per_ocic",
+            8: "per_oc",
             12: "per_ocic",
         }
     else:
