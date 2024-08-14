@@ -426,28 +426,30 @@ class LogParser:
             self.__raw_data.append(line.rstrip())
             l_raw = line.split(",")
             marker = l_raw[0]
-            if marker == "onednn_verbose":
-                if l_raw[1].split(".")[0].isdigit():
-                    l_raw.pop(1)
-                # Skip graph component as not supported
-                if l_raw[1] == "graph":
-                    continue
-                # Remove a component from the line if presented
-                if l_raw[1] == "primitive" or l_raw[1] == "ukernel":
-                    l_raw.pop(1)
+            if marker != "onednn_verbose":
+                continue
 
-                event = l_raw[1].split(":")[0]
-                if event == "info":
-                    opt = l_raw[2]
-                    if opt == "template":
-                        verbose_template = "onednn_verbose," + line.split(":")[1]
-                if event in ["exec", "create"]:
-                    l_converted = convert_primitive(
-                        l_raw, verbose_template + ",exec_time"
-                    )
-                    if l_converted:
-                        self.__data[i] = l_converted
-                        i = i + 1
+            # Discard a timestamp when it's supplied in a standalone line.
+            # TODO: update verbose_template instead.
+            if l_raw[1].split(".")[0].isdigit():
+                l_raw.pop(1)
+            # Skip Graph component as not supported
+            if l_raw[1] == "graph":
+                continue
+            # Remove a component from the line if presented (see a comment above)
+            if l_raw[1] == "primitive" or l_raw[1] == "ukernel":
+                l_raw.pop(1)
+
+            event = l_raw[1].split(":")[0]
+            if event == "info":
+                opt = l_raw[2]
+                if opt == "template":
+                    verbose_template = "onednn_verbose," + line.split(":")[1]
+            if event in ["exec", "create"]:
+                l_converted = convert_primitive(l_raw, verbose_template + ",exec_time")
+                if l_converted:
+                    self.__data[i] = l_converted
+                    i = i + 1
 
     def get_data(self):
         """
