@@ -85,7 +85,6 @@ status_t ocl_gpu_device_info_t::init_device_name(impl::engine_t *engine) {
 }
 
 status_t ocl_gpu_device_info_t::init_runtime_version(impl::engine_t *engine) {
-    cl_int err = CL_SUCCESS;
     auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
     runtime_version_ = get_driver_version(device);
     return status::success;

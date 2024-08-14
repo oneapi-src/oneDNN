@@ -71,7 +71,7 @@ bool try_building_with_microkernels(cl_context context, cl_device_id device) {
         )"""";
     cl_int err;
     /// Not using existing build infrastructure to avoid error messages in the CI logs
-    xpu::ocl::wrapper_t<cl_program> program = xpu::ocl::make_wrapper(
+    xpu::ocl::wrapper_t<cl_program> program(
             clCreateProgramWithSource(context, 1, &kernel_code, nullptr, &err));
     if (err != CL_SUCCESS) return false;
     err = clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
