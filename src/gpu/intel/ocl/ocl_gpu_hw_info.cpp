@@ -31,6 +31,30 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
+xpu::runtime_version_t get_driver_version(cl_device_id device) {
+    cl_int err;
+    xpu::runtime_version_t runtime_version(-1, -1, -1);
+
+    size_t param_size = 0;
+    err = clGetDeviceInfo(device, CL_DRIVER_VERSION, 0, nullptr, &param_size);
+    std::string driver_version(param_size, '\0');
+
+    if (err == CL_SUCCESS) {
+        err = clGetDeviceInfo(device, CL_DRIVER_VERSION, param_size,
+                &driver_version[0], nullptr);
+    }
+
+    if (err != CL_SUCCESS
+            || runtime_version.set_from_string(&driver_version[0])
+                    != status::success) {
+        runtime_version.major = 0;
+        runtime_version.minor = 0;
+        runtime_version.build = 0;
+    }
+
+    return runtime_version;
+}
+
 /// Tries to build a kernel with assembly instructions to check to see if the
 /// OpenCL compiler supports microkernels.
 bool try_building_with_microkernels(cl_context context, cl_device_id device) {
@@ -83,7 +107,11 @@ void init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
             = jit::gpu_supports_binary_format(&mayiuse_ngen_kernels, engine);
     if (status != status::success) mayiuse_ngen_kernels = false;
 
-    mayiuse_microkernels = try_building_with_microkernels(context, device);
+    mayiuse_microkernels = get_driver_version(device)
+            >= xpu::runtime_version_t(24, 22, 29735);
+    if (!mayiuse_microkernels) {
+        mayiuse_microkernels = try_building_with_microkernels(context, device);
+    }
 
     ip_version = 0;
     if (clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL, sizeof(ip_version),

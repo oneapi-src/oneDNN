@@ -87,23 +87,7 @@ status_t ocl_gpu_device_info_t::init_device_name(impl::engine_t *engine) {
 status_t ocl_gpu_device_info_t::init_runtime_version(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
     auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
-
-    size_t param_size = 0;
-    err = clGetDeviceInfo(device, CL_DRIVER_VERSION, 0, nullptr, &param_size);
-    OCL_CHECK(err);
-
-    std::string driver_version(param_size, '\0');
-    err = clGetDeviceInfo(
-            device, CL_DRIVER_VERSION, param_size, &driver_version[0], nullptr);
-    OCL_CHECK(err);
-
-    if (runtime_version_.set_from_string(&driver_version[0])
-            != status::success) {
-        runtime_version_.major = 0;
-        runtime_version_.minor = 0;
-        runtime_version_.build = 0;
-    }
-
+    runtime_version_ = get_driver_version(device);
     return status::success;
 }
 
