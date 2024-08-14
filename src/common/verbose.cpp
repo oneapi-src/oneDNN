@@ -1522,6 +1522,26 @@ std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
     return s;
 }
 
+void verbose_printf_impl(const char *fmt_str, verbose_t::flag_kind kind) {
+#ifdef DNNL_EXPERIMENTAL_LOGGING
+    // by default, verbose_t::create_check is passed to the logger
+    // so that it prints at spdlog log_level_t::info when no verbose flag
+    // is specified. This is useful for printing headers, format fields, etc.
+    // which do not correspond to a specific verbose kind.
+    const log_manager_t &log_manager = log_manager_t::get_log_manager();
+
+    if (log_manager.is_logger_enabled())
+        log_manager.log(fmt_str, align_verbose_mode_to_log_level(kind));
+    if (log_manager.is_console_enabled()) {
+        printf("%s", fmt_str);
+        fflush(stdout);
+    }
+#else
+    printf("%s", fmt_str);
+    fflush(stdout);
+#endif
+}
+
 std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
         const memory_desc_t *src_md, const memory_desc_t *wei_md,
         const memory_desc_t *dst_md) {

@@ -263,27 +263,7 @@ inline log_manager_t::log_level_t align_verbose_mode_to_log_level(
 // when logging is disabled, data is printed only to stdout.
 // when enabled, it is printed to the logfile and to stdout as well if
 // DNNL_VERBOSE_LOG_WITH_CONSOLE is set.
-inline void verbose_printf_impl(const char *fmt_str,
-        verbose_t::flag_kind kind = verbose_t::create_check) {
-#ifdef DNNL_EXPERIMENTAL_LOGGING
-    // by default, verbose_t::create_check is passed to the logger
-    // so that it prints at spdlog log_level_t::info when no verbose flag
-    // is specified. This is useful for printing headers, format fields, etc.
-    // which do not correspond to a specific verbose kind.
-    const log_manager_t &log_manager = log_manager_t::get_log_manager();
-
-    if (log_manager.is_logger_enabled())
-        log_manager.log(
-                fmt_str, dnnl::impl::align_verbose_mode_to_log_level(kind));
-    if (log_manager.is_console_enabled()) {
-        printf("%s", fmt_str);
-        fflush(stdout);
-    }
-#else
-    printf("%s", fmt_str);
-    fflush(stdout);
-#endif
-}
+void verbose_printf_impl(const char *fmt_str, verbose_t::flag_kind kind);
 
 template <typename... str_args>
 inline std::string format_verbose_string(
@@ -300,7 +280,7 @@ inline std::string format_verbose_string(
 
 // processes fixed strings for logging and printing
 inline void verbose_printf(const char *fmt_str) {
-    verbose_printf_impl(fmt_str);
+    verbose_printf_impl(fmt_str, verbose_t::create_check);
 }
 
 // When logging is enabled, a verbose flag can be specified which allows the
@@ -314,7 +294,7 @@ inline void verbose_printf(verbose_t::flag_kind kind, const char *fmt_str) {
 template <typename... str_args>
 inline void verbose_printf(const char *fmt_str, str_args... args) {
     std::string msg = format_verbose_string(fmt_str, args...);
-    verbose_printf_impl(msg.c_str());
+    verbose_printf_impl(msg.c_str(), verbose_t::create_check);
 }
 
 template <typename... str_args>
