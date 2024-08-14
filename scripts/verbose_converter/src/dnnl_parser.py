@@ -443,7 +443,7 @@ class LogParser:
             event = l_raw[1].split(":")[0]
             if event == "info":
                 opt = l_raw[2]
-                if opt == "template":
+                if opt.split(":")[0] == "template":
                     verbose_template = "onednn_verbose," + line.split(":")[1]
             if event in ["exec", "create"]:
                 l_converted = convert_primitive(l_raw, verbose_template + ",exec_time")
