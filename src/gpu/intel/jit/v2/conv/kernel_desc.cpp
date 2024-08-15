@@ -423,7 +423,8 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "tg", "Threadgroup tile (e.g. ow4oc4).", /*required=*/true);
     iface->add<PACK(loop_desc)>("loop_desc",
             "Loop description, variables ordered from innermost to outermost "
-            "(e.g. kw,kh,kd,ic).");
+            "(e.g. kw,kh,kd,ic).",
+            /*required=*/true);
     iface->add<PACK(load)>("load",
             "Load type (block, scattered [default], 2d) for A and B, e.g. "
             "a:2d,b:block.");

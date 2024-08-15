@@ -1084,6 +1084,7 @@ public:
         entry_t e;
         e.name = name;
         e.help = help;
+        e._default = jit::stringify(U());
         e.required = required;
         e.stringify = [](std::ostream &out, const T &parent) {
             jit::stringify(out, parent.*ptr);
@@ -1118,7 +1119,7 @@ public:
         for (auto &e : entries_) {
             std::ostringstream e_oss;
             e.stringify(e_oss, parent);
-            if (!e.required && e_oss.str() == "x") continue;
+            if (!e.required && e_oss.str() == e._default) continue;
             if (!is_first) out << " ";
             if (!e.name.empty()) {
                 if (cli) {
@@ -1173,6 +1174,7 @@ private:
     struct entry_t {
         std::string name;
         std::string help;
+        std::string _default;
         bool required = false;
         std::function<void(std::ostream &, const T &)> stringify;
         std::function<void(std::istream &, T &)> parse;
