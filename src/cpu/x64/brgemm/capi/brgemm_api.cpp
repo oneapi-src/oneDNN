@@ -336,9 +336,9 @@ status_t brgemm_t::create_verbose_info() {
     const dims_t dst_strides = {ldd_, 1};
     CHECK(memory_desc_init_by_strides(dst_md, 2, dst_dims, d_dt_, dst_strides));
 
-    ss << "src_" << md2fmt_str(&src_md, format_kind::undef);
-    ss << " wei_" << md2fmt_str(&wei_md, format_kind::undef);
-    ss << " dst_" << md2fmt_str(&dst_md, format_kind::undef);
+    ss << md2fmt_str("src", &src_md, format_kind::undef) << " ";
+    ss << md2fmt_str("wei", &wei_md, format_kind::undef) << " ";
+    ss << md2fmt_str("dst", &dst_md, format_kind::undef);
     ss << "," << attr2str(&attr_) << ",";
     ss << "bs:" << d.brgattr.max_bs << " beta:" << beta_;
     ss << "," << md2dim_str(&src_md) << ":" << md2dim_str(&wei_md);
@@ -464,8 +464,8 @@ status_t transform_t::create_verbose_info() {
     const dims_t dst_strides = {out_ld_, 1};
     CHECK(memory_desc_init_by_strides(dst_md, 2, dims, out_dt_, dst_strides));
 
-    ss << "src_" << md2fmt_str(&src_md, format_kind::undef);
-    ss << " dst_" << md2fmt_str(&dst_md, format_kind::undef);
+    ss << md2fmt_str("src", &src_md, format_kind::undef) << " ";
+    ss << md2fmt_str("dst", &dst_md, format_kind::undef);
     ss << ",,," << md2dim_str(&src_md);
 
     verbose_info_ = ss.str();

@@ -80,7 +80,7 @@ namespace impl {
 // Versioning is used to communicate breaking verbose lines changes to
 // verbose_converter tool for maintaining compatibility smoother.
 // Numeration uses integers only and goes linearly from 0 to infinity.
-static constexpr char verbose_version[] = "v0";
+static constexpr char verbose_version[] = "v1";
 
 static setting_t<uint32_t> verbose {0};
 
@@ -482,8 +482,10 @@ std::string md2fmt_strides_str(const memory_desc_t *md) {
 // the info provided to this call.
 // On the other hand, just a user memory descriptor can't be passed because it
 // is not initialized b the library, and format information will be missed.
-std::string md2fmt_str(const memory_desc_t *md, format_kind_t user_format) {
+std::string md2fmt_str(
+        const char *name, const memory_desc_t *md, format_kind_t user_format) {
     std::stringstream ss;
+    ss << name << ":";
     if (!md || types::is_zero_md(md)) {
         ss << data_type::undef << "::" << format_kind::undef << ":::";
         return ss.str();
@@ -529,7 +531,7 @@ std::string md2fmt_str(const memory_desc_t *md, format_kind_t user_format) {
 
 // Puts memory_desc information into stream without dimensions
 std::ostream &operator<<(std::ostream &ss, const memory_desc_t *md) {
-    ss << md2fmt_str(md, format_kind::undef);
+    assert(!"unexpected call to the operator<<");
     return ss;
 }
 
@@ -560,8 +562,7 @@ std::string md2dim_str(const memory_desc_t *md, dims_type_t dims_type) {
     return s;
 }
 
-// Returns string with descriptor style from memory_desc since there's an
-// operator<< for memory_desc.
+// Returns string with descriptor style from memory_desc.
 std::string md2desc_str(const memory_desc_t *md) {
     const auto dims = md->dims;
     std::string s;
@@ -831,10 +832,13 @@ std::string init_info_batch_normalization(const engine_t *e, const pd_t *pd) {
        << pd->desc()->prop_kind << ",";
 
     auto src_md = pd->src_md();
-    auto diff_src_md = pd->diff_src_md();
 
-    ss << "data_" << src_md;
-    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << md2fmt_str("data", src_md, pd->src_md(0, true)->format_kind);
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff", pd->diff_src_md(0),
+                      pd->diff_src_md(0, true)->format_kind);
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
@@ -853,9 +857,11 @@ std::string init_info_binary(const engine_t *e, const pd_t *pd) {
     auto src1_md = pd->invariant_src_md(1);
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src0_md, pd->invariant_src_user_format_kind(0));
-    ss << " src_" << md2fmt_str(src1_md, pd->invariant_src_user_format_kind(1));
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("src", src0_md, pd->invariant_src_user_format_kind(0))
+       << " ";
+    ss << md2fmt_str("src", src1_md, pd->invariant_src_user_format_kind(1))
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
@@ -872,12 +878,11 @@ std::string init_info_concat(const engine_t *e, const pd_t *pd) {
 
     for (int i = 0; i < pd->n_inputs(); ++i) {
         auto src_i_md = pd->invariant_src_md(i);
-        ss << "src_"
-           << md2fmt_str(src_i_md, pd->invariant_src_user_format_kind(i))
+        ss << md2fmt_str("src", src_i_md, pd->invariant_src_user_format_kind(i))
            << " ";
     }
     auto dst_md = pd->invariant_dst_md();
-    ss << "dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "axis:" << pd->desc()->concat_dimension << ",";
@@ -902,11 +907,12 @@ std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
     auto bia_md = pd->invariant_bia_md();
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " wei_" << md2fmt_str(wei_md, pd->invariant_wei_user_format_kind());
-    if (bia_md)
-        ss << " bia_"
-           << md2fmt_str(bia_md, pd->invariant_bia_user_format_kind());
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("wei", wei_md, pd->invariant_wei_user_format_kind())
+       << " ";
+    ss << md2fmt_str("bia", bia_md, pd->invariant_bia_user_format_kind())
+       << " ";
 
     // `has_fused_dw` modifies the convolution output in the following way:
     // * It provides additional src, wei and bia md to show their presence and
@@ -934,17 +940,16 @@ std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
         auto bia_fused_md
                 = pd->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
         // User-provided dst memory descriptor.
-        ss << " src_fused_"
-           << md2fmt_str(src_fused_md,
-                      pd->invariant_dst_user_format_kind(
-                              DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC));
+        ss << md2fmt_str("src_fused", src_fused_md,
+                pd->invariant_dst_user_format_kind(
+                        DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC))
+           << " ";
         // Not user-provided memory descriptors.
-        ss << " wei_fused_" << wei_fused_md;
-        ss << " bia_fused_" << bia_fused_md;
-        ss << " dst_" << dst_md;
+        ss << md2fmt_str("wei_fused", wei_fused_md, format_kind::undef) << " ";
+        ss << md2fmt_str("bia_fused", bia_fused_md, format_kind::undef) << " ";
+        ss << md2fmt_str("dst", dst_md, format_kind::undef);
     } else {
-        ss << " dst_"
-           << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+        ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
     }
 
     ss << "," << pd->attr() << ",";
@@ -979,11 +984,18 @@ std::string init_info_eltwise(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto data_md = pd->use_dst() ? pd->dst_md() : pd->src_md();
+    auto data_md = pd->use_dst() ? pd->dst_md(0) : pd->src_md(0);
+    auto user_data_format_kind = pd->use_dst()
+            ? pd->dst_md(0, true)->format_kind
+            : pd->src_md(0, true)->format_kind;
     auto diff_src_md = pd->diff_src_md();
 
-    ss << "data_" << data_md;
-    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << md2fmt_str("data", data_md, user_data_format_kind);
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff", diff_src_md,
+                      pd->invariant_src_user_format_kind(0));
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << " alpha:" << pd->desc()->alpha
@@ -1014,16 +1026,16 @@ std::string init_info_gemm(const engine_t *e, const pd_t *pd) {
         return mask;
     };
 
-    ss << "src_a_"
-       << md2fmt_str(src_a_md, pd->invariant_src_user_format_kind(0));
-    ss << " src_b_"
-       << md2fmt_str(src_b_md, pd->invariant_src_user_format_kind(1));
+    ss << md2fmt_str("src_a", src_a_md, pd->invariant_src_user_format_kind(0))
+       << " ";
+    ss << md2fmt_str("src_b", src_b_md, pd->invariant_src_user_format_kind(1))
+       << " ";
     if (pd->with_bias()) {
-        ss << " bia_"
-           << md2fmt_str(bia_md, pd->invariant_bia_user_format_kind());
+        ss << md2fmt_str("bia", bia_md, pd->invariant_bia_user_format_kind());
         ss << "_mask" << get_bia_mask();
+        ss << " ";
     }
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",,";
 
@@ -1040,12 +1052,15 @@ std::string init_info_group_normalization(const engine_t *e, const pd_t *pd) {
 
     auto src_md = pd->src_md();
     auto dst_md = pd->invariant_dst_md();
-    ss << "src_" << src_md;
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
-    if (!pd->is_fwd()) ss << " diff_src_" << pd->diff_src_md();
-    ss << ",";
+    ss << md2fmt_str("src", src_md, pd->src_md(0, true)->format_kind) << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff_src", pd->diff_src_md(0),
+                      pd->diff_src_md(0, true)->format_kind);
+    }
 
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
     ss << "g" << pd->desc()->groups << md2desc_str(src_md);
 
@@ -1063,12 +1078,13 @@ std::string init_info_inner_product(const engine_t *e, const pd_t *pd) {
     auto bia_md = pd->invariant_bia_md();
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " wei_" << md2fmt_str(wei_md, pd->invariant_wei_user_format_kind());
-    if (bia_md)
-        ss << " bia_"
-           << md2fmt_str(bia_md, pd->invariant_bia_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("wei", wei_md, pd->invariant_wei_user_format_kind())
+       << " ";
+    ss << md2fmt_str("bia", bia_md, pd->invariant_bia_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",,";
 
@@ -1088,21 +1104,41 @@ std::string init_info_layer_normalization(const engine_t *e, const pd_t *pd) {
     auto dst_md = pd->invariant_dst_md();
     auto stats_md = pd->is_fwd() && !pd->stats_are_src() ? pd->dst_md(1)
                                                          : pd->src_md(1);
+    auto user_stats_format_kind = pd->is_fwd() && !pd->stats_are_src()
+            ? pd->dst_md(1, true)->format_kind
+            : pd->src_md(1, true)->format_kind;
     auto scaleshift_md = pd->weights_md(0);
     auto diff_scaleshift_md = pd->diff_weights_md(0);
 
-    ss << "src_" << src_md;
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
-    if (stats_md) ss << " stats_" << stats_md;
-    if (pd->use_scale()) ss << " scale_" << scaleshift_md;
-    if (pd->use_shift()) ss << " shift_" << scaleshift_md;
-
-    if (!pd->is_fwd()) ss << " diff_src_" << pd->diff_src_md();
-
-    if (!pd->is_fwd() && pd->use_scale())
-        ss << " diff_scale_" << diff_scaleshift_md;
-    if (!pd->is_fwd() && pd->use_shift())
-        ss << " diff_shift_" << diff_scaleshift_md;
+    ss << md2fmt_str("src", src_md, pd->src_md(0, true)->format_kind) << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind())
+       << " ";
+    ss << md2fmt_str("stats", stats_md, user_stats_format_kind);
+    if (pd->use_scale()) {
+        ss << " "
+           << md2fmt_str("scale", scaleshift_md,
+                      pd->weights_md(0, true)->format_kind);
+    }
+    if (pd->use_shift()) {
+        ss << " "
+           << md2fmt_str("shift", scaleshift_md,
+                      pd->weights_md(0, true)->format_kind);
+    }
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff_src", pd->diff_src_md(0),
+                      pd->diff_src_md(0, true)->format_kind);
+    }
+    if (!pd->is_fwd() && pd->use_scale()) {
+        ss << " "
+           << md2fmt_str("diff_scale", diff_scaleshift_md,
+                      pd->diff_weights_md(0, true)->format_kind);
+    }
+    if (!pd->is_fwd() && pd->use_shift()) {
+        ss << " "
+           << md2fmt_str("diff_shift", diff_scaleshift_md,
+                      pd->diff_weights_md(0, true)->format_kind);
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
@@ -1120,8 +1156,12 @@ std::string init_info_lrn(const engine_t *e, const pd_t *pd) {
     auto data_md = pd->src_md();
     auto diff_src_md = pd->diff_src_md();
 
-    ss << "data_" << data_md;
-    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << md2fmt_str("data", data_md, pd->src_md(0, true)->format_kind);
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff", diff_src_md,
+                      pd->invariant_src_user_format_kind(0));
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
@@ -1136,7 +1176,6 @@ std::string mds2str_matmul(const memory_desc_t *src_md,
         format_kind_t wei_user_format_kind, const memory_desc_t *bia_md,
         format_kind_t bia_user_format_kind, const memory_desc_t *dst_md,
         format_kind_t dst_user_format_kind) {
-    std::string s;
     auto get_bia_mask = [&bia_md]() {
         auto bia_ndims = bia_md->ndims;
         auto bia_dims = bia_md->dims;
@@ -1148,14 +1187,17 @@ std::string mds2str_matmul(const memory_desc_t *src_md,
     };
 
     std::stringstream ss;
-    ss << "src_" << md2fmt_str(src_md, src_user_format_kind);
-    ss << " wei_" << md2fmt_str(wei_md, wei_user_format_kind);
+
+    ss << md2fmt_str("src", src_md, src_user_format_kind) << " ";
+    ss << md2fmt_str("wei", wei_md, wei_user_format_kind) << " ";
     if (!memory_desc_wrapper(bia_md).is_zero()) {
-        ss << " bia_" << md2fmt_str(bia_md, bia_user_format_kind);
+        ss << md2fmt_str("bia", bia_md, bia_user_format_kind);
         ss << "_mask" << get_bia_mask();
+        ss << " ";
     }
-    ss << " dst_" << md2fmt_str(dst_md, dst_user_format_kind);
-    s = ss.str();
+    ss << md2fmt_str("dst", dst_md, dst_user_format_kind);
+
+    std::string s = ss.str();
     return s;
 }
 
@@ -1200,9 +1242,12 @@ std::string init_info_pooling(const engine_t *e, const pd_t *pd) {
     auto dst_md = pd->invariant_dst_md();
     auto ws_md = pd->workspace_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
-    if (ws_md) ss << " ws_" << ws_md;
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
+    if (!memory_desc_wrapper(ws_md).is_zero()) {
+        ss << " " << md2fmt_str("ws", ws_md, format_kind::undef);
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
@@ -1231,10 +1276,18 @@ std::string init_info_prelu(const engine_t *e, const pd_t *pd) {
     auto diff_data_md = pd->diff_src_md(0);
     auto diff_wei_md = pd->diff_weights_md(0);
 
-    ss << "data_" << data_md;
-    ss << " wei_" << wei_md;
-    if (diff_data_md) ss << " diff_" << diff_data_md;
-    if (diff_wei_md) ss << " diff_wei_" << diff_wei_md;
+    ss << md2fmt_str("data", data_md, pd->src_md(0, true)->format_kind) << " ";
+    ss << md2fmt_str("wei", wei_md, pd->weights_md(0, true)->format_kind);
+    if (!memory_desc_wrapper(diff_data_md).is_zero()) {
+        ss << " "
+           << md2fmt_str("diff", diff_data_md,
+                      pd->diff_src_md(0, true)->format_kind);
+    }
+    if (!memory_desc_wrapper(diff_wei_md).is_zero()) {
+        ss << " "
+           << md2fmt_str("diff_wei", diff_wei_md,
+                      pd->diff_weights_md(0, true)->format_kind);
+    }
 
     ss << "," << pd->attr() << ",,";
     ss << md2dim_str(data_md) << ":" << md2dim_str(wei_md);
@@ -1251,8 +1304,9 @@ std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
     auto src_md = pd->invariant_src_md();
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << " p:" << pd->desc()->p
@@ -1266,8 +1320,9 @@ std::string mds2str_reorder(const memory_desc_t *src_md,
         format_kind_t src_user_format_kind, const memory_desc_t *dst_md,
         format_kind_t dst_user_format_kind) {
     std::string s;
-    s += "src_" + md2fmt_str(src_md, src_user_format_kind);
-    s += " dst_" + md2fmt_str(dst_md, dst_user_format_kind);
+    s += md2fmt_str("src", src_md, src_user_format_kind);
+    s += " ";
+    s += md2fmt_str("dst", dst_md, dst_user_format_kind);
     return s;
 }
 
@@ -1314,8 +1369,9 @@ std::string init_info_resampling(const engine_t *e, const pd_t *pd) {
     auto src_md = pd->invariant_src_md();
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
@@ -1335,75 +1391,80 @@ std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
        << pd->desc()->prop_kind << ",";
 
     // TODO: shorten the names to consume fewer characters on verbose output.
-    ss << "src_layer_"
-       << md2fmt_str(pd->src_md(0), pd->src_md(0, true)->format_kind);
+    ss << md2fmt_str(
+            "src_layer", pd->src_md(0), pd->src_md(0, true)->format_kind)
+       << " ";
     if (pd->with_src_iter())
-        ss << " src_iter_"
-           << md2fmt_str(pd->src_md(1), pd->src_md(1, true)->format_kind);
-    ss << " wei_layer_"
-       << md2fmt_str(pd->weights_md(0), pd->weights_md(0, true)->format_kind);
-    ss << " wei_iter_"
-       << md2fmt_str(pd->weights_md(1), pd->weights_md(1, true)->format_kind);
+        ss << md2fmt_str(
+                "src_iter", pd->src_md(1), pd->src_md(1, true)->format_kind)
+           << " ";
+    ss << md2fmt_str("wei_layer", pd->weights_md(0),
+            pd->weights_md(0, true)->format_kind)
+       << " ";
+    ss << md2fmt_str(
+            "wei_iter", pd->weights_md(1), pd->weights_md(1, true)->format_kind)
+       << " ";
     if (pd->is_lstm_peephole())
-        ss << " wei_peephole_"
-           << md2fmt_str(
-                      pd->weights_md(2), pd->weights_md(2, true)->format_kind);
+        ss << md2fmt_str("wei_peephole", pd->weights_md(2),
+                pd->weights_md(2, true)->format_kind)
+           << " ";
     // TODO: separate methods for aux weights?
     if (pd->is_lstm_projection()) {
         auto proj_idx = 2 + pd->is_lstm_peephole();
-        ss << " wei_proj_"
-           << md2fmt_str(pd->weights_md(proj_idx),
-                      pd->weights_md(proj_idx, true)->format_kind);
+        ss << md2fmt_str("wei_proj", pd->weights_md(proj_idx),
+                pd->weights_md(proj_idx, true)->format_kind)
+           << " ";
     }
     if (pd->with_bias()) {
         auto bias_idx = 2 + pd->is_lstm_peephole() + pd->is_lstm_projection();
-        ss << " bias_"
-           << md2fmt_str(pd->weights_md(bias_idx),
-                      pd->weights_md(bias_idx, true)->format_kind);
+        ss << md2fmt_str("bias", pd->weights_md(bias_idx),
+                pd->weights_md(bias_idx, true)->format_kind)
+           << " ";
     }
-    ss << " dst_layer_"
-       << md2fmt_str(pd->dst_md(0), pd->dst_md(0, true)->format_kind);
+    ss << md2fmt_str(
+            "dst_layer", pd->dst_md(0), pd->dst_md(0, true)->format_kind);
     if (pd->with_dst_iter())
-        ss << " dst_iter_"
-           << md2fmt_str(pd->dst_md(1), pd->dst_md(1, true)->format_kind);
+        ss << " "
+           << md2fmt_str("dst_iter", pd->dst_md(1),
+                      pd->dst_md(1, true)->format_kind);
 
     if (!pd->is_fwd()) {
-        ss << " diff_src_layer_"
-           << md2fmt_str(pd->diff_src_md(0),
-                      pd->diff_src_md(0, true)->format_kind);
+        ss << " ";
+        ss << md2fmt_str("diff_src_layer", pd->diff_src_md(0),
+                pd->diff_src_md(0, true)->format_kind)
+           << " ";
         if (pd->with_src_iter())
-            ss << " diff_src_iter_"
-               << md2fmt_str(pd->diff_src_md(1),
-                          pd->diff_src_md(1, true)->format_kind);
-        ss << " diff_wei_layer_"
-           << md2fmt_str(pd->diff_weights_md(0),
-                      pd->diff_weights_md(0, true)->format_kind);
-        ss << " diff_wei_iter_"
-           << md2fmt_str(pd->diff_weights_md(1),
-                      pd->diff_weights_md(1, true)->format_kind);
+            ss << md2fmt_str("diff_src_iter", pd->diff_src_md(1),
+                    pd->diff_src_md(1, true)->format_kind)
+               << " ";
+        ss << md2fmt_str("diff_wei_layer", pd->diff_weights_md(0),
+                pd->diff_weights_md(0, true)->format_kind)
+           << " ";
+        ss << md2fmt_str("diff_wei_iter", pd->diff_weights_md(1),
+                pd->diff_weights_md(1, true)->format_kind)
+           << " ";
         if (pd->is_lstm_peephole())
-            ss << " diff_wei_peephole_"
-               << md2fmt_str(pd->diff_weights_md(2),
-                          pd->diff_weights_md(2, true)->format_kind);
+            ss << md2fmt_str("diff_wei_peephole", pd->diff_weights_md(2),
+                    pd->diff_weights_md(2, true)->format_kind)
+               << " ";
         if (pd->is_lstm_projection()) {
             auto proj_idx = 2 + pd->is_lstm_peephole();
-            ss << " diff_wei_proj_"
-               << md2fmt_str(pd->weights_md(proj_idx),
-                          pd->weights_md(proj_idx, true)->format_kind);
+            ss << md2fmt_str("diff_wei_proj", pd->weights_md(proj_idx),
+                    pd->weights_md(proj_idx, true)->format_kind)
+               << " ";
         }
         if (pd->with_bias()) {
             auto bias_idx
                     = 2 + pd->is_lstm_peephole() + pd->is_lstm_projection();
-            ss << " diff_bias_"
-               << md2fmt_str(pd->weights_md(bias_idx),
-                          pd->weights_md(bias_idx, true)->format_kind);
+            ss << md2fmt_str("diff_bias", pd->weights_md(bias_idx),
+                    pd->weights_md(bias_idx, true)->format_kind)
+               << " ";
         }
-        ss << " diff_dst_layer_"
-           << md2fmt_str(pd->diff_dst_md(0),
-                      pd->diff_dst_md(0, true)->format_kind);
+        ss << md2fmt_str("diff_dst_layer", pd->diff_dst_md(0),
+                pd->diff_dst_md(0, true)->format_kind);
         if (pd->with_dst_iter())
-            ss << " diff_dst_iter_"
-               << md2fmt_str(pd->diff_dst_md(1),
+            ss << " "
+               << md2fmt_str("diff_dst_iter", pd->diff_dst_md(1),
                           pd->diff_dst_md(1, true)->format_kind);
     }
 
@@ -1428,7 +1489,7 @@ std::string init_info_shuffle(const engine_t *e, const pd_t *pd) {
 
     auto data_md = pd->invariant_src_md();
 
-    ss << "data_" << data_md;
+    ss << md2fmt_str("data", data_md, pd->invariant_src_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "axis:" << pd->axis() << " group:" << pd->group_size() << ",";
@@ -1447,9 +1508,13 @@ std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
     auto dst_md = pd->dst_md();
     auto diff_dst_md = pd->diff_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " dst_" << dst_md;
-    if (!types::is_zero_md(diff_dst_md)) ss << " diff_dst_" << diff_dst_md;
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->dst_md(0, true)->format_kind);
+    if (!types::is_zero_md(diff_dst_md)) {
+        ss << md2fmt_str(
+                "diff_dst", diff_dst_md, pd->diff_dst_md(0, true)->format_kind);
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->alg_kind() << " axis:" << pd->axis() << ",";
@@ -1466,12 +1531,11 @@ std::string init_info_sum(const engine_t *e, const pd_t *pd) {
 
     for (int i = 0; i < pd->n_inputs(); ++i) {
         auto src_i_md = pd->invariant_src_md(i);
-        ss << "src_"
-           << md2fmt_str(src_i_md, pd->invariant_src_user_format_kind(i))
+        ss << md2fmt_str("src", src_i_md, pd->invariant_src_user_format_kind(i))
            << " ";
     }
     auto dst_md = pd->invariant_dst_md();
-    ss << "dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",,";
     ss << md2dim_str(dst_md);

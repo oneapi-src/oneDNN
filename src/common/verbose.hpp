@@ -344,7 +344,8 @@ enum class dims_type_t {
     strides,
 };
 
-std::string md2fmt_str(const memory_desc_t *md, format_kind_t user_format);
+std::string md2fmt_str(
+        const char *name, const memory_desc_t *md, format_kind_t user_format);
 std::string md2dim_str(
         const memory_desc_t *md, dims_type_t dims_type = dims_type_t::dims);
 // Returns a verbose string of dimensions or descriptor from src, wei, and/or

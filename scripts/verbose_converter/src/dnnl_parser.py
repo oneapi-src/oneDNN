@@ -144,9 +144,25 @@ class LogParser:
                     fields = md.split(":")
                     idx = 0
 
-                    arg_dt = fields[idx]
-                    idx += 1
-                    arg, data_type = split_arg_dt(arg_dt)
+                    # if version >= 1:
+                    #     arg:dt:properties:format_kind:tag:strides:flags
+                    ##       ^
+                    # else:
+                    #     arg_dt:properties:format_kind:tag:strides:flags
+                    # (note) Legacy way could have collisions with `arg` and
+                    #   `dt` since `_` used as a delimiter and as a part of the
+                    #   name.
+                    arg = None
+                    data_type = None
+                    if int(version) >= 1:
+                        arg = fields[idx]
+                        idx += 1
+                        data_type = fields[idx]
+                        idx += 1
+                    else:
+                        arg_dt = fields[idx]
+                        idx += 1
+                        arg, data_type = split_arg_dt(arg_dt)
 
                     properties = fields[idx]
                     idx += 1
