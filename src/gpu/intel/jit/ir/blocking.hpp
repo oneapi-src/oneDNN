@@ -633,7 +633,8 @@ struct tiler_params_t {
 
 const tiler_params_t &tiler_params();
 
-// Helper class to compute the distance between two blocking schemes.
+// Helper class to compute the distance between tiles with sizes.
+//
 // During initialization the number of blocking dimensions might be
 // reduced for simplicity - e.g. for convolutions by converting them
 // to BMNK values typical for GEMM - then these dims are converted to
@@ -651,19 +652,19 @@ const tiler_params_t &tiler_params();
 //   L1(B1, B3) = L1(B3, B1) = 1 + 2 + 0 = 3
 //   L1(B2, B3) = L1(B3, B2) = 2 + 1 + 0 = 3
 //   L1(B1, B1) = L1(B2, B2) = L1(B3, B3) = 0
-class params_distance_t {
+class tile_to_vec_t {
 public:
-    params_distance_t() = default;
-    params_distance_t(const std::vector<blocking_params_t> &params_vec,
-            const std::function<prb_tile_t(const prb_tile_t &)> &convert);
+    tile_to_vec_t() = default;
+    tile_to_vec_t(const std::vector<std::vector<prb_tile_t>> &tiles,
+            const std::vector<int> &ids = {});
 
     float dist(int id0, int id1) const {
-        auto &d0 = dists_[id0];
-        auto &d1 = dists_[id1];
+        auto &v0 = vecs_[id0];
+        auto &v1 = vecs_[id1];
         float ret = 0;
         // Use L1 distance between coordinates.
-        for (int i = 0; i < (int)d0.size(); i++) {
-            ret += std::abs(d0[i] - d1[i]);
+        for (int i = 0; i < (int)v0.size(); i++) {
+            ret += std::abs(v0[i] - v1[i]);
         }
         return ret;
     }
@@ -733,7 +734,7 @@ private:
         std::array<indexed_dim_t, prb_dim_t::max_id()> dim_mappers_;
     };
 
-    std::vector<std::vector<int>> dists_;
+    std::vector<std::vector<int>> vecs_;
 };
 
 // Helper class to track performance data collected during tuning.

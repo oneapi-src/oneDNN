@@ -369,34 +369,36 @@ const tiler_params_t &tiler_params() {
     return params;
 }
 
-params_distance_t::params_distance_t(
-        const std::vector<blocking_params_t> &params_vec,
-        const std::function<prb_tile_t(const prb_tile_t &)> &convert) {
-    indexed_tile_t iter;
-    indexed_tile_t tg;
-    indexed_tile_t loop;
-    for (auto &p : params_vec) {
-        auto &b = p.blocking();
-        iter.add(convert(b.iter()));
-        tg.add(convert(b.thread_group()));
-        loop.add(convert(b.loop()));
+tile_to_vec_t::tile_to_vec_t(const std::vector<std::vector<prb_tile_t>> &tiles,
+        const std::vector<int> &_ids) {
+    if (tiles.empty()) return;
+    int ntiles = (int)tiles.size();
+    int nsubtiles = (int)tiles[0].size();
+    std::vector<indexed_tile_t> indexed_tiles(nsubtiles);
+    std::vector<int> ids = _ids;
+    if (ids.empty()) {
+        ids.resize(ntiles);
+        std::iota(ids.begin(), ids.end(), 0);
     }
-    iter.finalize();
-    tg.finalize();
-    loop.finalize();
+    ir_assert(ids.size() == tiles.size());
+    int max_id = 0;
+    for (int i = 0; i < ntiles; i++) {
+        for (int j = 0; j < nsubtiles; j++) {
+            indexed_tiles[j].add(tiles[i][j]);
+        }
+        max_id = std::max(max_id, ids[i]);
+    }
+    for (auto &it : indexed_tiles)
+        it.finalize();
 
-    std::vector<std::vector<int>> ret;
-    for (auto &p : params_vec) {
-        auto &b = p.blocking();
-        auto v0 = iter.to_index(convert(b.iter()));
-        auto v1 = tg.to_index(convert(b.thread_group()));
-        auto v2 = loop.to_index(convert(b.loop()));
+    vecs_.resize(max_id + 1);
+    for (int i = 0; i < ntiles; i++) {
         std::vector<int> v;
-        v.insert(v.end(), v0.begin(), v0.end());
-        v.insert(v.end(), v1.begin(), v1.end());
-        v.insert(v.end(), v2.begin(), v2.end());
-        if (p.id() >= int(dists_.size())) dists_.resize(p.id() + 1);
-        dists_[p.id()] = std::move(v);
+        for (int j = 0; j < nsubtiles; j++) {
+            auto vi = indexed_tiles[j].to_index(tiles[i][j]);
+            v.insert(v.end(), vi.begin(), vi.end());
+        }
+        vecs_[ids[i]] = std::move(v);
     }
 }
 
