@@ -174,6 +174,9 @@ struct attr_info_t {
         attr_info.with_src_zpoints = !zp.has_default_values(DNNL_ARG_SRC);
         attr_info.with_wei_zpoints = !zp.has_default_values(DNNL_ARG_WEIGHTS);
         attr_info.with_dst_zpoints = !zp.has_default_values(DNNL_ARG_DST);
+        attr_info.src_zpoints_data_type = zp.get_data_type(DNNL_ARG_SRC);
+        attr_info.wei_zpoints_data_type = zp.get_data_type(DNNL_ARG_WEIGHTS);
+        attr_info.dst_zpoints_data_type = zp.get_data_type(DNNL_ARG_DST);
 
         attr_info.with_per_ic_src_zpoints = attr_info.with_src_zpoints
                 && !zp.defined(DNNL_ARG_SRC) && !zp.common(DNNL_ARG_SRC);
@@ -219,6 +222,9 @@ struct attr_info_t {
     bool with_dst_zpoints;
     bool with_per_ic_src_zpoints;
     bool with_per_oc_dst_zpoints;
+    data_type_t src_zpoints_data_type;
+    data_type_t wei_zpoints_data_type;
+    data_type_t dst_zpoints_data_type;
 };
 
 template <size_t ndims>
@@ -1441,6 +1447,10 @@ inline status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
             "WITH_SRC_ZPOINTS_PER_IC", attr_info.with_per_ic_src_zpoints);
     kernel_ctx.define_int(
             "WITH_DST_ZPOINTS_PER_OC", attr_info.with_per_oc_dst_zpoints);
+    kernel_ctx.define_int("WITH_WEI_ZPOINTS_DT_S8",
+            attr_info.wei_zpoints_data_type == dnnl_s8);
+    kernel_ctx.define_int("WITH_WEI_ZPOINTS_DT_U8",
+            attr_info.wei_zpoints_data_type == dnnl_u8);
 
     def_binary_alg_kinds(kernel_ctx);
     def_eltwise_alg_kinds(kernel_ctx);

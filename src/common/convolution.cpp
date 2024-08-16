@@ -168,8 +168,9 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
                     || utils::one_of(dst_dt, data_type::s8, data_type::u8,
                             data_type::s32);
         if (is_int8)
-            fwd_attr_mask
-                    |= smask_t::scales_runtime | smask_t::zero_points_runtime;
+            fwd_attr_mask |= smask_t::scales_runtime
+                    | smask_t::zero_points_runtime
+                    | smask_t::zero_points_runtime_data_type;
 
         VCHECK_CONV_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
                 VERBOSE_UNSUPPORTED_ATTR);
@@ -196,7 +197,7 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
             zp.get(DNNL_ARG_DST, &mask_dst);
 
             VCHECK_CONV_UNIMPL((mask_src == 0 || mask_src == 1 << 1)
-                            && (mask_wei == 0 || mask_wei == 1 << 1)
+                            && (mask_wei == 0)
                             && (mask_dst == 0 || mask_dst == 1 << 1),
                     VERBOSE_UNSUPPORTED_ZP_CFG);
         }

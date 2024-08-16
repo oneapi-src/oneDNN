@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,10 @@ protected:
     bool zero_points_ok(const primitive_attr_t *attr) const {
         using namespace data_type;
         const auto src_type = invariant_src_md()->data_type;
-        int mask_src = 0, mask_dst = 0;
+        int mask_wei = 0, mask_src = 0, mask_dst = 0;
+        if (attr->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei)
+                != status::success)
+            return false;
         if (attr->zero_points_.get(DNNL_ARG_SRC, &mask_src) != status::success)
             return false;
         if (attr->zero_points_.get(DNNL_ARG_DST, &mask_dst) != status::success)
@@ -45,8 +48,7 @@ protected:
 
         return IMPLICATION(!utils::one_of(src_type, s8, u8),
                        attr->zero_points_.has_default_values())
-                && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                && (mask_src == 0 || mask_src == 1 << 1)
+                && (mask_wei == 0) && (mask_src == 0 || mask_src == 1 << 1)
                 && (mask_dst == 0 || mask_dst == 1 << 1);
     }
 };

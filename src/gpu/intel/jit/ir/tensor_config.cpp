@@ -26,14 +26,15 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
         const primitive_attr_t &attr, const memory_desc_t *zp_src,
         const memory_desc_t &dst_md, dim_t ic, dim_t oc,
         tensor_config_t &tensor_cfg) {
-    auto add_zp_buffer = [&](const std::string &name, int arg_id, dim_t size) {
-        layout_t zp_layout(type_t::s32(), 0, std::vector<dim_t> {size});
+    auto add_zp_buffer = [&](const std::string &name, type_t type, int arg_id,
+                                 dim_t size) {
+        layout_t zp_layout(type, 0, std::vector<dim_t> {size});
         tensor_cfg.add_tensor(name, DNNL_ARG_ATTR_ZERO_POINTS | arg_id,
                 /*is_input=*/true, /*is_output=*/false, zp_layout);
     };
     if (zp_cfg.do_src_compensation && zp_cfg.is_runtime_src_zero_points) {
         if (!zp_cfg.needs_src_precalc) {
-            add_zp_buffer("src_zero_points", DNNL_ARG_SRC,
+            add_zp_buffer("src_zero_points", zp_cfg.src_zp_type, DNNL_ARG_SRC,
                     (zp_cfg.is_common_src_zero_point) ? 1 : ic);
         } else {
             ir_assert(zp_src);
@@ -43,11 +44,12 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
         }
     }
     if (zp_cfg.do_wei_compensation && zp_cfg.is_runtime_wei_zero_points) {
-        add_zp_buffer("wei_zero_points", DNNL_ARG_WEIGHTS,
-                (zp_cfg.is_common_wei_zero_point) ? 1 : ic);
+        ir_assert(zp_cfg.is_common_wei_zero_point);
+        add_zp_buffer(
+                "wei_zero_points", zp_cfg.wei_zp_type, DNNL_ARG_WEIGHTS, 1);
     }
     if (zp_cfg.do_dst_compensation && zp_cfg.is_runtime_dst_zero_points) {
-        add_zp_buffer("dst_zero_points", DNNL_ARG_DST, oc);
+        add_zp_buffer("dst_zero_points", zp_cfg.dst_zp_type, DNNL_ARG_DST, oc);
     }
     auto scale_args = get_scale_args();
     for (int i = 0; i < (int)scale_args.size(); i++) {
