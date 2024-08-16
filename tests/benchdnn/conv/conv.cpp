@@ -150,6 +150,13 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     int src_zp = kind == SRC && has_src_zp && src_zp_mask == 0 ? e_zp_src.value
                                                                : 0;
 
+    const auto &e_zp_wei = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS);
+    const bool has_wei_zp = !e_zp_wei.is_def();
+    const int wei_zp_mask = attr_t::get_default_mask(e_zp_wei.policy);
+    // Apply wei_zp for weights tensor only.
+    int wei_zp = kind == WEI && has_wei_zp && wei_zp_mask == 0 ? e_zp_wei.value
+                                                               : 0;
+
     /* Do fixed partitioning to have same filling for any number of threads */
     const int64_t chunk_size = 64;
     const int64_t n_chunks = div_up(nelems, chunk_size);
@@ -176,7 +183,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
             while (gen_val <= 0)
                 gen_val = gen(int_seed);
             float val = gen_val * (1.f + is_s8s8);
-            val += src_zp; // Add zp so that it will be subtracted.
+            val += src_zp + wei_zp; // Add zp so that it will be subtracted.
             mem_fp.set_elem(
                     0, round_to_nearest_representable(cfg.get_dt(kind), val));
             idx_start += 1;
@@ -186,7 +193,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
             bool is_one = density == 1.f ? true : b_dist(b_seed);
             float gen_val = gen(int_seed) * (1.f + is_s8s8);
             float val = is_one * gen_val;
-            val += src_zp; // Add zp so that it will be subtracted.
+            val += src_zp + wei_zp; // Add zp so that it will be subtracted.
             mem_fp.set_elem(
                     idx, round_to_nearest_representable(cfg.get_dt(kind), val));
         }
@@ -375,8 +382,10 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
                 = prb->get_dt(WEI) == dnnl_s8 || prb->get_dt(WEI) == dnnl_u8;
         const bool is_f16_dst = prb->get_dt(DST) == dnnl_f16;
         const bool is_x8x8f16 = is_int8_src && is_int8_wei && is_f16_dst;
+        const bool is_wei_zp = !prb->attr.zero_points.is_def(DNNL_ARG_WEIGHTS);
 
-        if (is_f32f32x8 || is_bf16bf16x8 || is_x8x8f16 || !is_valid_f16) {
+        if (is_f32f32x8 || is_bf16bf16x8 || is_x8x8f16 || !is_valid_f16
+                || is_wei_zp) {
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;

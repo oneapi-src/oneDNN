@@ -320,12 +320,13 @@ public:
         auto data_size = data_type_.size();
         auto dpas_size = dpas_type(data_type_).size();
         auto sdepth_size = simd_ * dpas_size;
-        auto wei_load = -load_t::make(type_t::s(data_size * 8), wei_buf, 0);
-        stmt_t stmt = store_t::make(dpas_buf, 0, wei_load);
+        ir_assert(zp_layout_.type().is_s8());
+        auto wei_load = -load_t::make(zp_layout_.type(), wei_buf, 0);
+        stmt_t stmt = store_t::make(wei_buf, 0, wei_load);
         int size = dpas_size / data_size;
         if (size > 1) {
             wei_load = shuffle_t::make_broadcast(
-                    load_t::make(data_type_, dpas_buf, 0), size);
+                    load_t::make(data_type_, wei_buf, 0), size);
             stmt = stmt.append(store_t::make(dpas_buf, 0,
                     cast_t::make(data_type_.with_elems(size), wei_load)));
         }
@@ -344,7 +345,8 @@ public:
         }
         tensor_t tile(tile_dim);
         ir_assert(tile.elems() % sdepth_size == 0);
-        wei_load = simd_bcast(load_t::make(dpas_type(data_type_), dpas_buf, 0));
+        wei_load = simd_bcast(load_t::make(
+                dpas_type(data_type_), (size > 1) ? dpas_buf : wei_buf, 0));
         b_layout_.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
             auto off = b_layout_.offset_in_bytes(start);
             auto mask = (small_ic) ? kw_var < simd_bcast(kw - start[kw_idx])
@@ -462,10 +464,10 @@ public:
         bool small_ic = is_small(wei_layout_.type(), ic);
         int kw_idx = 5; // TODO: support non-forward kw!
 
-        auto load_mul = binary_op_t::make(op_kind_t::_min,
-                binary_op_t::make(op_kind_t::_max,
-                        simd_bcast(ic_var) - simd_bcast(ic),
-                        simd_bcast(-wei_layout_.dim(ck_idx_))),
+        auto load_mul = binary_op_t::make(op_kind_t::_max,
+                binary_op_t::make(op_kind_t::_min,
+                        simd_bcast(-ic_var) + simd_bcast(ic),
+                        simd_bcast(wei_layout_.dim(ck_idx_))),
                 simd_bcast(0));
         auto load_wei = simd_bcast(load_t::make(
                 type_t::s16(), (src_buf.is_empty()) ? comp_buf : src_buf, 0));

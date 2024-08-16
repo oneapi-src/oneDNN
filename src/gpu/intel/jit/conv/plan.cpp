@@ -2468,11 +2468,12 @@ private:
             zp_ic_dim = b_tile(ic_idx);
         }
 
-        layout_t zp_layout(type_t::s32(), zp_off,
+        layout_t zp_layout(cfg_.zp_cfg().src_zp_type, zp_off,
                 std::vector<dim_t> {zp_g_dim, zp_ic_dim});
         view_t zp_view(zp_layout);
         // TODO: support non-scalar wei layouts
-        layout_t zp_wei_layout(type_t::s32(), 0, std::vector<dim_t> {1, 1});
+        layout_t zp_wei_layout(
+                cfg_.zp_cfg().wei_zp_type, 0, std::vector<dim_t> {1, 1});
         view_t zp_wei_view(zp_wei_layout);
 
         plan.init(cfg_, gemm_schedule_, zp_view, zp_wei_view, x2r.a_layout,

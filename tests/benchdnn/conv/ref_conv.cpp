@@ -71,6 +71,8 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
     const int64_t DH = prb->dh + 1;
     const int64_t DW = prb->dw + 1;
 
+    int wei_zp = (has_wei_zp && (wei_zp_mask == 0)) ? wei_zps.get_elem(0) : 0;
+
     auto ker = [&](float &d, int64_t g, int64_t mb, int64_t oc, int64_t od,
                        int64_t oh, int64_t ow) {
         const float *__restrict src_loc
@@ -93,9 +95,6 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
                         int64_t wei_off = ((ic * KD + kd) * KH + kh) * KW + kw;
                         int src_zp = has_src_zp ? src_zps.get_elem(
                                              src_zp_mask > 0 ? g * ICG + ic : 0)
-                                                : 0;
-                        int wei_zp = has_wei_zp ? wei_zps.get_elem(
-                                             wei_zp_mask > 0 ? g * ICG + ic : 0)
                                                 : 0;
                         const float s = src_loc[src_off];
                         const float w = wei_loc[wei_off];
@@ -194,6 +193,8 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
     const int64_t DH = prb->dh + 1;
     const int64_t DW = prb->dw + 1;
 
+    int wei_zp = (has_wei_zp && (wei_zp_mask == 0)) ? wei_zps.get_elem(0) : 0;
+
     enum { precompute_size = 16 };
     const bool fast = MAX3(KD, KH, KW) <= precompute_size;
 
@@ -239,9 +240,6 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
             int src_zp = has_src_zp
                     ? src_zps.get_elem(src_zp_mask > 0 ? g * OCG + oc : 0)
                     : 0;
-            int wei_zp = has_wei_zp
-                    ? wei_zps.get_elem(wei_zp_mask > 0 ? g * OCG + oc : 0)
-                    : 0;
             float diff_dst_val
                     = (diff_dst_loc[diff_dst_off] - src_zp) * src_scale;
 
@@ -280,9 +278,6 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
                                 = ((oc * ICG * KD + kd) * KH + kh) * KW + kw;
                         int src_zp = has_src_zp ? src_zps.get_elem(
                                              src_zp_mask > 0 ? g * OCG + oc : 0)
-                                                : 0;
-                        int wei_zp = has_wei_zp ? wei_zps.get_elem(
-                                             wei_zp_mask > 0 ? g * OCG + oc : 0)
                                                 : 0;
                         float diff_dst_val
                                 = (diff_dst_loc[diff_dst_off] - src_zp)

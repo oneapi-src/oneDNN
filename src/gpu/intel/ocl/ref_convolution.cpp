@@ -187,6 +187,8 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &dst_scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
     auto &src_zpoints
             = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
+    auto &wei_zpoints
+            = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
     auto &dst_zpoints
             = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
 
@@ -207,6 +209,11 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     if (conf.attr_info.with_src_zpoints)
         arg_list.set(arg_idx++, src_zpoints);
+    else
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
+
+    if (conf.attr_info.with_wei_zpoints)
+        arg_list.set(arg_idx++, wei_zpoints);
     else
         arg_list.set(arg_idx++, memory_storage_t::empty_storage());
 
@@ -246,6 +253,8 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     auto &dst_scales = CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
     auto &src_zpoints
             = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
+    auto &wei_zpoints
+            = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
     auto &dst_zpoints
             = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
 
@@ -266,6 +275,11 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
 
     if (conf.attr_info.with_src_zpoints)
         arg_list.set(arg_idx++, src_zpoints);
+    else
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
+
+    if (conf.attr_info.with_wei_zpoints)
+        arg_list.set(arg_idx++, wei_zpoints);
     else
         arg_list.set(arg_idx++, memory_storage_t::empty_storage());
 
