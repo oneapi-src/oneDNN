@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017 - 2023 Intel Corporation
+* Copyright 2017 - 2024 Intel Corporation
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -1279,6 +1279,9 @@ template struct jit_uni_pooling_fwd_t<avx512_core, data_type::bf16>;
 template struct jit_uni_pooling_bwd_t<avx512_core, data_type::bf16>;
 template struct jit_uni_pooling_fwd_t<avx512_core_fp16, data_type::f16>;
 template struct jit_uni_pooling_bwd_t<avx512_core_fp16, data_type::f16>;
+
+template struct jit_uni_pooling_fwd_t<avx512_core_fp16, data_type::f8_e5m2>;
+template struct jit_uni_pooling_fwd_t<avx512_core_fp16, data_type::f8_e4m3>;
 
 } // namespace x64
 } // namespace cpu

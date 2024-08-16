@@ -21,6 +21,7 @@
 
 #include "cpu/cpu_pooling_pd.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
 #include "cpu/x64/jit_uni_pool_kernel.hpp"
 
 namespace dnnl {
@@ -50,6 +51,36 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
                 bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
                 bf16_emu_reserv_4, bf16_emu_reserv_5);
 
+    bool has_f8_e5m2_binary_postops = false;
+    bool has_f8_e4m3_binary_postops = false;
+    if (jpp.with_binary) {
+        const auto &post_ops = jpp.post_ops;
+        for (int i = 0; i < post_ops.len(); i++) {
+            const auto &entry = post_ops.entry_[i];
+            if (!entry.is_binary()) continue;
+            has_f8_e5m2_binary_postops
+                    = entry.binary.src1_desc.data_type == data_type::f8_e5m2
+                    || has_f8_e5m2_binary_postops;
+            has_f8_e4m3_binary_postops
+                    = entry.binary.src1_desc.data_type == data_type::f8_e4m3
+                    || has_f8_e4m3_binary_postops;
+        }
+    }
+
+    if (use_fp8_emulation() || has_f8_e5m2_binary_postops
+            || has_f8_e4m3_binary_postops) {
+        if (utils::one_of(data_type::f8_e5m2, ajpp.src_dt, ajpp.dst_dt)
+                || has_f8_e5m2_binary_postops)
+            f8_e5m2_emu_ = utils::make_unique<fp8_emulation_e5m2_t>(this,
+                    fp8_emu_reserv_1, fp8_emu_reserv_2, fp8_emu_reserv_3,
+                    fp8_tmp_mask, fp8_emu_reg64);
+        if (utils::one_of(data_type::f8_e4m3, ajpp.src_dt, ajpp.dst_dt)
+                || has_f8_e4m3_binary_postops)
+            f8_e4m3_emu_ = utils::make_unique<fp8_emulation_e4m3_t>(this,
+                    fp8_emu_reserv_1, fp8_emu_reserv_2, fp8_emu_reserv_3,
+                    fp8_emu_reserv_4, fp8_emu_reserv_5, fp8_emu_reg64);
+    }
+
     if (jpp.with_postops) {
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = true;
@@ -70,8 +101,9 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
                                 : *dst_md),
                 postop_tail, k_c_tail_mask, use_exact_tail_scalar_bcast};
 
-        const binary_injector::static_params_t bsp {
-                reg_param, get_supported_bcast_strategies(), rhs_sp};
+        const binary_injector::static_params_t bsp {reg_param,
+                get_supported_bcast_strategies(), rhs_sp, f8_e5m2_emu_.get(),
+                f8_e4m3_emu_.get()};
 
         postops_injector_
                 = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
@@ -134,12 +166,22 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.c_block = is_avx512 ? 16 : 8;
 
     jpp.alg = pd.alg_kind;
+
+    jpp.src_dt = jpp.is_backward ? pd.diff_src_desc.data_type
+                                 : pd.src_desc.data_type;
+    jpp.dst_dt = jpp.is_backward ? pd.diff_dst_desc.data_type
+                                 : pd.dst_desc.data_type;
+
     jpp.tmp_md = memory_desc_t();
 
     jpp.is_bf16 = (src_d.data_type() == data_type::bf16
             && dst_d.data_type() == data_type::bf16);
     jpp.is_f16 = (src_d.data_type() == data_type::f16
             && dst_d.data_type() == data_type::f16);
+    jpp.is_fp8 = utils::one_of(src_d.data_type(), data_type::f8_e5m2,
+                         data_type::f8_e4m3)
+            && utils::one_of(
+                    dst_d.data_type(), data_type::f8_e5m2, data_type::f8_e4m3);
 
     using namespace format_tag;
 
@@ -161,7 +203,8 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
             && ((jpp.ih > 1 && jpp.iw > 1
                         && block_size <= L3_cache_size_per_core)
                     || utils::one_of(src_d.data_type(), data_type::bf16,
-                            data_type::f16));
+                            data_type::f16, data_type::f8_e5m2,
+                            data_type::f8_e4m3));
 
     const bool backward_ncsp_allowed = jpp.is_backward
             && ((jpp.ih > 1 && jpp.iw > 1 && jpp.c_without_padding > 1
@@ -194,6 +237,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
         // plain output
         jpp.is_bf16 = false;
         jpp.is_f16 = false;
+        jpp.is_fp8 = false;
         jpp.dt_size = types::data_type_size(data_type::f32);
         jpp.tag_kind = jit_memory_tag_kind_t::ncsp;
 
@@ -203,10 +247,6 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                     data_type::f32, blocked_fmt_tag));
         }
     } else {
-        jpp.is_bf16 = (src_d.data_type() == data_type::bf16
-                && dst_d.data_type() == data_type::bf16);
-        jpp.is_f16 = (src_d.data_type() == data_type::f16
-                && dst_d.data_type() == data_type::f16);
         jpp.dt_size = types::data_type_size(src_d.data_type());
         jpp.tag_kind = (fmt_tag == nspc_fmt_tag)
                 ? jit_memory_tag_kind_t::nspc
@@ -219,8 +259,10 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                                                             : dst_d.md_));
     }
 
-    jpp.isa = (jpp.is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16
-                                                         : isa;
+    jpp.isa = (jpp.is_bf16 && mayiuse(avx512_core_bf16))
+            ? avx512_core_bf16
+            : ((jpp.is_fp8 && mayiuse(avx512_core_fp16)) ? avx512_core_fp16
+                                                         : isa);
 
     if (!mayiuse(isa)) return status::unimplemented;
 
@@ -233,6 +275,9 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     VDISPATCH_POOLING_IC(
             IMPLICATION(jpp.is_f16,
                     utils::one_of(jpp.isa, avx512_core_fp16, avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_POOLING_IC(
+            IMPLICATION(jpp.is_fp8, utils::one_of(jpp.isa, avx512_core_fp16)),
             VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_POOLING_IC(
             utils::one_of(pd.alg_kind, pooling_max, pooling_avg_include_padding,
@@ -313,6 +358,12 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                 ? jpp.ur - 4 // Free registers for AVX512 emulation
                 : jpp.ur - 1; // Free register for cvt from bf16/f16 to f32
     }
+
+    if (jpp.is_fp8) {
+        // TODO: Optimize the ur if native FP8 support is available
+        jpp.ur = jpp.ur - 4;
+    }
+    assert(jpp.ur > 0);
 
     // select jpp.ur_bc
     if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
@@ -449,6 +500,14 @@ inline void jit_uni_pool_kernel<isa>::load(const int idx,
                 ? Vmm(idx) | k_c_tail_mask | T_z
                 : Vmm(idx);
         vcvtph2psx(vmm_to_load, ptr[reg_ptr + offset]);
+    } else if (jpp.is_fp8) {
+        Vmm vmm_to_load = is_c_tail_proccessing && !jpp.is_c_padded
+                ? Vmm(idx) | k_c_tail_mask | T_z
+                : Vmm(idx);
+        if (jpp.src_dt == data_type::f8_e5m2)
+            f8_e5m2_emu_->vcvt_f8_to_f32(vmm_to_load, ptr[reg_ptr + offset]);
+        else if (jpp.src_dt == data_type::f8_e4m3)
+            f8_e4m3_emu_->vcvt_f8_to_f32(vmm_to_load, ptr[reg_ptr + offset]);
     } else {
         if (is_c_tail_proccessing && !jpp.is_c_padded) {
             if (isa == avx || isa == avx2) {
@@ -514,6 +573,15 @@ inline void jit_uni_pool_kernel<isa>::store(const int idx,
                 vmovdqu16(ptr[reg_ptr + offset] | k_c_tail_mask, Ymm(idx));
         } else
             vmovups(yword[reg_ptr + offset], Ymm(idx));
+    } else if (jpp.is_fp8) {
+        if (is_c_tail_proccessing) {
+            if (jpp.is_c_padded) {
+                vmovdqu8(Xmm(idx) | k_c_tail_mask | T_z, Xmm(idx));
+                vmovdqu8(yword[reg_ptr + offset], Xmm(idx));
+            } else
+                vmovdqu8(ptr[reg_ptr + offset] | k_c_tail_mask, Xmm(idx));
+        } else
+            vmovdqu8(yword[reg_ptr + offset], Xmm(idx));
     } else {
         if (is_c_tail_proccessing) {
             if (!jpp.is_c_padded) {
@@ -616,7 +684,11 @@ bool jit_uni_pool_kernel<isa>::post_ops_ok(jit_pool_conf_t &jpp,
                 const bool is_f16_ok = IMPLICATION(
                         entry.binary.src1_desc.data_type == data_type::f16,
                         utils::one_of(isa, avx512_core_fp16, avx2_vnni_2));
-                if (!(is_bf16_ok && is_f16_ok)) return false;
+                const bool is_fp8_ok = IMPLICATION(
+                        utils::one_of(entry.binary.src1_desc.data_type,
+                                data_type::f8_e5m2, data_type::f8_e4m3),
+                        utils::one_of(isa, avx512_core_fp16));
+                if (!(is_bf16_ok && is_f16_ok && is_fp8_ok)) return false;
 
                 jpp.with_binary = true;
             } else
@@ -790,11 +862,18 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
                             vcvtneps2bf16(inpyr, inpvr);
                     } else if (jpp.is_f16) {
                         vcvtps2ph(inpyr, inpvr, _op_mxcsr);
+                    } else if (jpp.is_fp8) {
+                        auto inpxr = xreg(inpr_i);
+                        if (jpp.src_dt == data_type::f8_e5m2)
+                            f8_e5m2_emu_->vcvt_f32_to_f8(inpxr, zreg(inpr_i));
+                        else if (jpp.src_dt == data_type::f8_e4m3)
+                            f8_e4m3_emu_->vcvt_f32_to_f8(inpxr, zreg(inpr_i));
                     }
                     store(reg_idx(inpr_i), aux_reg_input, input_offset,
                             is_tail_processing(bci));
                 } else {
-                    if (jpp.is_bf16 || jpp.is_f16 || is_tail_processing(bci)
+                    if (jpp.is_bf16 || jpp.is_f16 || jpp.is_fp8
+                            || is_tail_processing(bci)
                             || (isa == sse41
                                     && c_off % (jpp.c_block / 2) != 0)) {
                         load(vmm_tmp_1.getIdx(), aux_reg_input, input_offset,
@@ -861,6 +940,12 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
                         vcvtps2ph(accxr, accyr, _op_mxcsr);
                     } else
                         vcvtps2ph(accyr, accvr, _op_mxcsr);
+                } else if (jpp.is_fp8) {
+                    const auto accxr = xreg(accr_i);
+                    if (jpp.src_dt == data_type::f8_e5m2)
+                        f8_e5m2_emu_->vcvt_f32_to_f8(accxr, accvr);
+                    else if (jpp.src_dt == data_type::f8_e4m3)
+                        f8_e4m3_emu_->vcvt_f32_to_f8(accxr, accvr);
                 }
                 store(reg_idx(accr_i), reg_output, output_offset,
                         is_tail_processing(bci));
@@ -1028,6 +1113,13 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
                 vcvtps2ph(accxr, accyr, _op_mxcsr);
             } else
                 vcvtps2ph(accyr, accvr, _op_mxcsr);
+        } else if (jpp.is_fp8) {
+            auto accxr = xreg(accr_i);
+            auto acczr = zreg(accr_i);
+            if (jpp.src_dt == data_type::f8_e5m2)
+                f8_e5m2_emu_->vcvt_f32_to_f8(accxr, acczr);
+            else if (jpp.src_dt == data_type::f8_e4m3)
+                f8_e4m3_emu_->vcvt_f32_to_f8(accxr, acczr);
         }
         store(reg_idx(accr_i), reg_output, output_offset,
                 is_tail_processing(bci));
@@ -1640,6 +1732,8 @@ void jit_uni_pool_kernel<isa>::generate() {
         for (size_t i = 0; i < sizeof(_idx) / sizeof(_idx[0]); ++i)
             dw(_idx[i]);
     }
+    if (f8_e5m2_emu_) f8_e5m2_emu_->prepare_table();
+    if (f8_e4m3_emu_) f8_e4m3_emu_->prepare_table();
 }
 
 template struct jit_uni_pool_kernel<sse41>;

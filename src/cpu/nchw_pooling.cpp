@@ -752,6 +752,8 @@ template struct nchw_pooling_bwd_t<data_type::f32>;
 template struct nchw_pooling_fwd_t<data_type::bf16>;
 template struct nchw_pooling_bwd_t<data_type::bf16>;
 template struct nchw_pooling_fwd_t<data_type::f16>;
+template struct nchw_pooling_fwd_t<data_type::f8_e5m2>;
+template struct nchw_pooling_fwd_t<data_type::f8_e4m3>;
 template struct nchw_pooling_bwd_t<data_type::f16>;
 } // namespace cpu
 } // namespace impl
