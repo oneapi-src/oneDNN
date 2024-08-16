@@ -52,9 +52,11 @@ cpu_isa_t get_io_isa(cpu_isa_t isa, bool has_f16, bool has_bf16) {
 }
 
 const bcast_set_t &get_supported_bcast_strategies() {
-    static const bcast_set_t set {
-            broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc};
-    return set;
+    // Group norm processes a single group of channels so far. Because of that,
+    // the offset per channel must be passed to the kernel but current binary po
+    // logic prevents doing it in scalable way. Keeping only `common` for now.
+    static const bcast_set_t set_group_norm {broadcasting_strategy_t::scalar};
+    return set_group_norm;
 }
 
 template <cpu_isa_t isa>
@@ -67,11 +69,11 @@ struct kernel_t : public jit_uni_group_normalization_fwd_t::kernel_base_t,
         , jit_generator(jit_name(), isa)
         , src_d_(pd->src_md())
         , dst_d_(pd->dst_md())
-        , C_(pd->src_md()->dims[1])
+        , C_(pd->C())
         , C_PER_G_(pd->C() / pd->G())
         , simd_w_(vlen / sizeof(float))
-        , axis_simd_full_(C_ / simd_w_)
-        , axis_simd_tail_(C_ % simd_w_)
+        , axis_simd_full_(C_PER_G_ / simd_w_)
+        , axis_simd_tail_(C_PER_G_ % simd_w_)
         , use_scale_(pd->use_scale())
         , use_shift_(pd->use_shift())
         , eps_(pd->desc()->group_norm_epsilon) {
@@ -100,6 +102,14 @@ struct kernel_t : public jit_uni_group_normalization_fwd_t::kernel_base_t,
                 {src_d_.data_type(), dst_d_.data_type(), f32 /* stats */},
                 io_conf, io_tail_conf, io_bf16_conf,
                 {{dst_d_.data_type(), io_saturation_conf}});
+
+        VDEBUGINFO(1, primitive, group_normalization,
+                "%s:\n    C_=%" PRId64 "\n    C_PER_G_=%" PRId64
+                "\n    simd_w_=%zu\n    axis_simd_full_=%" PRId64
+                "\n    axis_simd_tail_=%" PRId64
+                "\n    use_scale_=%d\n    use_shift_=%d",
+                jit_name(), C_, C_PER_G_, simd_w_, axis_simd_full_,
+                axis_simd_tail_, use_scale_, use_shift_);
     }
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -188,7 +198,7 @@ struct kernel_t : public jit_uni_group_normalization_fwd_t::kernel_base_t,
     }
 
     void operator()(const void *src, void *dst, const float *scale,
-            const float *shift, float *mean, float *var,
+            const float *shift, const float *mean, const float *var,
             const float *src_scales, const float *dst_scales,
             const void *post_ops_binary_rhs_arg_vec,
             const size_t block_size) const override {
@@ -258,16 +268,9 @@ protected:
         }
         io_[src_d_.data_type()]->load(src_ptr(offt_elems), vmm_dst, tail);
 
-        if (C_PER_G_ == 1) {
-            // Instance normalization
-            io_[f32]->load(mean_ptr(offt_elems), vmm_mean, tail);
-            io_[f32]->load(var_ptr(offt_elems), vmm_inv_sqrtvar, tail);
-        } else {
-            // Group normalization
-            size_t stat_offt = offt_elems / C_PER_G_;
-            io_[f32]->broadcast(mean_ptr(stat_offt), vmm_mean);
-            io_[f32]->broadcast(var_ptr(stat_offt), vmm_inv_sqrtvar);
-        }
+        // Broadcasting a single mean and var value per group.
+        io_[f32]->broadcast(mean_ptr(0), vmm_mean);
+        io_[f32]->broadcast(var_ptr(0), vmm_inv_sqrtvar);
 
         // calculate inv_sqrtvar
         uni_vaddps(vmm_inv_sqrtvar, vmm_inv_sqrtvar, vmm_eps);
@@ -390,15 +393,14 @@ struct kernel_stat_t
         : jit_generator(jit_name())
         , src_d_(pd->src_md())
         , compute_var_(compute_var)
-        , C_(pd->src_md()->dims[1])
+        , C_(pd->C())
         , C_PER_G_(C_ / pd->G())
+        , SP_(pd->D() * pd->H() * pd->W())
         , simd_w_(vlen / sizeof(float))
-        , axis_simd_tail_(C_ % simd_w_)
-        , vmm_per_g_(nstl::max(dim_t(1), dim_t(C_PER_G_ / simd_w_)))
-        , unroll_c_(utils::rnd_dn(compute_var_ ? 6 : 12, vmm_per_g_))
+        , axis_simd_tail_(C_PER_G_ % simd_w_)
         , c_block_(unroll_c_ * simd_w_)
-        , nc_blocks_(C_ / c_block_)
-        , c_block_tail_((C_ % c_block_) - axis_simd_tail_)
+        , nc_blocks_(C_PER_G_ / c_block_)
+        , c_block_tail_((C_PER_G_ % c_block_) - axis_simd_tail_)
         , unroll_c_tail_(c_block_tail_ / simd_w_) {
 
         io::io_conf_t io_conf;
@@ -413,8 +415,26 @@ struct kernel_stat_t
         io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, io_isa,
                 {src_d_.data_type(), f32 /* stats */}, io_conf, io_tail_conf,
                 io_bf16_conf);
+
+        io::io_tail_conf_t io_tail_conf_stats(
+                simd_w_, 1, tail_opmask_stats_idx, vmm_tmp.getIdx(), reg_tmp);
+        io_stat_ = io::jit_io_multi_dt_helper_t<Vmm>(
+                this, io_isa, {f32}, io_conf, io_tail_conf_stats);
+
+        VDEBUGINFO(1, primitive, group_normalization,
+                "%s:\n    compute_var_=%d\n    C_=%" PRId64
+                "\n    C_PER_G_=%" PRId64
+                "\n    simd_w_=%zu\n    axis_simd_tail_=%" PRId64
+                "\n    unroll_c_=%" PRId64 "\n    c_block_=%" PRId64
+                "\n    nc_blocks_=%" PRId64 "\n    c_block_tail_=%" PRId64
+                "\n    unroll_c_tail_=%" PRId64,
+                jit_name(), compute_var_, C_, C_PER_G_, simd_w_,
+                axis_simd_tail_, unroll_c_, c_block_, nc_blocks_, c_block_tail_,
+                unroll_c_tail_);
     }
+
     status_t create_kernel() override { return jit_generator::create_kernel(); }
+
     void generate() override {
         preamble();
 
@@ -426,6 +446,24 @@ struct kernel_stat_t
         if (compute_var_) mov(reg_var, ptr[reg_param + PARAM_OFF(var)]);
         mov(reg_src_start, ptr[reg_param + PARAM_OFF(src)]);
 #undef PARAM_OFF
+
+        // Initializing registers for unrolling and further reduction of those
+        // is called with the maximum unroll value of a `compute_stat_block`
+        // function as they operate over vmms, which numeration depends on
+        // unroll value.
+        const size_t max_unroll = nc_blocks_ ? unroll_c_
+                : unroll_c_tail_             ? unroll_c_tail_
+                                             : 1;
+
+        if (!compute_var_) {
+            for (size_t ur = 0; ur < max_unroll; ur++) {
+                uni_vpxor(Vmm_mean(ur), Vmm_mean(ur), Vmm_mean(ur));
+            }
+        } else {
+            for (size_t ur = 0; ur < max_unroll; ur++) {
+                uni_vpxor(Vmm_var(ur), Vmm_var(ur), Vmm_var(ur));
+            }
+        }
 
         if (nc_blocks_) {
             xor_(reg_nc_block, reg_nc_block);
@@ -441,8 +479,6 @@ struct kernel_stat_t
 
                 add(reg_src_start,
                         c_block_ * types::data_type_size(src_d_.data_type()));
-                add_mean(c_block_);
-                if (compute_var_) add(reg_var, c_block_ * sizeof(float));
                 add(reg_nc_block, 1);
 
                 jmp(c_blk_loop);
@@ -454,11 +490,56 @@ struct kernel_stat_t
             compute_stat_block(unroll_c_tail_);
             add(reg_src_start,
                     c_block_tail_ * types::data_type_size(src_d_.data_type()));
-            add_mean(c_block_tail_);
-            if (compute_var_) add(reg_var, c_block_tail_ * sizeof(float));
         }
 
         if (axis_simd_tail_) compute_stat_block(1, true);
+
+        // Reduction on registers for Group normalization as the kernel
+        // processes a single group at a time.
+
+        // Part 1 is reducing over unrolled registers.
+        const Vmm &vmm_stat = !compute_var_ ? vmm_mean : vmm_var;
+
+        Vmm vmm_tmp_max0 = !compute_var_ ? Vmm_mean(0) : Vmm_var(0);
+        Vmm vmm_tmp_max1 = !compute_var_ ? Vmm_mean(1) : Vmm_var(1);
+        Vmm vmm_tmp_max2 = !compute_var_ ? Vmm_mean(2) : Vmm_var(2);
+        Vmm vmm_tmp_max3 = !compute_var_ ? Vmm_mean(3) : Vmm_var(3);
+
+        switch (max_unroll) {
+            case 4: {
+                uni_vaddps(vmm_tmp_max0, vmm_tmp_max0, vmm_tmp_max1);
+                uni_vaddps(vmm_tmp_max2, vmm_tmp_max2, vmm_tmp_max3);
+                uni_vaddps(vmm_stat, vmm_tmp_max0, vmm_tmp_max2);
+            } break;
+            case 3: {
+                uni_vaddps(vmm_tmp_max0, vmm_tmp_max0, vmm_tmp_max1);
+                uni_vaddps(vmm_stat, vmm_tmp_max0, vmm_tmp_max2);
+            } break;
+            case 2: {
+                uni_vaddps(vmm_stat, vmm_tmp_max0, vmm_tmp_max1);
+            } break;
+            case 1: {
+                uni_vmovups(vmm_stat, vmm_tmp_max0);
+            } break;
+            default: break;
+        }
+
+        // Part 2 is to reduce within a single register.
+        reduce_horizontal(vmm_stat, vmm_tmp);
+
+        // Divide a stat by N.
+        // Note: the behavior is aligned with with kernel execution model.
+        //   Check for `SINGLE_KERNEL_HEURISTIC_ANCHOR` for a pairing spot.
+        if (C_PER_G_ >= 32) {
+            mov(reg_tmp, float2int(C_PER_G_ * SP_));
+            uni_vmovq(xmm_tmp, reg_tmp);
+            uni_vbroadcastss(vmm_tmp, xmm_tmp);
+            uni_vdivps(vmm_stat, vmm_stat, vmm_tmp);
+        }
+
+        io_stat_.prepare_tail_mask();
+        const auto &stat_addr = !compute_var_ ? mean_ptr(0) : var_ptr(0);
+        io_stat_[f32]->store(vmm_stat, stat_addr, true);
 
         postamble();
     }
@@ -500,19 +581,44 @@ protected:
         size_t block_size;
     };
 
-    io::jit_io_multi_dt_helper_t<Vmm> io_;
     const memory_desc_wrapper src_d_;
-    bool compute_var_;
+    const bool compute_var_;
     const dim_t C_;
     const dim_t C_PER_G_;
+    const dim_t SP_;
     const size_t simd_w_;
     const dim_t axis_simd_tail_;
-    const dim_t vmm_per_g_;
-    const dim_t unroll_c_;
+    static constexpr dim_t unroll_c_ = 4;
     const dim_t c_block_;
     const dim_t nc_blocks_;
     const dim_t c_block_tail_;
     const dim_t unroll_c_tail_;
+
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
+    // `io_stat_` is to store a single element of mean or var.
+    io::jit_io_multi_dt_helper_t<Vmm> io_stat_;
+
+    void reduce_horizontal(const Vmm &vstat, const Vmm &vtmp) {
+        if (is_superset(isa, avx512_core)) {
+            const Zmm &zstat = Zmm(vstat.getIdx());
+            const Zmm &ztmp = Zmm(vtmp.getIdx());
+
+            vshuff32x4(ztmp, zstat, zstat, 0x4E); // 256-bit shuffle
+            uni_vaddps(vstat, vstat, vtmp);
+            vshuff32x4(ztmp, zstat, zstat, 0xB1); // 128/256-bit shuffle
+            uni_vaddps(vstat, vstat, vtmp);
+        } else if (is_superset(isa, avx2)) {
+            const Ymm &ystat = Ymm(vstat.getIdx());
+            const Ymm &ytmp = Ymm(vtmp.getIdx());
+
+            vperm2f128(ytmp, ystat, ystat, 0x1); // 128/256-bit shuffle
+            uni_vaddps(vstat, vstat, vtmp);
+        }
+        uni_vshufps(vtmp, vstat, vstat, 0x4E); // 64/128-bit shuffle
+        uni_vaddps(vstat, vstat, vtmp);
+        uni_vshufps(vtmp, vstat, vstat, 0xB1); // 32/64-bit shuffle
+        uni_vaddps(vstat, vstat, vtmp);
+    }
 
     void compute_mean_block(size_t unroll, bool tail = false) {
         const size_t c_src_size
@@ -520,9 +626,6 @@ protected:
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
         mov(reg_sp_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
 #undef PARAM_OFF
-        for (size_t ur = 0; ur < unroll; ur++) {
-            uni_vpxor(Vmm_mean(ur), Vmm_mean(ur), Vmm_mean(ur));
-        }
 
         mov(reg_src, reg_src_start);
         // add block_start to block_size to define block_end
@@ -536,19 +639,14 @@ protected:
 
             for (size_t ur = 0; ur < unroll; ur++) {
                 io_[src_d_.data_type()]->load(
-                        src_ptr(ur * simd_w_), vmm_src, tail);
-                uni_vaddps(Vmm_mean(ur), Vmm_mean(ur), vmm_src);
+                        src_ptr(ur * simd_w_), Vmm_src(ur), tail);
+                uni_vaddps(Vmm_mean(ur), Vmm_mean(ur), Vmm_src(ur));
             }
 
             add(reg_src, c_src_size);
             jmp(sp_blk_loop);
         }
         L(sp_blk_loop_end);
-
-        for (size_t ur = 0; ur < unroll; ur++) {
-            io_[data_type::f32]->store(
-                    Vmm_mean(ur), mean_ptr(ur * simd_w_), tail);
-        }
     }
 
     void compute_var_block(size_t unroll, bool tail = false) {
@@ -558,14 +656,7 @@ protected:
         mov(reg_sp_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
 #undef PARAM_OFF
         for (size_t ur = 0; ur < unroll; ur++) {
-            uni_vpxor(Vmm_var(ur), Vmm_var(ur), Vmm_var(ur));
-            if (C_PER_G_ == 1) {
-                io_[data_type::f32]->load(
-                        mean_ptr(ur * simd_w_), Vmm_mean(ur), tail);
-            } else {
-                io_[data_type::f32]->broadcast(
-                        mean_ptr(ur * simd_w_ / C_PER_G_), Vmm_mean(ur));
-            }
+            io_[data_type::f32]->broadcast(mean_ptr(0), Vmm_mean(ur));
         }
 
         mov(reg_src, reg_src_start);
@@ -580,20 +671,38 @@ protected:
 
             for (size_t ur = 0; ur < unroll; ur++) {
                 io_[src_d_.data_type()]->load(
-                        src_ptr(ur * simd_w_), vmm_src, tail);
-                uni_vsubps(vmm_src, vmm_src, Vmm_mean(ur));
-                uni_vfmadd231ps(Vmm_var(ur), vmm_src, vmm_src);
+                        src_ptr(ur * simd_w_), Vmm_src(ur), tail);
+            }
+            for (size_t ur = 0; ur < unroll; ur++) {
+                if (!tail)
+                    uni_vsubps(Vmm_src(ur), Vmm_src(ur), Vmm_mean(ur));
+                else {
+                    // Subtract with mask to keep zeros in spots where there's
+                    // no data. Otherwise, subtracting mean and accumulating
+                    // towards variance will spoil the right answer.
+                    if (is_superset(isa, avx512_core)) {
+                        uni_vsubps(Vmm_src(ur) | tail_opmask, Vmm_src(ur),
+                                Vmm_mean(ur));
+                    } else if (is_superset(isa, avx)) {
+                        // Use a scratch zeroed register to keep stats properly
+                        // computed.
+                        uni_vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
+                        uni_vblendvps(Vmm_mean(ur), vmm_tmp, Vmm_mean(ur),
+                                vmm_tail_mask);
+                        uni_vsubps(Vmm_src(ur), Vmm_src(ur), Vmm_mean(ur));
+                    } else {
+                        assert(!"unsupported isa");
+                    }
+                }
+            }
+            for (size_t ur = 0; ur < unroll; ur++) {
+                uni_vfmadd231ps(Vmm_var(ur), Vmm_src(ur), Vmm_src(ur));
             }
 
             add(reg_src, c_src_size);
             jmp(sp_blk_loop);
         }
         L(sp_blk_loop_end);
-
-        for (size_t ur = 0; ur < unroll; ur++) {
-            io_[data_type::f32]->store(
-                    Vmm_var(ur), var_ptr(ur * simd_w_), tail);
-        }
     }
     void compute_stat_block(size_t unroll, bool tail = false) {
         if (compute_var_)
@@ -601,15 +710,10 @@ protected:
         else
             compute_mean_block(unroll, tail);
     }
-    void add_mean(int c_block) {
-        // If the kernel is configured to compute variance,
-        // mean is already reduced from [MB, C] into [MB, G]
-        if (compute_var_) c_block /= C_PER_G_;
-        add(reg_mean, c_block * sizeof(float));
-    }
 
-    Vmm Vmm_mean(size_t ur = 0) { return Vmm(3 + ur); }
-    Vmm Vmm_var(size_t ur = 0) { return Vmm(9 + ur); }
+    Vmm Vmm_mean(size_t ur = 0) { return Vmm(1 + 0 * unroll_c_ + ur); }
+    Vmm Vmm_var(size_t ur = 0) { return Vmm(1 + 1 * unroll_c_ + ur); }
+    Vmm Vmm_src(size_t ur = 0) { return Vmm(1 + 2 * unroll_c_ + ur); }
 
     Xbyak::Address src_ptr(size_t offt = 0) {
         return vmmword[reg_src + offt * src_d_.data_type_size()];
@@ -633,16 +737,18 @@ protected:
     const Xbyak::Reg64 reg_var = r12;
 
     const Vmm vmm_tail_mask = Vmm(0);
-    const Vmm vmm_zero = Vmm(1);
-    const Vmm vmm_src = Vmm(2);
-    const Vmm vmm_tmp = Vmm(15);
-    const Xbyak::Xmm xmm_tmp = Xbyak::Xmm(15);
+    const Vmm vmm_tmp = Vmm(13);
+    const Xmm xmm_tmp = Xmm(13);
+    const Vmm vmm_var = Vmm(14);
+    const Vmm vmm_mean = Vmm(15);
 
     const int bf16_emu_zmm_1_idx = 28;
     const int bf16_emu_zmm_2_idx = 29;
     const int bf16_emu_zmm_3_idx = 30;
     const int bf16_emu_zmm_4_idx = 31;
     const int tail_opmask_idx = 1;
+    const int tail_opmask_stats_idx = 2;
+    Opmask tail_opmask = Opmask(tail_opmask_idx);
 };
 
 template struct kernel_stat_t<avx2>;
@@ -710,6 +816,15 @@ status_t jit_uni_group_normalization_fwd_t::pd_t::init(engine_t *engine) {
             memory_desc_matches_one_of_tag(*dst_md(), ndhwc, nhwc, nwc, nc),
             VERBOSE_UNSUPPORTED_TAG_S, "dst");
 
+    // Instance Normalization is handled in a different implementation. This
+    // implementation has some turns in the kernel that is done differently
+    // due to processing a group and not having an ability to process full
+    // registers of channels.
+    // It has also some dispatching logic in parallelization to process groups
+    // differently, see the comment in a correspondent section.
+    const size_t C_PER_G = C() / G();
+    VDISPATCH_GNORM(C_PER_G > 1, "Instance norm is not supported");
+
     auto post_ops_ok = [&]() -> bool {
         const std::vector<injector::post_op_type> accepted_post_ops
                 = {injector::eltwise, injector::binary, injector::sum};
@@ -724,19 +839,12 @@ status_t jit_uni_group_normalization_fwd_t::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_POSTOP);
     VDISPATCH_GNORM(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
 
-    const size_t C_PER_G = C() / G();
-    const size_t vlen = isa_max_vlen(get_max_cpu_isa());
-    const size_t simd_w = vlen / types::data_type_size(stat_md()->data_type);
-    VDISPATCH_GNORM(IMPLICATION(C_PER_G != 1, C_PER_G % simd_w == 0),
-            VERBOSE_INCONSISTENT_DIM, "C", (int)C(), "groups",
-            (int)desc()->groups);
-    // C_PER_G should be less than simd_w * unroll_c (which is 6 for var)
-    VDISPATCH_GNORM(C_PER_G / simd_w <= 6, VERBOSE_SHAPE_RESTRICTION);
-
     nthr_ = dnnl_get_max_threads();
     auto scratchpad = scratchpad_registry().registrar();
     if (!stats_is_src()) {
         using namespace memory_tracking::names;
+        // C() is used here for convenience, to let C++ reduce over the group.
+        // TODO: replace with G() instead and make reduction in registers.
         const size_t stats_size = MB() * C();
         const size_t stats_reduction_buf_sz = stats_size * nthr_;
         scratchpad.template book<float>(
@@ -798,82 +906,171 @@ status_t jit_uni_group_normalization_fwd_t::execute_forward(
     const bool calculate_stats = !pd()->stats_is_src();
     const int nthr = pd()->nthr_;
 
-    if (calculate_stats) {
-        auto reduce = [&](float *stat, const float *tmp_stat) {
-            for (dim_t n = 0; n < N; ++n) {
-                const float *loc_stat = tmp_stat + n * nthr * C;
-                for (dim_t g = 0; g < G; ++g)
-                    stat[g] = 0.f;
+    // There are two algorithms to distribute the problem among threads:
+    // * Single-threaded-group - it gives each thread a whole group and runs
+    //   it through all kernels. In this case there are no dependencies and
+    //   no need to sync between threads. Beneficial for a decent number of
+    //   channels in a group and short spatial.
+    //   Note: this algorithm requires a modification in the kernel that would
+    //   divide mean and variance by N. In case the heuristic change, the other
+    //   place must be updated accordingly.
+    //   Check for `SINGLE_KERNEL_HEURISTIC_ANCHOR` for a pairing spot.
+    //
+    // * Multi-threaded-group - it gives a single group to several threads.
+    //   In this case, synchronization is required, to collect proper mean and
+    //   variance values.
+    //   Turned out to be faster as, otherwise, threads would fight for memory
+    //   which overcomes synchronization price.
+    if (C_PER_G >= 32) {
+        parallel(nthr, [&](const int ithr, const int nthr) {
+            dim_t g_start = 0, g_end = 0;
+            balance211(G * N, nthr, ithr, g_start, g_end);
+            if (g_start == g_end) return;
 
-                for (int ithr_sp = 0; ithr_sp < nthr; ++ithr_sp) {
-                    for (dim_t g = 0; g < G; ++g) {
-                        float s = stat[g];
-                        const dim_t c_start = g * C_PER_G;
-                        for (dim_t c = 0; c < C_PER_G; ++c)
-                            s += loc_stat[c_start + c];
-                        stat[g] = s;
-                    }
-                    // Increase loc_stat to reduce the chunk for the next ithr_sp
-                    loc_stat += C;
+            for (dim_t i = g_start; i < g_end; i++) {
+                dim_t stride_n = SP * C_padded;
+                const size_t data_off = (i / G) * stride_n + (i % G) * C_PER_G;
+                const char *__restrict src_ptr = static_cast<const char *>(src)
+                        + data_off * src_d.data_type_size();
+                char *__restrict dst_ptr = static_cast<char *>(dst)
+                        + data_off * dst_d.data_type_size();
+                const float *__restrict scale_ptr = scale + (i % G) * C_PER_G;
+                const float *__restrict shift_ptr = shift + (i % G) * C_PER_G;
+                float *mean_ptr = mean + i;
+                float *var_ptr = variance + i;
+
+                if (calculate_stats) {
+                    (*kernel_mean_)(src_ptr, mean_ptr, SP);
+                    (*kernel_var_)(src_ptr, mean_ptr, var_ptr, SP);
                 }
-
-                for (dim_t g = 0; g < G; ++g)
-                    stat[g] /= C_PER_G * SP;
-                stat += G;
+                (*kernel_)(src_ptr, dst_ptr, scale_ptr, shift_ptr, mean_ptr,
+                        var_ptr, src_scales, dst_scales,
+                        post_ops_binary_rhs_arg_vec.data(), SP);
             }
+        });
+    } else {
+        dim_t nthr_per_g = std::min(static_cast<dim_t>(nthr), G);
+        assert(nthr_per_g <= nthr);
+
+        auto reduce = [&](float *stat, const float *tmp_stat) {
+            for (dim_t g = 0; g < G * N; ++g)
+                stat[g] = 0.f;
+
+            for_(dim_t n = 0; n < N; n++)
+            for_(dim_t ithr = 0; ithr < nthr_per_g; ithr++)
+            for (dim_t g = 0; g < G; g++) {
+                stat[n * G + g] += tmp_stat[n * nthr_per_g * G + ithr * G + g];
+            }
+
+            for (dim_t g = 0; g < G * N; ++g)
+                stat[g] /= C_PER_G * SP;
         };
-        // compute mean
-        parallel(nthr, [&](const int ithr, const int nthr) {
-            dim_t SP_start = 0, SP_end = 0;
-            balance211(SP, nthr, ithr, SP_start, SP_end);
-            const int block_size = SP_end - SP_start;
-            for (int n = 0; n < N; ++n) {
-                float *local_mean = stat_reduction + n * nthr * C + ithr * C;
-                const size_t s_off
-                        = (size_t)n * SP * C_padded + SP_start * C_padded;
-                const char *__restrict local_src
-                        = static_cast<const char *>(src)
-                        + s_off * src_d.data_type_size();
-                (*kernel_mean_)(local_src, local_mean, block_size);
-            }
-        });
-        reduce(mean, stat_reduction);
-        // compute variance
-        parallel(nthr, [&](const int ithr, const int nthr) {
-            dim_t SP_start = 0, SP_end = 0;
-            balance211(SP, nthr, ithr, SP_start, SP_end);
-            const dim_t block_size = SP_end - SP_start;
-            for (dim_t n = 0; n < N; ++n) {
-                float *local_mean = mean + n * G;
-                float *local_var = stat_reduction + n * nthr * C + ithr * C;
-                const size_t s_off
-                        = (size_t)n * SP * C_padded + SP_start * C_padded;
-                const char *__restrict local_src
-                        = static_cast<const char *>(src)
-                        + s_off * src_d.data_type_size();
-                (*kernel_var_)(local_src, local_mean, local_var, block_size);
-            }
-        });
-        reduce(variance, stat_reduction);
-    }
 
-    parallel(nthr, [&](const int ithr, const int nthr) {
-        dim_t SP_start = 0, SP_end = 0;
-        balance211(SP, nthr, ithr, SP_start, SP_end);
-        for (dim_t n = 0; n < N; ++n) {
-            const size_t data_off = n * SP * C_padded + SP_start * C_padded;
-            const char *const __restrict src_ptr
-                    = reinterpret_cast<const char *>(src)
-                    + data_off * src_d.data_type_size();
-            char *const __restrict dst_ptr = reinterpret_cast<char *>(dst)
-                    + data_off * dst_d.data_type_size();
-            const dim_t block_size = SP_end - SP_start;
+        if (calculate_stats) {
+            parallel(nthr, [&](const int ithr, const int nthr) {
+                dim_t chunk_start = 0, chunk_end = 0;
+                balance211(
+                        G * N * nthr_per_g, nthr, ithr, chunk_start, chunk_end);
+                if (chunk_start == chunk_end) return;
 
-            (*kernel_)(src_ptr, dst_ptr, scale, shift, &mean[n * G],
-                    &variance[n * G], src_scales, dst_scales,
-                    post_ops_binary_rhs_arg_vec.data(), block_size);
+                dim_t g_per_n = G * nthr_per_g;
+                dim_t SP_chunk = SP / nthr_per_g;
+
+                for (dim_t i = chunk_start; i < chunk_end; i++) {
+                    dim_t ithr_stride_n = (i / g_per_n) * C_padded * SP;
+                    dim_t ithr_stride_g = (i % G) * C_PER_G;
+                    dim_t ithr_stride_sp
+                            = ((i % g_per_n) / G) * C_padded * SP_chunk;
+                    const size_t data_off = (size_t)ithr_stride_n
+                            + ithr_stride_g + ithr_stride_sp;
+                    const char *__restrict src_ptr
+                            = static_cast<const char *>(src)
+                            + data_off * src_d.data_type_size();
+
+                    float *mean_ptr = stat_reduction + i;
+
+                    dim_t SP_tail_chunk = SP - ((i % g_per_n) / G) * SP_chunk;
+                    dim_t kernel_sp_block_size
+                            = (((i % g_per_n) / G) == nthr_per_g - 1)
+                            ? SP_tail_chunk
+                            : SP_chunk;
+                    (*kernel_mean_)(src_ptr, mean_ptr, kernel_sp_block_size);
+                }
+            });
+            reduce(mean, stat_reduction);
+
+            parallel(nthr, [&](const int ithr, const int nthr) {
+                dim_t chunk_start = 0, chunk_end = 0;
+                balance211(
+                        G * N * nthr_per_g, nthr, ithr, chunk_start, chunk_end);
+                if (chunk_start == chunk_end) return;
+
+                dim_t g_per_n = G * nthr_per_g;
+                dim_t SP_chunk = SP / nthr_per_g;
+
+                for (dim_t i = chunk_start; i < chunk_end; i++) {
+                    dim_t ithr_stride_n = (i / g_per_n) * C_padded * SP;
+                    dim_t ithr_stride_g = (i % G) * C_PER_G;
+                    dim_t ithr_stride_sp
+                            = ((i % g_per_n) / G) * C_padded * SP_chunk;
+                    const size_t data_off = (size_t)ithr_stride_n
+                            + ithr_stride_g + ithr_stride_sp;
+                    const char *__restrict src_ptr
+                            = static_cast<const char *>(src)
+                            + data_off * src_d.data_type_size();
+
+                    float *mean_ptr = mean + (i % G) + (i / g_per_n) * G;
+                    float *var_ptr = stat_reduction + i;
+
+                    dim_t SP_tail_chunk = SP - ((i % g_per_n) / G) * SP_chunk;
+                    dim_t kernel_sp_block_size
+                            = (((i % g_per_n) / G) == nthr_per_g - 1)
+                            ? SP_tail_chunk
+                            : SP_chunk;
+                    (*kernel_var_)(
+                            src_ptr, mean_ptr, var_ptr, kernel_sp_block_size);
+                }
+            });
+            reduce(variance, stat_reduction);
         }
-    });
+
+        parallel(nthr, [&](const int ithr, const int nthr) {
+            dim_t chunk_start = 0, chunk_end = 0;
+            balance211(G * N * nthr_per_g, nthr, ithr, chunk_start, chunk_end);
+            if (chunk_start == chunk_end) return;
+
+            dim_t g_per_n = G * nthr_per_g;
+            dim_t SP_chunk = SP / nthr_per_g;
+
+            for (dim_t i = chunk_start; i < chunk_end; i++) {
+                dim_t ithr_stride_n = (i / g_per_n) * C_padded * SP;
+                dim_t ithr_stride_g = (i % G) * C_PER_G;
+                dim_t ithr_stride_sp
+                        = ((i % g_per_n) / G) * C_padded * SP_chunk;
+                const size_t data_off = (size_t)ithr_stride_n + ithr_stride_g
+                        + ithr_stride_sp;
+                const char *__restrict src_ptr = static_cast<const char *>(src)
+                        + data_off * src_d.data_type_size();
+                char *__restrict dst_ptr = static_cast<char *>(dst)
+                        + data_off * dst_d.data_type_size();
+                const float *__restrict scale_ptr = scale + (i % G) * C_PER_G;
+                const float *__restrict shift_ptr = shift + (i % G) * C_PER_G;
+
+                float *mean_ptr = mean + (i % G) + (i / g_per_n) * G;
+                float *var_ptr = variance + (i % G) + (i / g_per_n) * G;
+
+                dim_t SP_tail_chunk = SP - ((i % g_per_n) / G) * SP_chunk;
+                dim_t kernel_sp_block_size
+                        = (((i % g_per_n) / G) == nthr_per_g - 1)
+                        ? SP_tail_chunk
+                        : SP_chunk;
+                (*kernel_)(src_ptr, dst_ptr, scale_ptr, shift_ptr, mean_ptr,
+                        var_ptr, src_scales, dst_scales,
+                        post_ops_binary_rhs_arg_vec.data(),
+                        kernel_sp_block_size);
+            }
+        });
+    }
 
     return status::success;
 }

@@ -68,8 +68,7 @@ struct kernel_t : public jit_uni_instance_normalization_fwd_t::kernel_base_t,
         , jit_generator(jit_name(), isa)
         , src_d_(pd->src_md())
         , dst_d_(pd->dst_md())
-        , C_(pd->src_md()->dims[1])
-        , C_PER_G_(pd->C() / pd->G())
+        , C_(pd->C())
         , simd_w_(vlen / sizeof(float))
         , axis_simd_full_(C_ / simd_w_)
         , axis_simd_tail_(C_ % simd_w_)
@@ -234,7 +233,6 @@ protected:
     io::jit_io_multi_dt_helper_t<Vmm> io_;
     const memory_desc_wrapper src_d_, dst_d_;
     const dim_t C_;
-    const dim_t C_PER_G_;
     const size_t simd_w_;
     const dim_t axis_simd_full_;
     const dim_t axis_simd_tail_;
@@ -259,16 +257,9 @@ protected:
         }
         io_[src_d_.data_type()]->load(src_ptr(offt_elems), vmm_dst, tail);
 
-        if (C_PER_G_ == 1) {
-            // Instance normalization
-            io_[f32]->load(mean_ptr(offt_elems), vmm_mean, tail);
-            io_[f32]->load(var_ptr(offt_elems), vmm_inv_sqrtvar, tail);
-        } else {
-            // Group normalization
-            size_t stat_offt = offt_elems / C_PER_G_;
-            io_[f32]->broadcast(mean_ptr(stat_offt), vmm_mean);
-            io_[f32]->broadcast(var_ptr(stat_offt), vmm_inv_sqrtvar);
-        }
+        // Loading as many stats as vector can hold.
+        io_[f32]->load(mean_ptr(offt_elems), vmm_mean, tail);
+        io_[f32]->load(var_ptr(offt_elems), vmm_inv_sqrtvar, tail);
 
         // calculate inv_sqrtvar
         uni_vaddps(vmm_inv_sqrtvar, vmm_inv_sqrtvar, vmm_eps);
@@ -391,12 +382,10 @@ struct kernel_stat_t
         : jit_generator(jit_name())
         , src_d_(pd->src_md())
         , compute_var_(compute_var)
-        , C_(pd->src_md()->dims[1])
-        , C_PER_G_(C_ / pd->G())
+        , C_(pd->C())
         , simd_w_(vlen / sizeof(float))
         , axis_simd_tail_(C_ % simd_w_)
-        , vmm_per_g_(nstl::max(dim_t(1), dim_t(C_PER_G_ / simd_w_)))
-        , unroll_c_(utils::rnd_dn(compute_var_ ? 6 : 12, vmm_per_g_))
+        , unroll_c_(compute_var_ ? 6 : 12)
         , c_block_(unroll_c_ * simd_w_)
         , nc_blocks_(C_ / c_block_)
         , c_block_tail_((C_ % c_block_) - axis_simd_tail_)
@@ -505,10 +494,8 @@ protected:
     const memory_desc_wrapper src_d_;
     bool compute_var_;
     const dim_t C_;
-    const dim_t C_PER_G_;
     const size_t simd_w_;
     const dim_t axis_simd_tail_;
-    const dim_t vmm_per_g_;
     const dim_t unroll_c_;
     const dim_t c_block_;
     const dim_t nc_blocks_;
@@ -560,13 +547,8 @@ protected:
 #undef PARAM_OFF
         for (size_t ur = 0; ur < unroll; ur++) {
             uni_vpxor(Vmm_var(ur), Vmm_var(ur), Vmm_var(ur));
-            if (C_PER_G_ == 1) {
-                io_[data_type::f32]->load(
-                        mean_ptr(ur * simd_w_), Vmm_mean(ur), tail);
-            } else {
-                io_[data_type::f32]->broadcast(
-                        mean_ptr(ur * simd_w_ / C_PER_G_), Vmm_mean(ur));
-            }
+            io_[data_type::f32]->load(
+                    mean_ptr(ur * simd_w_), Vmm_mean(ur), tail);
         }
 
         mov(reg_src, reg_src_start);
@@ -602,12 +584,7 @@ protected:
         else
             compute_mean_block(unroll, tail);
     }
-    void add_mean(int c_block) {
-        // If the kernel is configured to compute variance,
-        // mean is already reduced from [MB, C] into [MB, G]
-        if (compute_var_) c_block /= C_PER_G_;
-        add(reg_mean, c_block * sizeof(float));
-    }
+    void add_mean(int c_block) { add(reg_mean, c_block * sizeof(float)); }
 
     Vmm Vmm_mean(size_t ur = 0) { return Vmm(3 + ur); }
     Vmm Vmm_var(size_t ur = 0) { return Vmm(9 + ur); }
@@ -725,14 +702,9 @@ status_t jit_uni_instance_normalization_fwd_t::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_POSTOP);
     VDISPATCH_GNORM(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
 
+    // Group Normalization is handled in a different implementation.
     const size_t C_PER_G = C() / G();
-    const size_t vlen = isa_max_vlen(get_max_cpu_isa());
-    const size_t simd_w = vlen / types::data_type_size(stat_md()->data_type);
-    VDISPATCH_GNORM(IMPLICATION(C_PER_G != 1, C_PER_G % simd_w == 0),
-            VERBOSE_INCONSISTENT_DIM, "C", (int)C(), "groups",
-            (int)desc()->groups);
-    // C_PER_G should be less than simd_w * unroll_c (which is 6 for var)
-    VDISPATCH_GNORM(C_PER_G / simd_w <= 6, VERBOSE_SHAPE_RESTRICTION);
+    VDISPATCH_GNORM(C_PER_G == 1, "Group norm is not supported");
 
     nthr_ = dnnl_get_max_threads();
     auto scratchpad = scratchpad_registry().registrar();
@@ -793,7 +765,6 @@ status_t jit_uni_instance_normalization_fwd_t::execute_forward(
     const dim_t H = pd()->H();
     const dim_t W = pd()->W();
     const dim_t G = pd()->G();
-    const dim_t C_PER_G = C / G;
     const dim_t SP = D * H * W;
 
     const bool calculate_stats = !pd()->stats_is_src();
@@ -809,9 +780,7 @@ status_t jit_uni_instance_normalization_fwd_t::execute_forward(
                 for (int ithr_sp = 0; ithr_sp < nthr; ++ithr_sp) {
                     for (dim_t g = 0; g < G; ++g) {
                         float s = stat[g];
-                        const dim_t c_start = g * C_PER_G;
-                        for (dim_t c = 0; c < C_PER_G; ++c)
-                            s += loc_stat[c_start + c];
+                        s += loc_stat[g];
                         stat[g] = s;
                     }
                     // Increase loc_stat to reduce the chunk for the next ithr_sp
@@ -819,7 +788,7 @@ status_t jit_uni_instance_normalization_fwd_t::execute_forward(
                 }
 
                 for (dim_t g = 0; g < G; ++g)
-                    stat[g] /= C_PER_G * SP;
+                    stat[g] /= SP;
                 stat += G;
             }
         };

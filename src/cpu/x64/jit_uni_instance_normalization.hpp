@@ -35,7 +35,8 @@ struct jit_uni_instance_normalization_fwd_t : public primitive_t {
         using cpu_group_normalization_fwd_pd_t::
                 cpu_group_normalization_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("jit:uni", jit_uni_instance_normalization_fwd_t);
+        DECLARE_COMMON_PD_T(
+                "jit_instance:uni", jit_uni_instance_normalization_fwd_t);
 
         status_t init(engine_t *engine);
 

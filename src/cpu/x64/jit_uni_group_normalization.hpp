@@ -35,7 +35,7 @@ struct jit_uni_group_normalization_fwd_t : public primitive_t {
         using cpu_group_normalization_fwd_pd_t::
                 cpu_group_normalization_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("jit:uni", jit_uni_group_normalization_fwd_t);
+        DECLARE_COMMON_PD_T("jit_group:uni", jit_uni_group_normalization_fwd_t);
 
         status_t init(engine_t *engine);
 
@@ -59,7 +59,7 @@ struct jit_uni_group_normalization_fwd_t : public primitive_t {
 
     struct kernel_base_t {
         virtual void operator()(const void *src, void *dst, const float *scale,
-                const float *shift, float *mean, float *var,
+                const float *shift, const float *mean, const float *var,
                 const float *src_scales, const float *dst_scales,
                 const void *post_ops_binary_rhs_arg_vec,
                 const size_t block_size) const = 0;
