@@ -878,16 +878,21 @@ bool zero_points_ok(const conv_problem_t &prb) {
     using namespace data_type;
     const auto input_type = (prb.is_fwd) ? pd->invariant_src_md()->data_type
                                          : pd->invariant_dst_md()->data_type;
-    int mask_src = 0, mask_dst = 0;
+    int mask_wei = 0, mask_src = 0, mask_dst = 0;
+    if (attr->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei) != status::success)
+        return false;
     if (attr->zero_points_.get(DNNL_ARG_SRC, &mask_src) != status::success)
         return false;
     if (attr->zero_points_.get(DNNL_ARG_DST, &mask_dst) != status::success)
         return false;
 
+    if (prb.with_groups
+            && !attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS))
+        return false;
+
     return IMPLICATION(!utils::one_of(input_type, s8, u8),
                    attr->zero_points_.has_default_values())
-            && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-            && (mask_src == 0 || mask_src == 1 << 1)
+            && (mask_wei == 0) && (mask_src == 0 || mask_src == 1 << 1)
             && (mask_dst == 0 || mask_dst == 1 << 1);
 }
 

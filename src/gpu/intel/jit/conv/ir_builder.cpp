@@ -377,32 +377,52 @@ private:
 
     void build_zp_init(int subtile_idx, stmt_t &mul_stmt) {
         auto &zp = plan_.zp;
-        if (!zp) return;
 
-        auto zp_mem_buf = kernel_info_.find_arg("src_zero_points");
-        auto zp_buf = buf_mgr_.get("src_zp", zp.load_reg_buf_size());
-        auto wei_buf = buf_mgr_.get("b");
-        auto zp_mask_buf = buf_mgr_.get("zp_mask", zp.mask_reg_buf_size());
-        auto zp_comp_buf = buf_mgr_.get("zp_comp", zp.comp_reg_buf_size());
-        auto load = zp.load_create_stmt(zp_mem_buf, zp_buf, subtile_idx);
-        auto zp_mask_init = zp.mask_init_create_stmt(zp_mask_buf, subtile_idx);
-        auto zp_comp_init = zp.comp_init_create_stmt(
-                buf_mgr_, zp_buf, wei_buf, zp_comp_buf, subtile_idx);
-        mul_stmt = mul_stmt.append(load);
-        mul_stmt = mul_stmt.append(zp_mask_init);
-        mul_stmt = mul_stmt.append(zp_comp_init);
+        if (zp.has_zp_wei()) {
+            auto zp_mem_buf = kernel_info_.find_arg("wei_zero_points");
+            auto zp_buf = buf_mgr_.get("zp_wei", zp.wei_load_reg_buf_size());
+            auto zp_wei_buf = buf_mgr_.get("zp_wei_buf", zp.wei_reg_buf_size());
+            auto load
+                    = zp.wei_load_create_stmt(zp_mem_buf, zp_buf, subtile_idx);
+            auto zp_wei_init = zp.wei_init_create_stmt(
+                    zp_buf, zp_wei_buf, plan_.gemm_schedule, subtile_idx);
+            mul_stmt = mul_stmt.append(load);
+            mul_stmt = mul_stmt.append(zp_wei_init);
+        }
+        if (zp.has_zp_src()) {
+            auto zp_wei = (zp.has_zp_wei()) ? buf_mgr_.get("zp_wei") : expr_t();
+            auto zp_mem_buf = kernel_info_.find_arg("src_zero_points");
+            auto zp_buf = buf_mgr_.get("zp_src", zp.load_reg_buf_size());
+            auto wei_buf = buf_mgr_.get("b");
+            auto zp_mask_buf = buf_mgr_.get("zp_mask", zp.mask_reg_buf_size());
+            auto zp_comp_buf = buf_mgr_.get("zp_comp", zp.comp_reg_buf_size());
+            auto load = zp.load_create_stmt(zp_mem_buf, zp_buf, subtile_idx);
+            auto zp_mask_init
+                    = zp.mask_init_create_stmt(zp_mask_buf, subtile_idx);
+            auto zp_comp_init = zp.comp_init_create_stmt(buf_mgr_, zp_buf,
+                    wei_buf, zp_comp_buf, zp_wei, plan_.gemm_schedule,
+                    subtile_idx);
+            mul_stmt = mul_stmt.append(load);
+            mul_stmt = mul_stmt.append(zp_mask_init);
+            mul_stmt = mul_stmt.append(zp_comp_init);
+        }
     }
 
     void build_zp_apply(int subtile_idx, stmt_t &mul_stmt) {
         auto &zp = plan_.zp;
-        if (!zp) return;
 
-        auto c_buf = buf_mgr_.get("c");
-        auto zp_comp_buf = buf_mgr_.get("zp_comp");
-        auto zp_mask_buf = buf_mgr_.get("zp_mask");
-        auto zp_comp_apply = zp.comp_apply_create_stmt(
-                zp_comp_buf, zp_mask_buf, c_buf, subtile_idx);
-        mul_stmt = mul_stmt.append(zp_comp_apply);
+        if (zp.has_zp_src()) {
+            auto c_buf = buf_mgr_.get("c");
+            auto zp_comp_buf = buf_mgr_.get("zp_comp");
+            auto zp_mask_buf = buf_mgr_.get("zp_mask");
+            auto zp_comp_apply = zp.comp_apply_create_stmt(
+                    zp_comp_buf, zp_mask_buf, c_buf, subtile_idx);
+            mul_stmt = mul_stmt.append(zp_comp_apply);
+        }
+        if (zp.has_zp_wei()) {
+            mul_stmt = mul_stmt.append(plan_.fma.create_stmt(
+                    ir_ctx_, buf_mgr_, "a", "zp_wei_buf", "c", subtile_idx));
+        }
     }
 
     void build_x2r_x(const std::string &prefix, const expr_t &x_buf,
@@ -436,50 +456,8 @@ private:
     }
 
     void build_mul(int subtile_idx, stmt_t &mul_stmt) {
-        auto &fma = plan_.fma;
-        auto &a_layout = fma.a_layout;
-        auto &b_layout = fma.b_layout;
-        auto &c_layout = fma.c_layout;
-        int c_buf_size = utils::rnd_up(c_layout.size(), ir_ctx_.grf_size());
-        auto a_buf = buf_mgr_.get("a");
-        auto b_buf = buf_mgr_.get("b");
-        auto c_buf = buf_mgr_.get("c", c_buf_size);
-        int b0 = fma.bmnk_start_idx(bmnk_kind_t::b, subtile_idx);
-        int b1 = fma.bmnk_stop_idx(bmnk_kind_t::b, subtile_idx);
-        int m0 = fma.bmnk_start_idx(bmnk_kind_t::m, subtile_idx);
-        int m1 = fma.bmnk_stop_idx(bmnk_kind_t::m, subtile_idx);
-        int n0 = fma.bmnk_start_idx(bmnk_kind_t::n, subtile_idx);
-        int n1 = fma.bmnk_stop_idx(bmnk_kind_t::n, subtile_idx);
-        int k0 = fma.bmnk_start_idx(bmnk_kind_t::k, subtile_idx);
-        int k1 = fma.bmnk_stop_idx(bmnk_kind_t::k, subtile_idx);
-
-        std::vector<int> a_idx(3);
-        std::vector<int> b_idx(3);
-        std::vector<int> c_idx(3);
-
-        auto fma_funcs = create_fma_funcs(fma);
-
-        stmt_t stmt;
-        for (int b = b0; b < b1; b += fma.b_blk) {
-            a_idx[0] = b_idx[0] = c_idx[0] = b;
-            for (int k = k0; k < k1; k += fma.k_blk) {
-                a_idx[2] = b_idx[1] = k;
-                for (int n = n0; n < n1; n += fma.n_blk) {
-                    b_idx[2] = c_idx[2] = n;
-                    for (int m = m0; m < m1; m += fma.m_blk) {
-                        a_idx[1] = c_idx[1] = m;
-                        int a_off = a_layout.offset_in_bytes(a_idx);
-                        int b_off = b_layout.offset_in_bytes(b_idx);
-                        int c_off = c_layout.offset_in_bytes(c_idx);
-                        a_off = a_off % fma.a_buf_size();
-                        b_off = b_off % fma.b_buf_size();
-                        stmt = stmt.append(create_fma_block(fma_funcs,
-                                a_buf[a_off], b_buf[b_off], c_buf[c_off]));
-                    }
-                }
-            }
-        }
-        mul_stmt = mul_stmt.append(stmt);
+        mul_stmt = mul_stmt.append(plan_.fma.create_stmt(
+                ir_ctx_, buf_mgr_, "a", "b", "c", subtile_idx));
     }
 
     void build_c_store() {
@@ -551,63 +529,6 @@ private:
                 send_address_t::a64);
         auto cond = get_x_reduce_store_condition();
         x_reduce_store_stmt_ = if_t::make(cond, r2g.stmt());
-    }
-
-    std::vector<func_t> create_fma_funcs(const fma_plan_t &fma) const {
-        auto &a = fma.a_layout;
-        auto &b = fma.b_layout;
-        auto &c = fma.c_layout;
-        std::vector<func_t> ret;
-        switch (fma.fma_kind) {
-            case fma_kind_t::mad: {
-                int simd = fma.max_bmn_blk();
-                int a_stride = fma.is_a_broadcast() ? 0 : (int)a.inner_stride();
-                int b_stride = fma.is_b_broadcast() ? 0 : (int)b.inner_stride();
-                auto mad = mad_t::make(ir_ctx_.hw(), c.type(), simd, a.type(),
-                        a_stride, b.type(), b_stride);
-                ret.push_back(mad);
-                break;
-            }
-            case fma_kind_t::dp4a:
-            case fma_kind_t::dpas:
-            case fma_kind_t::dpasw: {
-                const int max_rcount = 8;
-                int block_rcount = fma.m_blk;
-                int simd = fma.n_blk;
-                int sdepth
-                        = ir_utils::safe_divide(fma.k_blk * a.type().size(), 4);
-                for (int r = 0; r < block_rcount;) {
-                    int rcount = std::min(max_rcount, block_rcount - r);
-                    auto dpas = dpas_t::make(/*is_dpasw=*/false, simd, sdepth,
-                            rcount, c.type(), b.type(), a.type());
-                    ret.push_back(dpas);
-                    r += rcount;
-                }
-                break;
-            }
-            default: ir_error_not_expected();
-        }
-        return ret;
-    }
-
-    stmt_t create_fma_block(const std::vector<func_t> &fmas, const expr_t &a,
-            const expr_t &b, const expr_t &c) const {
-        bool is_dpas = fmas[0].is<dpas_t>();
-        auto src1 = a;
-        auto src2 = b;
-        auto dst = c;
-        if (is_dpas) std::swap(src1, src2);
-        if (!is_dpas) ir_assert(fmas.size() == 1);
-        stmt_t ret;
-        for (auto &f : fmas) {
-            ret = ret.append(f.call({dst, dst, src1, src2}));
-            auto *dpas = f.as_ptr<dpas_t>();
-            if (is_dpas) {
-                src2 += dpas->src2_size();
-                dst += dpas->dst_size();
-            }
-        }
-        return ret;
     }
 
     const conv_config_t &cfg_;
