@@ -202,10 +202,6 @@ struct Entry {
 };
 
 struct Catalog {
-    static constexpr int currentVersion() { return 1; }
-
-    int version             DEFAULT(currentVersion());
-    uint64_t revision       DEFAULT(0);
     int entryCount          DEFAULT(0);
 
     const Entry *entries;
@@ -213,16 +209,24 @@ struct Catalog {
 
 template <size_t n>
 struct FlatCatalog {
-    int version;
-    uint64_t revision;
-    int entryCount;
+    FlatCatalog(Entry (&&a)[n]) {
+        for(size_t i = 0; i < n; i++) {
+            entries[i] = std::move(a[i]);
+        }
+    }
+
     Entry entries[n];
 
     /* implicit */ operator Catalog() const {
-        Catalog catalog = {version, revision, entryCount, &entries[0]};
+        Catalog catalog = {n, &entries[0]};
         return catalog;
     }
 };
+
+template <std::size_t n>
+constexpr FlatCatalog<n> toFlatCatalog(Entry (&&a)[n]) {
+    return FlatCatalog<n>(std::move(a));
+}
 
 } /* namespace kcatalog */
 
