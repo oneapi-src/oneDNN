@@ -656,6 +656,7 @@ int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
         bool do_unroll);
 tensor_config_t get_tensor_config(
         const conv_config_t &cfg, const memory_desc_t *zp_src);
+bool is_small(const type_t &type, int elems);
 int estimate_register_count(const conv_config_t &cfg);
 int default_regs(const conv_config_t &cfg);
 void init_kernel_grid(conv_config_t &cfg);

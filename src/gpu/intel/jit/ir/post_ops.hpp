@@ -38,39 +38,54 @@ namespace jit {
 struct zero_points_config_t {
 public:
     bool do_src_compensation = false;
+    bool do_wei_compensation = false;
     bool do_dst_compensation = false;
     bool is_runtime_src_zero_points = false;
+    bool is_runtime_wei_zero_points = false;
     bool is_runtime_dst_zero_points = false;
     bool is_common_src_zero_point = false;
+    bool is_common_wei_zero_point = false;
     bool is_common_dst_zero_point = false;
     bool needs_src_precalc = false;
     int common_src_zero_point = 0;
+    int common_wei_zero_point = 0;
     int common_dst_zero_point = 0;
 
     zero_points_config_t(const primitive_desc_t *pd = nullptr)
         : do_src_compensation(pd
                 && !pd->attr()->zero_points_.has_default_values(DNNL_ARG_SRC))
+        , do_wei_compensation(pd
+                  && !pd->attr()->zero_points_.has_default_values(
+                          DNNL_ARG_WEIGHTS))
         , do_dst_compensation(pd
                   && !pd->attr()->zero_points_.has_default_values(DNNL_ARG_DST))
         , is_runtime_src_zero_points(
                   pd && !pd->attr()->zero_points_.defined(DNNL_ARG_SRC))
+        , is_runtime_wei_zero_points(
+                  pd && !pd->attr()->zero_points_.defined(DNNL_ARG_WEIGHTS))
         , is_runtime_dst_zero_points(
                   pd && !pd->attr()->zero_points_.defined(DNNL_ARG_DST))
         , is_common_src_zero_point(
                   pd && pd->attr()->zero_points_.common(DNNL_ARG_SRC))
+        , is_common_wei_zero_point(
+                  pd && pd->attr()->zero_points_.common(DNNL_ARG_WEIGHTS))
         , is_common_dst_zero_point(
                   pd && pd->attr()->zero_points_.common(DNNL_ARG_DST))
         , needs_src_precalc(
                   pd && do_src_compensation && is_src_precalc_compatible(pd))
         , common_src_zero_point(0)
+        , common_wei_zero_point(0)
         , common_dst_zero_point(0) {}
 
     bool with_zero_points() const {
         if (do_src_compensation) return true;
+        if (do_wei_compensation) return true;
         if (do_dst_compensation) return true;
         if (is_runtime_src_zero_points) return true;
+        if (is_runtime_wei_zero_points) return true;
         if (is_runtime_dst_zero_points) return true;
         if (is_common_src_zero_point && common_src_zero_point != 0) return true;
+        if (is_common_wei_zero_point && common_wei_zero_point != 0) return true;
         if (is_common_dst_zero_point && common_dst_zero_point != 0) return true;
         return false;
     }
@@ -83,7 +98,9 @@ private:
         // time than the in-situ compensations; that usually happens around
         // MB = 64, but the exact number is just a heuristic.
         // TODO: a finer-grained estimate
-        return pd->invariant_src_md()->dims[0] >= 64;
+        return (pd->invariant_src_md()->dims[0] >= 64)
+                && pd->attr()->zero_points_.has_default_values(
+                        DNNL_ARG_WEIGHTS);
     }
 };
 

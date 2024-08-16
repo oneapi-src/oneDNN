@@ -317,7 +317,8 @@ bool conv_post_op_view_mapper_t::is_spurious_spatial(int dim_idx) const {
 }
 
 bool conv_post_op_view_mapper_t::need_to_restore_zero_padding() const {
-    return prb_.with_bias;
+    auto &zp = prb_.conv_pd->attr()->zero_points_;
+    return prb_.with_bias || !zp.has_default_values(DNNL_ARG_WEIGHTS);
 }
 
 bool conv_post_op_view_mapper_t::use_dst_in_sum_post_op() const {

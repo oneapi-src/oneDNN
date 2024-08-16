@@ -38,22 +38,32 @@ struct zp_plan_t : public base_plan_t {
     zp_plan_t(const hw_t &hw);
     ~zp_plan_t();
     void init(const conv_config_t &cfg, const gemm_schedule_t &gemm_schedule,
-            const view_t &zp_view, const layout_t &src_layout,
-            const layout_t &wei_layout, const layout_t &dst_layout);
+            const view_t &zp_src_view, const view_t &zp_view,
+            const layout_t &src_layout, const layout_t &wei_layout,
+            const layout_t &dst_layout);
 
     explicit operator bool() const;
+    bool has_zp_src() const;
+    bool has_zp_wei() const;
     bool needs_precalc() const;
     int load_reg_buf_size() const;
     int mask_reg_buf_size() const;
     int comp_reg_buf_size() const;
+    int wei_load_reg_buf_size() const;
+    int wei_reg_buf_size() const;
     stmt_t load_create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
             int subtile_idx) const;
     stmt_t comp_init_create_stmt(buffer_manager_t &buf_mgr,
             const expr_t &zp_buf, const expr_t &wei_buf, const expr_t &comp_buf,
+            const expr_t &src_buf, const gemm_schedule_t &gemm_schedule,
             int subtile_idx) const;
     stmt_t mask_init_create_stmt(const expr_t &mask_buf, int subtile_idx) const;
     stmt_t comp_apply_create_stmt(const expr_t &comp_buf,
             const expr_t &mask_buf, const expr_t &c_buf, int subtile_idx) const;
+    stmt_t wei_load_create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
+            int subtile_idx) const;
+    stmt_t wei_init_create_stmt(const expr_t &wei_buf, const expr_t &dpas_buf,
+            const gemm_schedule_t &gemm_schedule, int subtile_idx) const;
     bool can_split(abc_kind_t abc, int factor) const;
     void set_split(abc_kind_t abc, int factor);
     int estimate_regs() const;
