@@ -56,13 +56,12 @@ struct hw_desc_t {
 
 // Represents specialization requirements for problem dimensions. A call to
 // desc.specialize(problem_t) is required to finish generation.
-enum class spec_strategy_t { none, max, one_d, two_d };
+enum class spec_strategy_t { none, max, min_dims };
 
 static auto spec_strategy_names = nstl::to_array({
         make_enum_name(spec_strategy_t::none, "none"),
         make_enum_name(spec_strategy_t::max, "max"),
-        make_enum_name(spec_strategy_t::one_d, "1d"),
-        make_enum_name(spec_strategy_t::two_d, "2d"),
+        make_enum_name(spec_strategy_t::min_dims, "min_dims"),
 });
 GPU_DEFINE_PARSE_ENUM(spec_strategy_t, spec_strategy_names)
 
@@ -235,6 +234,7 @@ layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, const std::string &s);
 layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, int conv_ndims, const memory_desc_t &md);
+prb_tile_t min_dims_tile(const problem_t &prb);
 
 struct plan_t;
 
@@ -352,16 +352,10 @@ public:
     }
 
     void specialize(const problem_t &prb) {
-        if (spec_strategy == spec_strategy_t::none) return;
+        if (!has_spec_strategy()) return;
         switch (spec_strategy) {
             case spec_strategy_t::max: reqs.add(prb.shape()); break;
-            case spec_strategy_t::one_d:
-                reqs.add(jit::parse<prb_tile_t>(
-                        "id1ih1od1oh1kd1kh1dd0dh0pd0ph0sd1sh1"));
-                break;
-            case spec_strategy_t::two_d:
-                reqs.add(jit::parse<prb_tile_t>("id1od1kd1dd0pd0sd1"));
-                break;
+            case spec_strategy_t::min_dims: reqs.add(min_dims_tile(prb)); break;
             default: break;
         }
         spec_strategy = spec_strategy_t::none;

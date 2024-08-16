@@ -1049,6 +1049,7 @@ private:
 
 prb_reqs_t plan_t::reqs() const {
     prb_reqs_t ret;
+    ret.add(desc.reqs);
     ret.add(prefetch.reqs());
     ret.add(x2r_fma.reqs());
     ret.add(epilogue.c_store.reqs());

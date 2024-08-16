@@ -254,6 +254,27 @@ layout_tag_t make_conv_layout_tag(
     raw_tag = normalize_conv_tag(tensor_kind, conv_ndims, raw_tag);
     return layout_tag_t(desc, type, raw_tag);
 }
+prb_tile_t min_dims_tile(const problem_t &prb) {
+    prb_tile_t xd;
+    xd[prb_dims::id] = xd[prb_dims::od] = xd[prb_dims::kd] = 1;
+    xd[prb_dims::dd] = xd[prb_dims::pd] = 0;
+    xd[prb_dims::sd] = 1;
+    prb_tile_t xhd = xd;
+    xhd[prb_dims::ih] = xhd[prb_dims::oh] = xhd[prb_dims::kh] = 1;
+    xhd[prb_dims::dh] = xhd[prb_dims::ph] = 0;
+    xhd[prb_dims::sh] = 1;
+    for (auto *t : {&xhd, &xd}) {
+        bool ok = true;
+        for (auto &d : *t) {
+            if (prb.shape().at(d) != (*t).at(d)) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok) return *t;
+    }
+    return prb_tile_t();
+}
 
 int estimate_grf_usage_bytes(const kernel_desc_t &desc) {
     int a_type_size = desc.a_type().size();
@@ -359,7 +380,7 @@ void kernel_desc_t::set_defaults() {
 
 void kernel_desc_t::finalize(const plan_t &plan) {
     is_finalized = true;
-    reqs = plan.reqs();
+    reqs.add(plan.reqs());
 }
 
 std::string kernel_desc_t::cmd_str() const {
