@@ -1106,6 +1106,14 @@ void jit_io_multi_dt_helper_t<Vmm>::init_bf16() {
 }
 
 template <typename Vmm>
+void jit_io_multi_dt_helper_t<Vmm>::prepare_table_fp8() {
+    const auto f8_e5m2_io_helper = at(data_type::f8_e5m2);
+    if (f8_e5m2_io_helper) f8_e5m2_io_helper->prepare_table_fp8();
+    const auto f8_e4m3_io_helper = at(data_type::f8_e4m3);
+    if (f8_e4m3_io_helper) f8_e4m3_io_helper->prepare_table_fp8();
+}
+
+template <typename Vmm>
 jit_io_multi_dt_helper_t<Vmm>::~jit_io_multi_dt_helper_t() = default;
 
 template class jit_io_helper_t<Xbyak::Zmm>;

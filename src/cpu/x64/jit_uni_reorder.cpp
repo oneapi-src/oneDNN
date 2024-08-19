@@ -1859,11 +1859,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             if (f8_e5m2_emu_) f8_e5m2_emu_->prepare_table();
             if (f8_e4m3_emu_) f8_e4m3_emu_->prepare_table();
             if (is_superset(isa_, avx512_core_amx)) {
-                if (is_fp8_itype && zmm_io_.at(prb_.itype) != nullptr)
-                    zmm_io_[prb_.itype]->prepare_table_fp8();
-                if (is_fp8_otype && prb_.itype != prb_.otype
-                        && zmm_io_.at(prb_.otype) != nullptr)
-                    zmm_io_[prb_.otype]->prepare_table_fp8();
+                zmm_io_.prepare_table_fp8();
             }
         }
     }
