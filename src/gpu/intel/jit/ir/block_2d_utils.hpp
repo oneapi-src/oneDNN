@@ -32,7 +32,8 @@ inline int block_2d_base_alignment(const hw_t &hw) {
         case ngen::HW::XeHPC:
             // XXX: A steppings require 128 byte alignment due to a HW bug.
             return (hw.stepping_id() <= 6) ? 128 : 64;
-        case ngen::HW::Xe2: return 64;
+        case ngen::HW::Xe2:
+        case ngen::HW::Xe3: return 64;
         default: ir_error_not_expected();
     }
     return 0;
@@ -59,6 +60,7 @@ inline int block_2d_pitch_alignment(const hw_t &hw) {
     switch (hw.to_ngen()) {
         case ngen::HW::XeHPC: return 8;
         case ngen::HW::Xe2: return 16;
+        case ngen::HW::Xe3: return 16;
         default: ir_error_not_expected();
     }
     return 0;

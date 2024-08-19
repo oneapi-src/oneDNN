@@ -54,6 +54,7 @@ hw_t to_hw(ngen::HW hw) {
         case ngen::HW::XeHPG: return hw_t::xehpg;
         case ngen::HW::XeHPC: return hw_t::xehpc;
         case ngen::HW::Xe2: return hw_t::xehpc;
+        case ngen::HW::Xe3: return hw_t::xehpc;
         default: ir_error_not_expected() << "Unknown HW: " << to_string(hw);
     }
     return hw_t::undef;
